@@ -90,7 +90,7 @@ import { useClipboardAndDrop } from "@/hooks/useClipboardAndDrop";
 import { useLogoFallback } from "@/hooks/useLogoFallback";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { getRuntimeHost } from "@/lib/runtime";
-import { projectNameFromPath } from "@/lib/workspace";
+import { projectNameFromPath, scopeWithAccessMode } from "@/lib/workspace";
 import type { AgentProfile } from "@/lib/agents/types";
 import type { SendAttachment, SendOptions } from "@/hooks/useNanobotStream";
 import { useVoiceRecorder, type VoiceRecorderErrorKey } from "@/hooks/useVoiceRecorder";
@@ -105,6 +105,7 @@ import type {
   SlashCommand,
   SkillSummary,
   WebUIIngressLimits,
+  WorkspaceAccessMode,
   WorkspaceScopePayload,
   WorkspacesPayload,
 } from "@/lib/types";
@@ -1712,6 +1713,39 @@ export function ThreadComposer({
     workspaceScope,
   ]);
 
+  // Plus-menu command group wiring. ``/model`` rides the same channel as the
+  // ModelPresetBadge so the badge stays in sync; the other slash commands go
+  // through the composer's side-channel send path (same as typing the command).
+  const runComposerCommand = useCallback(
+    (command: string) => {
+      if (command.startsWith("/model ")) {
+        const name = command.slice("/model ".length).trim();
+        if (name && onModelPresetChange) {
+          onModelPresetChange(name);
+          return;
+        }
+      }
+      if (isHero) return;
+      void onSend(command, undefined, { sideChannel: true });
+    },
+    [isHero, onModelPresetChange, onSend],
+  );
+
+  const setAccessModeFromMenu = useCallback(
+    (mode: WorkspaceAccessMode) => {
+      const base = workspaceScope ?? workspaceDefaultScope;
+      if (!base || !onWorkspaceScopeChange) return;
+      if (mode === "full" && workspaceControls?.can_use_full_access === false) return;
+      onWorkspaceScopeChange(scopeWithAccessMode(base, mode));
+    },
+    [
+      onWorkspaceScopeChange,
+      workspaceControls,
+      workspaceDefaultScope,
+      workspaceScope,
+    ],
+  );
+
   const insertMentionCandidate = useCallback(
     (candidate: MentionCandidate, start: number, end: number) => {
       if (candidate.kind === "session") {
@@ -2515,6 +2549,14 @@ export function ThreadComposer({
               mcpPresets={mcpPresets}
               agents={agents}
               canWorkInProject={canWorkInProjectFromMenu}
+              hasSession={!isHero}
+              onRunCommand={runComposerCommand}
+              accessMode={(workspaceScope ?? workspaceDefaultScope)?.access_mode ?? null}
+              canUseFullAccess={workspaceControls?.can_use_full_access !== false}
+              onSetAccessMode={setAccessModeFromMenu}
+              modelPresets={modelPresets}
+              currentModelPreset={modelPreset}
+              goalActive={goalState?.active === true}
               onPickFiles={() => fileInputRef.current?.click()}
               onWorkInProject={() => {
                 void workInProjectFromMenu();
