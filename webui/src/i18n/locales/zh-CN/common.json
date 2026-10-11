@@ -1460,7 +1460,6 @@
     "emptyOutputs": "暂无文件改动",
     "sources": "来源",
     "emptySources": "暂无网页来源",
-    "fileTree": "文件",
     "treeLoading": "正在加载…",
     "treeEmpty": "项目为空",
     "treeEmptyFolder": "空文件夹",
@@ -1515,6 +1514,7 @@
     "terminalExpired": "会话已过期",
     "terminalGone": "该终端已不可用，请新建一个。",
     "terminalCommandRejected": "无法把命令发送到该终端。",
+    "shellUnavailable": "本机未安装该 shell。",
     "browser": "浏览器",
     "browserDesc": "浏览网页",
     "openProjectFirst": "选择项目后使用",
@@ -1536,6 +1536,18 @@
     "browserError_scheme": "只能打开 http/https 地址。",
     "browserError_private": "不允许访问私网或本地网络地址。",
     "browserError_malformed": "这似乎不是有效的网页地址。"
+  },
+  "dock": {
+    "tabFile": "文件",
+    "tabBrowser": "浏览器",
+    "plusAria": "新建标签",
+    "newTerminal": "新建终端",
+    "shellChoices": "选择 shell",
+    "takeoverRunning": "已运行终端",
+    "takeoverAction": "点击接管",
+    "takeoverHint": "回车重绘画面",
+    "closeTab": "关闭标签",
+    "platformDefaultShell": "平台默认 shell"
   },
   "plusMenu": {
     "groupAdd": "添加",

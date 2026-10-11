@@ -1457,6 +1457,7 @@
     "terminalExpired": "工作階段已過期",
     "terminalGone": "該終端機已無法使用，請另開一個。",
     "terminalCommandRejected": "無法將命令傳送至該終端機。",
+    "shellUnavailable": "本機未安裝該 shell。",
     "browser": "瀏覽器",
     "browserDesc": "瀏覽網頁",
     "openProjectFirst": "選取專案後即可使用",
@@ -1478,6 +1479,18 @@
     "browserError_scheme": "只能開啟 http/https 網址。",
     "browserError_private": "不允許存取私網或本地網路網址。",
     "browserError_malformed": "這似乎不是有效的網頁網址。"
+  },
+  "dock": {
+    "tabFile": "檔案",
+    "tabBrowser": "瀏覽器",
+    "plusAria": "新增標籤",
+    "newTerminal": "新終端機",
+    "shellChoices": "選擇 shell",
+    "takeoverRunning": "執行中的終端機",
+    "takeoverAction": "點擊接管",
+    "takeoverHint": "按 Enter 重繪畫面",
+    "closeTab": "關閉標籤",
+    "platformDefaultShell": "平台預設 shell"
   },
   "plusMenu": {
     "groupAdd": "新增",
@@ -1990,7 +2003,6 @@
     "emptyOutputs": "尚無檔案變更",
     "sources": "來源",
     "emptySources": "尚無網頁來源",
-    "fileTree": "檔案",
     "treeLoading": "載入中…",
     "treeEmpty": "專案為空",
     "treeEmptyFolder": "空資料夾",

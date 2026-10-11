@@ -1498,6 +1498,10 @@ export interface TerminalRecord {
   cwd: string;
   sessionKey: string | null;
   lastSeq: number;
+  /** Contract v2: the host attached a real PTY (xterm passthrough mode);
+   * ``false`` keeps the v1 line console. Stays ``false`` until the
+   * ``terminal_started`` reply lands. */
+  pty: boolean;
   /** ``undefined`` while live, ``null`` when expired, a number for real codes. */
   exitCode: number | null | undefined;
   message: string | null;
@@ -1538,6 +1542,7 @@ function createEmptyRecord(id: string, sessionKey: string | null): TerminalRecor
     cwd: "",
     sessionKey,
     lastSeq: 0,
+    pty: false,
     exitCode: undefined,
     message: null,
     lines: [],
@@ -1632,6 +1637,7 @@ export function createTerminalStore(): TerminalStore {
             status: running ? "running" : "failed",
             shell: event.shell || record.shell,
             cwd: event.cwd || record.cwd,
+            pty: event.pty === true,
             message: running ? null : (failToken ?? event.message ?? event.status),
           }));
           break;

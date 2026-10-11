@@ -1457,6 +1457,7 @@
     "terminalExpired": "Sesi kedaluwarsa",
     "terminalGone": "Terminal ini tidak lagi tersedia. Buka yang baru.",
     "terminalCommandRejected": "Perintah tidak dapat dikirim ke terminal ini.",
+    "shellUnavailable": "Shell ini tidak terpasang di host ini.",
     "browser": "Peramban",
     "browserDesc": "Jelajahi web",
     "openProjectFirst": "Tersedia setelah Anda memilih proyek",
@@ -1478,6 +1479,18 @@
     "browserError_scheme": "Hanya alamat http/https yang bisa dibuka di sini.",
     "browserError_private": "Alamat privat atau jaringan lokal tidak diizinkan.",
     "browserError_malformed": "Itu bukan alamat web yang tampak valid."
+  },
+  "dock": {
+    "tabFile": "Berkas",
+    "tabBrowser": "Peramban",
+    "plusAria": "Tab baru",
+    "newTerminal": "Terminal baru",
+    "shellChoices": "Pilih shell",
+    "takeoverRunning": "Terminal berjalan",
+    "takeoverAction": "Ambil alih",
+    "takeoverHint": "Tekan Enter untuk menggambar ulang layar",
+    "closeTab": "Tutup tab",
+    "platformDefaultShell": "Shell default host"
   },
   "plusMenu": {
     "groupAdd": "Tambah",
@@ -1990,7 +2003,6 @@
     "emptyOutputs": "Belum ada berkas yang berubah",
     "sources": "Sumber",
     "emptySources": "Belum ada sumber web",
-    "fileTree": "Berkas",
     "treeLoading": "Memuat…",
     "treeEmpty": "Proyek kosong",
     "treeEmptyFolder": "Folder kosong",

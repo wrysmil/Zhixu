@@ -22,7 +22,12 @@ function openExternally(url: string): void {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-export function BrowserSection() {
+interface BrowserSectionProps {
+  /** dock 内嵌变体：占满宿主容器全高（B1），默认保持 v1 固定高度用法。 */
+  fullHeight?: boolean;
+}
+
+export function BrowserSection({ fullHeight = false }: BrowserSectionProps = {}) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState("");
   const [historyStack, setHistoryStack] = useState<string[]>([]);
@@ -79,7 +84,7 @@ export function BrowserSection() {
     "grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 enabled:hover:bg-muted/60 enabled:hover:text-foreground disabled:opacity-40";
 
   return (
-    <div data-testid="browser-section" className="flex flex-col gap-1.5">
+    <div data-testid="browser-section" className={cn("flex flex-col gap-1.5", fullHeight && "h-full min-h-0")}>
       <form onSubmit={handleSubmit} className="flex items-center gap-1">
         <button
           type="button"
@@ -160,7 +165,10 @@ export function BrowserSection() {
         status === "blocked" ? (
           <div
             role="status"
-            className="flex h-40 flex-col items-center justify-center gap-2 rounded border border-dashed border-border/60 bg-muted/30 px-3 text-center"
+            className={cn(
+              "flex flex-col items-center justify-center gap-2 rounded border border-dashed border-border/60 bg-muted/30 px-3 text-center",
+              fullHeight ? "min-h-0 flex-1" : "h-40",
+            )}
           >
             <p className="text-[12px] text-muted-foreground">
               {t("startPanel.embedBlocked", {
@@ -190,7 +198,8 @@ export function BrowserSection() {
             sandbox="allow-scripts allow-forms allow-popups"
             referrerPolicy="no-referrer"
             className={cn(
-              "h-72 w-full rounded border border-border/50 bg-background",
+              "w-full rounded border border-border/50 bg-background",
+              fullHeight ? "min-h-0 flex-1" : "h-72",
               status === "loading" && "animate-pulse",
             )}
           />

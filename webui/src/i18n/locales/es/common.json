@@ -1457,6 +1457,7 @@
     "terminalExpired": "Sesión caducada",
     "terminalGone": "Esta terminal ya no está disponible. Abre una nueva.",
     "terminalCommandRejected": "No se pudo enviar el comando a esta terminal.",
+    "shellUnavailable": "Este shell no está instalado en el host.",
     "browser": "Navegador",
     "browserDesc": "Navegar por la web",
     "openProjectFirst": "Disponible tras elegir un proyecto",
@@ -1478,6 +1479,18 @@
     "browserError_scheme": "Solo se pueden abrir direcciones http/https aquí.",
     "browserError_private": "Las direcciones privadas o de red local no están permitidas.",
     "browserError_malformed": "Eso no parece una dirección web válida."
+  },
+  "dock": {
+    "tabFile": "Archivos",
+    "tabBrowser": "Navegador",
+    "plusAria": "Nueva pestaña",
+    "newTerminal": "Nueva terminal",
+    "shellChoices": "Elegir shell",
+    "takeoverRunning": "Terminal en ejecución",
+    "takeoverAction": "Tomar el control",
+    "takeoverHint": "Pulsa Enter para redibujar la pantalla",
+    "closeTab": "Cerrar pestaña",
+    "platformDefaultShell": "Shell predeterminado del host"
   },
   "plusMenu": {
     "groupAdd": "Agregar",
@@ -1990,7 +2003,6 @@
     "emptyOutputs": "Aún no hay archivos modificados",
     "sources": "Fuentes",
     "emptySources": "Aún no hay fuentes web",
-    "fileTree": "Archivos",
     "treeLoading": "Cargando…",
     "treeEmpty": "El proyecto está vacío",
     "treeEmptyFolder": "Carpeta vacía",

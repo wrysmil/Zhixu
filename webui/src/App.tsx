@@ -18,15 +18,10 @@ import {
 import { channelUiPresentation } from "@/channel-plugins/registry";
 import { Sidebar } from "@/components/Sidebar";
 import { PROJECTS_SECTION_KEY, type SidebarDeleteItem } from "@/components/ChatList";
-import {
-  HomeStartPanel,
-  resolveStartPanelShortcut,
-  type StartPanelFocus,
-  type StartPanelSection,
-} from "@/components/home/HomeStartPanel";
+import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
+import { resolveDockShortcut } from "@/lib/dock-shortcuts";
 import type { SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
-import { BrowserSection } from "@/components/workbench/BrowserSection";
 import { PaneWorkbench } from "@/components/workbench/PaneWorkbench";
 import { SESSION_WORKBENCH_RAIL_WIDTH } from "@/components/workbench/SessionWorkbench";
 import { WorkbenchTabBar } from "@/components/workbench/WorkbenchTabBar";
@@ -158,12 +153,11 @@ const SettingsView = lazy(async () => {
   return { default: module.SettingsView };
 });
 const CreativeWorkspace = lazy(() => import("./components/creative/CreativeWorkspace"));
-// xterm.js weighs ~340 kB; load the terminal panel only when its card expands.
-const LazyTerminalSection = lazy(() =>
-  import("@/components/workbench/TerminalSection").then((module) => ({
-    default: module.TerminalSection,
-  })),
-);
+// 终端入口已迁移：TerminalSection 由 TerminalSurface + StartDock（Task 7/9）接管。
+const StartDock = lazy(async () => {
+  const module = await import("@/components/dock/StartDock");
+  return { default: module.StartDock };
+});
 const SessionSearchDialog = lazy(async () => {
   const module = await import("@/components/SessionSearchDialog");
   return { default: module.SessionSearchDialog };
@@ -1001,13 +995,6 @@ function Shell({
     useState<boolean>(readSidebarOpen);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sessionSearchOpen, setSessionSearchOpen] = useState(false);
-  const [startPanelFocus, setStartPanelFocus] = useState<StartPanelFocus | null>(null);
-  const openStartPanelSection = useCallback((section: StartPanelSection) => {
-    setStartPanelFocus((current) => ({
-      section,
-      nonce: (current?.nonce ?? 0) + 1,
-    }));
-  }, []);
   const mobileWorkbench = useMediaQuery("(max-width: 767px)");
   const workbenchState = sidebarState.workbench;
   const updateWorkbenchState = useCallback((
@@ -1930,15 +1917,14 @@ function Shell({
         onNewChat();
         return;
       }
-      const startPanelSection = resolveStartPanelShortcut(
-        event,
-        // The Start panel only mounts on the home/empty state; with an active
-        // session there is nothing to open, so the keys must pass through.
-        view === "chat" && activeKey === null,
-      );
-      if (startPanelSection !== null) {
+      // spec B2：⌘P/⌘T 全场景直达 dock 标签（首页与会话页一致；terminal 标签不接快捷键）。
+      // xterm 聚焦时 ⌘T 也走本 handler——浏览器新标签语义让位于 dock。
+      const dockSection = resolveDockShortcut(event);
+      if (dockSection !== null) {
         event.preventDefault();
-        openStartPanelSection(startPanelSection);
+        const scope = activeKey ?? HOME_DOCK_SCOPE;
+        if (dockSection === "file") dockStore.openFile(scope);
+        else dockStore.openBrowser(scope);
         return;
       }
       const plainCommandK =
@@ -1951,7 +1937,7 @@ function Shell({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeKey, onNewChat, onOpenSessionSearch, view, openStartPanelSection]);
+  }, [activeKey, onNewChat, onOpenSessionSearch]);
 
   const onSelectSearchResult = useCallback(
     (key: string) => {
@@ -2893,22 +2879,13 @@ function Shell({
                   />
                 </div>
                 {view === "chat" && activeKey === null && !mobileWorkbench ? (
-                  <HomeStartPanel
-                    getToken={getToken}
-                    focus={startPanelFocus}
-                    terminalSlot={
-                      <Suspense
-                        fallback={
-                          <p className="text-[12px] text-muted-foreground/70">
-                            {t("workbench.treeLoading", { defaultValue: "Loading…" })}
-                          </p>
-                        }
-                      >
-                        <LazyTerminalSection />
-                      </Suspense>
-                    }
-                    browserSlot={<BrowserSection />}
-                  />
+                  <Suspense fallback={null}>
+                    <StartDock
+                      scope={HOME_DOCK_SCOPE}
+                      sessionKey={null}
+                      getToken={getToken}
+                    />
+                  </Suspense>
                 ) : null}
               </div>
             </div>

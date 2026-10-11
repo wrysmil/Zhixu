@@ -190,6 +190,13 @@ function makeClient() {
     newChat: vi.fn(),
     forkChat: vi.fn(),
     attach: vi.fn(),
+    // SessionWorkbench 现挂载内嵌 StartDock（Task 10）：补齐终端帧 API 的 no-op 面。
+    onTerminalEvent: vi.fn(() => () => {}),
+    terminalList: vi.fn(),
+    terminalStart: vi.fn(),
+    terminalWrite: vi.fn(),
+    terminalResize: vi.fn(),
+    terminalKill: vi.fn(),
     connect: vi.fn(),
     close: vi.fn(),
     updateUrl: vi.fn(),

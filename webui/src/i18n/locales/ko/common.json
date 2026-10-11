@@ -1457,6 +1457,7 @@
     "terminalExpired": "세션이 만료되었습니다",
     "terminalGone": "이 터미널을 더 이상 사용할 수 없습니다. 새로 여세요.",
     "terminalCommandRejected": "이 터미널로 명령을 보낼 수 없습니다.",
+    "shellUnavailable": "이 shell이 호스트에 설치되어 있지 않습니다.",
     "browser": "브라우저",
     "browserDesc": "웹 탐색",
     "openProjectFirst": "프로젝트를 선택하면 사용할 수 있습니다",
@@ -1478,6 +1479,18 @@
     "browserError_scheme": "http/https 주소만 열 수 있습니다.",
     "browserError_private": "프라이빗 또는 로컬 네트워크 주소는 허용되지 않습니다.",
     "browserError_malformed": "유효한 웹 주소가 아닌 것으로 보입니다."
+  },
+  "dock": {
+    "tabFile": "파일",
+    "tabBrowser": "브라우저",
+    "plusAria": "새 탭",
+    "newTerminal": "새 터미널",
+    "shellChoices": "shell 선택",
+    "takeoverRunning": "실행 중인 터미널",
+    "takeoverAction": "인수",
+    "takeoverHint": "Enter 키로 화면 다시 그리기",
+    "closeTab": "탭 닫기",
+    "platformDefaultShell": "플랫폼 기본 shell"
   },
   "plusMenu": {
     "groupAdd": "추가",
@@ -1990,7 +2003,6 @@
     "emptyOutputs": "아직 변경된 파일이 없습니다",
     "sources": "출처",
     "emptySources": "아직 웹 출처가 없습니다",
-    "fileTree": "파일",
     "treeLoading": "불러오는 중…",
     "treeEmpty": "프로젝트가 비어 있음",
     "treeEmptyFolder": "비어 있음",

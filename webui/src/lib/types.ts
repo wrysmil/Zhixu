@@ -1627,6 +1627,9 @@ export type TerminalEvent =
       cwd: string;
       status: TerminalStartedStatus;
       message?: string;
+      /** Contract v2: ``true`` when the host attached a real PTY to this
+       * terminal; ``false``/absent (v1 gateways) keeps the line console. */
+      pty?: boolean;
     }
   | {
       event: "terminal_output";
@@ -1656,8 +1659,9 @@ export type Outbound =
   | { type: "set_reasoning_effort"; chat_id: string; reasoning_effort: string }
   | { type: "question_answer"; chat_id: string; question_id: string; answer: string }
   | { type: "transcribe_audio"; request_id: string; data_url: string; duration_ms?: number }
-  | { type: "terminal_start"; terminal_id: string; session_key?: string }
+  | { type: "terminal_start"; terminal_id: string; session_key?: string; shell?: string }
   | { type: "terminal_write"; terminal_id: string; data: string }
+  | { type: "terminal_resize"; terminal_id: string; cols: number; rows: number }
   | { type: "terminal_kill"; terminal_id: string }
   | { type: "terminal_list" }
   | {

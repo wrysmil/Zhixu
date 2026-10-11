@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ChevronRight,
@@ -7,19 +7,13 @@ import {
   Wrench,
 } from "lucide-react";
 
+import { StartDock } from "@/components/dock/StartDock";
+import { HOME_DOCK_SCOPE } from "@/lib/dock-store";
 import {
   type SessionWorkbenchModel,
   type WorkbenchSource,
 } from "./session-workbench-model";
-import { BrowserSection } from "./BrowserSection";
-import { WorkspaceFileTree } from "./WorkspaceFileTree";
 import { cn } from "@/lib/utils";
-
-// xterm.js weighs ~340 kB; keep it out of the entry chunk and load it only
-// when a Terminal section is actually expanded.
-const LazyTerminalSection = lazy(() =>
-  import("./TerminalSection").then((module) => ({ default: module.TerminalSection })),
-);
 
 // Mirrors the rail's literal `w-[19rem]` below (Tailwind can't see dynamic classes).
 export const SESSION_WORKBENCH_RAIL_WIDTH = "19rem";
@@ -104,6 +98,8 @@ export function SessionWorkbench({
   const { t, i18n } = useTranslation();
   const updated = formatUpdatedAt(model.updatedAtMs, i18n.language);
   const hasIntegrations = model.mcpUsed.length > 0 || model.cliUsed.length > 0;
+  // StartDock 以 getToken 引用为壳列表拉取依赖；这里保持跨渲染稳定。
+  const dockGetToken = useCallback(() => getToken?.() ?? "", [getToken]);
 
   return (
     <aside
@@ -133,7 +129,7 @@ export function SessionWorkbench({
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+      <div className="max-h-[45%] min-h-0 shrink overflow-y-auto scrollbar-thin">
         <Section
           title={t("workbench.overview", { defaultValue: "Overview" })}
           defaultOpen
@@ -189,41 +185,6 @@ export function SessionWorkbench({
           >
             {t("workbench.commitPush", { defaultValue: "Commit or push" })}
           </button>
-        </Section>
-
-        {sessionKey && getToken ? (
-          <Section
-            title={t("workbench.fileTree", { defaultValue: "Files" })}
-            defaultOpen={false}
-          >
-            <WorkspaceFileTree
-              sessionKey={sessionKey}
-              getToken={getToken}
-              onOpenFilePreview={onOpenFilePreview}
-            />
-          </Section>
-        ) : null}
-
-        <Section
-          title={t("startPanel.terminal", { defaultValue: "New terminal" })}
-          defaultOpen={false}
-        >
-          <Suspense
-            fallback={
-              <p className="text-[12px] text-muted-foreground/60">
-                {t("workbench.treeLoading", { defaultValue: "Loading…" })}
-              </p>
-            }
-          >
-            <LazyTerminalSection sessionKey={sessionKey ?? null} />
-          </Suspense>
-        </Section>
-
-        <Section
-          title={t("startPanel.browser", { defaultValue: "Browser" })}
-          defaultOpen={false}
-        >
-          <BrowserSection />
         </Section>
 
         <Section
@@ -307,6 +268,16 @@ export function SessionWorkbench({
           )}
         </Section>
       </div>
+
+      {/* 与首页同源的标签式右坞（embedded）：文件/浏览器/终端统一在此，scope=会话 key，
+          标签与接管清单按 scope 独立持久化；预览仍上抛宿主外置面板。 */}
+      <StartDock
+        variant="embedded"
+        scope={sessionKey ?? HOME_DOCK_SCOPE}
+        sessionKey={sessionKey ?? null}
+        getToken={dockGetToken}
+        onOpenFilePreview={onOpenFilePreview}
+      />
     </aside>
   );
 }
