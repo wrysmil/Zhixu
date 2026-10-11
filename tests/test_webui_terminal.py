@@ -20,7 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from nanobot.agent.tools.exec_session import ExecSessionManager
-from nanobot.security.workspace_access import build_workspace_scope
+from nanobot.security.workspace_access import build_workspace_scope, default_workspace_scope
 from nanobot.webui.inbound_commands import WebUICommandRouter
 from nanobot.webui.outbound_wire import (
     encode_terminal_exit,
@@ -962,3 +962,72 @@ async def test_router_list_rejects_untrusted_connection(tmp_path: Path) -> None:
         assert not transport.of("terminal_list_result")
     finally:
         await router.close()
+
+
+# --------------------------------------------------------------------------
+# Task 3 — pipe bridge v2 contract alignment (pty flag / grace / takeover)
+# --------------------------------------------------------------------------
+
+
+@_SKIP_WINDOWS
+async def test_pipe_bridge_started_result_carries_pty_false(tmp_path):
+    bridge = _make_bridge(tmp_path)  # 本文件既有工厂：ExecSessionManager + WebuiTerminalBridge
+    collector = Collector()
+    scope = default_workspace_scope(tmp_path, restrict_to_workspace=False)
+    try:
+        result = await bridge.start(
+            terminal_id="term-f",
+            scope=scope,
+            chat_id="c",
+            session_key="websocket:c",
+            publisher=collector,
+        )
+        assert result["pty"] is False and result["status"] == "ok"
+    finally:
+        await bridge.aclose()
+
+
+@_SKIP_WINDOWS
+async def test_pipe_bridge_kill_grace_idempotent_and_exited_owner(tmp_path):
+    bridge = _make_bridge(tmp_path)
+    scope = default_workspace_scope(tmp_path, restrict_to_workspace=False)
+    try:
+        await bridge.start(
+            terminal_id="term-g",
+            scope=scope,
+            chat_id="c",
+            session_key="websocket:c",
+            publisher=Collector(),
+        )
+        await bridge.kill(terminal_id="term-g")
+        assert bridge.exited_owner("term-g") == "c"
+        assert await bridge.kill(terminal_id="term-g") is None  # T4 no-op
+        assert bridge.owner_chat("term-g") is None
+    finally:
+        await bridge.aclose()
+
+
+@_SKIP_WINDOWS
+async def test_pipe_bridge_takeover_rebinds_publisher(tmp_path):
+    bridge = _make_bridge(tmp_path)
+    first, second = Collector(), Collector()
+    scope = default_workspace_scope(tmp_path, restrict_to_workspace=False)
+    try:
+        await bridge.start(
+            terminal_id="term-t",
+            scope=scope,
+            chat_id="c1",
+            session_key="websocket:c1",
+            publisher=first,
+        )
+        result = await bridge.start(
+            terminal_id="term-t",
+            scope=scope,
+            chat_id="c2",
+            session_key="websocket:c2",
+            publisher=second,
+        )
+        assert result["status"] == "already_running"
+        assert bridge.owner_chat("term-t") == "c2"
+    finally:
+        await bridge.aclose()

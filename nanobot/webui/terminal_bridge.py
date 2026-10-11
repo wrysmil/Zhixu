@@ -277,6 +277,8 @@ class WebuiTerminalBridge:
         )
         self._poll_interval_s = max(float(poll_interval_s), 0.01)
         self._terminals: dict[str, _ShellTerminal] = {}
+        # id -> (chat_id, shell, cwd, deadline) grace metadata, mirrors PtyTerminalBridge.
+        self._exited: dict[str, tuple[str, str, str, float]] = {}
         self._closed = False
 
     # -- public API ---------------------------------------------------------
@@ -289,6 +291,7 @@ class WebuiTerminalBridge:
         chat_id: str,
         session_key: str,
         publisher: TerminalEventPublisher,
+        shell: str | None = None,
     ) -> dict[str, Any]:
         """Spawn (or reuse) one terminal; returns the ``terminal_started`` fields."""
         cwd = str(scope.project_path)
@@ -298,16 +301,23 @@ class WebuiTerminalBridge:
             "cwd": cwd,
             "status": "error",
             "message": None,
+            "pty": False,
         }
         if self._closed:
             return {**base, "message": "terminal bridge is closed"}
         existing = self._terminals.get(terminal_id)
         if existing is not None:
+            # Takeover (contract v2 §3.3): rebind fan-out to the requesting chat.
+            existing.publisher = publisher
+            existing.chat_id = chat_id
+            existing.session_key = session_key
+            existing.last_activity = time.monotonic()
             return {
                 **base,
                 "shell": existing.shell,
                 "cwd": existing.cwd,
                 "status": "already_running",
+                "pty": False,
             }
         if len(self._terminals) >= self._max_terminals:
             return {
@@ -315,13 +325,21 @@ class WebuiTerminalBridge:
                 "status": "limit_reached",
                 "message": f"terminal limit reached ({self._max_terminals})",
             }
-        try:
-            shell = _resolve_shell_program()
-        except RuntimeError as exc:
-            return {**base, "message": str(exc)}
+        if shell is not None:
+            from nanobot.webui.pty_terminal import SHELL_NAME_RE
+
+            resolved = shutil.which(shell) if SHELL_NAME_RE.fullmatch(shell) else None
+            if resolved is None:
+                return {**base, "message": "shell_unavailable"}
+            shell_program = resolved
+        else:
+            try:
+                shell_program = _resolve_shell_program()
+            except RuntimeError as exc:
+                return {**base, "message": str(exc)}
 
         env = self._guard_tool._build_env()  # pyright: ignore[reportPrivateUsage]
-        command = shell
+        command = shell_program
         if self._guard_tool.path_prepend or self._guard_tool.path_append:
             if _IS_WINDOWS:
                 env["PATH"] = self._guard_tool._compose_path(  # pyright: ignore[reportPrivateUsage]
@@ -346,7 +364,7 @@ class WebuiTerminalBridge:
                 # back to an unsandboxed shell. Surface a stable error and do not
                 # spawn the session (contract §1.2 / §1.3 failure semantics).
                 logger.exception("terminal sandbox wrap failed; refusing to start unsandboxed")
-                return {**base, "shell": shell, "message": "terminal_start_failed"}
+                return {**base, "shell": shell_program, "message": "terminal_start_failed"}
 
         try:
             session_id, poll = await self._manager.start(
@@ -354,7 +372,7 @@ class WebuiTerminalBridge:
                 cwd=cwd,
                 env=env,
                 timeout=None,
-                shell_program=shell,
+                shell_program=shell_program,
                 login=False,
                 yield_time_ms=0,
                 max_output_chars=MAX_OUTPUT_CHARS,
@@ -365,20 +383,20 @@ class WebuiTerminalBridge:
             if "maximum exec sessions" in message:
                 return {
                     **base,
-                    "shell": shell,
+                    "shell": shell_program,
                     "status": "limit_reached",
                     "message": f"terminal limit reached ({self._max_terminals})",
                 }
             logger.exception("webui terminal start failed")
             # Never leak internals; the stable token is enough for the client.
-            return {**base, "shell": shell, "message": "terminal_start_failed"}
+            return {**base, "shell": shell_program, "message": "terminal_start_failed"}
 
         session = self._manager._sessions.get(session_id)  # pyright: ignore[reportPrivateUsage]
         terminal = _ShellTerminal(
             terminal_id=terminal_id,
             chat_id=chat_id,
             session_key=session_key,
-            shell=shell,
+            shell=shell_program,
             cwd=cwd,
             exec_session_id=session_id,
             session=session,
@@ -394,7 +412,7 @@ class WebuiTerminalBridge:
             await self._finalize_exit(terminal, poll.exit_code)
         else:
             terminal.poll_task = asyncio.create_task(self._poll_loop(terminal))
-        return {**base, "shell": shell, "cwd": cwd, "status": "ok"}
+        return {**base, "shell": shell_program, "cwd": cwd, "status": "ok"}
 
     async def write(self, *, terminal_id: str, data: str) -> str | None:
         """Queue inbound keystrokes; complete lines are submitted. No echo."""
@@ -421,7 +439,8 @@ class WebuiTerminalBridge:
         """Terminate one terminal; emits residual output then ``terminal_exit``."""
         terminal = self._terminals.get(terminal_id)
         if terminal is None or terminal.finalized:
-            return "unknown_terminal"
+            # T4: killing a grace-window exited terminal is an idempotent no-op.
+            return None if self.exited_owner(terminal_id) is not None else "unknown_terminal"
         if terminal.closing is None:
             terminal.closing = "kill"
         exit_code: int | None = None
@@ -432,6 +451,26 @@ class WebuiTerminalBridge:
                     await session.kill()
             exit_code = session.process.returncode
         await self._finalize_exit(terminal, exit_code)
+        return None
+
+    def exited_owner(self, terminal_id: str) -> str | None:
+        entry = self._exited.get(terminal_id)
+        if entry is None:
+            return None
+        if entry[3] < time.monotonic():
+            self._exited.pop(terminal_id, None)
+            return None
+        return entry[0]
+
+    def has_live(self, terminal_id: str) -> bool:
+        terminal = self._terminals.get(terminal_id)
+        return terminal is not None and not terminal.finalized
+
+    async def resize(self, *, terminal_id: str, cols: int, rows: int) -> str | None:
+        # Pipe mode has no terminal geometry; accept the frame so the shared
+        # contract stays uniform (contract v2: resize is meaningful only for pty).
+        if terminal_id not in self._terminals:
+            return "unknown_terminal"
         return None
 
     def owner_chat(self, terminal_id: str) -> str | None:
@@ -455,6 +494,20 @@ class WebuiTerminalBridge:
                     "cwd": terminal.cwd,
                 }
             )
+        now = time.monotonic()
+        for terminal_id, entry in list(self._exited.items()):
+            chat, shell_name, cwd, deadline = entry
+            if deadline < now:
+                self._exited.pop(terminal_id, None)
+            elif chat in wanted:
+                entries.append(
+                    {
+                        "terminal_id": terminal_id,
+                        "status": "exited",
+                        "shell": shell_name,
+                        "cwd": cwd,
+                    }
+                )
         return entries
 
     async def aclose(self) -> None:
@@ -484,6 +537,8 @@ class WebuiTerminalBridge:
                 )
         with suppress(Exception):
             await self._manager.close_all()
+        # Mirrors PtyTerminalBridge.aclose: no grace window survives close.
+        self._exited.clear()
 
     # -- internals ----------------------------------------------------------
 
@@ -623,6 +678,15 @@ class WebuiTerminalBridge:
         # racing paths emit exactly one terminal_exit per terminal.
         terminal.finalized = True
         self._terminals.pop(terminal.terminal_id, None)
+        now = time.monotonic()
+        for stale in [key for key, (_, _, _, deadline) in self._exited.items() if deadline < now]:
+            self._exited.pop(stale, None)
+        self._exited[terminal.terminal_id] = (
+            terminal.chat_id,
+            terminal.shell,
+            terminal.cwd,
+            now + EXITED_GRACE_S,
+        )
         task = terminal.poll_task
         if task is not None and task is not asyncio.current_task() and not task.done():
             task.cancel()
