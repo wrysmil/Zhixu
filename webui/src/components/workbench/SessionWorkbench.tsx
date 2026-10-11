@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ChevronRight,
@@ -14,12 +14,6 @@ import {
 import { BrowserSection } from "./BrowserSection";
 import { WorkspaceFileTree } from "./WorkspaceFileTree";
 import { cn } from "@/lib/utils";
-
-// xterm.js weighs ~340 kB; keep it out of the entry chunk and load it only
-// when a Terminal section is actually expanded.
-const LazyTerminalSection = lazy(() =>
-  import("./TerminalSection").then((module) => ({ default: module.TerminalSection })),
-);
 
 // Mirrors the rail's literal `w-[19rem]` below (Tailwind can't see dynamic classes).
 export const SESSION_WORKBENCH_RAIL_WIDTH = "19rem";
@@ -208,15 +202,8 @@ export function SessionWorkbench({
           title={t("startPanel.terminal", { defaultValue: "New terminal" })}
           defaultOpen={false}
         >
-          <Suspense
-            fallback={
-              <p className="text-[12px] text-muted-foreground/60">
-                {t("workbench.treeLoading", { defaultValue: "Loading…" })}
-              </p>
-            }
-          >
-            <LazyTerminalSection sessionKey={sessionKey ?? null} />
-          </Suspense>
+          {/* 终端入口暂撤：Task 10 起由统一的 StartDock + TerminalSurface 接管。 */}
+          <p />
         </Section>
 
         <Section

@@ -158,12 +158,7 @@ const SettingsView = lazy(async () => {
   return { default: module.SettingsView };
 });
 const CreativeWorkspace = lazy(() => import("./components/creative/CreativeWorkspace"));
-// xterm.js weighs ~340 kB; load the terminal panel only when its card expands.
-const LazyTerminalSection = lazy(() =>
-  import("@/components/workbench/TerminalSection").then((module) => ({
-    default: module.TerminalSection,
-  })),
-);
+// 终端入口已迁移：TerminalSection 由 TerminalSurface + StartDock（Task 7/9）接管。
 const SessionSearchDialog = lazy(async () => {
   const module = await import("@/components/SessionSearchDialog");
   return { default: module.SessionSearchDialog };
@@ -2896,17 +2891,6 @@ function Shell({
                   <HomeStartPanel
                     getToken={getToken}
                     focus={startPanelFocus}
-                    terminalSlot={
-                      <Suspense
-                        fallback={
-                          <p className="text-[12px] text-muted-foreground/70">
-                            {t("workbench.treeLoading", { defaultValue: "Loading…" })}
-                          </p>
-                        }
-                      >
-                        <LazyTerminalSection />
-                      </Suspense>
-                    }
                     browserSlot={<BrowserSection />}
                   />
                 ) : null}

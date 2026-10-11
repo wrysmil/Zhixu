@@ -1079,13 +1079,20 @@ export class NanobotClient {
   // -- terminal channel (contract 2026-10-11 §1.1) --------------------------
 
   /** Open (or idempotently re-request) one terminal. ``sessionKey`` omitted
-   * lets the server resolve the connection's default / single attached chat. */
-  terminalStart(terminalId: string, sessionKey?: string | null): void {
+   * lets the server resolve the connection's default / single attached chat.
+   * ``shell`` (contract v2) is a whitelisted short name (e.g. ``"zsh"``);
+   * omitted/``null`` keeps the platform default. */
+  terminalStart(
+    terminalId: string,
+    sessionKey?: string | null,
+    shell?: string | null,
+  ): void {
     if (!TERMINAL_ID_PATTERN.test(terminalId)) return;
     this.queueSend({
       type: "terminal_start",
       terminal_id: terminalId,
       ...(sessionKey ? { session_key: sessionKey } : {}),
+      ...(shell ? { shell } : {}),
     });
   }
 
@@ -1099,6 +1106,15 @@ export class NanobotClient {
       return;
     }
     this.queueSend({ type: "terminal_write", terminal_id: terminalId, data });
+  }
+
+  /** Contract v2: push the xterm geometry to a PTY terminal. Guarded against
+   * non-integer / out-of-bounds values (backend caps: cols<=500, rows<=200). */
+  terminalResize(terminalId: string, cols: number, rows: number): void {
+    if (!TERMINAL_ID_PATTERN.test(terminalId)) return;
+    if (!Number.isInteger(cols) || cols < 1 || cols > 500) return;
+    if (!Number.isInteger(rows) || rows < 1 || rows > 200) return;
+    this.queueSend({ type: "terminal_resize", terminal_id: terminalId, cols, rows });
   }
 
   terminalKill(terminalId: string): void {
