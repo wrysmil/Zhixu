@@ -80,6 +80,8 @@ const CARD_SPECS: CardSpec[] = [
 ];
 
 export interface StartDockProps {
+  /** 宿主形态：rail = 首页独立右坞；embedded = SessionWorkbench 内嵌（Task 10），不渲染自身 aside 与折叠按钮。 */
+  variant?: "rail" | "embedded";
   /** dock scope：首页为 HOME_DOCK_SCOPE，会话页为 `websocket:<chat_id>`（Task 10）。 */
   scope: string;
   sessionKey: string | null;
@@ -89,12 +91,14 @@ export interface StartDockProps {
 }
 
 export function StartDock({
+  variant = "rail",
   scope,
   sessionKey,
   getToken,
   onOpenFilePreview,
 }: StartDockProps) {
   const { t } = useTranslation();
+  const isEmbedded = variant === "embedded";
   const { client } = useClient();
   const snapshot = useDockTabs(scope);
   const { store: terminalStore, terminals } = useTerminalStore();
@@ -205,7 +209,7 @@ export function StartDock({
     openTerminalTab(null);
   };
 
-  if (collapsed) {
+  if (!isEmbedded && collapsed) {
     return (
       <aside
         data-testid="start-dock"
@@ -224,12 +228,8 @@ export function StartDock({
     );
   }
 
-  return (
-    <aside
-      data-testid="start-dock"
-      aria-label={t("startPanel.title", { defaultValue: "Start" })}
-      className="hidden w-[26rem] shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 md:flex xl:w-[30rem]"
-    >
+  const shellInner = (
+    <>
       <header className="flex h-9 shrink-0 items-center gap-1 border-b border-border/40 px-2">
         <div role="tablist" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {snapshot.tabs.map((tab) => {
@@ -338,14 +338,16 @@ export function StartDock({
             </div>
           ) : null}
         </div>
-        <button
-          type="button"
-          aria-label={t("startPanel.collapse", { defaultValue: "Collapse the start panel" })}
-          onClick={() => setCollapsed(true)}
-          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
-        >
-          <PanelRightClose className="h-3.5 w-3.5" aria-hidden />
-        </button>
+        {!isEmbedded ? (
+          <button
+            type="button"
+            aria-label={t("startPanel.collapse", { defaultValue: "Collapse the start panel" })}
+            onClick={() => setCollapsed(true)}
+            className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
+          >
+            <PanelRightClose className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        ) : null}
       </header>
 
       {takeovers.length > 0 ? (
@@ -457,6 +459,28 @@ export function StartDock({
           ) : null}
         </div>
       )}
+    </>
+  );
+
+  if (isEmbedded) {
+    return (
+      <div
+        data-testid="start-dock"
+        aria-label={t("startPanel.title", { defaultValue: "Start" })}
+        className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border-t border-border/40 bg-muted/20"
+      >
+        {shellInner}
+      </div>
+    );
+  }
+
+  return (
+    <aside
+      data-testid="start-dock"
+      aria-label={t("startPanel.title", { defaultValue: "Start" })}
+      className="hidden w-[26rem] shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 md:flex xl:w-[30rem]"
+    >
+      {shellInner}
     </aside>
   );
 }
