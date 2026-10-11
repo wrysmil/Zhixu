@@ -45,6 +45,7 @@ from nanobot.webui.outbound_wire import (
     encode_terminal_list_result,
     encode_terminal_started,
 )
+from nanobot.webui.pty_terminal import SHELL_NAME_RE
 from nanobot.webui.session_access import (
     SessionMention,
     WebuiSessionAccess,
@@ -471,6 +472,9 @@ class WebUICommandRouter:
         if command_type == "terminal_write":
             await self._handle_terminal_write(connection, client_id, envelope)
             return
+        if command_type == "terminal_resize":
+            await self._handle_terminal_resize(connection, client_id, envelope)
+            return
         if command_type == "terminal_kill":
             await self._handle_terminal_kill(connection, client_id, envelope)
             return
@@ -504,11 +508,11 @@ class WebUICommandRouter:
     def _terminal_bridge(self) -> Any:
         if self._terminal_bridge_instance is None:
             from nanobot.agent.tools.exec_session import ExecSessionManager
-            from nanobot.webui.terminal_bridge import (
-                DEFAULT_MAX_TERMINALS,
-                DEFAULT_TERMINAL_IDLE_TIMEOUT_S,
-                WebuiTerminalBridge,
+            from nanobot.webui.pty_terminal import (
+                DEFAULT_MAX_TERMINALS as _TERMINAL_MAX,
             )
+            from nanobot.webui.pty_terminal import create_terminal_bridge
+            from nanobot.webui.terminal_bridge import DEFAULT_TERMINAL_IDLE_TIMEOUT_S
 
             exec_config = None
             allow_local_service_access = True
@@ -523,10 +527,10 @@ class WebUICommandRouter:
                     "terminal bridge could not read exec config; using defaults"
                 )
             manager = ExecSessionManager(
-                max_sessions=DEFAULT_MAX_TERMINALS,
+                max_sessions=_TERMINAL_MAX,
                 idle_timeout=DEFAULT_TERMINAL_IDLE_TIMEOUT_S,
             )
-            self._terminal_bridge_instance = WebuiTerminalBridge(
+            self._terminal_bridge_instance = create_terminal_bridge(
                 manager,
                 exec_config=exec_config,
                 webui_allow_local_service_access=allow_local_service_access,
@@ -634,6 +638,19 @@ class WebUICommandRouter:
                 terminal_id=terminal_id,
             )
             return
+        raw_shell = envelope.get("shell")
+        if raw_shell is not None and (
+            not isinstance(raw_shell, str) or not SHELL_NAME_RE.fullmatch(raw_shell)
+        ):
+            payload = encode_terminal_started(
+                terminal_id=terminal_id,
+                shell="",
+                cwd=str(scope.project_path),
+                status="error",
+                message="shell_unavailable",
+            )
+            await self._publish_terminal(chat_id, connection, payload)
+            return
         bridge = self._terminal_bridge()
         session_key = webui_session_key(chat_id)
         result = await bridge.start(
@@ -642,6 +659,7 @@ class WebUICommandRouter:
             chat_id=chat_id,
             session_key=session_key,
             publisher=self._terminal_publisher(chat_id),
+            shell=raw_shell if isinstance(raw_shell, str) else None,
         )
         payload = encode_terminal_started(
             terminal_id=terminal_id,
@@ -649,6 +667,7 @@ class WebUICommandRouter:
             cwd=str(result.get("cwd") or scope.project_path),
             status=result.get("status", "error"),
             message=result.get("message"),
+            pty=bool(result.get("pty")),
         )
         await self._publish_terminal(chat_id, connection, payload)
 
@@ -693,6 +712,46 @@ class WebUICommandRouter:
                 connection, error, terminal_id=terminal_id
             )
 
+    async def _handle_terminal_resize(
+        self,
+        connection: ServerConnection,
+        client_id: str,
+        envelope: dict[str, Any],
+    ) -> None:
+        if connection not in self._webui_connections or not self._transport.is_allowed(client_id):
+            await self._terminal_access_error(connection, "access_denied")
+            return
+        terminal_id = self._validate_terminal_id(envelope)
+        if terminal_id is None:
+            await self._terminal_access_error(connection, "invalid_terminal_id")
+            return
+        from nanobot.webui.pty_terminal import MAX_PTY_COLS, MAX_PTY_ROWS
+
+        cols, rows = envelope.get("cols"), envelope.get("rows")
+        if (
+            not isinstance(cols, int) or isinstance(cols, bool) or not 1 <= cols <= MAX_PTY_COLS
+            or not isinstance(rows, int) or isinstance(rows, bool) or not 1 <= rows <= MAX_PTY_ROWS
+        ):
+            await self._terminal_access_error(
+                connection, "invalid_terminal_resize", terminal_id=terminal_id
+            )
+            return
+        bridge = self._terminal_bridge_instance
+        owner = bridge.owner_chat(terminal_id) if bridge is not None else None
+        if owner is None:
+            await self._terminal_access_error(
+                connection, "unknown_terminal", terminal_id=terminal_id
+            )
+            return
+        if owner not in self._transport.webui_connection_chats(connection):
+            await self._terminal_access_error(
+                connection, "terminal_not_attached", terminal_id=terminal_id
+            )
+            return
+        error = await bridge.resize(terminal_id=terminal_id, cols=cols, rows=rows)
+        if error:
+            await self._terminal_access_error(connection, error, terminal_id=terminal_id)
+
     async def _handle_terminal_kill(
         self,
         connection: ServerConnection,
@@ -708,6 +767,8 @@ class WebUICommandRouter:
             return
         bridge = self._terminal_bridge_instance
         owner = bridge.owner_chat(terminal_id) if bridge is not None else None
+        if owner is None and bridge is not None:
+            owner = bridge.exited_owner(terminal_id)  # 60s grace: kill is idempotent
         if owner is None:
             await self._terminal_access_error(
                 connection, "unknown_terminal", terminal_id=terminal_id

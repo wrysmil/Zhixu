@@ -74,6 +74,7 @@ class TerminalStartedWirePayload(TypedDict):
     cwd: str
     status: TerminalWireStatus
     message: NotRequired[str]
+    pty: bool
 
 
 class TerminalOutputWirePayload(TypedDict):
@@ -240,6 +241,7 @@ def encode_terminal_started(
     cwd: str,
     status: TerminalWireStatus,
     message: str | None = None,
+    pty: bool = False,
 ) -> TerminalStartedWirePayload:
     """Project one terminal_start answer onto the contract wire shape."""
     payload: TerminalStartedWirePayload = {
@@ -249,6 +251,7 @@ def encode_terminal_started(
         "shell": shell,
         "cwd": cwd,
         "status": status,
+        "pty": bool(pty),
     }
     if message:
         payload["message"] = message

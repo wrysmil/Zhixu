@@ -20,7 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from nanobot.agent.tools.exec_session import ExecSessionManager
-from nanobot.security.workspace_access import build_workspace_scope
+from nanobot.security.workspace_access import build_workspace_scope, default_workspace_scope
 from nanobot.webui.inbound_commands import WebUICommandRouter
 from nanobot.webui.outbound_wire import (
     encode_terminal_exit,
@@ -114,6 +114,7 @@ def test_encode_terminal_started_exact_fields() -> None:
         "shell",
         "cwd",
         "status",
+        "pty",
     }
     assert payload["event"] == "terminal_started"
     assert payload["type"] == "terminal_started"
@@ -121,6 +122,7 @@ def test_encode_terminal_started_exact_fields() -> None:
     assert payload["shell"] == "/bin/bash"
     assert payload["cwd"] == "/tmp/ws"
     assert payload["status"] == "ok"
+    assert payload["pty"] is False
 
     failed = encode_terminal_started(
         terminal_id="t1",
@@ -960,5 +962,213 @@ async def test_router_list_rejects_untrusted_connection(tmp_path: Path) -> None:
         errors = transport.of("error")
         assert errors and errors[0]["detail"] == "access_denied"
         assert not transport.of("terminal_list_result")
+    finally:
+        await router.close()
+
+
+# --------------------------------------------------------------------------
+# Task 3 — pipe bridge v2 contract alignment (pty flag / grace / takeover)
+# --------------------------------------------------------------------------
+
+
+@_SKIP_WINDOWS
+async def test_pipe_bridge_started_result_carries_pty_false(tmp_path):
+    bridge = _make_bridge(tmp_path)  # 本文件既有工厂：ExecSessionManager + WebuiTerminalBridge
+    collector = Collector()
+    scope = default_workspace_scope(tmp_path, restrict_to_workspace=False)
+    try:
+        result = await bridge.start(
+            terminal_id="term-f",
+            scope=scope,
+            chat_id="c",
+            session_key="websocket:c",
+            publisher=collector,
+        )
+        assert result["pty"] is False and result["status"] == "ok"
+    finally:
+        await bridge.aclose()
+
+
+@_SKIP_WINDOWS
+async def test_pipe_bridge_kill_grace_idempotent_and_exited_owner(tmp_path):
+    bridge = _make_bridge(tmp_path)
+    scope = default_workspace_scope(tmp_path, restrict_to_workspace=False)
+    try:
+        await bridge.start(
+            terminal_id="term-g",
+            scope=scope,
+            chat_id="c",
+            session_key="websocket:c",
+            publisher=Collector(),
+        )
+        await bridge.kill(terminal_id="term-g")
+        assert bridge.exited_owner("term-g") == "c"
+        assert await bridge.kill(terminal_id="term-g") is None  # T4 no-op
+        assert bridge.owner_chat("term-g") is None
+    finally:
+        await bridge.aclose()
+
+
+@_SKIP_WINDOWS
+async def test_pipe_bridge_takeover_rebinds_publisher(tmp_path):
+    bridge = _make_bridge(tmp_path)
+    first, second = Collector(), Collector()
+    scope = default_workspace_scope(tmp_path, restrict_to_workspace=False)
+    try:
+        await bridge.start(
+            terminal_id="term-t",
+            scope=scope,
+            chat_id="c1",
+            session_key="websocket:c1",
+            publisher=first,
+        )
+        result = await bridge.start(
+            terminal_id="term-t",
+            scope=scope,
+            chat_id="c2",
+            session_key="websocket:c2",
+            publisher=second,
+        )
+        assert result["status"] == "already_running"
+        assert bridge.owner_chat("term-t") == "c2"
+    finally:
+        await bridge.aclose()
+
+
+# --------------------------------------------------------------------------
+# Task 5 — contract v2 router wiring (pty flag / shell gate / resize frame /
+# kill grace) with a fake bridge injected via _terminal_bridge_instance
+# --------------------------------------------------------------------------
+
+
+class FakeBridge:
+    """Records router-forwarded calls; exposes live + exited-grace ownership."""
+
+    def __init__(self) -> None:
+        self.starts: list[dict[str, Any]] = []
+        self.resizes: list[tuple[str, int, int]] = []
+        self.kills: list[str] = []
+        self._live: dict[str, str] = {"term-1": "chat1"}
+        self._grace: dict[str, str] = {"term-done": "chat1"}
+
+    async def start(
+        self,
+        *,
+        terminal_id: str,
+        scope: Any,
+        chat_id: str,
+        session_key: str,
+        publisher: Any,
+        shell: str | None = None,
+    ) -> dict[str, Any]:
+        self.starts.append({"terminal_id": terminal_id, "shell": shell})
+        return {
+            "terminal_id": terminal_id, "shell": "/bin/zsh",
+            "cwd": str(scope.project_path),
+            "status": "ok", "message": None, "pty": True,
+        }
+
+    def owner_chat(self, terminal_id: str) -> str | None:
+        return self._live.get(terminal_id)
+
+    def exited_owner(self, terminal_id: str) -> str | None:
+        return self._grace.get(terminal_id)
+
+    async def resize(self, *, terminal_id: str, cols: int, rows: int) -> str | None:
+        self.resizes.append((terminal_id, cols, rows))
+        return None
+
+    async def kill(self, *, terminal_id: str) -> str | None:
+        self.kills.append(terminal_id)
+        return None
+
+    async def aclose(self) -> None:
+        return None
+
+
+def _make_fake_bridge_router(
+    tmp_path: Path,
+) -> tuple[WebUICommandRouter, FakeTransport, FakeBridge, Any]:
+    connection = object()
+    transport = FakeTransport(connection, ("chat1",))
+    router = _make_router(tmp_path, transport, connection)
+    bridge = FakeBridge()
+    router._terminal_bridge_instance = bridge
+    return router, transport, bridge, connection
+
+
+def test_encode_terminal_started_always_carries_pty() -> None:
+    payload = encode_terminal_started(
+        terminal_id="t", shell="/bin/zsh", cwd="/x", status="ok", pty=True,
+    )
+    assert payload["pty"] is True
+    payload = encode_terminal_started(terminal_id="t", shell="", cwd="", status="error")
+    assert payload["pty"] is False
+
+
+@_SKIP_WINDOWS
+async def test_resize_frame_reaches_bridge(tmp_path: Path) -> None:
+    router, transport, bridge, connection = _make_fake_bridge_router(tmp_path)
+    try:
+        await router.dispatch(
+            connection,
+            "client-1",
+            {"type": "terminal_resize", "terminal_id": "term-1", "cols": 120, "rows": 40},
+        )
+        assert bridge.resizes == [("term-1", 120, 40)]
+        assert not transport.of("error")
+    finally:
+        await router.close()
+
+
+@_SKIP_WINDOWS
+async def test_resize_rejects_out_of_bounds(tmp_path: Path) -> None:
+    router, transport, bridge, connection = _make_fake_bridge_router(tmp_path)
+    try:
+        await router.dispatch(
+            connection,
+            "client-1",
+            {"type": "terminal_resize", "terminal_id": "term-1", "cols": 9999, "rows": 40},
+        )
+        assert bridge.resizes == []
+        errors = transport.of("error")
+        assert errors and errors[0]["detail"] == "invalid_terminal_resize"
+    finally:
+        await router.close()
+
+
+@_SKIP_WINDOWS
+async def test_kill_on_grace_terminal_is_silent_noop(tmp_path: Path) -> None:
+    router, transport, bridge, connection = _make_fake_bridge_router(tmp_path)
+    try:
+        await router.dispatch(
+            connection,
+            "client-1",
+            {"type": "terminal_kill", "terminal_id": "term-done"},
+        )
+        assert bridge.kills == ["term-done"]
+        assert not transport.of("error")
+    finally:
+        await router.close()
+
+
+@_SKIP_WINDOWS
+async def test_start_rejects_bad_shell_name_before_bridge(tmp_path: Path) -> None:
+    router, transport, bridge, connection = _make_fake_bridge_router(tmp_path)
+    try:
+        await router.dispatch(
+            connection,
+            "client-1",
+            {
+                "type": "terminal_start",
+                "terminal_id": "term-1",
+                "session_key": "websocket:chat1",
+                "shell": "rm -rf /",
+            },
+        )
+        assert bridge.starts == []
+        started = transport.of("terminal_started")
+        assert started and started[-1]["status"] == "error"
+        assert started[-1]["message"] == "shell_unavailable"
     finally:
         await router.close()

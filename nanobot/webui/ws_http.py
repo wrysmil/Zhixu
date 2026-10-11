@@ -1011,6 +1011,14 @@ class GatewayHTTPHandler:
             accept_encoding=_combined_list_header(request.headers, "Accept-Encoding"),
         )
 
+    def _handle_terminal_shells(self, request: WsRequest) -> Response:
+        """Whitelisted shells installed on this host (contract v2 §4.2 shell 下拉)."""
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        from nanobot.webui.pty_terminal import available_shells
+
+        return _http_json_response(available_shells())
+
     def _handle_session_automations(self, request: WsRequest, key: str) -> Response:
         if not self.check_api_token(request):
             return _http_error(401, "Unauthorized")
@@ -1269,6 +1277,8 @@ class GatewayHTTPHandler:
             return self._handle_workspaces(connection, request)
         if got == "/api/workspace/files":
             return self._handle_workspace_files(request)
+        if got == "/webui/terminal/shells":
+            return self._handle_terminal_shells(request)
         if got == "/api/webui/skills/search":
             return await self._handle_webui_skills_search(request)
         if got == "/api/webui/skills/trending":

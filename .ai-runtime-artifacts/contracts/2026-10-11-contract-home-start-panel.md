@@ -79,3 +79,12 @@ GET /api/workspace/files?path=<relative>&scope=default
 
 - 全部为增量：新帧类型对旧客户端不可见即忽略（gateway dispatch default 分支已有 unknown-type 容错则复用；否则加日志跳过）。
 - 不改任何既有帧/端点签名。
+
+## 附录 A：契约 v2（2026-10-11 home-dock-pty v1.1 增量）
+
+- 入站 `terminal_start` 增可选 `shell`（`^[a-z]{2,12}$`，POSIX=zsh|bash|fish，Windows=cmd|powershell|pwsh）；非法/本机缺失 → `terminal_started status=error message=shell_unavailable`。同 id 命中存活终端 = 接管：publisher/chat 归属重绑请求方，`status=already_running`。
+- 入站新帧 `terminal_resize {terminal_id, cols≤500, rows≤200}`（过同款 gate；越界 detail=`invalid_terminal_resize`）。管道桥视为 no-op。
+- 出站 `terminal_started` 恒含 `pty: bool`；`pty:false` 沿用行式帧语义（write 含 \n 提交、不回显），`pty:true` 直通不回显（回显由 PTY 负责），`terminal_output.stream` 恒 `stdout`（expiry 通知除外，仍 stderr）。
+- `terminal_kill` 对 60s 内已退出终端 = 幂等 no-op（不发错误帧；T4）。
+- 新端点 `GET /webui/terminal/shells`（`check_api_token`）→ `{shells:[{id,label,path}], default}`。
+- 安全：restricted 会话本批保持管道守卫路径；PTY 仅 full-access（spec §4.4）。
