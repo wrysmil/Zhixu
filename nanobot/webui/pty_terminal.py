@@ -488,3 +488,168 @@ class PtyTerminalBridge:
             await terminal.publisher(payload)
         except Exception:
             logger.warning("webui pty terminal publish failed for {}", terminal.terminal_id)
+
+
+# -- Task 4: TerminalSupervisor facade ----------------------------------------
+
+
+class TerminalSupervisor:
+    """Route terminals between the PTY bridge and the guarded pipe bridge.
+
+    contract v2 §4.1/§4.4: full-access POSIX sessions use PTY; restricted
+    sessions and Windows stay on the pipe bridge (line console + per-command
+    guard). The live-terminal cap is enforced across both children so the
+    gateway-wide limit of 8 survives the split.
+    """
+
+    def __init__(self, pipe: Any, pty_bridge: Any | None, *, max_terminals: int) -> None:
+        self._pipe = pipe
+        self._pty = pty_bridge
+        self._max_terminals = max(1, int(max_terminals))
+        self._owner: dict[str, str] = {}
+
+    def _live_count(self) -> int:
+        return len(self._pty._terminals) + len(self._pipe._terminals)  # pyright: ignore[reportPrivateUsage]
+
+    def _route(self, terminal_id: str) -> Any | None:
+        name = self._owner.get(terminal_id)
+        if name == "pty" and self._pty is not None:
+            return self._pty
+        if name == "pipe":
+            return self._pipe
+        return None
+
+    async def start(
+        self,
+        *,
+        terminal_id: str,
+        scope: WorkspaceScope,
+        chat_id: str,
+        session_key: str,
+        publisher: TerminalEventPublisher,
+        shell: str | None = None,
+    ) -> dict[str, Any]:
+        # Takeover first: an id that already lives anywhere keeps its bridge.
+        for name, bridge in (("pty", self._pty), ("pipe", self._pipe)):
+            if bridge is not None and bridge.has_live(terminal_id):
+                self._owner[terminal_id] = name
+                result = await bridge.start(
+                    terminal_id=terminal_id, scope=scope, chat_id=chat_id,
+                    session_key=session_key, publisher=publisher, shell=shell,
+                )
+                return {**result, "pty": name == "pty"}
+        target = (
+            self._pty
+            if (self._pty is not None and not scope.restrict_to_workspace)
+            else self._pipe
+        )
+        if self._live_count() >= self._max_terminals:
+            return {
+                "terminal_id": terminal_id,
+                "shell": "",
+                "cwd": str(scope.project_path),
+                "status": "limit_reached",
+                "message": f"terminal limit reached ({self._max_terminals})",
+                "pty": target is self._pty,
+            }
+        name = "pty" if target is self._pty else "pipe"
+        result = await target.start(
+            terminal_id=terminal_id, scope=scope, chat_id=chat_id,
+            session_key=session_key, publisher=publisher, shell=shell,
+        )
+        if result.get("status") in {"ok", "already_running"}:
+            self._owner[terminal_id] = name
+        return {**result, "pty": name == "pty" and result.get("status") in {"ok", "already_running"}}
+
+    async def _delegate(self, method: str, terminal_id: str, **kwargs: Any) -> str | None:
+        bridge = self._route(terminal_id)
+        if bridge is not None:
+            error = await getattr(bridge, method)(terminal_id=terminal_id, **kwargs)
+            if error != "unknown_terminal":
+                return error
+            # Routed bridge lost the terminal; drop the mapping and try the other.
+            self._owner.pop(terminal_id, None)
+        for name, candidate in (("pty", self._pty), ("pipe", self._pipe)):
+            if candidate is None or candidate is bridge:
+                continue
+            error = await getattr(candidate, method)(terminal_id=terminal_id, **kwargs)
+            if error is None:
+                if method == "kill" and not candidate.has_live(terminal_id):
+                    self._owner[terminal_id] = name  # grace-window kill landed
+                return None
+        return "unknown_terminal"
+
+    async def write(self, *, terminal_id: str, data: str) -> str | None:
+        return await self._delegate("write", terminal_id, data=data)
+
+    async def kill(self, *, terminal_id: str) -> str | None:
+        return await self._delegate("kill", terminal_id)
+
+    async def resize(self, *, terminal_id: str, cols: int, rows: int) -> str | None:
+        return await self._delegate("resize", terminal_id, cols=cols, rows=rows)
+
+    def owner_chat(self, terminal_id: str) -> str | None:
+        for bridge in (self._pty, self._pipe):
+            if bridge is not None:
+                owner = bridge.owner_chat(terminal_id)
+                if owner is not None:
+                    return owner
+        return None
+
+    def exited_owner(self, terminal_id: str) -> str | None:
+        for bridge in (self._pty, self._pipe):
+            if bridge is not None:
+                owner = bridge.exited_owner(terminal_id)
+                if owner is not None:
+                    return owner
+        return None
+
+    def has_live(self, terminal_id: str) -> bool:
+        return any(
+            bridge is not None and bridge.has_live(terminal_id)
+            for bridge in (self._pty, self._pipe)
+        )
+
+    def list_visible(self, chat_ids: Iterable[str]) -> list[dict[str, Any]]:
+        entries: list[dict[str, Any]] = []
+        for bridge in (self._pty, self._pipe):
+            if bridge is not None:
+                entries.extend(bridge.list_visible(chat_ids))
+        return entries
+
+    async def aclose(self) -> None:
+        for bridge in (self._pty, self._pipe):
+            if bridge is not None:
+                await bridge.aclose()
+        self._owner.clear()
+
+
+def create_terminal_bridge(
+    exec_manager: Any,
+    *,
+    exec_config: ExecToolConfig | None = None,
+    webui_allow_local_service_access: bool = True,
+    max_terminals: int = DEFAULT_MAX_TERMINALS,
+    idle_timeout_s: float | None = None,
+) -> TerminalSupervisor:
+    """Factory used by the gateway command router (inbound_commands)."""
+    from nanobot.webui.terminal_bridge import WebuiTerminalBridge
+
+    pipe = WebuiTerminalBridge(
+        exec_manager,
+        exec_config=exec_config,
+        webui_allow_local_service_access=webui_allow_local_service_access,
+        max_terminals=max_terminals,
+        idle_timeout_s=idle_timeout_s,
+    )
+    pty_bridge = None
+    if PTY_SUPPORTED:
+        pty_bridge = PtyTerminalBridge(
+            exec_config=exec_config,
+            webui_allow_local_service_access=webui_allow_local_service_access,
+            max_terminals=max_terminals,
+            idle_timeout_s=(
+                DEFAULT_TERMINAL_IDLE_TIMEOUT_S if idle_timeout_s is None else idle_timeout_s
+            ),
+        )
+    return TerminalSupervisor(pipe, pty_bridge, max_terminals=max_terminals)

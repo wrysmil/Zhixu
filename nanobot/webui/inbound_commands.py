@@ -504,11 +504,11 @@ class WebUICommandRouter:
     def _terminal_bridge(self) -> Any:
         if self._terminal_bridge_instance is None:
             from nanobot.agent.tools.exec_session import ExecSessionManager
-            from nanobot.webui.terminal_bridge import (
-                DEFAULT_MAX_TERMINALS,
-                DEFAULT_TERMINAL_IDLE_TIMEOUT_S,
-                WebuiTerminalBridge,
+            from nanobot.webui.pty_terminal import (
+                DEFAULT_MAX_TERMINALS as _TERMINAL_MAX,
             )
+            from nanobot.webui.pty_terminal import create_terminal_bridge
+            from nanobot.webui.terminal_bridge import DEFAULT_TERMINAL_IDLE_TIMEOUT_S
 
             exec_config = None
             allow_local_service_access = True
@@ -523,10 +523,10 @@ class WebUICommandRouter:
                     "terminal bridge could not read exec config; using defaults"
                 )
             manager = ExecSessionManager(
-                max_sessions=DEFAULT_MAX_TERMINALS,
+                max_sessions=_TERMINAL_MAX,
                 idle_timeout=DEFAULT_TERMINAL_IDLE_TIMEOUT_S,
             )
-            self._terminal_bridge_instance = WebuiTerminalBridge(
+            self._terminal_bridge_instance = create_terminal_bridge(
                 manager,
                 exec_config=exec_config,
                 webui_allow_local_service_access=allow_local_service_access,

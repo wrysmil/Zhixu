@@ -182,3 +182,131 @@ async def test_pty_limit_reached(scope):
         assert result["status"] == "limit_reached"
     finally:
         await bridge.aclose()
+
+
+# -- Task 4: TerminalSupervisor facade --------------------------------------
+
+
+async def test_supervisor_routes_restricted_to_pipe(tmp_path):
+    from nanobot.agent.tools.exec_session import ExecSessionManager
+    from nanobot.security.workspace_access import default_workspace_scope
+    from nanobot.webui.pty_terminal import create_terminal_bridge
+
+    restricted = default_workspace_scope(tmp_path, restrict_to_workspace=True)
+    manager = ExecSessionManager(max_sessions=8, idle_timeout=1800)
+    bridge = create_terminal_bridge(manager)
+    try:
+        result = await bridge.start(
+            terminal_id="term-x", scope=restricted, chat_id="c",
+            session_key="websocket:c", publisher=Collector(),
+        )
+        assert result["pty"] is False  # restricted：管道守卫行式路径（spec §4.4 保守形态）
+        assert bridge.owner_chat("term-x") == "c"
+    finally:
+        await bridge.aclose()
+
+
+async def test_supervisor_prefers_pty_for_full_access(scope):
+    from nanobot.agent.tools.exec_session import ExecSessionManager
+    from nanobot.webui.pty_terminal import create_terminal_bridge
+
+    manager = ExecSessionManager(max_sessions=8, idle_timeout=1800)
+    bridge = create_terminal_bridge(manager)
+    try:
+        result = await bridge.start(
+            terminal_id="term-p", scope=scope, chat_id="c",
+            session_key="websocket:c", publisher=Collector(),
+        )
+        assert result["pty"] is True and result["status"] == "ok"
+        assert await bridge.resize(terminal_id="term-p", cols=100, rows=30) is None
+    finally:
+        await bridge.aclose()
+
+
+async def test_supervisor_shared_limit_of_eight(scope, tmp_path):
+    from nanobot.agent.tools.exec_session import ExecSessionManager
+    from nanobot.security.workspace_access import default_workspace_scope
+    from nanobot.webui.pty_terminal import create_terminal_bridge
+
+    restricted = default_workspace_scope(tmp_path, restrict_to_workspace=True)
+    manager = ExecSessionManager(max_sessions=8, idle_timeout=1800)
+    bridge = create_terminal_bridge(manager, max_terminals=2)
+    try:
+        full = await bridge.start(
+            terminal_id="term-1", scope=scope, chat_id="c",
+            session_key="websocket:c", publisher=Collector(),
+        )
+        pipe = await bridge.start(
+            terminal_id="term-2", scope=restricted, chat_id="c",
+            session_key="websocket:c", publisher=Collector(),
+        )
+        assert full["status"] == "ok" and pipe["status"] == "ok"
+        overflow = await bridge.start(
+            terminal_id="term-3", scope=scope, chat_id="c",
+            session_key="websocket:c", publisher=Collector(),
+        )
+        assert overflow["status"] == "limit_reached"
+    finally:
+        await bridge.aclose()
+
+
+async def test_supervisor_takeover_passthrough(scope):
+    """同 id 再次 start：不新建、不计数，重绑 publisher 并透传 already_running。"""
+    from nanobot.agent.tools.exec_session import ExecSessionManager
+    from nanobot.webui.pty_terminal import create_terminal_bridge
+
+    manager = ExecSessionManager(max_sessions=8, idle_timeout=1800)
+    bridge = create_terminal_bridge(manager, max_terminals=2)
+    first, second = Collector(), Collector()
+    try:
+        await bridge.start(
+            terminal_id="term-t", scope=scope, chat_id="chat-1",
+            session_key="websocket:chat-1", publisher=first,
+        )
+        result = await bridge.start(
+            terminal_id="term-t", scope=scope, chat_id="chat-2",
+            session_key="websocket:chat-2", publisher=second,
+        )
+        assert result["status"] == "already_running" and result["pty"] is True
+        assert bridge.owner_chat("term-t") == "chat-2"
+        # 接管不占用新增名额：仍可再开一个到上限。
+        other = await bridge.start(
+            terminal_id="term-t2", scope=scope, chat_id="chat-2",
+            session_key="websocket:chat-2", publisher=second,
+        )
+        assert other["status"] == "ok"
+        overflow = await bridge.start(
+            terminal_id="term-t3", scope=scope, chat_id="chat-2",
+            session_key="websocket:chat-2", publisher=second,
+        )
+        assert overflow["status"] == "limit_reached"
+        # write/kill 路由透传到持有该 id 的桥。
+        await bridge.write(terminal_id="term-t", data="echo SUP_OK\n")
+        await _wait_until(lambda: "SUP_OK" in second.text(), message="supervisor routed write")
+        assert await bridge.kill(terminal_id="term-t") is None
+        assert bridge.exited_owner("term-t") == "chat-2"
+    finally:
+        await bridge.aclose()
+
+
+async def test_supervisor_list_visible_merges_both_bridges(scope, tmp_path):
+    from nanobot.agent.tools.exec_session import ExecSessionManager
+    from nanobot.security.workspace_access import default_workspace_scope
+    from nanobot.webui.pty_terminal import create_terminal_bridge
+
+    restricted = default_workspace_scope(tmp_path, restrict_to_workspace=True)
+    manager = ExecSessionManager(max_sessions=8, idle_timeout=1800)
+    bridge = create_terminal_bridge(manager)
+    try:
+        await bridge.start(
+            terminal_id="term-m1", scope=scope, chat_id="c",
+            session_key="websocket:c", publisher=Collector(),
+        )
+        await bridge.start(
+            terminal_id="term-m2", scope=restricted, chat_id="c",
+            session_key="websocket:c", publisher=Collector(),
+        )
+        ids = {entry["terminal_id"] for entry in bridge.list_visible({"c"})}
+        assert {"term-m1", "term-m2"} <= ids
+    finally:
+        await bridge.aclose()
