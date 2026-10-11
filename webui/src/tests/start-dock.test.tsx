@@ -125,8 +125,11 @@ function renderDock(props: Partial<React.ComponentProps<typeof StartDock>> = {})
   return client;
 }
 
+// 启动器不再展示 shell select；测试关心的是 shells 数据被拉回，
+// + 菜单的 shell 子菜单据此渲染。
 async function waitForShells() {
-  await waitFor(() => expect(screen.getByTestId("dock-shell-select")).toHaveValue("zsh"));
+  await waitFor(() => expect(mocks.fetchTerminalShells).toHaveBeenCalledWith("tok"));
+  
 }
 
 function startedEvent(
@@ -170,10 +173,8 @@ describe("StartDock launcher empty state", () => {
     expect(screen.getByTestId("dock-card-files")).toBeInTheDocument();
     expect(screen.getByTestId("dock-card-browser")).toBeInTheDocument();
     expect(screen.getByTestId("dock-card-terminal")).toBeInTheDocument();
-    expect(screen.getByTestId("dock-shell-select")).toBeInTheDocument();
     expect(client.terminalList).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(mocks.fetchTerminalShells).toHaveBeenCalledWith("tok"));
-    await waitFor(() => expect(screen.getByTestId("dock-shell-select")).toHaveValue("zsh"));
   });
 
   it("clicking a launcher card opens its tab and drops the launcher", () => {
@@ -184,14 +185,13 @@ describe("StartDock launcher empty state", () => {
     expect(screen.getByTestId("browser-section")).toBeInTheDocument();
   });
 
-  it("terminal card + shell select sends terminal_start with the chosen shell and titled tab", async () => {
+  it("terminal card opens a default-shell tab via the launcher (shell choice moved to + menu)", async () => {
     const client = renderDock();
-    await waitForShells();
-    fireEvent.change(screen.getByTestId("dock-shell-select"), { target: { value: "bash" } });
+    await waitFor(() => expect(mocks.fetchTerminalShells).toHaveBeenCalledWith("tok"));
     fireEvent.click(screen.getByTestId("dock-card-terminal"));
     const id = client.terminalStart.mock.calls[0][0] as string;
-    expect(client.terminalStart).toHaveBeenCalledWith(id, null, "bash");
-    expect(screen.getByTestId(`dock-tab-${id}`)).toHaveTextContent(">. bash");
+    // 启动器不再做 shell 选择；shells.default 已加载后透传给终端启动帧。
+    expect(client.terminalStart).toHaveBeenCalledWith(id, null, "zsh");
     expect(screen.getByTestId(`terminal-surface-${id}`)).toBeInTheDocument();
   });
 

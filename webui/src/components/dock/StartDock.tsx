@@ -106,7 +106,8 @@ export function StartDock({
   const [plusOpen, setPlusOpen] = useState(false);
   const [shellSubOpen, setShellSubOpen] = useState(false);
   const [shells, setShells] = useState<TerminalShellsPayload | null>(null);
-  const [shellChoice, setShellChoice] = useState<string | null>(null);
+  // 启动器不再做 shell 选择（规格 §6）：终端卡片直接以 platforms 默认 shell 开 tab；
+  // + 菜单里的 shell 子菜单仍可指定 shell。
   // 本 dock 生命周期内被用户关闭过的 terminal id（tombstone）：
   // 后续 terminal_list_result 不得复活它们；terminal id 为 uuid，不会跨页复用。
   const closedTerminalIdsRef = useRef(new Set<string>());
@@ -197,7 +198,7 @@ export function StartDock({
   const openCard = (cardId: string) => {
     if (cardId === "files") dockStore.openFile(scope);
     else if (cardId === "browser") dockStore.openBrowser(scope);
-    else openTerminalTab(shellChoice ?? shells?.default ?? null);
+    else openTerminalTab(shells?.default ?? null);
   };
 
   const expandShellSubmenu = () => {
@@ -230,7 +231,7 @@ export function StartDock({
 
   const shellInner = (
     <>
-      <header className="flex h-9 shrink-0 items-center gap-1 border-b border-border/40 px-2">
+      <header className="flex h-dockHeader shrink-0 items-center gap-1 border-b border-border/40 px-2">
         <div role="tablist" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {snapshot.tabs.map((tab) => {
             const isActive = tab.id === snapshot.activeId;
@@ -382,12 +383,12 @@ export function StartDock({
               const Icon = card.icon;
               return (
                 <li key={card.id}>
-                  <div className="rounded-lg border border-border/50 bg-background/60 hover:border-border/70">
+                  <div className="border-b border-border/40 last:border-b-0">
                     <button
                       type="button"
                       data-testid={`dock-card-${card.id}`}
                       onClick={() => openCard(card.id)}
-                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
+                      className="flex w-full items-center gap-3 px-2 py-2 text-left"
                     >
                       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border/50 bg-muted/30">
                         <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
@@ -406,37 +407,7 @@ export function StartDock({
                         </kbd>
                       ) : null}
                     </button>
-                    {card.id === "terminal" ? (
-                      <div className="border-t border-border/40 px-3 py-1.5">
-                        <label
-                          htmlFor="dock-shell-select"
-                          className="sr-only"
-                        >
-                          {t("dock.shellChoices", { defaultValue: "Choose shell" })}
-                        </label>
-                        <select
-                          id="dock-shell-select"
-                          data-testid="dock-shell-select"
-                          value={shellChoice ?? shells?.default ?? ""}
-                          onChange={(event) => setShellChoice(event.target.value)}
-                          className="h-6 w-full rounded border border-border/50 bg-background px-1.5 text-[11.5px] text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
-                        >
-                          {shells ? (
-                            shells.shells.map((shell) => (
-                              <option key={shell.id} value={shell.id}>
-                                {shell.label}
-                              </option>
-                            ))
-                          ) : (
-                            <option value="">
-                              {t("dock.platformDefaultShell", {
-                                defaultValue: "Platform default",
-                              })}
-                            </option>
-                          )}
-                        </select>
-                      </div>
-                    ) : null}
+
                   </div>
                 </li>
               );
@@ -478,7 +449,7 @@ export function StartDock({
     <aside
       data-testid="start-dock"
       aria-label={t("startPanel.title", { defaultValue: "Start" })}
-      className="hidden w-[26rem] shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 md:flex xl:w-[30rem]"
+      className="hidden w-dock shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 md:flex xl:w-dockXl"
     >
       {shellInner}
     </aside>
