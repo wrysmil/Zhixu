@@ -68,6 +68,8 @@ DEFAULT_TERMINAL_IDLE_TIMEOUT_S = 1800
 DEFAULT_POLL_INTERVAL_S = 0.1
 #: Upper bound on one inbound ``terminal_write.data`` frame.
 MAX_TERMINAL_WRITE_CHARS = 64_000
+#: Seconds an exited terminal stays kill-idempotent / visible via exited_owner (T4).
+EXITED_GRACE_S = 60.0
 
 _TERMINAL_EXPIRED_NOTICE = "session expired"
 _INPUT_OVERFLOW_NOTICE = "Error: terminal input buffer overflow; pending input discarded"
