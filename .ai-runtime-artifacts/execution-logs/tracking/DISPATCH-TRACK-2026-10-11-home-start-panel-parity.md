@@ -102,4 +102,18 @@ OpenItems: 浏览器人工验收（spec §9）；v1.1 记录项见 collective-te
 Queue-remaining: 无（批次完成，待合并决策）
 Next: 用户确认合并方式 → git-xywh 合并回 feature/desktop-app → WORKTREE-CLOSE
 
+[2026-10-11 17:20] WORKTREE-CLOSE + MERGE + PUSH | Leader | Status: completed
+Detail: 用户指令「commit然后push」→ 主 checkout 先提交用户既有工作（84c7fa1 create-project-modal+状态条移除）与本批产物（10ef011）→ --no-ff 合并 harness/wt-home-start-panel（83ce1ca，自动无冲突，locales 双方改区不重叠）→ 合并后验证 webui 99 files/1395 tests exit0、build 0、后端目标 49 passed、ruff 0 → push origin feature/desktop-app 成功（5f8195f..83ce1ca）→ worktree remove wt-home-start-panel；本地分支 harness/wt-home-start-panel 保留（已合并）
+Tests: 1395 pass（合并后含用户 add-project-dialog 用例）
+Worktree: 已移除 | Branch: harness/wt-home-start-panel（本地保留）
+Queue-remaining: 无
+Next: 可选人工浏览器验收（spec §9）；v1.1 记录项见 collective-test
+
+## CLOSEOUT-browser-acceptance @ 2026-10-11 15:2x（Leader，主 checkout 实机）
+Verdict: spec §9 五项全 PASS（文件预览链 / 终端端到端 echo / 浏览器白名单+sandbox 无 allow-same-origin / 「+」菜单分组 / feedback.jsonl 落盘）
+Artifact: verifications/2026-10-11-home-start-panel-parity-browser-acceptance.md + assets/01..04.png
+排除项: 终端「无响应」为自动化误差（卡片≠分区内 + 按钮；合成 Enter 不触发隐式提交；注入钩子 IN 捕获不可靠），无代码改动
+Queue-remaining: 无
+Next: 验收产物待用户确认是否提交；v1.1 记录项不变
+
 
