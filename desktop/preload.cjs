@@ -8,4 +8,5 @@ contextBridge.exposeInMainWorld("mira", {
   retryBoot: () => ipcRenderer.send("mira:retry"),
   pickFolder: () => ipcRenderer.invoke("mira:pick-folder"),
   revealInFolder: (targetPath) => ipcRenderer.invoke("mira:reveal-in-folder", targetPath),
+  openExternal: (targetUrl) => ipcRenderer.invoke("mira:open-external", targetUrl),
 });

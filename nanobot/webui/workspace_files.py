@@ -20,6 +20,29 @@ MAX_WORKSPACE_LIST_ENTRIES = 400
 # Never surfaced in the file tree: noise that users cannot act on from the UI.
 HIDDEN_ENTRY_NAMES = frozenset({".git", "node_modules"})
 
+WORKSPACE_DEFAULT_SCOPE_PARAM = "default"
+
+
+def resolve_workspace_anchor(
+    scope_param: str | None,
+    *,
+    default_scope: WorkspaceScope,
+) -> WorkspaceScope | None:
+    """Resolve the read-only anchor for workspace-dimension WebUI routes.
+
+    Only ``scope=default`` (or a missing parameter) is supported; the anchor is
+    the default workspace/project scope. Returns ``None`` when an unknown scope
+    is requested or the default workspace directory does not exist, so callers
+    answer 404 ``no_default_workspace`` per the contract.
+    """
+
+    requested = (scope_param or WORKSPACE_DEFAULT_SCOPE_PARAM).strip().lower()
+    if requested != WORKSPACE_DEFAULT_SCOPE_PARAM:
+        return None
+    if not default_scope.project_path.is_dir():
+        return None
+    return default_scope
+
 
 def workspace_directory_payload(
     raw_path: str | None,

@@ -18,8 +18,15 @@ import {
 import { channelUiPresentation } from "@/channel-plugins/registry";
 import { Sidebar } from "@/components/Sidebar";
 import { PROJECTS_SECTION_KEY, type SidebarDeleteItem } from "@/components/ChatList";
+import {
+  HomeStartPanel,
+  resolveStartPanelShortcut,
+  type StartPanelFocus,
+  type StartPanelSection,
+} from "@/components/home/HomeStartPanel";
 import type { SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
+import { BrowserSection } from "@/components/workbench/BrowserSection";
 import { PaneWorkbench } from "@/components/workbench/PaneWorkbench";
 import { SESSION_WORKBENCH_RAIL_WIDTH } from "@/components/workbench/SessionWorkbench";
 import { WorkbenchTabBar } from "@/components/workbench/WorkbenchTabBar";
@@ -151,6 +158,12 @@ const SettingsView = lazy(async () => {
   return { default: module.SettingsView };
 });
 const CreativeWorkspace = lazy(() => import("./components/creative/CreativeWorkspace"));
+// xterm.js weighs ~340 kB; load the terminal panel only when its card expands.
+const LazyTerminalSection = lazy(() =>
+  import("@/components/workbench/TerminalSection").then((module) => ({
+    default: module.TerminalSection,
+  })),
+);
 const SessionSearchDialog = lazy(async () => {
   const module = await import("@/components/SessionSearchDialog");
   return { default: module.SessionSearchDialog };
@@ -988,6 +1001,13 @@ function Shell({
     useState<boolean>(readSidebarOpen);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sessionSearchOpen, setSessionSearchOpen] = useState(false);
+  const [startPanelFocus, setStartPanelFocus] = useState<StartPanelFocus | null>(null);
+  const openStartPanelSection = useCallback((section: StartPanelSection) => {
+    setStartPanelFocus((current) => ({
+      section,
+      nonce: (current?.nonce ?? 0) + 1,
+    }));
+  }, []);
   const mobileWorkbench = useMediaQuery("(max-width: 767px)");
   const workbenchState = sidebarState.workbench;
   const updateWorkbenchState = useCallback((
@@ -1910,6 +1930,17 @@ function Shell({
         onNewChat();
         return;
       }
+      const startPanelSection = resolveStartPanelShortcut(
+        event,
+        // The Start panel only mounts on the home/empty state; with an active
+        // session there is nothing to open, so the keys must pass through.
+        view === "chat" && activeKey === null,
+      );
+      if (startPanelSection !== null) {
+        event.preventDefault();
+        openStartPanelSection(startPanelSection);
+        return;
+      }
       const plainCommandK =
         (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
       if (!plainCommandK) return;
@@ -1920,7 +1951,7 @@ function Shell({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onNewChat, onOpenSessionSearch]);
+  }, [activeKey, onNewChat, onOpenSessionSearch, view, openStartPanelSection]);
 
   const onSelectSearchResult = useCallback(
     (key: string) => {
@@ -2723,142 +2754,162 @@ function Shell({
                 onSelectTab={onSelectSidebarItem}
                 onNewChat={onNewChat}
               />
-              <div className="flex min-h-0 flex-1 flex-col">
-                <PaneWorkbench
-                panes={renderedWorkbenchPanes}
-                activePaneKey={renderedActivePaneKey}
-                layout={renderedWorkbenchLayout}
-                splitRatios={renderedWorkbenchSplitRatios}
-                chrome={paneChromeEnabled}
-                showLayoutControl={activeTabVisible}
-                addPaneDisabled={creatingPane || activePaneLimitReached}
-                addPaneDisabledLabel={activePaneLimitReached
-                  ? t("workbench.paneLimit", {
-                      count: MAX_WORKBENCH_PANES,
-                    })
-                  : undefined}
-                onActivatePane={onActivateWorkbenchPane}
-                onAddPane={onAddPane}
-                onLayoutChange={(layout) => {
-                  if (!activeTabKey) return;
-                  updateWorkbenchState((current) => (
-                    setWorkbenchLayout(current, activeTabKey, layout)
-                  ));
-                }}
-                onPaneOrderChange={(paneKeys) => {
-                  if (!activeTabKey) return;
-                  updateWorkbenchState((current) => (
-                    setWorkbenchPaneLayoutOrder(current, activeTabKey, paneKeys)
-                  ));
-                }}
-                onSplitRatiosChange={(splitRatios) => {
-                  if (!activeTabKey) return;
-                  updateWorkbenchState((current) => (
-                    setWorkbenchSplitRatios(current, activeTabKey, splitRatios)
-                  ));
-                }}
-                composerRailInset={paneWorkbenchOpen[renderedActivePaneKey]
-                  ? SESSION_WORKBENCH_RAIL_WIDTH
-                  : undefined}
-                renderPane={(pane, context) => {
-                  if (!paneChromeEnabled) {
-                    return (
-                      <ThreadShell
-                        session={activeSession}
-                        sessions={sessions}
-                        title={headerTitle}
-                        temporary={temporaryChatRequested}
-                        temporaryChatIds={temporaryChatIds}
-                        temporaryChatEnabled={temporaryChatEnabled}
-                        onTemporaryChatEnabledChange={
-                          !activeKey ? onTemporaryChatEnabledChange : undefined
-                        }
-                        onToggleSidebar={toggleSidebar}
-                        onNewChat={onNewChat}
-                        onCreateChat={
-                          temporaryChatEnabled ? onCreateTemporaryChat : onCreateChat
-                        }
-                        onForkChat={temporaryChatActive ? undefined : onForkChat}
-                        onTurnEnd={onTurnEnd}
-                        theme={theme}
-                        onToggleTheme={toggle}
-                        hideSidebarToggleForHostChrome
-                        hideHeader={false}
-                        workspaceScope={activeWorkspaceScope}
-                        workspaceDefaultScope={workspaces?.default_scope ?? null}
-                        workspaceControls={workspaces?.controls ?? null}
-                        workspaceHostname={workspaces?.hostname ?? null}
-                        workspaceScopeDisabled={activeChatRunning}
-                        workspaceError={workspaceError}
-                        onWorkspaceScopeChange={applyWorkspaceScope}
-                        settingsSnapshot={settingsSnapshot}
-                        onOpenModelSettings={onOpenModelSettings}
-                        skills={skills}
-                        draftSeed={composerDraftSeed}
-                        onDraftSeedConsumed={onDraftSeedConsumed}
-                      />
-                    );
-                  }
+              <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                  <PaneWorkbench
+                    panes={renderedWorkbenchPanes}
+                    activePaneKey={renderedActivePaneKey}
+                    layout={renderedWorkbenchLayout}
+                    splitRatios={renderedWorkbenchSplitRatios}
+                    chrome={paneChromeEnabled}
+                    showLayoutControl={activeTabVisible}
+                    addPaneDisabled={creatingPane || activePaneLimitReached}
+                    addPaneDisabledLabel={activePaneLimitReached
+                      ? t("workbench.paneLimit", {
+                          count: MAX_WORKBENCH_PANES,
+                        })
+                      : undefined}
+                    onActivatePane={onActivateWorkbenchPane}
+                    onAddPane={onAddPane}
+                    onLayoutChange={(layout) => {
+                      if (!activeTabKey) return;
+                      updateWorkbenchState((current) => (
+                        setWorkbenchLayout(current, activeTabKey, layout)
+                      ));
+                    }}
+                    onPaneOrderChange={(paneKeys) => {
+                      if (!activeTabKey) return;
+                      updateWorkbenchState((current) => (
+                        setWorkbenchPaneLayoutOrder(current, activeTabKey, paneKeys)
+                      ));
+                    }}
+                    onSplitRatiosChange={(splitRatios) => {
+                      if (!activeTabKey) return;
+                      updateWorkbenchState((current) => (
+                        setWorkbenchSplitRatios(current, activeTabKey, splitRatios)
+                      ));
+                    }}
+                    composerRailInset={paneWorkbenchOpen[renderedActivePaneKey]
+                      ? SESSION_WORKBENCH_RAIL_WIDTH
+                      : undefined}
+                    renderPane={(pane, context) => {
+                      if (!paneChromeEnabled) {
+                        return (
+                          <ThreadShell
+                            session={activeSession}
+                            sessions={sessions}
+                            title={headerTitle}
+                            temporary={temporaryChatRequested}
+                            temporaryChatIds={temporaryChatIds}
+                            temporaryChatEnabled={temporaryChatEnabled}
+                            onTemporaryChatEnabledChange={
+                              !activeKey ? onTemporaryChatEnabledChange : undefined
+                            }
+                            onToggleSidebar={toggleSidebar}
+                            onNewChat={onNewChat}
+                            onCreateChat={
+                              temporaryChatEnabled ? onCreateTemporaryChat : onCreateChat
+                            }
+                            onForkChat={temporaryChatActive ? undefined : onForkChat}
+                            onTurnEnd={onTurnEnd}
+                            theme={theme}
+                            onToggleTheme={toggle}
+                            hideSidebarToggleForHostChrome
+                            hideHeader={false}
+                            workspaceScope={activeWorkspaceScope}
+                            workspaceDefaultScope={workspaces?.default_scope ?? null}
+                            workspaceControls={workspaces?.controls ?? null}
+                            workspaceHostname={workspaces?.hostname ?? null}
+                            workspaceScopeDisabled={activeChatRunning}
+                            workspaceError={workspaceError}
+                            onWorkspaceScopeChange={applyWorkspaceScope}
+                            settingsSnapshot={settingsSnapshot}
+                            onOpenModelSettings={onOpenModelSettings}
+                            skills={skills}
+                            draftSeed={composerDraftSeed}
+                            onDraftSeedConsumed={onDraftSeedConsumed}
+                          />
+                        );
+                      }
 
-                  const paneSession = workbenchPaneSessions.find(
-                    (session) => session.key === pane.key,
-                  );
-                  if (!paneSession) return null;
-                  const paneScope = workspaceOverrides[paneSession.chatId]
-                    ?? paneSession.workspaceScope
-                    ?? workspaces?.default_scope
-                    ?? null;
-                  const paneRunning = runningChatIds.has(paneSession.chatId);
-                  return (
-                    <ThreadShell
-                      session={paneSession}
-                      sessions={sessions}
-                      title={pane.title}
-                      onToggleSidebar={toggleSidebar}
-                      onNewChat={onNewChat}
-                      onCreateChat={onCreateChat}
-                      onForkChat={onForkChat}
-                      onTurnEnd={context.active ? onTurnEnd : () => void refresh()}
-                      theme={theme}
-                      onToggleTheme={toggle}
-                      hideSidebarToggle={!context.active}
-                      hideSidebarToggleForHostChrome={context.active}
-                      hideThemeButton={!context.active}
-                      hideHeaderTitle
-                      inlineHandle={workbenchPaneSessions.length > 1}
-                      headerActions={context.headerActions}
-                      headerPortalTarget={context.headerPortalTarget}
-                      headerActive={context.active}
-                      composerPortalTarget={context.composerPortalTarget}
-                      composerActive={context.active}
-                      composerInputAriaLabel={t("workbench.composerAria", {
-                        title: pane.title,
-                      })}
-                      emptyComposerVariant="thread"
-                      workspaceScope={paneScope}
-                      workspaceDefaultScope={workspaces?.default_scope ?? null}
-                      workspaceControls={workspaces?.controls ?? null}
-                      workspaceScopeDisabled={paneRunning}
-                      workspaceError={context.active ? workspaceError : null}
-                      workspaceHostname={workspaces?.hostname ?? null}
-                      onWorkspaceScopeChange={(scope) => {
-                        if (paneRunning) return;
-                        const next = normalizeWorkspaceScope(scope);
-                        setWorkspaceError(null);
-                        setWorkspaceOverrides((current) => ({
-                          ...current,
-                          [paneSession.chatId]: next,
-                        }));
-                        client.setWorkspaceScope(paneSession.chatId, next);
-                      }}
-                      settingsSnapshot={settingsSnapshot}
-                      onOpenModelSettings={onOpenModelSettings}
-                      skills={skills}
-                      onWorkbenchOpenChange={(open) => onPaneWorkbenchOpenChange(pane.key, open)}
-                    />
-                  );
-                }}
-              />
+                      const paneSession = workbenchPaneSessions.find(
+                        (session) => session.key === pane.key,
+                      );
+                      if (!paneSession) return null;
+                      const paneScope = workspaceOverrides[paneSession.chatId]
+                        ?? paneSession.workspaceScope
+                        ?? workspaces?.default_scope
+                        ?? null;
+                      const paneRunning = runningChatIds.has(paneSession.chatId);
+                      return (
+                        <ThreadShell
+                          session={paneSession}
+                          sessions={sessions}
+                          title={pane.title}
+                          onToggleSidebar={toggleSidebar}
+                          onNewChat={onNewChat}
+                          onCreateChat={onCreateChat}
+                          onForkChat={onForkChat}
+                          onTurnEnd={context.active ? onTurnEnd : () => void refresh()}
+                          theme={theme}
+                          onToggleTheme={toggle}
+                          hideSidebarToggle={!context.active}
+                          hideSidebarToggleForHostChrome={context.active}
+                          hideThemeButton={!context.active}
+                          hideHeaderTitle
+                          inlineHandle={workbenchPaneSessions.length > 1}
+                          headerActions={context.headerActions}
+                          headerPortalTarget={context.headerPortalTarget}
+                          headerActive={context.active}
+                          composerPortalTarget={context.composerPortalTarget}
+                          composerActive={context.active}
+                          composerInputAriaLabel={t("workbench.composerAria", {
+                            title: pane.title,
+                          })}
+                          emptyComposerVariant="thread"
+                          workspaceScope={paneScope}
+                          workspaceDefaultScope={workspaces?.default_scope ?? null}
+                          workspaceControls={workspaces?.controls ?? null}
+                          workspaceScopeDisabled={paneRunning}
+                          workspaceError={context.active ? workspaceError : null}
+                          workspaceHostname={workspaces?.hostname ?? null}
+                          onWorkspaceScopeChange={(scope) => {
+                            if (paneRunning) return;
+                            const next = normalizeWorkspaceScope(scope);
+                            setWorkspaceError(null);
+                            setWorkspaceOverrides((current) => ({
+                              ...current,
+                              [paneSession.chatId]: next,
+                            }));
+                            client.setWorkspaceScope(paneSession.chatId, next);
+                          }}
+                          settingsSnapshot={settingsSnapshot}
+                          onOpenModelSettings={onOpenModelSettings}
+                          skills={skills}
+                          onWorkbenchOpenChange={(open) => onPaneWorkbenchOpenChange(pane.key, open)}
+                        />
+                      );
+                    }}
+                  />
+                </div>
+                {view === "chat" && activeKey === null && !mobileWorkbench ? (
+                  <HomeStartPanel
+                    getToken={getToken}
+                    focus={startPanelFocus}
+                    terminalSlot={
+                      <Suspense
+                        fallback={
+                          <p className="text-[12px] text-muted-foreground/70">
+                            {t("workbench.treeLoading", { defaultValue: "Loading…" })}
+                          </p>
+                        }
+                      >
+                        <LazyTerminalSection />
+                      </Suspense>
+                    }
+                    browserSlot={<BrowserSection />}
+                  />
+                ) : null}
               </div>
             </div>
             {(view === "creative" || view === "article") ? (

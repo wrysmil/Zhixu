@@ -554,6 +554,50 @@ describe("App layout", () => {
     );
   });
 
+  it("intercepts ⌘P on the home view and expands the files card", async () => {
+    render(<App />);
+
+    await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+    const event = new window.KeyboardEvent("keydown", {
+      key: "p",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => window.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(true);
+    expect(screen.getByTestId("home-start-panel")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Workspace files/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("does not swallow ⌘P while an active session is open", async () => {
+    mockSessions = [{
+      key: "websocket:existing-chat",
+      channel: "websocket",
+      chatId: "existing-chat",
+      createdAt: "2026-08-06T10:00:00Z",
+      updatedAt: "2026-08-06T10:00:00Z",
+      preview: "Existing topic",
+    }];
+    window.history.replaceState(null, "", `#/chat/${encodeURIComponent("websocket:existing-chat")}`);
+    render(<App />);
+
+    await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByTestId("home-start-panel")).not.toBeInTheDocument(),
+    );
+    const event = new window.KeyboardEvent("keydown", {
+      key: "p",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => window.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it("keeps a just-created topic route while the session list catches up", async () => {
     render(<App />);
 

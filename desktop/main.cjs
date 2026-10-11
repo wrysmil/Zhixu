@@ -249,6 +249,20 @@ if (!gotLock) {
       shell.showItemInFolder(path.resolve(targetPath));
       return true;
     });
+    ipcMain.handle("mira:open-external", async (_event, targetUrl) => {
+      if (typeof targetUrl !== "string" || !/^https?:\/\//i.test(targetUrl)) return false;
+      // Defense in depth: the regex only checks the prefix, so also require a
+      // full WHATWG parse with an http(s) protocol before handing to the OS.
+      let parsed;
+      try {
+        parsed = new URL(targetUrl);
+      } catch {
+        return false;
+      }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+      await shell.openExternal(parsed.toString());
+      return true;
+    });
     createWindow();
     boot();
     app.on("activate", () => {

@@ -41,18 +41,28 @@ from nanobot.webui.forking import handle_webui_fork_chat
 from nanobot.webui.gateway_services import GatewayServices
 from nanobot.webui.mcp_presets_api import normalize_mcp_preset_mentions
 from nanobot.webui.metadata import WEBSOCKET_TURN_OWNER_METADATA_KEY
+from nanobot.webui.outbound_wire import (
+    encode_terminal_list_result,
+    encode_terminal_started,
+)
 from nanobot.webui.session_access import (
     SessionMention,
     WebuiSessionAccess,
     session_mentions_runtime_context,
 )
-from nanobot.webui.session_identity import is_valid_webui_chat_id, webui_session_key
+from nanobot.webui.session_identity import (
+    WEBUI_SESSION_STORAGE_PREFIX,
+    is_valid_webui_chat_id,
+    webui_session_key,
+)
 from nanobot.webui.sidebar_state import write_webui_sidebar_state
 from nanobot.webui.temporary_chats import TemporaryChatError
 from nanobot.webui.transcription_ws import webui_transcription_event
 
 _WEBUI_REQUEST_CACHE_TTL_S = 5 * 60.0
 _WEBUI_REQUEST_CACHE_MAX = 256
+_TERMINAL_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_MAX_TERMINAL_WRITE_CHARS = 64_000
 
 
 @dataclass(frozen=True)
@@ -78,6 +88,8 @@ class WebUICommandTransport(Protocol):
     def webui_subscribers(self, chat_id: str) -> tuple[ServerConnection, ...]: ...
 
     def webui_connection_chats(self, connection: ServerConnection) -> tuple[str, ...]: ...
+
+    def webui_default_chat(self, connection: ServerConnection) -> str | None: ...
 
     def webui_attach(self, connection: ServerConnection, chat_id: str) -> None: ...
 
@@ -150,6 +162,7 @@ class WebUICommandRouter:
         ] = {}
         self.request_operations: dict[str, WebUIRequestOperation] = {}
         self.request_locks: dict[ServerConnection, asyncio.Lock] = {}
+        self._terminal_bridge_instance: Any | None = None
 
     def workspace_controls_available(self, connection: ServerConnection) -> bool:
         return self._http_router.workspace_controls_available(connection)
@@ -452,6 +465,18 @@ class WebUICommandRouter:
                 workspace_scope=scope.payload(),
             )
             return
+        if command_type == "terminal_start":
+            await self._handle_terminal_start(connection, client_id, envelope)
+            return
+        if command_type == "terminal_write":
+            await self._handle_terminal_write(connection, client_id, envelope)
+            return
+        if command_type == "terminal_kill":
+            await self._handle_terminal_kill(connection, client_id, envelope)
+            return
+        if command_type == "terminal_list":
+            await self._handle_terminal_list(connection, client_id, envelope)
+            return
         if command_type == "set_reasoning_effort":
             await self._handle_set_reasoning_effort(connection, envelope)
             return
@@ -472,6 +497,249 @@ class WebUICommandRouter:
             connection,
             "error",
             detail=f"unknown type: {command_type!r}",
+        )
+
+    # -- terminal frames (contract 2026-10-11 §1) ----------------------------
+
+    def _terminal_bridge(self) -> Any:
+        if self._terminal_bridge_instance is None:
+            from nanobot.agent.tools.exec_session import ExecSessionManager
+            from nanobot.webui.terminal_bridge import (
+                DEFAULT_MAX_TERMINALS,
+                DEFAULT_TERMINAL_IDLE_TIMEOUT_S,
+                WebuiTerminalBridge,
+            )
+
+            exec_config = None
+            allow_local_service_access = True
+            try:
+                from nanobot.config.loader import load_config
+
+                config = load_config(self.gateway.settings.config.path)
+                exec_config = config.tools.exec
+                allow_local_service_access = config.tools.webui_allow_local_service_access
+            except Exception:
+                logger.warning(
+                    "terminal bridge could not read exec config; using defaults"
+                )
+            manager = ExecSessionManager(
+                max_sessions=DEFAULT_MAX_TERMINALS,
+                idle_timeout=DEFAULT_TERMINAL_IDLE_TIMEOUT_S,
+            )
+            self._terminal_bridge_instance = WebuiTerminalBridge(
+                manager,
+                exec_config=exec_config,
+                webui_allow_local_service_access=allow_local_service_access,
+            )
+        return self._terminal_bridge_instance
+
+    def _terminal_publisher(self, chat_id: str) -> Callable[[dict[str, Any]], Any]:
+        transport = self._transport
+
+        async def publish(payload: dict[str, Any]) -> None:
+            raw = json.dumps(payload, ensure_ascii=False)
+            for connection in transport.webui_subscribers(chat_id):
+                await transport.webui_send_raw(connection, raw, label=" terminal ")
+
+        return publish
+
+    async def _publish_terminal(
+        self,
+        chat_id: str,
+        origin: ServerConnection,
+        payload: dict[str, Any],
+    ) -> None:
+        """Fan a terminal event out to chat subscribers; the origin always receives it."""
+        raw = json.dumps(payload, ensure_ascii=False)
+        delivered: set[int] = set()
+        for connection in self._transport.webui_subscribers(chat_id):
+            delivered.add(id(connection))
+            await self._transport.webui_send_raw(connection, raw, label=" terminal ")
+        if id(origin) not in delivered:
+            await self._transport.webui_send_raw(origin, raw, label=" terminal ")
+
+    def _resolve_terminal_chat(
+        self,
+        connection: ServerConnection,
+        raw_session_key: Any,
+    ) -> str | None:
+        if raw_session_key is not None:
+            if not isinstance(raw_session_key, str):
+                return None
+            candidate = (
+                raw_session_key[len(WEBUI_SESSION_STORAGE_PREFIX):]
+                if raw_session_key.startswith(WEBUI_SESSION_STORAGE_PREFIX)
+                else raw_session_key
+            )
+            if not is_valid_webui_chat_id(candidate):
+                return None
+            if candidate not in self._transport.webui_connection_chats(connection):
+                return None
+            return candidate
+        default_chat = self._transport.webui_default_chat(connection)
+        if isinstance(default_chat, str) and is_valid_webui_chat_id(default_chat):
+            return default_chat
+        chats = self._transport.webui_connection_chats(connection)
+        if len(chats) == 1:
+            return chats[0]
+        return None
+
+    def _validate_terminal_id(self, envelope: dict[str, Any]) -> str | None:
+        terminal_id = envelope.get("terminal_id")
+        if isinstance(terminal_id, str) and _TERMINAL_ID_RE.fullmatch(terminal_id):
+            return terminal_id
+        return None
+
+    async def _terminal_access_error(
+        self,
+        connection: ServerConnection,
+        detail: str,
+        *,
+        terminal_id: str | None = None,
+    ) -> None:
+        await self._transport.webui_send_event(
+            connection,
+            "error",
+            detail=detail,
+            **({"terminal_id": terminal_id} if terminal_id else {}),
+        )
+
+    async def _handle_terminal_start(
+        self,
+        connection: ServerConnection,
+        client_id: str,
+        envelope: dict[str, Any],
+    ) -> None:
+        if connection not in self._webui_connections or not self._transport.is_allowed(client_id):
+            await self._terminal_access_error(connection, "access_denied")
+            return
+        terminal_id = self._validate_terminal_id(envelope)
+        if terminal_id is None:
+            await self._terminal_access_error(connection, "invalid_terminal_id")
+            return
+        chat_id = self._resolve_terminal_chat(connection, envelope.get("session_key"))
+        if chat_id is None:
+            await self._terminal_access_error(
+                connection, "terminal_session_unavailable", terminal_id=terminal_id
+            )
+            return
+        try:
+            scope = self._workspaces.scope_for_session_key(webui_session_key(chat_id))
+        except WorkspaceScopeError as exc:
+            await self._transport.webui_send_event(
+                connection,
+                "error",
+                detail="workspace_scope_rejected",
+                reason=exc.message,
+                terminal_id=terminal_id,
+            )
+            return
+        bridge = self._terminal_bridge()
+        session_key = webui_session_key(chat_id)
+        result = await bridge.start(
+            terminal_id=terminal_id,
+            scope=scope,
+            chat_id=chat_id,
+            session_key=session_key,
+            publisher=self._terminal_publisher(chat_id),
+        )
+        payload = encode_terminal_started(
+            terminal_id=terminal_id,
+            shell=str(result.get("shell") or ""),
+            cwd=str(result.get("cwd") or scope.project_path),
+            status=result.get("status", "error"),
+            message=result.get("message"),
+        )
+        await self._publish_terminal(chat_id, connection, payload)
+
+    async def _handle_terminal_write(
+        self,
+        connection: ServerConnection,
+        client_id: str,
+        envelope: dict[str, Any],
+    ) -> None:
+        if connection not in self._webui_connections or not self._transport.is_allowed(client_id):
+            await self._terminal_access_error(connection, "access_denied")
+            return
+        terminal_id = self._validate_terminal_id(envelope)
+        if terminal_id is None:
+            await self._terminal_access_error(connection, "invalid_terminal_id")
+            return
+        data = envelope.get("data")
+        if (
+            not isinstance(data, str)
+            or not data
+            or len(data) > _MAX_TERMINAL_WRITE_CHARS
+        ):
+            await self._terminal_access_error(
+                connection, "invalid_terminal_data", terminal_id=terminal_id
+            )
+            return
+        bridge = self._terminal_bridge_instance
+        owner = bridge.owner_chat(terminal_id) if bridge is not None else None
+        if owner is None:
+            await self._terminal_access_error(
+                connection, "unknown_terminal", terminal_id=terminal_id
+            )
+            return
+        if owner not in self._transport.webui_connection_chats(connection):
+            await self._terminal_access_error(
+                connection, "terminal_not_attached", terminal_id=terminal_id
+            )
+            return
+        error = await bridge.write(terminal_id=terminal_id, data=data)
+        if error:
+            await self._terminal_access_error(
+                connection, error, terminal_id=terminal_id
+            )
+
+    async def _handle_terminal_kill(
+        self,
+        connection: ServerConnection,
+        client_id: str,
+        envelope: dict[str, Any],
+    ) -> None:
+        if connection not in self._webui_connections or not self._transport.is_allowed(client_id):
+            await self._terminal_access_error(connection, "access_denied")
+            return
+        terminal_id = self._validate_terminal_id(envelope)
+        if terminal_id is None:
+            await self._terminal_access_error(connection, "invalid_terminal_id")
+            return
+        bridge = self._terminal_bridge_instance
+        owner = bridge.owner_chat(terminal_id) if bridge is not None else None
+        if owner is None:
+            await self._terminal_access_error(
+                connection, "unknown_terminal", terminal_id=terminal_id
+            )
+            return
+        if owner not in self._transport.webui_connection_chats(connection):
+            await self._terminal_access_error(
+                connection, "terminal_not_attached", terminal_id=terminal_id
+            )
+            return
+        error = await bridge.kill(terminal_id=terminal_id)
+        if error:
+            await self._terminal_access_error(
+                connection, error, terminal_id=terminal_id
+            )
+
+    async def _handle_terminal_list(
+        self,
+        connection: ServerConnection,
+        client_id: str,
+        envelope: dict[str, Any],
+    ) -> None:
+        if connection not in self._webui_connections or not self._transport.is_allowed(client_id):
+            await self._terminal_access_error(connection, "access_denied")
+            return
+        bridge = self._terminal_bridge()
+        terminals = bridge.list_visible(set(self._transport.webui_connection_chats(connection)))
+        payload = encode_terminal_list_result(terminals)
+        await self._transport.webui_send_event(
+            connection,
+            "terminal_list_result",
+            **{key: value for key, value in payload.items() if key != "event"},
         )
 
     async def _handle_question_answer(
@@ -1061,6 +1329,9 @@ class WebUICommandRouter:
 
     async def close(self) -> None:
         """Cancel command work and release application-owned gateway state."""
+        if self._terminal_bridge_instance is not None:
+            await self._terminal_bridge_instance.aclose()
+            self._terminal_bridge_instance = None
         delivery_tasks = tuple(self.request_tasks.values())
         operation_tasks = tuple(operation.task for operation in self.request_operations.values())
         for task in (*delivery_tasks, *operation_tasks):

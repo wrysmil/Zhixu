@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import subprocess
 import sys
@@ -130,6 +131,14 @@ BUILTIN_COMMAND_SPECS: tuple[BuiltinCommandSpec, ...] = (
         "list-checks",
         "<task>",
         lifecycle="agent_turn_with_args",
+        accepts_args=True,
+    ),
+    BuiltinCommandSpec(
+        "/feedback",
+        "Send feedback",
+        "发送关于当前会话的反馈",
+        "message-square",
+        "<text>",
         accepts_args=True,
     ),
     BuiltinCommandSpec(
@@ -999,6 +1008,89 @@ async def cmd_plan(ctx: CommandContext) -> OutboundMessage | None:
     return None
 
 
+FEEDBACK_CONFIRMATION = "已记录反馈，谢谢！"
+#: Upper bound for one ``/feedback`` entry. Rotation of ``feedback.jsonl`` is not
+#: implemented this round and is tracked as a follow-up.
+_FEEDBACK_MAX_CHARS = 4000
+FEEDBACK_TOO_LONG = "反馈内容过长（单条上限 4000 字符），请精简后重试。"
+
+
+def _feedback_session_key(ctx: CommandContext) -> str:
+    from nanobot.session.keys import UNIFIED_SESSION_KEY
+
+    if ctx.key == UNIFIED_SESSION_KEY:
+        return ctx.msg.session_key
+    return ctx.key
+
+
+def _existing_session_feedbacks(ctx: CommandContext) -> list[Any]:
+    """Read prior feedback entries from the live session or the metadata store."""
+    if ctx.session is not None:
+        container: Any = ctx.session.metadata
+    else:
+        snapshot = ctx.loop.sessions.read_session_metadata(ctx.key)
+        container = snapshot.get("metadata") if isinstance(snapshot, dict) else None
+    if isinstance(container, dict):
+        existing = cast(dict[str, Any], container).get("feedbacks")
+    else:
+        existing = None
+    if isinstance(existing, list):
+        return list(cast(list[Any], existing))
+    return []
+
+
+async def cmd_feedback(ctx: CommandContext) -> OutboundMessage:
+    """Record a user feedback entry for the current session.
+
+    Usage: /feedback <text>
+    """
+    text = ctx.args.strip()
+    if not text:
+        return OutboundMessage(
+            channel=ctx.msg.channel, chat_id=ctx.msg.chat_id,
+            content="Usage: /feedback <text>",
+            metadata={**dict(ctx.msg.metadata or {}), "render_as": "text"},
+        )
+    if len(text) > _FEEDBACK_MAX_CHARS:
+        return OutboundMessage(
+            channel=ctx.msg.channel, chat_id=ctx.msg.chat_id,
+            content=FEEDBACK_TOO_LONG,
+            metadata={**dict(ctx.msg.metadata or {}), "render_as": "text"},
+        )
+
+    from nanobot.config.paths import get_data_dir
+
+    entry = {"ts": time.time(), "session_key": _feedback_session_key(ctx), "text": text}
+    feedback_path = get_data_dir() / "feedback.jsonl"
+    try:
+        with open(feedback_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+    except OSError:
+        logger.exception("feedback: failed to append {}", feedback_path)
+        return OutboundMessage(
+            channel=ctx.msg.channel, chat_id=ctx.msg.chat_id,
+            content="反馈记录失败，请稍后重试。",
+            metadata={**dict(ctx.msg.metadata or {}), "render_as": "text"},
+        )
+
+    feedbacks = _existing_session_feedbacks(ctx)
+    feedbacks.append(entry)
+    try:
+        ctx.loop.sessions.update_session_metadata(ctx.key, {"feedbacks": feedbacks})
+    except Exception:
+        logger.exception("feedback: failed to update session metadata for {}", ctx.key)
+    if ctx.session is not None:
+        ctx.session.metadata["feedbacks"] = feedbacks
+
+    return OutboundMessage(
+        channel=ctx.msg.channel, chat_id=ctx.msg.chat_id,
+        content=FEEDBACK_CONFIRMATION,
+        metadata=dict(ctx.msg.metadata or {}),
+    )
+
+
 async def cmd_pairing(ctx: CommandContext) -> OutboundMessage:
     """List, approve, deny or revoke pairing requests."""
     from nanobot.pairing import PAIRING_COMMAND_META_KEY, handle_pairing_command
@@ -1141,6 +1233,8 @@ def register_builtin_commands(router: CommandRouter) -> None:
     router.prefix("/goal ", cmd_goal)
     router.exact("/plan", cmd_plan)
     router.prefix("/plan ", cmd_plan)
+    router.exact("/feedback", cmd_feedback)
+    router.prefix("/feedback ", cmd_feedback)
     router.exact("/trigger", cmd_trigger)
     router.prefix("/trigger ", cmd_trigger)
     router.exact("/dream", cmd_dream)

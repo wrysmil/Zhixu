@@ -411,6 +411,9 @@ class WebSocketChannel(BaseChannel):
     def webui_connection_chats(self, connection: ServerConnection) -> tuple[str, ...]:
         return tuple(self._conn_chats.get(connection, ()))
 
+    def webui_default_chat(self, connection: ServerConnection) -> str | None:
+        return self._conn_default.get(connection)
+
     def webui_attach(self, connection: ServerConnection, chat_id: str) -> None:
         self._attach(connection, chat_id)
 
