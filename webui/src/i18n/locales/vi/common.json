@@ -1457,6 +1457,7 @@
     "terminalExpired": "Phiên đã hết hạn",
     "terminalGone": "Terminal này không còn khả dụng. Hãy mở cái mới.",
     "terminalCommandRejected": "Không thể gửi lệnh tới terminal này.",
+    "shellUnavailable": "Shell này chưa được cài đặt trên máy chủ.",
     "browser": "Trình duyệt",
     "browserDesc": "Duyệt web",
     "openProjectFirst": "Khả dụng sau khi chọn một dự án",
@@ -1478,6 +1479,18 @@
     "browserError_scheme": "Chỉ mở được địa chỉ http/https ở đây.",
     "browserError_private": "Địa chỉ riêng hoặc mạng nội bộ không được phép.",
     "browserError_malformed": "Đó có vẻ không phải địa chỉ web hợp lệ."
+  },
+  "dock": {
+    "tabFile": "Tệp",
+    "tabBrowser": "Trình duyệt",
+    "plusAria": "Tab mới",
+    "newTerminal": "Terminal mới",
+    "shellChoices": "Chọn shell",
+    "takeoverRunning": "Terminal đang chạy",
+    "takeoverAction": "Tiếp quản",
+    "takeoverHint": "Nhấn Enter để vẽ lại màn hình",
+    "closeTab": "Đóng tab",
+    "platformDefaultShell": "Shell mặc định của máy chủ"
   },
   "plusMenu": {
     "groupAdd": "Thêm",
@@ -1990,7 +2003,6 @@
     "emptyOutputs": "Chưa có tệp nào thay đổi",
     "sources": "Nguồn",
     "emptySources": "Chưa có nguồn web",
-    "fileTree": "Tệp",
     "treeLoading": "Đang tải…",
     "treeEmpty": "Dự án trống",
     "treeEmptyFolder": "Thư mục trống",

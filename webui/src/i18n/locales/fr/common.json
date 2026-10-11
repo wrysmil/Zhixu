@@ -1457,6 +1457,7 @@
     "terminalExpired": "Session expirée",
     "terminalGone": "Ce terminal n'est plus disponible. Ouvrez-en un nouveau.",
     "terminalCommandRejected": "La commande n'a pas pu être envoyée à ce terminal.",
+    "shellUnavailable": "Ce shell n'est pas installé sur l'hôte.",
     "browser": "Navigateur",
     "browserDesc": "Naviguer sur le web",
     "openProjectFirst": "Disponible après avoir choisi un projet",
@@ -1478,6 +1479,18 @@
     "browserError_scheme": "Seules les adresses http/https peuvent être ouvertes ici.",
     "browserError_private": "Les adresses privées ou de réseau local ne sont pas autorisées.",
     "browserError_malformed": "Cela ne ressemble pas à une adresse web valide."
+  },
+  "dock": {
+    "tabFile": "Fichiers",
+    "tabBrowser": "Navigateur",
+    "plusAria": "Nouvel onglet",
+    "newTerminal": "Nouveau terminal",
+    "shellChoices": "Choisir le shell",
+    "takeoverRunning": "Terminal en cours d'exécution",
+    "takeoverAction": "Prendre la main",
+    "takeoverHint": "Appuyez sur Entrée pour redessiner l'écran",
+    "closeTab": "Fermer l'onglet",
+    "platformDefaultShell": "Shell par défaut de l'hôte"
   },
   "plusMenu": {
     "groupAdd": "Ajouter",
@@ -1990,7 +2003,6 @@
     "emptyOutputs": "Aucun fichier modifié pour le moment",
     "sources": "Sources",
     "emptySources": "Aucune source web pour le moment",
-    "fileTree": "Fichiers",
     "treeLoading": "Chargement…",
     "treeEmpty": "Le projet est vide",
     "treeEmptyFolder": "Dossier vide",

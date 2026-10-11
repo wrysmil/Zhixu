@@ -1457,6 +1457,7 @@
     "terminalExpired": "セッションは期限切れです",
     "terminalGone": "このターミナルは利用できません。新しく開いてください。",
     "terminalCommandRejected": "コマンドをこのターミナルに送信できませんでした。",
+    "shellUnavailable": "この shell はホストにインストールされていません。",
     "browser": "ブラウザ",
     "browserDesc": "Web を閲覧",
     "openProjectFirst": "プロジェクトを選択すると利用できます",
@@ -1478,6 +1479,18 @@
     "browserError_scheme": "http/https のアドレスのみ開けます。",
     "browserError_private": "プライベートまたはローカルネットワークのアドレスは不可です。",
     "browserError_malformed": "有効な Web アドレスではないようです。"
+  },
+  "dock": {
+    "tabFile": "ファイル",
+    "tabBrowser": "ブラウザ",
+    "plusAria": "新規タブ",
+    "newTerminal": "新規ターミナル",
+    "shellChoices": "shell を選択",
+    "takeoverRunning": "実行中のターミナル",
+    "takeoverAction": "引き継ぐ",
+    "takeoverHint": "Enter キーで画面を再描画",
+    "closeTab": "タブを閉じる",
+    "platformDefaultShell": "プラットフォーム既定の shell"
   },
   "plusMenu": {
     "groupAdd": "追加",
@@ -1990,7 +2003,6 @@
     "emptyOutputs": "まだ変更されたファイルはありません",
     "sources": "参照",
     "emptySources": "まだウェブの参照はありません",
-    "fileTree": "ファイル",
     "treeLoading": "読み込み中…",
     "treeEmpty": "プロジェクトは空です",
     "treeEmptyFolder": "空のフォルダー",
