@@ -26,6 +26,7 @@ import {
   fetchSidebarState,
   fetchSkillDetail,
   fetchSkills,
+  fetchTerminalShells,
   fetchTrendingMarketplaceSkills,
   fetchWebuiThread,
   fetchWorkspaces,
@@ -1135,5 +1136,47 @@ describe("webui API helpers", () => {
         headers: { Authorization: "Bearer tok" },
       }),
     );
+  });
+
+  it("fetches terminal shells from the gateway whitelist endpoint", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        shells: [
+          { id: "zsh", label: "zsh", path: "/bin/zsh" },
+          { id: "bash", label: "bash", path: "/bin/bash" },
+        ],
+        default: "zsh",
+      }),
+    } as Response);
+
+    await expect(fetchTerminalShells("tok")).resolves.toEqual({
+      shells: [
+        { id: "zsh", label: "zsh", path: "/bin/zsh" },
+        { id: "bash", label: "bash", path: "/bin/bash" },
+      ],
+      default: "zsh",
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      "/webui/terminal/shells",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer tok" },
+        credentials: "same-origin",
+      }),
+    );
+  });
+
+  it("surfaces an ApiError when terminal shells request is unauthorized", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      text: async () => "unauthorized",
+    } as unknown as Response);
+
+    await expect(fetchTerminalShells("bad-token")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 401,
+      message: "unauthorized",
+    });
   });
 });

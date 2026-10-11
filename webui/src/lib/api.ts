@@ -343,6 +343,38 @@ export async function fetchWorkspaceFiles(
   );
 }
 
+/** One entry of the gateway's terminal shell whitelist (contract v2). */
+export interface TerminalShellEntry {
+  id: string;
+  label: string;
+  path: string;
+}
+
+/** Payload of ``GET /webui/terminal/shells`` used by the dock shell dropdown. */
+export interface TerminalShellsPayload {
+  shells: TerminalShellEntry[];
+  default: string | null;
+}
+
+/**
+ * Fetch the host shells the gateway allows for PTY terminals.
+ *
+ * Non-OK responses (401 without an api token, 404 on gateways older than the
+ * endpoint) surface as ``ApiError`` so callers can fall back to the platform
+ * default shell.
+ */
+export async function fetchTerminalShells(
+  token: string,
+  base: string = "",
+): Promise<TerminalShellsPayload> {
+  return request<TerminalShellsPayload>(
+    `${base}/webui/terminal/shells`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
 export async function fetchSessionAutomations(
   token: string,
   key: string,
