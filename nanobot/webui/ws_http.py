@@ -135,7 +135,10 @@ from nanobot.webui.transcript import (
     WEBUI_TRANSCRIPT_SCHEMA_VERSION,
     build_webui_thread_response,
 )
-from nanobot.webui.workspace_files import workspace_directory_payload
+from nanobot.webui.workspace_files import (
+    resolve_workspace_anchor,
+    workspace_directory_payload,
+)
 from nanobot.webui.workspaces import WebUIWorkspaceController
 
 _SLOW_WEBUI_HTTP_LOG_MS = 1_000
@@ -938,8 +941,23 @@ class GatewayHTTPHandler:
         query = _parse_query(request.path)
         path = _query_first(query, "path")
         is_probe = _query_first(query, "probe") == "1"
+        scope_param = _query_first(query, "scope")
+        # An explicit-but-empty ``?scope=`` carries no anchor. Normalize it to
+        # "absent" so the request resolves against the session scope, instead of
+        # silently meaning "default" via resolve_workspace_anchor's falsy fallback.
+        if scope_param == "":
+            scope_param = None
         try:
-            scope = self.workspaces.scope_for_session_key(decoded_key)
+            if scope_param is None:
+                scope = self.workspaces.scope_for_session_key(decoded_key)
+            else:
+                anchor = resolve_workspace_anchor(
+                    scope_param,
+                    default_scope=self.workspaces.default_scope(),
+                )
+                if anchor is None:
+                    return _http_json_response({"error": "no_default_workspace"}, status=404)
+                scope = anchor
             if is_probe:
                 payload = file_preview_availability_payload(path, scope=scope)
             else:
@@ -965,6 +983,29 @@ class GatewayHTTPHandler:
             payload = workspace_directory_payload(path, scope=scope)
         except WebUIFilePreviewError as e:
             return _http_error(e.status, e.message)
+        return _http_json_response(
+            payload,
+            accept_encoding=_combined_list_header(request.headers, "Accept-Encoding"),
+        )
+
+    def _handle_workspace_files(self, request: WsRequest) -> Response:
+        """Read-only directory listing anchored at the default workspace (contract §2)."""
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        query = _parse_query(request.path)
+        path = _query_first(query, "path")
+        anchor = resolve_workspace_anchor(
+            _query_first(query, "scope"),
+            default_scope=self.workspaces.default_scope(),
+        )
+        if anchor is None:
+            return _http_json_response({"error": "no_default_workspace"}, status=404)
+        try:
+            payload = workspace_directory_payload(path, scope=anchor)
+        except WebUIFilePreviewError as e:
+            if e.status in {400, 403}:
+                return _http_json_response({"error": "invalid_path"}, status=400)
+            return _http_json_response({"error": e.message}, status=e.status)
         return _http_json_response(
             payload,
             accept_encoding=_combined_list_header(request.headers, "Accept-Encoding"),
@@ -1226,6 +1267,8 @@ class GatewayHTTPHandler:
             return await self._handle_workspace_folder_picker(connection, request)
         if got == "/api/workspaces":
             return self._handle_workspaces(connection, request)
+        if got == "/api/workspace/files":
+            return self._handle_workspace_files(request)
         if got == "/api/webui/skills/search":
             return await self._handle_webui_skills_search(request)
         if got == "/api/webui/skills/trending":
