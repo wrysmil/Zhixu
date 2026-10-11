@@ -81,11 +81,11 @@ export function BrowserSection({ fullHeight = false }: BrowserSectionProps = {})
     : null;
 
   const buttonClass =
-    "grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 enabled:hover:bg-muted/60 enabled:hover:text-foreground disabled:opacity-40";
+    "grid h-browserToolbar w-9 shrink-0 place-items-center rounded text-muted-foreground/75 enabled:hover:bg-muted/60 enabled:hover:text-foreground disabled:opacity-40";
 
   return (
     <div data-testid="browser-section" className={cn("flex flex-col gap-1.5", fullHeight && "h-full min-h-0")}>
-      <form onSubmit={handleSubmit} className="flex items-center gap-1">
+      <form onSubmit={handleSubmit} className="flex items-center gap-1.5">
         <button
           type="button"
           aria-label={t("startPanel.browserBack", { defaultValue: "Back" })}
@@ -126,7 +126,7 @@ export function BrowserSection({ fullHeight = false }: BrowserSectionProps = {})
           })}
           spellCheck={false}
           autoComplete="off"
-          className="h-6 min-w-0 flex-1 rounded border border-border/50 bg-background px-1.5 text-[11.5px] text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
+          className="h-browserToolbar min-w-0 flex-1 rounded border border-border/50 bg-background px-2 text-[13px] text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
         />
         <button
           type="submit"
@@ -148,7 +148,7 @@ export function BrowserSection({ fullHeight = false }: BrowserSectionProps = {})
       </form>
 
       {errorText ? (
-        <p role="alert" className="text-[11.5px] text-destructive">
+        <p role="alert" className="text-[12px] text-destructive">
           {errorText}
         </p>
       ) : null}
