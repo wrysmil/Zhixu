@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 import { fetchSessionDirectory } from "@/lib/api";
-import type { SessionDirectoryEntry } from "@/lib/types";
+import type { SessionDirectoryEntry, SessionDirectoryPayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const ROOT_KEY = "<root>";
@@ -20,15 +20,22 @@ type NodeState =
   | { status: "ready"; entries: SessionDirectoryEntry[]; truncated: boolean };
 
 interface WorkspaceFileTreeProps {
-  sessionKey: string;
+  sessionKey?: string;
   getToken: () => string;
   onOpenFilePreview?: (path: string) => void;
+  /**
+   * Optional data source override (contract §2: the home Start panel swaps the
+   * fetcher to the workspace endpoint). Defaults to the session-anchored
+   * listing when omitted.
+   */
+  fetchDirectory?: (token: string, path: string | null) => Promise<SessionDirectoryPayload>;
 }
 
 export function WorkspaceFileTree({
   sessionKey,
   getToken,
   onOpenFilePreview,
+  fetchDirectory,
 }: WorkspaceFileTreeProps) {
   const { t } = useTranslation();
   const [nodes, setNodes] = useState<Record<string, NodeState>>({});
@@ -40,11 +47,9 @@ export function WorkspaceFileTree({
     async (path: string | null, nodeKey: string) => {
       setNodes((current) => ({ ...current, [nodeKey]: { status: "loading" } }));
       try {
-        const payload = await fetchSessionDirectory(
-          getTokenRef.current(),
-          sessionKey,
-          path,
-        );
+        const payload = fetchDirectory
+          ? await fetchDirectory(getTokenRef.current(), path)
+          : await fetchSessionDirectory(getTokenRef.current(), sessionKey ?? "", path);
         setNodes((current) => ({
           ...current,
           [nodeKey]: {
@@ -57,7 +62,7 @@ export function WorkspaceFileTree({
         setNodes((current) => ({ ...current, [nodeKey]: { status: "error" } }));
       }
     },
-    [sessionKey],
+    [sessionKey, fetchDirectory],
   );
 
   useEffect(() => {

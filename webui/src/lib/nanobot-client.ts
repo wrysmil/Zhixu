@@ -9,6 +9,7 @@ import type {
   SessionMention,
   SidebarStatePayload,
   GoalStateWsPayload,
+  TerminalEvent,
   WorkspaceScopePayload,
 } from "./types";
 import { createHostWebSocket } from "./runtime";
@@ -145,6 +146,29 @@ const TURN_REJECTION_DETAILS = new Set([
   "workspace_scope_rejected",
 ]);
 
+/** Contract §1.2 terminal events. Mirrors the four host→client event names. */
+const TERMINAL_EVENT_NAMES = new Set([
+  "terminal_started",
+  "terminal_output",
+  "terminal_exit",
+  "terminal_list_result",
+]);
+
+/** Mirrors backend ``_TERMINAL_ID_RE`` (inbound_commands.py §1.1). */
+const TERMINAL_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+/** Mirrors backend ``_MAX_TERMINAL_WRITE_CHARS`` (contract §1.1: data 1..64000). */
+const MAX_TERMINAL_WRITE_CHARS = 64_000;
+
+function isTerminalFrameTarget(
+  value: InboundEvent,
+): boolean {
+  const event = (value as { event?: string }).event;
+  if (typeof event !== "string") return false;
+  if (TERMINAL_EVENT_NAMES.has(event)) return true;
+  if (event !== "error") return false;
+  return typeof (value as { terminal_id?: unknown }).terminal_id === "string";
+}
+
 export function isSystemCommandTurnId(value: string | null | undefined): value is string {
   return typeof value === "string" && value.startsWith(SYSTEM_COMMAND_TURN_PREFIX);
 }
@@ -195,6 +219,7 @@ export class NanobotClient {
   private sidebarStateUpdateHandlers = new Set<SidebarStateUpdateHandler>();
   private runStatusHandlers = new Set<RunStatusHandler>();
   private errorHandlers = new Set<ErrorHandler>();
+  private terminalEventHandlers = new Set<(event: TerminalEvent) => void>();
   // chat_id -> handlers listening on it
   private chatHandlers = new Map<string, Set<EventHandler>>();
   /** Inbound frames received while no subscriber is registered (e.g. user switched away). */
@@ -312,6 +337,15 @@ export class NanobotClient {
     this.errorHandlers.add(handler);
     return () => {
       this.errorHandlers.delete(handler);
+    };
+  }
+
+  /** Subscribe to terminal-channel events (contract §1.2). Connection-scoped:
+   * terminal frames carry no ``chat_id`` and bypass the per-chat pipeline. */
+  onTerminalEvent(handler: (event: TerminalEvent) => void): Unsubscribe {
+    this.terminalEventHandlers.add(handler);
+    return () => {
+      this.terminalEventHandlers.delete(handler);
     };
   }
 
@@ -1042,6 +1076,40 @@ export class NanobotClient {
     });
   }
 
+  // -- terminal channel (contract 2026-10-11 §1.1) --------------------------
+
+  /** Open (or idempotently re-request) one terminal. ``sessionKey`` omitted
+   * lets the server resolve the connection's default / single attached chat. */
+  terminalStart(terminalId: string, sessionKey?: string | null): void {
+    if (!TERMINAL_ID_PATTERN.test(terminalId)) return;
+    this.queueSend({
+      type: "terminal_start",
+      terminal_id: terminalId,
+      ...(sessionKey ? { session_key: sessionKey } : {}),
+    });
+  }
+
+  /** Submit one input segment; the server accumulates lines and never echoes. */
+  terminalWrite(terminalId: string, data: string): void {
+    if (
+      !TERMINAL_ID_PATTERN.test(terminalId)
+      || data.length < 1
+      || data.length > MAX_TERMINAL_WRITE_CHARS
+    ) {
+      return;
+    }
+    this.queueSend({ type: "terminal_write", terminal_id: terminalId, data });
+  }
+
+  terminalKill(terminalId: string): void {
+    if (!TERMINAL_ID_PATTERN.test(terminalId)) return;
+    this.queueSend({ type: "terminal_kill", terminal_id: terminalId });
+  }
+
+  terminalList(): void {
+    this.queueSend({ type: "terminal_list" });
+  }
+
   answerQuestion(chatId: string, questionId: string, answer: string): void {
     this.knownChats.add(chatId);
     this.queueSend({
@@ -1115,6 +1183,16 @@ export class NanobotClient {
 
     if (wsInboundDebugEnabled()) {
       console.log("[nanobot ws inbound]", summarizeInboundWsPayload(parsed));
+    }
+
+    // Terminal frames are connection-scoped (no chat_id): route the four
+    // contract events and terminal-scoped error frames to terminal
+    // subscribers before the chat pipeline sees them.
+    if (isTerminalFrameTarget(parsed)) {
+      for (const handler of [...this.terminalEventHandlers]) {
+        handler(parsed as unknown as TerminalEvent);
+      }
+      return;
     }
 
     if (parsed.event === "webui_response") {

@@ -17,6 +17,7 @@ export interface MiraShellApi {
   retryBoot?: () => void;
   pickFolder?: () => Promise<string | null>;
   revealInFolder?: (targetPath: string) => Promise<boolean>;
+  openExternal?: (url: string) => Promise<boolean>;
 }
 
 interface HostRuntimeInfo {

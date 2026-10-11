@@ -1600,6 +1600,45 @@ export interface SessionDirectoryPayload {
   truncated: boolean;
 }
 
+/** Contract §1.2 (2026-10-11 home-start-panel): the four host→client terminal
+ * events plus the terminal-scoped ``error`` frames the gateway emits for
+ * malformed/unknown/unavailable terminals (see
+ * ``nanobot/webui/inbound_commands.py::_terminal_access_error``).
+ *
+ * Wire frames carry both ``event`` and ``type`` keys with the same value
+ * (WU-A dual-key payloads); consumers discriminate on ``event`` following the
+ * existing inbound pipeline convention. */
+export type TerminalStartedStatus = "ok" | "already_running" | "limit_reached" | "error";
+
+export type TerminalOutputStreamName = "stdout" | "stderr";
+
+export interface TerminalListEntry {
+  terminal_id: string;
+  status: "running" | "exited";
+  shell: string;
+  cwd: string;
+}
+
+export type TerminalEvent =
+  | {
+      event: "terminal_started";
+      terminal_id: string;
+      shell: string;
+      cwd: string;
+      status: TerminalStartedStatus;
+      message?: string;
+    }
+  | {
+      event: "terminal_output";
+      terminal_id: string;
+      seq: number;
+      stream: TerminalOutputStreamName;
+      data: string;
+    }
+  | { event: "terminal_exit"; terminal_id: string; exit_code: number | null }
+  | { event: "terminal_list_result"; terminals: TerminalListEntry[] }
+  | { event: "error"; terminal_id?: string; detail?: string; reason?: string };
+
 export type Outbound =
   | { type: "new_chat"; workspace_scope?: WorkspaceScopePayload }
   | { type: "new_temporary_chat" }
@@ -1617,6 +1656,10 @@ export type Outbound =
   | { type: "set_reasoning_effort"; chat_id: string; reasoning_effort: string }
   | { type: "question_answer"; chat_id: string; question_id: string; answer: string }
   | { type: "transcribe_audio"; request_id: string; data_url: string; duration_ms?: number }
+  | { type: "terminal_start"; terminal_id: string; session_key?: string }
+  | { type: "terminal_write"; terminal_id: string; data: string }
+  | { type: "terminal_kill"; terminal_id: string }
+  | { type: "terminal_list" }
   | {
       type: "message";
       chat_id: string;
