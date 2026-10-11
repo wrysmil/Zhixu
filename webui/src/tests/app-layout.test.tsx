@@ -288,11 +288,13 @@ import {
   deriveWsUrl,
   fetchBootstrap,
 } from "@/lib/bootstrap";
+import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
 import App from "@/App";
 
 describe("App layout", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
+    dockStore.resetForTests();
     mockSessions = [];
     connectSpy.mockClear();
     updateUrlSpy.mockClear();
@@ -561,7 +563,7 @@ describe("App layout", () => {
     );
   });
 
-  it("mounts the tabbed start dock with the launcher empty state on the home view", async () => {
+  it("mounts the tabbed start dock and intercepts ⌘P into the home file tab", async () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
@@ -570,9 +572,32 @@ describe("App layout", () => {
     expect(screen.getByTestId("dock-card-files")).toBeInTheDocument();
     expect(screen.getByTestId("dock-card-browser")).toBeInTheDocument();
     expect(screen.getByTestId("dock-card-terminal")).toBeInTheDocument();
+
+    // Task 9 承接项：恢复旧「intercepts ⌘P」用例的拦截语义（spec B2 focus-or-open）。
+    const event = new window.KeyboardEvent("keydown", {
+      key: "p",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => window.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(true);
+    expect(dockStore.getSnapshot(HOME_DOCK_SCOPE).activeId).toBe("file");
+
+    // 再按 = 聚焦不重复；文件标签天然单例。
+    const again = new window.KeyboardEvent("keydown", {
+      key: "p",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => window.dispatchEvent(again));
+    expect(
+      dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs.filter((tab) => tab.kind === "file"),
+    ).toHaveLength(1);
   });
 
-  it("does not swallow ⌘P while an active session is open", async () => {
+  it("routes ⌘P to the active session dock scope instead of letting it pass through", async () => {
     mockSessions = [{
       key: "websocket:existing-chat",
       channel: "websocket",
@@ -588,6 +613,7 @@ describe("App layout", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("start-dock")).not.toBeInTheDocument(),
     );
+    // spec B2：快捷键不再「仅首页生效」——会话页同样被拦截，标签开在活动会话的 scope 上。
     const event = new window.KeyboardEvent("keydown", {
       key: "p",
       metaKey: true,
@@ -595,7 +621,10 @@ describe("App layout", () => {
       cancelable: true,
     });
     act(() => window.dispatchEvent(event));
-    expect(event.defaultPrevented).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
+    expect(dockStore.getSnapshot("websocket:existing-chat").activeId).toBe("file");
+    // scope 隔离：不误开首页 dock 的标签。
+    expect(dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs).toHaveLength(0);
   });
 
   it("keeps a just-created topic route while the session list catches up", async () => {

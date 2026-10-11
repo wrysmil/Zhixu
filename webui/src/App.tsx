@@ -18,7 +18,8 @@ import {
 import { channelUiPresentation } from "@/channel-plugins/registry";
 import { Sidebar } from "@/components/Sidebar";
 import { PROJECTS_SECTION_KEY, type SidebarDeleteItem } from "@/components/ChatList";
-import { HOME_DOCK_SCOPE } from "@/lib/dock-store";
+import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
+import { resolveDockShortcut } from "@/lib/dock-shortcuts";
 import type { SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
 import { PaneWorkbench } from "@/components/workbench/PaneWorkbench";
@@ -1916,6 +1917,16 @@ function Shell({
         onNewChat();
         return;
       }
+      // spec B2：⌘P/⌘T 全场景直达 dock 标签（首页与会话页一致；terminal 标签不接快捷键）。
+      // xterm 聚焦时 ⌘T 也走本 handler——浏览器新标签语义让位于 dock。
+      const dockSection = resolveDockShortcut(event);
+      if (dockSection !== null) {
+        event.preventDefault();
+        const scope = activeKey ?? HOME_DOCK_SCOPE;
+        if (dockSection === "file") dockStore.openFile(scope);
+        else dockStore.openBrowser(scope);
+        return;
+      }
       const plainCommandK =
         (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
       if (!plainCommandK) return;
@@ -1926,7 +1937,7 @@ function Shell({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onNewChat, onOpenSessionSearch]);
+  }, [activeKey, onNewChat, onOpenSessionSearch]);
 
   const onSelectSearchResult = useCallback(
     (key: string) => {
