@@ -18,15 +18,9 @@ import {
 import { channelUiPresentation } from "@/channel-plugins/registry";
 import { Sidebar } from "@/components/Sidebar";
 import { PROJECTS_SECTION_KEY, type SidebarDeleteItem } from "@/components/ChatList";
-import {
-  HomeStartPanel,
-  resolveStartPanelShortcut,
-  type StartPanelFocus,
-  type StartPanelSection,
-} from "@/components/home/HomeStartPanel";
+import { HOME_DOCK_SCOPE } from "@/lib/dock-store";
 import type { SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
-import { BrowserSection } from "@/components/workbench/BrowserSection";
 import { PaneWorkbench } from "@/components/workbench/PaneWorkbench";
 import { SESSION_WORKBENCH_RAIL_WIDTH } from "@/components/workbench/SessionWorkbench";
 import { WorkbenchTabBar } from "@/components/workbench/WorkbenchTabBar";
@@ -159,6 +153,10 @@ const SettingsView = lazy(async () => {
 });
 const CreativeWorkspace = lazy(() => import("./components/creative/CreativeWorkspace"));
 // 终端入口已迁移：TerminalSection 由 TerminalSurface + StartDock（Task 7/9）接管。
+const StartDock = lazy(async () => {
+  const module = await import("@/components/dock/StartDock");
+  return { default: module.StartDock };
+});
 const SessionSearchDialog = lazy(async () => {
   const module = await import("@/components/SessionSearchDialog");
   return { default: module.SessionSearchDialog };
@@ -996,13 +994,6 @@ function Shell({
     useState<boolean>(readSidebarOpen);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sessionSearchOpen, setSessionSearchOpen] = useState(false);
-  const [startPanelFocus, setStartPanelFocus] = useState<StartPanelFocus | null>(null);
-  const openStartPanelSection = useCallback((section: StartPanelSection) => {
-    setStartPanelFocus((current) => ({
-      section,
-      nonce: (current?.nonce ?? 0) + 1,
-    }));
-  }, []);
   const mobileWorkbench = useMediaQuery("(max-width: 767px)");
   const workbenchState = sidebarState.workbench;
   const updateWorkbenchState = useCallback((
@@ -1925,17 +1916,6 @@ function Shell({
         onNewChat();
         return;
       }
-      const startPanelSection = resolveStartPanelShortcut(
-        event,
-        // The Start panel only mounts on the home/empty state; with an active
-        // session there is nothing to open, so the keys must pass through.
-        view === "chat" && activeKey === null,
-      );
-      if (startPanelSection !== null) {
-        event.preventDefault();
-        openStartPanelSection(startPanelSection);
-        return;
-      }
       const plainCommandK =
         (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
       if (!plainCommandK) return;
@@ -1946,7 +1926,7 @@ function Shell({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeKey, onNewChat, onOpenSessionSearch, view, openStartPanelSection]);
+  }, [onNewChat, onOpenSessionSearch]);
 
   const onSelectSearchResult = useCallback(
     (key: string) => {
@@ -2888,11 +2868,13 @@ function Shell({
                   />
                 </div>
                 {view === "chat" && activeKey === null && !mobileWorkbench ? (
-                  <HomeStartPanel
-                    getToken={getToken}
-                    focus={startPanelFocus}
-                    browserSlot={<BrowserSection />}
-                  />
+                  <Suspense fallback={null}>
+                    <StartDock
+                      scope={HOME_DOCK_SCOPE}
+                      sessionKey={null}
+                      getToken={getToken}
+                    />
+                  </Suspense>
                 ) : null}
               </div>
             </div>

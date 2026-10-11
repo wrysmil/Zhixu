@@ -261,6 +261,13 @@ vi.mock("@/lib/nanobot-client", async (importOriginal) => {
     getRunStartedAt = () => null;
     getRunTurnId = () => null;
     getGoalState = () => undefined;
+    // StartDock（Task 9）在首页挂载即探活/订阅终端事件；dock 标签在此测试不会被点开。
+    terminalStart = vi.fn();
+    terminalWrite = vi.fn();
+    terminalResize = vi.fn();
+    terminalKill = vi.fn();
+    terminalList = vi.fn();
+    onTerminalEvent = () => () => {};
     sendMessage = sendMessageSpy;
     newChat = vi.fn();
     newTemporaryChat = newTemporaryChatSpy;
@@ -554,22 +561,15 @@ describe("App layout", () => {
     );
   });
 
-  it("intercepts ⌘P on the home view and expands the files card", async () => {
+  it("mounts the tabbed start dock with the launcher empty state on the home view", async () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    const event = new window.KeyboardEvent("keydown", {
-      key: "p",
-      metaKey: true,
-      bubbles: true,
-      cancelable: true,
-    });
-    act(() => window.dispatchEvent(event));
-    expect(event.defaultPrevented).toBe(true);
-    expect(screen.getByTestId("home-start-panel")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Workspace files/ }),
-    ).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByTestId("start-dock")).toBeInTheDocument();
+    expect(await screen.findByTestId("dock-launcher")).toBeInTheDocument();
+    expect(screen.getByTestId("dock-card-files")).toBeInTheDocument();
+    expect(screen.getByTestId("dock-card-browser")).toBeInTheDocument();
+    expect(screen.getByTestId("dock-card-terminal")).toBeInTheDocument();
   });
 
   it("does not swallow ⌘P while an active session is open", async () => {
@@ -586,7 +586,7 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     await waitFor(() =>
-      expect(screen.queryByTestId("home-start-panel")).not.toBeInTheDocument(),
+      expect(screen.queryByTestId("start-dock")).not.toBeInTheDocument(),
     );
     const event = new window.KeyboardEvent("keydown", {
       key: "p",
