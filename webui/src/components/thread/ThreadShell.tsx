@@ -13,7 +13,6 @@ import { deriveSessionWorkbench } from "@/components/workbench/session-workbench
 import { RecoveryNotice } from "@/components/thread/RecoveryNotice";
 import { AskQuestionCard } from "@/components/thread/AskQuestionCard";
 import { ThreadComposer } from "@/components/thread/ThreadComposer";
-import { ThreadStatusBar } from "@/components/thread/ThreadStatusBar";
 import type {
   ComposerContextUsage,
   ComposerRoundUsage,
@@ -1861,12 +1860,6 @@ export function ThreadShell({
             onQuoteSelection={session ? handleQuoteSelection : undefined}
           />
         </FilePreviewAvailabilityProvider>
-        {!composerPortalTarget ? (
-          <ThreadStatusBar
-            workspaceScope={workspaceScope}
-            contextUsage={composerContextUsage}
-          />
-        ) : null}
       </div>
       {workbenchOpen && session ? (
         <SessionWorkbench
@@ -1887,10 +1880,6 @@ export function ThreadShell({
           data-testid={composerActive ? "active-pane-composer" : undefined}
         >
           {composer}
-          <ThreadStatusBar
-            workspaceScope={workspaceScope}
-            contextUsage={composerContextUsage}
-          />
         </div>,
         composerPortalTarget,
       ) : null}

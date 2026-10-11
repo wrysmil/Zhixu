@@ -16,7 +16,6 @@ import {
   Folder,
   FolderOpen,
   FolderTree,
-  FolderUp,
   ListChecks,
   MessageCircleDashed,
   MoreHorizontal,
@@ -46,13 +45,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AddProjectDialog } from "@/components/AddProjectDialog";
 import {
   Tooltip,
   TooltipContent,
@@ -84,7 +77,6 @@ import {
 } from "@/lib/session-drag";
 import { cn } from "@/lib/utils";
 import { getRuntimeHost } from "@/lib/runtime";
-import { projectNameFromPath } from "@/lib/workspace";
 import type { ChatSummary, SidebarDensity, SidebarProjectEntry, SidebarSortMode } from "@/lib/types";
 
 const INITIAL_VISIBLE_SESSIONS = 160;
@@ -1713,146 +1705,39 @@ function AddProjectButton({
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [name, setName] = useState("");
-  const [picking, setPicking] = useState(false);
-  const pickFolder = useMemo(() => getRuntimeHost().pickFolder, []);
-  const trimmed = draft.trim();
+  const [mounted, setMounted] = useState(false);
   const label = t("chat.groups.addProject");
 
-  const reset = () => {
-    setDraft("");
-    setName("");
-    setPicking(false);
-  };
-
-  const chooseFolder = async () => {
-    if (!pickFolder) return;
-    setPicking(true);
-    try {
-      const picked = await pickFolder();
-      if (picked) {
-        setDraft(picked);
-        setName((current) => current || projectNameFromPath(picked));
-      }
-    } catch {
-      // The picker can fail when the native host is busy; the manual path stays usable.
-    } finally {
-      setPicking(false);
-    }
-  };
-
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) reset();
-      }}
-    >
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          title={label}
-          className={cn(
-            "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
-            "cursor-pointer text-muted-foreground/70 opacity-75 transition-opacity",
-            "hover:bg-sidebar-accent hover:text-sidebar-foreground",
-            "focus-visible:opacity-100 group-hover/projects:opacity-100 data-[state=open]:opacity-100",
-          )}
-        >
-          <Plus className="h-3.5 w-3.5" aria-hidden />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" side="bottom" sideOffset={6} className="w-[min(22rem,calc(100vw-3rem))] p-3">
-        <form
-          className="space-y-2.5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!trimmed) return;
-            onAdd(trimmed, name.trim() || projectNameFromPath(trimmed));
+    <>
+      <button
+        type="button"
+        aria-label={label}
+        title={label}
+        onClick={() => {
+          setMounted(true);
+          setOpen(true);
+        }}
+        className={cn(
+          "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+          "cursor-pointer text-muted-foreground/70 opacity-75 transition-opacity",
+          "hover:bg-sidebar-accent hover:text-sidebar-foreground",
+          "focus-visible:opacity-100 group-hover/projects:opacity-100 data-[state=open]:opacity-100",
+        )}
+      >
+        <Plus className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      {mounted ? (
+        <AddProjectDialog
+          open={open}
+          onOpenChange={setOpen}
+          onConfirm={(projectPath, projectName) => {
+            onAdd(projectPath, projectName);
             setOpen(false);
           }}
-        >
-          <p className="text-[13px] font-semibold text-foreground/90">{label}</p>
-          {pickFolder ? (
-            <button
-              type="button"
-              onClick={() => { void chooseFolder(); }}
-              disabled={picking}
-              className={cn(
-                "flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed px-3 py-5",
-                "text-[12.5px] text-muted-foreground transition-colors",
-                "hover:border-primary/40 hover:bg-accent/30 hover:text-foreground disabled:opacity-60",
-              )}
-            >
-              {trimmed ? (
-                <>
-                  <Folder className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className="max-w-full truncate font-medium text-foreground">
-                    {trimmed}
-                  </span>
-                  <span className="text-[11px]">{t("workspace.dialog.changeFolder", { defaultValue: "Change folder" })}</span>
-                </>
-              ) : (
-                <>
-                  <FolderUp className="h-4 w-4 shrink-0" aria-hidden />
-                  <span>
-                    {picking
-                      ? t("workspace.dialog.picking", { defaultValue: "Choosing..." })
-                      : t("workspace.dialog.clickToAdd", { defaultValue: "Click to add a folder" })}
-                  </span>
-                </>
-              )}
-            </button>
-          ) : null}
-          <div className="space-y-1.5">
-            <label className="text-[11.5px] font-medium text-muted-foreground">
-              {t("workspace.dialog.projectName", { defaultValue: "Project name" })}
-            </label>
-            <Input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={trimmed ? projectNameFromPath(trimmed) : label}
-              aria-label={t("workspace.dialog.projectName", { defaultValue: "Project name" })}
-              className="h-8 text-[12.5px]"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11.5px] font-medium text-muted-foreground">
-              {t("workspace.dialog.manual")}
-            </label>
-            <Input
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={t("workspace.dialog.manualPlaceholder")}
-              aria-label={t("workspace.dialog.manual")}
-              className="h-8 text-[12.5px]"
-            />
-          </div>
-          <div className="flex items-center justify-end gap-2 pt-0.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setOpen(false)}
-              className="h-8 px-2.5 text-[12px]"
-            >
-              {t("workspace.dialog.cancel", { defaultValue: "Cancel" })}
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={!trimmed}
-              className="h-8 px-2.5 text-[12px]"
-            >
-              {t("workspace.dialog.create", { defaultValue: "Create" })}
-            </Button>
-          </div>
-        </form>
-      </PopoverContent>
-    </Popover>
+        />
+      ) : null}
+    </>
   );
 }
 

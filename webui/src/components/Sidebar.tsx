@@ -254,9 +254,6 @@ export function Sidebar(props: SidebarProps) {
               }
             />
           </div>
-          <div className="flex items-center gap-1 bg-sidebar/55 px-2.5 py-3 text-xs">
-            <ConnectionBadge />
-          </div>
         </div>
       )}
     />
