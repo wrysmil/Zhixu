@@ -198,4 +198,47 @@ Detail: stash@{0} 仍存在，内含并行会话 agent-with-memory-99 的在途�
         已跟踪文件的修改**不在**（仅新文件回来了）。
 Next: **不建议**由本会话 drop 该 stash；请并行会话或用户确认后处置
 
+[2026-09-15 00:00] CLOSEOUT-B2 | Reviewer | Status: completed
+Detail: 独立代码审查 verdict=**BLOCK**。C-1（审查目标被后续提交取代 + 工作树污染）/
+        C-2（头号验收测试不守住其声称的根因 5）/ C-3（语义通道对自然中文 query 仍空）/
+        I-1（门禁 over+under-trigger）/ I-2 / I-3 + M 系列
+Reviewer: separate-task（独立只读，与 coder 不同实例）
+Output: .ai-runtime-artifacts/reviews/2026-09-15-memory-retrieval-rca-fix-code-review.md
+Error: none
+Note: Leader 逐条实测复核 —— C-2 / C-3 / I-1 **全部成立**；I-3 已在 d726dfa 修复。
+      C-1 Leader 认责：审查运行期间向同一 worktree 提交。
+Next: 修 C-2 + I-1
+
+[2026-09-15 00:00] REVIEW-FIX-ROUND1 | Leader | Status: completed
+Detail: C-2 —— 新增判别性用例 test_semantic_channel_alone_recovers_chinese_substring
+        （记忆置 30 天前超出 recent 窗口，四路仅 semantic 可能命中），并更正原用例
+        docstring「覆盖根因 1 + 5」的过头表述；
+        I-1 —— **删除** short_without_context 分支（其前提「首轮无历史」恒真），
+        _MEMORY_INTENT_HINTS 收窄为强锚点且只作用于 ≤3 字路径
+Tests: 变异实验自证判别力：原样 ids=['old1'] / 禁 LIKE 回退 ids=[]  ✅
+       门禁复测：'项目进度如何' 等此前 SKIP 的输入全部 INJECT（under-trigger 消除）
+       tests/memory/ 689 passed；全量 13 失败与基线一致（存量）；ruff 变更文件全绿
+Output: commit e7bd551
+Error: none
+Note: over-trigger（'我的天哪' 仍检索）为删除分支的必然代价，且由 reranker 冷启动
+      豁免放大（既有设计）→ 登记 follow-up；C-3/I-2 判定为已知限制 + follow-up，不按已完成收口
+Next: 第 2 轮审查（冻结快照 e7bd551）
+
+[2026-09-15 00:00] CLOSEOUT-B2-RETRY | Reviewer | Status: started
+Detail: 按门禁「BLOCK → 修复后重新审查」派 WU-REVIEW-02。为规避 C-1 的并发污染，
+        改为在 git archive e7bd551 生成的**冻结快照** /tmp/rca-fix-review-e7bd551 上进行，
+        prompt 要求审查者先自证 nanobot.__file__ 指向快照再下结论
+Reviewer: separate-task（新实例）
+Output: pending
+Error: none
+Next: 等 APPROVE 后方可声称交付完成
+
+[2026-09-15 00:00] PERMISSION-BLOCK | Leader | Status: blocked
+Detail: 在最终提交 e7bd551 上复跑真实库冒烟（读 ~/.nanobot/workspace/memory/state.db）
+        被 Claude Code 权限分类器以 PII 处置策略拒绝。Leader **未尝试绕过**。
+Error: 真实库冒烟仅在 c6f66ac 时点执行过一次（输出已落盘 collective-test §3）；
+       e7bd551 的门禁改动使首轮行为变化，该时点证据对首轮路径不再完全等价
+Next: 需用户裁决是否授予读权限复跑，或接受「以 tests/memory 结果为准」
+
+
 
