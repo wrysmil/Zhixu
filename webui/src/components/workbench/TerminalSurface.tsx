@@ -270,12 +270,12 @@ export function TerminalSurface({
       className="flex min-h-0 flex-1 flex-col gap-1.5"
     >
       {record?.status === "failed" ? (
-        <p role="alert" className="text-[11.5px] text-destructive">
+        <p role="alert" className="text-[12px] text-destructive">
           {failureLabel(record.message ?? "terminal_error", t)}
         </p>
       ) : null}
       {record?.status === "exited" ? (
-        <p role="status" className="text-[11.5px] text-muted-foreground">
+        <p role="status" className="text-[12px] text-muted-foreground">
           {record.exitCode === null
             ? t("startPanel.terminalExpired", { defaultValue: "Session expired" })
             : t("startPanel.terminalExit", {
@@ -285,14 +285,14 @@ export function TerminalSurface({
         </p>
       ) : null}
       {!record || record.status === "starting" ? (
-        <p role="status" className="animate-pulse text-[11.5px] text-muted-foreground/70">
+        <p role="status" className="animate-pulse text-[12px] text-muted-foreground/70">
           {t("startPanel.terminalStarting", { defaultValue: "Starting terminal…" })}
         </p>
       ) : null}
       <div
         ref={containerRef}
         data-testid={`terminal-output-${terminalId}`}
-        className="h-72 w-full overflow-hidden rounded border border-border/50 bg-background [&_.xterm]:h-full [&_.xterm]:w-full"
+        className="min-h-0 w-full flex-1 overflow-hidden rounded border border-border/50 bg-background text-terminal [&_.xterm]:h-full [&_.xterm]:w-full"
       />
       {ptyMode ? null : (
         <TerminalInput disabled={!record || record.status !== "running"} onSubmit={handleLine} />

@@ -55,6 +55,17 @@
     --radius-modal: 0.75rem;
     --radius-prominent: 1rem;
     --radius-pill: 9999px;
+
+    /* Mira UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
+    --rail-w: 54px;
+    --chat-col-w: 220px;
+    --dock-w: 336px;
+    --dock-w-xl: 384px;
+    --dock-header-h: 40px;
+    --browser-toolbar-h: 36px;
+    --terminal-font-size: 12.5px;
+    --hero-text-size: 30px;
+    --hero-composer-max-w: 44rem;
     --sidebar: 240 10.34% 94.31%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);
@@ -108,6 +119,17 @@
     --settings-surface: var(--surface-panel);
     --scrollbar-thumb: hsl(var(--muted-foreground) / 0.28);
     --scrollbar-thumb-hover: hsl(var(--muted-foreground) / 0.44);
+
+    /* Mira UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
+    --rail-w: 54px;
+    --chat-col-w: 220px;
+    --dock-w: 336px;
+    --dock-w-xl: 384px;
+    --dock-header-h: 40px;
+    --browser-toolbar-h: 36px;
+    --terminal-font-size: 12.5px;
+    --hero-text-size: 30px;
+    --hero-composer-max-w: 44rem;
   }
 }
 

@@ -155,7 +155,7 @@ export function WorkspaceNavigation({
         <div
           data-testid="sidebar-rail"
           className={cn(
-            "workspace-navigation-rail flex w-16 min-h-0 shrink-0 flex-col items-center gap-2 overflow-y-auto overscroll-contain border-r border-sidebar-border pb-3",
+            "workspace-navigation-rail flex w-rail min-h-0 shrink-0 flex-col items-center gap-2 overflow-y-auto overscroll-contain border-r border-sidebar-border pb-3",
             topInset,
           )}
         >

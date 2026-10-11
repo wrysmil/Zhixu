@@ -473,7 +473,7 @@ describe("ThreadComposer", () => {
     expect(input.className).toContain("pt-[27px]");
     fireEvent.change(input, { target: { value: "1" } });
     expect(input.className).toContain("pt-[27px]");
-    expect(input.parentElement?.parentElement?.className).toContain("max-w-[58rem]");
+    expect(input.parentElement?.parentElement?.className).toContain("max-w-heroComposer");
   });
 
   it("defers textarea autosizing until IME composition commits", () => {

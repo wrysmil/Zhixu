@@ -121,9 +121,11 @@ const LEGACY_COMPLETED_RUNS_STORAGE_KEY = "nanobot-webui.sidebar.completed-runs.
 const RESTART_STARTED_KEY = "nanobot-webui.restartStartedAt";
 const RESTART_ROUTE_KEY = "nanobot-webui.restartRoute";
 const RESTART_ROUTE_TTL_MS = 5 * 60 * 1000;
-const SIDEBAR_WIDTH = 64;
-const SIDEBAR_RAIL_WIDTH = 64;
-const SIDEBAR_CHAT_WIDTH = 248;
+// 视觉规格 v1.1（spec 2026-10-11）：54 / 220 替换 64 / 248，与 globals.css 的
+// --rail-w / --chat-col-w 对齐；如需调整只改 CSS 变量与此处。
+const SIDEBAR_WIDTH = 54;
+const SIDEBAR_RAIL_WIDTH = 54;
+const SIDEBAR_CHAT_WIDTH = 220;
 const MOBILE_SIDEBAR_WIDTH = `min(${SIDEBAR_WIDTH + SIDEBAR_CHAT_WIDTH}px, calc(100vw - 0.75rem))`;
 const TOKEN_REFRESH_MARGIN_MS = 30_000;
 const TOKEN_REFRESH_MIN_DELAY_MS = 5_000;

@@ -132,7 +132,9 @@ function renderWorkbench(props: Partial<WorkbenchProps> = {}) {
 }
 
 async function waitForShells() {
-  await waitFor(() => expect(screen.getByTestId("dock-shell-select")).toHaveValue("zsh"));
+  // 启动器不再展示 shell select；测试关心的是 shells 数据被拉回，
+  // SessionWorkbench 的 dock + 菜单 shell 子菜单据此可用。
+  await waitFor(() => expect(mocks.fetchTerminalShells).toHaveBeenCalled());
 }
 
 beforeEach(() => {

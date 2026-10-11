@@ -2352,7 +2352,7 @@ export function ThreadComposer({
           data-testid="composer-context-tabs"
           className={cn(
             "mx-auto mb-1.5 flex min-w-0 items-center gap-1 px-1",
-            isHero ? "max-w-[58rem]" : "max-w-[49.5rem]",
+            isHero ? "max-w-heroComposer" : "max-w-[49.5rem]",
           )}
         >
           {showProjectPicker ? (
@@ -2378,7 +2378,7 @@ export function ThreadComposer({
         className={cn(
           "thread-composer-surface group/composer relative mx-auto flex w-full flex-col overflow-visible transition-all duration-200",
           isHero
-            ? "max-w-[58rem] rounded-prominent border border-border/80 bg-card focus-within:border-ring/50"
+            ? "max-w-heroComposer rounded-prominent border border-border/80 bg-card focus-within:border-ring/50"
             : "max-w-[49.5rem] rounded-prominent border border-border/80 bg-card focus-within:border-ring/50",
           interactionDisabled && "opacity-60",
           sessionDragPreview && "ring-1 ring-primary/25",
@@ -2999,7 +2999,7 @@ function CliAppMentionPalette({
         floatingSurfaceVisualClassName,
         "absolute left-1/2 z-30 w-[calc(100%-0.5rem)] -translate-x-1/2 overflow-hidden",
         layout.placement === "above" ? "bottom-full mb-2" : "top-full mt-2",
-        isHero ? "max-w-[58rem]" : "max-w-[49.5rem]",
+        isHero ? "max-w-heroComposer" : "max-w-[49.5rem]",
       )}
     >
       <div ref={listRef} className="overflow-y-auto" style={{ maxHeight: listMaxHeight }}>
@@ -3152,7 +3152,7 @@ function SlashCommandPalette({
         floatingSurfaceVisualClassName,
         "absolute left-1/2 z-30 w-[calc(100%-0.5rem)] -translate-x-1/2 overflow-hidden",
         layout.placement === "above" ? "bottom-full mb-2" : "top-full mt-2",
-        isHero ? "max-w-[58rem]" : "max-w-[49.5rem]",
+        isHero ? "max-w-heroComposer" : "max-w-[49.5rem]",
       )}
     >
       <div ref={listRef} className="overflow-y-auto pr-0.5" style={{ maxHeight: listMaxHeight }}>

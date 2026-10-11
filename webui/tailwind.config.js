@@ -59,6 +59,23 @@ export default {
         modal: "var(--radius-modal)",
         prominent: "var(--radius-prominent)",
       },
+      width: {
+        rail: "var(--rail-w)",
+        chat: "var(--chat-col-w)",
+        dock: "var(--dock-w)",
+        dockXl: "var(--dock-w-xl)",
+      },
+      height: {
+        dockHeader: "var(--dock-header-h)",
+        browserToolbar: "var(--browser-toolbar-h)",
+      },
+      fontSize: {
+        hero: ["var(--hero-text-size)", { lineHeight: "1.15" }],
+        terminal: ["var(--terminal-font-size)", { lineHeight: "1.45" }],
+      },
+      maxWidth: {
+        heroComposer: "var(--hero-composer-max-w)",
+      },
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
