@@ -1,12 +1,12 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { Article, ArticleStatus, Suggestion } from "./types";
 import {
-  createArticle,
-  duplicateArticle,
+  createDraftInput,
+  duplicateTitle,
   searchArticles,
   filterByStatus,
-  touch,
   canAcceptSuggestion,
 } from "./article-model";
 import { demoArticles, demoSuggestions } from "./demo-data";
@@ -16,12 +16,13 @@ import { ArticleEditor } from "./ArticleEditor";
 type View = "list" | "editor";
 
 export default function CreativeWorkspace() {
+  const { t } = useTranslation();
   const [articles, setArticles] = useState<Article[]>(demoArticles);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [view, setView] = useState<View>("list");
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ArticleStatus | "全部">(
-    "全部",
+  const [statusFilter, setStatusFilter] = useState<ArticleStatus | "all">(
+    "all",
   );
   const [suggestions, setSuggestions] = useState<Suggestion[]>(() =>
     demoSuggestions(demoArticles()),
@@ -40,9 +41,28 @@ export default function CreativeWorkspace() {
   const backToList = useCallback(() => setView("list"), []);
 
   const handleCreate = useCallback(
-    (title: string, templateName?: string) => {
-      const { article, error } = createArticle(title, templateName);
-      if (error || !article) return { error: error ?? "未知错误" };
+    (title: string, templateId?: string) => {
+      if (!title.trim()) return { error: "请输入文章主题" };
+      const input = createDraftInput(title, templateId, t);
+      // Demo-mode placeholder until A3 wires `article.create`: the server owns
+      // id/revision/timestamps, so mirror its shape (revision starts at 1).
+      const now = new Date().toISOString();
+      const article: Article = {
+        id: crypto.randomUUID(),
+        title: input.title,
+        writingType: input.writingType ?? "",
+        templateId: input.templateId,
+        status: "idea",
+        summary: input.summary ?? "",
+        brief: input.brief ?? {},
+        body: "",
+        outline: input.outline ?? [],
+        materials: input.materials ?? [],
+        tags: input.tags ?? [],
+        revision: 1,
+        createdAt: now,
+        updatedAt: now,
+      };
       setArticles((prev) => [article, ...prev]);
       setActiveId(article.id);
       setView("editor");
@@ -50,14 +70,25 @@ export default function CreativeWorkspace() {
       if (newSuggestions.length) setSuggestions((prev) => [...prev, ...newSuggestions]);
       return { error: null };
     },
-    [],
+    [t],
   );
 
   const handleDuplicate = useCallback((id: string) => {
     setArticles((prev) => {
       const src = prev.find((a) => a.id === id);
       if (!src) return prev;
-      return [duplicateArticle(src), ...prev];
+      const now = new Date().toISOString();
+      const copy: Article = {
+        ...src,
+        id: crypto.randomUUID(),
+        title: duplicateTitle(src.title),
+        revision: 1,
+        createdAt: now,
+        updatedAt: now,
+        outline: src.outline.map((item) => ({ ...item, id: crypto.randomUUID() })),
+        materials: src.materials.map((m) => ({ ...m, id: crypto.randomUUID() })),
+      };
+      return [copy, ...prev];
     });
   }, []);
 
@@ -70,7 +101,18 @@ export default function CreativeWorkspace() {
   const updateArticle = useCallback(
     (id: string, patch: Partial<Article>) => {
       setArticles((prev) =>
-        prev.map((a) => (a.id === id ? touch({ ...a, ...patch }) : a)),
+        prev.map((a) =>
+          a.id === id
+            ? // Demo-mode simulation of the server CAS round (article.save
+              // advances `revision`); the model layer no longer bumps it.
+              {
+                ...a,
+                ...patch,
+                revision: a.revision + 1,
+                updatedAt: new Date().toISOString(),
+              }
+            : a,
+        ),
       );
     },
     [],
@@ -93,7 +135,10 @@ export default function CreativeWorkspace() {
 
       if (suggestion.target === "outline") {
         updateArticle(activeArticle.id, {
-          outline: suggestion.after.split("\n").filter(Boolean),
+          outline: suggestion.after
+            .split("\n")
+            .filter(Boolean)
+            .map((text, index) => ({ id: crypto.randomUUID(), text, order: index })),
         });
       } else if (suggestion.target === "body") {
         updateArticle(activeArticle.id, { body: suggestion.after });

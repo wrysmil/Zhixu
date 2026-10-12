@@ -44,7 +44,7 @@ describe("CreativeWorkspace", () => {
     expect(
       screen.getByText("从零构建 Agent 的记忆系统"),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "构思中" }));
+    fireEvent.click(screen.getByRole("button", { name: "Idea" }));
     await waitFor(() =>
       expect(
         screen.queryByText("从零构建 Agent 的记忆系统"),
