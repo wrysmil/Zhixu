@@ -10,7 +10,44 @@
     "new_article": "Tulis artikel baru",
     "sample_label": "Contoh",
     "material_count": "{{count}} bahan",
-    "continue_writing": "Lanjutkan menulis"
+    "continue_writing": "Lanjutkan menulis",
+    "filter_all": "Semua",
+    "status": {
+      "idea": "Gagasan",
+      "draft": "Draf",
+      "review": "Perlu ditinjau",
+      "done": "Selesai"
+    },
+    "material": {
+      "type": {
+        "note": "Catatan",
+        "text": "Teks",
+        "code": "Kode",
+        "link": "Tautan"
+      }
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Penjelasan teknis",
+        "desc": "Menjelaskan konsep rumit dengan jelas",
+        "outline": ["Dari mana masalahnya", "Konsep dan prinsip inti", "Ilustrasikan dengan contoh", "Cakupan dan batasan", "Pemahaman saya"]
+      },
+      "source-reading": {
+        "name": "Membaca kode",
+        "desc": "Menelusuri rantai pemanggilan untuk memahami desain",
+        "outline": ["Apa yang ingin dipahami", "Titik masuk dan rantai pemanggilan", "Implementasi utama", "Pertukaran desain", "Pemahaman saya sendiri"]
+      },
+      "practice-retro": {
+        "name": "Retrospeksi praktik",
+        "desc": "Mencatat proses sekaligus pertukarannya",
+        "outline": ["Latar belakang dan tujuan", "Bagaimana saya melakukannya", "Masalah dan pemeriksaan", "Hasil dan kekurangan", "Apa yang diubah berikutnya"]
+      },
+      "learning-summary": {
+        "name": "Ringkasan belajar",
+        "desc": "Mengubah pengetahuan baru menjadi pemahaman sendiri",
+        "outline": ["Belajar dengan pertanyaan apa", "Pengetahuan utama", "Verifikasi langsung", "Bagaimana pemahaman berubah", "Pertanyaan yang tersisa"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

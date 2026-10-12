@@ -4,10 +4,15 @@ import { Plus, X, ChevronUp, ChevronDown } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import type { OutlineItem } from "./types";
 
 interface Props {
-  outline: string[];
-  onChange: (outline: string[]) => void;
+  outline: OutlineItem[];
+  onChange: (outline: OutlineItem[]) => void;
+}
+
+function resequence(items: OutlineItem[]): OutlineItem[] {
+  return items.map((item, index) => ({ ...item, order: index }));
 }
 
 export function OutlinePanel({ outline, onChange }: Props) {
@@ -17,13 +22,16 @@ export function OutlinePanel({ outline, onChange }: Props) {
 
   const handleAdd = () => {
     if (!newItem.trim()) return;
-    onChange([...outline, newItem.trim()]);
+    onChange([
+      ...outline,
+      { id: crypto.randomUUID(), text: newItem.trim(), order: outline.length },
+    ]);
     setNewItem("");
     setAdding(false);
   };
 
   const handleRemove = (idx: number) => {
-    onChange(outline.filter((_, i) => i !== idx));
+    onChange(resequence(outline.filter((_, i) => i !== idx)));
   };
 
   const handleMove = (idx: number, dir: -1 | 1) => {
@@ -31,7 +39,7 @@ export function OutlinePanel({ outline, onChange }: Props) {
     const target = idx + dir;
     if (target < 0 || target >= arr.length) return;
     [arr[idx], arr[target]] = [arr[target], arr[idx]];
-    onChange(arr);
+    onChange(resequence(arr));
   };
 
   return (
@@ -44,13 +52,13 @@ export function OutlinePanel({ outline, onChange }: Props) {
         <div className="space-y-1">
           {outline.map((item, idx) => (
             <div
-              key={idx}
+              key={item.id}
               className="group flex items-start gap-1.5 rounded-control border border-border bg-settings-surface px-2.5 py-2"
             >
               <span className="mt-0.5 shrink-0 text-[10px] font-medium text-muted-foreground">
                 {idx + 1}
               </span>
-              <span className="flex-1 text-[12px] text-foreground">{item}</span>
+              <span className="flex-1 text-[12px] text-foreground">{item.text}</span>
               <div className="flex shrink-0 items-center gap-0 opacity-0 transition-opacity group-hover:opacity-100">
                 <button
                   type="button"

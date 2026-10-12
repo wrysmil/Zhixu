@@ -10,7 +10,44 @@
     "new_article": "Escrever um novo artigo",
     "sample_label": "Exemplo",
     "material_count": "{{count}} materiais",
-    "continue_writing": "Continuar escrevendo"
+    "continue_writing": "Continuar escrevendo",
+    "filter_all": "Todos",
+    "status": {
+      "idea": "Ideia",
+      "draft": "Rascunho",
+      "review": "A revisar",
+      "done": "Concluído"
+    },
+    "material": {
+      "type": {
+        "note": "Nota",
+        "text": "Texto",
+        "code": "Código",
+        "link": "Link"
+      }
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Explicação técnica",
+        "desc": "Explicar um conceito complexo com clareza",
+        "outline": ["De onde vem o problema", "Conceitos e princípios centrais", "Ilustrar com um exemplo", "Abrangência e limites", "Minha compreensão"]
+      },
+      "source-reading": {
+        "name": "Leitura de código",
+        "desc": "Seguir a cadeia de chamadas para entender o design",
+        "outline": ["O que quero entender", "Ponto de entrada e cadeia de chamadas", "Implementação principal", "Decisões de design", "Minha própria compreensão"]
+      },
+      "practice-retro": {
+        "name": "Retrospectiva prática",
+        "desc": "Registrar o processo e as escolhas",
+        "outline": ["Contexto e objetivo", "Como eu fiz", "Problemas e investigação", "Resultados e lacunas", "O que mudar na próxima vez"]
+      },
+      "learning-summary": {
+        "name": "Resumo de aprendizado",
+        "desc": "Transformar novo conhecimento em compreensão própria",
+        "outline": ["Com qual pergunta aprendi", "Conhecimento essencial", "Verificação prática", "Como minha compreensão mudou", "Perguntas restantes"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

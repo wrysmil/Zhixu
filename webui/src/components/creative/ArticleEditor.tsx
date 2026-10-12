@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MarkdownText } from "@/components/MarkdownText";
 import type { Article, Suggestion } from "./types";
+import { ARTICLE_STATUS_LABEL_KEY } from "./types";
 import { buildExportFilename, generateMarkdown } from "./article-model";
 import { MaterialPanel } from "./MaterialPanel";
 import { OutlinePanel } from "./OutlinePanel";
@@ -185,7 +186,7 @@ export function ArticleEditor({
 
       {/* Status bar */}
       <div className="flex h-8 shrink-0 items-center justify-between border-t border-border bg-settings-surface px-4 text-[11px] text-muted-foreground">
-        <span>{article.status}</span>
+        <span>{t(ARTICLE_STATUS_LABEL_KEY[article.status])}</span>
         <span>
           {t("creative.storage_note", {
             defaultValue: "内容仅在本次访问内保留",

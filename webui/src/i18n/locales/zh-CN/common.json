@@ -10,7 +10,44 @@
     "new_article": "写一篇新文章",
     "sample_label": "示例",
     "material_count": "{{count}} 份素材",
-    "continue_writing": "继续写作"
+    "continue_writing": "继续写作",
+    "filter_all": "全部",
+    "status": {
+      "idea": "构思中",
+      "draft": "写作中",
+      "review": "待校对",
+      "done": "已完成"
+    },
+    "material": {
+      "type": {
+        "note": "观点",
+        "text": "文本",
+        "code": "代码",
+        "link": "链接"
+      }
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "技术解析",
+        "desc": "把复杂概念，解释清楚",
+        "outline": ["问题从哪里来", "核心概念与原理", "用一个例子说明", "适用范围与限制", "我的理解"]
+      },
+      "source-reading": {
+        "name": "源码阅读",
+        "desc": "沿着调用链，读懂设计",
+        "outline": ["这次想读懂什么", "入口与调用链", "关键实现", "设计取舍", "自己的理解"]
+      },
+      "practice-retro": {
+        "name": "实践复盘",
+        "desc": "记录过程，也记录取舍",
+        "outline": ["背景与目标", "我是怎么做的", "问题与排查", "结果与不足", "下一次怎么改"]
+      },
+      "learning-summary": {
+        "name": "学习总结",
+        "desc": "把新知识，变成自己的理解",
+        "outline": ["带着什么问题学习", "关键知识", "动手验证", "理解发生了什么变化", "还有哪些问题"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

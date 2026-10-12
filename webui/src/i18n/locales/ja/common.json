@@ -10,7 +10,44 @@
     "new_article": "新しい記事を書く",
     "sample_label": "サンプル",
     "material_count": "資料 {{count}} 件",
-    "continue_writing": "執筆を続ける"
+    "continue_writing": "執筆を続ける",
+    "filter_all": "すべて",
+    "status": {
+      "idea": "構想中",
+      "draft": "執筆中",
+      "review": "校正待ち",
+      "done": "完成"
+    },
+    "material": {
+      "type": {
+        "note": "視点",
+        "text": "テキスト",
+        "code": "コード",
+        "link": "リンク"
+      }
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "技術解説",
+        "desc": "複雑な概念をやさしく説明する",
+        "outline": ["問題はどこから来るか", "核心の概念と原理", "例で説明する", "適用範囲と制約", "自分の理解"]
+      },
+      "source-reading": {
+        "name": "ソース読解",
+        "desc": "呼び出しチェーンを辿って設計を読み解く",
+        "outline": ["今回読み解きたいこと", "エントリーポイントと呼び出しチェーン", "主要な実装", "設計のトレードオフ", "自分の理解"]
+      },
+      "practice-retro": {
+        "name": "実践の振り返り",
+        "desc": "過程も取舍も記録する",
+        "outline": ["背景と目標", "どう進めたか", "問題と調査", "結果と不足", "次はどう変えるか"]
+      },
+      "learning-summary": {
+        "name": "学習まとめ",
+        "desc": "新しい知識を自分の理解に変える",
+        "outline": ["どんな問いで学んだか", "主要な知識", "手を動かして検証", "理解はどう変わったか", "まだ残る問い"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

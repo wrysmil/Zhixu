@@ -5,7 +5,8 @@ import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { Material, MaterialKind } from "./types";
+import type { Material, MaterialType } from "./types";
+import { MATERIAL_TYPES, MATERIAL_TYPE_LABEL_KEY } from "./types";
 import { isSafeUrl } from "./article-model";
 
 interface Props {
@@ -13,28 +14,30 @@ interface Props {
   onChange: (materials: Material[]) => void;
 }
 
-const KINDS: MaterialKind[] = ["观点", "文本", "代码", "链接"];
-
 export function MaterialPanel({ materials, onChange }: Props) {
   const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
-  const [newKind, setNewKind] = useState<MaterialKind>("观点");
+  const [newKind, setNewKind] = useState<MaterialType>("note");
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
 
   const handleAdd = () => {
     if (!newTitle.trim() || !newContent.trim()) return;
-    if (newKind === "链接" && !isSafeUrl(newContent)) {
+    if (newKind === "link" && !isSafeUrl(newContent)) {
       setLinkError("不支持该链接协议");
       return;
     }
+    const at = new Date().toISOString();
     const item: Material = {
-      id: `m-${Date.now()}`,
-      kind: newKind,
+      id: crypto.randomUUID(),
+      type: newKind,
       title: newTitle.trim(),
       content: newContent.trim(),
       included: true,
+      order: materials.length,
+      createdAt: at,
+      updatedAt: at,
     };
     onChange([...materials, item]);
     setAdding(false);
@@ -72,7 +75,7 @@ export function MaterialPanel({ materials, onChange }: Props) {
               )}
             >
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-[10px] font-medium text-primary">{m.kind}</span>
+                <span className="text-[10px] font-medium text-primary">{t(MATERIAL_TYPE_LABEL_KEY[m.type])}</span>
                 <button
                   type="button"
                   aria-label="移除素材"
@@ -89,7 +92,7 @@ export function MaterialPanel({ materials, onChange }: Props) {
               >
                 <p className="text-[12px] font-medium text-foreground">{m.title}</p>
                 <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
-                  {m.kind === "链接" ? (
+                  {m.type === "link" ? (
                     <a
                       href={isSafeUrl(m.content) ? m.content : "#"}
                       target="_blank"
@@ -112,7 +115,7 @@ export function MaterialPanel({ materials, onChange }: Props) {
       {adding ? (
         <div className="mt-3 space-y-2 rounded-control border border-border bg-background p-2.5">
           <div className="flex gap-1">
-            {KINDS.map((k) => (
+            {MATERIAL_TYPES.map((k) => (
               <button
                 key={k}
                 type="button"
@@ -124,7 +127,7 @@ export function MaterialPanel({ materials, onChange }: Props) {
                 )}
                 onClick={() => setNewKind(k)}
               >
-                {k}
+                {t(MATERIAL_TYPE_LABEL_KEY[k])}
               </button>
             ))}
           </div>
@@ -137,7 +140,7 @@ export function MaterialPanel({ materials, onChange }: Props) {
           <textarea
             value={newContent}
             onChange={(e) => setNewContent(e.target.value)}
-            placeholder={newKind === "链接" ? "https://..." : "内容"}
+            placeholder={newKind === "link" ? "https://..." : "内容"}
             className="w-full resize-none rounded-control border border-border bg-background p-2 text-[12px] outline-none"
             rows={2}
           />

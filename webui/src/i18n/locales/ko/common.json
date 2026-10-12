@@ -10,7 +10,44 @@
     "new_article": "새 글 쓰기",
     "sample_label": "예시",
     "material_count": "자료 {{count}}개",
-    "continue_writing": "이어서 쓰기"
+    "continue_writing": "이어서 쓰기",
+    "filter_all": "전체",
+    "status": {
+      "idea": "구상 중",
+      "draft": "작성 중",
+      "review": "검토 대기",
+      "done": "완료"
+    },
+    "material": {
+      "type": {
+        "note": "관점",
+        "text": "텍스트",
+        "code": "코드",
+        "link": "링크"
+      }
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "기술 해설",
+        "desc": "복잡한 개념을 명확하게 설명",
+        "outline": ["문제의 출발점", "핵심 개념과 원리", "예시로 설명", "적용 범위와 한계", "나의 이해"]
+      },
+      "source-reading": {
+        "name": "코드 읽기",
+        "desc": "호출 경로를 따라 설계 이해",
+        "outline": ["이번에 이해할 것", "진입점과 호출 경로", "핵심 구현", "설계의 선택과 포기", "나의 이해"]
+      },
+      "practice-retro": {
+        "name": "실천 회고",
+        "desc": "과정도 선택도 기록",
+        "outline": ["배경과 목표", "어떻게 진행했는가", "문제와 점검", "결과와 부족", "다음에 바꿀 것"]
+      },
+      "learning-summary": {
+        "name": "학습 정리",
+        "desc": "새 지식을 내 이해로",
+        "outline": ["어떤 질문으로 학습했는가", "핵심 지식", "직접 검증", "이해의 변화", "남은 질문"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

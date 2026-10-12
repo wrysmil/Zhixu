@@ -10,7 +10,44 @@
     "new_article": "Écrire un nouvel article",
     "sample_label": "Exemple",
     "material_count": "{{count}} sources",
-    "continue_writing": "Continuer à écrire"
+    "continue_writing": "Continuer à écrire",
+    "filter_all": "Tous",
+    "status": {
+      "idea": "Idée",
+      "draft": "Brouillon",
+      "review": "À relire",
+      "done": "Terminé"
+    },
+    "material": {
+      "type": {
+        "note": "Note",
+        "text": "Texte",
+        "code": "Code",
+        "link": "Lien"
+      }
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Explication technique",
+        "desc": "Expliquer clairement un concept complexe",
+        "outline": ["D’où vient le problème", "Concepts et principes clés", "Illustrer par un exemple", "Portée et limites", "Ma compréhension"]
+      },
+      "source-reading": {
+        "name": "Lecture de code",
+        "desc": "Suivre la chaîne d’appels pour comprendre la conception",
+        "outline": ["Ce que je veux comprendre", "Point d’entrée et chaîne d’appels", "Implémentation clé", "Arbitrages de conception", "Ma propre compréhension"]
+      },
+      "practice-retro": {
+        "name": "Rétrospective pratique",
+        "desc": "Relater le processus et les arbitrages",
+        "outline": ["Contexte et objectif", "Comment je m’y suis pris", "Problèmes et diagnostic", "Résultats et limites", "Ce que je changerai"]
+      },
+      "learning-summary": {
+        "name": "Synthèse d’apprentissage",
+        "desc": "Transformer le nouveau savoir en compréhension propre",
+        "outline": ["Avec quelle question apprendre", "Savoirs clés", "Vérification pratique", "Comment ma compréhension a changé", "Questions restantes"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

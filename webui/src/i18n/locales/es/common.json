@@ -10,7 +10,44 @@
     "new_article": "Escribir un nuevo artículo",
     "sample_label": "Ejemplo",
     "material_count": "{{count}} materiales",
-    "continue_writing": "Seguir escribiendo"
+    "continue_writing": "Seguir escribiendo",
+    "filter_all": "Todos",
+    "status": {
+      "idea": "Idea",
+      "draft": "Borrador",
+      "review": "Revisión",
+      "done": "Completado"
+    },
+    "material": {
+      "type": {
+        "note": "Nota",
+        "text": "Texto",
+        "code": "Código",
+        "link": "Enlace"
+      }
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Explicación técnica",
+        "desc": "Explica un concepto complejo con claridad",
+        "outline": ["De dónde viene el problema", "Conceptos y principios clave", "Ilustrarlo con un ejemplo", "Alcance y límites", "Mi comprensión"]
+      },
+      "source-reading": {
+        "name": "Lectura de código",
+        "desc": "Sigue la cadena de llamadas para entender el diseño",
+        "outline": ["Qué quiero entender", "Punto de entrada y cadena de llamadas", "Implementación clave", "Decisiones de diseño", "Mi propia comprensión"]
+      },
+      "practice-retro": {
+        "name": "Retrospectiva práctica",
+        "desc": "Registra el proceso y también las decisiones",
+        "outline": ["Contexto y objetivo", "Cómo lo hice", "Problemas y depuración", "Resultados y carencias", "Qué cambiaré la próxima vez"]
+      },
+      "learning-summary": {
+        "name": "Resumen de aprendizaje",
+        "desc": "Convierte el nuevo conocimiento en tu propia comprensión",
+        "outline": ["Con qué pregunta aprendí", "Conocimiento clave", "Verificación práctica", "Cómo cambió mi comprensión", "Preguntas pendientes"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

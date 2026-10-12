@@ -12,17 +12,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { Article, ArticleStatus } from "./types";
-import { ARTICLE_STATUSES, TEMPLATES } from "./types";
+import { ARTICLE_STATUSES, ARTICLE_STATUS_LABEL_KEY } from "./types";
+import { WRITING_TEMPLATES, findTemplate } from "./templates";
 
 interface Props {
   articles: Article[];
   totalCount: number;
   query: string;
-  statusFilter: ArticleStatus | "全部";
+  statusFilter: ArticleStatus | "all";
   onQueryChange: (q: string) => void;
-  onStatusFilterChange: (s: ArticleStatus | "全部") => void;
+  onStatusFilterChange: (s: ArticleStatus | "all") => void;
   onOpen: (id: string) => void;
-  onCreate: (title: string, templateName?: string) => { error: string | null };
+  onCreate: (title: string, templateId?: string) => { error: string | null };
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
   onRestoreDemo: () => void;
@@ -53,13 +54,18 @@ export function ArticleList({
     setCreateError(null);
   };
 
+  const templateLabel = (templateId?: string) => {
+    const template = findTemplate(templateId);
+    return template ? t(template.nameKey) : null;
+  };
+
   const statusTag = (status: ArticleStatus) => (
     <span className={cn(
       "inline-flex items-center rounded px-2 py-1 text-[11px] font-medium",
-      status === "写作中" ? "bg-accent text-accent-foreground"
-        : status === "待校对" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+      status === "draft" ? "bg-accent text-accent-foreground"
+        : status === "review" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
         : "bg-muted text-muted-foreground",
-    )}>{status}</span>
+    )}>{t(ARTICLE_STATUS_LABEL_KEY[status])}</span>
   );
 
   return (
@@ -93,7 +99,9 @@ export function ArticleList({
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 px-4 py-3 sm:px-6">
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             <Sparkles className="h-3.5 w-3.5 text-accent-foreground" aria-hidden />
-            {selectedTemplate ?? t("creative.input_hint", { defaultValue: "以你的素材与观点为起点" })}
+            {selectedTemplate
+              ? templateLabel(selectedTemplate)
+              : t("creative.input_hint", { defaultValue: "以你的素材与观点为起点" })}
           </p>
           <Button type="submit" size="sm" className="h-9 cursor-pointer gap-3 rounded-control px-4 text-xs">
             {t("creative.create_btn", { defaultValue: "新建" })}
@@ -112,20 +120,20 @@ export function ArticleList({
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {TEMPLATES.map((template, index) => {
+          {WRITING_TEMPLATES.map((template, index) => {
             const Icon = TEMPLATE_ICONS[index];
-            const selected = selectedTemplate === template.name;
+            const selected = selectedTemplate === template.id;
             return (
-              <button key={template.name} type="button" aria-pressed={selected}
-                onClick={() => { setSelectedTemplate(selected ? undefined : template.name); titleRef.current?.focus(); }}
+              <button key={template.id} type="button" aria-pressed={selected}
+                onClick={() => { setSelectedTemplate(selected ? undefined : template.id); titleRef.current?.focus(); }}
                 className={cn(
                   "group relative min-w-0 cursor-pointer rounded-panel border bg-card p-4 text-left transition-colors duration-150 motion-reduce:transition-none sm:p-5",
                   selected ? "border-accent-foreground/50 bg-accent/50" : "border-border hover:border-accent-foreground/40",
                 )}>
                 <Icon className="mb-5 h-5 w-5 text-accent-foreground" strokeWidth={1.6} aria-hidden />
                 {selected ? <Check className="absolute right-4 top-4 h-3.5 w-3.5 text-accent-foreground" aria-hidden /> : null}
-                <span className="block text-[13px] font-semibold text-foreground">{template.name}</span>
-                <span className="mt-2 block text-[11px] leading-6 text-muted-foreground">{template.desc}</span>
+                <span className="block text-[13px] font-semibold text-foreground">{t(template.nameKey)}</span>
+                <span className="mt-2 block text-[11px] leading-6 text-muted-foreground">{t(template.descKey)}</span>
               </button>
             );
           })}
@@ -149,13 +157,13 @@ export function ArticleList({
 
         <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-1" role="group" aria-label="状态筛选">
-            {(["全部", ...ARTICLE_STATUSES] as const).map((status) => (
+            {(["all", ...ARTICLE_STATUSES] as (ArticleStatus | "all")[]).map((status) => (
               <button key={status} type="button" aria-pressed={statusFilter === status}
                 className={cn(
                   "cursor-pointer rounded-control px-3 py-2 text-xs transition-colors",
                   statusFilter === status ? "bg-accent font-medium text-accent-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )} onClick={() => onStatusFilterChange(status)}>{status}</button>
+                )} onClick={() => onStatusFilterChange(status)}>{status === "all" ? t("creative.filter_all", { defaultValue: "全部" }) : t(ARTICLE_STATUS_LABEL_KEY[status])}</button>
             ))}
           </div>
           <div className="relative w-full sm:w-[220px]">
@@ -187,7 +195,7 @@ export function ArticleList({
                   <div className="mb-5 flex items-center justify-between gap-3">
                     {statusTag(article.status)}
                     <span className="text-[10px] text-muted-foreground">
-                      {article.sample ? t("creative.sample_label", { defaultValue: "示例" }) : article.template}
+                      {templateLabel(article.templateId)}
                     </span>
                   </div>
                   <h3 className="mb-3 min-h-[48px] break-words text-[15px] font-semibold leading-6 text-foreground">
@@ -202,7 +210,7 @@ export function ArticleList({
                     <BookOpen className="h-3 w-3" aria-hidden />
                     {t("creative.material_count", { defaultValue: "{{count}} 份素材", count: article.materials.length })}
                   </span>
-                  <span>{article.updated}</span>
+                  <span>{article.updatedAt}</span>
                 </div>
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex items-center gap-1">

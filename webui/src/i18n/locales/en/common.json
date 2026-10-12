@@ -10,7 +10,44 @@
     "new_article": "Write a new article",
     "sample_label": "Sample",
     "material_count": "{{count}} materials",
-    "continue_writing": "Continue writing"
+    "continue_writing": "Continue writing",
+    "filter_all": "All",
+    "status": {
+      "idea": "Idea",
+      "draft": "Draft",
+      "review": "Review",
+      "done": "Done"
+    },
+    "material": {
+      "type": {
+        "note": "Insight",
+        "text": "Text",
+        "code": "Code",
+        "link": "Link"
+      }
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Tech Explainer",
+        "desc": "Explain a complex concept clearly",
+        "outline": ["Where the problem comes from", "Core concepts and principles", "Illustrate with an example", "Scope and limits", "My understanding"]
+      },
+      "source-reading": {
+        "name": "Source Reading",
+        "desc": "Follow the call chain to understand the design",
+        "outline": ["What I want to understand", "Entry point and call chain", "Key implementation", "Design trade-offs", "My own understanding"]
+      },
+      "practice-retro": {
+        "name": "Practice Retrospective",
+        "desc": "Record the process and the trade-offs",
+        "outline": ["Background and goal", "How I did it", "Problems and debugging", "Results and gaps", "What I will change next time"]
+      },
+      "learning-summary": {
+        "name": "Learning Summary",
+        "desc": "Turn new knowledge into your own understanding",
+        "outline": ["What question I learned with", "Key knowledge", "Hands-on verification", "How my understanding changed", "Remaining questions"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",
