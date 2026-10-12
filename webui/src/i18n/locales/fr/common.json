@@ -24,7 +24,69 @@
         "text": "Texte",
         "code": "Code",
         "link": "Lien"
+      },
+      "empty": "Aucun matériau pour le moment",
+      "add": "Ajouter un matériau",
+      "addConfirm": "Ajouter",
+      "save": "Enregistrer les modifications",
+      "cancel": "Annuler",
+      "edit": "Modifier le matériau",
+      "remove": "Retirer le matériau",
+      "included": "Utilisable pour cette collaboration",
+      "field": {
+        "title": "Titre",
+        "content": "Contenu",
+        "contentPlaceholder": "Contenu",
+        "codePlaceholder": "Collez le code : indents et sauts de ligne sont conservés",
+        "url": "Adresse du lien",
+        "excerpt": "Extrait (facultatif)",
+        "source": "Source (facultatif)",
+        "note": "Note (facultatif)",
+        "language": "Langue (facultatif)"
+      },
+      "error": {
+        "title": "Indiquez un titre pour le matériau",
+        "content": "Indiquez le contenu du matériau",
+        "linkUrl": "Les liens doivent commencer par http:// ou https://"
+      },
+      "confirm": {
+        "title": "Supprimer ce matériau ?",
+        "description": "Seul ce matériau est retiré ; le corps de l’article et ce qui est déjà enregistré restent intacts.",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
       }
+    },
+    "outline": {
+      "empty": "Aucun plan pour le moment",
+      "add": "Ajouter une section",
+      "addConfirm": "Valider",
+      "newPlaceholder": "Nouvelle section",
+      "save": "Valider",
+      "cancel": "Annuler",
+      "remove": "Retirer la section",
+      "moveUp": "Monter",
+      "moveDown": "Descendre",
+      "field": {
+        "text": "Point du plan"
+      }
+    },
+    "conflict": {
+      "title": "Cet article a été mis à jour ailleurs",
+      "description": "Le serveur est à la version {{revision}}. Votre brouillon local est conservé et la sauvegarde automatique est en pause.",
+      "deleted": "Cet article n’existe plus sur le serveur. Vous pouvez enregistrer votre brouillon comme un nouvel article.",
+      "remote": "Dernière version du serveur",
+      "remoteLoading": "Lecture de la dernière version du serveur…",
+      "remoteUnavailable": "Impossible de lire la dernière version du serveur.",
+      "local": "Brouillon non enregistré",
+      "reload": "Charger la dernière version et fusionner à la main",
+      "saveCopy": "Enregistrer une copie",
+      "savingCopy": "Enregistrement d’une copie…",
+      "discard": "Abandonner mes modifications et recharger",
+      "discardWarning": "Le brouillon local sera supprimé et ne pourra pas être restauré. Recharger la version du serveur ?",
+      "discardBack": "Continuer à éditer",
+      "discardConfirm": "Confirmer l’abandon",
+      "cancel": "Plus tard",
+      "reopen": "Traiter le conflit"
     },
     "template": {
       "tech-explainer": {

@@ -24,7 +24,69 @@
         "text": "文本",
         "code": "代码",
         "link": "链接"
+      },
+      "empty": "暂无素材",
+      "add": "添加素材",
+      "addConfirm": "添加",
+      "save": "保存修改",
+      "cancel": "取消",
+      "edit": "编辑素材",
+      "remove": "移除素材",
+      "included": "本次协作可用",
+      "field": {
+        "title": "标题",
+        "content": "内容",
+        "contentPlaceholder": "内容",
+        "codePlaceholder": "粘贴代码，缩进与换行会保留",
+        "url": "链接地址",
+        "excerpt": "摘录（可选）",
+        "source": "来源（可选）",
+        "note": "备注（可选）",
+        "language": "语言（可选）"
+      },
+      "error": {
+        "title": "请填写素材标题",
+        "content": "请填写素材内容",
+        "linkUrl": "链接必须以 http:// 或 https:// 开头"
+      },
+      "confirm": {
+        "title": "删除这条素材？",
+        "description": "只会移除这条素材，正文与已保存的内容不会被改写。",
+        "cancel": "取消",
+        "confirm": "删除"
       }
+    },
+    "outline": {
+      "empty": "暂无提纲",
+      "add": "添加章节",
+      "addConfirm": "确定",
+      "newPlaceholder": "新章节",
+      "save": "确定",
+      "cancel": "取消",
+      "remove": "移除章节",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "field": {
+        "text": "提纲要点"
+      }
+    },
+    "conflict": {
+      "title": "其它位置已更新这篇文章",
+      "description": "服务器上的版本是 {{revision}}，本地未保存的内容已保留，自动保存已暂停。",
+      "deleted": "这篇文章在服务端已不存在，可以把本地稿另存为一篇新文章。",
+      "remote": "服务器最新版本",
+      "remoteLoading": "正在读取服务器最新版本…",
+      "remoteUnavailable": "暂时读取不到服务器最新版本。",
+      "local": "本地未保存内容",
+      "reload": "查看最新版本并手动合并",
+      "saveCopy": "另存副本",
+      "savingCopy": "正在另存副本…",
+      "discard": "放弃本地修改并重新载入",
+      "discardWarning": "本地草稿会被删除且无法找回，确认要重新载入服务器版本吗？",
+      "discardBack": "继续编辑",
+      "discardConfirm": "确认放弃本地修改",
+      "cancel": "稍后处理",
+      "reopen": "处理冲突"
     },
     "template": {
       "tech-explainer": {

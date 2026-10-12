@@ -24,7 +24,69 @@
         "text": "Văn bản",
         "code": "Mã",
         "link": "Liên kết"
+      },
+      "empty": "Chưa có tư liệu",
+      "add": "Thêm tư liệu",
+      "addConfirm": "Thêm",
+      "save": "Lưu thay đổi",
+      "cancel": "Hủy",
+      "edit": "Sửa tư liệu",
+      "remove": "Xóa tư liệu",
+      "included": "Dùng cho lần cộng tác này",
+      "field": {
+        "title": "Tiêu đề",
+        "content": "Nội dung",
+        "contentPlaceholder": "Nội dung",
+        "codePlaceholder": "Dán mã — giữ nguyên thụt lề và xuống dòng",
+        "url": "Địa chỉ liên kết",
+        "excerpt": "Trích đoạn (tùy chọn)",
+        "source": "Nguồn (tùy chọn)",
+        "note": "Ghi chú (tùy chọn)",
+        "language": "Ngôn ngữ (tùy chọn)"
+      },
+      "error": {
+        "title": "Hãy nhập tiêu đề tư liệu",
+        "content": "Hãy nhập nội dung tư liệu",
+        "linkUrl": "Liên kết phải bắt đầu bằng http:// hoặc https://"
+      },
+      "confirm": {
+        "title": "Xóa tư liệu này?",
+        "description": "Chỉ tư liệu này bị xóa; nội dung bài viết và dữ liệu đã lưu không thay đổi.",
+        "cancel": "Hủy",
+        "confirm": "Xóa"
       }
+    },
+    "outline": {
+      "empty": "Chưa có dàn ý",
+      "add": "Thêm mục",
+      "addConfirm": "Xác nhận",
+      "newPlaceholder": "Mục mới",
+      "save": "Xác nhận",
+      "cancel": "Hủy",
+      "remove": "Xóa mục",
+      "moveUp": "Lên trên",
+      "moveDown": "Xuống dưới",
+      "field": {
+        "text": "Ý trong dàn ý"
+      }
+    },
+    "conflict": {
+      "title": "Bài viết này đã được cập nhật ở nơi khác",
+      "description": "Máy chủ đang ở phiên bản {{revision}}. Bản nháp chưa lưu vẫn được giữ và tự động lưu đã tạm dừng.",
+      "deleted": "Bài viết này không còn trên máy chủ. Bạn có thể lưu bản nháp thành một bài viết mới.",
+      "remote": "Phiên bản mới nhất trên máy chủ",
+      "remoteLoading": "Đang đọc phiên bản mới nhất…",
+      "remoteUnavailable": "Chưa đọc được phiên bản mới nhất.",
+      "local": "Bản nháp chưa lưu",
+      "reload": "Tải phiên bản mới nhất và tự gộp",
+      "saveCopy": "Lưu một bản sao",
+      "savingCopy": "Đang lưu bản sao…",
+      "discard": "Bỏ thay đổi cục bộ và tải lại",
+      "discardWarning": "Bản nháp cục bộ sẽ bị xóa và không thể khôi phục. Tải lại phiên bản máy chủ?",
+      "discardBack": "Tiếp tục chỉnh sửa",
+      "discardConfirm": "Xác nhận bỏ",
+      "cancel": "Để sau",
+      "reopen": "Xử lý xung đột"
     },
     "template": {
       "tech-explainer": {

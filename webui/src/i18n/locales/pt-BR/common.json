@@ -24,7 +24,69 @@
         "text": "Texto",
         "code": "Código",
         "link": "Link"
+      },
+      "empty": "Ainda não há materiais",
+      "add": "Adicionar material",
+      "addConfirm": "Adicionar",
+      "save": "Salvar alterações",
+      "cancel": "Cancelar",
+      "edit": "Editar material",
+      "remove": "Remover material",
+      "included": "Disponível para esta colaboração",
+      "field": {
+        "title": "Título",
+        "content": "Conteúdo",
+        "contentPlaceholder": "Conteúdo",
+        "codePlaceholder": "Cole o código: recuos e quebras de linha são mantidos",
+        "url": "Endereço do link",
+        "excerpt": "Trecho (opcional)",
+        "source": "Fonte (opcional)",
+        "note": "Observação (opcional)",
+        "language": "Idioma (opcional)"
+      },
+      "error": {
+        "title": "Informe um título para o material",
+        "content": "Informe o conteúdo do material",
+        "linkUrl": "Os links devem começar com http:// ou https://"
+      },
+      "confirm": {
+        "title": "Excluir este material?",
+        "description": "Apenas este material é removido; o corpo do artigo e o que já foi salvo permanecem intactos.",
+        "cancel": "Cancelar",
+        "confirm": "Excluir"
       }
+    },
+    "outline": {
+      "empty": "Ainda não há sumário",
+      "add": "Adicionar seção",
+      "addConfirm": "Confirmar",
+      "newPlaceholder": "Nova seção",
+      "save": "Confirmar",
+      "cancel": "Cancelar",
+      "remove": "Remover seção",
+      "moveUp": "Mover para cima",
+      "moveDown": "Mover para baixo",
+      "field": {
+        "text": "Item do sumário"
+      }
+    },
+    "conflict": {
+      "title": "Este artigo foi atualizado em outro lugar",
+      "description": "O servidor está na versão {{revision}}. Seu rascunho local foi mantido e o salvamento automático está pausado.",
+      "deleted": "Este artigo não existe mais no servidor. Você pode salvar o rascunho como um novo artigo.",
+      "remote": "Versão mais recente do servidor",
+      "remoteLoading": "Lendo a versão mais recente do servidor…",
+      "remoteUnavailable": "Não foi possível ler a versão mais recente do servidor.",
+      "local": "Rascunho não salvo",
+      "reload": "Carregar a versão mais recente e mesclar manualmente",
+      "saveCopy": "Salvar uma cópia",
+      "savingCopy": "Salvando uma cópia…",
+      "discard": "Descartar minhas alterações e recarregar",
+      "discardWarning": "O rascunho local será excluído e não poderá ser recuperado. Recarregar a versão do servidor?",
+      "discardBack": "Continuar editando",
+      "discardConfirm": "Confirmar descarte",
+      "cancel": "Depois",
+      "reopen": "Resolver conflito"
     },
     "template": {
       "tech-explainer": {

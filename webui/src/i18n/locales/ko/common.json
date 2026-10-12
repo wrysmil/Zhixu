@@ -24,7 +24,69 @@
         "text": "텍스트",
         "code": "코드",
         "link": "링크"
+      },
+      "empty": "자료가 없습니다",
+      "add": "자료 추가",
+      "addConfirm": "추가",
+      "save": "변경 저장",
+      "cancel": "취소",
+      "edit": "자료 편집",
+      "remove": "자료 삭제",
+      "included": "이번 협업에 사용",
+      "field": {
+        "title": "제목",
+        "content": "내용",
+        "contentPlaceholder": "내용",
+        "codePlaceholder": "코드를 붙여넣으세요. 들여쓰기와 줄바꿈이 유지됩니다",
+        "url": "링크 주소",
+        "excerpt": "발췌 (선택)",
+        "source": "출처 (선택)",
+        "note": "메모 (선택)",
+        "language": "언어 (선택)"
+      },
+      "error": {
+        "title": "자료 제목을 입력해 주세요",
+        "content": "자료 내용을 입력해 주세요",
+        "linkUrl": "링크는 http:// 또는 https:// 로 시작해야 합니다"
+      },
+      "confirm": {
+        "title": "이 자료를 삭제할까요?",
+        "description": "이 자료만 삭제되며 본문과 이미 저장된 내용은 변경되지 않습니다.",
+        "cancel": "취소",
+        "confirm": "삭제"
       }
+    },
+    "outline": {
+      "empty": "개관이 없습니다",
+      "add": "항목 추가",
+      "addConfirm": "확인",
+      "newPlaceholder": "새 항목",
+      "save": "확인",
+      "cancel": "취소",
+      "remove": "항목 삭제",
+      "moveUp": "위로",
+      "moveDown": "아래로",
+      "field": {
+        "text": "개관 항목"
+      }
+    },
+    "conflict": {
+      "title": "다른 위치에서 이 글을 수정했습니다",
+      "description": "서버 버전은 {{revision}} 입니다. 저장하지 않은 원고는 보존되어 있으며 자동 저장은 멈췄습니다.",
+      "deleted": "이 글은 서버에 더 이상 존재하지 않습니다. 원고를 새 글로 저장할 수 있습니다.",
+      "remote": "서버 최신 버전",
+      "remoteLoading": "서버 최신 버전을 읽는 중…",
+      "remoteUnavailable": "서버 최신 버전을 읽을 수 없습니다.",
+      "local": "저장하지 않은 원고",
+      "reload": "최신 버전을 읽고 직접 병합",
+      "saveCopy": "사본으로 저장",
+      "savingCopy": "사본을 저장하는 중…",
+      "discard": "로컬 변경을 폐기하고 다시 불러오기",
+      "discardWarning": "로컬 원고는 삭제되며 되돌릴 수 없습니다. 서버 버전을 다시 불러올까요?",
+      "discardBack": "계속 편집",
+      "discardConfirm": "폐기 확인",
+      "cancel": "나중에 처리",
+      "reopen": "충돌 처리"
     },
     "template": {
       "tech-explainer": {

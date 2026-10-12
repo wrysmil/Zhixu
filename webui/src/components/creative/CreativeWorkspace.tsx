@@ -8,8 +8,10 @@ import {
   duplicateArticle,
   fetchArticle,
   fetchArticleList,
+  saveArticle,
   toArticle,
   toSnapshotPayload,
+  type CreateArticleRequest,
 } from "@/lib/writing-api";
 import type { Article, ArticleStatus, ArticleSummaryView } from "./types";
 import {
@@ -203,15 +205,67 @@ function EditorHost({
   transport,
   workspacePath,
   article,
+  readLatest,
+  onArticleReplaced,
   onBack,
 }: {
   getToken: () => string;
   transport: WebUIMutationTransport;
   workspacePath: string;
   article: Article;
+  /** 读取服务器最新版本；预览入口走内存副本，不发网络请求。 */
+  readLatest: (articleId: string) => Promise<Article>;
+  onArticleReplaced: (article: Article) => void;
   onBack: () => void;
 }) {
   const flow = useArticleSaveFlow({ getToken, transport, article, workspacePath });
+
+  /** 冲突对话框要展示服务器那一版，读取入口由容器提供（契约 §4）。 */
+  const handleFetchLatest = useCallback(
+    () => readLatest(article.id),
+    [readLatest, article.id],
+  );
+
+  /**
+   * 「另存副本」保住的是**本地稿**，不是服务端那一行：所以走 `article.create`
+   * 新建（`duplicateArticle` 复制的是服务端当前内容，语义不同），紧接着把本地快照
+   * 落一次盘，避免新文章停在「有标题没正文」的半保存状态（A-06 原子性）。
+   */
+  const handleSaveCopy = useCallback(async () => {
+    const snapshot = flow.draft;
+    const request: CreateArticleRequest = {
+      clientRequestId: newLocalId(),
+      title: duplicateTitle(snapshot.title),
+      writingType: snapshot.writing_type,
+      summary: snapshot.summary,
+      brief: snapshot.brief,
+      outline: snapshot.outline,
+      materials: snapshot.materials,
+      tags: snapshot.tags,
+    };
+    if (snapshot.template_id) request.templateId = snapshot.template_id;
+    const created = await createArticle(transport, request);
+    const saved = await saveArticle(transport, {
+      clientRequestId: newLocalId(),
+      articleId: created.id,
+      baseRevision: created.revision,
+      snapshot,
+    });
+    onArticleReplaced({
+      ...created,
+      writingType: snapshot.writing_type,
+      status: snapshot.status,
+      summary: snapshot.summary,
+      brief: snapshot.brief,
+      body: snapshot.body,
+      outline: snapshot.outline,
+      materials: snapshot.materials,
+      tags: snapshot.tags,
+      revision: saved.revision,
+      updatedAt: saved.updated_at,
+    });
+  }, [flow.draft, onArticleReplaced, transport]);
+
   return (
     <ArticleEditor
       article={article}
@@ -221,6 +275,8 @@ function EditorHost({
       setField={flow.setField}
       onSaveNow={flow.saveNow}
       onAcknowledgeConflict={flow.acknowledgeConflict}
+      onFetchLatest={handleFetchLatest}
+      onSaveCopy={handleSaveCopy}
       onBack={onBack}
     />
   );
@@ -326,6 +382,22 @@ export default function CreativeWorkspace({
     : listState;
 
   const refreshList = useCallback(() => setReloadKey((key) => key + 1), []);
+
+  /**
+   * 冲突对话框读取「服务器那一版」的入口：预览入口一律走内存副本（A-T11），
+   * 否则才是真实的 `article.get`（契约 §4）。
+   */
+  const readLatestArticle = useCallback(
+    async (id: string): Promise<Article> => {
+      if (preview) {
+        const found = previewRef.current.find((item) => item.id === id) ?? null;
+        if (!found) throw new ApiError(404, "article not found");
+        return found;
+      }
+      return fetchArticle(getTokenRef.current(), id);
+    },
+    [preview],
+  );
 
   const failureText = useCallback(
     (reason: unknown, fallbackKey: string, fallback: string) => {
@@ -455,10 +527,13 @@ export default function CreativeWorkspace({
   if (view === "editor" && activeArticle) {
     return (
       <EditorHost
+        key={activeArticle.id}
         getToken={getToken}
         transport={mutationTransport}
         workspacePath={workspacePath}
         article={activeArticle}
+        readLatest={readLatestArticle}
+        onArticleReplaced={setActiveArticle}
         onBack={backToList}
       />
     );

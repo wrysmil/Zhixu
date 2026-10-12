@@ -9,8 +9,9 @@ import type { Article } from "./types";
 import { ARTICLE_STATUS_LABEL_KEY } from "./types";
 import type { ArticleSnapshotPayload } from "@/lib/writing-api";
 import type { SaveFlowState } from "./use-article-save-flow";
-import { mergeImeValue } from "./use-article-save-flow";
+import { ARTICLE_DELETED_REVISION, mergeImeValue } from "./use-article-save-flow";
 import { buildExportFilename, countBodyChars, generateMarkdown } from "./article-model";
+import { ConflictDialog } from "./ConflictDialog";
 import { MaterialPanel } from "./MaterialPanel";
 import { OutlinePanel } from "./OutlinePanel";
 
@@ -33,6 +34,10 @@ interface Props {
   setField: <K extends keyof ArticleSnapshotPayload>(key: K, value: ArticleSnapshotPayload[K]) => void;
   onSaveNow: () => Promise<void>;
   onAcknowledgeConflict: (resolution: "reload" | "savedCopy" | "discardLocal") => Promise<void>;
+  /** 冲突期间读取服务器最新版本（A-08 第 3 条：给出读取最新内容的入口）。 */
+  onFetchLatest: () => Promise<Article>;
+  /** 用本地草稿另存一篇新文章（A-08 第 5 条），成功后编辑器切到新文章。 */
+  onSaveCopy: () => Promise<void>;
   onBack: () => void;
 }
 
@@ -44,12 +49,56 @@ export function ArticleEditor({
   setField,
   onSaveNow,
   onAcknowledgeConflict,
+  onFetchLatest,
+  onSaveCopy,
   onBack,
 }: Props) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<EditorMode>("edit");
   const [leftTab, setLeftTab] = useState<LeftTab>("materials");
   const [bodyMergeHint, setBodyMergeHint] = useState(false);
+  const [conflictOpen, setConflictOpen] = useState(false);
+  const [latest, setLatest] = useState<Article | null>(null);
+  const [latestLoading, setLatestLoading] = useState(false);
+
+  const conflict = saveState.conflict;
+  const inConflict = saveState.phase === "conflict";
+
+  /**
+   * 进入冲突态就弹出对话框并读取服务器最新版本；服务端已删除（`ARTICLE_DELETED_REVISION`）
+   * 时不再去读，直接给出「另存副本」这条出路（A-02/A-08）。
+   */
+  useEffect(() => {
+    if (!inConflict) {
+      setConflictOpen(false);
+      setLatest(null);
+      setLatestLoading(false);
+      return undefined;
+    }
+    setConflictOpen(true);
+    if (!conflict || conflict.currentRevision === ARTICLE_DELETED_REVISION) {
+      setLatest(null);
+      setLatestLoading(false);
+      return undefined;
+    }
+    let active = true;
+    setLatest(null);
+    setLatestLoading(true);
+    onFetchLatest()
+      .then((remote) => {
+        if (!active) return;
+        setLatest(remote);
+        setLatestLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setLatest(null);
+        setLatestLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [inConflict, conflict, onFetchLatest]);
 
   /**
    * 正文 textarea 是非受控的：保存响应、恢复稿等异步来源都晚于输入，
@@ -189,7 +238,7 @@ export function ArticleEditor({
         </div>
       </div>
 
-      {saveState.phase === "conflict" ? (
+      {inConflict ? (
         <div role="alert" className="flex items-center justify-between gap-3 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-[11px] text-amber-800 dark:text-amber-200">
           <span className="min-w-0 truncate">
             {saveState.lastError || t("creative.save.conflict", { defaultValue: "版本冲突，已暂停自动保存" })}
@@ -197,10 +246,11 @@ export function ArticleEditor({
           <Button
             variant="outline"
             size="sm"
+            data-testid="conflict-reopen"
             className="h-6 shrink-0 text-[11px] cursor-pointer"
-            onClick={() => void onAcknowledgeConflict("reload")}
+            onClick={() => setConflictOpen(true)}
           >
-            {t("creative.conflict.reload", { defaultValue: "载入最新版本" })}
+            {t("creative.conflict.reopen", { defaultValue: "处理冲突" })}
           </Button>
         </div>
       ) : null}
@@ -325,6 +375,21 @@ export function ArticleEditor({
           <span data-testid="save-phase-label" aria-live="polite">{saveLabel()}</span>
         </span>
       </div>
+
+      {inConflict && conflictOpen ? (
+        <ConflictDialog
+          conflict={conflict}
+          latest={latest}
+          latestLoading={latestLoading}
+          localBody={draft.body}
+          onReloadLatest={() => {
+            void onAcknowledgeConflict("reload");
+          }}
+          onSaveCopy={onSaveCopy}
+          onDiscardLocal={() => onAcknowledgeConflict("discardLocal")}
+          onCancel={() => setConflictOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
