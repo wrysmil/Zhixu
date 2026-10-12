@@ -2905,7 +2905,11 @@ function Shell({
                   </Button>
                 </header>
                 <Suspense fallback={null}>
-                  <CreativeWorkspace />
+                  <CreativeWorkspace
+                    getToken={getToken}
+                    transport={client}
+                    workspacePath={activeWorkspaceScope?.project_path ?? ""}
+                  />
                 </Suspense>
               </div>
             ) : null}

@@ -16,10 +16,21 @@ import {
   type CapabilityKind,
 } from "@/preview/PreviewCapabilities";
 import { PREVIEW_DEFAULT_SCOPE, previewCapabilityCopy, previewSessions } from "@/preview/fixtures";
+import type { WebUIMutationTransport } from "@/lib/api";
 import type { ChatSummary, SidebarProjectEntry, WorkspaceScopePayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const CreativeWorkspace = lazy(() => import("@/components/creative/CreativeWorkspace"));
+
+/**
+ * 预览入口没有网关连接：创作空间在 preview 下自带内存写路径，这个替身一旦被调用
+ * 就说明有真实 mutation 漏进了预览（A-T11），直接抛错而不是静默发请求。
+ */
+const PREVIEW_NO_TRANSPORT: WebUIMutationTransport = {
+  requestMutation: async <T,>(action: string): Promise<T> => {
+    throw new Error(`preview must not issue business mutation: ${action}`);
+  },
+};
 
 /**
  * Fully offline preview shell mounted only when the entry query carries
@@ -108,7 +119,12 @@ export default function PreviewApp() {
             <span className="text-[11px] text-muted-foreground">{t("workspace.preview.badge")}</span>
           </div>
           <Suspense fallback={null}>
-            <CreativeWorkspace />
+            <CreativeWorkspace
+              preview
+              getToken={() => ""}
+              transport={PREVIEW_NO_TRANSPORT}
+              workspacePath={workspaceScope.project_path}
+            />
           </Suspense>
           </div>
         ) : (
