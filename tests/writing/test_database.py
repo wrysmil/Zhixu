@@ -39,3 +39,11 @@ def test_workspace_key_is_path_scoped_hex(tmp_path: Path) -> None:
     assert len(first) == 16
     assert first == compute_workspace_key(tmp_path)
     assert first != compute_workspace_key(tmp_path / "other")
+
+
+def test_connect_creates_the_parent_directory(tmp_path: Path) -> None:
+    """建目录是 connect 的职责：路径已推导但目录尚不存在时仍能建库。"""
+    db = WritingDatabase(tmp_path, db_path=tmp_path / "nested" / "writing" / "state.db")
+    assert not db.db_path.parent.exists()
+    db.init_schema()
+    assert {"articles", "article_requests", "_schema_meta"} <= _tables(db)

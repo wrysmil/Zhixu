@@ -1,7 +1,8 @@
 """写作域字段语义、上限与内容摘要。
 
-上限取值与错误文案的唯一真相源是契约 §5.3 / §6，本模块只做校验与规范化，
-不生成 id / 时间戳（那是 repository 的职责）。
+上限取值与错误文案的唯一真相源是契约 §5.3 / §6，本模块是这些上限的**唯一出口**：
+超限一律抛 ``ArticleLimitError``（message 取契约原文），既不截断也不丢弃条目，
+调用方因此无需再做任何边界补偿。本模块不生成 id / 时间戳（那是 repository 的职责）。
 """
 
 from __future__ import annotations
@@ -43,6 +44,13 @@ class ArticleLimitError(ValueError):
         self.status = status
 
 
+# 契约 §5.3 对 outline / materials 各只登记一条 message（不按子字段拆分），
+# 本模块即为这两条文案的唯一出口；上层（writing_api）不再归一、不再补拦截。
+_OUTLINE_LIMIT_MESSAGE = "article outline limit exceeded"
+_MATERIALS_LIMIT_MESSAGE = "article materials limit exceeded"
+_TAGS_LIMIT_MESSAGE = "article tags limit exceeded"
+
+
 def new_id() -> str:
     return uuid.uuid4().hex
 
@@ -51,7 +59,15 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _text(value: Any, field: str, limit: int, *, required: bool = False) -> str:
+def _text(
+    value: Any,
+    field: str,
+    limit: int,
+    *,
+    required: bool = False,
+    too_long_message: str | None = None,
+) -> str:
+    """长度超限一律**拒绝**（契约 §5.3「绝不截断保存」），不返回被裁剪的值。"""
     if value is None:
         if required:
             raise ArticleLimitError(f"unsupported article field: {field}")
@@ -60,7 +76,8 @@ def _text(value: Any, field: str, limit: int, *, required: bool = False) -> str:
         raise ArticleLimitError(f"unsupported article field: {field}")
     if len(value) > limit:
         raise ArticleLimitError(
-            f"article {field} is too long", status=413 if field == "body" else 400,
+            too_long_message or f"article {field} is too long",
+            status=413 if field == "body" else 400,
         )
     return value
 
@@ -71,12 +88,12 @@ def _tags(value: Any) -> list[str]:
     if not isinstance(value, (list, tuple)):
         raise ArticleLimitError("unsupported article field: tags")
     entries: Sequence[Any] = cast(Sequence[Any], value)
-    if len(entries) > MAX_TAGS:
-        raise ArticleLimitError("article tags limit exceeded")
-    return [
-        item.strip() for item in entries
-        if isinstance(item, str) and item.strip() and len(item.strip()) <= MAX_TAG_CHARS
-    ]
+    items = [item.strip() for item in entries if isinstance(item, str) and item.strip()]
+    # 条数与单条长度都是超限：拒绝写入并保留原稿，**不得**丢弃超长标签
+    # （丢弃等于截断，前端会收到「保存成功但标签少了几条」的假结果）。
+    if len(items) > MAX_TAGS or any(len(item) > MAX_TAG_CHARS for item in items):
+        raise ArticleLimitError(_TAGS_LIMIT_MESSAGE)
+    return items
 
 
 def _brief(value: Any) -> dict[str, str]:
@@ -101,7 +118,7 @@ def _outline(value: Any) -> list[dict[str, Any]]:
         raise ArticleLimitError("unsupported article field: outline")
     entries: Sequence[Any] = cast(Sequence[Any], value)
     if len(entries) > MAX_OUTLINE_ITEMS:
-        raise ArticleLimitError("article outline limit exceeded")
+        raise ArticleLimitError(_OUTLINE_LIMIT_MESSAGE)
     items: list[dict[str, Any]] = []
     for order, raw in enumerate(entries):
         if isinstance(raw, Mapping):
@@ -116,13 +133,20 @@ def _outline(value: Any) -> list[dict[str, Any]]:
         if not text:
             continue
         if len(text) > MAX_OUTLINE_TEXT_CHARS:
-            raise ArticleLimitError("article outline limit exceeded")
+            raise ArticleLimitError(_OUTLINE_LIMIT_MESSAGE)
         if item_id is not None and (
             not isinstance(item_id, str) or not _ID_RE.fullmatch(item_id)
         ):
             raise ArticleLimitError("unsupported article field: outline.id")
         items.append({"id": item_id or new_id(), "text": text, "order": order})
     return items
+
+
+def _material_text(item: Mapping[str, Any], key: str, limit: int) -> str:
+    """素材子字段的长度超限并入契约 §5.3 的 ``article materials limit exceeded``。"""
+    return _text(
+        item.get(key), f"materials.{key}", limit, too_long_message=_MATERIALS_LIMIT_MESSAGE,
+    )
 
 
 def _materials(value: Any) -> list[dict[str, Any]]:
@@ -132,7 +156,7 @@ def _materials(value: Any) -> list[dict[str, Any]]:
         raise ArticleLimitError("unsupported article field: materials")
     entries: Sequence[Any] = cast(Sequence[Any], value)
     if len(entries) > MAX_MATERIALS:
-        raise ArticleLimitError("article materials limit exceeded")
+        raise ArticleLimitError(_MATERIALS_LIMIT_MESSAGE)
     out: list[dict[str, Any]] = []
     for order, raw in enumerate(entries):
         if not isinstance(raw, Mapping):
@@ -141,9 +165,9 @@ def _materials(value: Any) -> list[dict[str, Any]]:
         kind = item.get("type", "note")
         if kind not in MATERIAL_TYPES:
             raise ArticleLimitError("unsupported article material type")
-        title = _text(item.get("title"), "materials.title", MAX_TITLE_CHARS)
-        content = _text(item.get("content"), "materials.content", MAX_MATERIAL_CONTENT_CHARS)
-        url = _text(item.get("url"), "materials.url", MAX_URL_CHARS)
+        title = _material_text(item, "title", MAX_TITLE_CHARS)
+        content = _material_text(item, "content", MAX_MATERIAL_CONTENT_CHARS)
+        url = _material_text(item, "url", MAX_URL_CHARS)
         if kind == "link" and url and not url.lower().startswith(_URL_PREFIXES):
             raise ArticleLimitError("article material url must be http(s)")
         material_id = item.get("id")
@@ -159,9 +183,9 @@ def _materials(value: Any) -> list[dict[str, Any]]:
             "title": title,
             "content": content,
             "url": url if kind == "link" else "",
-            "source": _text(item.get("source"), "materials.source", MAX_URL_CHARS),
-            "note": _text(item.get("note"), "materials.note", MAX_MATERIAL_CONTENT_CHARS),
-            "language": _text(item.get("language"), "materials.language", 50),
+            "source": _material_text(item, "source", MAX_URL_CHARS),
+            "note": _material_text(item, "note", MAX_MATERIAL_CONTENT_CHARS),
+            "language": _material_text(item, "language", 50),
             "included": bool(item.get("included", True)),
             "order": order,
             "created_at": created_at if isinstance(created_at, str) and created_at else utc_now_iso(),

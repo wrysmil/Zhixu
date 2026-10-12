@@ -268,6 +268,27 @@ def test_create_limit_errors(
     assert (excinfo.value.status, excinfo.value.message) == (status, message)
 
 
+def test_save_path_enforces_the_same_field_limits(services: WritingServices) -> None:
+    """save 与 create 同一出口：超限由 models 判定，message 仍是契约原文。"""
+    article = _created(services)["article"]
+    with pytest.raises(WebUISettingsError) as excinfo:
+        writing_api.save_article(
+            services, client_request_id="r-2", article_id=article["id"], base_revision=1,
+            snapshot={"title": "标题", "tags": ["t" * 51]},
+        )
+    assert (excinfo.value.status, excinfo.value.message) == (
+        400, "article tags limit exceeded",
+    )
+    with pytest.raises(WebUISettingsError) as excinfo:
+        writing_api.save_article(
+            services, client_request_id="r-3", article_id=article["id"], base_revision=1,
+            snapshot={"title": "标题", "materials": [{"type": "note", "content": "x" * 20_001}]},
+        )
+    assert (excinfo.value.status, excinfo.value.message) == (
+        400, "article materials limit exceeded",
+    )
+
+
 def test_snapshot_too_large_is_413(services: WritingServices) -> None:
     article = _created(services)["article"]
     with pytest.raises(WebUISettingsError) as excinfo:

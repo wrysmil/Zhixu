@@ -9,6 +9,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from nanobot.config.paths import get_writing_dir
+
 SCHEMA_VERSION = "1"
 
 _SCHEMA_STATEMENTS: tuple[str, ...] = (
@@ -61,12 +63,13 @@ class WritingDatabase:
 
     def __init__(self, workspace: Path, *, db_path: Path | None = None) -> None:
         self.workspace = Path(workspace)
+        # 默认库路径的唯一出口是 get_writing_dir（契约 §2 的 <workspace>/writing/state.db）；
+        # 本构造只做路径推导，不建目录——真正要连接时才建（见 connect）。
         self.db_path = (
             Path(db_path)
             if db_path is not None
-            else self.workspace / "writing" / "state.db"
+            else get_writing_dir(self.workspace) / "state.db"
         )
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.workspace_key = compute_workspace_key(self.workspace)
         self._lock = threading.Lock()
 
@@ -74,6 +77,7 @@ class WritingDatabase:
     def connect(self) -> Iterator[sqlite3.Connection]:
         """取一个 SQLite 连接；同一进程内由锁串行化，事务由调用方决定。"""
         with self._lock:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
             conn = sqlite3.connect(self.db_path)
             try:
                 conn.execute("PRAGMA foreign_keys = ON")

@@ -8,25 +8,26 @@
 | ``ArticleNotFound``              | 404    | ``article not found``                          |
 | ``ArticleConflict``              | 409    | ``article_conflict current_revision=<n> article_id=<id>`` |
 | ``ArticleLimitError("article deleted")`` | 409 | ``article deleted``                       |
-| 其他 ``ArticleLimitError``       | ``exc.status`` | ``exc.message``（materials 字段级超限归一到契约 §5.3 的 ``article materials limit exceeded``） |
+| 其他 ``ArticleLimitError``       | ``exc.status`` | ``exc.message``（契约 §5.3 的上限文案由 ``models`` 直接给出） |
 | ``ArticleRequestReplay``         | 409    | ``request_id was already used for a different WebUI mutation`` |
 
 协议级校验（``client_request_id`` / ``article_id`` 的形状）在本层兜底，因为
 传输层不会把 ``request_id`` 透传给领域 handler（契约 §1 推论 1）：业务级幂等靠
 payload 内显式的 ``client_request_id``。大小上限与字段类型由
-``nanobot/writing/models.py`` 单点判定（契约 §5.3），本层不重复实现。
+``nanobot/writing/models.py`` 单点判定（契约 §5.3），本层不重复实现、也不再做
+文案归一或边界拦截——超限的 message 与 status 都在 ``models`` 里定型。
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Generator, Mapping, Sequence
+from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from typing import Any, cast
 
 from nanobot.webui.settings_contracts import WebUISettingsError
 from nanobot.webui.writing_services import WritingServices
-from nanobot.writing.models import MAX_TAG_CHARS, MAX_TAGS, ArticleLimitError
+from nanobot.writing.models import ArticleLimitError
 from nanobot.writing.repository import (
     ArticleConflict,
     ArticleNotFound,
@@ -38,37 +39,7 @@ from nanobot.writing.repository import (
 _CLIENT_REQUEST_ID_RE = re.compile(r"[A-Za-z0-9._:-]{1,128}")
 _MAX_ID_CHARS = 128
 
-# models 层对素材的**单个字段**超限会给字段级文案（如
-# ``article materials.content is too long``）；契约 §5.3 对 materials 只登记一条
-# ``article materials limit exceeded``，前端按条解析。本层是契约文案的唯一出口，
-# 因此在这里把字段级变体归一到契约 message（status 保持 models 给出的值）。
-_MATERIAL_FIELD_TOO_LONG_RE = re.compile(r"^article materials\.[a-z_.]+ is too long$")
-
 LIST_DEFAULT_LIMIT = 50
-
-
-def _contract_message(message: str) -> str:
-    if _MATERIAL_FIELD_TOO_LONG_RE.match(message):
-        return "article materials limit exceeded"
-    return message
-
-
-def _check_tags_limit(raw: Any) -> None:
-    """models 层会静默丢弃超限/超长标签；契约要求超限一律拒绝写入。
-
-    「绝不截断保存」（契约 §5.3）意味着前端不能收到「保存成功但标签少了几条」的
-    结果，所以本层在进入仓储前先把 tags 的条数与单条长度当作协议级校验拦下。
-    """
-    if raw in (None, ""):
-        return
-    if not isinstance(raw, (list, tuple)):
-        return  # 类型错误交给 models 的 ``unsupported article field: tags``
-    entries: Sequence[Any] = cast(Sequence[Any], raw)
-    if len(entries) > MAX_TAGS:
-        raise WebUISettingsError("article tags limit exceeded")
-    for item in entries:
-        if isinstance(item, str) and len(item.strip()) > MAX_TAG_CHARS:
-            raise WebUISettingsError("article tags limit exceeded")
 
 
 @contextmanager
@@ -85,9 +56,7 @@ def _translated() -> Generator[None, None, None]:
             "request_id was already used for a different WebUI mutation", status=409,
         ) from exc
     except ArticleLimitError as exc:
-        raise WebUISettingsError(
-            _contract_message(exc.message), status=exc.status,
-        ) from exc
+        raise WebUISettingsError(exc.message, status=exc.status) from exc
 
 
 def _check_client_request_id(raw: Any) -> str:
@@ -180,7 +149,6 @@ def create_article(
     status: str = "idea",
 ) -> dict[str, Any]:
     """``article.create``：服务端生成 id 与时间戳，``revision = 1``。"""
-    _check_tags_limit(tags)
     payload: dict[str, Any] = {
         "title": title,
         "template_id": template_id,
@@ -212,7 +180,6 @@ def save_article(
     if not isinstance(snapshot, Mapping):
         raise WebUISettingsError("unsupported article field: snapshot")
     data: Mapping[str, Any] = cast(Mapping[str, Any], snapshot)
-    _check_tags_limit(data.get("tags"))
     with _translated():
         return _repository(services).save_snapshot(
             _check_article_id(article_id),

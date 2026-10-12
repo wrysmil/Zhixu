@@ -66,3 +66,86 @@ def test_outline_item_ids_are_generated_not_index_based() -> None:
     })
     assert fields["outline"][0]["id"] != fields["outline"][1]["id"]
     assert [item["order"] for item in fields["outline"]] == [0, 1]
+
+
+# ---- 契约 §5.3 上限：models 是唯一出口，超限一律拒绝（绝不静默截断）--------
+
+
+def _assert_limit(payload: dict, message: str, status: int = 400) -> None:
+    with pytest.raises(ArticleLimitError) as excinfo:
+        normalize_article_fields(payload)
+    assert str(excinfo.value) == message
+    assert excinfo.value.status == status
+
+
+def test_tag_over_char_limit_is_rejected_not_dropped() -> None:
+    """单条 >50 字符属超限：拒绝写入，不得过滤丢弃（契约 §5.3「绝不截断保存」）。"""
+    _assert_limit({"title": "t", "tags": ["t" * 51]}, "article tags limit exceeded")
+
+
+def test_tag_count_over_limit_is_rejected() -> None:
+    _assert_limit(
+        {"title": "t", "tags": ["t" for _ in range(21)]},
+        "article tags limit exceeded",
+    )
+
+
+def test_tags_within_limits_are_preserved_verbatim() -> None:
+    fields = normalize_article_fields({"title": "t", "tags": ["t" * 50, "x"]})
+    assert fields["tags"] == ["t" * 50, "x"]
+
+
+def test_title_over_limit_uses_contract_message() -> None:
+    _assert_limit({"title": "长" * 201}, "article title is too long")
+
+
+def test_summary_over_limit_uses_contract_message() -> None:
+    _assert_limit({"title": "t", "summary": "长" * 501}, "article summary is too long")
+
+
+def test_outline_count_over_limit_is_rejected() -> None:
+    _assert_limit(
+        {"title": "t", "outline": [{"text": "条目"}] * 201},
+        "article outline limit exceeded",
+    )
+
+
+def test_outline_item_over_char_limit_is_rejected() -> None:
+    _assert_limit(
+        {"title": "t", "outline": [{"text": "条" * 201}]},
+        "article outline limit exceeded",
+    )
+
+
+def test_material_content_over_limit_uses_contract_message() -> None:
+    """契约对 materials 只登记一条 message，不出现字段级变体。"""
+    _assert_limit(
+        {"title": "t", "materials": [{"type": "note", "content": "x" * 20_001}]},
+        "article materials limit exceeded",
+    )
+
+
+def test_material_url_over_limit_uses_contract_message() -> None:
+    _assert_limit(
+        {"title": "t", "materials": [{"type": "link", "url": "https://" + "u" * 2_000}]},
+        "article materials limit exceeded",
+    )
+
+
+def test_material_count_over_limit_uses_contract_message() -> None:
+    _assert_limit(
+        {"title": "t", "materials": [{"type": "note"}] * 101},
+        "article materials limit exceeded",
+    )
+
+
+def test_snapshot_over_one_mebibyte_is_413() -> None:
+    """§5.3 末行：单个字段都不超限，但整快照序列化 >1 MiB 由 ``snapshot_digest`` 拒绝。"""
+    fields = normalize_article_fields({
+        "title": "t",
+        "materials": [{"type": "note", "content": "字" * 20_000} for _ in range(60)],
+    })
+    with pytest.raises(ArticleLimitError) as excinfo:
+        snapshot_digest(fields)
+    assert str(excinfo.value) == "article snapshot is too large"
+    assert excinfo.value.status == 413

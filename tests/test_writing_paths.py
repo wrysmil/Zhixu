@@ -48,6 +48,25 @@ def test_database_db_path_matches_writing_dir(tmp_path: Path) -> None:
     assert database.db_path == get_writing_dir(tmp_path) / "state.db"
 
 
+def test_database_db_path_is_derived_from_get_writing_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """默认路径只有一个出口：``get_writing_dir``，而不是再拼一遍 ``writing/state.db``。"""
+    monkeypatch.setattr(
+        "nanobot.writing.database.get_writing_dir",
+        lambda workspace=None: Path(workspace) / "derected" / "writing",
+    )
+    assert WritingDatabase(tmp_path).db_path == tmp_path / "derected" / "writing" / "state.db"
+
+
+def test_constructing_database_creates_no_directory(tmp_path: Path) -> None:
+    """读取路径不产生副作用：构造只推导路径，建目录留给 connect()。"""
+    workspace = tmp_path / "proj"
+    database = WritingDatabase(workspace)
+    assert not (workspace / "writing").exists()
+    assert not database.db_path.exists()
+
+
 def test_database_db_path_is_overridable(tmp_path: Path) -> None:
     override = tmp_path / "elsewhere" / "state.db"
     assert WritingDatabase(tmp_path, db_path=override).db_path == override
