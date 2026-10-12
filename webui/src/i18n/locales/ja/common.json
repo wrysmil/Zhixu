@@ -10,7 +10,106 @@
     "new_article": "新しい記事を書く",
     "sample_label": "サンプル",
     "material_count": "資料 {{count}} 件",
-    "continue_writing": "執筆を続ける"
+    "continue_writing": "執筆を続ける",
+    "filter_all": "すべて",
+    "status": {
+      "idea": "構想中",
+      "draft": "執筆中",
+      "review": "校正待ち",
+      "done": "完成"
+    },
+    "material": {
+      "type": {
+        "note": "視点",
+        "text": "テキスト",
+        "code": "コード",
+        "link": "リンク"
+      },
+      "empty": "素材はまだありません",
+      "add": "素材を追加",
+      "addConfirm": "追加",
+      "save": "変更を保存",
+      "cancel": "キャンセル",
+      "edit": "素材を編集",
+      "remove": "素材を削除",
+      "included": "今回の協作で使う",
+      "field": {
+        "title": "タイトル",
+        "content": "内容",
+        "contentPlaceholder": "内容",
+        "codePlaceholder": "コードを貼り付け（インデントと改行は保持されます）",
+        "url": "リンク URL",
+        "excerpt": "抜き書き（任意）",
+        "source": "出典（任意）",
+        "note": "メモ（任意）",
+        "language": "言語（任意）"
+      },
+      "error": {
+        "title": "素材のタイトルを入力してください",
+        "content": "素材の内容を入力してください",
+        "linkUrl": "リンクは http:// または https:// で始める必要があります"
+      },
+      "confirm": {
+        "title": "この素材を削除しますか？",
+        "description": "この素材のみ削除され、本文や保存済みの内容は変更されません。",
+        "cancel": "キャンセル",
+        "confirm": "削除"
+      }
+    },
+    "outline": {
+      "empty": "アウトラインはまだありません",
+      "add": "見出しを追加",
+      "addConfirm": "追加",
+      "newPlaceholder": "新しい見出し",
+      "save": "確定",
+      "cancel": "キャンセル",
+      "remove": "見出しを削除",
+      "moveUp": "上へ",
+      "moveDown": "下へ",
+      "field": {
+        "text": "アウトラインの項目"
+      }
+    },
+    "conflict": {
+      "title": "別の場所でこの記事が更新されました",
+      "description": "サーバー上のバージョンは {{revision}} です。保存されていない下書きは保持され、自動保存は停止しています。",
+      "deleted": "この記事はサーバー上に存在しません。下書きを新しい記事として保存できます。",
+      "remote": "サーバーの最新版",
+      "remoteLoading": "サーバーの最新版を読み込み中…",
+      "remoteUnavailable": "サーバーの最新版を読み込めませんでした。",
+      "local": "保存されていない下書き",
+      "reload": "最新版を読み込んで手動で結合",
+      "saveCopy": "コピーとして保存",
+      "savingCopy": "コピーを保存中…",
+      "discard": "ローカルの変更を破棄して再読み込み",
+      "discardWarning": "ローカルの下書きは削除され、復元できません。サーバー版を再読み込みしますか？",
+      "discardBack": "編集を続ける",
+      "discardConfirm": "破棄を確定",
+      "cancel": "あとで対応",
+      "reopen": "競合を処理"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "技術解説",
+        "desc": "複雑な概念をやさしく説明する",
+        "outline": ["問題はどこから来るか", "核心の概念と原理", "例で説明する", "適用範囲と制約", "自分の理解"]
+      },
+      "source-reading": {
+        "name": "ソース読解",
+        "desc": "呼び出しチェーンを辿って設計を読み解く",
+        "outline": ["今回読み解きたいこと", "エントリーポイントと呼び出しチェーン", "主要な実装", "設計のトレードオフ", "自分の理解"]
+      },
+      "practice-retro": {
+        "name": "実践の振り返り",
+        "desc": "過程も取舍も記録する",
+        "outline": ["背景と目標", "どう進めたか", "問題と調査", "結果と不足", "次はどう変えるか"]
+      },
+      "learning-summary": {
+        "name": "学習まとめ",
+        "desc": "新しい知識を自分の理解に変える",
+        "outline": ["どんな問いで学んだか", "主要な知識", "手を動かして検証", "理解はどう変わったか", "まだ残る問い"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

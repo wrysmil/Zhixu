@@ -10,7 +10,106 @@
     "new_article": "Tulis artikel baru",
     "sample_label": "Contoh",
     "material_count": "{{count}} bahan",
-    "continue_writing": "Lanjutkan menulis"
+    "continue_writing": "Lanjutkan menulis",
+    "filter_all": "Semua",
+    "status": {
+      "idea": "Gagasan",
+      "draft": "Draf",
+      "review": "Perlu ditinjau",
+      "done": "Selesai"
+    },
+    "material": {
+      "type": {
+        "note": "Catatan",
+        "text": "Teks",
+        "code": "Kode",
+        "link": "Tautan"
+      },
+      "empty": "Belum ada materi",
+      "add": "Tambah materi",
+      "addConfirm": "Tambah",
+      "save": "Simpan perubahan",
+      "cancel": "Batal",
+      "edit": "Ubah materi",
+      "remove": "Hapus materi",
+      "included": "Digunakan untuk kolaborasi ini",
+      "field": {
+        "title": "Judul",
+        "content": "Isi",
+        "contentPlaceholder": "Isi",
+        "codePlaceholder": "Tempel kode — indentasi dan baris dipertahankan",
+        "url": "Alamat tautan",
+        "excerpt": "Kutipan (opsional)",
+        "source": "Sumber (opsional)",
+        "note": "Catatan (opsional)",
+        "language": "Bahasa (opsional)"
+      },
+      "error": {
+        "title": "Isi judul materi",
+        "content": "Isi materi",
+        "linkUrl": "Tautan harus diawali http:// atau https://"
+      },
+      "confirm": {
+        "title": "Hapus materi ini?",
+        "description": "Hanya materi ini yang dihapus; isi artikel dan data yang sudah disimpan tetap utuh.",
+        "cancel": "Batal",
+        "confirm": "Hapus"
+      }
+    },
+    "outline": {
+      "empty": "Belum ada kerangka",
+      "add": "Tambah bagian",
+      "addConfirm": "Oke",
+      "newPlaceholder": "Bagian baru",
+      "save": "Oke",
+      "cancel": "Batal",
+      "remove": "Hapus bagian",
+      "moveUp": "Naik",
+      "moveDown": "Turun",
+      "field": {
+        "text": "Poin kerangka"
+      }
+    },
+    "conflict": {
+      "title": "Artikel ini diperbarui di tempat lain",
+      "description": "Versi server adalah {{revision}}. Draf lokal yang belum disimpan tetap ada dan simpan otomatis dijeda.",
+      "deleted": "Artikel ini tidak ada lagi di server. Simpan draf Anda sebagai artikel baru.",
+      "remote": "Versi terbaru server",
+      "remoteLoading": "Membaca versi terbaru server…",
+      "remoteUnavailable": "Versi terbaru server belum dapat dibaca.",
+      "local": "Draf yang belum disimpan",
+      "reload": "Muat versi terbaru dan gabungkan manual",
+      "saveCopy": "Simpan sebagai salinan",
+      "savingCopy": "Menyimpan salinan…",
+      "discard": "Buang perubahan lokal dan muat ulang",
+      "discardWarning": "Draf lokal akan dihapus dan tidak bisa dipulihkan. Muat ulang versi server?",
+      "discardBack": "Lanjut mengedit",
+      "discardConfirm": "Konfirmasi buang",
+      "cancel": "Nanti",
+      "reopen": "Selesaikan konflik"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Penjelasan teknis",
+        "desc": "Menjelaskan konsep rumit dengan jelas",
+        "outline": ["Dari mana masalahnya", "Konsep dan prinsip inti", "Ilustrasikan dengan contoh", "Cakupan dan batasan", "Pemahaman saya"]
+      },
+      "source-reading": {
+        "name": "Membaca kode",
+        "desc": "Menelusuri rantai pemanggilan untuk memahami desain",
+        "outline": ["Apa yang ingin dipahami", "Titik masuk dan rantai pemanggilan", "Implementasi utama", "Pertukaran desain", "Pemahaman saya sendiri"]
+      },
+      "practice-retro": {
+        "name": "Retrospeksi praktik",
+        "desc": "Mencatat proses sekaligus pertukarannya",
+        "outline": ["Latar belakang dan tujuan", "Bagaimana saya melakukannya", "Masalah dan pemeriksaan", "Hasil dan kekurangan", "Apa yang diubah berikutnya"]
+      },
+      "learning-summary": {
+        "name": "Ringkasan belajar",
+        "desc": "Mengubah pengetahuan baru menjadi pemahaman sendiri",
+        "outline": ["Belajar dengan pertanyaan apa", "Pengetahuan utama", "Verifikasi langsung", "Bagaimana pemahaman berubah", "Pertanyaan yang tersisa"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

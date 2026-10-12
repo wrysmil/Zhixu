@@ -10,7 +10,106 @@
     "new_article": "Escribir un nuevo artículo",
     "sample_label": "Ejemplo",
     "material_count": "{{count}} materiales",
-    "continue_writing": "Seguir escribiendo"
+    "continue_writing": "Seguir escribiendo",
+    "filter_all": "Todos",
+    "status": {
+      "idea": "Idea",
+      "draft": "Borrador",
+      "review": "Revisión",
+      "done": "Completado"
+    },
+    "material": {
+      "type": {
+        "note": "Nota",
+        "text": "Texto",
+        "code": "Código",
+        "link": "Enlace"
+      },
+      "empty": "Aún no hay materiales",
+      "add": "Añadir material",
+      "addConfirm": "Añadir",
+      "save": "Guardar cambios",
+      "cancel": "Cancelar",
+      "edit": "Editar material",
+      "remove": "Quitar material",
+      "included": "Disponible para esta colaboración",
+      "field": {
+        "title": "Título",
+        "content": "Contenido",
+        "contentPlaceholder": "Contenido",
+        "codePlaceholder": "Pega el código: se conservan la sangría y los saltos de línea",
+        "url": "Dirección del enlace",
+        "excerpt": "Fragmento (opcional)",
+        "source": "Fuente (opcional)",
+        "note": "Nota (opcional)",
+        "language": "Idioma (opcional)"
+      },
+      "error": {
+        "title": "Escribe un título para el material",
+        "content": "Escribe el contenido del material",
+        "linkUrl": "Los enlaces deben empezar por http:// o https://"
+      },
+      "confirm": {
+        "title": "¿Eliminar este material?",
+        "description": "Solo se quita este material; el texto del artículo y lo ya guardado no cambia.",
+        "cancel": "Cancelar",
+        "confirm": "Eliminar"
+      }
+    },
+    "outline": {
+      "empty": "Aún no hay esquema",
+      "add": "Añadir sección",
+      "addConfirm": "Aceptar",
+      "newPlaceholder": "Nueva sección",
+      "save": "Aceptar",
+      "cancel": "Cancelar",
+      "remove": "Quitar sección",
+      "moveUp": "Subir",
+      "moveDown": "Bajar",
+      "field": {
+        "text": "Punto del esquema"
+      }
+    },
+    "conflict": {
+      "title": "Este artículo se actualizó en otro lugar",
+      "description": "El servidor tiene la versión {{revision}}. Tu borrador local está guardado y el autoguardo está en pausa.",
+      "deleted": "Este artículo ya no existe en el servidor. Puedes guardar tu borrador como un artículo nuevo.",
+      "remote": "Última versión del servidor",
+      "remoteLoading": "Leyendo la última versión del servidor…",
+      "remoteUnavailable": "Todavía no se puede leer la última versión del servidor.",
+      "local": "Borrador sin guardar",
+      "reload": "Cargar la última versión y combinar a mano",
+      "saveCopy": "Guardar una copia",
+      "savingCopy": "Guardando una copia…",
+      "discard": "Descartar mis cambios y recargar",
+      "discardWarning": "El borrador local se eliminará y no podrá recuperarse. ¿Recargar la versión del servidor?",
+      "discardBack": "Seguir editando",
+      "discardConfirm": "Confirmar descarte",
+      "cancel": "Más tarde",
+      "reopen": "Resolver conflicto"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Explicación técnica",
+        "desc": "Explica un concepto complejo con claridad",
+        "outline": ["De dónde viene el problema", "Conceptos y principios clave", "Ilustrarlo con un ejemplo", "Alcance y límites", "Mi comprensión"]
+      },
+      "source-reading": {
+        "name": "Lectura de código",
+        "desc": "Sigue la cadena de llamadas para entender el diseño",
+        "outline": ["Qué quiero entender", "Punto de entrada y cadena de llamadas", "Implementación clave", "Decisiones de diseño", "Mi propia comprensión"]
+      },
+      "practice-retro": {
+        "name": "Retrospectiva práctica",
+        "desc": "Registra el proceso y también las decisiones",
+        "outline": ["Contexto y objetivo", "Cómo lo hice", "Problemas y depuración", "Resultados y carencias", "Qué cambiaré la próxima vez"]
+      },
+      "learning-summary": {
+        "name": "Resumen de aprendizaje",
+        "desc": "Convierte el nuevo conocimiento en tu propia comprensión",
+        "outline": ["Con qué pregunta aprendí", "Conocimiento clave", "Verificación práctica", "Cómo cambió mi comprensión", "Preguntas pendientes"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

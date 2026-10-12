@@ -54,6 +54,16 @@ def get_workspace_path(workspace: str | Path | None = None) -> Path:
     return ensure_dir(path)
 
 
+def get_writing_dir(workspace: str | Path | None = None) -> Path:
+    """知序写作域的数据目录（文章 SQLite 状态）。
+
+    与 memory 的 ``<workspace>/memory/state.db`` 并列；**不在此处建目录**——
+    目录由 ``WritingDatabase`` 在真正要写库时创建，避免任何只做路径推导的读取
+    调用都留下空的 ``writing/`` 目录。
+    """
+    return get_workspace_path(workspace) / "writing"
+
+
 def is_default_workspace(workspace: str | Path | None) -> bool:
     """Return whether a workspace resolves to nanobot's default workspace path."""
     current = Path(workspace).expanduser() if workspace is not None else Path.home() / ".nanobot" / "workspace"

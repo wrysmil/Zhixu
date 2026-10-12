@@ -1,4 +1,4 @@
-import type { Article, Suggestion } from "./types";
+import type { Article, Material, OutlineItem, Suggestion } from "./types";
 
 const SEED_BODY = `## 为什么需要记忆
 
@@ -28,60 +28,83 @@ await memory.consider(session_id)
 
 下一步，我想用真实的多轮工作任务，观察记忆是否减少了重复说明，以及错误记忆如何被修正。`;
 
+function outline(prefix: string, texts: string[]): OutlineItem[] {
+  return texts.map((text, index) => ({
+    id: `${prefix}-o${index}`,
+    text,
+    order: index,
+  }));
+}
+
+function material(
+  id: string,
+  type: Material["type"],
+  title: string,
+  content: string,
+  note: string,
+  order: number,
+): Material {
+  const at = "2026-01-05T09:00:00+00:00";
+  return { id, type, title, content, note, included: true, order, createdAt: at, updatedAt: at };
+}
+
 export function demoArticles(): Article[] {
   return [
     {
       id: "a1",
       title: "从零构建 Agent 的记忆系统",
-      template: "实践复盘",
-      status: "写作中",
+      writingType: "",
+      templateId: "practice-retro",
+      status: "draft",
       summary:
         "从对话记录到长期记忆，整理这次实现过程中的思考与取舍。",
+      brief: {},
       body: SEED_BODY,
-      outline: [
+      outline: outline("a1", [
         "为什么需要记忆",
         "从对话记录到长期记忆",
         "实现中的几个取舍",
         "接下来想验证什么",
-      ],
+      ]),
       materials: [
-        {
-          id: "m1",
-          kind: "观点",
-          title: "记忆不是更多的聊天记录",
-          content:
-            "我希望记忆能减少重复说明，并保留可追溯的来源。不是把全部聊天塞进上下文。",
-          note: "保留作者观点，不扩大结论。",
-          included: true,
-        },
-        {
-          id: "m2",
-          kind: "代码",
-          title: "记忆写入调用示例",
-          content:
-            "await sessions.append(message)\nawait memory.consider(session_id)",
-          note: "演示代码，尚未验证运行。",
-          included: true,
-        },
-        {
-          id: "m3",
-          kind: "链接",
-          title: "asyncio 文档",
-          content: "https://docs.python.org/3/library/asyncio.html",
-          note: "示例链接记录；未抓取网页。",
-          included: true,
-        },
+        material(
+          "m1",
+          "note",
+          "记忆不是更多的聊天记录",
+          "我希望记忆能减少重复说明，并保留可追溯的来源。不是把全部聊天塞进上下文。",
+          "保留作者观点，不扩大结论。",
+          0,
+        ),
+        material(
+          "m2",
+          "code",
+          "记忆写入调用示例",
+          "await sessions.append(message)\nawait memory.consider(session_id)",
+          "演示代码，尚未验证运行。",
+          1,
+        ),
+        material(
+          "m3",
+          "link",
+          "asyncio 文档",
+          "https://docs.python.org/3/library/asyncio.html",
+          "示例链接记录；未抓取网页。",
+          2,
+        ),
       ],
-      updated: "刚刚",
-      revision: 0,
-      sample: true,
+      tags: [],
+      revision: 4,
+      createdAt: "2026-01-05T09:00:00+00:00",
+      updatedAt: "2026-01-05T09:00:00+00:00",
     },
     {
       id: "a2",
       title: "沿着一次调用，读懂 Agent Loop",
-      template: "源码阅读",
-      status: "构思中",
+      writingType: "",
+      templateId: "source-reading",
+      status: "idea",
       summary: "从消息进入到工具执行，画清楚一次任务的调用链。",
+      brief: {},
       body: `## 这次想读懂什么
 
 先从一条消息开始，理解 Agent Loop 如何协调模型与工具。
@@ -89,24 +112,27 @@ export function demoArticles(): Article[] {
 ## 入口与调用链
 
 这里记录阅读过程中发现的关键入口。`,
-      outline: [
+      outline: outline("a2", [
         "这次想读懂什么",
         "入口与调用链",
         "关键实现",
         "设计取舍",
         "自己的理解",
-      ],
+      ]),
       materials: [],
-      updated: "昨天",
-      revision: 0,
-      sample: true,
+      tags: [],
+      revision: 1,
+      createdAt: "2026-01-04T09:00:00+00:00",
+      updatedAt: "2026-01-04T09:00:00+00:00",
     },
     {
       id: "a3",
       title: "学习 asyncio：从并发到任务取消",
-      template: "学习总结",
-      status: "待校对",
+      writingType: "",
+      templateId: "learning-summary",
+      status: "review",
       summary: "通过几个小实验，整理协程、任务和取消传播的理解。",
+      brief: {},
       body: `## 带着什么问题学习
 
 当一个任务被取消时，它创建的子任务会怎样？
@@ -114,17 +140,18 @@ export function demoArticles(): Article[] {
 ## 动手验证
 
 这篇草稿还需要补充实验代码和结果，暂时不下结论。`,
-      outline: [
+      outline: outline("a3", [
         "带着什么问题学习",
         "关键知识",
         "动手验证",
         "理解发生了什么变化",
         "还有哪些问题",
-      ],
+      ]),
       materials: [],
-      updated: "3 天前",
-      revision: 0,
-      sample: true,
+      tags: [],
+      revision: 2,
+      createdAt: "2026-01-02T09:00:00+00:00",
+      updatedAt: "2026-01-02T09:00:00+00:00",
     },
   ];
 }
@@ -132,14 +159,15 @@ export function demoArticles(): Article[] {
 export function demoSuggestions(articles: Article[]): Suggestion[] {
   const a1 = articles.find((a) => a.id === "a1");
   if (!a1) return [];
+  const lines = a1.outline.map((item) => item.text);
   return [
     {
       articleId: "a1",
       baseRevision: a1.revision,
       target: "outline",
       label: "补充「未来展望」章节",
-      before: a1.outline.join("\n"),
-      after: [...a1.outline, "未来展望与开放问题"].join("\n"),
+      before: lines.join("\n"),
+      after: [...lines, "未来展望与开放问题"].join("\n"),
     },
   ];
 }

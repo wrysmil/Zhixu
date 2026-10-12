@@ -10,7 +10,106 @@
     "new_article": "Write a new article",
     "sample_label": "Sample",
     "material_count": "{{count}} materials",
-    "continue_writing": "Continue writing"
+    "continue_writing": "Continue writing",
+    "filter_all": "All",
+    "status": {
+      "idea": "Idea",
+      "draft": "Draft",
+      "review": "Review",
+      "done": "Done"
+    },
+    "material": {
+      "type": {
+        "note": "Insight",
+        "text": "Text",
+        "code": "Code",
+        "link": "Link"
+      },
+      "empty": "No materials yet",
+      "add": "Add material",
+      "addConfirm": "Add",
+      "save": "Save changes",
+      "cancel": "Cancel",
+      "edit": "Edit material",
+      "remove": "Remove material",
+      "included": "Use in this collaboration",
+      "field": {
+        "title": "Title",
+        "content": "Content",
+        "contentPlaceholder": "Content",
+        "codePlaceholder": "Paste code — indentation and line breaks are kept",
+        "url": "Link URL",
+        "excerpt": "Excerpt (optional)",
+        "source": "Source (optional)",
+        "note": "Note (optional)",
+        "language": "Language (optional)"
+      },
+      "error": {
+        "title": "Give the material a title",
+        "content": "Fill in the material content",
+        "linkUrl": "Links must start with http:// or https://"
+      },
+      "confirm": {
+        "title": "Delete this material?",
+        "description": "Only this material is removed; the article body and what you already saved stay untouched.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      }
+    },
+    "outline": {
+      "empty": "No outline yet",
+      "add": "Add section",
+      "addConfirm": "Add",
+      "newPlaceholder": "New section",
+      "save": "Done",
+      "cancel": "Cancel",
+      "remove": "Remove section",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "field": {
+        "text": "Outline point"
+      }
+    },
+    "conflict": {
+      "title": "This article was updated elsewhere",
+      "description": "The server holds version {{revision}}. Your unsaved draft is kept and autosave is paused.",
+      "deleted": "This article no longer exists on the server. Save your draft as a new article to keep it.",
+      "remote": "Latest server version",
+      "remoteLoading": "Reading the latest server version…",
+      "remoteUnavailable": "The latest server version could not be read yet.",
+      "local": "Your unsaved draft",
+      "reload": "Load the latest version and merge by hand",
+      "saveCopy": "Save a copy",
+      "savingCopy": "Saving a copy…",
+      "discard": "Discard my changes and reload",
+      "discardWarning": "Your local draft will be deleted and cannot be restored. Reload the server version?",
+      "discardBack": "Keep editing",
+      "discardConfirm": "Confirm discard",
+      "cancel": "Handle later",
+      "reopen": "Resolve conflict"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Tech Explainer",
+        "desc": "Explain a complex concept clearly",
+        "outline": ["Where the problem comes from", "Core concepts and principles", "Illustrate with an example", "Scope and limits", "My understanding"]
+      },
+      "source-reading": {
+        "name": "Source Reading",
+        "desc": "Follow the call chain to understand the design",
+        "outline": ["What I want to understand", "Entry point and call chain", "Key implementation", "Design trade-offs", "My own understanding"]
+      },
+      "practice-retro": {
+        "name": "Practice Retrospective",
+        "desc": "Record the process and the trade-offs",
+        "outline": ["Background and goal", "How I did it", "Problems and debugging", "Results and gaps", "What I will change next time"]
+      },
+      "learning-summary": {
+        "name": "Learning Summary",
+        "desc": "Turn new knowledge into your own understanding",
+        "outline": ["What question I learned with", "Key knowledge", "Hands-on verification", "How my understanding changed", "Remaining questions"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

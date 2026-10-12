@@ -10,7 +10,106 @@
     "new_article": "새 글 쓰기",
     "sample_label": "예시",
     "material_count": "자료 {{count}}개",
-    "continue_writing": "이어서 쓰기"
+    "continue_writing": "이어서 쓰기",
+    "filter_all": "전체",
+    "status": {
+      "idea": "구상 중",
+      "draft": "작성 중",
+      "review": "검토 대기",
+      "done": "완료"
+    },
+    "material": {
+      "type": {
+        "note": "관점",
+        "text": "텍스트",
+        "code": "코드",
+        "link": "링크"
+      },
+      "empty": "자료가 없습니다",
+      "add": "자료 추가",
+      "addConfirm": "추가",
+      "save": "변경 저장",
+      "cancel": "취소",
+      "edit": "자료 편집",
+      "remove": "자료 삭제",
+      "included": "이번 협업에 사용",
+      "field": {
+        "title": "제목",
+        "content": "내용",
+        "contentPlaceholder": "내용",
+        "codePlaceholder": "코드를 붙여넣으세요. 들여쓰기와 줄바꿈이 유지됩니다",
+        "url": "링크 주소",
+        "excerpt": "발췌 (선택)",
+        "source": "출처 (선택)",
+        "note": "메모 (선택)",
+        "language": "언어 (선택)"
+      },
+      "error": {
+        "title": "자료 제목을 입력해 주세요",
+        "content": "자료 내용을 입력해 주세요",
+        "linkUrl": "링크는 http:// 또는 https:// 로 시작해야 합니다"
+      },
+      "confirm": {
+        "title": "이 자료를 삭제할까요?",
+        "description": "이 자료만 삭제되며 본문과 이미 저장된 내용은 변경되지 않습니다.",
+        "cancel": "취소",
+        "confirm": "삭제"
+      }
+    },
+    "outline": {
+      "empty": "개관이 없습니다",
+      "add": "항목 추가",
+      "addConfirm": "확인",
+      "newPlaceholder": "새 항목",
+      "save": "확인",
+      "cancel": "취소",
+      "remove": "항목 삭제",
+      "moveUp": "위로",
+      "moveDown": "아래로",
+      "field": {
+        "text": "개관 항목"
+      }
+    },
+    "conflict": {
+      "title": "다른 위치에서 이 글을 수정했습니다",
+      "description": "서버 버전은 {{revision}} 입니다. 저장하지 않은 원고는 보존되어 있으며 자동 저장은 멈췄습니다.",
+      "deleted": "이 글은 서버에 더 이상 존재하지 않습니다. 원고를 새 글로 저장할 수 있습니다.",
+      "remote": "서버 최신 버전",
+      "remoteLoading": "서버 최신 버전을 읽는 중…",
+      "remoteUnavailable": "서버 최신 버전을 읽을 수 없습니다.",
+      "local": "저장하지 않은 원고",
+      "reload": "최신 버전을 읽고 직접 병합",
+      "saveCopy": "사본으로 저장",
+      "savingCopy": "사본을 저장하는 중…",
+      "discard": "로컬 변경을 폐기하고 다시 불러오기",
+      "discardWarning": "로컬 원고는 삭제되며 되돌릴 수 없습니다. 서버 버전을 다시 불러올까요?",
+      "discardBack": "계속 편집",
+      "discardConfirm": "폐기 확인",
+      "cancel": "나중에 처리",
+      "reopen": "충돌 처리"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "기술 해설",
+        "desc": "복잡한 개념을 명확하게 설명",
+        "outline": ["문제의 출발점", "핵심 개념과 원리", "예시로 설명", "적용 범위와 한계", "나의 이해"]
+      },
+      "source-reading": {
+        "name": "코드 읽기",
+        "desc": "호출 경로를 따라 설계 이해",
+        "outline": ["이번에 이해할 것", "진입점과 호출 경로", "핵심 구현", "설계의 선택과 포기", "나의 이해"]
+      },
+      "practice-retro": {
+        "name": "실천 회고",
+        "desc": "과정도 선택도 기록",
+        "outline": ["배경과 목표", "어떻게 진행했는가", "문제와 점검", "결과와 부족", "다음에 바꿀 것"]
+      },
+      "learning-summary": {
+        "name": "학습 정리",
+        "desc": "새 지식을 내 이해로",
+        "outline": ["어떤 질문으로 학습했는가", "핵심 지식", "직접 검증", "이해의 변화", "남은 질문"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

@@ -10,7 +10,106 @@
     "new_article": "Viết bài mới",
     "sample_label": "Ví dụ",
     "material_count": "{{count}} tài liệu",
-    "continue_writing": "Tiếp tục viết"
+    "continue_writing": "Tiếp tục viết",
+    "filter_all": "Tất cả",
+    "status": {
+      "idea": "Ý tưởng",
+      "draft": "Đang viết",
+      "review": "Chờ hiệu đính",
+      "done": "Hoàn tất"
+    },
+    "material": {
+      "type": {
+        "note": "Quan điểm",
+        "text": "Văn bản",
+        "code": "Mã",
+        "link": "Liên kết"
+      },
+      "empty": "Chưa có tư liệu",
+      "add": "Thêm tư liệu",
+      "addConfirm": "Thêm",
+      "save": "Lưu thay đổi",
+      "cancel": "Hủy",
+      "edit": "Sửa tư liệu",
+      "remove": "Xóa tư liệu",
+      "included": "Dùng cho lần cộng tác này",
+      "field": {
+        "title": "Tiêu đề",
+        "content": "Nội dung",
+        "contentPlaceholder": "Nội dung",
+        "codePlaceholder": "Dán mã — giữ nguyên thụt lề và xuống dòng",
+        "url": "Địa chỉ liên kết",
+        "excerpt": "Trích đoạn (tùy chọn)",
+        "source": "Nguồn (tùy chọn)",
+        "note": "Ghi chú (tùy chọn)",
+        "language": "Ngôn ngữ (tùy chọn)"
+      },
+      "error": {
+        "title": "Hãy nhập tiêu đề tư liệu",
+        "content": "Hãy nhập nội dung tư liệu",
+        "linkUrl": "Liên kết phải bắt đầu bằng http:// hoặc https://"
+      },
+      "confirm": {
+        "title": "Xóa tư liệu này?",
+        "description": "Chỉ tư liệu này bị xóa; nội dung bài viết và dữ liệu đã lưu không thay đổi.",
+        "cancel": "Hủy",
+        "confirm": "Xóa"
+      }
+    },
+    "outline": {
+      "empty": "Chưa có dàn ý",
+      "add": "Thêm mục",
+      "addConfirm": "Xác nhận",
+      "newPlaceholder": "Mục mới",
+      "save": "Xác nhận",
+      "cancel": "Hủy",
+      "remove": "Xóa mục",
+      "moveUp": "Lên trên",
+      "moveDown": "Xuống dưới",
+      "field": {
+        "text": "Ý trong dàn ý"
+      }
+    },
+    "conflict": {
+      "title": "Bài viết này đã được cập nhật ở nơi khác",
+      "description": "Máy chủ đang ở phiên bản {{revision}}. Bản nháp chưa lưu vẫn được giữ và tự động lưu đã tạm dừng.",
+      "deleted": "Bài viết này không còn trên máy chủ. Bạn có thể lưu bản nháp thành một bài viết mới.",
+      "remote": "Phiên bản mới nhất trên máy chủ",
+      "remoteLoading": "Đang đọc phiên bản mới nhất…",
+      "remoteUnavailable": "Chưa đọc được phiên bản mới nhất.",
+      "local": "Bản nháp chưa lưu",
+      "reload": "Tải phiên bản mới nhất và tự gộp",
+      "saveCopy": "Lưu một bản sao",
+      "savingCopy": "Đang lưu bản sao…",
+      "discard": "Bỏ thay đổi cục bộ và tải lại",
+      "discardWarning": "Bản nháp cục bộ sẽ bị xóa và không thể khôi phục. Tải lại phiên bản máy chủ?",
+      "discardBack": "Tiếp tục chỉnh sửa",
+      "discardConfirm": "Xác nhận bỏ",
+      "cancel": "Để sau",
+      "reopen": "Xử lý xung đột"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Phân tích kỹ thuật",
+        "desc": "Giải thích một khái niệm phức tạp cho rõ",
+        "outline": ["Vấn đề bắt nguồn từ đâu", "Khái niệm và nguyên lý cốt lõi", "Minh họa bằng một ví dụ", "Phạm vi và giới hạn", "Cách tôi hiểu"]
+      },
+      "source-reading": {
+        "name": "Đọc mã nguồn",
+        "desc": "Theo chuỗi gọi để hiểu thiết kế",
+        "outline": ["Điều muốn hiểu lần này", "Điểm vào và chuỗi gọi", "Triển khai then chốt", "Đánh đổi thiết kế", "Cách tôi tự hiểu"]
+      },
+      "practice-retro": {
+        "name": "Tổng kết thực hành",
+        "desc": "Ghi lại quá trình và cả những lựa chọn",
+        "outline": ["Bối cảnh và mục tiêu", "Tôi đã làm thế nào", "Vấn đề và cách rà soát", "Kết quả và hạn chế", "Lần sau sẽ sửa gì"]
+      },
+      "learning-summary": {
+        "name": "Tổng kết học tập",
+        "desc": "Biến kiến thức mới thành hiểu biết của mình",
+        "outline": ["Học với câu hỏi gì", "Kiến thức then chốt", "Tự tay kiểm chứng", "Hiểu biết đã thay đổi ra sao", "Còn những câu hỏi nào"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

@@ -10,7 +10,106 @@
     "new_article": "寫一篇新文章",
     "sample_label": "範例",
     "material_count": "{{count}} 份素材",
-    "continue_writing": "繼續寫作"
+    "continue_writing": "繼續寫作",
+    "filter_all": "全部",
+    "status": {
+      "idea": "構思中",
+      "draft": "寫作中",
+      "review": "待校對",
+      "done": "已完成"
+    },
+    "material": {
+      "type": {
+        "note": "觀點",
+        "text": "文本",
+        "code": "程式碼",
+        "link": "連結"
+      },
+      "empty": "尚無素材",
+      "add": "新增素材",
+      "addConfirm": "新增",
+      "save": "儲存修改",
+      "cancel": "取消",
+      "edit": "編輯素材",
+      "remove": "移除素材",
+      "included": "本次協作可用",
+      "field": {
+        "title": "標題",
+        "content": "內容",
+        "contentPlaceholder": "內容",
+        "codePlaceholder": "貼上程式碼，縮排與換行會保留",
+        "url": "連結網址",
+        "excerpt": "摘錄（選填）",
+        "source": "來源（選填）",
+        "note": "備註（選填）",
+        "language": "語言（選填）"
+      },
+      "error": {
+        "title": "請填寫素材標題",
+        "content": "請填寫素材內容",
+        "linkUrl": "連結必須以 http:// 或 https:// 開頭"
+      },
+      "confirm": {
+        "title": "刪除這條素材？",
+        "description": "只會移除這條素材，內文與已儲存的內容不會被改寫。",
+        "cancel": "取消",
+        "confirm": "刪除"
+      }
+    },
+    "outline": {
+      "empty": "尚無大綱",
+      "add": "新增章節",
+      "addConfirm": "確定",
+      "newPlaceholder": "新章節",
+      "save": "確定",
+      "cancel": "取消",
+      "remove": "移除章節",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "field": {
+        "text": "大綱重點"
+      }
+    },
+    "conflict": {
+      "title": "其他位置已更新這篇文章",
+      "description": "伺服器上的版本是 {{revision}}，本地未儲存的內容已保留，自動儲存已暫停。",
+      "deleted": "這篇文章在服务端已不存在，可以把本地稿另存為一篇新文章。",
+      "remote": "伺服器最新版本",
+      "remoteLoading": "正在讀取伺服器最新版本…",
+      "remoteUnavailable": "暫時讀取不到伺服器最新版本。",
+      "local": "本地未儲存內容",
+      "reload": "檢視最新版本並手動合併",
+      "saveCopy": "另存副本",
+      "savingCopy": "正在另存副本…",
+      "discard": "放棄本地修改並重新載入",
+      "discardWarning": "本地草稿會被刪除且無法找回，確認要重新載入伺服器版本嗎？",
+      "discardBack": "繼續編輯",
+      "discardConfirm": "確認放棄本地修改",
+      "cancel": "稍後處理",
+      "reopen": "處理衝突"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "技術解析",
+        "desc": "把複雜概念，解釋清楚",
+        "outline": ["問題從哪裡來", "核心概念與原理", "用一個例子說明", "適用範圍與限制", "我的理解"]
+      },
+      "source-reading": {
+        "name": "原始碼閱讀",
+        "desc": "沿著呼叫鏈，讀懂設計",
+        "outline": ["這次想讀懂什麼", "入口與呼叫鏈", "關鍵實作", "設計取捨", "自己的理解"]
+      },
+      "practice-retro": {
+        "name": "實踐復盤",
+        "desc": "記錄過程，也記錄取捨",
+        "outline": ["背景與目標", "我是怎麼做的", "問題與排查", "結果與不足", "下一次怎麼改"]
+      },
+      "learning-summary": {
+        "name": "學習總結",
+        "desc": "把新知識，變成自己的理解",
+        "outline": ["帶著什麼問題學習", "關鍵知識", "動手驗證", "理解發生什麼變化", "還有哪些問題"]
+      }
+    }
   },
   "app": {
     "brand": "Mira",

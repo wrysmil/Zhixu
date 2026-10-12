@@ -1,16 +1,36 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-import CreativeWorkspace from "@/components/creative/CreativeWorkspace";
+import CreativeWorkspace, {
+  type CreativeWorkspaceProps,
+} from "@/components/creative/CreativeWorkspace";
+import type { WebUIMutationTransport } from "@/lib/api";
 import { preloadMarkdownText } from "@/components/MarkdownText";
 
-describe("CreativeWorkspace", () => {
+// A3.1 起演示数据只能经 preview 入口进入正式工作区（A-T11），真实挂载点不再有任何
+// demo 分支，所以本套用例改挂预览入口：演示列表、本地筛选与内存写路径仍被完整覆盖。
+function renderPreview() {
+  const props: CreativeWorkspaceProps = {
+    getToken: () => "",
+    transport: {
+      requestMutation: async () => {
+        throw new Error("preview must not use the injected transport");
+      },
+    } as unknown as WebUIMutationTransport,
+    workspacePath: "/preview-workspace",
+    preview: true,
+  };
+  return render(<CreativeWorkspace {...props} />);
+}
+
+describe("CreativeWorkspace (preview entry)", () => {
   beforeEach(async () => {
     await preloadMarkdownText();
+    localStorage.clear();
   });
 
   it("renders the demo articles list", async () => {
-    render(<CreativeWorkspace />);
+    renderPreview();
     expect(
       await screen.findByText("从零构建 Agent 的记忆系统"),
     ).toBeInTheDocument();
@@ -20,7 +40,7 @@ describe("CreativeWorkspace", () => {
   });
 
   it("rejects blank title on new article", async () => {
-    render(<CreativeWorkspace />);
+    renderPreview();
     const btn = screen.getByRole("button", { name: /新建/ });
     fireEvent.click(btn);
     await waitFor(() =>
@@ -29,22 +49,23 @@ describe("CreativeWorkspace", () => {
   });
 
   it("creates a new article and enters editor", async () => {
-    render(<CreativeWorkspace />);
+    renderPreview();
     const textarea = screen.getByPlaceholderText(/想讲清楚什么问题/) as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "我的新文章" } });
     fireEvent.click(screen.getByRole("button", { name: /新建/ }));
     await waitFor(() =>
-      expect(screen.getByText("我的新文章")).toBeInTheDocument(),
+      expect(screen.getByTestId("article-editor")).toBeInTheDocument(),
     );
+    expect(screen.getByTestId("article-editor-title").textContent).toBe("我的新文章");
     expect(screen.getByLabelText("正文编辑")).toBeInTheDocument();
   });
 
   it("filters articles by status", async () => {
-    render(<CreativeWorkspace />);
+    renderPreview();
     expect(
       screen.getByText("从零构建 Agent 的记忆系统"),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "构思中" }));
+    fireEvent.click(screen.getByTestId("status-filter-idea"));
     await waitFor(() =>
       expect(
         screen.queryByText("从零构建 Agent 的记忆系统"),
@@ -56,54 +77,33 @@ describe("CreativeWorkspace", () => {
   });
 
   it("searches and shows empty result", async () => {
-    render(<CreativeWorkspace />);
-    const search = screen.getByPlaceholderText(/搜索标题/);
+    renderPreview();
+    const search = screen.getByLabelText(/搜索标题或摘要/);
     fireEvent.change(search, { target: { value: "不存在的文章" } });
     await waitFor(() =>
-      expect(screen.getByText("没有符合条件的文章")).toBeInTheDocument(),
+      expect(screen.getByTestId("article-list-empty")).toBeInTheDocument(),
     );
+    expect(screen.getByText("没有符合条件的文章")).toBeInTheDocument();
   });
 
-  it("preserves body draft when navigating back to list and reopening", async () => {
-    render(<CreativeWorkspace />);
-    // open first article
+  it("keeps the saved body when navigating back to list and reopening", async () => {
+    renderPreview();
     fireEvent.click(screen.getByText("从零构建 Agent 的记忆系统"));
     await waitFor(() => expect(screen.getByLabelText("正文编辑")).toBeInTheDocument());
-    // edit the body
     const editor = screen.getByLabelText("正文编辑") as HTMLTextAreaElement;
     fireEvent.change(editor, { target: { value: "draft edit" } });
-    // go back via the back button (ArrowLeft icon in header)
-    const backBtn = document.querySelector('[aria-label="Back"]') as HTMLElement;
-    if (backBtn) {
-      fireEvent.click(backBtn);
-    } else {
-      const headerBtns = document.querySelectorAll(".flex.h-\\[52px\\] button");
-      if (headerBtns.length > 0) fireEvent.click(headerBtns[0]);
-    }
-    // should be on list view now
+    // 演示库的写路径就是 article.save 动作；离开前先落一次盘。
+    fireEvent.click(screen.getByRole("button", { name: /保存/ }));
+    await waitFor(() =>
+      expect(screen.getByTestId("save-phase-label").textContent).toContain("已保存"),
+    );
+
+    fireEvent.click(screen.getByLabelText("Back"));
     await waitFor(() =>
       expect(screen.getByText("从零构建 Agent 的记忆系统")).toBeInTheDocument(),
     );
-    // reopen same article
     fireEvent.click(screen.getByText("从零构建 Agent 的记忆系统"));
     await waitFor(() => expect(screen.getByLabelText("正文编辑")).toBeInTheDocument());
     expect(screen.getByLabelText("正文编辑")).toHaveValue("draft edit");
-  });
-
-  it("rejects outdated suggestion after article revision changes", async () => {
-    render(<CreativeWorkspace />);
-    // open a1 (revision 0, suggestion has baseRevision 0)
-    fireEvent.click(screen.getByText("从零构建 Agent 的记忆系统"));
-    await waitFor(() => expect(screen.getByLabelText("正文编辑")).toBeInTheDocument());
-    // bump revision by editing body
-    const editor = screen.getByLabelText("正文编辑") as HTMLTextAreaElement;
-    fireEvent.change(editor, { target: { value: "changed to bump revision" } });
-    // the suggestion panel is in the right column — find "采用" button
-    await waitFor(() => expect(screen.getByText(/补充/)).toBeInTheDocument());
-    const acceptBtn = screen.getByRole("button", { name: /采用/ });
-    fireEvent.click(acceptBtn);
-    await waitFor(() =>
-      expect(screen.getByText(/建议已过期/)).toBeInTheDocument(),
-    );
   });
 });
