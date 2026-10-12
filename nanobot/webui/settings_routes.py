@@ -26,6 +26,7 @@ from nanobot.webui import settings_capabilities as capability_domain
 from nanobot.webui import settings_contracts as contracts
 from nanobot.webui import settings_models as model_domain
 from nanobot.webui import settings_system as system_domain
+from nanobot.webui import writing_routes as writing_domain
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.cli_apps_api import cli_apps_action, cli_apps_payload
 from nanobot.webui.http_utils import http_response as _http_response
@@ -72,6 +73,7 @@ from nanobot.webui.settings_contracts import (
 )
 from nanobot.webui.settings_services import WebUISettingsServices
 from nanobot.webui.version_check import check_for_update
+from nanobot.webui.writing_routes import WritingSettingsOperations
 
 _WEBUI_MUTATION_PAYLOAD_ATTR = "_nanobot_webui_mutation_payload"
 _WEBUI_MUTATION_REQUEST_ATTR = "_nanobot_webui_mutation_request"
@@ -181,6 +183,14 @@ _SYSTEM_ROUTES = {
     "/api/settings/agents/delete": "agents-delete",
     "/api/settings/agents/reset": "agents-reset",
     "/api/settings/agents/visibility": "agents-visibility",
+    # 写作域两套动作名统一取点号（契约 §4）：article.list 既是 WS 动作名也是
+    # 领域动作名。写路径同样要在这里登记，最终仍经 _route() 落到 writing handler。
+    "/api/writing/articles": "article.list",
+    "/api/writing/articles/get": "article.get",
+    "/api/writing/articles/create": "article.create",
+    "/api/writing/articles/save": "article.save",
+    "/api/writing/articles/duplicate": "article.duplicate",
+    "/api/writing/articles/delete": "article.delete",
     **{
         path: f"mcp-{action}"
         for path, action in _MCP_PRESET_ACTIONS_BY_PATH.items()
@@ -210,6 +220,14 @@ _AGENTS_MUTATION_PATHS = frozenset({
     "/api/settings/agents/delete",
     "/api/settings/agents/reset",
     "/api/settings/agents/visibility",
+})
+
+# 契约 §5：四条写作写路径全部 WS-only，HTTP 直连必须被 405 拒掉。
+_WRITING_MUTATION_PATHS = frozenset({
+    "/api/writing/articles/create",
+    "/api/writing/articles/save",
+    "/api/writing/articles/duplicate",
+    "/api/writing/articles/delete",
 })
 
 _SETTINGS_MUTATION_PATHS = frozenset({
@@ -247,6 +265,7 @@ _SETTINGS_MUTATION_PATHS = frozenset({
     *_MEMORY_MUTATION_PATHS,
     *_IDENTITY_MUTATION_PATHS,
     *_AGENTS_MUTATION_PATHS,
+    *_WRITING_MUTATION_PATHS,
 })
 
 
@@ -339,6 +358,23 @@ def _null_agents_operations() -> AgentSettingsOperations:
     )
 
 
+def _null_writing_operations() -> WritingSettingsOperations:
+    """Fallback operations so the writing domain still responds when the
+    gateway hasn't injected a real article store yet (everything returns 503)."""
+
+    def _unavailable(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise WebUISettingsError("writing service is not configured", status=503)
+
+    return WritingSettingsOperations(
+        list_articles=_unavailable,
+        fetch_article=_unavailable,
+        create_article=_unavailable,
+        save_article=_unavailable,
+        duplicate_article=_unavailable,
+        delete_article=_unavailable,
+    )
+
+
 class WebUISettingsRouter:
     """Authenticate and dispatch settings requests to transport-neutral domains."""
 
@@ -362,6 +398,7 @@ class WebUISettingsRouter:
         memory_operations: MemorySettingsOperations | None = None,
         identity_operations: IdentitySettingsOperations | None = None,
         agents_operations: AgentSettingsOperations | None = None,
+        writing_operations: WritingSettingsOperations | None = None,
     ) -> None:
         self.settings = settings
         self.bus = bus
@@ -397,6 +434,11 @@ class WebUISettingsRouter:
             agents_operations
             if agents_operations is not None
             else _null_agents_operations()
+        )
+        self._writing = writing_domain.WritingSettingsHandler(
+            writing_operations
+            if writing_operations is not None
+            else _null_writing_operations()
         )
 
     async def dispatch(
@@ -476,6 +518,11 @@ class WebUISettingsRouter:
             # 与 identity/memory 同构：独立的传输无关 handler + 注入的 operations。
             result = await asyncio.to_thread(
                 lambda: self._agents.handle(action, domain_request),
+            )
+        elif action in writing_domain.WRITING_ACTION_NAMES:
+            # 写作域同样是 stdlib sqlite3 + threading.Lock（阻塞），不能跑在事件循环里。
+            result = await asyncio.to_thread(
+                lambda: self._writing.handle(action, domain_request),
             )
         else:
             channel_connect = _channel_connect_route(path)

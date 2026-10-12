@@ -13,7 +13,7 @@ from loguru import logger as default_logger
 from nanobot.config.loader import get_config_path
 from nanobot.config.loader import load_config as _load_config
 from nanobot.memory.lifecycle import MemoryLifecycle
-from nanobot.webui import agents_api, identity_api, memory_api
+from nanobot.webui import agents_api, identity_api, memory_api, writing_api
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.gateway_endpoint import WebUIGatewayEndpoint
 from nanobot.webui.gateway_tokens import GatewayTokenStore
@@ -27,6 +27,8 @@ from nanobot.webui.settings_services import WebUISettingsServices
 from nanobot.webui.temporary_chats import WebUITemporaryChats
 from nanobot.webui.transcript import WebUITranscriptRecorder
 from nanobot.webui.workspaces import WebUIWorkspaceController
+from nanobot.webui.writing_routes import WritingSettingsOperations
+from nanobot.webui.writing_services import WritingServices
 from nanobot.webui.ws_http import GatewayHTTPHandler
 
 if TYPE_CHECKING:
@@ -87,6 +89,28 @@ def build_memory_operations(
         sync_vector=partial(memory_api.sync_vector, services),
         refresh_memory_md=partial(memory_api.refresh_memory_md, services),  # 🆕 WU-4
         get_memory_md_content=partial(memory_api.get_memory_md_content, services),  # 🆕 WU-6
+    )
+
+
+def build_writing_operations(
+    *,
+    workspace_id: str,
+    workspace_path: Path,
+) -> WritingSettingsOperations:
+    """Wire the real ``writing_api`` actions to a workspace-scoped article store.
+
+    与 ``build_memory_operations`` 同签名同风格：一个 gateway 进程绑定一个
+    ``workspace_path``，文章库落在 ``<workspace>/writing/state.db``。六个入口
+    全部预绑定 services，handler 只传业务参数（契约 §4/§5 的字段）。
+    """
+    services = WritingServices.for_workspace(workspace_id, workspace_path)
+    return WritingSettingsOperations(
+        list_articles=partial(writing_api.list_articles, services),
+        fetch_article=partial(writing_api.fetch_article, services),
+        create_article=partial(writing_api.create_article, services),
+        save_article=partial(writing_api.save_article, services),
+        duplicate_article=partial(writing_api.duplicate_article, services),
+        delete_article=partial(writing_api.delete_article, services),
     )
 
 
@@ -236,6 +260,10 @@ def build_gateway_services(
             workspace_path=workspace_path,
             # 用 gateway 自己的配置路径，不要读进程级的默认路径。
             load_config=settings.config.load,
+        ),
+        writing_operations=build_writing_operations(
+            workspace_id="default",
+            workspace_path=workspace_path,
         ),
         cron_service=cron_service,
         local_trigger_store=local_trigger_store,

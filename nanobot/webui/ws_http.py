@@ -140,6 +140,7 @@ from nanobot.webui.workspace_files import (
     workspace_directory_payload,
 )
 from nanobot.webui.workspaces import WebUIWorkspaceController
+from nanobot.webui.writing_routes import WritingSettingsOperations
 
 _SLOW_WEBUI_HTTP_LOG_MS = 1_000
 _WEBUI_MUTATION_PAYLOAD_ATTR = "_nanobot_webui_mutation_payload"
@@ -211,6 +212,12 @@ _WEBUI_MUTATION_PATHS = {
     "agents.delete": "/api/settings/agents/delete",
     "agents.reset": "/api/settings/agents/reset",
     "agents.visibility": "/api/settings/agents/visibility",
+    # 契约 §5：写作域四条写动作只能走已认证 WS 的 webui_request；动作名与领域
+    # 动作名同名取点号（契约 §4），不再有 WS/领域双口径映射。
+    "article.create": "/api/writing/articles/create",
+    "article.save": "/api/writing/articles/save",
+    "article.duplicate": "/api/writing/articles/duplicate",
+    "article.delete": "/api/writing/articles/delete",
 }
 
 _WEBUI_CHANNEL_CONNECT_ACTIONS = {
@@ -356,6 +363,7 @@ class GatewayHTTPHandler:
         memory_operations: MemorySettingsOperations | None = None,
         identity_operations: IdentitySettingsOperations | None = None,
         agents_operations: AgentSettingsOperations | None = None,
+        writing_operations: WritingSettingsOperations | None = None,
         log: Any = logger,
     ) -> None:
         self.config = config
@@ -372,6 +380,7 @@ class GatewayHTTPHandler:
         self.memory_operations = memory_operations
         self.identity_operations = identity_operations
         self.agents_operations = agents_operations
+        self.writing_operations = writing_operations
         self.disabled_skills: set[str] = (
             disabled_skills if disabled_skills is not None else set()
         )
@@ -408,6 +417,7 @@ class GatewayHTTPHandler:
             memory_operations=self.memory_operations,
             identity_operations=self.identity_operations,
             agents_operations=self.agents_operations,
+            writing_operations=self.writing_operations,
         )
 
     def workspace_controls_available(self, connection: Any) -> bool:
