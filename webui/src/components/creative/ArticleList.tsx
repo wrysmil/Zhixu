@@ -26,6 +26,8 @@ interface Props {
   actionError: string | null;
   query: string;
   statusFilter: ArticleStatus | "all";
+  /** 文章 ID 集合：本地还有未保存草稿，删除时追加明确提示（A-02）。 */
+  draftIds?: Set<string>;
   onQueryChange: (q: string) => void;
   onStatusFilterChange: (s: ArticleStatus | "all") => void;
   onOpen: (id: string) => void;
@@ -44,7 +46,7 @@ function filteredOutOfServer(query: string, statusFilter: ArticleStatus | "all")
 
 export function ArticleList({
   articles, totalCount, listState, preview, actionError, query, statusFilter,
-  onQueryChange, onStatusFilterChange, onOpen, onCreate, onDuplicate, onDelete,
+  draftIds, onQueryChange, onStatusFilterChange, onOpen, onCreate, onDuplicate, onDelete,
   onRetry, onDismissActionError,
 }: Props) {
   const { t } = useTranslation();
@@ -314,6 +316,16 @@ export function ArticleList({
               {deleteTarget
                 ? t("creative.confirm_delete_body", { defaultValue: "「{{title}}」将被移除，此操作无法撤销。", title: deleteTarget.title })
                 : ""}
+              {deleteTarget && draftIds?.has(deleteTarget.id) ? (
+                <span
+                  data-testid="delete-dirty-warning"
+                  className="mt-2 block rounded-control border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200"
+                >
+                  {t("creative.confirm_delete_dirty", {
+                    defaultValue: "这篇文章还有未保存的修改，删除后本地恢复稿也会被清掉。",
+                  })}
+                </span>
+              ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
