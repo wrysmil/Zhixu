@@ -5,7 +5,6 @@ import { ArrowLeft, Download, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -62,7 +61,7 @@ interface Props {
 }
 
 export function ArticleEditor({
-  article,
+  article: _article,
   draft,
   dirty,
   saveState,
