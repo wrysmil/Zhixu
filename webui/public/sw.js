@@ -6,12 +6,12 @@ const NETWORK_FIRST_STATIC_PATHS = new Set([
   "/",
   "/manifest.json",
   ASSET_MANIFEST_PATH,
-  "/brand/nanobot_apple_touch.png",
-  "/brand/nanobot_favicon_32.png",
-  "/brand/nanobot_icon_192.png",
-  "/brand/nanobot_icon_512.png",
-  "/brand/nanobot_icon_maskable.png",
-  "/brand/nanobot_mark.svg",
+  "/brand/mira_apple_touch.png",
+  "/brand/mira_favicon_32.png",
+  "/brand/mira_icon_192.png",
+  "/brand/mira_icon_512.png",
+  "/brand/mira_icon_maskable.png",
+  "/brand/mira_mark.svg",
 ]);
 
 function responseMayBeCached(response) {

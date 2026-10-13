@@ -1765,8 +1765,62 @@ describe("NanobotClient", () => {
       "chat-title",
       "metadata",
       expect.objectContaining({ project_path: "/tmp/project" }),
+      undefined,
     );
     expect(chatHandler).not.toHaveBeenCalled();
+  });
+
+  it("carries reasoning_effort through session_updated events", () => {
+    const client = new NanobotClient({
+      url: "ws://test",
+      reconnect: false,
+      socketFactory: (url) => new FakeSocket(url) as unknown as WebSocket,
+    });
+    const globalHandler = vi.fn();
+    client.onSessionUpdate(globalHandler);
+    client.connect();
+    lastSocket().fakeOpen();
+
+    lastSocket().fakeMessage({
+      event: "session_updated",
+      chat_id: "chat-effort",
+      scope: "metadata",
+      reasoning_effort: "high",
+    });
+    expect(globalHandler).toHaveBeenCalledWith("chat-effort", "metadata", undefined, "high");
+
+    lastSocket().fakeMessage({
+      event: "session_updated",
+      chat_id: "chat-effort",
+      scope: "metadata",
+      reasoning_effort: "",
+    });
+    expect(globalHandler).toHaveBeenLastCalledWith("chat-effort", "metadata", undefined, "");
+  });
+
+  it("sends set_reasoning_effort frames and skips temporary chats", () => {
+    const client = new NanobotClient({
+      url: "ws://test",
+      reconnect: false,
+      socketFactory: (url) => new FakeSocket(url) as unknown as WebSocket,
+    });
+    client.connect();
+    lastSocket().fakeOpen();
+
+    client.setReasoningEffort("chat-effort", "high");
+    expect(JSON.parse(lastSocket().sent.at(-1) as string)).toEqual({
+      type: "set_reasoning_effort",
+      chat_id: "chat-effort",
+      reasoning_effort: "high",
+    });
+
+    client.setReasoningEffort("chat-effort", "");
+    expect(JSON.parse(lastSocket().sent.at(-1) as string).reasoning_effort).toBe("");
+
+    lastSocket().fakeMessage({ event: "attached", chat_id: "chat-temp-effort", temporary: true });
+    const sentCount = lastSocket().sent.length;
+    client.setReasoningEffort("chat-temp-effort", "low");
+    expect(lastSocket().sent).toHaveLength(sentCount);
   });
 
   it("resolves newChat() via the server-assigned chat_id", async () => {

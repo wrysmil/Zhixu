@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, ChevronDown, Folder, Hand } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Folder, Hand, Laptop } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,7 @@ function workspacePathPlaceholder(defaultWorkspacePath: string, macPlaceholder: 
 
 export function WorkspaceProjectPicker({
   isHero,
+  variant = "drawer",
   compact = false,
   connected = false,
   disabled,
@@ -55,6 +56,7 @@ export function WorkspaceProjectPicker({
   onChange,
 }: {
   isHero: boolean;
+  variant?: "drawer" | "tab";
   compact?: boolean;
   connected?: boolean;
   disabled?: boolean;
@@ -77,10 +79,11 @@ export function WorkspaceProjectPicker({
   const projectLabel = currentProjectScope
     ? currentProjectScope.project_name || projectNameFromPath(currentProjectScope.project_path)
     : t("thread.composer.workspace.projectPlaceholder");
-  const visible = isHero
-    && !!defaultScope
+  const isTab = variant === "tab";
+  const scopeControlsAvailable = !!defaultScope
     && !!onChange
     && controls?.can_change_project !== false;
+  const visible = isTab ? scopeControlsAvailable : isHero && scopeControlsAvailable;
   const pickFolder = getRuntimeHost().pickFolder ?? onPickFolder;
   const nativeProjectPicker = !!pickFolder;
 
@@ -145,7 +148,7 @@ export function WorkspaceProjectPicker({
   if (nativeProjectPicker) {
     return (
       <div className={cn(
-        compact
+        compact || isTab
           ? "inline-flex"
           : "flex min-w-0 items-center rounded-b-[28px] bg-muted/45 px-3 py-1.5 dark:bg-white/[0.045] sm:px-4",
       )}>
@@ -159,9 +162,11 @@ export function WorkspaceProjectPicker({
           className={cn(
             compact
               ? "thread-composer-action touch-target inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent"
-              : "inline-flex h-7 max-w-full items-center gap-2 rounded-full px-2.5 sm:max-w-[18rem]",
+              : isTab
+                ? "inline-flex h-7 max-w-[15rem] items-center gap-1.5 rounded-lg px-2"
+                : "inline-flex h-7 max-w-full items-center gap-2 rounded-full px-2.5 sm:max-w-[18rem]",
             "text-[12px] font-medium text-muted-foreground/90 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-55",
-            compact ? "hover:bg-muted/65" : "hover:bg-background/70",
+            compact ? "hover:bg-muted/65" : isTab ? "text-[12.5px] hover:bg-muted/55" : "hover:bg-background/70",
             (connected || currentProjectScope) && "text-primary",
           )}
         >
@@ -179,7 +184,7 @@ export function WorkspaceProjectPicker({
 
   return (
     <div className={cn(
-      compact
+      compact || isTab
         ? "inline-flex"
         : "flex min-w-0 items-center rounded-b-[28px] bg-muted/45 px-3 py-1.5 dark:bg-white/[0.045] sm:px-4",
     )}>
@@ -193,9 +198,11 @@ export function WorkspaceProjectPicker({
             className={cn(
               compact
                 ? "thread-composer-action touch-target inline-flex h-8 w-8 items-center justify-center rounded-full border border-transparent"
-                : "inline-flex h-7 max-w-full items-center gap-2 rounded-full px-2.5 sm:max-w-[18rem]",
+                : isTab
+                  ? "inline-flex h-7 max-w-[15rem] items-center gap-1.5 rounded-lg px-2"
+                  : "inline-flex h-7 max-w-full items-center gap-2 rounded-full px-2.5 sm:max-w-[18rem]",
               "text-[12px] font-medium text-muted-foreground/90 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-55",
-              compact ? "hover:bg-muted/65" : "hover:bg-background/70",
+              compact ? "hover:bg-muted/65" : isTab ? "text-[12.5px] hover:bg-muted/55" : "hover:bg-background/70",
               (connected || currentProjectScope) && "text-primary",
             )}
           >
@@ -366,6 +373,83 @@ export function WorkspaceAccessMenu({
         />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+export function RuntimeEnvChip({
+  hostname,
+  scope,
+  disabled = false,
+}: {
+  hostname: string | null;
+  scope: WorkspaceScopePayload | null;
+  disabled?: boolean;
+}) {
+  const { t } = useTranslation();
+  const sandbox = scope?.sandbox_status;
+  const rows: Array<{ label: string; value: string }> = [
+    {
+      label: t("thread.composer.runtime.host", { defaultValue: "Hostname" }),
+      value: hostname || t("thread.composer.runtime.unknown", { defaultValue: "Unknown" }),
+    },
+    {
+      label: t("thread.composer.runtime.gateway", { defaultValue: "Gateway" }),
+      value: window.location.host,
+    },
+    {
+      label: t("thread.composer.runtime.sandbox", { defaultValue: "Sandbox" }),
+      value: sandbox
+        ? `${sandbox.provider_label || sandbox.provider} · ${sandbox.level} · ${sandbox.enforced ? t("thread.composer.runtime.enforced", { defaultValue: "Enforced" }) : t("thread.composer.runtime.notEnforced", { defaultValue: "Not enforced" })}`
+        : t("thread.composer.runtime.unknown", { defaultValue: "Unknown" }),
+    },
+    {
+      label: t("thread.composer.runtime.access", { defaultValue: "Access" }),
+      value: scope?.access_mode === "full"
+        ? t("thread.composer.workspace.full")
+        : t("thread.composer.workspace.default"),
+    },
+  ];
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          aria-label={t("thread.composer.runtime.aria", { defaultValue: "Runtime environment" })}
+          title={scope?.sandbox_status?.summary || undefined}
+          className={cn(
+            "inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-[12.5px] font-medium",
+            "text-muted-foreground/90 transition-colors hover:bg-muted/55 hover:text-foreground",
+            "disabled:pointer-events-none disabled:opacity-55",
+          )}
+        >
+          <Laptop className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">
+            {t("thread.composer.runtime.thisComputer", { defaultValue: "This computer" })}
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" side="top" sideOffset={8} className="w-[min(22rem,calc(100vw-2rem))]">
+        <div className="px-1 pb-1 pt-0.5 text-[12px] font-semibold text-foreground/85">
+          {t("thread.composer.runtime.title", { defaultValue: "Runtime environment" })}
+        </div>
+        <dl className="space-y-1 px-1 pb-1">
+          {rows.map((row) => (
+            <div key={row.label} className="flex min-w-0 items-baseline gap-3 text-[12px]">
+              <dt className="shrink-0 text-muted-foreground">{row.label}</dt>
+              <dd className="min-w-0 flex-1 truncate text-right font-medium text-foreground/90" title={row.value}>
+                {row.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {sandbox?.summary ? (
+          <p className="px-1 pb-1 text-[11.5px] leading-relaxed text-muted-foreground/85">
+            {sandbox.summary}
+          </p>
+        ) : null}
+      </PopoverContent>
+    </Popover>
   );
 }
 

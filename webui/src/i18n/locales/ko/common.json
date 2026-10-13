@@ -1,12 +1,124 @@
 {
+  "creative": {
+    "headline": "오늘은 무엇을 쓰고 싶으세요?",
+    "hero_description": "코드, 실전 경험, 새로운 깨달음. 모두 글의 출발점이 됩니다.",
+    "topic_label": "글 주제",
+    "input_hint": "나의 자료와 생각에서 시작하세요",
+    "template_heading": "익숙한 형식으로 시작하기",
+    "template_hint": "템플릿은 시작점일 뿐입니다",
+    "library_heading": "내 글",
+    "new_article": "새 글 쓰기",
+    "sample_label": "예시",
+    "material_count": "자료 {{count}}개",
+    "continue_writing": "이어서 쓰기",
+    "filter_all": "전체",
+    "status": {
+      "idea": "구상 중",
+      "draft": "작성 중",
+      "review": "검토 대기",
+      "done": "완료"
+    },
+    "material": {
+      "type": {
+        "note": "관점",
+        "text": "텍스트",
+        "code": "코드",
+        "link": "링크"
+      },
+      "empty": "자료가 없습니다",
+      "add": "자료 추가",
+      "addConfirm": "추가",
+      "save": "변경 저장",
+      "cancel": "취소",
+      "edit": "자료 편집",
+      "remove": "자료 삭제",
+      "included": "이번 협업에 사용",
+      "field": {
+        "title": "제목",
+        "content": "내용",
+        "contentPlaceholder": "내용",
+        "codePlaceholder": "코드를 붙여넣으세요. 들여쓰기와 줄바꿈이 유지됩니다",
+        "url": "링크 주소",
+        "excerpt": "발췌 (선택)",
+        "source": "출처 (선택)",
+        "note": "메모 (선택)",
+        "language": "언어 (선택)"
+      },
+      "error": {
+        "title": "자료 제목을 입력해 주세요",
+        "content": "자료 내용을 입력해 주세요",
+        "linkUrl": "링크는 http:// 또는 https:// 로 시작해야 합니다"
+      },
+      "confirm": {
+        "title": "이 자료를 삭제할까요?",
+        "description": "이 자료만 삭제되며 본문과 이미 저장된 내용은 변경되지 않습니다.",
+        "cancel": "취소",
+        "confirm": "삭제"
+      }
+    },
+    "outline": {
+      "empty": "개관이 없습니다",
+      "add": "항목 추가",
+      "addConfirm": "확인",
+      "newPlaceholder": "새 항목",
+      "save": "확인",
+      "cancel": "취소",
+      "remove": "항목 삭제",
+      "moveUp": "위로",
+      "moveDown": "아래로",
+      "field": {
+        "text": "개관 항목"
+      }
+    },
+    "conflict": {
+      "title": "다른 위치에서 이 글을 수정했습니다",
+      "description": "서버 버전은 {{revision}} 입니다. 저장하지 않은 원고는 보존되어 있으며 자동 저장은 멈췄습니다.",
+      "deleted": "이 글은 서버에 더 이상 존재하지 않습니다. 원고를 새 글로 저장할 수 있습니다.",
+      "remote": "서버 최신 버전",
+      "remoteLoading": "서버 최신 버전을 읽는 중…",
+      "remoteUnavailable": "서버 최신 버전을 읽을 수 없습니다.",
+      "local": "저장하지 않은 원고",
+      "reload": "최신 버전을 읽고 직접 병합",
+      "saveCopy": "사본으로 저장",
+      "savingCopy": "사본을 저장하는 중…",
+      "discard": "로컬 변경을 폐기하고 다시 불러오기",
+      "discardWarning": "로컬 원고는 삭제되며 되돌릴 수 없습니다. 서버 버전을 다시 불러올까요?",
+      "discardBack": "계속 편집",
+      "discardConfirm": "폐기 확인",
+      "cancel": "나중에 처리",
+      "reopen": "충돌 처리"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "기술 해설",
+        "desc": "복잡한 개념을 명확하게 설명",
+        "outline": ["문제의 출발점", "핵심 개념과 원리", "예시로 설명", "적용 범위와 한계", "나의 이해"]
+      },
+      "source-reading": {
+        "name": "코드 읽기",
+        "desc": "호출 경로를 따라 설계 이해",
+        "outline": ["이번에 이해할 것", "진입점과 호출 경로", "핵심 구현", "설계의 선택과 포기", "나의 이해"]
+      },
+      "practice-retro": {
+        "name": "실천 회고",
+        "desc": "과정도 선택도 기록",
+        "outline": ["배경과 목표", "어떻게 진행했는가", "문제와 점검", "결과와 부족", "다음에 바꿀 것"]
+      },
+      "learning-summary": {
+        "name": "학습 정리",
+        "desc": "새 지식을 내 이해로",
+        "outline": ["어떤 질문으로 학습했는가", "핵심 지식", "직접 검증", "이해의 변화", "남은 질문"]
+      }
+    }
+  },
   "app": {
-    "brand": "nanobot",
+    "brand": "Mira",
     "loading": {
-      "connecting": "nanobot에 연결 중…",
-      "boot": "nanobot 불러오는 중…"
+      "connecting": "Mira에 연결 중…",
+      "boot": "Mira 불러오는 중…"
     },
     "error": {
-      "title": "nanobot에 연결할 수 없습니다",
+      "title": "Mira에 연결할 수 없습니다",
       "gatewayHint": "gateway(`nanobot gateway`)가 실행 중인지, 그리고 이 페이지가 같은 머신에서 열려 있는지 확인하세요."
     },
     "auth": {
@@ -24,8 +136,8 @@
     },
     "system": {
       "section": "시스템",
-      "restartHint": "런타임 변경 사항을 적용하려면 nanobot을 다시 시작하세요.",
-      "restart": "nanobot 다시 시작",
+      "restartHint": "런타임 변경 사항을 적용하려면 Mira을 다시 시작하세요.",
+      "restart": "Mira 다시 시작",
       "restarting": "다시 시작 중...",
       "restartEngine": "엔진 다시 시작",
       "restartingEngine": "엔진 다시 시작 중..."
@@ -34,11 +146,11 @@
       "completed": "{{seconds}}초 만에 다시 시작되었습니다."
     },
     "documentTitle": {
-      "base": "nanobot",
-      "chat": "{{title}} · nanobot"
+      "base": "Mira",
+      "chat": "{{title}} · Mira"
     },
     "meta": {
-      "description": "nanobot 웹 UI — nanobot 작업공간과 대화하세요."
+      "description": "Mira 웹 UI — Mira 작업공간과 대화하세요."
     },
     "pairing": {
       "title": "채팅 사용자 연결",
@@ -62,7 +174,8 @@
   "sidebar": {
     "navigation": "사이드바 탐색",
     "collapse": "사이드바 접기",
-    "newChat": "새 주제",
+    "home": "홈",
+    "newChat": "새 채팅",
     "searchAria": "검색",
     "searchPlaceholder": "검색",
     "searchResults": "결과",
@@ -134,7 +247,7 @@
       "language": "언어",
       "provider": "제공자",
       "model": "모델",
-      "restart": "nanobot 재시작",
+      "restart": "Mira 재시작",
       "configPath": "설정 경로",
       "activePreset": "활성 프리셋",
       "gateway": "게이트웨이",
@@ -176,7 +289,8 @@
       "transcriptionProviderStatus": "제공자 상태",
       "transcriptionModel": "모델",
       "transcriptionLanguage": "언어",
-      "voiceLimits": "제한"
+      "voiceLimits": "제한",
+      "workspacePathHint": "프로젝트를 선택하지 않은 채팅이 이 경로를 씁니다. 프로젝트 폴더는 사이드바의 프로젝트에서 관리합니다."
     },
     "help": {
       "theme": "밝은 모드와 어두운 모드를 전환합니다.",
@@ -209,7 +323,7 @@
       "selectedModelValue": "선택한 모델에 의해 설정됩니다.",
       "brandLogos": "설정에서 타사 제공자와 CLI 로고를 표시합니다.",
       "browserNotifications": "이 페이지가 백그라운드에 있을 때만 알립니다. 기본값은 꺼짐입니다.",
-      "cliAppsCatalog": "nanobot이 로컬에서 실행할 수 있는 앱 CLI 어댑터만 설치합니다. 네이티브 앱은 변경하지 않습니다.",
+      "cliAppsCatalog": "Mira이 로컬에서 실행할 수 있는 앱 CLI 어댑터만 설치합니다. 네이티브 앱은 변경하지 않습니다.",
       "cliAppsFilter": "앱, 카테고리 또는 기능으로 검색합니다.",
       "logs": "네이티브 엔진 로그 폴더를 엽니다.",
       "diagnostics": "지원용 작은 런타임 보고서를 내보냅니다.",
@@ -251,18 +365,19 @@
       "restartingEngine": "재시작 중",
       "checking": "확인 중",
       "running": "실행 중",
-      "needsSetup": "설정 필요"
+      "needsSetup": "설정 필요",
+      "workspaceSettings": "워크스페이스 설정"
     },
     "status": {
       "loading": "설정을 불러오는 중...",
       "loadError": "설정을 불러올 수 없습니다",
       "unsaved": "저장되지 않은 변경 사항이 있습니다.",
       "upToDate": "최신 상태입니다.",
-      "savedRestart": "저장했습니다. 적용하려면 nanobot을 재시작하세요.",
+      "savedRestart": "저장했습니다. 적용하려면 Mira을 재시작하세요.",
       "restartAfterSaving": "변경 사항을 저장한 뒤 준비되면 재시작하세요.",
       "savedRestartApply": "저장했습니다. 준비되면 재시작하세요.",
       "imageProviderRestart": "이미지 제공자 변경 사항을 저장했습니다. 준비되면 재시작하세요.",
-      "hostRestartAfterSaving": "저장하면 nanobot이 엔진을 재시작합니다.",
+      "hostRestartAfterSaving": "저장하면 Mira이 엔진을 재시작합니다.",
       "hostRestartPending": "저장했습니다. 준비되면 엔진을 재시작합니다.",
       "hostApiUnavailable": "호스트 작업은 네이티브 앱 안에서만 사용할 수 있습니다.",
       "logsOpened": "로그 폴더를 열었습니다.",
@@ -286,7 +401,7 @@
       "exporting": "내보내는 중..."
     },
     "byok": {
-      "description": "직접 제공자 키를 사용합니다. Nanobot은 현재 구성에서 값을 읽고, 설정된 제공자만 모델 프리셋에서 사용할 수 있습니다.",
+      "description": "직접 제공자 키를 사용합니다. Mira은 현재 구성에서 값을 읽고, 설정된 제공자만 모델 프리셋에서 사용할 수 있습니다.",
       "configured": "설정됨",
       "notConfigured": "설정 안 됨",
       "configuredSection": "설정됨",
@@ -335,7 +450,7 @@
       "webSearch": "웹 검색",
       "imageGeneration": "이미지 생성",
       "voiceInput": "음성 입력",
-      "workspace": "작업공간"
+      "workspace": "기본 워크스페이스"
     },
     "usage": {
       "title": "토큰 활동",
@@ -534,7 +649,7 @@
       "saveCustom": "MCP 저장",
       "configImport": "mcp.json 가져오기",
       "importConfig": "가져오기",
-      "restartRequired": "업데이트된 MCP 도구를 연결하려면 nanobot을 다시 시작하세요.",
+      "restartRequired": "업데이트된 MCP 도구를 연결하려면 Mira을 다시 시작하세요.",
       "toolsFound": "도구 {{count}}개",
       "loading": "MCP 프리셋 로드 중...",
       "empty": "이 필터와 일치하는 MCP 프리셋이 없습니다.",
@@ -562,14 +677,14 @@
       "preparingSignIn": "안전한 로그인을 준비하는 중…",
       "openSignInToContinue": "계속하려면 로그인 페이지를 여세요.",
       "finishSignInInBrowser": "브라우저 창에서 로그인을 완료하세요.",
-      "manualCallbackRequired": "로그인을 완료한 다음 콜백 URL을 nanobot에 붙여 넣으세요.",
+      "manualCallbackRequired": "로그인을 완료한 다음 콜백 URL을 Mira에 붙여 넣으세요.",
       "manualCallbackHelp": "접근을 승인하면 localhost 페이지가 열리지 않습니다. 주소 표시줄에서 전체 URL을 복사해 여기에 붙여 넣으세요.",
       "finishingConnection": "연결을 마무리하는 중…",
       "activatingTools": "도구를 활성화하는 중…",
       "connected": "연결됨.",
       "connectionFailed": "연결에 실패했습니다.",
       "connectionCancelled": "연결을 취소했습니다.",
-      "reloadFailed": "로그인했지만 nanobot에서 도구를 연결하지 못했습니다. nanobot을 다시 시작해 보세요.",
+      "reloadFailed": "로그인했지만 Mira에서 도구를 연결하지 못했습니다. Mira을 다시 시작해 보세요.",
       "oauthFailed": "연결할 수 없습니다. 다시 로그인해 보세요.",
       "statusMissingDependency": "의존성 필요",
       "statusComingSoon": "곧 제공",
@@ -642,15 +757,15 @@
     },
     "observability": {
       "title": "관측성",
-      "configured": "nanobot이 추적 자격 증명을 사용할 수 있습니다.",
-      "environment": "LANGFUSE_SECRET_KEY와 LANGFUSE_PUBLIC_KEY를 설정한 뒤 nanobot을 다시 시작하세요.",
+      "configured": "Mira이 추적 자격 증명을 사용할 수 있습니다.",
+      "environment": "LANGFUSE_SECRET_KEY와 LANGFUSE_PUBLIC_KEY를 설정한 뒤 Mira을 다시 시작하세요.",
       "enable": "추적 지원 활성화"
     },
     "legal": {
       "thirdPartyBrands": "제품 이름, 로고 및 브랜드는 각 소유자의 자산입니다. 사용은 식별 목적일 뿐 보증이나 제휴를 의미하지 않습니다."
     },
     "apps": {
-      "description": "nanobot에 도구를 추가한 뒤 채팅에서 @로 사용하세요.",
+      "description": "Mira에 도구를 추가한 뒤 채팅에서 @로 사용하세요.",
       "cliLabel": "앱",
       "mcpLabel": "MCP",
       "channelLabel": "채널",
@@ -673,21 +788,21 @@
       "browseApps": "앱 둘러보기",
       "browseIntegrations": "MCP 도구 둘러보기",
       "emptyIntegrationsHint": "아래에서 사용자 지정 MCP 서버를 추가하세요.",
-      "restartRequired": "업데이트된 앱과 MCP 도구를 적용하려면 nanobot을 다시 시작하세요."
+      "restartRequired": "업데이트된 앱과 MCP 도구를 적용하려면 Mira을 다시 시작하세요."
     },
     "channels": {
-      "description": "nanobot을 채팅 앱에 연결합니다. 지원 설치는 통합 패키지만 추가하며, 대부분의 채널은 여전히 토큰이나 워크스페이스 설정이 필요합니다.",
+      "description": "Mira을 채팅 앱에 연결합니다. 지원 설치는 통합 패키지만 추가하며, 대부분의 채널은 여전히 토큰이나 워크스페이스 설정이 필요합니다.",
       "caption": "{{enabled}}개 활성화됨 · 총 {{total}}개 채널",
       "searchPlaceholder": "채널 검색",
       "backToChannels": "모든 채널",
       "catalog": "채널",
       "loading": "채널을 불러오는 중...",
       "empty": "일치하는 채널이 없습니다.",
-      "restartRequired": "업데이트된 채널 지원을 적용하려면 nanobot을 다시 시작하세요.",
+      "restartRequired": "업데이트된 채널 지원을 적용하려면 Mira을 다시 시작하세요.",
       "requires": "필요: {{requirements}}",
       "setUp": "설정",
       "setupGuide": "설정 가이드",
-      "setupSummary": "활성화는 nanobot 지원만 켭니다. 플랫폼 자격 증명을 추가한 뒤 nanobot을 다시 시작하세요.",
+      "setupSummary": "활성화는 Mira 지원만 켭니다. 플랫폼 자격 증명을 추가한 뒤 Mira을 다시 시작하세요.",
       "configKeys": "설정 키",
       "enable": "채널 활성화",
       "disable": "채널 비활성화",
@@ -750,7 +865,7 @@
       "missingDependency": "지원 패키지 없음",
       "installSupport": "지원 패키지 설치",
       "installConfirmTitle": "{{name}} 지원을 설치할까요?",
-      "installConfirmDescription": "nanobot이 {{name}}에 필요한 것을 추가한 뒤 활성화합니다. 계속할까요?",
+      "installConfirmDescription": "Mira이 {{name}}에 필요한 것을 추가한 뒤 활성화합니다. 계속할까요?",
       "installConfirmAction": "설치하고 활성화",
       "websocketRequired": "WebUI 필수",
       "channelDisabled": "채널이 비활성화됨",
@@ -894,7 +1009,7 @@
       "signedInAs": "{{account}}로 로그인됨",
       "signInHelp": "이 기기에서 로그인합니다. API 키는 구성에 저장되지 않습니다.",
       "remoteSignInHelp": "로그인을 선택하여 사용자 컴퓨터에서 xAI를 연 다음, 로그인 후 표시되는 인증 코드를 붙여 넣으세요.",
-      "codexRemoteSignInHelp": "이 브라우저에서 로그인한 다음 전체 localhost 콜백 URL을 nanobot에 붙여 넣으세요.",
+      "codexRemoteSignInHelp": "이 브라우저에서 로그인한 다음 전체 localhost 콜백 URL을 Mira에 붙여 넣으세요.",
       "signInRequired": "로그인이 필요합니다",
       "signInBeforeSaving": "프리셋을 저장하기 전에 이 제공자에 로그인하세요.",
       "signedIn": "로그인됨",
@@ -902,9 +1017,9 @@
       "proxyLabel": "네트워크 프록시",
       "proxySaveBeforeSignIn": "로그인하기 전에 프록시 변경 사항을 저장하세요.",
       "saveProxy": "프록시 저장",
-      "localCodeHelp": "브라우저에서 로그인을 완료하세요. 일반적으로 nanobot이 자동으로 완료합니다. 완료되지 않으면 인증 코드를 아래에 붙여 넣으세요.",
+      "localCodeHelp": "브라우저에서 로그인을 완료하세요. 일반적으로 Mira이 자동으로 완료합니다. 완료되지 않으면 인증 코드를 아래에 붙여 넣으세요.",
       "remoteCodeHelp": "로그인을 선택하여 사용자 컴퓨터에서 xAI를 여세요. 로그인 후 xAI에 표시된 인증 코드를 아래에 붙여 넣으세요.",
-      "localCallbackHelp": "브라우저에서 로그인을 완료하세요. 일반적으로 nanobot이 자동으로 완료합니다. 완료되지 않으면 주소 표시줄에서 전체 localhost 콜백 URL을 복사해 아래에 붙여 넣으세요.",
+      "localCallbackHelp": "브라우저에서 로그인을 완료하세요. 일반적으로 Mira이 자동으로 완료합니다. 완료되지 않으면 주소 표시줄에서 전체 localhost 콜백 URL을 복사해 아래에 붙여 넣으세요.",
       "remoteCallbackHelp": "이 브라우저에서 ChatGPT를 열고 로그인을 완료하세요. localhost 페이지가 열리지 않으면 주소 표시줄의 전체 URL을 복사해 아래에 붙여 넣으세요.",
       "authorizationCode": "인증 코드",
       "callbackUrl": "전체 콜백 URL",
@@ -947,7 +1062,7 @@
       "deleteConfirmAction": "스킬 삭제",
       "instructionsTitle": "스킬 안내",
       "setupRequired": "설정 필요",
-      "setupDescription": "nanobot을 실행하는 컴퓨터에 누락된 종속성을 설치한 후 다시 확인하세요.",
+      "setupDescription": "Mira을 실행하는 컴퓨터에 누락된 종속성을 설치한 후 다시 확인하세요.",
       "copySetupCommand": "설정 명령 복사",
       "checkAgain": "다시 확인",
       "marketplaceSearchFailed": "스킬 마켓을 검색할 수 없습니다.",
@@ -1344,6 +1459,7 @@
     "showMore": "{{count}}개 더 보기",
     "collapsed": "{{count}}개 주제 접힘",
     "showLess": "접기",
+    "expandGroup": "펼치기",
     "actions": "{{title}} 주제 작업",
     "newInProject": "{{project}}에서 새 주제 시작",
     "activity": {
@@ -1373,13 +1489,20 @@
     "delete": "삭제",
     "newChat": "새 주제",
     "groups": {
+      "newChatInProject": "프로젝트에서 새 채팅",
+      "reveal": "파일 관리자에서 표시",
+      "removeProject": "프로젝트 제거",
       "pinned": "고정됨",
       "all": "주제",
       "projects": "프로젝트",
+      "addProject": "프로젝트 추가",
       "today": "오늘",
       "yesterday": "어제",
       "earlier": "이전",
-      "archived": "보관됨"
+      "archived": "보관됨",
+      "emptyProject": "아직 채팅이 없습니다",
+      "toggleProjects": "프로젝트 접기/펼치기",
+      "projectsHint": "각 프로젝트는 이 컴퓨터의 폴더입니다."
     }
   },
   "deleteConfirm": {
@@ -1416,7 +1539,79 @@
     "closed": "연결 끊김",
     "error": "연결 오류"
   },
+  "startPanel": {
+    "title": "시작",
+    "files": "워크스페이스 파일",
+    "filesDesc": "세션 워크스페이스의 파일 탐색",
+    "terminal": "새 터미널",
+    "terminalDesc": "세션 워크스페이스에서 명령 실행",
+    "terminalLimit": "터미널 최대 수량에 도달했습니다(최대 8개)",
+    "terminalInput": "명령 입력",
+    "terminalInputPlaceholder": "명령을 입력하고 Enter를 누르세요",
+    "terminalTabs": "터미널",
+    "terminalTab": "터미널",
+    "terminalClose": "터미널 닫기",
+    "terminalStarting": "터미널 시작 중…",
+    "terminalExit": "종료 코드 {{code}}",
+    "terminalExpired": "세션이 만료되었습니다",
+    "terminalGone": "이 터미널을 더 이상 사용할 수 없습니다. 새로 여세요.",
+    "terminalCommandRejected": "이 터미널로 명령을 보낼 수 없습니다.",
+    "shellUnavailable": "이 shell이 호스트에 설치되어 있지 않습니다.",
+    "browser": "브라우저",
+    "browserDesc": "웹 탐색",
+    "openProjectFirst": "프로젝트를 선택하면 사용할 수 있습니다",
+    "externalOpen": "외부 브라우저에서 열기",
+    "embedBlocked": "이 사이트가 임베딩을 거부했습니다.",
+    "filesRetry": "워크스페이스를 불러올 수 없습니다 — 재시도",
+    "terminalPlaceholder": "명령 콘솔이 여기에 표시됩니다.",
+    "browserPlaceholder": "내장 브라우저가 여기에 표시됩니다.",
+    "expand": "시작 패널 펼치기",
+    "collapse": "시작 패널 접기",
+    "browserBack": "뒤로",
+    "browserForward": "앞으로",
+    "browserRefresh": "새로고침",
+    "browserAddress": "주소",
+    "browserAddressPlaceholder": "https://example.com",
+    "browserGo": "이동",
+    "browserEmptyHint": "주소를 입력해 탐색을 시작하세요.",
+    "browserFrameTitle": "내장 브라우저 페이지",
+    "browserError_scheme": "http/https 주소만 열 수 있습니다.",
+    "browserError_private": "프라이빗 또는 로컬 네트워크 주소는 허용되지 않습니다.",
+    "browserError_malformed": "유효한 웹 주소가 아닌 것으로 보입니다."
+  },
+  "dock": {
+    "tabFile": "파일",
+    "tabBrowser": "브라우저",
+    "plusAria": "새 탭",
+    "newTerminal": "새 터미널",
+    "shellChoices": "shell 선택",
+    "takeoverRunning": "실행 중인 터미널",
+    "takeoverAction": "인수",
+    "takeoverHint": "Enter 키로 화면 다시 그리기",
+    "closeTab": "탭 닫기",
+    "platformDefaultShell": "플랫폼 기본 shell"
+  },
+  "plusMenu": {
+    "groupAdd": "추가",
+    "groupCommands": "명령",
+    "compact": "압축",
+    "compactDesc": "위 대화 내용을 압축합니다",
+    "permission": "권한",
+    "permissionDesc": "권한 프리셋 전환(샌드박스 모드 및 승인 정책)",
+    "model": "모델",
+    "modelDesc": "이 세션에 사용할 모델을 선택",
+    "feedback": "피드백",
+    "feedbackDesc": "이 세션에 대한 피드백을 보내세요",
+    "feedbackPlaceholder": "피드백 입력…",
+    "feedbackSend": "보내기",
+    "back": "뒤로"
+  },
   "thread": {
+    "activity": {
+      "viewDetails": "세부정보 보기",
+      "hideDetails": "숨기기",
+      "sourceCount": "소스 {{count}}개"
+    },
     "compaction": {
       "cancelled": "컨텍스트 압축이 취소되었습니다",
       "empty": "압축할 컨텍스트가 없습니다.",
@@ -1461,7 +1656,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "앱 아이콘 디자인",
-          "prompt": "nanobot을 위한 깔끔한 1:1 앱 아이콘을 생성해 주세요. 친근한 로봇, 단순한 벡터 스타일, 부드러운 파란색과 흰색 팔레트, 텍스트 없음."
+          "prompt": "Mira을 위한 깔끔한 1:1 앱 아이콘을 생성해 주세요. 친근한 로봇, 단순한 벡터 스타일, 부드러운 파란색과 흰색 팔레트, 텍스트 없음."
         },
         "sticker": {
           "title": "스티커 만들기",
@@ -1518,6 +1713,29 @@
       }
     },
     "composer": {
+      "menu": {
+        "aria": "추가",
+        "add": "추가",
+        "files": "파일 및 폴더",
+        "filesDesc": "이 메시지에 이미지 또는 파일 첨부",
+        "project": "프로젝트에서 작업",
+        "projectDesc": "이 대화용 폴더 선택",
+        "goal": "목표",
+        "goalDesc": "이 요청을 장기 목표로 진행",
+        "plan": "계획 모드",
+        "planDesc": "작업 전에 실행 계획을 세우도록 요청",
+        "draw": "이미지 생성",
+        "drawDesc": "image-generation 스킬로 이미지 생성",
+        "skills": "스킬",
+        "noSkills": "설치된 스킬 없음",
+        "plugins": "플러그인",
+        "noPlugins": "설치된 플러그인 없음",
+        "mcp": "MCP",
+        "noMcp": "구성된 MCP 서버 없음",
+        "agents": "에이전트",
+        "noAgents": "사용 가능한 에이전트 없음",
+        "agentInsert": "에이전트 \"{{name}}\"(이)가 이 작업을 실행하도록: "
+      },
       "placeholderThread": "메시지를 입력하세요…",
       "placeholderHero": "무슨 생각을 하고 있나요?",
       "placeholderOpening": "새 주제를 여는 중…",
@@ -1539,6 +1757,28 @@
       "chooseAI": "AI 선택",
       "switchModel": "이 대화에서 사용할 모델 전환",
       "manageModels": "모델 관리",
+      "reasoningEffort": "추론 강도",
+      "effort": {
+        "default": "기본",
+        "low": "낮음",
+        "medium": "보통",
+        "high": "높음",
+        "xhigh": "매우 높음",
+        "max": "최대",
+        "adaptive": "적응형"
+      },
+      "runtime": {
+        "thisComputer": "이 컴퓨터",
+        "title": "실행 환경",
+        "aria": "실행 환경",
+        "host": "호스트 이름",
+        "gateway": "게이트웨이",
+        "sandbox": "샌드박스",
+        "access": "접근 권한",
+        "unknown": "알 수 없음",
+        "enforced": "강제 격리 활성화됨",
+        "notEnforced": "강제 격리 비활성화됨"
+      },
       "context": {
         "tooltip": "컨텍스트 {{percent}}%",
         "detailsLabel": "컨텍스트 사용량 열기",
@@ -1617,7 +1857,7 @@
             "description": "이 채팅에서 실행 중인 에이전트 턴을 취소합니다."
           },
           "restart": {
-            "title": "nanobot 재시작",
+            "title": "Mira 재시작",
             "description": "bot 프로세스를 제자리에서 재시작합니다."
           },
           "status": {
@@ -1697,14 +1937,14 @@
         "label": "앱",
         "cliGroup": "CLI 앱",
         "mcpGroup": "MCP 서비스",
-        "sessionGroup": "Nanobot 대화",
+        "sessionGroup": "Mira 대화",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
         "cliDescription": "@{{name}}을 로컬 CLI 앱으로 사용",
         "mcpDescription": "@{{name}}을 MCP 서버로 사용",
         "cliTitle": "CLI 앱: {{name}}",
         "mcpTitle": "MCP 서버: {{name}}",
-        "sessionBadge": "Nanobot 대화",
+        "sessionBadge": "Mira 대화",
         "sessionDescription": "@{{name}}을 이전 채팅으로 참조"
       },
       "workspace": {
@@ -1820,13 +2060,19 @@
     "next": "다음 이미지",
     "close": "미리보기 닫기"
   },
+  "askQuestion": {
+    "recommended": "추천",
+    "otherPlaceholder": "다른 답변 입력",
+    "noPreference": "선호 없음",
+    "submit": "답변 제출"
+  },
   "filePreview": {
     "aria": "파일 미리보기",
     "breadcrumb": "파일 경로",
     "close": "파일 미리보기 닫기",
     "loading": "미리보기 로딩 중...",
     "failed": "이 파일을 미리 볼 수 없습니다.",
-    "routeMissing": "파일 미리보기에는 최신 gateway가 필요합니다. nanobot gateway를 다시 시작한 뒤 다시 시도하세요.",
+    "routeMissing": "파일 미리보기에는 최신 gateway가 필요합니다. Mira gateway를 다시 시작한 뒤 다시 시도하세요.",
     "resize": "파일 미리보기 크기 조절",
     "truncated": "파일이 커서 미리보기가 잘렸습니다."
   },
@@ -1837,6 +2083,30 @@
     "copied": "복사됨"
   },
   "workbench": {
+    "title": "워크벤치",
+    "open": "워크벤치 열기",
+    "collapse": "워크벤치 접기",
+    "updatedAt": "갱신 {{time}}",
+    "overview": "개요",
+    "emptyOverview": "아직 요약이 없습니다",
+    "environment": "환경",
+    "local": "로컬",
+    "fullAccess": "전체 접근",
+    "restrictedAccess": "제한됨",
+    "files": "개의 파일",
+    "commitPush": "커밋 또는 푸시",
+    "commitPushHint": "워크벤치 읽기 전용 API와 함께 제공",
+    "integrations": "스킬 & MCP",
+    "emptyIntegrations": "이 세션에서 MCP/CLI를 사용하지 않았습니다",
+    "outputs": "결과",
+    "emptyOutputs": "아직 변경된 파일이 없습니다",
+    "sources": "출처",
+    "emptySources": "아직 웹 출처가 없습니다",
+    "treeLoading": "불러오는 중…",
+    "treeEmpty": "프로젝트가 비어 있음",
+    "treeEmptyFolder": "비어 있음",
+    "treeRetry": "이 폴더를 읽을 수 없습니다 — 다시 시도",
+    "treeTruncated": "일부 항목만 표시합니다",
     "aria": "대화 워크벤치",
     "panes": "창",
     "tabAria": "그룹: {{title}}",
@@ -1902,11 +2172,49 @@
   },
   "workspace": {
     "dialog": {
-      "defaultProject": "기본 작업공간",
+      "title": "프로젝트 만들기",
+      "sourceFolder": "소스 폴더",
+      "addFromThisComputer": "이 컴퓨터에서 폴더 추가",
+      "add": "추가",
+      "unavailable": "게이트웨이 컴퓨터에서 열거나 데스크톱 앱을 사용하세요",
+      "pickFailed": "폴더 선택기를 열 수 없습니다",
+      "pickerBusy": "선택 창이 이미 열려 있습니다",
+      "changeFolder": "폴더 변경",
+      "picking": "선택 중…",
+      "projectName": "프로젝트 이름",
+      "create": "프로젝트 만들기",
+      "cancel": "취소",
+      "defaultProject": "기본 워크스페이스 (프로젝트 없음)",
       "manual": "경로 붙여넣기",
       "manualPlaceholder": "/Users/name/project",
       "usePath": "경로 사용",
       "absolutePathRequired": "이 머신의 절대 폴더 경로를 입력하세요."
+    },
+    "brand": "知序",
+    "nav": {
+      "assistant": "어시스턴트",
+      "creative": "크리에이티브"
+    },
+    "preview": {
+      "badge": "인터페이스 미리보기 · 샘플 콘텐츠"
+    },
+    "home": {
+      "eyebrow": "워크벤치",
+      "title": "오늘 무엇을 끝내시고 싶으신가요?",
+      "subtitle": "자유 형식 작업으로 바로 시작하거나 아래 기능에서 시작하세요.",
+      "taskAria": "자유 형식 작업",
+      "taskPlaceholder": "작업을 입력하세요. 예: \"이번 주 기억을 노트로 정리하기\".",
+      "previewHint": "인터페이스 미리보기: 실제로 전송되지 않습니다.",
+      "submitHint": "어시스턴트가 열리며, 전송은 여전히 확인이 필요합니다.",
+      "submit": "시작",
+      "capabilitiesTitle": "기능",
+      "creativeTitle": "크리에이티브 공간",
+      "creativeDesc": "흩어진 소재를 기사로 정리합니다.",
+      "assistantTitle": "범용 어시스턴트",
+      "assistantDesc": "기존 스킬과 에이전트를 모두 그대로 유지합니다."
+    },
+    "creative": {
+      "comingSoon": "크리에이티브 모듈은 곧 제공됩니다."
     }
   }
 }

@@ -135,7 +135,12 @@ from nanobot.webui.transcript import (
     WEBUI_TRANSCRIPT_SCHEMA_VERSION,
     build_webui_thread_response,
 )
+from nanobot.webui.workspace_files import (
+    resolve_workspace_anchor,
+    workspace_directory_payload,
+)
 from nanobot.webui.workspaces import WebUIWorkspaceController
+from nanobot.webui.writing_routes import WritingSettingsOperations
 
 _SLOW_WEBUI_HTTP_LOG_MS = 1_000
 _WEBUI_MUTATION_PAYLOAD_ATTR = "_nanobot_webui_mutation_payload"
@@ -207,6 +212,12 @@ _WEBUI_MUTATION_PATHS = {
     "agents.delete": "/api/settings/agents/delete",
     "agents.reset": "/api/settings/agents/reset",
     "agents.visibility": "/api/settings/agents/visibility",
+    # 契约 §5：写作域四条写动作只能走已认证 WS 的 webui_request；动作名与领域
+    # 动作名同名取点号（契约 §4），不再有 WS/领域双口径映射。
+    "article.create": "/api/writing/articles/create",
+    "article.save": "/api/writing/articles/save",
+    "article.duplicate": "/api/writing/articles/duplicate",
+    "article.delete": "/api/writing/articles/delete",
 }
 
 _WEBUI_CHANNEL_CONNECT_ACTIONS = {
@@ -352,6 +363,7 @@ class GatewayHTTPHandler:
         memory_operations: MemorySettingsOperations | None = None,
         identity_operations: IdentitySettingsOperations | None = None,
         agents_operations: AgentSettingsOperations | None = None,
+        writing_operations: WritingSettingsOperations | None = None,
         log: Any = logger,
     ) -> None:
         self.config = config
@@ -368,6 +380,7 @@ class GatewayHTTPHandler:
         self.memory_operations = memory_operations
         self.identity_operations = identity_operations
         self.agents_operations = agents_operations
+        self.writing_operations = writing_operations
         self.disabled_skills: set[str] = (
             disabled_skills if disabled_skills is not None else set()
         )
@@ -404,6 +417,7 @@ class GatewayHTTPHandler:
             memory_operations=self.memory_operations,
             identity_operations=self.identity_operations,
             agents_operations=self.agents_operations,
+            writing_operations=self.writing_operations,
         )
 
     def workspace_controls_available(self, connection: Any) -> bool:
@@ -733,6 +747,10 @@ class GatewayHTTPHandler:
         if m:
             return self._handle_file_preview(request, m.group(1))
 
+        m = re.match(r"^/api/sessions/([^/]+)/files$", got)
+        if m:
+            return self._handle_session_files(request, m.group(1))
+
         m = re.match(r"^/api/sessions/([^/]+)/automations$", got)
         if m:
             return self._handle_session_automations(request, m.group(1))
@@ -933,8 +951,23 @@ class GatewayHTTPHandler:
         query = _parse_query(request.path)
         path = _query_first(query, "path")
         is_probe = _query_first(query, "probe") == "1"
+        scope_param = _query_first(query, "scope")
+        # An explicit-but-empty ``?scope=`` carries no anchor. Normalize it to
+        # "absent" so the request resolves against the session scope, instead of
+        # silently meaning "default" via resolve_workspace_anchor's falsy fallback.
+        if scope_param == "":
+            scope_param = None
         try:
-            scope = self.workspaces.scope_for_session_key(decoded_key)
+            if scope_param is None:
+                scope = self.workspaces.scope_for_session_key(decoded_key)
+            else:
+                anchor = resolve_workspace_anchor(
+                    scope_param,
+                    default_scope=self.workspaces.default_scope(),
+                )
+                if anchor is None:
+                    return _http_json_response({"error": "no_default_workspace"}, status=404)
+                scope = anchor
             if is_probe:
                 payload = file_preview_availability_payload(path, scope=scope)
             else:
@@ -944,6 +977,57 @@ class GatewayHTTPHandler:
                 return _http_json_response({"available": False})
             return _http_error(e.status, e.message)
         return _http_json_response(payload)
+
+    def _handle_session_files(self, request: WsRequest, key: str) -> Response:
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        decoded_key = _decode_api_key(key)
+        if decoded_key is None:
+            return _http_error(400, "invalid session key")
+        if not _is_websocket_channel_session_key(decoded_key):
+            return _http_error(404, "session not found")
+        query = _parse_query(request.path)
+        path = _query_first(query, "path")
+        try:
+            scope = self.workspaces.scope_for_session_key(decoded_key)
+            payload = workspace_directory_payload(path, scope=scope)
+        except WebUIFilePreviewError as e:
+            return _http_error(e.status, e.message)
+        return _http_json_response(
+            payload,
+            accept_encoding=_combined_list_header(request.headers, "Accept-Encoding"),
+        )
+
+    def _handle_workspace_files(self, request: WsRequest) -> Response:
+        """Read-only directory listing anchored at the default workspace (contract §2)."""
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        query = _parse_query(request.path)
+        path = _query_first(query, "path")
+        anchor = resolve_workspace_anchor(
+            _query_first(query, "scope"),
+            default_scope=self.workspaces.default_scope(),
+        )
+        if anchor is None:
+            return _http_json_response({"error": "no_default_workspace"}, status=404)
+        try:
+            payload = workspace_directory_payload(path, scope=anchor)
+        except WebUIFilePreviewError as e:
+            if e.status in {400, 403}:
+                return _http_json_response({"error": "invalid_path"}, status=400)
+            return _http_json_response({"error": e.message}, status=e.status)
+        return _http_json_response(
+            payload,
+            accept_encoding=_combined_list_header(request.headers, "Accept-Encoding"),
+        )
+
+    def _handle_terminal_shells(self, request: WsRequest) -> Response:
+        """Whitelisted shells installed on this host (contract v2 §4.2 shell 下拉)."""
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        from nanobot.webui.pty_terminal import available_shells
+
+        return _http_json_response(available_shells())
 
     def _handle_session_automations(self, request: WsRequest, key: str) -> Response:
         if not self.check_api_token(request):
@@ -1201,6 +1285,10 @@ class GatewayHTTPHandler:
             return await self._handle_workspace_folder_picker(connection, request)
         if got == "/api/workspaces":
             return self._handle_workspaces(connection, request)
+        if got == "/api/workspace/files":
+            return self._handle_workspace_files(request)
+        if got == "/webui/terminal/shells":
+            return self._handle_terminal_shells(request)
         if got == "/api/webui/skills/search":
             return await self._handle_webui_skills_search(request)
         if got == "/api/webui/skills/trending":

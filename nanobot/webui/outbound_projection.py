@@ -6,12 +6,14 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from loguru import logger
 
+from nanobot.agent.questions import pending_for_chat
 from nanobot.bus.events import OutboundMessage
 from nanobot.bus.outbound_events import (
     ContextCompactionEvent,
     GoalStateSyncEvent,
     GoalStatusEvent,
     ProgressEvent,
+    QuestionRequestedEvent,
     RetryStatusEvent,
     RetryWaitEvent,
     RuntimeModelUpdatedEvent,
@@ -82,6 +84,12 @@ class WebUIOutboundTransport(Protocol):
 
     async def send_goal_state(self, chat_id: str, blob: dict[str, Any]) -> None: ...
 
+    async def send_question_requested(
+        self,
+        chat_id: str,
+        question: dict[str, Any],
+    ) -> None: ...
+
     async def send_goal_status(
         self,
         chat_id: str,
@@ -133,6 +141,8 @@ class WebUIOutboundProjector:
                 started_at=event["started_at"],
                 turn_id=event.get("turn_id"),
             )
+        for question in pending_for_chat(chat_id):
+            await self._transport.send_question_requested(chat_id, question)
 
     async def send(self, msg: OutboundMessage) -> None:
         event = msg.event
@@ -156,6 +166,7 @@ class WebUIOutboundProjector:
                 SessionUpdatedEvent,
                 GoalStatusEvent,
                 GoalStateSyncEvent,
+                QuestionRequestedEvent,
                 ContextCompactionEvent,
             )
             log = (
@@ -202,6 +213,10 @@ class WebUIOutboundProjector:
                     msg.chat_id,
                     event.goal_state or {"active": False},
                 )
+            return
+        if isinstance(event, QuestionRequestedEvent):
+            if conns:
+                await self._transport.send_question_requested(msg.chat_id, event.question)
             return
         if isinstance(event, GoalStatusEvent):
             turn_id = (msg.metadata or {}).get(WEBUI_TURN_METADATA_KEY)

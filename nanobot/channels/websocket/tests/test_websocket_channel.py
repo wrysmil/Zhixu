@@ -1540,6 +1540,64 @@ async def test_webui_message_scope_inherits_persisted_session_scope(
 
 
 @pytest.mark.asyncio
+async def test_set_reasoning_effort_frame(
+    bus: MagicMock,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import json
+
+    from nanobot.webui.inbound_commands import WebUICommandRouter
+    from nanobot.webui.session_identity import webui_session_key
+
+    monkeypatch.setattr(
+        WebUICommandRouter,
+        "_reasoning_effort_options",
+        lambda self, session: ["", "low", "high"],
+    )
+    sessions = SessionManager(tmp_path / "sessions")
+    channel = WebSocketChannel(
+        {"enabled": True, "allowFrom": ["*"], "host": "127.0.0.1"},
+        bus,
+        gateway=_basic_handler(bus, session_manager=sessions, workspace_path=tmp_path),
+    )
+    conn = AsyncMock()
+    conn.remote_address = ("127.0.0.1", 50123)
+    session_key = webui_session_key("chat-effort")
+
+    await channel._dispatch_envelope(
+        conn,
+        "webui-client",
+        {"type": "set_reasoning_effort", "chat_id": "chat-effort", "reasoning_effort": "medium"},
+    )
+    events = [json.loads(call.args[0]) for call in conn.send.await_args_list]
+    assert any(
+        event.get("event") == "error" and event.get("detail") == "invalid_reasoning_effort"
+        for event in events
+    )
+    assert sessions.get_or_create(session_key).metadata.get("_nanobot_reasoning_effort") is None
+
+    await channel._dispatch_envelope(
+        conn,
+        "webui-client",
+        {"type": "set_reasoning_effort", "chat_id": "chat-effort", "reasoning_effort": "high"},
+    )
+    assert sessions.get_or_create(session_key).metadata["_nanobot_reasoning_effort"] == "high"
+    events = [json.loads(call.args[0]) for call in conn.send.await_args_list]
+    assert any(
+        event.get("event") == "session_updated" and event.get("reasoning_effort") == "high"
+        for event in events
+    )
+
+    await channel._dispatch_envelope(
+        conn,
+        "webui-client",
+        {"type": "set_reasoning_effort", "chat_id": "chat-effort", "reasoning_effort": ""},
+    )
+    assert "_nanobot_reasoning_effort" not in sessions.get_or_create(session_key).metadata
+
+
+@pytest.mark.asyncio
 async def test_new_chat_without_message_does_not_create_session(
     bus: MagicMock,
     tmp_path,

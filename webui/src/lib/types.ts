@@ -422,6 +422,7 @@ export interface WorkspaceScopePayload {
 export interface WorkspacesPayload {
   schema_version: number;
   default_access_mode: WebuiDefaultAccessMode;
+  hostname?: string | null;
   default_scope: WorkspaceScopePayload;
   controls: {
     can_change_project: boolean;
@@ -456,6 +457,13 @@ export interface SidebarViewState {
   sort: SidebarSortMode;
 }
 
+export interface SidebarProjectEntry {
+  key: string;
+  path: string;
+  name: string;
+  added_at?: string;
+}
+
 export interface SidebarStatePayload {
   schema_version: number;
   pinned_keys: string[];
@@ -463,6 +471,9 @@ export interface SidebarStatePayload {
   session_order: string[];
   title_overrides: Record<string, string>;
   project_name_overrides: Record<string, string>;
+  pinned_project_keys: string[];
+  hidden_project_keys: string[];
+  project_entries: SidebarProjectEntry[];
   tags_by_key: Record<string, string[]>;
   collapsed_groups: Record<string, boolean>;
   workbench: WorkbenchState;
@@ -1319,6 +1330,21 @@ interface InboundTurnMetadata {
   turn_seq?: number;
 }
 
+/** One clickable choice inside an interactive ``ask_question`` card. */
+export interface AskQuestionOption {
+  label: string;
+  description?: string;
+  recommended?: boolean;
+}
+
+/** Structured question pushed by the agent's ``ask_question`` tool. */
+export interface AskQuestionRequest {
+  question_id: string;
+  question: string;
+  header?: string;
+  options: AskQuestionOption[];
+}
+
 export type InboundEvent =
   | { event: "ready"; chat_id: string; client_id: string }
   | {
@@ -1327,6 +1353,7 @@ export type InboundEvent =
       temporary?: boolean;
       recovery_state?: RecoveryState;
       usage?: TurnUsage;
+      reasoning_effort?: string | null;
     }
   | {
       event: "message_accepted";
@@ -1447,10 +1474,16 @@ export type InboundEvent =
       goal_state: GoalStateWsPayload;
     }
   | {
+      event: "question_requested";
+      chat_id: string;
+      question: AskQuestionRequest;
+    }
+  | {
       event: "session_updated";
       chat_id: string;
       scope?: "metadata" | "thread" | string;
       workspace_scope?: WorkspaceScopePayload;
+      reasoning_effort?: string | null;
     }
   | {
       event: "sidebar_state_updated";
@@ -1550,6 +1583,65 @@ export interface FilePreviewPayload {
   truncated: boolean;
 }
 
+export interface SessionDirectoryEntry {
+  name: string;
+  path: string;
+  display_path: string;
+  is_dir: boolean;
+  size: number;
+}
+
+export interface SessionDirectoryPayload {
+  path: string;
+  display_path: string;
+  project_path: string;
+  parent_path: string | null;
+  entries: SessionDirectoryEntry[];
+  truncated: boolean;
+}
+
+/** Contract §1.2 (2026-10-11 home-start-panel): the four host→client terminal
+ * events plus the terminal-scoped ``error`` frames the gateway emits for
+ * malformed/unknown/unavailable terminals (see
+ * ``nanobot/webui/inbound_commands.py::_terminal_access_error``).
+ *
+ * Wire frames carry both ``event`` and ``type`` keys with the same value
+ * (WU-A dual-key payloads); consumers discriminate on ``event`` following the
+ * existing inbound pipeline convention. */
+export type TerminalStartedStatus = "ok" | "already_running" | "limit_reached" | "error";
+
+export type TerminalOutputStreamName = "stdout" | "stderr";
+
+export interface TerminalListEntry {
+  terminal_id: string;
+  status: "running" | "exited";
+  shell: string;
+  cwd: string;
+}
+
+export type TerminalEvent =
+  | {
+      event: "terminal_started";
+      terminal_id: string;
+      shell: string;
+      cwd: string;
+      status: TerminalStartedStatus;
+      message?: string;
+      /** Contract v2: ``true`` when the host attached a real PTY to this
+       * terminal; ``false``/absent (v1 gateways) keeps the line console. */
+      pty?: boolean;
+    }
+  | {
+      event: "terminal_output";
+      terminal_id: string;
+      seq: number;
+      stream: TerminalOutputStreamName;
+      data: string;
+    }
+  | { event: "terminal_exit"; terminal_id: string; exit_code: number | null }
+  | { event: "terminal_list_result"; terminals: TerminalListEntry[] }
+  | { event: "error"; terminal_id?: string; detail?: string; reason?: string };
+
 export type Outbound =
   | { type: "new_chat"; workspace_scope?: WorkspaceScopePayload }
   | { type: "new_temporary_chat" }
@@ -1564,7 +1656,14 @@ export type Outbound =
   | { type: "set_sidebar_state"; state: SidebarStatePayload }
   | { type: "discard_temporary_chat"; chat_id: string }
   | { type: "set_workspace_scope"; chat_id: string; workspace_scope: WorkspaceScopePayload }
+  | { type: "set_reasoning_effort"; chat_id: string; reasoning_effort: string }
+  | { type: "question_answer"; chat_id: string; question_id: string; answer: string }
   | { type: "transcribe_audio"; request_id: string; data_url: string; duration_ms?: number }
+  | { type: "terminal_start"; terminal_id: string; session_key?: string; shell?: string }
+  | { type: "terminal_write"; terminal_id: string; data: string }
+  | { type: "terminal_resize"; terminal_id: string; cols: number; rows: number }
+  | { type: "terminal_kill"; terminal_id: string }
+  | { type: "terminal_list" }
   | {
       type: "message";
       chat_id: string;

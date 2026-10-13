@@ -193,8 +193,8 @@ export function OverviewSettings({
           />
           <OverviewListRow
             icon={HardDrive}
-            title={tx("settings.overview.workspace", "Workspace")}
-            value={tx("settings.values.defaultWorkspace", "Default workspace")}
+            title={tx("settings.overview.workspace", "Default workspace")}
+            value={tx("settings.values.workspaceSettings", "Workspace settings")}
             caption={workspaceCaption}
             onClick={() => onSelectSection("runtime")}
           />
@@ -278,7 +278,7 @@ function VersionCheckRow({ currentVersion }: { currentVersion?: string }) {
           </span>
         ) : null}
         {result?.type === "update" ? (
-          <span className="inline-flex items-center gap-1.5 text-[12px] text-blue-600 dark:text-blue-300">
+          <span className="inline-flex items-center gap-1.5 text-[12px] text-primary">
             <ArrowUpCircle className="h-3 w-3" aria-hidden />
             {t("settings.about.updateAvailable", {
               defaultValue: "Update available v{{version}}",

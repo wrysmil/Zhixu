@@ -8,14 +8,23 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Eye, EyeOff, Moon, ShieldCheck, Sun, X } from "lucide-react";
+import { Eye, EyeOff, Moon, PanelLeftOpen, ShieldCheck, Sun, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import {
+  parseWorkspaceHash,
+  settingsSectionForView,
+  workspaceRouteHash,
+} from "@/workspace/routes";
 import { channelUiPresentation } from "@/channel-plugins/registry";
 import { Sidebar } from "@/components/Sidebar";
-import type { SidebarDeleteItem } from "@/components/ChatList";
+import { PROJECTS_SECTION_KEY, type SidebarDeleteItem } from "@/components/ChatList";
+import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
+import { resolveDockShortcut } from "@/lib/dock-shortcuts";
 import type { SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
 import { PaneWorkbench } from "@/components/workbench/PaneWorkbench";
+import { SESSION_WORKBENCH_RAIL_WIDTH } from "@/components/workbench/SessionWorkbench";
+import { WorkbenchTabBar } from "@/components/workbench/WorkbenchTabBar";
 import {
   MAX_WORKBENCH_PANES,
   addWorkbenchPane,
@@ -82,7 +91,11 @@ import {
   isNativeRuntime,
   toRuntimeSurface,
 } from "@/lib/runtime";
-import { projectNameFromPath, scopeWithAccessMode } from "@/lib/workspace";
+import {
+  normalizeWorkspacePath,
+  projectNameFromPath,
+  scopeWithAccessMode,
+} from "@/lib/workspace";
 import {
   createTemporaryChatSession,
   deriveTemporaryChatTitle,
@@ -108,25 +121,44 @@ const LEGACY_COMPLETED_RUNS_STORAGE_KEY = "nanobot-webui.sidebar.completed-runs.
 const RESTART_STARTED_KEY = "nanobot-webui.restartStartedAt";
 const RESTART_ROUTE_KEY = "nanobot-webui.restartRoute";
 const RESTART_ROUTE_TTL_MS = 5 * 60 * 1000;
-const SIDEBAR_WIDTH = 272;
-const SIDEBAR_RAIL_WIDTH = 56;
-const MOBILE_SIDEBAR_WIDTH = `min(${SIDEBAR_WIDTH}px, calc(100vw - 0.75rem))`;
+// 视觉规格 v1.1（spec 2026-10-11）：54 / 220 替换 64 / 248，与 globals.css 的
+// --rail-w / --chat-col-w 对齐；如需调整只改 CSS 变量与此处。
+const SIDEBAR_WIDTH = 54;
+const SIDEBAR_RAIL_WIDTH = 54;
+const SIDEBAR_CHAT_WIDTH = 220;
+const MOBILE_SIDEBAR_WIDTH = `min(${SIDEBAR_WIDTH + SIDEBAR_CHAT_WIDTH}px, calc(100vw - 0.75rem))`;
 const TOKEN_REFRESH_MARGIN_MS = 30_000;
 const TOKEN_REFRESH_MIN_DELAY_MS = 5_000;
 const PAIRING_POLL_INTERVAL_MS = 5_000;
 const PAIRING_IDLE_POLL_INTERVAL_MS = 15_000;
 const PAIRING_DISMISS_SNOOZE_MS = 30_000;
-type ShellView = "chat" | "settings" | "apps" | "automations" | "skills" | "agents";
+type ShellView =
+  | "chat"
+  | "home"
+  | "creative"
+  | "article"
+  | "settings"
+  | "apps"
+  | "automations"
+  | "skills"
+  | "agents";
 type ShellRoute = {
   view: ShellView;
   activeKey: string | null;
   settingsSection: SettingsSectionKey;
+  articleId?: string;
   temporary?: boolean;
 };
 const loadSettingsView = () => import("@/components/settings/SettingsView");
 const SettingsView = lazy(async () => {
   const module = await loadSettingsView();
   return { default: module.SettingsView };
+});
+const CreativeWorkspace = lazy(() => import("./components/creative/CreativeWorkspace"));
+// 终端入口已迁移：TerminalSection 由 TerminalSurface + StartDock（Task 7/9）接管。
+const StartDock = lazy(async () => {
+  const module = await import("@/components/dock/StartDock");
+  return { default: module.StartDock };
 });
 const SessionSearchDialog = lazy(async () => {
   const module = await import("@/components/SessionSearchDialog");
@@ -157,37 +189,15 @@ function SurfaceLoadingFallback() {
   );
 }
 
-const SETTINGS_SECTION_KEYS: SettingsSectionKey[] = [
-  "overview",
-  "appearance",
-  "models",
-  "image",
-  "voice",
-  "browser",
-  "channels",
-  "apps",
-  "automations",
-  "skills",
-  "agents",
-  "memory",
-  "identity",
-  "runtime",
-  "advanced",
-];
-
-function isSettingsSectionKey(value: string | null): value is SettingsSectionKey {
-  return SETTINGS_SECTION_KEYS.includes(value as SettingsSectionKey);
-}
-
 function defaultShellRoute(): ShellRoute {
   return { view: "chat", activeKey: null, settingsSection: "overview" };
 }
 
-function shellViewForSettingsSection(section: SettingsSectionKey): ShellView {
-  if (section === "apps" || section === "automations" || section === "skills" || section === "agents") {
-    return section;
-  }
-  return "settings";
+/**
+ * The blank new-topic destination, also used as the default landing page.
+ */
+function newChatRoute(): ShellRoute {
+  return { view: "chat", activeKey: null, settingsSection: "overview" };
 }
 
 function fallbackRestartHash(hash: string): boolean {
@@ -231,82 +241,24 @@ function readShellRoute(): ShellRoute {
     ? window.location.hash.slice(1)
     : window.location.hash;
   const hash = maybeRestoreRestartHash(currentHash);
-  if (!hash || hash === "/" || hash === "/new") return defaultShellRoute();
-
-  const [path, query = ""] = hash.split("?", 2);
-  const params = new URLSearchParams(query);
-  const rawSettingsSection = params.get("section");
-  const settingsSection = isSettingsSectionKey(rawSettingsSection)
-    ? rawSettingsSection
-    : "overview";
-  const activeKey = params.get("chat")?.trim() || null;
-
-  if (path === "/settings") {
-    return {
-      view: shellViewForSettingsSection(settingsSection),
-      activeKey,
-      settingsSection,
-    };
-  }
-  if (path === "/apps") {
-    return { view: "apps", activeKey, settingsSection: "apps" };
-  }
-  if (path === "/automations") {
-    return { view: "automations", activeKey, settingsSection: "automations" };
-  }
-  if (path === "/skills") {
-    return { view: "skills", activeKey, settingsSection: "skills" };
-  }
-  if (path === "/agents") {
-    return { view: "agents", activeKey, settingsSection: "agents" };
-  }
-  if (path.startsWith("/temporary/")) {
-    const encoded = path.slice("/temporary/".length);
-    try {
-      const chatId = decodeURIComponent(encoded).trim();
-      return chatId
-        ? {
-            view: "chat",
-            activeKey: `websocket:${chatId}`,
-            settingsSection: "overview",
-            temporary: true,
-          }
-        : defaultShellRoute();
-    } catch {
-      return defaultShellRoute();
-    }
-  }
-  if (path.startsWith("/chat/")) {
-    const encoded = path.slice("/chat/".length);
-    try {
-      const key = decodeURIComponent(encoded).trim();
-      return key
-        ? { view: "chat", activeKey: key, settingsSection: "overview" }
-        : defaultShellRoute();
-    } catch {
-      return defaultShellRoute();
-    }
-  }
-  return defaultShellRoute();
+  const route = parseWorkspaceHash(hash);
+  return {
+    view: route.view,
+    activeKey: route.chatKey ?? null,
+    settingsSection: settingsSectionForView(route.view, route.settingsSection),
+    articleId: route.articleId,
+    temporary: route.temporary,
+  };
 }
 
 function shellRouteHash(route: ShellRoute): string {
-  if (route.view === "chat") {
-    if (route.temporary && route.activeKey?.startsWith("websocket:")) {
-      const chatId = route.activeKey.slice("websocket:".length);
-      return `#/temporary/${encodeURIComponent(chatId)}`;
-    }
-    return route.activeKey
-      ? `#/chat/${encodeURIComponent(route.activeKey)}`
-      : "#/new";
-  }
-  const params = new URLSearchParams();
-  if (route.activeKey) params.set("chat", route.activeKey);
-  if (route.view === "settings" && route.settingsSection !== "overview") {
-    params.set("section", route.settingsSection);
-  }
-  const query = params.toString();
-  return `#/${route.view}${query ? `?${query}` : ""}`;
+  return workspaceRouteHash({
+    view: route.view,
+    chatKey: route.activeKey,
+    settingsSection: route.settingsSection,
+    articleId: route.articleId,
+    temporary: route.temporary,
+  });
 }
 
 function writeShellRoute(route: ShellRoute, replace = false): void {
@@ -1091,6 +1043,10 @@ function Shell({
   const pageVisible = usePageVisibility();
   const [settingsSnapshot, setSettingsSnapshot] = useState<SettingsPayload | null>(null);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [composerDraftSeed, setComposerDraftSeed] = useState<{
+    text: string;
+    token: number;
+  } | null>(null);
   const [draftWorkspaceScope, setDraftWorkspaceScope] =
     useState<WorkspaceScopePayload | null>(null);
   const [workspaceOverrides, setWorkspaceOverrides] =
@@ -1354,7 +1310,7 @@ function Shell({
     const currentRoute = readShellRoute();
     if (currentRoute.temporary) {
       if (temporarySessions[activeKey]) return;
-      navigate(defaultShellRoute(), { replace: true });
+      navigate(newChatRoute(), { replace: true });
       return;
     }
     if (sessions.some((session) => session.key === activeKey)) return;
@@ -1363,7 +1319,7 @@ function Shell({
     if (pendingCreatedKey === activeKey) return;
     navigate(
       currentRoute.view === "chat"
-        ? defaultShellRoute()
+        ? newChatRoute()
         : {
             ...currentRoute,
             activeKey: null,
@@ -1586,7 +1542,7 @@ function Shell({
   }, [forkChat, navigate, sessions, sidebarState.title_overrides, t]);
 
   const onNewChat = useCallback(() => {
-    navigate(defaultShellRoute());
+    navigate(newChatRoute());
     setTemporaryChatEnabled(false);
     setDraftWorkspaceScope(null);
     setWorkspaceError(null);
@@ -1610,7 +1566,7 @@ function Shell({
         return;
       }
       setTemporaryChatEnabled(false);
-      navigate(defaultShellRoute());
+      navigate(newChatRoute());
       setDraftWorkspaceScope(normalizeWorkspaceScope({
         project_path: trimmed,
         project_name: projectName || projectNameFromPath(trimmed),
@@ -1619,8 +1575,48 @@ function Shell({
       }));
       setWorkspaceError(null);
       setMobileSidebarOpen(false);
+      const projectKey = normalizeWorkspacePath(trimmed);
+      const entryName = projectName || projectNameFromPath(trimmed);
+      void updateSidebarState((current) => {
+        const hiddenKeys = current.hidden_project_keys.filter(
+          (key) => key !== projectKey,
+        );
+        const registered = current.project_entries.some(
+          (entry) => entry.key === projectKey,
+        );
+        const sectionCollapsed = Boolean(current.collapsed_groups[PROJECTS_SECTION_KEY]);
+        if (
+          registered
+          && hiddenKeys.length === current.hidden_project_keys.length
+          && !sectionCollapsed
+        ) {
+          return current;
+        }
+        return {
+          ...current,
+          hidden_project_keys: hiddenKeys,
+          // A project the user just created must not stay hidden behind a collapsed section.
+          collapsed_groups: sectionCollapsed
+            ? { ...current.collapsed_groups, [PROJECTS_SECTION_KEY]: false }
+            : current.collapsed_groups,
+          project_entries: registered
+            ? current.project_entries
+            : [...current.project_entries, {
+                key: projectKey,
+                path: trimmed,
+                name: entryName,
+                added_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+              }],
+        };
+      });
     },
-    [activeWorkspaceScope, navigate, onNewChat, workspaces?.default_scope],
+    [
+      activeWorkspaceScope,
+      navigate,
+      onNewChat,
+      updateSidebarState,
+      workspaces?.default_scope,
+    ],
   );
 
   const onSelectChat = useCallback(
@@ -1786,6 +1782,38 @@ function Shell({
     [pendingProjectRename, updateSidebarState],
   );
 
+  const onTogglePinProject = useCallback(
+    (projectKey: string) => {
+      if (!projectKey) return;
+      void updateSidebarState((current) => ({
+        ...current,
+        pinned_project_keys: current.pinned_project_keys.includes(projectKey)
+          ? current.pinned_project_keys.filter((key) => key !== projectKey)
+          : [projectKey, ...current.pinned_project_keys],
+      }));
+    },
+    [updateSidebarState],
+  );
+
+  const onRemoveProject = useCallback(
+    (projectKey: string) => {
+      if (!projectKey) return;
+      void updateSidebarState((current) => ({
+        ...current,
+        hidden_project_keys: current.hidden_project_keys.includes(projectKey)
+          ? current.hidden_project_keys
+          : [...current.hidden_project_keys, projectKey],
+        pinned_project_keys: current.pinned_project_keys.filter(
+          (key) => key !== projectKey,
+        ),
+        project_entries: current.project_entries.filter(
+          (entry) => entry.key !== projectKey,
+        ),
+      }));
+    },
+    [updateSidebarState],
+  );
+
   const onToggleArchive = useCallback(
     (key: string) => {
       void updateSidebarState((current) => {
@@ -1891,6 +1919,16 @@ function Shell({
         onNewChat();
         return;
       }
+      // spec B2：⌘P/⌘T 全场景直达 dock 标签（首页与会话页一致；terminal 标签不接快捷键）。
+      // xterm 聚焦时 ⌘T 也走本 handler——浏览器新标签语义让位于 dock。
+      const dockSection = resolveDockShortcut(event);
+      if (dockSection !== null) {
+        event.preventDefault();
+        const scope = activeKey ?? HOME_DOCK_SCOPE;
+        if (dockSection === "file") dockStore.openFile(scope);
+        else dockStore.openBrowser(scope);
+        return;
+      }
       const plainCommandK =
         (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
       if (!plainCommandK) return;
@@ -1901,7 +1939,7 @@ function Shell({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onNewChat, onOpenSessionSearch]);
+  }, [activeKey, onNewChat, onOpenSessionSearch]);
 
   const onSelectSearchResult = useCallback(
     (key: string) => {
@@ -1951,14 +1989,43 @@ function Shell({
 
   const onSettingsSectionChange = useCallback(
     (section: SettingsSectionKey) => {
+      const sectionView: ShellView =
+        section === "apps"
+        || section === "automations"
+        || section === "skills"
+        || section === "agents"
+          ? section
+          : "settings";
       navigate({
-        view: shellViewForSettingsSection(section),
+        view: sectionView,
         activeKey,
         settingsSection: section,
       });
     },
     [activeKey, navigate],
   );
+
+  const onOpenHome = useCallback(() => {
+    setSessionSearchOpen(false);
+    navigate({ view: "chat", activeKey: null, settingsSection: "overview" });
+    setMobileSidebarOpen(false);
+  }, [navigate]);
+
+  const onOpenAssistant = useCallback(() => {
+    setSessionSearchOpen(false);
+    navigate({ view: "chat", activeKey, settingsSection: "overview" });
+    setMobileSidebarOpen(false);
+  }, [activeKey, navigate]);
+
+  const onOpenCreative = useCallback(() => {
+    setSessionSearchOpen(false);
+    navigate({ view: "creative", activeKey: null, settingsSection: "overview" });
+    setMobileSidebarOpen(false);
+  }, [navigate]);
+
+  const onDraftSeedConsumed = useCallback(() => {
+    setComposerDraftSeed(null);
+  }, []);
 
   const onBackToChat = useCallback(() => {
     setMobileSidebarOpen(false);
@@ -2045,7 +2112,7 @@ function Shell({
       temporarySessionsRef.current = {};
       setTemporarySessions({});
       if (readShellRoute().temporary) {
-        navigate(defaultShellRoute(), { replace: true });
+        navigate(newChatRoute(), { replace: true });
       }
     });
   }, [client, navigate]);
@@ -2314,6 +2381,12 @@ function Shell({
     workbenchPaneSessions,
   ]);
   const renderedActivePaneKey = activeKey ?? renderedWorkbenchPanes[0].key;
+  const [paneWorkbenchOpen, setPaneWorkbenchOpen] = useState<Record<string, boolean>>({});
+  const onPaneWorkbenchOpenChange = useCallback((paneKey: string, open: boolean) => {
+    setPaneWorkbenchOpen((current) => (
+      current[paneKey] === open ? current : { ...current, [paneKey]: open }
+    ));
+  }, []);
   const renderedWorkbenchLayout = paneChromeEnabled && activeTabState
     ? activeTabState.layout
     : "columns";
@@ -2486,6 +2559,12 @@ function Shell({
     onToggleGroup,
     onRequestRenameProject,
     onNewChatInProject,
+    onTogglePinProject,
+    onRemoveProject,
+    activeView: view === "article" ? "creative" : view,
+    onOpenHome,
+    onOpenAssistant,
+    onOpenCreative,
     onOpenSettings,
     onOpenApps,
     onOpenAutomations,
@@ -2505,6 +2584,9 @@ function Shell({
     sessionOrder: sidebarState.session_order,
     titleOverrides: sidebarState.title_overrides,
     projectNameOverrides: sidebarState.project_name_overrides,
+    pinnedProjectKeys: sidebarState.pinned_project_keys,
+    hiddenProjectKeys: sidebarState.hidden_project_keys,
+    projectEntries: sidebarState.project_entries,
     collapsedGroups: sidebarState.collapsed_groups,
     runningChatIds: runningChatIdList,
     updatedChatIds: updatedChatIdList,
@@ -2514,7 +2596,17 @@ function Shell({
     archivedCount: sidebarArchivedTabKeys.length,
     defaultWorkspacePath: workspaces?.default_scope.project_path ?? null,
   };
-  const hostSidebarFlowWidth = hostSidebarOpen ? SIDEBAR_WIDTH : SIDEBAR_RAIL_WIDTH;
+  const hostSidebarFlowWidth = !hostSidebarOpen
+    ? SIDEBAR_RAIL_WIDTH
+    : view === "chat"
+      ? SIDEBAR_WIDTH + SIDEBAR_CHAT_WIDTH
+      : SIDEBAR_WIDTH;
+  const isSettingsLikeView =
+    view === "settings"
+    || view === "apps"
+    || view === "automations"
+    || view === "skills"
+    || view === "agents";
 
   useEffect(() => {
     document.documentElement.classList.toggle("native-host", showHostChrome);
@@ -2635,135 +2727,193 @@ function Shell({
                 view !== "chat" && "hidden",
               )}
             >
-              <PaneWorkbench
-                panes={renderedWorkbenchPanes}
-                activePaneKey={renderedActivePaneKey}
-                layout={renderedWorkbenchLayout}
-                splitRatios={renderedWorkbenchSplitRatios}
-                chrome={paneChromeEnabled}
-                showLayoutControl={activeTabVisible}
-                addPaneDisabled={creatingPane || activePaneLimitReached}
-                addPaneDisabledLabel={activePaneLimitReached
-                  ? t("workbench.paneLimit", {
-                      count: MAX_WORKBENCH_PANES,
-                    })
-                  : undefined}
-                onActivatePane={onActivateWorkbenchPane}
-                onAddPane={onAddPane}
-                onLayoutChange={(layout) => {
-                  if (!activeTabKey) return;
-                  updateWorkbenchState((current) => (
-                    setWorkbenchLayout(current, activeTabKey, layout)
-                  ));
-                }}
-                onPaneOrderChange={(paneKeys) => {
-                  if (!activeTabKey) return;
-                  updateWorkbenchState((current) => (
-                    setWorkbenchPaneLayoutOrder(current, activeTabKey, paneKeys)
-                  ));
-                }}
-                onSplitRatiosChange={(splitRatios) => {
-                  if (!activeTabKey) return;
-                  updateWorkbenchState((current) => (
-                    setWorkbenchSplitRatios(current, activeTabKey, splitRatios)
-                  ));
-                }}
-                renderPane={(pane, context) => {
-                  if (!paneChromeEnabled) {
-                    return (
-                      <ThreadShell
-                        session={activeSession}
-                        sessions={sessions}
-                        title={headerTitle}
-                        temporary={temporaryChatRequested}
-                        temporaryChatIds={temporaryChatIds}
-                        temporaryChatEnabled={temporaryChatEnabled}
-                        onTemporaryChatEnabledChange={
-                          !activeKey ? onTemporaryChatEnabledChange : undefined
-                        }
-                        onToggleSidebar={toggleSidebar}
-                        onNewChat={onNewChat}
-                        onCreateChat={
-                          temporaryChatEnabled ? onCreateTemporaryChat : onCreateChat
-                        }
-                        onForkChat={temporaryChatActive ? undefined : onForkChat}
-                        onTurnEnd={onTurnEnd}
-                        theme={theme}
-                        onToggleTheme={toggle}
-                        hideSidebarToggleForHostChrome
-                        hideHeader={false}
-                        workspaceScope={activeWorkspaceScope}
-                        workspaceDefaultScope={workspaces?.default_scope ?? null}
-                        workspaceControls={workspaces?.controls ?? null}
-                        workspaceScopeDisabled={activeChatRunning}
-                        workspaceError={workspaceError}
-                        onWorkspaceScopeChange={applyWorkspaceScope}
-                        settingsSnapshot={settingsSnapshot}
-                        onOpenModelSettings={onOpenModelSettings}
-                        skills={skills}
-                      />
-                    );
-                  }
-
-                  const paneSession = workbenchPaneSessions.find(
-                    (session) => session.key === pane.key,
-                  );
-                  if (!paneSession) return null;
-                  const paneScope = workspaceOverrides[paneSession.chatId]
-                    ?? paneSession.workspaceScope
-                    ?? workspaces?.default_scope
-                    ?? null;
-                  const paneRunning = runningChatIds.has(paneSession.chatId);
-                  return (
-                    <ThreadShell
-                      session={paneSession}
-                      sessions={sessions}
-                      title={pane.title}
-                      onToggleSidebar={toggleSidebar}
-                      onNewChat={onNewChat}
-                      onCreateChat={onCreateChat}
-                      onForkChat={onForkChat}
-                      onTurnEnd={context.active ? onTurnEnd : () => void refresh()}
-                      theme={theme}
-                      onToggleTheme={toggle}
-                      hideSidebarToggle={!context.active}
-                      hideSidebarToggleForHostChrome={context.active}
-                      hideThemeButton={!context.active}
-                      hideHeaderTitle
-                      inlineHandle={workbenchPaneSessions.length > 1}
-                      headerActions={context.headerActions}
-                      headerPortalTarget={context.headerPortalTarget}
-                      headerActive={context.active}
-                      composerPortalTarget={context.composerPortalTarget}
-                      composerActive={context.active}
-                      composerInputAriaLabel={t("workbench.composerAria", {
-                        title: pane.title,
-                      })}
-                      emptyComposerVariant="thread"
-                      workspaceScope={paneScope}
-                      workspaceDefaultScope={workspaces?.default_scope ?? null}
-                      workspaceControls={workspaces?.controls ?? null}
-                      workspaceScopeDisabled={paneRunning}
-                      workspaceError={context.active ? workspaceError : null}
-                      onWorkspaceScopeChange={(scope) => {
-                        if (paneRunning) return;
-                        const next = normalizeWorkspaceScope(scope);
-                        setWorkspaceError(null);
-                        setWorkspaceOverrides((current) => ({
-                          ...current,
-                          [paneSession.chatId]: next,
-                        }));
-                        client.setWorkspaceScope(paneSession.chatId, next);
-                      }}
-                      settingsSnapshot={settingsSnapshot}
-                      onOpenModelSettings={onOpenModelSettings}
-                      skills={skills}
-                    />
-                  );
-                }}
+              <WorkbenchTabBar
+                tabs={sidebarTabPresentations
+                  .filter((presentation) => (
+                    presentation.orderedTab.tab.explicit
+                    || presentation.orderedTab.paneKeys.length > 1
+                  ))
+                  .map((presentation) => ({
+                    tabKey: presentation.orderedTab.tabKey,
+                    rowKey: presentation.rowKey,
+                    title: presentation.title,
+                  }))}
+                activeTabKey={activeTabKey}
+                onSelectTab={onSelectSidebarItem}
+                onNewChat={onNewChat}
               />
+              <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                  <PaneWorkbench
+                    panes={renderedWorkbenchPanes}
+                    activePaneKey={renderedActivePaneKey}
+                    layout={renderedWorkbenchLayout}
+                    splitRatios={renderedWorkbenchSplitRatios}
+                    chrome={paneChromeEnabled}
+                    showLayoutControl={activeTabVisible}
+                    addPaneDisabled={creatingPane || activePaneLimitReached}
+                    addPaneDisabledLabel={activePaneLimitReached
+                      ? t("workbench.paneLimit", {
+                          count: MAX_WORKBENCH_PANES,
+                        })
+                      : undefined}
+                    onActivatePane={onActivateWorkbenchPane}
+                    onAddPane={onAddPane}
+                    onLayoutChange={(layout) => {
+                      if (!activeTabKey) return;
+                      updateWorkbenchState((current) => (
+                        setWorkbenchLayout(current, activeTabKey, layout)
+                      ));
+                    }}
+                    onPaneOrderChange={(paneKeys) => {
+                      if (!activeTabKey) return;
+                      updateWorkbenchState((current) => (
+                        setWorkbenchPaneLayoutOrder(current, activeTabKey, paneKeys)
+                      ));
+                    }}
+                    onSplitRatiosChange={(splitRatios) => {
+                      if (!activeTabKey) return;
+                      updateWorkbenchState((current) => (
+                        setWorkbenchSplitRatios(current, activeTabKey, splitRatios)
+                      ));
+                    }}
+                    composerRailInset={paneWorkbenchOpen[renderedActivePaneKey]
+                      ? SESSION_WORKBENCH_RAIL_WIDTH
+                      : undefined}
+                    renderPane={(pane, context) => {
+                      if (!paneChromeEnabled) {
+                        return (
+                          <ThreadShell
+                            session={activeSession}
+                            sessions={sessions}
+                            title={headerTitle}
+                            temporary={temporaryChatRequested}
+                            temporaryChatIds={temporaryChatIds}
+                            temporaryChatEnabled={temporaryChatEnabled}
+                            onTemporaryChatEnabledChange={
+                              !activeKey ? onTemporaryChatEnabledChange : undefined
+                            }
+                            onToggleSidebar={toggleSidebar}
+                            onNewChat={onNewChat}
+                            onCreateChat={
+                              temporaryChatEnabled ? onCreateTemporaryChat : onCreateChat
+                            }
+                            onForkChat={temporaryChatActive ? undefined : onForkChat}
+                            onTurnEnd={onTurnEnd}
+                            theme={theme}
+                            onToggleTheme={toggle}
+                            hideSidebarToggleForHostChrome
+                            hideHeader={false}
+                            workspaceScope={activeWorkspaceScope}
+                            workspaceDefaultScope={workspaces?.default_scope ?? null}
+                            workspaceControls={workspaces?.controls ?? null}
+                            workspaceHostname={workspaces?.hostname ?? null}
+                            workspaceScopeDisabled={activeChatRunning}
+                            workspaceError={workspaceError}
+                            onWorkspaceScopeChange={applyWorkspaceScope}
+                            settingsSnapshot={settingsSnapshot}
+                            onOpenModelSettings={onOpenModelSettings}
+                            skills={skills}
+                            draftSeed={composerDraftSeed}
+                            onDraftSeedConsumed={onDraftSeedConsumed}
+                          />
+                        );
+                      }
+
+                      const paneSession = workbenchPaneSessions.find(
+                        (session) => session.key === pane.key,
+                      );
+                      if (!paneSession) return null;
+                      const paneScope = workspaceOverrides[paneSession.chatId]
+                        ?? paneSession.workspaceScope
+                        ?? workspaces?.default_scope
+                        ?? null;
+                      const paneRunning = runningChatIds.has(paneSession.chatId);
+                      return (
+                        <ThreadShell
+                          session={paneSession}
+                          sessions={sessions}
+                          title={pane.title}
+                          onToggleSidebar={toggleSidebar}
+                          onNewChat={onNewChat}
+                          onCreateChat={onCreateChat}
+                          onForkChat={onForkChat}
+                          onTurnEnd={context.active ? onTurnEnd : () => void refresh()}
+                          theme={theme}
+                          onToggleTheme={toggle}
+                          hideSidebarToggle={!context.active}
+                          hideSidebarToggleForHostChrome={context.active}
+                          hideThemeButton={!context.active}
+                          hideHeaderTitle
+                          inlineHandle={workbenchPaneSessions.length > 1}
+                          headerActions={context.headerActions}
+                          headerPortalTarget={context.headerPortalTarget}
+                          headerActive={context.active}
+                          composerPortalTarget={context.composerPortalTarget}
+                          composerActive={context.active}
+                          composerInputAriaLabel={t("workbench.composerAria", {
+                            title: pane.title,
+                          })}
+                          emptyComposerVariant="thread"
+                          workspaceScope={paneScope}
+                          workspaceDefaultScope={workspaces?.default_scope ?? null}
+                          workspaceControls={workspaces?.controls ?? null}
+                          workspaceScopeDisabled={paneRunning}
+                          workspaceError={context.active ? workspaceError : null}
+                          workspaceHostname={workspaces?.hostname ?? null}
+                          onWorkspaceScopeChange={(scope) => {
+                            if (paneRunning) return;
+                            const next = normalizeWorkspaceScope(scope);
+                            setWorkspaceError(null);
+                            setWorkspaceOverrides((current) => ({
+                              ...current,
+                              [paneSession.chatId]: next,
+                            }));
+                            client.setWorkspaceScope(paneSession.chatId, next);
+                          }}
+                          settingsSnapshot={settingsSnapshot}
+                          onOpenModelSettings={onOpenModelSettings}
+                          skills={skills}
+                          onWorkbenchOpenChange={(open) => onPaneWorkbenchOpenChange(pane.key, open)}
+                        />
+                      );
+                    }}
+                  />
+                </div>
+                {view === "chat" && activeKey === null && !mobileWorkbench ? (
+                  <Suspense fallback={null}>
+                    <StartDock
+                      scope={HOME_DOCK_SCOPE}
+                      sessionKey={null}
+                      getToken={getToken}
+                    />
+                  </Suspense>
+                ) : null}
+              </div>
             </div>
-            {view !== "chat" && (
+            {(view === "creative" || view === "article") ? (
+              <div className="absolute inset-0 overflow-y-auto bg-background">
+                <header className={cn("flex h-14 items-center gap-3 border-b border-border px-5 sm:px-8", showHostChrome && "mt-10")}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden"
+                    aria-label={t("thread.header.toggleSidebar")} onClick={toggleSidebar}>
+                    <PanelLeftOpen className="h-4 w-4" aria-hidden />
+                  </Button>
+                  <span className="text-xs text-muted-foreground">{t("workspace.home.creativeTitle")}</span>
+                  <Button variant="ghost" size="icon" className="ml-auto h-8 w-8"
+                    aria-label={t("thread.header.toggleTheme")} onClick={toggle}>
+                    {theme === "dark" ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />}
+                  </Button>
+                </header>
+                <Suspense fallback={null}>
+                  <CreativeWorkspace
+                    getToken={getToken}
+                    transport={client}
+                    workspacePath={activeWorkspaceScope?.project_path ?? ""}
+                  />
+                </Suspense>
+              </div>
+            ) : null}
+            {isSettingsLikeView && (
               <div className="absolute inset-0 flex flex-col">
                 <Suspense fallback={<SurfaceLoadingFallback />}>
                   <SettingsView

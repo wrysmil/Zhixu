@@ -144,6 +144,7 @@ function fakeClient() {
         return () => set!.delete(h);
       },
       sendMessage: vi.fn(),
+      answerQuestion: vi.fn(),
       requestMutation,
       finishRunLocally: vi.fn(),
       newChat: vi.fn(),
@@ -505,6 +506,55 @@ describe("useNanobotStream", () => {
         request_count: 3,
       },
     });
+  });
+
+  it("tracks ask_question requests and submits answers as user rows", () => {
+    const fake = fakeClient();
+    const { result } = renderHook(() => useNanobotStream("chat-ask", EMPTY_MESSAGES), {
+      wrapper: wrap(fake.client),
+    });
+
+    act(() => {
+      fake.emit("chat-ask", {
+        event: "question_requested",
+        chat_id: "chat-ask",
+        question: {
+          question_id: "q-1",
+          question: "Where to focus next?",
+          options: [
+            { label: "Phase 2", description: "Follow the spec", recommended: true },
+            { label: "Verify phase 1" },
+          ],
+        },
+      });
+    });
+    expect(result.current.pendingQuestions).toHaveLength(1);
+    expect(result.current.pendingQuestions[0].options[1].label).toBe("Verify phase 1");
+
+    act(() => {
+      result.current.answerQuestion("q-1", "Verify phase 1");
+    });
+    expect(fake.client.answerQuestion).toHaveBeenCalledWith("chat-ask", "q-1", "Verify phase 1");
+    expect(result.current.pendingQuestions).toHaveLength(0);
+    const last = result.current.messages[result.current.messages.length - 1];
+    expect(last.role).toBe("user");
+    expect(last.content).toBe("Verify phase 1");
+
+    act(() => {
+      fake.emit("chat-ask", {
+        event: "question_requested",
+        chat_id: "chat-ask",
+        question: {
+          question_id: "q-2",
+          question: "Again?",
+          options: [{ label: "A" }, { label: "B" }],
+        },
+      });
+    });
+    act(() => {
+      fake.emit("chat-ask", { event: "turn_end", chat_id: "chat-ask" });
+    });
+    expect(result.current.pendingQuestions).toHaveLength(0);
   });
 
   it("exposes typed recovery state and validates actions with its recovery id", async () => {

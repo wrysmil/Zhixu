@@ -36,7 +36,6 @@ import {
   Loader2,
   MessageCircle,
   Mic,
-  Plus,
   Quote,
   RotateCw,
   Shield,
@@ -64,6 +63,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  RuntimeEnvChip,
   WorkspaceAccessMenu,
   WorkspaceProjectPicker,
 } from "@/components/thread/WorkspaceControls";
@@ -71,6 +71,7 @@ import {
   ModelPresetBadge,
   type ModelPresetOption,
 } from "@/components/thread/ModelPresetBadge";
+import { ComposerPlusMenu } from "@/components/thread/ComposerPlusMenu";
 import {
   ComposerUsagePopover,
   type ComposerContextUsage,
@@ -88,6 +89,9 @@ import {
 import { useClipboardAndDrop } from "@/hooks/useClipboardAndDrop";
 import { useLogoFallback } from "@/hooks/useLogoFallback";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { getRuntimeHost } from "@/lib/runtime";
+import { projectNameFromPath, scopeWithAccessMode } from "@/lib/workspace";
+import type { AgentProfile } from "@/lib/agents/types";
 import type { SendAttachment, SendOptions } from "@/hooks/useNanobotStream";
 import { useVoiceRecorder, type VoiceRecorderErrorKey } from "@/hooks/useVoiceRecorder";
 import type {
@@ -101,6 +105,7 @@ import type {
   SlashCommand,
   SkillSummary,
   WebUIIngressLimits,
+  WorkspaceAccessMode,
   WorkspaceScopePayload,
   WorkspacesPayload,
 } from "@/lib/types";
@@ -201,6 +206,10 @@ interface ThreadComposerProps {
   onModelPresetChange?: (name: string) => void;
   modelProvider?: string | null;
   modelProviderLabel?: string | null;
+  modelReasoningEffort?: string | null;
+  modelReasoningEffortValues?: readonly string[] | null;
+  onReasoningEffortChange?: (value: string) => void;
+  runtimeHostname?: string | null;
   modelNeedsSetup?: boolean;
   fallbackModelName?: string | null;
   onModelBadgeClick?: () => void;
@@ -213,6 +222,7 @@ interface ThreadComposerProps {
   mcpPresets?: McpPresetInfo[];
   sessions?: ChatSummary[];
   skills?: SkillSummary[];
+  agents?: AgentProfile[];
   onStop?: () => void;
   surfaceRef?: Ref<HTMLDivElement>;
   onTranscribeAudio?: (dataUrl: string, options?: { durationMs?: number }) => Promise<string>;
@@ -232,6 +242,9 @@ interface ThreadComposerProps {
   quotedContext?: string | null;
   focusRequest?: number;
   onQuotedContextChange?: (text: string | null) => void;
+  /** One-shot text seeded from outside (e.g. the workspace home input). */
+  draftSeed?: { text: string; token: number } | null;
+  onDraftSeedConsumed?: () => void;
 }
 
 const COMMAND_ICONS: Record<string, LucideIcon> = {
@@ -902,6 +915,10 @@ export function ThreadComposer({
   onModelPresetChange,
   modelProvider = null,
   modelProviderLabel = null,
+  modelReasoningEffort = null,
+  modelReasoningEffortValues = null,
+  onReasoningEffortChange,
+  runtimeHostname = null,
   modelNeedsSetup = false,
   fallbackModelName = null,
   onModelBadgeClick,
@@ -914,6 +931,7 @@ export function ThreadComposer({
   mcpPresets = [],
   sessions = [],
   skills = [],
+  agents = [],
   onStop,
   surfaceRef,
   onTranscribeAudio,
@@ -932,6 +950,8 @@ export function ThreadComposer({
   quotedContext = null,
   focusRequest = 0,
   onQuotedContextChange,
+  draftSeed = null,
+  onDraftSeedConsumed,
 }: ThreadComposerProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState("");
@@ -975,11 +995,11 @@ export function ThreadComposer({
     [pendingQueueKey],
   );
   const projectPickerAvailable =
-    isHero
-    && !!workspaceDefaultScope
+    !!workspaceDefaultScope
     && !!onWorkspaceScopeChange
     && workspaceControls?.can_change_project !== false;
   const showProjectPicker = projectPickerAvailable && !workspaceControlsHidden;
+  const showContextTabs = showProjectPicker || !!runtimeHostname;
 
   useEffect(() => {
     secondEnterPromptIdRef.current = null;
@@ -1507,6 +1527,20 @@ export function ThreadComposer({
     });
   }, [clear, pendingQueueKey]);
 
+  const consumedDraftSeedTokenRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (!draftSeed || draftSeed.token === consumedDraftSeedTokenRef.current) return;
+    consumedDraftSeedTokenRef.current = draftSeed.token;
+    if (disabled) return;
+    secondEnterPromptIdRef.current = null;
+    setValue(draftSeed.text);
+    setCursorPosition(draftSeed.text.length);
+    setSlashMenuDismissed(false);
+    setCliAppMenuDismissed(false);
+    resizeTextarea();
+    onDraftSeedConsumed?.();
+  }, [disabled, draftSeed, onDraftSeedConsumed, resizeTextarea]);
+
   const appendTranscription = useCallback((text: string) => {
     const transcript = text.trim();
     if (!transcript) return;
@@ -1630,6 +1664,86 @@ export function ThreadComposer({
       resizeTextarea();
     },
     [isStreaming, onStop, recentSlashCommands, resizeTextarea, skillQuery, value],
+  );
+
+  const insertMenuToken = useCallback(
+    (token: string) => {
+      const caret = Math.min(Math.max(cursorPosition, 0), value.length);
+      const suffix = value.slice(caret);
+      const gap = token.endsWith(" ") || suffix.startsWith(" ") ? "" : " ";
+      const inserted = `${token}${gap}`;
+      const next = `${value.slice(0, caret)}${inserted}${suffix}`;
+      const nextCursor = caret + inserted.length;
+      setValue(next);
+      setCursorPosition(nextCursor);
+      setSlashMenuDismissed(true);
+      setInlineError(null);
+      resizeTextarea();
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(nextCursor, nextCursor);
+      });
+    },
+    [cursorPosition, resizeTextarea, value],
+  );
+
+  const menuPickFolder = getRuntimeHost().pickFolder ?? onPickWorkspaceFolder;
+  const canWorkInProjectFromMenu =
+    !!menuPickFolder
+    && !!onWorkspaceScopeChange
+    && !!(workspaceScope ?? workspaceDefaultScope)
+    && workspaceControls?.can_change_project !== false;
+  const workInProjectFromMenu = useCallback(async () => {
+    const base = workspaceScope ?? workspaceDefaultScope;
+    if (!base || !onWorkspaceScopeChange || !menuPickFolder) return;
+    const folder = await menuPickFolder();
+    if (!folder) return;
+    onWorkspaceScopeChange({
+      ...base,
+      project_path: folder,
+      project_name: projectNameFromPath(folder),
+      restrict_to_workspace: base.access_mode === "restricted",
+    });
+  }, [
+    menuPickFolder,
+    onWorkspaceScopeChange,
+    workspaceDefaultScope,
+    workspaceScope,
+  ]);
+
+  // Plus-menu command group wiring. ``/model`` rides the same channel as the
+  // ModelPresetBadge so the badge stays in sync; the other slash commands go
+  // through the composer's side-channel send path (same as typing the command).
+  const runComposerCommand = useCallback(
+    (command: string) => {
+      if (command.startsWith("/model ")) {
+        const name = command.slice("/model ".length).trim();
+        if (name && onModelPresetChange) {
+          onModelPresetChange(name);
+          return;
+        }
+      }
+      if (isHero) return;
+      void onSend(command, undefined, { sideChannel: true });
+    },
+    [isHero, onModelPresetChange, onSend],
+  );
+
+  const setAccessModeFromMenu = useCallback(
+    (mode: WorkspaceAccessMode) => {
+      const base = workspaceScope ?? workspaceDefaultScope;
+      if (!base || !onWorkspaceScopeChange) return;
+      if (mode === "full" && workspaceControls?.can_use_full_access === false) return;
+      onWorkspaceScopeChange(scopeWithAccessMode(base, mode));
+    },
+    [
+      onWorkspaceScopeChange,
+      workspaceControls,
+      workspaceDefaultScope,
+      workspaceScope,
+    ],
   );
 
   const insertMentionCandidate = useCallback(
@@ -2156,7 +2270,6 @@ export function ThreadComposer({
     [removeChip],
   );
 
-  const attachButtonDisabled = interactionDisabled || full;
   const showVoiceButton = Boolean(onTranscribeAudio);
   const voiceRecordingStatusLabel = t("thread.composer.voice.recordingStatus", {
     time: voiceRecorder.elapsedLabel,
@@ -2234,13 +2347,39 @@ export function ThreadComposer({
           onChoose={chooseMentionCandidate}
         />
       ) : null}
+      {showContextTabs ? (
+        <div
+          data-testid="composer-context-tabs"
+          className={cn(
+            "mx-auto mb-1.5 flex min-w-0 items-center gap-1 px-1",
+            isHero ? "max-w-heroComposer" : "max-w-[49.5rem]",
+          )}
+        >
+          {showProjectPicker ? (
+            <WorkspaceProjectPicker
+              isHero={isHero}
+              variant="tab"
+              disabled={interactionDisabled || workspaceScopeDisabled}
+              scope={workspaceScope}
+              defaultScope={workspaceDefaultScope}
+              controls={workspaceControls}
+              error={workspaceError}
+              onPickFolder={onPickWorkspaceFolder}
+              onChange={onWorkspaceScopeChange}
+            />
+          ) : null}
+          {runtimeHostname ? (
+            <RuntimeEnvChip hostname={runtimeHostname} scope={workspaceScope} />
+          ) : null}
+        </div>
+      ) : null}
       <div
         ref={surfaceRef}
         className={cn(
           "thread-composer-surface group/composer relative mx-auto flex w-full flex-col overflow-visible transition-all duration-200",
           isHero
-            ? "max-w-[58rem] rounded-prominent bg-muted/30 focus-within:bg-muted/50 dark:bg-card dark:focus-within:bg-white/[0.06]"
-            : "max-w-[49.5rem] rounded-panel bg-muted/30 focus-within:bg-muted/50 dark:bg-card dark:focus-within:bg-white/[0.06]",
+            ? "max-w-heroComposer rounded-prominent border border-border/80 bg-card focus-within:border-ring/50"
+            : "max-w-[49.5rem] rounded-prominent border border-border/80 bg-card focus-within:border-ring/50",
           interactionDisabled && "opacity-60",
           sessionDragPreview && "ring-1 ring-primary/25",
           isDragging && "ring-2 ring-primary/40 motion-reduce:ring-0 motion-reduce:border-primary",
@@ -2383,10 +2522,7 @@ export function ThreadComposer({
           className={cn(
             "thread-composer-footer flex flex-nowrap items-center motion-safe:transition-[padding-bottom] motion-safe:[transition-duration:220ms] motion-safe:ease-in-out",
             isHero
-              ? cn(
-                  "gap-x-1.5 px-3 sm:px-4",
-                  showProjectPicker ? "pb-1.5" : "pb-3.5",
-                )
+              ? "gap-x-1.5 px-3 pb-3.5 sm:px-4"
               : "gap-x-2 px-2.5 pb-2 sm:px-3",
           )}
         >
@@ -2404,22 +2540,29 @@ export function ThreadComposer({
               hidden
               onChange={onFilePick}
             />
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              disabled={attachButtonDisabled}
-              aria-label={t("thread.composer.attachImage")}
-              onClick={() => fileInputRef.current?.click()}
-              className={cn(
-                "thread-composer-action touch-target rounded-full text-muted-foreground hover:text-foreground",
-                isHero
-                  ? "h-8 w-8 border border-border/55 bg-card shadow-[0_2px_8px_rgba(15,23,42,0.05)] hover:bg-card"
-                  : "h-9 w-9 border border-border/55 bg-card shadow-[0_2px_8px_rgba(15,23,42,0.05)] hover:bg-card",
-              )}
-            >
-              <Plus className={cn(isHero ? "h-[18px] w-[18px]" : "h-4 w-4")} />
-            </Button>
+            <ComposerPlusMenu
+              isHero={isHero}
+              disabled={interactionDisabled}
+              filesDisabled={full}
+              skills={skills}
+              plugins={cliApps}
+              mcpPresets={mcpPresets}
+              agents={agents}
+              canWorkInProject={canWorkInProjectFromMenu}
+              hasSession={!isHero}
+              onRunCommand={runComposerCommand}
+              accessMode={(workspaceScope ?? workspaceDefaultScope)?.access_mode ?? null}
+              canUseFullAccess={workspaceControls?.can_use_full_access !== false}
+              onSetAccessMode={setAccessModeFromMenu}
+              modelPresets={modelPresets}
+              currentModelPreset={modelPreset}
+              goalActive={goalState?.active === true}
+              onPickFiles={() => fileInputRef.current?.click()}
+              onWorkInProject={() => {
+                void workInProjectFromMenu();
+              }}
+              onInsertToken={insertMenuToken}
+            />
             {voiceRecorder.isRecording ? (
               <VoiceRecordingMeter
                 ariaLabel={voiceRecordingStatusLabel}
@@ -2455,6 +2598,9 @@ export function ThreadComposer({
                 onRequestComposerFocus={() => textareaRef.current?.focus()}
                 provider={modelProvider}
                 providerLabel={modelProviderLabel}
+                reasoningEffort={modelReasoningEffort}
+                reasoningEffortValues={modelReasoningEffortValues}
+                onReasoningEffortChange={onReasoningEffortChange}
                 needsSetup={modelNeedsSetup}
                 attentionRequest={modelSetupAttentionRequest}
                 fallbackModelName={fallbackModelName}
@@ -2548,29 +2694,6 @@ export function ThreadComposer({
             </Button>
           </div>
         </div>
-        {projectPickerAvailable ? (
-          <div
-            className="composer-workspace-drawer"
-            data-composer-workspace-drawer=""
-            data-state={showProjectPicker ? "open" : "closed"}
-            aria-hidden={showProjectPicker ? undefined : true}
-          >
-            <div className="composer-workspace-drawer-clip">
-              <div className="composer-workspace-drawer-content">
-                <WorkspaceProjectPicker
-                  isHero={isHero}
-                  disabled={interactionDisabled || workspaceScopeDisabled || !showProjectPicker}
-                  scope={workspaceScope}
-                  defaultScope={workspaceDefaultScope}
-                  controls={workspaceControls}
-                  error={workspaceError}
-                  onPickFolder={onPickWorkspaceFolder}
-                  onChange={onWorkspaceScopeChange}
-                />
-              </div>
-            </div>
-          </div>
-        ) : null}
       </div>
     </form>
   );
@@ -2876,7 +2999,7 @@ function CliAppMentionPalette({
         floatingSurfaceVisualClassName,
         "absolute left-1/2 z-30 w-[calc(100%-0.5rem)] -translate-x-1/2 overflow-hidden",
         layout.placement === "above" ? "bottom-full mb-2" : "top-full mt-2",
-        isHero ? "max-w-[58rem]" : "max-w-[49.5rem]",
+        isHero ? "max-w-heroComposer" : "max-w-[49.5rem]",
       )}
     >
       <div ref={listRef} className="overflow-y-auto" style={{ maxHeight: listMaxHeight }}>
@@ -3029,7 +3152,7 @@ function SlashCommandPalette({
         floatingSurfaceVisualClassName,
         "absolute left-1/2 z-30 w-[calc(100%-0.5rem)] -translate-x-1/2 overflow-hidden",
         layout.placement === "above" ? "bottom-full mb-2" : "top-full mt-2",
-        isHero ? "max-w-[58rem]" : "max-w-[49.5rem]",
+        isHero ? "max-w-heroComposer" : "max-w-[49.5rem]",
       )}
     >
       <div ref={listRef} className="overflow-y-auto pr-0.5" style={{ maxHeight: listMaxHeight }}>

@@ -7,13 +7,14 @@ import {
   useRef,
   useState,
 } from "react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactElement } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactElement } from "react";
 import {
   Archive,
   ArchiveRestore,
   AlertTriangle,
   ChevronDown,
   Folder,
+  FolderOpen,
   FolderTree,
   ListChecks,
   MessageCircleDashed,
@@ -38,11 +39,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { AddProjectDialog } from "@/components/AddProjectDialog";
 import {
   Tooltip,
   TooltipContent,
@@ -54,17 +57,18 @@ import { SIDEBAR_SELECTION_ITEM_CLASS } from "@/components/SidebarSelectionHighl
 import { relativeTime, visibleSessionPreview } from "@/lib/format";
 import {
   COLLAPSED_CHATS_VISIBLE_COUNT,
+  COLLAPSED_PROJECT_VISIBLE_COUNT,
   displayTitle,
   groupSessions,
   isCollapsedProject,
   isFoldableChatsGroup,
   isFoldedChatsGroup,
+  groupFoldKey,
   limitGroups,
   visibleSessionsForGroup,
   type ChatGroupLabels,
 } from "@/lib/chat-groups";
 import { deriveTemporaryChatTitle } from "@/lib/temporary-chat";
-import { sessionHandleColor } from "@/lib/session-handle";
 import {
   clearDraggedSession,
   hasDraggedSession,
@@ -72,13 +76,15 @@ import {
   writeDraggedSession,
 } from "@/lib/session-drag";
 import { cn } from "@/lib/utils";
-import type { ChatSummary, SidebarDensity, SidebarSortMode } from "@/lib/types";
+import { getRuntimeHost } from "@/lib/runtime";
+import type { ChatSummary, SidebarDensity, SidebarProjectEntry, SidebarSortMode } from "@/lib/types";
 
 const INITIAL_VISIBLE_SESSIONS = 160;
 const VISIBLE_SESSIONS_INCREMENT = 160;
 const ACTION_MENU_CONTENT_CLASS = "w-[11rem] min-w-[11rem] whitespace-nowrap";
 const COLLAPSED_PANE_GROUPS_STORAGE_KEY = "nanobot-webui.collapsed-pane-groups.v1";
 const DETACH_PANE_DROP_TARGET = "__sidebar-standalone__";
+export const PROJECTS_SECTION_KEY = "projects:section";
 
 interface SidebarActionMenuController {
   openId: string | null;
@@ -100,51 +106,6 @@ function SidebarItemTooltip({
         {label}
       </TooltipContent>
     </Tooltip>
-  );
-}
-
-function SidebarSelectionTrack({
-  active,
-  handle,
-}: {
-  active: boolean;
-  handle: ChatSummary["handle"];
-}) {
-  return (
-    <span
-      data-sidebar-selection-track
-      data-active={active ? "true" : "false"}
-      aria-hidden
-      className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-0 h-0.5 origin-left rounded-full",
-        "transition-transform duration-200 ease-out motion-reduce:transition-none",
-        active ? "scale-x-100" : "scale-x-0",
-      )}
-      style={{
-        backgroundColor: handle ? sessionHandleColor(handle.id) : "currentColor",
-      }}
-    />
-  );
-}
-
-function SidebarSessionHandle({ handle }: { handle: ChatSummary["handle"] }) {
-  if (!handle) return null;
-  return (
-    <span
-      data-sidebar-session-handle
-      className="flex max-w-20 shrink-0 items-center overflow-hidden whitespace-nowrap text-[11px] font-medium leading-5"
-    >
-      <span
-        data-sidebar-session-handle-underline
-        className="inline border-b-2 text-foreground"
-        style={{
-          "--sidebar-session-handle-color": sessionHandleColor(handle.id),
-          borderBottomColor: "var(--sidebar-session-handle-color)",
-        } as CSSProperties}
-      >
-        @{handle.name}
-      </span>
-    </span>
   );
 }
 
@@ -251,6 +212,8 @@ interface ChatListProps {
   onToggleGroup?: (groupId: string) => void;
   onRequestRenameProject?: (projectKey: string, label: string) => void;
   onNewChatInProject?: (projectPath: string, projectName: string) => void;
+  onTogglePinProject?: (projectKey: string) => void;
+  onRemoveProject?: (projectKey: string, label: string) => void;
   pinnedKeys?: string[];
   archivedKeys?: string[];
   pinnedPaneKeys?: string[];
@@ -258,6 +221,9 @@ interface ChatListProps {
   sessionOrder?: string[];
   titleOverrides?: Record<string, string>;
   projectNameOverrides?: Record<string, string>;
+  pinnedProjectKeys?: string[];
+  hiddenProjectKeys?: string[];
+  projectEntries?: SidebarProjectEntry[];
   collapsedGroups?: Record<string, boolean>;
   runningChatIds?: string[];
   updatedChatIds?: string[];
@@ -294,6 +260,8 @@ export const ChatList = memo(function ChatList({
   onToggleGroup,
   onRequestRenameProject,
   onNewChatInProject,
+  onTogglePinProject,
+  onRemoveProject,
   pinnedKeys = [],
   archivedKeys = [],
   pinnedPaneKeys = [],
@@ -301,6 +269,9 @@ export const ChatList = memo(function ChatList({
   sessionOrder = [],
   titleOverrides = {},
   projectNameOverrides = {},
+  pinnedProjectKeys = [],
+  hiddenProjectKeys = [],
+  projectEntries = [],
   collapsedGroups = {},
   runningChatIds = [],
   updatedChatIds = [],
@@ -376,12 +347,17 @@ export const ChatList = memo(function ChatList({
     projects: t("chat.groups.projects"),
     fallbackTitle: t("chat.newChat"),
   }), [t]);
+  const pinnedProjectSet = useMemo(() => new Set(pinnedProjectKeys), [pinnedProjectKeys]);
+  const revealInFolder = useMemo(() => getRuntimeHost().revealInFolder, []);
   const groups = useMemo(
     () => groupSessions(sessions, labels, {
       pinnedKeys,
       archivedKeys,
       titleOverrides,
       projectNameOverrides,
+      pinnedProjectKeys,
+      hiddenProjectKeys,
+      projectEntries,
       sessionOrder,
       showArchived,
       sort,
@@ -396,6 +372,9 @@ export const ChatList = memo(function ChatList({
       sort,
       titleOverrides,
       projectNameOverrides,
+      pinnedProjectKeys,
+      hiddenProjectKeys,
+      projectEntries,
       sessionOrder,
       defaultWorkspacePath,
     ],
@@ -563,7 +542,11 @@ export const ChatList = memo(function ChatList({
   const updated = new Set(updatedChatIds);
   const recovery = new Set(recoveryChatIds);
   const compact = density === "compact";
-  const firstProjectGroupIndex = limitedGroups.findIndex((group) => group.kind === "project");
+  const projectsSectionCollapsed = Boolean(collapsedGroups[PROJECTS_SECTION_KEY]);
+  const projectGroupCount = limitedGroups.reduce(
+    (count, group) => (group.kind === "project" ? count + 1 : count),
+    0,
+  );
   const selectableDeleteKeys = Array.from(new Set(limitedGroups.flatMap((group) => (
     group.sessions.flatMap((session) => {
       const paneGroup = paneGroups[session.key];
@@ -698,7 +681,36 @@ export const ChatList = memo(function ChatList({
             onClose={onCloseTemporaryChat}
           />
         ) : null}
-        {limitedGroups.map((group, index) => {
+        <div className="group/projects flex items-center gap-1 px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
+          <button
+            type="button"
+            aria-expanded={!projectsSectionCollapsed}
+            aria-label={t("chat.groups.toggleProjects", {
+              defaultValue: "Toggle projects",
+            })}
+            title={t("chat.groups.projectsHint", {
+              defaultValue: "Each project is a folder on this computer.",
+            })}
+            onClick={() => toggleProjectGroup(PROJECTS_SECTION_KEY)}
+            className="inline-flex items-center gap-1 rounded-md py-0.5 hover:text-sidebar-foreground"
+          >
+            <span>{labels.projects}</span>
+            <ChevronDown
+              aria-hidden
+              className={cn(
+                "h-3 w-3 transition-transform duration-200 motion-reduce:transition-none",
+                projectsSectionCollapsed && "rotate-90",
+              )}
+            />
+            {projectsSectionCollapsed && projectGroupCount > 0 ? (
+              <span className="text-[11px] text-muted-foreground/55">{projectGroupCount}</span>
+            ) : null}
+          </button>
+          {onNewChatInProject ? (
+            <AddProjectButton onAdd={onNewChatInProject} />
+          ) : null}
+        </div>
+        {limitedGroups.map((group) => {
           const foldableChatsGroup = isFoldableChatsGroup(group);
           const foldedChatsGroup = isFoldedChatsGroup(group, collapsedGroups);
           const visibleSessions = visibleSessionsForGroup(
@@ -706,17 +718,16 @@ export const ChatList = memo(function ChatList({
             activeKey,
             collapsedGroups,
           );
-          const hiddenInGroup = Math.max(0, group.sessions.length - visibleSessions.length);
-          const canToggleFold = group.sessions.length > COLLAPSED_CHATS_VISIBLE_COUNT;
+          const canToggleFold = foldableChatsGroup && group.sessions.length > (
+            group.kind === "project"
+              ? COLLAPSED_PROJECT_VISIBLE_COUNT
+              : COLLAPSED_CHATS_VISIBLE_COUNT
+          );
           const projectCollapsed = group.kind === "project"
             && Boolean(collapsedGroups[group.id]);
+          if (projectsSectionCollapsed && group.kind === "project") return null;
           return (
             <section key={group.id} aria-label={group.label} className="relative z-[1]">
-              {index === firstProjectGroupIndex ? (
-                <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
-                  {labels.projects}
-                </div>
-              ) : null}
               <div>
                 <div
                   ref={(element) => {
@@ -744,6 +755,22 @@ export const ChatList = memo(function ChatList({
                           ? () => onNewChatInProject(group.projectPath ?? "", group.label)
                           : undefined
                       }
+                      pinned={Boolean(group.projectKey && pinnedProjectSet.has(group.projectKey))}
+                      onTogglePin={
+                        group.projectKey && onTogglePinProject
+                          ? () => onTogglePinProject(group.projectKey ?? "")
+                          : undefined
+                      }
+                      onReveal={
+                        group.projectPath && revealInFolder
+                          ? () => { void revealInFolder(group.projectPath ?? ""); }
+                          : undefined
+                      }
+                      onRemove={
+                        group.projectKey && onRemoveProject
+                          ? () => onRemoveProject(group.projectKey ?? "", group.label)
+                          : undefined
+                      }
                       actionMenuPortalContainer={actionMenuPortalContainer}
                       updatedAt={showTimestamps ? group.updatedAt : null}
                     />
@@ -754,10 +781,7 @@ export const ChatList = memo(function ChatList({
                 {projectCollapsed ? null : (
                 <div
                   data-sidebar-project-surface={group.kind === "project" ? "true" : undefined}
-                  className={cn(
-                    group.kind === "project"
-                      && "rounded-es-[16px] border-s-2 border-sidebar-foreground/10 pb-1",
-                  )}
+                  className={cn(group.kind === "project" && "pl-3")}
                 >
                   <ul className="space-y-0.5">
                   {visibleSessions.map((s) => {
@@ -954,6 +978,8 @@ export const ChatList = memo(function ChatList({
                             topicActive
                               ? "text-sidebar-foreground"
                               : "text-sidebar-foreground/82 hover:text-sidebar-foreground",
+                            topicActive && !deleteSelectionMode
+                              && "bg-sidebar-foreground/[0.055] dark:bg-white/[0.07]",
                             deleteSelectionMode && (tabSelected || tabPartiallySelected)
                               && "bg-sidebar-accent/55 text-sidebar-accent-foreground",
                           )}
@@ -992,30 +1018,17 @@ export const ChatList = memo(function ChatList({
                                 />
                               ) : null}
                                 <span className="min-w-0 flex-1 overflow-hidden">
-                                  {projectMode ? (
-                                    <span className="relative flex w-full min-w-0 items-center gap-2">
-                                      <SidebarSessionHandle handle={s.handle} />
-                                      <span className="min-w-0 flex-1 truncate font-medium leading-5">
-                                        {title}
-                                      </span>
-                                      {isPinned ? <PinnedChatIndicator /> : null}
+                                  <span className="flex w-full min-w-0 items-center gap-2">
+                                    <span className="min-w-0 flex-1 truncate leading-5">
+                                      {title}
+                                    </span>
+                                    {isPinned ? <PinnedChatIndicator /> : null}
                                     {timestamp ? (
                                       <span className="shrink-0 text-[11.5px] font-medium text-muted-foreground/58">
                                         {timestamp}
                                       </span>
                                     ) : null}
-                                    <SidebarSelectionTrack active={topicActive} handle={s.handle} />
                                   </span>
-                                ) : (
-                                  <span className="relative flex w-full min-w-0 items-center gap-1.5">
-                                    <SidebarSessionHandle handle={s.handle} />
-                                    <span className="min-w-0 flex-1 truncate font-medium leading-5">
-                                      {title}
-                                    </span>
-                                    {isPinned ? <PinnedChatIndicator /> : null}
-                                    <SidebarSelectionTrack active={topicActive} handle={s.handle} />
-                                  </span>
-                                )}
                                 {showPreview ? (
                                   <span className="block w-full truncate text-[11.5px] leading-4 text-muted-foreground/72">
                                     {preview}
@@ -1111,12 +1124,16 @@ export const ChatList = memo(function ChatList({
                       </li>
                     );
                   })}
+                  {group.kind === "project" && group.sessions.length === 0 ? (
+                    <li className="px-1.5 py-1 text-[12px] text-muted-foreground/55">
+                      {t("chat.groups.emptyProject", { defaultValue: "No chats yet" })}
+                    </li>
+                  ) : null}
                   </ul>
-                  {foldableChatsGroup && canToggleFold ? (
+                  {canToggleFold ? (
                     <ChatsFoldFooter
                       folded={foldedChatsGroup}
-                      hiddenCount={hiddenInGroup}
-                      onToggle={() => onToggleGroup?.(group.id)}
+                      onToggle={() => onToggleGroup?.(groupFoldKey(group))}
                     />
                   ) : null}
                 </div>
@@ -1466,11 +1483,9 @@ function ActivePaneRows({
                   {deleteSelectionMode ? (
                     <SelectionIndicator checked={selected} partial={false} />
                   ) : null}
-                  <span className="relative flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                    <SidebarSessionHandle handle={pane.handle} />
+                  <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                     <span className="min-w-0 flex-1 truncate">{pane.title}</span>
                     {isPinned ? <PinnedChatIndicator /> : null}
-                    <SidebarSelectionTrack active={active} handle={pane.handle} />
                   </span>
               </button>
               <SessionActivityIndicator state={activityState} />
@@ -1683,6 +1698,49 @@ function TemporaryChatSection({
   );
 }
 
+function AddProjectButton({
+  onAdd,
+}: {
+  onAdd: (projectPath: string, projectName: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const label = t("chat.groups.addProject");
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={label}
+        title={label}
+        onClick={() => {
+          setMounted(true);
+          setOpen(true);
+        }}
+        className={cn(
+          "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+          "cursor-pointer text-muted-foreground/70 opacity-75 transition-opacity",
+          "hover:bg-sidebar-accent hover:text-sidebar-foreground",
+          "focus-visible:opacity-100 group-hover/projects:opacity-100 data-[state=open]:opacity-100",
+        )}
+      >
+        <Plus className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      {mounted ? (
+        <AddProjectDialog
+          open={open}
+          onOpenChange={setOpen}
+          onConfirm={(projectPath, projectName) => {
+            onAdd(projectPath, projectName);
+            setOpen(false);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
 function ProjectGroupHeader({
   label,
   path,
@@ -1692,6 +1750,10 @@ function ProjectGroupHeader({
   onToggle,
   onRequestRename,
   onNewChat,
+  pinned = false,
+  onTogglePin,
+  onReveal,
+  onRemove,
   actionMenuPortalContainer,
   updatedAt,
 }: {
@@ -1703,10 +1765,15 @@ function ProjectGroupHeader({
   onToggle: () => void;
   onRequestRename?: () => void;
   onNewChat?: () => void;
+  pinned?: boolean;
+  onTogglePin?: () => void;
+  onReveal?: () => void;
+  onRemove?: () => void;
   actionMenuPortalContainer?: HTMLElement | null;
   updatedAt?: string | null;
 }) {
   const { t } = useTranslation();
+  const hasMenu = onRequestRename || onNewChat || onTogglePin || onReveal || onRemove;
   const projectButton = (
     <button
       type="button"
@@ -1714,18 +1781,20 @@ function ProjectGroupHeader({
       onClick={onToggle}
       className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-sidebar-accent/45 hover:text-sidebar-foreground"
     >
-      <Folder className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <Folder className="h-4 w-4 shrink-0" aria-hidden />
       <span className="min-w-0 flex-1 truncate">{label}</span>
+      {pinned ? (
+        <Pin className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden />
+      ) : null}
     </button>
   );
-  const disclosureLabel = `${t("chat.groups.projects")}: ${label}`;
 
   return (
       <div
         onContextMenu={onRequestRename || onNewChat
           ? (event) => actionMenus.openFromContextMenu(event, actionMenuId)
           : undefined}
-        className="group flex min-w-0 items-center gap-1 px-1 pb-1 pt-1 text-[12px] font-medium text-muted-foreground/78"
+        className="group flex min-w-0 items-center gap-1 px-1.5 pb-0.5 pt-1 text-[12.5px] font-medium text-sidebar-foreground/78"
       >
         {path ? (
           <Tooltip>
@@ -1740,7 +1809,24 @@ function ProjectGroupHeader({
             {relativeTime(updatedAt)}
           </span>
         ) : null}
-        {onRequestRename || onNewChat ? (
+        {onNewChat ? (
+          <button
+            type="button"
+            aria-label={t("chat.groups.newChatInProject", { defaultValue: "New chat in project" })}
+            title={t("chat.groups.newChatInProject", { defaultValue: "New chat in project" })}
+            onClick={(event) => {
+              event.stopPropagation();
+              onNewChat();
+            }}
+            className={cn(
+              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-opacity",
+              "hover:bg-sidebar-accent hover:text-sidebar-foreground group-hover:opacity-100 focus-visible:opacity-100",
+            )}
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        ) : null}
+        {hasMenu ? (
           <DropdownMenu
             modal={false}
             open={actionMenus.openId === actionMenuId}
@@ -1775,33 +1861,37 @@ function ProjectGroupHeader({
                   {t("chat.rename")}
                 </DropdownMenuItem>
               ) : null}
+              {onTogglePin ? (
+                <DropdownMenuItem onSelect={onTogglePin}>
+                  {pinned ? (
+                    <PinOff className="h-4 w-4 shrink-0" aria-hidden />
+                  ) : (
+                    <Pin className="h-4 w-4 shrink-0" aria-hidden />
+                  )}
+                  {pinned ? t("chat.unpin") : t("chat.pin")}
+                </DropdownMenuItem>
+              ) : null}
+              {onReveal ? (
+                <DropdownMenuItem onSelect={onReveal}>
+                  <FolderOpen className="h-4 w-4 shrink-0" aria-hidden />
+                  {t("chat.groups.reveal", { defaultValue: "Reveal in file manager" })}
+                </DropdownMenuItem>
+              ) : null}
+              {onRemove ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={onRemove}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+                    {t("chat.groups.removeProject", { defaultValue: "Remove project" })}
+                  </DropdownMenuItem>
+                </>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
-        <SidebarItemTooltip label={disclosureLabel}>
-          <button
-            type="button"
-            aria-expanded={!collapsed}
-            aria-label={disclosureLabel}
-            onClick={onToggle}
-            className={cn(
-              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-              "text-muted-foreground/70 transition-[background-color,color,transform] duration-150 ease-out",
-              "hover:bg-sidebar-accent hover:text-sidebar-foreground active:scale-[0.96]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-              "motion-reduce:transition-none motion-reduce:active:scale-100",
-            )}
-          >
-            <ChevronDown
-              data-sidebar-project-disclosure-icon
-              aria-hidden
-              className={cn(
-                "h-3.5 w-3.5 transition-transform duration-200 ease-out motion-reduce:transition-none",
-                collapsed && "rotate-90",
-              )}
-            />
-          </button>
-        </SidebarItemTooltip>
       </div>
   );
 }
@@ -1828,32 +1918,22 @@ function PinnedChatIndicator() {
 
 function ChatsFoldFooter({
   folded,
-  hiddenCount,
   onToggle,
 }: {
   folded: boolean;
-  hiddenCount: number;
   onToggle: () => void;
 }) {
-  const { t, i18n } = useTranslation();
-  const collapsedFallback = i18n.resolvedLanguage?.startsWith("zh")
-    ? `已折叠 ${hiddenCount} 个对话`
-    : `${hiddenCount} hidden topics`;
+  const { t } = useTranslation();
 
   return (
-    <div className="px-2 pb-1 pt-1">
+    <div className="px-1 pb-1 pt-0.5">
       <button
         type="button"
         onClick={onToggle}
         className="h-7 w-full rounded-xl text-left text-[12px] font-medium text-muted-foreground/65 transition-colors hover:bg-sidebar-accent/50 hover:text-muted-foreground"
       >
         <span className="px-2">
-          {folded
-            ? t("chat.collapsed", {
-                count: hiddenCount,
-                defaultValue: collapsedFallback,
-              })
-            : t("chat.showLess")}
+          {folded ? t("chat.expandGroup") : t("chat.showLess")}
         </span>
       </button>
     </div>
@@ -1893,7 +1973,7 @@ function SessionActivityIndicator({
           aria-label={label}
           className="grid h-4 w-4 shrink-0 place-items-center"
         >
-          <span className="h-3 w-3 animate-spin rounded-full border border-blue-500/25 border-t-blue-500 [animation-duration:1.4s] motion-reduce:animate-none dark:border-blue-400/25 dark:border-t-blue-400" />
+          <span className="h-3 w-3 animate-spin rounded-full border border-primary/25 border-t-primary [animation-duration:1.4s] motion-reduce:animate-none" />
         </span>
       </SidebarItemTooltip>
     );

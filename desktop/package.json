@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json.schemastore.org/package",
+  "name": "mira-desktop",
+  "productName": "Mira",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mira — desktop shell (Electron) for the Agent-With-Memory WebUI. Page style referenced from Hope Agent.",
+  "author": "Agent-With-Memory",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "node scripts/run.cjs start",
+    "dev": "node scripts/run.cjs dev",
+    "smoke": "node scripts/run.cjs smoke",
+    "dist": "electron-builder --win nsis",
+    "dist:all": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "ai.mira.desktop",
+    "productName": "Mira",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "boot.html",
+      "assets/**"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Mira-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Utility"
+    }
+  }
+}

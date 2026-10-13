@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useClient } from "@/providers/ClientProvider";
 import { normalizeWorkbenchState } from "@/components/workbench/workbench-model";
 import { fetchSidebarState } from "@/lib/api";
-import type { ChatSummary, SidebarStatePayload } from "@/lib/types";
+import type { ChatSummary, SidebarProjectEntry, SidebarStatePayload } from "@/lib/types";
 
 const DEFAULT_SIDEBAR_STATE: SidebarStatePayload = {
   schema_version: 1,
@@ -12,6 +12,9 @@ const DEFAULT_SIDEBAR_STATE: SidebarStatePayload = {
   session_order: [],
   title_overrides: {},
   project_name_overrides: {},
+  pinned_project_keys: [],
+  hidden_project_keys: [],
+  project_entries: [],
   tags_by_key: {},
   collapsed_groups: {},
   workbench: { version: 1, tabs: {} },
@@ -74,6 +77,27 @@ function boolMap(value: unknown): Record<string, boolean> {
   return out;
 }
 
+function projectEntries(value: unknown): SidebarProjectEntry[] {
+  if (!Array.isArray(value)) return [];
+  const out: SidebarProjectEntry[] = [];
+  const seen = new Set<string>();
+  for (const item of value as SidebarProjectEntry[]) {
+    if (!item || typeof item !== "object") continue;
+    const path = typeof item.path === "string" ? item.path.trim() : "";
+    if (!path) continue;
+    const key = typeof item.key === "string" && item.key.trim() ? item.key.trim() : path;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      key,
+      path,
+      name: typeof item.name === "string" ? item.name.trim() : "",
+      added_at: typeof item.added_at === "string" ? item.added_at.trim() : "",
+    });
+  }
+  return out;
+}
+
 function normalizeSidebarState(raw: unknown): SidebarStatePayload {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { ...DEFAULT_SIDEBAR_STATE, view: { ...DEFAULT_SIDEBAR_STATE.view } };
@@ -93,6 +117,9 @@ function normalizeSidebarState(raw: unknown): SidebarStatePayload {
     session_order: uniqueStrings(value.session_order),
     title_overrides: stringMap(value.title_overrides),
     project_name_overrides: stringMap(value.project_name_overrides),
+    pinned_project_keys: uniqueStrings(value.pinned_project_keys),
+    hidden_project_keys: uniqueStrings(value.hidden_project_keys),
+    project_entries: projectEntries(value.project_entries),
     tags_by_key: tagsMap(value.tags_by_key),
     collapsed_groups: boolMap(value.collapsed_groups),
     workbench: normalizeWorkbenchState(value.workbench),

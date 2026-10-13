@@ -422,6 +422,33 @@ describe("PaneWorkbench", () => {
       .toHaveAttribute("title", "Maximum 4 panes");
   });
 
+  it("insets the shared composer host while the session rail is open", () => {
+    const view = (composerRailInset?: string) => (
+      <PaneWorkbench
+        panes={[{ key: "alpha", title: "Alpha" }]}
+        activePaneKey="alpha"
+        layout="columns"
+        showLayoutControl={false}
+        composerRailInset={composerRailInset}
+        onActivatePane={vi.fn()}
+        onAddPane={vi.fn()}
+        onLayoutChange={vi.fn()}
+        onPaneOrderChange={vi.fn()}
+        renderPane={() => null}
+      />
+    );
+
+    const { rerender } = render(view());
+    const host = screen.getByTestId("workbench-composer-host");
+    expect(host.style.marginRight).toBe("");
+
+    rerender(view("19rem"));
+    expect(host.style.marginRight).toBe("19rem");
+
+    rerender(view());
+    expect(host.style.marginRight).toBe("");
+  });
+
   it("fills the workbench through alternating binary splits", () => {
     render(<BspWorkbenchHarness />);
 

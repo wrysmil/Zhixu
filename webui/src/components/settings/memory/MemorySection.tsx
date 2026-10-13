@@ -71,7 +71,7 @@ export function MemorySection({
           <span className="text-xs text-muted-foreground">
             {tx(
               "settings.memory.masterToggleDescription",
-              "When on, nanobot extracts facts from chats and retrieves relevant memories on the next turn. Hot-takes-effect — no restart needed.",
+              "When on, Mira extracts facts from chats and retrieves relevant memories on the next turn. Hot-takes-effect — no restart needed.",
             )}
           </span>
           {error ? (

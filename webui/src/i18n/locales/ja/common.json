@@ -1,12 +1,124 @@
 {
+  "creative": {
+    "headline": "今日は何を書きますか？",
+    "hero_description": "コード、実践、新しい気づき。どれも記事の出発点になります。",
+    "topic_label": "記事のテーマ",
+    "input_hint": "自分の資料とアイデアから始めましょう",
+    "template_heading": "使い慣れた形式から始める",
+    "template_hint": "テンプレートは出発点です",
+    "library_heading": "自分の記事",
+    "new_article": "新しい記事を書く",
+    "sample_label": "サンプル",
+    "material_count": "資料 {{count}} 件",
+    "continue_writing": "執筆を続ける",
+    "filter_all": "すべて",
+    "status": {
+      "idea": "構想中",
+      "draft": "執筆中",
+      "review": "校正待ち",
+      "done": "完成"
+    },
+    "material": {
+      "type": {
+        "note": "視点",
+        "text": "テキスト",
+        "code": "コード",
+        "link": "リンク"
+      },
+      "empty": "素材はまだありません",
+      "add": "素材を追加",
+      "addConfirm": "追加",
+      "save": "変更を保存",
+      "cancel": "キャンセル",
+      "edit": "素材を編集",
+      "remove": "素材を削除",
+      "included": "今回の協作で使う",
+      "field": {
+        "title": "タイトル",
+        "content": "内容",
+        "contentPlaceholder": "内容",
+        "codePlaceholder": "コードを貼り付け（インデントと改行は保持されます）",
+        "url": "リンク URL",
+        "excerpt": "抜き書き（任意）",
+        "source": "出典（任意）",
+        "note": "メモ（任意）",
+        "language": "言語（任意）"
+      },
+      "error": {
+        "title": "素材のタイトルを入力してください",
+        "content": "素材の内容を入力してください",
+        "linkUrl": "リンクは http:// または https:// で始める必要があります"
+      },
+      "confirm": {
+        "title": "この素材を削除しますか？",
+        "description": "この素材のみ削除され、本文や保存済みの内容は変更されません。",
+        "cancel": "キャンセル",
+        "confirm": "削除"
+      }
+    },
+    "outline": {
+      "empty": "アウトラインはまだありません",
+      "add": "見出しを追加",
+      "addConfirm": "追加",
+      "newPlaceholder": "新しい見出し",
+      "save": "確定",
+      "cancel": "キャンセル",
+      "remove": "見出しを削除",
+      "moveUp": "上へ",
+      "moveDown": "下へ",
+      "field": {
+        "text": "アウトラインの項目"
+      }
+    },
+    "conflict": {
+      "title": "別の場所でこの記事が更新されました",
+      "description": "サーバー上のバージョンは {{revision}} です。保存されていない下書きは保持され、自動保存は停止しています。",
+      "deleted": "この記事はサーバー上に存在しません。下書きを新しい記事として保存できます。",
+      "remote": "サーバーの最新版",
+      "remoteLoading": "サーバーの最新版を読み込み中…",
+      "remoteUnavailable": "サーバーの最新版を読み込めませんでした。",
+      "local": "保存されていない下書き",
+      "reload": "最新版を読み込んで手動で結合",
+      "saveCopy": "コピーとして保存",
+      "savingCopy": "コピーを保存中…",
+      "discard": "ローカルの変更を破棄して再読み込み",
+      "discardWarning": "ローカルの下書きは削除され、復元できません。サーバー版を再読み込みしますか？",
+      "discardBack": "編集を続ける",
+      "discardConfirm": "破棄を確定",
+      "cancel": "あとで対応",
+      "reopen": "競合を処理"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "技術解説",
+        "desc": "複雑な概念をやさしく説明する",
+        "outline": ["問題はどこから来るか", "核心の概念と原理", "例で説明する", "適用範囲と制約", "自分の理解"]
+      },
+      "source-reading": {
+        "name": "ソース読解",
+        "desc": "呼び出しチェーンを辿って設計を読み解く",
+        "outline": ["今回読み解きたいこと", "エントリーポイントと呼び出しチェーン", "主要な実装", "設計のトレードオフ", "自分の理解"]
+      },
+      "practice-retro": {
+        "name": "実践の振り返り",
+        "desc": "過程も取舍も記録する",
+        "outline": ["背景と目標", "どう進めたか", "問題と調査", "結果と不足", "次はどう変えるか"]
+      },
+      "learning-summary": {
+        "name": "学習まとめ",
+        "desc": "新しい知識を自分の理解に変える",
+        "outline": ["どんな問いで学んだか", "主要な知識", "手を動かして検証", "理解はどう変わったか", "まだ残る問い"]
+      }
+    }
+  },
   "app": {
-    "brand": "nanobot",
+    "brand": "Mira",
     "loading": {
-      "connecting": "nanobot に接続中…",
-      "boot": "nanobot を読み込み中…"
+      "connecting": "Mira に接続中…",
+      "boot": "Mira を読み込み中…"
     },
     "error": {
-      "title": "nanobot に接続できませんでした",
+      "title": "Mira に接続できませんでした",
       "gatewayHint": "gateway（`nanobot gateway`）が起動しており、このページが同じマシン上で開かれていることを確認してください。"
     },
     "auth": {
@@ -24,8 +136,8 @@
     },
     "system": {
       "section": "システム",
-      "restartHint": "実行時の変更を適用するには nanobot を再起動します。",
-      "restart": "nanobot を再起動",
+      "restartHint": "実行時の変更を適用するには Mira を再起動します。",
+      "restart": "Mira を再起動",
       "restarting": "再起動中...",
       "restartEngine": "エンジンを再起動",
       "restartingEngine": "エンジンを再起動中..."
@@ -34,11 +146,11 @@
       "completed": "{{seconds}} 秒で再起動が完了しました。"
     },
     "documentTitle": {
-      "base": "nanobot",
-      "chat": "{{title}} · nanobot"
+      "base": "Mira",
+      "chat": "{{title}} · Mira"
     },
     "meta": {
-      "description": "nanobot Web UI — nanobot ワークスペースと会話します。"
+      "description": "Mira Web UI — Mira ワークスペースと会話します。"
     },
     "pairing": {
       "title": "チャットユーザーをペアリング",
@@ -62,7 +174,8 @@
   "sidebar": {
     "navigation": "サイドバーのナビゲーション",
     "collapse": "サイドバーを閉じる",
-    "newChat": "新しいトピック",
+    "home": "ホーム",
+    "newChat": "新しいチャット",
     "searchAria": "検索",
     "searchPlaceholder": "検索",
     "searchResults": "検索結果",
@@ -134,7 +247,7 @@
       "language": "言語",
       "provider": "プロバイダー",
       "model": "モデル",
-      "restart": "nanobot を再起動",
+      "restart": "Mira を再起動",
       "configPath": "設定パス",
       "activePreset": "アクティブなプリセット",
       "gateway": "ゲートウェイ",
@@ -176,7 +289,8 @@
       "transcriptionProviderStatus": "プロバイダー状態",
       "transcriptionModel": "モデル",
       "transcriptionLanguage": "言語",
-      "voiceLimits": "制限"
+      "voiceLimits": "制限",
+      "workspacePathHint": "プロジェクトを指定しないチャットがこのディレクトリを使います。プロジェクトフォルダはサイドバーの「プロジェクト」で管理します。"
     },
     "help": {
       "theme": "ライト表示とダーク表示を切り替えます。",
@@ -209,7 +323,7 @@
       "selectedModelValue": "選択したモデルによって設定されます。",
       "brandLogos": "設定で第三者プロバイダーと CLI のロゴを表示します。",
       "browserNotifications": "このページがバックグラウンドにある場合のみ通知します。既定ではオフです。",
-      "cliAppsCatalog": "nanobot がローカルで実行できるアプリ CLI アダプターだけをインストールします。ネイティブアプリは変更しません。",
+      "cliAppsCatalog": "Mira がローカルで実行できるアプリ CLI アダプターだけをインストールします。ネイティブアプリは変更しません。",
       "cliAppsFilter": "アプリ、カテゴリ、機能で検索します。",
       "logs": "ネイティブエンジンのログフォルダーを開きます。",
       "diagnostics": "サポート用の小さなランタイムレポートを書き出します。",
@@ -251,18 +365,19 @@
       "restartingEngine": "再起動中",
       "checking": "確認中",
       "running": "実行中",
-      "needsSetup": "設定が必要"
+      "needsSetup": "設定が必要",
+      "workspaceSettings": "ワークスペース設定"
     },
     "status": {
       "loading": "設定を読み込んでいます...",
       "loadError": "設定を読み込めませんでした",
       "unsaved": "未保存の変更があります。",
       "upToDate": "最新です。",
-      "savedRestart": "保存しました。反映するには nanobot を再起動してください。",
+      "savedRestart": "保存しました。反映するには Mira を再起動してください。",
       "restartAfterSaving": "変更を保存してから、準備ができたら再起動してください。",
       "savedRestartApply": "保存しました。準備ができたら再起動してください。",
       "imageProviderRestart": "画像プロバイダーの変更を保存しました。準備ができたら再起動してください。",
-      "hostRestartAfterSaving": "保存すると nanobot がエンジンを再起動します。",
+      "hostRestartAfterSaving": "保存すると Mira がエンジンを再起動します。",
       "hostRestartPending": "保存しました。準備ができたらエンジンを再起動します。",
       "hostApiUnavailable": "ホスト操作はネイティブアプリ内でのみ利用できます。",
       "logsOpened": "ログフォルダーを開きました。",
@@ -286,7 +401,7 @@
       "exporting": "書き出しています..."
     },
     "byok": {
-      "description": "自分のプロバイダーキーを使います。Nanobot は現在の設定から値を読み込み、設定済みのプロバイダーだけをモデルプリセットで使用できます。",
+      "description": "自分のプロバイダーキーを使います。Mira は現在の設定から値を読み込み、設定済みのプロバイダーだけをモデルプリセットで使用できます。",
       "configured": "設定済み",
       "notConfigured": "未設定",
       "configuredSection": "設定済み",
@@ -335,7 +450,7 @@
       "webSearch": "Web 検索",
       "imageGeneration": "画像生成",
       "voiceInput": "音声入力",
-      "workspace": "ワークスペース"
+      "workspace": "デフォルトのワークスペース"
     },
     "usage": {
       "title": "トークンアクティビティ",
@@ -534,7 +649,7 @@
       "saveCustom": "MCP を保存",
       "configImport": "mcp.json をインポート",
       "importConfig": "インポート",
-      "restartRequired": "更新された MCP ツールに接続するには nanobot を再起動してください。",
+      "restartRequired": "更新された MCP ツールに接続するには Mira を再起動してください。",
       "toolsFound": "{{count}} 個のツール",
       "loading": "MCP プリセットを読み込み中...",
       "empty": "この条件に一致する MCP プリセットはありません。",
@@ -562,14 +677,14 @@
       "preparingSignIn": "安全なサインインを準備しています…",
       "openSignInToContinue": "サインインページを開いて続行してください。",
       "finishSignInInBrowser": "ブラウザウィンドウでサインインを完了してください。",
-      "manualCallbackRequired": "サインインを完了し、コールバック URL を nanobot に貼り付けてください。",
+      "manualCallbackRequired": "サインインを完了し、コールバック URL を Mira に貼り付けてください。",
       "manualCallbackHelp": "アクセスを承認すると localhost ページは開きません。アドレスバーから完全な URL をコピーして、ここに貼り付けてください。",
       "finishingConnection": "接続を完了しています…",
       "activatingTools": "ツールを有効にしています…",
       "connected": "接続しました。",
       "connectionFailed": "接続に失敗しました。",
       "connectionCancelled": "接続をキャンセルしました。",
-      "reloadFailed": "サインインしましたが、nanobot はツールに接続できませんでした。nanobot を再起動してください。",
+      "reloadFailed": "サインインしましたが、Mira はツールに接続できませんでした。Mira を再起動してください。",
       "oauthFailed": "接続できません。もう一度サインインしてください。",
       "statusMissingDependency": "依存関係が必要",
       "statusComingSoon": "近日公開",
@@ -642,15 +757,15 @@
     },
     "observability": {
       "title": "可観測性",
-      "configured": "nanobot がトレース認証情報を利用できます。",
-      "environment": "LANGFUSE_SECRET_KEY と LANGFUSE_PUBLIC_KEY を設定して nanobot を再起動してください。",
+      "configured": "Mira がトレース認証情報を利用できます。",
+      "environment": "LANGFUSE_SECRET_KEY と LANGFUSE_PUBLIC_KEY を設定して Mira を再起動してください。",
       "enable": "トレースサポートを有効化"
     },
     "legal": {
       "thirdPartyBrands": "製品名、ロゴ、ブランドはそれぞれの所有者に帰属します。使用は識別のみを目的とし、承認を意味するものではありません。"
     },
     "apps": {
-      "description": "nanobot にツールを追加し、チャットで @ を付けて使用できます。",
+      "description": "Mira にツールを追加し、チャットで @ を付けて使用できます。",
       "cliLabel": "アプリ",
       "mcpLabel": "MCP",
       "channelLabel": "チャンネル",
@@ -673,21 +788,21 @@
       "browseApps": "アプリを見る",
       "browseIntegrations": "MCP ツールを見る",
       "emptyIntegrationsHint": "下からカスタム MCP サーバーを追加できます。",
-      "restartRequired": "更新したアプリと MCP ツールを反映するには nanobot を再起動してください。"
+      "restartRequired": "更新したアプリと MCP ツールを反映するには Mira を再起動してください。"
     },
     "channels": {
-      "description": "nanobot をチャットアプリに接続します。サポートのインストールは統合パッケージを追加するだけで、多くのチャンネルでは引き続きトークンやワークスペース設定が必要です。",
+      "description": "Mira をチャットアプリに接続します。サポートのインストールは統合パッケージを追加するだけで、多くのチャンネルでは引き続きトークンやワークスペース設定が必要です。",
       "caption": "{{enabled}} 件有効 · 全 {{total}} チャンネル",
       "searchPlaceholder": "チャンネルを検索",
       "backToChannels": "すべてのチャンネル",
       "catalog": "チャンネル",
       "loading": "チャンネルを読み込み中...",
       "empty": "一致するチャンネルはありません。",
-      "restartRequired": "更新したチャンネルサポートを反映するには nanobot を再起動してください。",
+      "restartRequired": "更新したチャンネルサポートを反映するには Mira を再起動してください。",
       "requires": "必要: {{requirements}}",
       "setUp": "設定",
       "setupGuide": "設定ガイド",
-      "setupSummary": "有効化は nanobot 側のサポートをオンにするだけです。プラットフォームの認証情報を追加してから nanobot を再起動してください。",
+      "setupSummary": "有効化は Mira 側のサポートをオンにするだけです。プラットフォームの認証情報を追加してから Mira を再起動してください。",
       "configKeys": "設定キー",
       "enable": "チャンネルを有効化",
       "disable": "チャンネルを無効化",
@@ -750,7 +865,7 @@
       "missingDependency": "サポート不足",
       "installSupport": "サポートをインストール",
       "installConfirmTitle": "{{name}} のサポートをインストールしますか？",
-      "installConfirmDescription": "nanobot が {{name}} に必要なものを追加し、その後有効化します。続けますか？",
+      "installConfirmDescription": "Mira が {{name}} に必要なものを追加し、その後有効化します。続けますか？",
       "installConfirmAction": "インストールして有効化",
       "websocketRequired": "WebUI に必須",
       "channelDisabled": "チャンネルは無効",
@@ -894,7 +1009,7 @@
       "signedInAs": "{{account}} としてサインイン済み",
       "signInHelp": "このデバイスからサインインします。API キーは設定に保存されません。",
       "remoteSignInHelp": "「サインイン」を選択して自分のコンピューターで xAI を開き、サインイン後に表示される認証コードを貼り付けてください。",
-      "codexRemoteSignInHelp": "このブラウザーでサインインし、localhost の完全なコールバック URL を nanobot に貼り付けてください。",
+      "codexRemoteSignInHelp": "このブラウザーでサインインし、localhost の完全なコールバック URL を Mira に貼り付けてください。",
       "signInRequired": "サインインが必要です",
       "signInBeforeSaving": "プリセットを保存する前に、このプロバイダーへサインインしてください。",
       "signedIn": "サインイン済み",
@@ -902,9 +1017,9 @@
       "proxyLabel": "ネットワークプロキシ",
       "proxySaveBeforeSignIn": "サインイン前にプロキシの変更を保存してください。",
       "saveProxy": "プロキシを保存",
-      "localCodeHelp": "ブラウザーでサインインを完了してください。通常は nanobot が自動で完了します。完了しない場合は、認証コードを下に貼り付けてください。",
+      "localCodeHelp": "ブラウザーでサインインを完了してください。通常は Mira が自動で完了します。完了しない場合は、認証コードを下に貼り付けてください。",
       "remoteCodeHelp": "「サインイン」を選択して自分のコンピューターで xAI を開いてください。サインイン後、xAI に表示された認証コードを下に貼り付けてください。",
-      "localCallbackHelp": "ブラウザーでサインインを完了してください。通常は nanobot が自動で完了します。完了しない場合は、アドレスバーから localhost の完全なコールバック URL をコピーして下に貼り付けてください。",
+      "localCallbackHelp": "ブラウザーでサインインを完了してください。通常は Mira が自動で完了します。完了しない場合は、アドレスバーから localhost の完全なコールバック URL をコピーして下に貼り付けてください。",
       "remoteCallbackHelp": "このブラウザーで ChatGPT を開いてサインインを完了してください。localhost ページを開けない場合は、アドレスバーの完全な URL をコピーして下に貼り付けてください。",
       "authorizationCode": "認証コード",
       "callbackUrl": "完全なコールバック URL",
@@ -947,7 +1062,7 @@
       "deleteConfirmAction": "スキルを削除",
       "instructionsTitle": "スキルの説明",
       "setupRequired": "セットアップが必要",
-      "setupDescription": "nanobot を実行しているマシンに不足している依存関係をインストールしてから、再確認してください。",
+      "setupDescription": "Mira を実行しているマシンに不足している依存関係をインストールしてから、再確認してください。",
       "copySetupCommand": "セットアップコマンドをコピー",
       "checkAgain": "再確認",
       "marketplaceSearchFailed": "スキルマーケットを検索できませんでした。",
@@ -1344,6 +1459,7 @@
     "showMore": "さらに {{count}} 件表示",
     "collapsed": "{{count}} 件のトピックを折りたたみ中",
     "showLess": "折りたたむ",
+    "expandGroup": "展開",
     "actions": "「{{title}}」のトピック操作",
     "newInProject": "「{{project}}」で新しいトピックを開始",
     "activity": {
@@ -1373,13 +1489,20 @@
     "delete": "削除",
     "newChat": "新しいトピック",
     "groups": {
+      "newChatInProject": "プロジェクト内で新規チャット",
+      "reveal": "ファイルマネージャーで表示",
+      "removeProject": "プロジェクトを削除",
       "pinned": "ピン留め",
       "all": "トピック",
       "projects": "プロジェクト",
+      "addProject": "プロジェクトを追加",
       "today": "今日",
       "yesterday": "昨日",
       "earlier": "以前",
-      "archived": "アーカイブ済み"
+      "archived": "アーカイブ済み",
+      "emptyProject": "まだチャットはありません",
+      "toggleProjects": "プロジェクトを開閉",
+      "projectsHint": "各プロジェクトはこのコンピューターのフォルダです。"
     }
   },
   "deleteConfirm": {
@@ -1416,7 +1539,79 @@
     "closed": "切断済み",
     "error": "接続エラー"
   },
+  "startPanel": {
+    "title": "開始",
+    "files": "ワークスペースファイル",
+    "filesDesc": "セッションのワークスペースのファイルを参照",
+    "terminal": "新規ターミナル",
+    "terminalDesc": "セッションワークスペースでコマンドを実行",
+    "terminalLimit": "ターミナル数の上限に達しました（最大 8）",
+    "terminalInput": "コマンド入力",
+    "terminalInputPlaceholder": "コマンドを入力して Enter を押す",
+    "terminalTabs": "ターミナル",
+    "terminalTab": "ターミナル",
+    "terminalClose": "ターミナルを閉じる",
+    "terminalStarting": "ターミナルを起動しています…",
+    "terminalExit": "終了コード {{code}}",
+    "terminalExpired": "セッションは期限切れです",
+    "terminalGone": "このターミナルは利用できません。新しく開いてください。",
+    "terminalCommandRejected": "コマンドをこのターミナルに送信できませんでした。",
+    "shellUnavailable": "この shell はホストにインストールされていません。",
+    "browser": "ブラウザ",
+    "browserDesc": "Web を閲覧",
+    "openProjectFirst": "プロジェクトを選択すると利用できます",
+    "externalOpen": "外部ブラウザで開く",
+    "embedBlocked": "このサイトは埋め込みを拒否しました。",
+    "filesRetry": "ワークスペースを読み込めませんでした — 再試行",
+    "terminalPlaceholder": "コマンドコンソールがここに表示されます。",
+    "browserPlaceholder": "埋め込みブラウザがここに表示されます。",
+    "expand": "スタートパネルを展開",
+    "collapse": "スタートパネルを折りたたむ",
+    "browserBack": "戻る",
+    "browserForward": "前進",
+    "browserRefresh": "更新",
+    "browserAddress": "アドレス",
+    "browserAddressPlaceholder": "https://example.com",
+    "browserGo": "移動",
+    "browserEmptyHint": "アドレスを入力して閲覧を開始。",
+    "browserFrameTitle": "埋め込みブラウザページ",
+    "browserError_scheme": "http/https のアドレスのみ開けます。",
+    "browserError_private": "プライベートまたはローカルネットワークのアドレスは不可です。",
+    "browserError_malformed": "有効な Web アドレスではないようです。"
+  },
+  "dock": {
+    "tabFile": "ファイル",
+    "tabBrowser": "ブラウザ",
+    "plusAria": "新規タブ",
+    "newTerminal": "新規ターミナル",
+    "shellChoices": "shell を選択",
+    "takeoverRunning": "実行中のターミナル",
+    "takeoverAction": "引き継ぐ",
+    "takeoverHint": "Enter キーで画面を再描画",
+    "closeTab": "タブを閉じる",
+    "platformDefaultShell": "プラットフォーム既定の shell"
+  },
+  "plusMenu": {
+    "groupAdd": "追加",
+    "groupCommands": "コマンド",
+    "compact": "圧縮",
+    "compactDesc": "上の会話を圧縮する",
+    "permission": "権限",
+    "permissionDesc": "権限プリセットを切り替え（サンドボックスモードと承認ポリシー）",
+    "model": "モデル",
+    "modelDesc": "このセッションで使うモデルを選択",
+    "feedback": "フィードバック",
+    "feedbackDesc": "このセッションについてフィードバックを送信",
+    "feedbackPlaceholder": "フィードバックを入力…",
+    "feedbackSend": "送信",
+    "back": "戻る"
+  },
   "thread": {
+    "activity": {
+      "viewDetails": "詳細を見る",
+      "hideDetails": "隠す",
+      "sourceCount": "{{count}} 件のソース"
+    },
     "compaction": {
       "cancelled": "コンテキストの圧縮をキャンセルしました",
       "empty": "圧縮するコンテキストはありません。",
@@ -1461,7 +1656,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "アプリアイコンを作る",
-          "prompt": "nanobot のクリーンな 1:1 アプリアイコンを生成してください。親しみやすいロボット、シンプルなベクター風、柔らかい青と白の配色、文字なし。"
+          "prompt": "Mira のクリーンな 1:1 アプリアイコンを生成してください。親しみやすいロボット、シンプルなベクター風、柔らかい青と白の配色、文字なし。"
         },
         "sticker": {
           "title": "ステッカーを作る",
@@ -1518,6 +1713,29 @@
       }
     },
     "composer": {
+      "menu": {
+        "aria": "追加",
+        "add": "追加",
+        "files": "ファイルとフォルダ",
+        "filesDesc": "このメッセージに画像やファイルを添付",
+        "project": "プロジェクトで作業",
+        "projectDesc": "この会話用のフォルダを選択",
+        "goal": "ゴール",
+        "goalDesc": "この依頼を長期ゴールとして進める",
+        "plan": "プランモード",
+        "planDesc": "作業前に実行計画を作成させる",
+        "draw": "画像生成",
+        "drawDesc": "image-generation スキルで画像を生成",
+        "skills": "スキル",
+        "noSkills": "スキルがインストールされていません",
+        "plugins": "プラグイン",
+        "noPlugins": "プラグインがインストールされていません",
+        "mcp": "MCP",
+        "noMcp": "MCP サーバーが設定されていません",
+        "agents": "エージェント",
+        "noAgents": "利用可能なエージェントがありません",
+        "agentInsert": "エージェント「{{name}}」にこのタスクを実行させて："
+      },
       "placeholderThread": "メッセージを入力…",
       "placeholderHero": "何を考えていますか？",
       "placeholderOpening": "新しいトピックを開いています…",
@@ -1539,6 +1757,28 @@
       "chooseAI": "AI を選択",
       "switchModel": "この会話で使うモデルを切り替える",
       "manageModels": "モデルを管理",
+      "reasoningEffort": "推論強度",
+      "effort": {
+        "default": "デフォルト",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "超高",
+        "max": "最大",
+        "adaptive": "アダプティブ"
+      },
+      "runtime": {
+        "thisComputer": "このコンピューター",
+        "title": "実行環境",
+        "aria": "実行環境",
+        "host": "ホスト名",
+        "gateway": "ゲートウェイ",
+        "sandbox": "サンドボックス",
+        "access": "アクセス権限",
+        "unknown": "不明",
+        "enforced": "強制隔離が有効",
+        "notEnforced": "強制隔離は無効"
+      },
       "context": {
         "tooltip": "コンテキスト {{percent}}%",
         "detailsLabel": "コンテキスト使用量を開く",
@@ -1617,7 +1857,7 @@
             "description": "このチャットで実行中のエージェントのターンをキャンセルします。"
           },
           "restart": {
-            "title": "nanobot を再起動",
+            "title": "Mira を再起動",
             "description": "bot プロセスをその場で再起動します。"
           },
           "status": {
@@ -1697,14 +1937,14 @@
         "label": "アプリ",
         "cliGroup": "CLI アプリ",
         "mcpGroup": "MCP サービス",
-        "sessionGroup": "Nanobot の会話",
+        "sessionGroup": "Mira の会話",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
         "cliDescription": "@{{name}} をローカル CLI アプリとして使用",
         "mcpDescription": "@{{name}} を MCP サーバーとして使用",
         "cliTitle": "CLI アプリ: {{name}}",
         "mcpTitle": "MCP サーバー: {{name}}",
-        "sessionBadge": "Nanobot の会話",
+        "sessionBadge": "Mira の会話",
         "sessionDescription": "@{{name}} を過去のチャットとして参照"
       },
       "workspace": {
@@ -1820,13 +2060,19 @@
     "next": "次の画像",
     "close": "プレビューを閉じる"
   },
+  "askQuestion": {
+    "recommended": "推奨",
+    "otherPlaceholder": "別の回答を入力",
+    "noPreference": "指定なし",
+    "submit": "回答を送信"
+  },
   "filePreview": {
     "aria": "ファイルプレビュー",
     "breadcrumb": "ファイルパス",
     "close": "ファイルプレビューを閉じる",
     "loading": "プレビューを読み込み中...",
     "failed": "このファイルをプレビューできませんでした。",
-    "routeMissing": "ファイルプレビューには最新の gateway が必要です。nanobot gateway を再起動してから再試行してください。",
+    "routeMissing": "ファイルプレビューには最新の gateway が必要です。Mira gateway を再起動してから再試行してください。",
     "resize": "ファイルプレビューの幅を変更",
     "truncated": "ファイルが大きいため、プレビューは途中まで表示されています。"
   },
@@ -1837,6 +2083,30 @@
     "copied": "コピーしました"
   },
   "workbench": {
+    "title": "ワークベンチ",
+    "open": "ワークベンチを開く",
+    "collapse": "ワークベンチをたたむ",
+    "updatedAt": "更新 {{time}}",
+    "overview": "概要",
+    "emptyOverview": "まだ概要がありません",
+    "environment": "環境",
+    "local": "ローカル",
+    "fullAccess": "完全アクセス",
+    "restrictedAccess": "制限あり",
+    "files": "個のファイル",
+    "commitPush": "コミットまたはプッシュ",
+    "commitPushHint": "ワークベンチの読み取り専用APIで利用できます",
+    "integrations": "スキルと MCP",
+    "emptyIntegrations": "このセッションでは MCP/CLI を使っていません",
+    "outputs": "出力",
+    "emptyOutputs": "まだ変更されたファイルはありません",
+    "sources": "参照",
+    "emptySources": "まだウェブの参照はありません",
+    "treeLoading": "読み込み中…",
+    "treeEmpty": "プロジェクトは空です",
+    "treeEmptyFolder": "空のフォルダー",
+    "treeRetry": "このフォルダーを読み込めませんでした。再試行",
+    "treeTruncated": "一部の項目のみ表示しています",
     "aria": "会話ワークベンチ",
     "panes": "ペイン",
     "tabAria": "グループ：{{title}}",
@@ -1902,11 +2172,49 @@
   },
   "workspace": {
     "dialog": {
-      "defaultProject": "既定のワークスペース",
+      "title": "プロジェクトを作成",
+      "sourceFolder": "ソースフォルダー",
+      "addFromThisComputer": "このパソコン上のフォルダーを追加",
+      "add": "追加",
+      "unavailable": "ゲートウェイ上のパソコンで開くか、デスクトップアプリをご利用ください",
+      "pickFailed": "フォルダーピッカーを開けませんでした",
+      "pickerBusy": "選択ウィンドウが既に開いています",
+      "changeFolder": "フォルダを変更",
+      "picking": "選択中…",
+      "projectName": "プロジェクト名",
+      "create": "プロジェクトを作成",
+      "cancel": "キャンセル",
+      "defaultProject": "デフォルトのワークスペース（プロジェクトなし）",
       "manual": "パスを貼り付け",
       "manualPlaceholder": "/Users/name/project",
       "usePath": "パスを使用",
       "absolutePathRequired": "このマシン上の絶対フォルダーパスを入力してください。"
+    },
+    "brand": "知序",
+    "nav": {
+      "assistant": "アシスタント",
+      "creative": "クリエイティブ"
+    },
+    "preview": {
+      "badge": "インターフェースプレビュー · サンプルコンテンツ"
+    },
+    "home": {
+      "eyebrow": "ワークベンチ",
+      "title": "今日は何を終わらせたいですか？",
+      "subtitle": "フリーフォームのタスクから始めるか、下の機能から選べます。",
+      "taskAria": "フリーフォームタスク",
+      "taskPlaceholder": "タスクを記述してください。例：「今週の記憶をノートにまとめる」。",
+      "previewHint": "インターフェースプレビュー：実際には送信されません。",
+      "submitHint": "アシスタントが開きます。送信前に確認が必要です。",
+      "submit": "開始",
+      "capabilitiesTitle": "機能",
+      "creativeTitle": "クリエイティブ空間",
+      "creativeDesc": "散らばった素材を記事にまとめます。",
+      "assistantTitle": "汎用アシスタント",
+      "assistantDesc": "既存のスキルとエージェントをすべて維持します。"
+    },
+    "creative": {
+      "comingSoon": "クリエイティブモジュールはまもなく公開されます。"
     }
   }
 }

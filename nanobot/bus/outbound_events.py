@@ -82,6 +82,13 @@ class GoalStateSyncEvent(AgentEvent):
 
 
 @dataclass(frozen=True)
+class QuestionRequestedEvent(AgentEvent):
+    """An interactive ask_question request awaiting the user's answer."""
+
+    question: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class SessionUpdatedEvent(AgentEvent):
     scope: str | None = None
 

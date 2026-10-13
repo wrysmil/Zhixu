@@ -75,6 +75,7 @@ interface PaneWorkbenchProps {
   onPaneOrderChange: (paneKeys: string[]) => void;
   splitRatios?: number[];
   onSplitRatiosChange?: (splitRatios: number[]) => void;
+  composerRailInset?: string;
   renderPane: (pane: WorkbenchPane, context: PaneRenderContext) => ReactNode;
 }
 
@@ -210,6 +211,7 @@ export function PaneWorkbench({
   onPaneOrderChange,
   splitRatios = EMPTY_SPLIT_RATIOS,
   onSplitRatiosChange = IGNORE_SPLIT_RATIO_CHANGE,
+  composerRailInset,
   renderPane,
 }: PaneWorkbenchProps) {
   const { t } = useTranslation();
@@ -836,6 +838,7 @@ export function PaneWorkbench({
               ref={setComposerPortalTarget}
               data-testid="workbench-composer-host"
               className="mx-auto w-full max-w-[58rem]"
+              style={composerRailInset ? { marginRight: composerRailInset } : undefined}
             />
           </footer>
         ) : null}

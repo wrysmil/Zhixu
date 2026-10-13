@@ -261,6 +261,13 @@ vi.mock("@/lib/nanobot-client", async (importOriginal) => {
     getRunStartedAt = () => null;
     getRunTurnId = () => null;
     getGoalState = () => undefined;
+    // StartDock（Task 9）在首页挂载即探活/订阅终端事件；dock 标签在此测试不会被点开。
+    terminalStart = vi.fn();
+    terminalWrite = vi.fn();
+    terminalResize = vi.fn();
+    terminalKill = vi.fn();
+    terminalList = vi.fn();
+    onTerminalEvent = () => () => {};
     sendMessage = sendMessageSpy;
     newChat = vi.fn();
     newTemporaryChat = newTemporaryChatSpy;
@@ -281,11 +288,13 @@ import {
   deriveWsUrl,
   fetchBootstrap,
 } from "@/lib/bootstrap";
+import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
 import App from "@/App";
 
 describe("App layout", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
+    dockStore.resetForTests();
     mockSessions = [];
     connectSpy.mockClear();
     updateUrlSpy.mockClear();
@@ -309,7 +318,8 @@ describe("App layout", () => {
     runStatusHandlers.clear();
     sessionUpdateHandlers.clear();
     sidebarStateUpdateHandlers.clear();
-    window.history.replaceState(null, "", "/");
+    // Start on the explicit new-topic route unless a case overrides the hash.
+    window.history.replaceState(null, "", "/#/new");
     Reflect.deleteProperty(window, "nanobotHost");
     setNavigatorPlatform("Linux x86_64");
     localStorage.removeItem("nanobot-webui.sidebar");
@@ -457,8 +467,8 @@ describe("App layout", () => {
     expect(main).toBeInTheDocument();
     expect(main).not.toHaveAttribute("style");
     expect(screen.getByTestId("sidebar-brand-row")).toHaveClass("pt-3");
-    expect(screen.getByTestId("sidebar-brand-mark")).not.toHaveClass("mt-5");
-    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toHaveClass("mt-1");
+    expect(screen.getByTestId("sidebar-brand-row")).not.toHaveClass("pt-8");
+    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
 
     const asideClassNames = Array.from(container.querySelectorAll("aside")).map(
       (el) => el.className,
@@ -542,7 +552,7 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    const newTopicButton = within(sidebar).getByRole("button", { name: "New topic" });
+    const newTopicButton = within(sidebar).getByRole("button", { name: "New chat" });
 
     expect(newTopicButton).toHaveAttribute("aria-current", "page");
     expect(newTopicButton).not.toHaveClass("bg-sidebar-accent");
@@ -551,6 +561,70 @@ describe("App layout", () => {
       "data-active-id",
       "new-chat",
     );
+  });
+
+  it("mounts the tabbed start dock and intercepts ⌘P into the home file tab", async () => {
+    render(<App />);
+
+    await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+    expect(await screen.findByTestId("start-dock")).toBeInTheDocument();
+    expect(await screen.findByTestId("dock-launcher")).toBeInTheDocument();
+    expect(screen.getByTestId("dock-card-files")).toBeInTheDocument();
+    expect(screen.getByTestId("dock-card-browser")).toBeInTheDocument();
+    expect(screen.getByTestId("dock-card-terminal")).toBeInTheDocument();
+
+    // Task 9 承接项：恢复旧「intercepts ⌘P」用例的拦截语义（spec B2 focus-or-open）。
+    const event = new window.KeyboardEvent("keydown", {
+      key: "p",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => window.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(true);
+    expect(dockStore.getSnapshot(HOME_DOCK_SCOPE).activeId).toBe("file");
+
+    // 再按 = 聚焦不重复；文件标签天然单例。
+    const again = new window.KeyboardEvent("keydown", {
+      key: "p",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => window.dispatchEvent(again));
+    expect(
+      dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs.filter((tab) => tab.kind === "file"),
+    ).toHaveLength(1);
+  });
+
+  it("routes ⌘P to the active session dock scope instead of letting it pass through", async () => {
+    mockSessions = [{
+      key: "websocket:existing-chat",
+      channel: "websocket",
+      chatId: "existing-chat",
+      createdAt: "2026-08-06T10:00:00Z",
+      updatedAt: "2026-08-06T10:00:00Z",
+      preview: "Existing topic",
+    }];
+    window.history.replaceState(null, "", `#/chat/${encodeURIComponent("websocket:existing-chat")}`);
+    render(<App />);
+
+    await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByTestId("start-dock")).not.toBeInTheDocument(),
+    );
+    // spec B2：快捷键不再「仅首页生效」——会话页同样被拦截，标签开在活动会话的 scope 上。
+    const event = new window.KeyboardEvent("keydown", {
+      key: "p",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => window.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(true);
+    expect(dockStore.getSnapshot("websocket:existing-chat").activeId).toBe("file");
+    // scope 隔离：不误开首页 dock 的标签。
+    expect(dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs).toHaveLength(0);
   });
 
   it("keeps a just-created topic route while the session list catches up", async () => {
@@ -582,7 +656,7 @@ describe("App layout", () => {
     expect(firstToggle).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(firstToggle);
     expect(firstToggle).toHaveAttribute("aria-pressed", "true");
-    expect(window.location.hash).toBe("");
+    expect(window.location.hash).toBe("#/new");
 
     fireEvent.change(screen.getByLabelText("Message input"), {
       target: { value: "first private message" },
@@ -595,7 +669,7 @@ describe("App layout", () => {
     expect(screen.queryByRole("button", { name: "Temporary chat" })).not.toBeInTheDocument();
     expect(createChatSpy).not.toHaveBeenCalled();
 
-    fireEvent.click(within(sidebar).getByRole("button", { name: "New topic" }));
+    fireEvent.click(within(sidebar).getByRole("button", { name: "New chat" }));
     expect(discardTemporaryChatSpy).not.toHaveBeenCalled();
     const secondToggle = screen.getByRole("button", { name: "Temporary chat" });
     expect(secondToggle).toHaveAttribute("aria-pressed", "false");
@@ -627,7 +701,7 @@ describe("App layout", () => {
     expect(within(screen.getByTestId("thread-header")).getByText(
       "first private message",
     )).toBeInTheDocument();
-    await waitFor(() => expect(document.title).toBe("first private message · nanobot"));
+    await waitFor(() => expect(document.title).toBe("first private message · Mira"));
     expect(screen.queryByRole("button", { name: "Temporary chat" })).not.toBeInTheDocument();
 
     fireEvent.click(within(sidebar).getByRole("button", {
@@ -669,15 +743,13 @@ describe("App layout", () => {
     const heroTemporaryToggle = within(heroHeader).getByRole("button", {
       name: "Temporary chat",
     });
-    const themeToggle = within(heroHeader).getByRole("button", {
+    expect(within(heroHeader).queryByRole("button", {
       name: "Toggle theme from header",
-    });
+    })).not.toBeInTheDocument();
     expect(within(sidebar).queryByRole("button", { name: "Temporary chat" })).not.toBeInTheDocument();
     expect(within(screen.getByTestId("thread-composer-motion")).queryByRole("button", {
       name: "Temporary chat",
     })).not.toBeInTheDocument();
-    expect(heroTemporaryToggle.compareDocumentPosition(themeToggle)
-      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const user = userEvent.setup();
     await user.hover(heroTemporaryToggle);
@@ -693,7 +765,7 @@ describe("App layout", () => {
     expect(window.location.hash).toBe("#/chat/websocket%3Aexisting-chat");
     expect(screen.queryByRole("button", { name: "Temporary chat" })).not.toBeInTheDocument();
 
-    fireEvent.click(within(sidebar).getByRole("button", { name: "New topic" }));
+    fireEvent.click(within(sidebar).getByRole("button", { name: "New chat" }));
     const temporaryToggle = screen.getByRole("button", { name: "Temporary chat" });
     expect(temporaryToggle).toHaveClass("h-8", "w-8", "rounded-full");
     expect(within(temporaryToggle).queryByText("Temporary chat")).not.toBeInTheDocument();
@@ -852,11 +924,11 @@ describe("App layout", () => {
     const projectPath = await screen.findByLabelText("Paste path");
     expect(projectPath).toHaveValue("C:\\missing-project");
     expect(projectPath).toHaveAttribute("aria-invalid", "true");
-    expect(projectPath).toHaveFocus();
+    await waitFor(() => expect(projectPath).toHaveFocus());
     expect(screen.getByRole("alert")).toHaveTextContent(
       "The gateway rejected this project or access mode. Choose an existing project or a different access mode, then try again.",
     );
-    expect(window.location.hash).toBe("");
+    expect(window.location.hash).toBe("#/new");
     consoleError.mockRestore();
   });
 
@@ -1010,7 +1082,7 @@ describe("App layout", () => {
       "aria-current",
       "page",
     );
-    expect(document.title).toBe("Skills · nanobot");
+    expect(document.title).toBe("Skills · Mira");
 
     fireEvent.click(screen.getByRole("button", { name: "Back to chat" }));
     expect(await screen.findByText(HERO_GREETING_PATTERN)).toBeInTheDocument();
@@ -1390,7 +1462,7 @@ describe("App layout", () => {
       "aria-current",
       "page",
     );
-    expect(document.title).toBe("Automations · nanobot");
+    expect(document.title).toBe("Automations · Mira");
 
     const searchInput = within(automationsMain as HTMLElement).getByPlaceholderText(
       "Search task, message, linked chat, or schedule",
@@ -1614,7 +1686,7 @@ describe("App layout", () => {
     expect(screen.queryByText("近期无问题")).not.toBeInTheDocument();
     expect(screen.queryByText("Workspace automations")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "刷新" })).not.toBeInTheDocument();
-    expect(document.title).toBe("自动任务 · nanobot");
+    expect(document.title).toBe("自动任务 · Mira");
   });
 
   it("uses the shared sidebar controls and rail on the native host", async () => {
@@ -1640,17 +1712,17 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const flowSidebar = screen.getByTestId("host-sidebar-flow");
-    expect(flowSidebar).toHaveStyle({ width: "272px" });
-    expect(screen.getByTestId("sidebar-brand-row")).toHaveClass("pt-3");
-    expect(screen.getByTestId("sidebar-brand-mark")).toHaveClass("mt-5");
-    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toHaveClass("mt-1");
+    expect(flowSidebar).toHaveStyle({ width: "274px" });
+    expect(screen.getByTestId("sidebar-brand-row")).toHaveClass("pt-8");
+    expect(screen.getByTestId("sidebar-brand-row")).not.toHaveClass("pt-3");
+    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
     expect(screen.queryByTestId("host-sidebar-toggle")).not.toBeInTheDocument();
     expect(
       screen.getByRole("navigation", { name: "Sidebar navigation" }),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
-    await waitFor(() => expect(flowSidebar).toHaveStyle({ width: "56px" }));
+    await waitFor(() => expect(flowSidebar).toHaveStyle({ width: "54px" }));
     expect(
       screen.getByRole("navigation", { name: "Sidebar navigation" }),
     ).toBeInTheDocument();
@@ -1659,7 +1731,7 @@ describe("App layout", () => {
       within(screen.getByRole("navigation", { name: "Sidebar navigation" }))
         .getByRole("button", { name: "Toggle sidebar" }),
     );
-    await waitFor(() => expect(flowSidebar).toHaveStyle({ width: "272px" }));
+    await waitFor(() => expect(flowSidebar).toHaveStyle({ width: "274px" }));
   });
 
   it("aligns native settings navigation below the titlebar without extra top padding", async () => {
@@ -1705,7 +1777,7 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     await waitFor(() => {
-      expect(screen.getByTestId("sidebar-brand-mark")).toHaveClass("mt-5");
+      expect(screen.getByTestId("sidebar-brand-row")).toHaveClass("pt-8");
     });
     expect(document.documentElement).toHaveClass("native-host");
   });
@@ -1994,16 +2066,15 @@ describe("App layout", () => {
     });
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
     await waitFor(() =>
-      expect(within(sidebar).getByText("Pinned")).toBeInTheDocument(),
+      expect(within(sidebar).getByText("Topics")).toBeInTheDocument(),
     );
     expect(within(sidebar).getByRole("button", { name: /^Roadmap$/ })).toBeInTheDocument();
     expect(within(sidebar).queryByRole("button", { name: /^First chat$/ })).not.toBeInTheDocument();
 
     fireEvent.click(within(sidebar).getByRole("button", { name: "Show archived" }));
     await waitFor(() =>
-      expect(within(sidebar).getByText("Archived")).toBeInTheDocument(),
+      expect(within(sidebar).getByRole("button", { name: /^First chat$/ })).toBeInTheDocument(),
     );
-    expect(within(sidebar).getByRole("button", { name: /^First chat$/ })).toBeInTheDocument();
     expect(setSidebarStateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         view: expect.objectContaining({ show_archived: true }),
@@ -2296,7 +2367,7 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    await waitFor(() => expect(document.title).toBe("Active after reload · nanobot"));
+    await waitFor(() => expect(document.title).toBe("Active after reload · Mira"));
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
     expect(
       within(sidebar).getByRole("button", { name: /^Active after reload$/ }),
@@ -2551,14 +2622,14 @@ describe("App layout", () => {
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
     const searchButton = within(sidebar).getByRole("button", { name: "Search" });
     const appsButton = within(sidebar).getByRole("button", { name: "Apps" });
-    expect(searchButton.compareDocumentPosition(appsButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(appsButton.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await user.click(within(sidebar).getByRole("button", { name: "Settings" }));
 
     expect(
       await screen.findByRole("navigation", { name: "Settings sections" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Overview" })).not.toBeInTheDocument();
-    expect(document.title).toBe("Settings · nanobot");
+    expect(document.title).toBe("Settings · Mira");
     expect(screen.getByTestId("overview-logo-openai")).toBeInTheDocument();
     expect(screen.getByTestId("overview-logo-brave")).toBeInTheDocument();
     expect(screen.getByTestId("overview-logo-openrouter")).toBeInTheDocument();
@@ -2629,7 +2700,7 @@ describe("App layout", () => {
     expect(screen.queryByText("Ant Ling")).not.toBeInTheDocument();
     expect(
       screen.queryByText(
-        "Bring your own provider keys. Nanobot reads these values from the current config and only configured providers can be used in model presets.",
+        "Bring your own provider keys. Mira reads these values from the current config and only configured providers can be used in model presets.",
       ),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("azure_openai")).not.toBeInTheDocument();
@@ -2713,7 +2784,7 @@ describe("App layout", () => {
       screen.queryByText("Used for schedules and time-aware replies."),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByText("Restart nanobot to apply runtime changes."),
+      screen.queryByText("Restart Mira to apply runtime changes."),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Bot name")).not.toBeInTheDocument();
     expect(screen.queryByText("Bot icon")).not.toBeInTheDocument();
@@ -2767,12 +2838,12 @@ describe("App layout", () => {
     expect(systemSection).not.toBeNull();
     const system = within(systemSection as HTMLElement);
     const timezoneLabel = system.getByText("Timezone");
-    const restartButton = system.getByRole("button", { name: "Restart nanobot" });
+    const restartButton = system.getByRole("button", { name: "Restart Mira" });
     expect(
       timezoneLabel.compareDocumentPosition(restartButton) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      system.queryByText("Restart nanobot to apply runtime changes."),
+      system.queryByText("Restart Mira to apply runtime changes."),
     ).not.toBeInTheDocument();
   });
 
@@ -2857,7 +2928,7 @@ describe("App layout", () => {
     fireEvent.click(appsButton);
 
     expect(await screen.findByRole("heading", { name: "Apps" })).toBeInTheDocument();
-    expect(screen.queryByText("Add tools to nanobot, then @ them in chat.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add tools to Mira, then @ them in chat.")).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Sidebar navigation" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "Settings sections" })).not.toBeInTheDocument();
     expect(within(sidebar).getByRole("button", { name: "Apps" })).toHaveAttribute(
@@ -2880,7 +2951,7 @@ describe("App layout", () => {
       "duration-200",
       "motion-reduce:animate-none",
     );
-    expect(document.title).toBe("Apps · nanobot");
+    expect(document.title).toBe("Apps · Mira");
 
     fireEvent.click(within(sidebar).getByRole("button", { name: "Skills" }));
 
@@ -2900,7 +2971,7 @@ describe("App layout", () => {
       "data-active-id",
       "utility:skills",
     );
-    expect(document.title).toBe("Skills · nanobot");
+    expect(document.title).toBe("Skills · Mira");
   });
 
   it("returns from settings to the blank start page when no session was active", async () => {
@@ -3034,8 +3105,8 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    fireEvent.click(within(sidebar).getByRole("button", { name: "New topic" }));
-    await waitFor(() => expect(document.title).toBe("nanobot"));
+    fireEvent.click(within(sidebar).getByRole("button", { name: "New chat" }));
+    await waitFor(() => expect(document.title).toBe("Mira"));
 
     fireEvent.click(within(sidebar).getByRole("button", { name: "Settings" }));
     expect(
@@ -3043,7 +3114,7 @@ describe("App layout", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back to chat" }));
 
-    await waitFor(() => expect(document.title).toBe("nanobot"));
+    await waitFor(() => expect(document.title).toBe("Mira"));
     expect(screen.getByText(HERO_GREETING_PATTERN)).toBeInTheDocument();
   });
 
@@ -3074,10 +3145,10 @@ describe("App layout", () => {
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
     expect(within(sidebar).getByText("Q2 roadmap")).toBeInTheDocument();
     expect(within(sidebar).getByText("Travel ideas")).toBeInTheDocument();
-    const newChatButton = within(sidebar).getByRole("button", { name: "New topic" });
+    const newChatButton = within(sidebar).getByRole("button", { name: "New chat" });
     const searchButton = within(sidebar).getByRole("button", { name: "Search" });
     expect(
-      newChatButton.compareDocumentPosition(searchButton) &
+      searchButton.compareDocumentPosition(newChatButton) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
@@ -3521,7 +3592,7 @@ describe("App layout", () => {
       .toBeInTheDocument();
     expect(within(researchGroup).getByRole("button", { name: "Alpha" }))
       .toBeInTheDocument();
-    expect(within(sidebar).getAllByRole("button", { name: "New topic" })).toHaveLength(2);
+    expect(within(sidebar).getAllByRole("button", { name: "New topic" })).toHaveLength(1);
   });
 
   it("keeps a named group and its remaining pane active after deleting a pane", async () => {
@@ -3691,10 +3762,10 @@ describe("App layout", () => {
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
 
-    const newChatButton = within(sidebar).getByRole("button", { name: "New topic" });
+    const newChatButton = within(sidebar).getByRole("button", { name: "New chat" });
     expect(newChatButton).toHaveAttribute(
       "title",
-      "New topic (Ctrl+Shift+O)",
+      "New chat (Ctrl+Shift+O)",
     );
     expect(newChatButton).toHaveAttribute(
       "aria-keyshortcuts",
@@ -3709,9 +3780,9 @@ describe("App layout", () => {
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
 
-    expect(within(sidebar).getByRole("button", { name: "New topic" })).toHaveAttribute(
+    expect(within(sidebar).getByRole("button", { name: "New chat" })).toHaveAttribute(
       "title",
-      "New topic (⌘⇧O)",
+      "New chat (⌘⇧O)",
     );
   });
 
@@ -3775,29 +3846,28 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle theme from header" }));
-    expect(toggleThemeSpy).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Toggle theme from header" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
     const sidebarAside = container.querySelector("aside.lg\\:block") as HTMLElement;
-    await waitFor(() => expect(sidebarAside.style.width).toBe("56px"));
+    await waitFor(() => expect(sidebarAside.style.width).toBe("54px"));
 
     expect(screen.queryByRole("button", { name: "Start a new topic" })).not.toBeInTheDocument();
     const rail = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    expect(within(rail).getByRole("button", { name: "New topic" })).toBeInTheDocument();
-    expect(within(rail).getByRole("button", { name: "Search" })).toBeInTheDocument();
+    expect(within(rail).getByRole("button", { name: "Toggle sidebar" })).toBeInTheDocument();
+    expect(within(rail).getByRole("button", { name: "Skills" })).toBeInTheDocument();
+    expect(within(rail).queryByRole("button", { name: "New chat" })).not.toBeInTheDocument();
     expect(within(rail).queryByRole("button", { name: "View" })).not.toBeInTheDocument();
     expect(within(rail).queryByText("Existing chat")).not.toBeInTheDocument();
 
     fireEvent.click(within(rail).getByRole("button", { name: "Toggle sidebar" }));
-    await waitFor(() => expect(sidebarAside.style.width).toBe("272px"));
+    await waitFor(() => expect(sidebarAside.style.width).toBe("274px"));
 
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    fireEvent.click(within(sidebar).getByRole("button", { name: "New topic" }));
+    fireEvent.click(within(sidebar).getByRole("button", { name: "New chat" }));
     expect(createChatSpy).not.toHaveBeenCalled();
     expect(screen.getByText(HERO_GREETING_PATTERN)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Start a new topic" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Toggle theme from header" })).toBeInTheDocument();
     expect(within(sidebar).getByRole("button", { name: "Settings" })).toBeInTheDocument();
 
     expect(within(sidebar).getByText("Existing chat")).toBeInTheDocument();

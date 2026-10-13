@@ -181,7 +181,7 @@ export function ThreadMessages({
         );
       })}
       {pendingActivity ? (
-        <div className={units.length > 0 ? "mt-5" : undefined}>
+        <div className={units.length > 0 ? "mt-6" : undefined}>
           <AgentActivityCluster
             messages={[]}
             isTurnStreaming
@@ -416,7 +416,7 @@ function unitIndexAfterMessageCount(
 
 function ForkBoundaryDivider({ label }: { label: string }) {
   return (
-    <div className="my-5 flex items-center gap-3 text-[11px] text-muted-foreground/80">
+    <div className="my-6 flex items-center gap-3 text-[11px] text-muted-foreground/80">
       <span aria-hidden className="h-px flex-1 bg-border/70" />
       <span className="shrink-0">{label}</span>
       <span aria-hidden className="h-px flex-1 bg-border/70" />
@@ -494,7 +494,7 @@ function stableTurnMessageKey(message: UIMessage | undefined, fallbackPhase?: st
 
 function marginAfterPrevUnit(prev: DisplayUnit): string {
   if (prev.type === "activity") {
-    return "mt-4";
+    return "mt-5";
   }
   const p = prev.message;
   const denseP =
@@ -505,7 +505,7 @@ function marginAfterPrevUnit(prev: DisplayUnit): string {
       && (!!p.reasoning || !!p.reasoningStreaming)
     );
   if (denseP) {
-    return "mt-2";
+    return "mt-3";
   }
-  return "mt-5";
+  return "mt-6";
 }

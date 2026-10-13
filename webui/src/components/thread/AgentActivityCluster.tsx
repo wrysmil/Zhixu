@@ -27,6 +27,7 @@ import { coalesceActivityMessages } from "@/components/thread/activity/activity-
 import {
   compactActivityPath,
   redactShellCommand,
+  safeActivityDetail,
 } from "@/components/thread/activity/activity-text";
 import { FileEditGroup, type FileEditSummary } from "@/components/thread/activity/FileEditRow";
 import { GenericToolRun } from "@/components/thread/activity/GenericToolRun";
@@ -171,7 +172,7 @@ export function AgentActivityCluster({
   mcpPresets = [],
   onOpenFilePreview,
 }: AgentActivityClusterProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const fileEditDisplayMode = useFileEditDisplayMode();
   const pageVisible = usePageVisibility();
   const activityMessages = useMemo(() => coalesceActivityMessages(messages), [messages]);
@@ -227,7 +228,7 @@ export function AgentActivityCluster({
     turnLatencyMs,
     startedAtMs,
   );
-  const activityDuration = formatActivityDuration(durationMs);
+  const activityDuration = formatActivityDuration(durationMs, i18n.language);
   const retryError = retryStatus?.error_kind === "connection"
     ? t("message.retryConnection", { defaultValue: "Connection failed" })
     : retryStatus?.error_kind === "timeout"
@@ -441,8 +442,14 @@ function activityDurationMs(
   return Math.max(0, last - first);
 }
 
-function formatActivityDuration(ms: number): string {
+function formatActivityDuration(ms: number, language?: string): string {
   const seconds = ms > 0 && ms < 1000 ? 1 : Math.max(0, Math.round(ms / 1000));
+  if (/^zh/i.test(language ?? "")) {
+    if (seconds < 60) return `${seconds}秒`;
+    const minutes = Math.floor(seconds / 60);
+    const rest = seconds % 60;
+    return rest ? `${minutes}分${rest}秒` : `${minutes}分`;
+  }
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
@@ -772,6 +779,10 @@ function ActivityTraceRow({
       active={rowActive && trace.kind !== "done"}
       tone={status === "error" ? "error" : status === "done" ? "success" : "active"}
       label={[trace.label, trace.detail].filter(Boolean).join(" ")}
+      detail={[
+        safeActivityDetail(line, 600),
+        status === "error" && state?.error ? `→ ${safeActivityDetail(state.error, 240)}` : "",
+      ].filter(Boolean).join("\n") || null}
     />
   );
 }
@@ -1106,6 +1117,15 @@ function displayCliArg(arg: string): string {
   return /\s/.test(arg) ? JSON.stringify(arg) : arg;
 }
 
+function mcpArgsText(args: unknown): string {
+  if (typeof args === "string") return args;
+  try {
+    return JSON.stringify(args) ?? "";
+  } catch {
+    return "";
+  }
+}
+
 function formatCliArgs(run: CliRunSummary): string {
   const args = [...(run.json ? ["--json"] : []), ...run.args].map(displayCliArg);
   return args.join(" ");
@@ -1225,6 +1245,11 @@ function CliRunRow({ run, active, app }: { run: CliRunSummary; active: boolean; 
       active={rowActive}
       tone={failed ? "error" : rowActive ? "active" : run.status === "done" ? "success" : "neutral"}
       label={label}
+      detail={[
+        `${displayName}${args ? ` ${args}` : ""}`,
+        run.workingDir ? `cwd: ${safeActivityDetail(run.workingDir, 200)}` : "",
+        failed && run.error ? `→ ${safeActivityDetail(run.error, 240)}` : "",
+      ].filter(Boolean).join("\n")}
       marker={(
         <span
           data-testid={`activity-cli-logo-${run.name.toLowerCase()}`}
@@ -1303,6 +1328,9 @@ function McpRunRow({ run, active, preset }: { run: McpRunSummary; active: boolea
       active={rowActive}
       tone={failed ? "error" : rowActive ? "active" : run.status === "done" ? "success" : "neutral"}
       label={label}
+      detail={`${run.toolName}${run.args ? ` (${safeActivityDetail(mcpArgsText(run.args), 600)})` : ""}${
+        failed && run.error ? `\n→ ${safeActivityDetail(run.error, 240)}` : ""
+      }`}
       marker={(
         <span
           data-testid={`activity-mcp-logo-${run.presetName.toLowerCase()}`}

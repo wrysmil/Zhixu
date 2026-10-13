@@ -1,0 +1,75 @@
+{
+  "tokenMeta": {
+    "len": 48,
+    "api_len": 48,
+    "tokPrefix4": "nbwt",
+    "apiPrefix": "nbwt_0eX",
+    "full": "<redacted>"
+  },
+  "results": {
+    "01.start-dock-render": {
+      "ok": true,
+      "info": "init={\"hasDock\":true,\"hasLauncher\":true,\"cardCount\":3,\"cards\":[\"dock-card-files\",\"dock-card-terminal\",\"dock-card-browser\"],\"plusVisible\":true}"
+    },
+    "02.open-file-tab": {
+      "ok": true,
+      "info": "s2={\"tab\":true,\"ariaSel\":\"true\",\"launcherGone\":true,\"bodyChildren\":3}"
+    },
+    "03.cmdp-cmpt-shortcuts": {
+      "ok": true,
+      "info": "s3={\"tabs\":[\"dock-tab-file\",\"dock-tab-browser\"],\"active\":\"dock-tab-browser\"}"
+    },
+    "04.tab-close": {
+      "ok": true,
+      "info": "s4Before=2 s4After={\"tabsCount\":1,\"hasBrowser\":false,\"hasFile\":true} persisted=\"null\""
+    },
+    "05.terminal-list-on-mount": {
+      "ok": true,
+      "info": "hits=2; sample=OUT {\"type\":\"terminal_list\"} | IN  {\"event\": \"terminal_list_result\", \"type\": \"terminal_list_result\", \"terminals\": []}"
+    },
+    "06.terminal-shell-start": {
+      "ok": true,
+      "info": "s6={\"terminalTabs\":[\"dock-tab-term-e699f616-7045-46c5-a5e4-3b372ff205b6\"],\"launcherGone\":true,\"terminalSurfaces\":1,\"xtermPresent\":true,\"termId\":\"term-e699f616-7045-46c5-a5e4-3b372ff205b6\"}; shellsFetch={\"shells\":0,\"default\":null,\"ids\":[]}; keyframes=OUT {\"type\":\"terminal_start\",\"terminal_id\":\"<TOKEN_REDACTED>\",\"shell\":\"bash\"} | IN  {\"event\": \"terminal_started\", \"type\": \"terminal_started\", \"terminal_id\": \"<TOKEN_REDACTED>\", \"shell\": \"/bin/bash\", \"cwd\": \"/Users/mima0000/.nanobot/workspace\", \"status\": \"ok\", \"pty\": true} | OUT {\"type\":\"terminal_resize\",\"terminal_id\":\"<TOKEN_REDACTED>\",\"cols\":64,\"rows\":20}"
+    },
+    "07.xterm-resize-and-write": {
+      "ok": true,
+      "info": "keyFrames=OUT {\"type\":\"terminal_resize\",\"terminal_id\":\"<TOKEN_REDACTED>\",\"cols\":64,\"rows\":20} | IN  {\"event\": \"terminal_output\", \"type\": \"terminal_output\", \"terminal_id\": \"<TOKEN_REDACTED>\", \"seq\": 1, \"stream\": \"stdout\", \"data\": \"\\r\\nThe default interactive shell is now zsh.\\r\\nTo update your a | IN  {\"event\": \"terminal_output\", \"type\": \"terminal_output\", \"terminal_id\": \"<TOKEN_REDACTED>\", \"seq\": 2, \"stream\": \"stdout\", \"data\": \"\\u001b[?1034hbash-3.2$ \"} | IN  {\"event\": \"terminal_output\", \"type\": \"terminal_output\", \"terminal_id\": \"<TOKEN_REDACTED>\", \"seq\": 3, \"stream\": \"stdout\", \"data\": \"\\r\\u001b[Kbash-3.2$ \"} | OUT {\"type\":\"terminal_resize\",\"terminal_id\":\"<TOKEN_REDACTED>\",\"cols\":64,\"rows\":20} | IN  {\"event\": \"terminal_output\", \"type\": \"terminal_output\", \"terminal_id\": \"<TOKEN_REDACTED>\", \"seq\": 4, \"stream\": \"stdout\", \"data\": \"\\r\\u001b[Kbash-3.2$ \"}"
+    },
+    "08.cmdt-preventDefault": {
+      "ok": true,
+      "info": "s8={\"defaults\":true} {\"tabsAfter\":[\"dock-tab-term-e699f616-7045-46c5-a5e4-3b372ff205b6\",\"dock-tab-browser\"],\"beforeT\":1}"
+    },
+    "09.takeover-banner-not-rebind": {
+      "ok": true,
+      "info": "prePersisted=null; post={\"tabs\":[],\"takeoverBanners\":[\"dock-takeover-term-e699f616-7045-46c5-a5e4-3b372ff205b6\"],\"persistedPost\":null}; w9=IN  {\"event\": \"terminal_list_result\", \"type\": \"terminal_list_result\", \"terminals\": []}"
+    },
+    "10.kill-idempotent": {
+      "ok": true,
+      "info": "killA=true; exitA=true; reattempt=no-button; w10b=0frames; noExtraKill=true; noError=true"
+    },
+    "11.restricted-scope-or-skip": {
+      "ok": true,
+      "info": "skipped per prompt: 默认 chat 是 full-access；构造 restricted-scope 会话不在 headless 验收范围内"
+    },
+    "12.dock-layout-ratio": {
+      "ok": true,
+      "info": "layout={\"tag\":\"ASIDE\",\"width\":480,\"height\":813,\"left\":960}; launcherPresent=true"
+    }
+  },
+  "finalErrors": [],
+  "totalFrames": 6,
+  "filteredFrames": {
+    "terminal_started": [
+      "IN  {\"event\": \"terminal_started\", \"type\": \"terminal_started\", \"terminal_id\": \"<TOKEN_REDACTED>\", \"shell\": \"/bin/zsh\", \"cwd\": \"/Users/mima0000/.nanobot/workspace\", \"status\": \"ok\", \"pty\": true}"
+    ],
+    "terminal_resize": [
+      "OUT {\"type\":\"terminal_resize\",\"terminal_id\":\"<TOKEN_REDACTED>\",\"cols\":64,\"rows\":20}",
+      "OUT {\"type\":\"terminal_resize\",\"terminal_id\":\"<TOKEN_REDACTED>\",\"cols\":64,\"rows\":20}"
+    ],
+    "terminal_kill": [],
+    "terminal_exit": [],
+    "terminal_list_result": [],
+    "already_running": [],
+    "error_frames": []
+  }
+}

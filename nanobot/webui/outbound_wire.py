@@ -60,6 +60,52 @@ class ContextCompactionWirePayload(_ChatWirePayload):
     phase: Literal["started", "succeeded", "failed", "cancelled"]
 
 
+TerminalWireStatus: TypeAlias = Literal["ok", "already_running", "limit_reached", "error"]
+TerminalOutputStream: TypeAlias = Literal["stdout", "stderr"]
+
+
+class TerminalStartedWirePayload(TypedDict):
+    # ``type`` mirrors ``event`` so the frame matches contract §1.2 verbatim
+    # while keeping the repository-wide ``event`` discriminator convention.
+    event: Literal["terminal_started"]
+    type: Literal["terminal_started"]
+    terminal_id: str
+    shell: str
+    cwd: str
+    status: TerminalWireStatus
+    message: NotRequired[str]
+    pty: bool
+
+
+class TerminalOutputWirePayload(TypedDict):
+    event: Literal["terminal_output"]
+    type: Literal["terminal_output"]
+    terminal_id: str
+    seq: int
+    stream: TerminalOutputStream
+    data: str
+
+
+class TerminalExitWirePayload(TypedDict):
+    event: Literal["terminal_exit"]
+    type: Literal["terminal_exit"]
+    terminal_id: str
+    exit_code: int | None
+
+
+class TerminalListEntryWire(TypedDict):
+    terminal_id: str
+    status: Literal["running", "exited"]
+    shell: str
+    cwd: str
+
+
+class TerminalListResultWirePayload(TypedDict):
+    event: Literal["terminal_list_result"]
+    type: Literal["terminal_list_result"]
+    terminals: list[TerminalListEntryWire]
+
+
 WebUIWirePayload: TypeAlias = (
     RetryStatusWirePayload | ContextCompactionWirePayload | RecoveryStateWirePayload | TurnEndWirePayload
 )
@@ -185,4 +231,74 @@ def encode_turn_end(
         payload["failure_attempts"] = int(event.failure_attempts)
     if event.failure_message is not None:
         payload["failure_message"] = event.failure_message
+    return payload
+
+
+def encode_terminal_started(
+    *,
+    terminal_id: str,
+    shell: str,
+    cwd: str,
+    status: TerminalWireStatus,
+    message: str | None = None,
+    pty: bool = False,
+) -> TerminalStartedWirePayload:
+    """Project one terminal_start answer onto the contract wire shape."""
+    payload: TerminalStartedWirePayload = {
+        "event": "terminal_started",
+        "type": "terminal_started",
+        "terminal_id": terminal_id,
+        "shell": shell,
+        "cwd": cwd,
+        "status": status,
+        "pty": bool(pty),
+    }
+    if message:
+        payload["message"] = message
+    return payload
+
+
+def encode_terminal_output(
+    *,
+    terminal_id: str,
+    seq: int,
+    stream: TerminalOutputStream,
+    data: str,
+) -> TerminalOutputWirePayload:
+    """Project one ordered terminal output chunk onto the wire."""
+    payload: TerminalOutputWirePayload = {
+        "event": "terminal_output",
+        "type": "terminal_output",
+        "terminal_id": terminal_id,
+        "seq": int(seq),
+        "stream": stream,
+        "data": data,
+    }
+    return payload
+
+
+def encode_terminal_exit(
+    *,
+    terminal_id: str,
+    exit_code: int | None,
+) -> TerminalExitWirePayload:
+    """Project one terminal termination; ``exit_code`` None means expired/unknown."""
+    payload: TerminalExitWirePayload = {
+        "event": "terminal_exit",
+        "type": "terminal_exit",
+        "terminal_id": terminal_id,
+        "exit_code": exit_code,
+    }
+    return payload
+
+
+def encode_terminal_list_result(
+    terminals: list[TerminalListEntryWire],
+) -> TerminalListResultWirePayload:
+    """Project the visible terminal inventory for one WebUI connection."""
+    payload: TerminalListResultWirePayload = {
+        "event": "terminal_list_result",
+        "type": "terminal_list_result",
+        "terminals": list(terminals),
+    }
     return payload

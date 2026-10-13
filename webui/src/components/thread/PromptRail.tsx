@@ -180,7 +180,7 @@ export function PromptRail({
               onPointerLeave={() => setFocusedMarkerIndex(null)}
               className={cn(
                 "absolute left-0 h-4 w-9 -translate-y-1/2 overflow-visible rounded-sm",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
               )}
               style={{ top: `${marker.topPercent}%` }}
             >

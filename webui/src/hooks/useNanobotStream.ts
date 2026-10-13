@@ -1,5 +1,5 @@
 import { acceptsCompactionPhase } from "../../../packages/client-events/notifications";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useClient } from "@/providers/ClientProvider";
@@ -12,7 +12,7 @@ import {
   toolTraceLinesFromEvents,
 } from "@/lib/tool-traces";
 import { hasPendingAgentActivity } from "@/lib/activity-timeline";
-import type { StreamError } from "@/lib/nanobot-client";
+import type { StreamError, NanobotClient } from "@/lib/nanobot-client";
 import {
   closeReasoningStream,
   filterCoveredFileEditToolEvents,
@@ -37,14 +37,18 @@ import type {
   OutboundMcpPresetMention,
   OutboundMedia,
   SessionMention,
+  AskQuestionRequest,
   GoalStateWsPayload,
   MessageDeliveryStatus,
   RecoveryState,
   RetryStatus,
+  TerminalEvent,
   UIMediaAttachment,
   UIMessage,
   WorkspaceScopePayload,
 } from "@/lib/types";
+
+const NO_QUESTIONS: AskQuestionRequest[] = [];
 
 interface StreamBuffer {
   /** ID of the assistant message currently receiving deltas (cleared when its segment closes). */
@@ -256,6 +260,9 @@ export function useNanobotStream(
   recoveryState: RecoveryState | null;
   continueRecovery: () => Promise<void>;
   dismissRecovery: () => Promise<void>;
+  /** Unanswered interactive questions pushed by the agent's ``ask_question`` tool. */
+  pendingQuestions: AskQuestionRequest[];
+  answerQuestion: (questionId: string, answer: string) => void;
   send: (
     content: string,
     images?: SendAttachment[],
@@ -288,6 +295,9 @@ export function useNanobotStream(
   const [retryStatus, setRetryStatus] = useState<RetryStatus | null>(null);
   const [goalState, setGoalState] = useState<GoalStateWsPayload | undefined>(undefined);
   const [recoveryState, setRecoveryState] = useState<RecoveryState | null>(null);
+  const [questionsByChat, setQuestionsByChat] = useState<Map<string, AskQuestionRequest[]>>(
+    () => new Map(),
+  );
   const [streamError, setStreamError] = useState<StreamError | null>(null);
   const buffer = useRef<StreamBuffer | null>(null);
   const activeAssistantRef = useRef<ActiveAssistantCursor | null>(null);
@@ -778,6 +788,16 @@ export function useNanobotStream(
         }
         return;
       }
+      if (ev.event === "question_requested") {
+        setQuestionsByChat((prev) => {
+          const list = prev.get(chatId) ?? [];
+          if (list.some((item) => item.question_id === ev.question.question_id)) return prev;
+          const next = new Map(prev);
+          next.set(chatId, [...list, ev.question]);
+          return next;
+        });
+        return;
+      }
       const sideChannelEvent = isSideChannelEvent(ev);
       if (ev.event === "context_compaction") {
         flushPendingStreamEvents({ closeAnswerSegment: true });
@@ -936,6 +956,12 @@ export function useNanobotStream(
         }
         setRunStartedAt(null);
         setRetryStatus(null);
+        setQuestionsByChat((prev) => {
+          if (!prev.get(chatId)?.length) return prev;
+          const next = new Map(prev);
+          next.delete(chatId);
+          return next;
+        });
         // Definitive signal that the turn is fully complete, so stop the
         // loading indicator immediately.
         setIsStreaming(false);
@@ -1394,6 +1420,35 @@ export function useNanobotStream(
     });
   }, [chatId, client, recoveryState]);
 
+  const answerQuestion = useCallback(
+    (questionId: string, answer: string) => {
+      if (!chatId) return;
+      const trimmed = answer.trim();
+      if (!trimmed) return;
+      setQuestionsByChat((prev) => {
+        const list = prev.get(chatId) ?? [];
+        if (!list.some((item) => item.question_id === questionId)) return prev;
+        const next = new Map(prev);
+        next.set(chatId, list.filter((item) => item.question_id !== questionId));
+        return next;
+      });
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "user",
+          content: trimmed,
+          turnPhase: "user",
+          turnSeq: 0,
+          deliveryStatus: "accepted",
+          createdAt: Date.now(),
+        },
+      ]);
+      client.answerQuestion(chatId, questionId, trimmed);
+    },
+    [chatId, client],
+  );
+
   const continueRecovery = useCallback(
     () => recoveryAction("continue"),
     [recoveryAction],
@@ -1413,6 +1468,8 @@ export function useNanobotStream(
     recoveryState,
     continueRecovery,
     dismissRecovery,
+    pendingQuestions: (chatId && questionsByChat.get(chatId)) || NO_QUESTIONS,
+    answerQuestion,
     send,
     transcribeAudio,
     stop,
@@ -1421,4 +1478,267 @@ export function useNanobotStream(
     streamError,
     dismissStreamError,
   };
+}
+
+// ── Terminal channel store (contract 2026-10-11 §1.2) ──────────────────────
+
+/** One buffered output line. ``echo`` rows are local input echoes that the
+ * server never sends back (pipe-mode terminals have no peer echo). */
+export interface TerminalLine {
+  stream: "stdout" | "stderr" | "echo";
+  data: string;
+}
+
+export type TerminalRecordStatus = "starting" | "running" | "exited" | "failed";
+
+export interface TerminalRecord {
+  id: string;
+  status: TerminalRecordStatus;
+  shell: string;
+  cwd: string;
+  sessionKey: string | null;
+  lastSeq: number;
+  /** Contract v2: the host attached a real PTY (xterm passthrough mode);
+   * ``false`` keeps the v1 line console. Stays ``false`` until the
+   * ``terminal_started`` reply lands. */
+  pty: boolean;
+  /** ``undefined`` while live, ``null`` when expired, a number for real codes. */
+  exitCode: number | null | undefined;
+  message: string | null;
+  lines: TerminalLine[];
+}
+
+export interface TerminalStoreState {
+  order: string[];
+  byId: Record<string, TerminalRecord>;
+}
+
+export interface TerminalStore {
+  getState(): TerminalStoreState;
+  subscribe(listener: () => void): () => void;
+  /** Register a locally created terminal before its ``terminal_started`` lands. */
+  beginCreate(id: string, sessionKey: string | null): void;
+  /** Buffer a local echo line for the given terminal. */
+  appendEcho(id: string, text: string): void;
+  remove(id: string): void;
+  applyEvent(event: TerminalEvent): void;
+  /** Reference-counted event-source wiring: the first mount attaches, the
+   * last detaches, so multiple panels share exactly one client subscription. */
+  attach(
+    start: (handler: (event: TerminalEvent) => void) => () => void,
+  ): () => void;
+}
+
+const EMPTY_TERMINAL_STATE: TerminalStoreState = { order: [], byId: {} };
+/** Per-terminal buffered output ceiling; oldest lines are trimmed first. */
+const TERMINAL_OUTPUT_LIMIT_CHARS = 200_000;
+const TERMINAL_OUTPUT_LIMIT_LINES = 4_000;
+
+function createEmptyRecord(id: string, sessionKey: string | null): TerminalRecord {
+  return {
+    id,
+    status: "starting",
+    shell: "",
+    cwd: "",
+    sessionKey,
+    lastSeq: 0,
+    pty: false,
+    exitCode: undefined,
+    message: null,
+    lines: [],
+  };
+}
+
+function trimRecordLines(record: TerminalRecord): TerminalRecord {
+  let lines = record.lines;
+  let total = lines.reduce((sum, line) => sum + line.data.length, 0);
+  while (
+    lines.length > 1
+    && (total > TERMINAL_OUTPUT_LIMIT_CHARS || lines.length > TERMINAL_OUTPUT_LIMIT_LINES)
+  ) {
+    const [dropped, ...rest] = lines;
+    lines = rest;
+    total -= dropped?.data.length ?? 0;
+  }
+  if (lines === record.lines) return record;
+  return { ...record, lines };
+}
+
+export function createTerminalStore(): TerminalStore {
+  let state: TerminalStoreState = EMPTY_TERMINAL_STATE;
+  const listeners = new Set<() => void>();
+  let refCount = 0;
+  let detachSource: (() => void) | null = null;
+  // Tombstone for locally closed tabs: the gateway's _finalize_exit flushes
+  // buffered ``terminal_output`` before ``terminal_exit``, so late frames for
+  // a removed id must be dropped instead of resurrecting the tab. Cleared by
+  // the matching ``terminal_exit``.
+  const removedIds = new Set<string>();
+
+  const commit = (next: TerminalStoreState) => {
+    state = next;
+    for (const listener of [...listeners]) listener();
+  };
+
+  const upsert = (id: string, mutate: (record: TerminalRecord) => TerminalRecord): void => {
+    const existing = state.byId[id];
+    const record = mutate(existing ?? createEmptyRecord(id, null));
+    if (record === existing) return;
+    const order = existing ? state.order : [...state.order, id];
+    commit({ order, byId: { ...state.byId, [id]: record } });
+  };
+
+  const store: TerminalStore = {
+    getState: () => state,
+
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+
+    beginCreate(id, sessionKey) {
+      removedIds.delete(id);
+      if (state.byId[id]) return;
+      commit({
+        order: [...state.order, id],
+        byId: { ...state.byId, [id]: createEmptyRecord(id, sessionKey) },
+      });
+    },
+
+    appendEcho(id, text) {
+      const existing = state.byId[id];
+      if (!existing) return;
+      upsert(id, (record) =>
+        trimRecordLines({ ...record, lines: [...record.lines, { stream: "echo", data: `${text}\n` }] }),
+      );
+    },
+
+    remove(id) {
+      removedIds.add(id);
+      if (!state.byId[id]) return;
+      const byId = { ...state.byId };
+      delete byId[id];
+      commit({ order: state.order.filter((value) => value !== id), byId });
+    },
+
+    applyEvent(event) {
+      switch (event.event) {
+        case "terminal_started": {
+          if (removedIds.has(event.terminal_id)) break;
+          const running = event.status === "ok" || event.status === "already_running";
+          // Keep a stable token for the limit path: the backend message is
+          // prose (``terminal limit reached (8)``) that UI labels must not
+          // string-match. Plain ``error`` statuses keep their raw message.
+          const failToken = event.status === "limit_reached" ? "limit_reached" : null;
+          upsert(event.terminal_id, (record) => ({
+            ...record,
+            status: running ? "running" : "failed",
+            shell: event.shell || record.shell,
+            cwd: event.cwd || record.cwd,
+            pty: event.pty === true,
+            message: running ? null : (failToken ?? event.message ?? event.status),
+          }));
+          break;
+        }
+        case "terminal_output": {
+          if (removedIds.has(event.terminal_id)) break;
+          const record = state.byId[event.terminal_id];
+          // Tolerate chunks for an unknown terminal (e.g. rehydrated after a
+          // reconnect before the list result lands).
+          if (record && event.seq <= record.lastSeq) break;
+          upsert(event.terminal_id, (current) =>
+            trimRecordLines({
+              ...current,
+              status: current.status === "starting" ? "running" : current.status,
+              lastSeq: Math.max(current.lastSeq, event.seq),
+              lines: [...current.lines, { stream: event.stream, data: event.data }],
+            }),
+          );
+          break;
+        }
+        case "terminal_exit": {
+          if (removedIds.has(event.terminal_id)) {
+            removedIds.delete(event.terminal_id);
+            break;
+          }
+          if (!state.byId[event.terminal_id]) break;
+          upsert(event.terminal_id, (record) => ({
+            ...record,
+            status: "exited",
+            exitCode: event.exit_code,
+          }));
+          break;
+        }
+        case "terminal_list_result": {
+          for (const entry of event.terminals) {
+            if (removedIds.has(entry.terminal_id)) continue;
+            upsert(entry.terminal_id, (record) => ({
+              ...record,
+              status: record.status === "starting" || record.status === "failed"
+                ? (entry.status === "exited" ? "exited" : "running")
+                : record.status,
+              shell: entry.shell || record.shell,
+              cwd: entry.cwd || record.cwd,
+            }));
+          }
+          break;
+        }
+        case "error": {
+          const id = event.terminal_id;
+          // Only a frame naming a concrete terminal belongs to this channel;
+          // terminal errors answered before the record exists are dropped.
+          if (!id || removedIds.has(id) || !state.byId[id]) break;
+          if (state.byId[id]?.status === "exited") break;
+          upsert(id, (record) => ({
+            ...record,
+            status: "failed",
+            message: event.detail ?? "terminal_error",
+          }));
+          break;
+        }
+      }
+    },
+
+    attach(start) {
+      if (refCount === 0) {
+        detachSource = start((event) => {
+          store.applyEvent(event);
+        });
+      }
+      refCount += 1;
+      return () => {
+        refCount -= 1;
+        if (refCount === 0 && detachSource) {
+          detachSource();
+          detachSource = null;
+        }
+      };
+    },
+  };
+  return store;
+}
+
+const terminalStoresByClient = new WeakMap<NanobotClient, TerminalStore>();
+
+export function getTerminalStore(client: NanobotClient): TerminalStore {
+  let store = terminalStoresByClient.get(client);
+  if (!store) {
+    store = createTerminalStore();
+    terminalStoresByClient.set(client, store);
+  }
+  return store;
+}
+
+/** Shared per-client terminal state consumed by every mounted terminal panel. */
+export function useTerminalStore(): { store: TerminalStore; terminals: TerminalStoreState } {
+  const { client } = useClient();
+  const store = useMemo(() => getTerminalStore(client), [client]);
+  useEffect(
+    () => store.attach((handler) => client.onTerminalEvent(handler)),
+    [client, store],
+  );
+  const terminals = useSyncExternalStore(store.subscribe, store.getState, store.getState);
+  return { store, terminals };
 }

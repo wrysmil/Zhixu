@@ -24,6 +24,7 @@ interface ThreadHeaderProps {
   hideThemeButton?: boolean;
   hideTitle?: boolean;
   actions?: ReactNode;
+  workbenchAction?: ReactNode;
   minimal?: boolean;
   promptNavigatorAction?: ReactNode;
   sessionInfoAction?: ReactNode;
@@ -43,6 +44,7 @@ export function ThreadHeader({
   hideThemeButton = false,
   hideTitle = false,
   actions,
+  workbenchAction,
   minimal = false,
   promptNavigatorAction,
   sessionInfoAction,
@@ -150,6 +152,7 @@ export function ThreadHeader({
             label={t("thread.header.toggleTheme")}
           />
         ) : null}
+        {workbenchAction}
       </div>
 
       {!minimal ? (

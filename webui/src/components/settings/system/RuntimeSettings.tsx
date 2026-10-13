@@ -329,7 +329,7 @@ export function RuntimeSettings({
                 ? undefined
                 : tx(
                     "settings.observability.environment",
-                    "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY, then restart nanobot.",
+                    "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY, then restart Mira.",
                   )
             }
           >
@@ -372,7 +372,14 @@ export function RuntimeSettings({
             />
           ) : null}
           <ReadOnlyRow title={t("settings.rows.configPath")} value={settings.runtime.config_path} />
-          <ReadOnlyRow title={tx("settings.rows.workspacePath", "Default workspace")} value={settings.runtime.workspace_path} />
+          <ReadOnlyRow
+            title={tx("settings.rows.workspacePath", "Default workspace")}
+            description={tx(
+              "settings.rows.workspacePathHint",
+              "Chats without a project use this folder. Project folders live under Projects in the sidebar.",
+            )}
+            value={settings.runtime.workspace_path}
+          />
           <ReadOnlyRow title={tx("settings.rows.timezone", "Timezone")} value={form.timezone} />
           {onRestart ? (
             <SettingsRow

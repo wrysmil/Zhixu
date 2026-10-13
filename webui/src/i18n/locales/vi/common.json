@@ -1,12 +1,124 @@
 {
+  "creative": {
+    "headline": "Hôm nay bạn muốn viết gì?",
+    "hero_description": "Một đoạn mã, một trải nghiệm thực tế, một ý tưởng mới — đều có thể mở đầu một bài viết.",
+    "topic_label": "Chủ đề bài viết",
+    "input_hint": "Bắt đầu từ tài liệu và ý tưởng của bạn",
+    "template_heading": "Bắt đầu với một định dạng quen thuộc",
+    "template_hint": "Mẫu chỉ là điểm khởi đầu",
+    "library_heading": "Bài viết của tôi",
+    "new_article": "Viết bài mới",
+    "sample_label": "Ví dụ",
+    "material_count": "{{count}} tài liệu",
+    "continue_writing": "Tiếp tục viết",
+    "filter_all": "Tất cả",
+    "status": {
+      "idea": "Ý tưởng",
+      "draft": "Đang viết",
+      "review": "Chờ hiệu đính",
+      "done": "Hoàn tất"
+    },
+    "material": {
+      "type": {
+        "note": "Quan điểm",
+        "text": "Văn bản",
+        "code": "Mã",
+        "link": "Liên kết"
+      },
+      "empty": "Chưa có tư liệu",
+      "add": "Thêm tư liệu",
+      "addConfirm": "Thêm",
+      "save": "Lưu thay đổi",
+      "cancel": "Hủy",
+      "edit": "Sửa tư liệu",
+      "remove": "Xóa tư liệu",
+      "included": "Dùng cho lần cộng tác này",
+      "field": {
+        "title": "Tiêu đề",
+        "content": "Nội dung",
+        "contentPlaceholder": "Nội dung",
+        "codePlaceholder": "Dán mã — giữ nguyên thụt lề và xuống dòng",
+        "url": "Địa chỉ liên kết",
+        "excerpt": "Trích đoạn (tùy chọn)",
+        "source": "Nguồn (tùy chọn)",
+        "note": "Ghi chú (tùy chọn)",
+        "language": "Ngôn ngữ (tùy chọn)"
+      },
+      "error": {
+        "title": "Hãy nhập tiêu đề tư liệu",
+        "content": "Hãy nhập nội dung tư liệu",
+        "linkUrl": "Liên kết phải bắt đầu bằng http:// hoặc https://"
+      },
+      "confirm": {
+        "title": "Xóa tư liệu này?",
+        "description": "Chỉ tư liệu này bị xóa; nội dung bài viết và dữ liệu đã lưu không thay đổi.",
+        "cancel": "Hủy",
+        "confirm": "Xóa"
+      }
+    },
+    "outline": {
+      "empty": "Chưa có dàn ý",
+      "add": "Thêm mục",
+      "addConfirm": "Xác nhận",
+      "newPlaceholder": "Mục mới",
+      "save": "Xác nhận",
+      "cancel": "Hủy",
+      "remove": "Xóa mục",
+      "moveUp": "Lên trên",
+      "moveDown": "Xuống dưới",
+      "field": {
+        "text": "Ý trong dàn ý"
+      }
+    },
+    "conflict": {
+      "title": "Bài viết này đã được cập nhật ở nơi khác",
+      "description": "Máy chủ đang ở phiên bản {{revision}}. Bản nháp chưa lưu vẫn được giữ và tự động lưu đã tạm dừng.",
+      "deleted": "Bài viết này không còn trên máy chủ. Bạn có thể lưu bản nháp thành một bài viết mới.",
+      "remote": "Phiên bản mới nhất trên máy chủ",
+      "remoteLoading": "Đang đọc phiên bản mới nhất…",
+      "remoteUnavailable": "Chưa đọc được phiên bản mới nhất.",
+      "local": "Bản nháp chưa lưu",
+      "reload": "Tải phiên bản mới nhất và tự gộp",
+      "saveCopy": "Lưu một bản sao",
+      "savingCopy": "Đang lưu bản sao…",
+      "discard": "Bỏ thay đổi cục bộ và tải lại",
+      "discardWarning": "Bản nháp cục bộ sẽ bị xóa và không thể khôi phục. Tải lại phiên bản máy chủ?",
+      "discardBack": "Tiếp tục chỉnh sửa",
+      "discardConfirm": "Xác nhận bỏ",
+      "cancel": "Để sau",
+      "reopen": "Xử lý xung đột"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Phân tích kỹ thuật",
+        "desc": "Giải thích một khái niệm phức tạp cho rõ",
+        "outline": ["Vấn đề bắt nguồn từ đâu", "Khái niệm và nguyên lý cốt lõi", "Minh họa bằng một ví dụ", "Phạm vi và giới hạn", "Cách tôi hiểu"]
+      },
+      "source-reading": {
+        "name": "Đọc mã nguồn",
+        "desc": "Theo chuỗi gọi để hiểu thiết kế",
+        "outline": ["Điều muốn hiểu lần này", "Điểm vào và chuỗi gọi", "Triển khai then chốt", "Đánh đổi thiết kế", "Cách tôi tự hiểu"]
+      },
+      "practice-retro": {
+        "name": "Tổng kết thực hành",
+        "desc": "Ghi lại quá trình và cả những lựa chọn",
+        "outline": ["Bối cảnh và mục tiêu", "Tôi đã làm thế nào", "Vấn đề và cách rà soát", "Kết quả và hạn chế", "Lần sau sẽ sửa gì"]
+      },
+      "learning-summary": {
+        "name": "Tổng kết học tập",
+        "desc": "Biến kiến thức mới thành hiểu biết của mình",
+        "outline": ["Học với câu hỏi gì", "Kiến thức then chốt", "Tự tay kiểm chứng", "Hiểu biết đã thay đổi ra sao", "Còn những câu hỏi nào"]
+      }
+    }
+  },
   "app": {
-    "brand": "nanobot",
+    "brand": "Mira",
     "loading": {
-      "connecting": "Đang kết nối tới nanobot…",
-      "boot": "Đang tải nanobot…"
+      "connecting": "Đang kết nối tới Mira…",
+      "boot": "Đang tải Mira…"
     },
     "error": {
-      "title": "Không thể kết nối tới nanobot",
+      "title": "Không thể kết nối tới Mira",
       "gatewayHint": "Hãy chắc chắn gateway đang chạy (`nanobot gateway`) và trang này được mở trên cùng máy."
     },
     "auth": {
@@ -24,8 +136,8 @@
     },
     "system": {
       "section": "Hệ thống",
-      "restartHint": "Khởi động lại nanobot để áp dụng thay đổi thời gian chạy.",
-      "restart": "Khởi động lại nanobot",
+      "restartHint": "Khởi động lại Mira để áp dụng thay đổi thời gian chạy.",
+      "restart": "Khởi động lại Mira",
       "restarting": "Đang khởi động lại...",
       "restartEngine": "Khởi động lại bộ máy",
       "restartingEngine": "Đang khởi động lại bộ máy..."
@@ -34,11 +146,11 @@
       "completed": "Khởi động lại hoàn tất sau {{seconds}} giây."
     },
     "documentTitle": {
-      "base": "nanobot",
-      "chat": "{{title}} · nanobot"
+      "base": "Mira",
+      "chat": "{{title}} · Mira"
     },
     "meta": {
-      "description": "Giao diện web nanobot — trò chuyện với không gian làm việc nanobot của bạn."
+      "description": "Giao diện web Mira — trò chuyện với không gian làm việc Mira của bạn."
     },
     "pairing": {
       "title": "Liên kết người dùng chat",
@@ -62,7 +174,8 @@
   "sidebar": {
     "navigation": "Điều hướng thanh bên",
     "collapse": "Thu gọn thanh bên",
-    "newChat": "Chủ đề mới",
+    "home": "Trang chủ",
+    "newChat": "Cuộc trò chuyện mới",
     "searchAria": "Tìm kiếm",
     "searchPlaceholder": "Tìm kiếm",
     "searchResults": "Kết quả",
@@ -134,7 +247,7 @@
       "language": "Ngôn ngữ",
       "provider": "Nhà cung cấp",
       "model": "Mô hình",
-      "restart": "Khởi động lại nanobot",
+      "restart": "Khởi động lại Mira",
       "configPath": "Đường dẫn cấu hình",
       "activePreset": "Cấu hình đặt trước đang dùng",
       "gateway": "Cổng",
@@ -176,7 +289,8 @@
       "transcriptionProviderStatus": "Trạng thái nhà cung cấp chuyển giọng nói",
       "transcriptionModel": "Mô hình chuyển giọng nói",
       "transcriptionLanguage": "Ngôn ngữ",
-      "voiceLimits": "Giới hạn"
+      "voiceLimits": "Giới hạn",
+      "workspacePathHint": "Cuộc trò chuyện không có dự án dùng thư mục này. Thư mục dự án nằm trong mục Dự án ở thanh bên."
     },
     "help": {
       "theme": "Chuyển giữa giao diện sáng và tối.",
@@ -209,7 +323,7 @@
       "selectedModelValue": "Được đặt bởi mô hình đã chọn.",
       "brandLogos": "Hiển thị logo nhà cung cấp bên thứ ba và CLI trong Cài đặt.",
       "browserNotifications": "Chỉ thông báo khi trang này ở nền. Mặc định tắt.",
-      "cliAppsCatalog": "Chỉ cài đặt các bộ chuyển đổi CLI ứng dụng mà nanobot có thể chạy cục bộ; ứng dụng gốc không bị thay đổi.",
+      "cliAppsCatalog": "Chỉ cài đặt các bộ chuyển đổi CLI ứng dụng mà Mira có thể chạy cục bộ; ứng dụng gốc không bị thay đổi.",
       "cliAppsFilter": "Tìm theo ứng dụng, danh mục hoặc khả năng.",
       "logs": "Mở thư mục nhật ký của bộ máy gốc.",
       "diagnostics": "Xuất báo cáo thời gian chạy ngắn để hỗ trợ.",
@@ -251,18 +365,19 @@
       "restartingEngine": "Đang khởi động lại",
       "checking": "Đang kiểm tra",
       "running": "Đang chạy",
-      "needsSetup": "Cần thiết lập"
+      "needsSetup": "Cần thiết lập",
+      "workspaceSettings": "Cài đặt không gian làm việc"
     },
     "status": {
       "loading": "Đang tải cài đặt...",
       "loadError": "Không thể tải cài đặt",
       "unsaved": "Có thay đổi chưa lưu.",
       "upToDate": "Đã cập nhật.",
-      "savedRestart": "Đã lưu. Khởi động lại nanobot để áp dụng.",
+      "savedRestart": "Đã lưu. Khởi động lại Mira để áp dụng.",
       "restartAfterSaving": "Lưu thay đổi, rồi khởi động lại khi sẵn sàng.",
       "savedRestartApply": "Đã lưu. Khởi động lại khi sẵn sàng.",
       "imageProviderRestart": "Đã lưu thay đổi nhà cung cấp ảnh. Khởi động lại khi sẵn sàng.",
-      "hostRestartAfterSaving": "Sau khi lưu, nanobot sẽ khởi động lại bộ máy.",
+      "hostRestartAfterSaving": "Sau khi lưu, Mira sẽ khởi động lại bộ máy.",
       "hostRestartPending": "Đã lưu. Bộ máy sẽ khởi động lại khi sẵn sàng.",
       "hostApiUnavailable": "Các thao tác máy chủ chỉ khả dụng trong ứng dụng gốc.",
       "logsOpened": "Đã mở thư mục nhật ký.",
@@ -286,7 +401,7 @@
       "exporting": "Đang xuất..."
     },
     "byok": {
-      "description": "Dùng khóa nhà cung cấp của riêng bạn. Nanobot đọc các giá trị này từ cấu hình hiện tại và chỉ nhà cung cấp đã cấu hình mới có thể dùng trong cấu hình mô hình đặt trước.",
+      "description": "Dùng khóa nhà cung cấp của riêng bạn. Mira đọc các giá trị này từ cấu hình hiện tại và chỉ nhà cung cấp đã cấu hình mới có thể dùng trong cấu hình mô hình đặt trước.",
       "configured": "Đã cấu hình",
       "notConfigured": "Chưa cấu hình",
       "configuredSection": "Đã cấu hình",
@@ -335,7 +450,7 @@
       "webSearch": "Tìm kiếm web",
       "imageGeneration": "Tạo hình ảnh",
       "voiceInput": "Nhập bằng giọng nói",
-      "workspace": "Không gian làm việc"
+      "workspace": "Không gian làm việc mặc định"
     },
     "usage": {
       "title": "Hoạt động token",
@@ -534,7 +649,7 @@
       "saveCustom": "Lưu MCP",
       "configImport": "Nhập mcp.json",
       "importConfig": "Nhập",
-      "restartRequired": "Khởi động lại nanobot để kết nối các công cụ MCP đã cập nhật.",
+      "restartRequired": "Khởi động lại Mira để kết nối các công cụ MCP đã cập nhật.",
       "toolsFound": "{{count}} công cụ",
       "loading": "Đang tải cấu hình đặt trước MCP...",
       "empty": "Không có cấu hình đặt trước MCP nào khớp bộ lọc này.",
@@ -562,14 +677,14 @@
       "preparingSignIn": "Đang chuẩn bị đăng nhập an toàn…",
       "openSignInToContinue": "Mở trang đăng nhập để tiếp tục.",
       "finishSignInInBrowser": "Hoàn tất đăng nhập trong cửa sổ trình duyệt.",
-      "manualCallbackRequired": "Hoàn tất đăng nhập, rồi dán URL callback vào nanobot.",
+      "manualCallbackRequired": "Hoàn tất đăng nhập, rồi dán URL callback vào Mira.",
       "manualCallbackHelp": "Sau khi phê duyệt quyền truy cập, trang localhost sẽ không tải được. Hãy sao chép URL đầy đủ từ thanh địa chỉ và dán vào đây.",
       "finishingConnection": "Đang hoàn tất kết nối…",
       "activatingTools": "Đang kích hoạt công cụ…",
       "connected": "Đã kết nối.",
       "connectionFailed": "Kết nối thất bại.",
       "connectionCancelled": "Đã hủy kết nối.",
-      "reloadFailed": "Đã đăng nhập nhưng nanobot không thể kết nối các công cụ. Hãy thử khởi động lại nanobot.",
+      "reloadFailed": "Đã đăng nhập nhưng Mira không thể kết nối các công cụ. Hãy thử khởi động lại Mira.",
       "oauthFailed": "Không thể kết nối. Hãy thử đăng nhập lại.",
       "statusMissingDependency": "Cần phụ thuộc",
       "statusComingSoon": "Sắp ra mắt",
@@ -642,15 +757,15 @@
     },
     "observability": {
       "title": "Khả năng quan sát",
-      "configured": "Thông tin xác thực tracing đã sẵn sàng cho nanobot.",
-      "environment": "Đặt LANGFUSE_SECRET_KEY và LANGFUSE_PUBLIC_KEY rồi khởi động lại nanobot.",
+      "configured": "Thông tin xác thực tracing đã sẵn sàng cho Mira.",
+      "environment": "Đặt LANGFUSE_SECRET_KEY và LANGFUSE_PUBLIC_KEY rồi khởi động lại Mira.",
       "enable": "Bật hỗ trợ tracing"
     },
     "legal": {
       "thirdPartyBrands": "Tên sản phẩm, logo và thương hiệu thuộc về chủ sở hữu tương ứng. Việc sử dụng chỉ nhằm nhận diện và không ngụ ý được xác nhận."
     },
     "apps": {
-      "description": "Thêm công cụ vào nanobot, sau đó dùng @ trong cuộc trò chuyện.",
+      "description": "Thêm công cụ vào Mira, sau đó dùng @ trong cuộc trò chuyện.",
       "cliLabel": "Ứng dụng",
       "mcpLabel": "MCP",
       "channelLabel": "Kênh",
@@ -673,21 +788,21 @@
       "browseApps": "Xem ứng dụng",
       "browseIntegrations": "Xem công cụ MCP",
       "emptyIntegrationsHint": "Thêm máy chủ MCP tùy chỉnh ở bên dưới.",
-      "restartRequired": "Khởi động lại nanobot để áp dụng ứng dụng và công cụ MCP đã cập nhật."
+      "restartRequired": "Khởi động lại Mira để áp dụng ứng dụng và công cụ MCP đã cập nhật."
     },
     "channels": {
-      "description": "Kết nối nanobot với các ứng dụng chat. Cài đặt hỗ trợ chỉ thêm gói tích hợp; hầu hết kênh vẫn cần token hoặc cấu hình không gian làm việc.",
+      "description": "Kết nối Mira với các ứng dụng chat. Cài đặt hỗ trợ chỉ thêm gói tích hợp; hầu hết kênh vẫn cần token hoặc cấu hình không gian làm việc.",
       "caption": "{{enabled}} đã bật · {{total}} kênh",
       "searchPlaceholder": "Tìm kênh",
       "backToChannels": "Tất cả kênh",
       "catalog": "Kênh",
       "loading": "Đang tải kênh...",
       "empty": "Không có kênh nào phù hợp.",
-      "restartRequired": "Khởi động lại nanobot để áp dụng hỗ trợ kênh đã cập nhật.",
+      "restartRequired": "Khởi động lại Mira để áp dụng hỗ trợ kênh đã cập nhật.",
       "requires": "Yêu cầu: {{requirements}}",
       "setUp": "Thiết lập",
       "setupGuide": "Hướng dẫn thiết lập",
-      "setupSummary": "Bật chỉ kích hoạt hỗ trợ của nanobot. Thêm thông tin xác thực nền tảng rồi khởi động lại nanobot.",
+      "setupSummary": "Bật chỉ kích hoạt hỗ trợ của Mira. Thêm thông tin xác thực nền tảng rồi khởi động lại Mira.",
       "configKeys": "Khóa cấu hình",
       "enable": "Bật kênh",
       "disable": "Tắt kênh",
@@ -750,7 +865,7 @@
       "missingDependency": "Thiếu gói hỗ trợ",
       "installSupport": "Cài gói hỗ trợ",
       "installConfirmTitle": "Cài hỗ trợ cho {{name}}?",
-      "installConfirmDescription": "nanobot sẽ thêm những gì {{name}} cần, rồi bật tính năng này. Tiếp tục?",
+      "installConfirmDescription": "Mira sẽ thêm những gì {{name}} cần, rồi bật tính năng này. Tiếp tục?",
       "installConfirmAction": "Cài và bật",
       "websocketRequired": "Bắt buộc cho WebUI",
       "channelDisabled": "Kênh đang tắt",
@@ -894,7 +1009,7 @@
       "signedInAs": "Đã đăng nhập bằng {{account}}",
       "signInHelp": "Đăng nhập từ thiết bị này; khóa API không được lưu trong config.",
       "remoteSignInHelp": "Chọn Đăng nhập để mở xAI trên máy tính của bạn, sau đó dán mã ủy quyền được hiển thị sau khi đăng nhập.",
-      "codexRemoteSignInHelp": "Đăng nhập trong trình duyệt này, sau đó dán lại URL callback localhost đầy đủ vào nanobot.",
+      "codexRemoteSignInHelp": "Đăng nhập trong trình duyệt này, sau đó dán lại URL callback localhost đầy đủ vào Mira.",
       "signInRequired": "Cần đăng nhập",
       "signInBeforeSaving": "Hãy đăng nhập nhà cung cấp này trước khi lưu cấu hình đặt trước.",
       "signedIn": "Đã đăng nhập",
@@ -902,9 +1017,9 @@
       "proxyLabel": "Proxy mạng",
       "proxySaveBeforeSignIn": "Hãy lưu thay đổi proxy trước khi đăng nhập.",
       "saveProxy": "Lưu proxy",
-      "localCodeHelp": "Hoàn tất đăng nhập trong trình duyệt. nanobot thường tự động hoàn tất; nếu không, hãy dán mã ủy quyền bên dưới.",
+      "localCodeHelp": "Hoàn tất đăng nhập trong trình duyệt. Mira thường tự động hoàn tất; nếu không, hãy dán mã ủy quyền bên dưới.",
       "remoteCodeHelp": "Chọn Đăng nhập để mở xAI trên máy tính của bạn. Sau khi đăng nhập, hãy dán mã ủy quyền do xAI hiển thị bên dưới.",
-      "localCallbackHelp": "Hoàn tất đăng nhập trong trình duyệt. nanobot thường tự động hoàn tất; nếu không, hãy sao chép URL callback localhost đầy đủ từ thanh địa chỉ và dán vào bên dưới.",
+      "localCallbackHelp": "Hoàn tất đăng nhập trong trình duyệt. Mira thường tự động hoàn tất; nếu không, hãy sao chép URL callback localhost đầy đủ từ thanh địa chỉ và dán vào bên dưới.",
       "remoteCallbackHelp": "Mở ChatGPT trong trình duyệt này và hoàn tất đăng nhập. Khi trang localhost không tải được, hãy sao chép URL đầy đủ từ thanh địa chỉ và dán vào bên dưới.",
       "authorizationCode": "Mã ủy quyền",
       "callbackUrl": "URL callback đầy đủ",
@@ -947,7 +1062,7 @@
       "deleteConfirmAction": "Xóa kỹ năng",
       "instructionsTitle": "Hướng dẫn kỹ năng",
       "setupRequired": "Cần thiết lập",
-      "setupDescription": "Cài đặt phần phụ thuộc còn thiếu trên máy chạy nanobot rồi kiểm tra lại.",
+      "setupDescription": "Cài đặt phần phụ thuộc còn thiếu trên máy chạy Mira rồi kiểm tra lại.",
       "copySetupCommand": "Sao chép lệnh thiết lập",
       "checkAgain": "Kiểm tra lại",
       "marketplaceSearchFailed": "Không thể tìm kiếm các chợ kỹ năng.",
@@ -1104,7 +1219,7 @@
       "mdModalDiffCurrent": "MEMORY.md hiện tại",
       "mdModalDiffCurrentPlaceholder": "（MEMORY.md không tồn tại hoặc trống）",
       "masterToggleTitle": "Trích xuất & tìm kiếm trí nhớ tự động",
-      "masterToggleDescription": "Khi bật, nanobot trích xuất sự thật từ hội thoại và lấy trí nhớ liên quan ở lượt sau. Hiệu lực ngay — không cần khởi động lại.",
+      "masterToggleDescription": "Khi bật, Mira trích xuất sự thật từ hội thoại và lấy trí nhớ liên quan ở lượt sau. Hiệu lực ngay — không cần khởi động lại.",
       "masterToggleAria": "Bật/tắt trích xuất trí nhớ",
       "masterToggleOn": "Bật",
       "masterToggleOff": "Tắt"
@@ -1344,6 +1459,7 @@
     "showMore": "Hiển thị thêm {{count}}",
     "collapsed": "Đã thu gọn {{count}} chủ đề",
     "showLess": "Thu gọn",
+    "expandGroup": "Mở rộng",
     "actions": "Tác vụ cho chủ đề {{title}}",
     "newInProject": "Bắt đầu chủ đề mới trong {{project}}",
     "activity": {
@@ -1373,13 +1489,20 @@
     "delete": "Xóa",
     "newChat": "Chủ đề mới",
     "groups": {
+      "newChatInProject": "Chat moi trong du an",
+      "reveal": "Mo trong trinh quan tep",
+      "removeProject": "Xoa du an",
       "pinned": "Đã ghim",
       "all": "Chủ đề",
       "projects": "Dự án",
+      "addProject": "Thêm dự án",
       "today": "Hôm nay",
       "yesterday": "Hôm qua",
       "earlier": "Trước đó",
-      "archived": "Đã lưu trữ"
+      "archived": "Đã lưu trữ",
+      "emptyProject": "Chưa có cuộc trò chuyện nào",
+      "toggleProjects": "Thu hoặc giãn dự án",
+      "projectsHint": "Mỗi dự án là một thư mục trên máy tính này."
     }
   },
   "deleteConfirm": {
@@ -1416,7 +1539,79 @@
     "closed": "Đã ngắt kết nối",
     "error": "Lỗi kết nối"
   },
+  "startPanel": {
+    "title": "Bắt đầu",
+    "files": "Tệp không gian làm việc",
+    "filesDesc": "Xem tệp trong không gian làm việc của phiên",
+    "terminal": "Terminal mới",
+    "terminalDesc": "Chạy lệnh trong không gian làm việc",
+    "terminalLimit": "Đã đạt giới hạn terminal (tối đa 8)",
+    "terminalInput": "Nhập lệnh",
+    "terminalInputPlaceholder": "Nhập lệnh rồi nhấn Enter",
+    "terminalTabs": "Terminal",
+    "terminalTab": "Terminal",
+    "terminalClose": "Đóng terminal",
+    "terminalStarting": "Đang khởi động terminal…",
+    "terminalExit": "Thoát với mã {{code}}",
+    "terminalExpired": "Phiên đã hết hạn",
+    "terminalGone": "Terminal này không còn khả dụng. Hãy mở cái mới.",
+    "terminalCommandRejected": "Không thể gửi lệnh tới terminal này.",
+    "shellUnavailable": "Shell này chưa được cài đặt trên máy chủ.",
+    "browser": "Trình duyệt",
+    "browserDesc": "Duyệt web",
+    "openProjectFirst": "Khả dụng sau khi chọn một dự án",
+    "externalOpen": "Mở ra bên ngoài",
+    "embedBlocked": "Trang web này từ chối nhúng.",
+    "filesRetry": "Không tải được không gian làm việc — thử lại",
+    "terminalPlaceholder": "Bảng điều khiển lệnh sẽ xuất hiện ở đây.",
+    "browserPlaceholder": "Trình duyệt nhúng sẽ xuất hiện ở đây.",
+    "expand": "Mở rộng bảng Bắt đầu",
+    "collapse": "Thu gọn bảng Bắt đầu",
+    "browserBack": "Lùi",
+    "browserForward": "Tiến",
+    "browserRefresh": "Làm mới",
+    "browserAddress": "Địa chỉ",
+    "browserAddressPlaceholder": "https://example.com",
+    "browserGo": "Đi",
+    "browserEmptyHint": "Nhập địa chỉ để bắt đầu duyệt.",
+    "browserFrameTitle": "Trang trình duyệt nhúng",
+    "browserError_scheme": "Chỉ mở được địa chỉ http/https ở đây.",
+    "browserError_private": "Địa chỉ riêng hoặc mạng nội bộ không được phép.",
+    "browserError_malformed": "Đó có vẻ không phải địa chỉ web hợp lệ."
+  },
+  "dock": {
+    "tabFile": "Tệp",
+    "tabBrowser": "Trình duyệt",
+    "plusAria": "Tab mới",
+    "newTerminal": "Terminal mới",
+    "shellChoices": "Chọn shell",
+    "takeoverRunning": "Terminal đang chạy",
+    "takeoverAction": "Tiếp quản",
+    "takeoverHint": "Nhấn Enter để vẽ lại màn hình",
+    "closeTab": "Đóng tab",
+    "platformDefaultShell": "Shell mặc định của máy chủ"
+  },
+  "plusMenu": {
+    "groupAdd": "Thêm",
+    "groupCommands": "Lệnh",
+    "compact": "Nén",
+    "compactDesc": "Nén nội dung cuộc trò chuyện ở trên",
+    "permission": "Quyền",
+    "permissionDesc": "Đổi preset quyền (chế độ sandbox và chính sách phê duyệt)",
+    "model": "Mô hình",
+    "modelDesc": "Chọn mô hình cho phiên này",
+    "feedback": "Phản hồi",
+    "feedbackDesc": "Gửi phản hồi về phiên này",
+    "feedbackPlaceholder": "Nhập phản hồi…",
+    "feedbackSend": "Gửi",
+    "back": "Quay lại"
+  },
   "thread": {
+    "activity": {
+      "viewDetails": "Xem chi tiết",
+      "hideDetails": "Ẩn",
+      "sourceCount": "{{count}} nguồn"
+    },
     "compaction": {
       "cancelled": "Đã hủy nén ngữ cảnh",
       "empty": "Không có ngữ cảnh cần nén.",
@@ -1461,7 +1656,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "Thiết kế biểu tượng ứng dụng",
-          "prompt": "Tạo một biểu tượng ứng dụng 1:1 gọn gàng cho nanobot: robot thân thiện, phong cách vector đơn giản, bảng màu xanh trắng dịu, không có chữ."
+          "prompt": "Tạo một biểu tượng ứng dụng 1:1 gọn gàng cho Mira: robot thân thiện, phong cách vector đơn giản, bảng màu xanh trắng dịu, không có chữ."
         },
         "sticker": {
           "title": "Tạo nhãn dán",
@@ -1518,6 +1713,29 @@
       }
     },
     "composer": {
+      "menu": {
+        "aria": "Thêm",
+        "add": "Thêm",
+        "files": "Tệp và thư mục",
+        "filesDesc": "Đính kèm ảnh hoặc tệp vào tin nhắn này",
+        "project": "Làm việc trong dự án",
+        "projectDesc": "Chọn thư mục cho cuộc trò chuyện này",
+        "goal": "Mục tiêu",
+        "goalDesc": "Xử lý yêu cầu này như mục tiêu dài hạn",
+        "plan": "Chế độ lập kế hoạch",
+        "planDesc": "Yêu cầu kế hoạch hành động trước khi làm",
+        "draw": "Vẽ ảnh",
+        "drawDesc": "Tạo ảnh bằng skill image-generation",
+        "skills": "Kỹ năng",
+        "noSkills": "Chưa cài đặt kỹ năng",
+        "plugins": "Plugin",
+        "noPlugins": "Chưa cài đặt plugin",
+        "mcp": "MCP",
+        "noMcp": "Chưa cấu hình máy chủ MCP",
+        "agents": "Agent",
+        "noAgents": "Không có agent nào",
+        "agentInsert": "Hãy chạy việc này với agent \"{{name}}\": "
+      },
       "placeholderThread": "Nhập tin nhắn…",
       "placeholderHero": "Bạn đang nghĩ gì?",
       "placeholderOpening": "Đang mở chủ đề mới…",
@@ -1539,6 +1757,28 @@
       "chooseAI": "Chọn AI của bạn",
       "switchModel": "Chuyển mô hình cho cuộc trò chuyện này",
       "manageModels": "Quản lý mô hình",
+      "reasoningEffort": "Mức độ suy luận",
+      "effort": {
+        "default": "Mặc định",
+        "low": "Thấp",
+        "medium": "Trung bình",
+        "high": "Cao",
+        "xhigh": "Rất cao",
+        "max": "Tối đa",
+        "adaptive": "Thích ứng"
+      },
+      "runtime": {
+        "thisComputer": "Máy tính này",
+        "title": "Môi trường chạy",
+        "aria": "Môi trường chạy",
+        "host": "Tên máy chủ",
+        "gateway": "Cổng",
+        "sandbox": "Hộp cát",
+        "access": "Quyền truy cập",
+        "unknown": "Không rõ",
+        "enforced": "Đã áp dụng cách ly",
+        "notEnforced": "Chưa áp dụng cách ly"
+      },
       "context": {
         "tooltip": "Ngữ cảnh {{percent}}%",
         "detailsLabel": "Mở mức sử dụng ngữ cảnh",
@@ -1617,7 +1857,7 @@
             "description": "Hủy lượt của tác nhân đang chạy trong cuộc trò chuyện này."
           },
           "restart": {
-            "title": "Khởi động lại nanobot",
+            "title": "Khởi động lại Mira",
             "description": "Khởi động lại tiến trình bot tại chỗ."
           },
           "status": {
@@ -1697,14 +1937,14 @@
         "label": "Ứng dụng",
         "cliGroup": "Ứng dụng CLI",
         "mcpGroup": "Dịch vụ MCP",
-        "sessionGroup": "Cuộc trò chuyện Nanobot",
+        "sessionGroup": "Cuộc trò chuyện Mira",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
         "cliDescription": "Dùng @{{name}} như ứng dụng CLI cục bộ",
         "mcpDescription": "Dùng @{{name}} như máy chủ MCP",
         "cliTitle": "Ứng dụng CLI: {{name}}",
         "mcpTitle": "Máy chủ MCP: {{name}}",
-        "sessionBadge": "Cuộc trò chuyện Nanobot",
+        "sessionBadge": "Cuộc trò chuyện Mira",
         "sessionDescription": "Tham chiếu @{{name}} như cuộc trò chuyện trước"
       },
       "workspace": {
@@ -1820,13 +2060,19 @@
     "next": "Ảnh tiếp theo",
     "close": "Đóng xem trước"
   },
+  "askQuestion": {
+    "recommended": "Đề xuất",
+    "otherPlaceholder": "Nhập câu trả lời khác",
+    "noPreference": "Không có sở thích",
+    "submit": "Gửi câu trả lời"
+  },
   "filePreview": {
     "aria": "Xem trước tệp",
     "breadcrumb": "Đường dẫn tệp",
     "close": "Đóng xem trước tệp",
     "loading": "Đang tải bản xem trước...",
     "failed": "Không thể xem trước tệp này.",
-    "routeMissing": "Xem trước tệp cần gateway mới nhất. Hãy khởi động lại nanobot gateway rồi thử lại.",
+    "routeMissing": "Xem trước tệp cần gateway mới nhất. Hãy khởi động lại Mira gateway rồi thử lại.",
     "resize": "Đổi kích thước bản xem trước tệp",
     "truncated": "Bản xem trước bị cắt vì tệp này lớn."
   },
@@ -1837,6 +2083,30 @@
     "copied": "Đã sao chép"
   },
   "workbench": {
+    "title": "Bảng làm việc",
+    "open": "Mở bảng làm việc",
+    "collapse": "Thu gọn bảng làm việc",
+    "updatedAt": "Cập nhật {{time}}",
+    "overview": "Tổng quan",
+    "emptyOverview": "Chưa có tóm tắt",
+    "environment": "Môi trường",
+    "local": "Cục bộ",
+    "fullAccess": "Toàn quyền",
+    "restrictedAccess": "Hạn chế",
+    "files": "tệp",
+    "commitPush": "Commit hoặc push",
+    "commitPushHint": "Sẽ có cùng API chỉ đọc của bảng làm việc",
+    "integrations": "Kỹ năng & MCP",
+    "emptyIntegrations": "Phiên này chưa dùng MCP/CLI",
+    "outputs": "Đầu ra",
+    "emptyOutputs": "Chưa có tệp nào thay đổi",
+    "sources": "Nguồn",
+    "emptySources": "Chưa có nguồn web",
+    "treeLoading": "Đang tải…",
+    "treeEmpty": "Dự án trống",
+    "treeEmptyFolder": "Thư mục trống",
+    "treeRetry": "Không đọc được thư mục này — thử lại",
+    "treeTruncated": "Chỉ hiển thị các mục đầu tiên",
     "aria": "Không gian hội thoại",
     "panes": "Khung",
     "tabAria": "Nhóm: {{title}}",
@@ -1902,11 +2172,49 @@
   },
   "workspace": {
     "dialog": {
-      "defaultProject": "Không gian làm việc mặc định",
+      "title": "Tạo dự án",
+      "sourceFolder": "Thư mục nguồn",
+      "addFromThisComputer": "Thêm thư mục từ máy tính này",
+      "add": "Thêm",
+      "unavailable": "Mở WebUI trên máy chứa gateway hoặc dùng ứng dụng máy tính để bàn",
+      "pickFailed": "Không mở được trình chọn thư mục",
+      "pickerBusy": "Đã có trình chọn thư mục đang mở",
+      "changeFolder": "Doi thu muc",
+      "picking": "Dang chon...",
+      "projectName": "Ten du an",
+      "create": "Tạo dự án",
+      "cancel": "Huy",
+      "defaultProject": "Không gian làm việc mặc định (không dự án)",
       "manual": "Dán đường dẫn",
       "manualPlaceholder": "/Users/name/project",
       "usePath": "Dùng đường dẫn",
       "absolutePathRequired": "Nhập đường dẫn thư mục tuyệt đối trên máy này."
+    },
+    "brand": "知序",
+    "nav": {
+      "assistant": "Trợ lý",
+      "creative": "Sáng tạo"
+    },
+    "preview": {
+      "badge": "Xem trước giao diện · nội dung mẫu"
+    },
+    "home": {
+      "eyebrow": "Bàn làm việc",
+      "title": "Hôm nay bạn muốn hoàn thành điều gì?",
+      "subtitle": "Bắt đầu với một nhiệm vụ tự do hoặc chọn một tính năng bên dưới.",
+      "taskAria": "Nhiệm vụ tự do",
+      "taskPlaceholder": "Mô tả nhiệm vụ của bạn, ví dụ \"biến các ký ức tuần này thành một ghi chú\".",
+      "previewHint": "Xem trước giao diện: không có gì được gửi đi thực sự.",
+      "submitHint": "Mở trợ lý; bạn vẫn xác nhận trước khi gửi.",
+      "submit": "Bắt đầu",
+      "capabilitiesTitle": "Tính năng",
+      "creativeTitle": "Không gian sáng tạo",
+      "creativeDesc": "Biến các mảnh tư liệu rời rạc thành một bài viết.",
+      "assistantTitle": "Trợ lý tổng hợp",
+      "assistantDesc": "Giữ nguyên toàn bộ skill và agent hiện có."
+    },
+    "creative": {
+      "comingSoon": "Module sáng tạo sẽ sớm ra mắt."
     }
   }
 }

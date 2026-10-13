@@ -90,6 +90,34 @@ def test_sidebar_state_normalizes_partial_payload(tmp_path, monkeypatch) -> None
     }
 
 
+def test_sidebar_state_project_entries_are_cleaned(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("nanobot.config.paths.get_data_dir", lambda: tmp_path)
+    path = webui_sidebar_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "project_entries": [
+                    {"key": "/repo/core", "path": "/repo/core", "name": "  Core  ", "added_at": "2026-10-10T04:00:00Z"},
+                    {"path": "/repo/api"},
+                    {"key": "/repo/core", "path": "/repo/dup"},
+                    {"path": "  "},
+                    "not-a-dict",
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    state = read_webui_sidebar_state()
+
+    assert state["project_entries"] == [
+        {"key": "/repo/core", "path": "/repo/core", "name": "Core", "added_at": "2026-10-10T04:00:00Z"},
+        {"key": "/repo/api", "path": "/repo/api", "name": "", "added_at": ""},
+    ]
+    assert write_webui_sidebar_state(state)["project_entries"] == state["project_entries"]
+
+
 def test_sidebar_state_write_is_scoped_to_config_data_dir(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr("nanobot.config.paths.get_data_dir", lambda: tmp_path)
 

@@ -190,6 +190,13 @@ function makeClient() {
     newChat: vi.fn(),
     forkChat: vi.fn(),
     attach: vi.fn(),
+    // SessionWorkbench 现挂载内嵌 StartDock（Task 10）：补齐终端帧 API 的 no-op 面。
+    onTerminalEvent: vi.fn(() => () => {}),
+    terminalList: vi.fn(),
+    terminalStart: vi.fn(),
+    terminalWrite: vi.fn(),
+    terminalResize: vi.fn(),
+    terminalKill: vi.fn(),
     connect: vi.fn(),
     close: vi.fn(),
     updateUrl: vi.fn(),
@@ -4251,6 +4258,29 @@ describe("ThreadShell", () => {
 
     expect(client.sendMessage).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Stop response" })).toBeInTheDocument();
+  });
+
+  it("reports session rail open state to the pane host", async () => {
+    window.localStorage.setItem("mira.workbench.open", "1");
+    const client = makeClient();
+    const onWorkbenchOpenChange = vi.fn();
+    render(wrap(
+      client,
+      <ThreadShell
+        session={session("rail-report")}
+        title="Rail report"
+        onToggleSidebar={() => {}}
+        onWorkbenchOpenChange={onWorkbenchOpenChange}
+      />,
+    ));
+
+    await screen.findByLabelText("Message input");
+    expect(onWorkbenchOpenChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse workbench" }));
+    expect(onWorkbenchOpenChange).toHaveBeenLastCalledWith(false);
+
+    window.localStorage.removeItem("mira.workbench.open");
   });
 
 });

@@ -124,7 +124,7 @@ export type BadgeTone = "neutral" | "info" | "warn" | "ok" | "muted";
 
 const BADGE_CLASS: Record<BadgeTone, string> = {
   neutral: "border-border bg-muted/60 text-foreground/75",
-  info: "border-blue-300/70 bg-blue-50 text-blue-900 dark:border-blue-700/40 dark:bg-blue-950/30 dark:text-blue-200",
+  info: "border-primary/25 bg-accent text-accent-foreground dark:border-primary/30 dark:bg-primary/10 dark:text-primary",
   warn: "border-amber-300/70 bg-amber-50 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200",
   ok: "border-emerald-300/70 bg-emerald-50 text-emerald-900 dark:border-emerald-700/40 dark:bg-emerald-950/30 dark:text-emerald-200",
   muted: "border-border/70 bg-transparent text-muted-foreground",

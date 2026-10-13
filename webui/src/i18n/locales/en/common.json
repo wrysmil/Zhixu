@@ -1,12 +1,124 @@
 {
+  "creative": {
+    "headline": "What would you like to write today?",
+    "hero_description": "A piece of code, a hands-on project, a new insight — every article begins somewhere.",
+    "topic_label": "Article topic",
+    "input_hint": "Start with your own materials and ideas",
+    "template_heading": "Start with a familiar format",
+    "template_hint": "A template is only a starting point",
+    "library_heading": "My articles",
+    "new_article": "Write a new article",
+    "sample_label": "Sample",
+    "material_count": "{{count}} materials",
+    "continue_writing": "Continue writing",
+    "filter_all": "All",
+    "status": {
+      "idea": "Idea",
+      "draft": "Draft",
+      "review": "Review",
+      "done": "Done"
+    },
+    "material": {
+      "type": {
+        "note": "Insight",
+        "text": "Text",
+        "code": "Code",
+        "link": "Link"
+      },
+      "empty": "No materials yet",
+      "add": "Add material",
+      "addConfirm": "Add",
+      "save": "Save changes",
+      "cancel": "Cancel",
+      "edit": "Edit material",
+      "remove": "Remove material",
+      "included": "Use in this collaboration",
+      "field": {
+        "title": "Title",
+        "content": "Content",
+        "contentPlaceholder": "Content",
+        "codePlaceholder": "Paste code — indentation and line breaks are kept",
+        "url": "Link URL",
+        "excerpt": "Excerpt (optional)",
+        "source": "Source (optional)",
+        "note": "Note (optional)",
+        "language": "Language (optional)"
+      },
+      "error": {
+        "title": "Give the material a title",
+        "content": "Fill in the material content",
+        "linkUrl": "Links must start with http:// or https://"
+      },
+      "confirm": {
+        "title": "Delete this material?",
+        "description": "Only this material is removed; the article body and what you already saved stay untouched.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      }
+    },
+    "outline": {
+      "empty": "No outline yet",
+      "add": "Add section",
+      "addConfirm": "Add",
+      "newPlaceholder": "New section",
+      "save": "Done",
+      "cancel": "Cancel",
+      "remove": "Remove section",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "field": {
+        "text": "Outline point"
+      }
+    },
+    "conflict": {
+      "title": "This article was updated elsewhere",
+      "description": "The server holds version {{revision}}. Your unsaved draft is kept and autosave is paused.",
+      "deleted": "This article no longer exists on the server. Save your draft as a new article to keep it.",
+      "remote": "Latest server version",
+      "remoteLoading": "Reading the latest server version…",
+      "remoteUnavailable": "The latest server version could not be read yet.",
+      "local": "Your unsaved draft",
+      "reload": "Load the latest version and merge by hand",
+      "saveCopy": "Save a copy",
+      "savingCopy": "Saving a copy…",
+      "discard": "Discard my changes and reload",
+      "discardWarning": "Your local draft will be deleted and cannot be restored. Reload the server version?",
+      "discardBack": "Keep editing",
+      "discardConfirm": "Confirm discard",
+      "cancel": "Handle later",
+      "reopen": "Resolve conflict"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Tech Explainer",
+        "desc": "Explain a complex concept clearly",
+        "outline": ["Where the problem comes from", "Core concepts and principles", "Illustrate with an example", "Scope and limits", "My understanding"]
+      },
+      "source-reading": {
+        "name": "Source Reading",
+        "desc": "Follow the call chain to understand the design",
+        "outline": ["What I want to understand", "Entry point and call chain", "Key implementation", "Design trade-offs", "My own understanding"]
+      },
+      "practice-retro": {
+        "name": "Practice Retrospective",
+        "desc": "Record the process and the trade-offs",
+        "outline": ["Background and goal", "How I did it", "Problems and debugging", "Results and gaps", "What I will change next time"]
+      },
+      "learning-summary": {
+        "name": "Learning Summary",
+        "desc": "Turn new knowledge into your own understanding",
+        "outline": ["What question I learned with", "Key knowledge", "Hands-on verification", "How my understanding changed", "Remaining questions"]
+      }
+    }
+  },
   "app": {
-    "brand": "nanobot",
+    "brand": "Mira",
     "loading": {
-      "connecting": "Connecting to nanobot…",
-      "boot": "Loading nanobot…"
+      "connecting": "Connecting to Mira…",
+      "boot": "Loading Mira…"
     },
     "error": {
-      "title": "Couldn't reach nanobot",
+      "title": "Couldn't reach Mira",
       "gatewayHint": "Make sure the gateway is running (`nanobot gateway`) and that this page is open on the same machine."
     },
     "auth": {
@@ -24,8 +136,8 @@
     },
     "system": {
       "section": "System",
-      "restartHint": "Restart nanobot to apply runtime changes.",
-      "restart": "Restart nanobot",
+      "restartHint": "Restart Mira to apply runtime changes.",
+      "restart": "Restart Mira",
       "restarting": "Restarting...",
       "restartEngine": "Restart engine",
       "restartingEngine": "Restarting engine..."
@@ -34,11 +146,11 @@
       "completed": "Restart completed in {{seconds}}s."
     },
     "documentTitle": {
-      "base": "nanobot",
-      "chat": "{{title}} · nanobot"
+      "base": "Mira",
+      "chat": "{{title}} · Mira"
     },
     "meta": {
-      "description": "nanobot web UI — chat with your nanobot workspace."
+      "description": "Mira web UI — chat with your Mira workspace."
     },
     "pairing": {
       "title": "Pair a chat user",
@@ -62,7 +174,8 @@
   "sidebar": {
     "navigation": "Sidebar navigation",
     "collapse": "Collapse sidebar",
-    "newChat": "New topic",
+    "home": "Home",
+    "newChat": "New chat",
     "searchAria": "Search",
     "searchPlaceholder": "Search",
     "searchResults": "Results",
@@ -349,7 +462,7 @@
       "language": "Language",
       "provider": "Provider",
       "model": "Model",
-      "restart": "Restart nanobot",
+      "restart": "Restart Mira",
       "configPath": "Config path",
       "activePreset": "Active preset",
       "gateway": "Gateway",
@@ -391,7 +504,8 @@
       "transcriptionProviderStatus": "Provider status",
       "transcriptionModel": "Model",
       "transcriptionLanguage": "Language",
-      "voiceLimits": "Limits"
+      "voiceLimits": "Limits",
+      "workspacePathHint": "Chats without a project use this folder. Project folders live under Projects in the sidebar."
     },
     "help": {
       "theme": "Switch between light and dark appearance.",
@@ -421,7 +535,7 @@
       "defaultImageSize": "Size hint sent to providers that support it.",
       "maxImagesPerTurn": "Upper bound for one generate_image request.",
       "timezone": "Used for schedules and time-aware replies.",
-      "cliAppsCatalog": "Install only the app-specific CLI adapters nanobot can run locally; native apps stay untouched.",
+      "cliAppsCatalog": "Install only the app-specific CLI adapters Mira can run locally; native apps stay untouched.",
       "cliAppsFilter": "Search by app, category, or capability.",
       "localServiceAccess": "Allow Full Access shell commands to reach localhost services.",
       "webuiDefaultAccess": "Used by web chats without a project-specific permission.",
@@ -467,7 +581,7 @@
       "readyStatus": "Ready",
       "readyTry": "Try @{{name}}",
       "readyCopied": "Copied",
-      "readyPrompt": "Ask nanobot to use @{{name}} for this task.",
+      "readyPrompt": "Ask Mira to use @{{name}} for this task.",
       "openChat": "Open chat",
       "unsupported": "Unsupported",
       "unavailable": "Unavailable",
@@ -511,7 +625,7 @@
       "saveCustom": "Save MCP",
       "configImport": "Import mcp.json",
       "importConfig": "Import",
-      "restartRequired": "Restart nanobot to connect updated MCP tools.",
+      "restartRequired": "Restart Mira to connect updated MCP tools.",
       "toolsFound": "{{count}} tools",
       "loading": "Loading MCP presets...",
       "empty": "No MCP presets match this filter.",
@@ -539,14 +653,14 @@
       "preparingSignIn": "Preparing secure sign-in…",
       "openSignInToContinue": "Open the sign-in page to continue.",
       "finishSignInInBrowser": "Finish signing in in the browser window.",
-      "manualCallbackRequired": "Finish signing in, then paste the callback URL into nanobot.",
+      "manualCallbackRequired": "Finish signing in, then paste the callback URL into Mira.",
       "manualCallbackHelp": "After approving access, the localhost page will not load. Copy its full URL from the address bar and paste it here.",
       "finishingConnection": "Finishing connection…",
       "activatingTools": "Activating tools…",
       "connected": "Connected.",
       "connectionFailed": "Connection failed.",
       "connectionCancelled": "Connection cancelled.",
-      "reloadFailed": "Signed in, but nanobot could not connect the tools. Try restarting nanobot.",
+      "reloadFailed": "Signed in, but Mira could not connect the tools. Try restarting Mira.",
       "oauthFailed": "Unable to connect. Try signing in again.",
       "statusMissingDependency": "Needs dependency",
       "statusComingSoon": "Coming soon",
@@ -625,18 +739,19 @@
       "restartingEngine": "Restarting",
       "checking": "Checking",
       "running": "Running",
-      "needsSetup": "Needs setup"
+      "needsSetup": "Needs setup",
+      "workspaceSettings": "Workspace settings"
     },
     "status": {
       "loading": "Loading settings...",
       "loadError": "Could not load settings",
       "unsaved": "Unsaved changes.",
       "upToDate": "Up to date.",
-      "savedRestart": "Saved. Restart nanobot to apply.",
+      "savedRestart": "Saved. Restart Mira to apply.",
       "restartAfterSaving": "Save changes, then restart when ready.",
       "savedRestartApply": "Saved. Restart when ready.",
       "imageProviderRestart": "Image provider changes saved. Restart when ready.",
-      "hostRestartAfterSaving": "Save changes and nanobot will restart its engine.",
+      "hostRestartAfterSaving": "Save changes and Mira will restart its engine.",
       "hostRestartPending": "Saved. Restarting engine when ready.",
       "hostApiUnavailable": "Host actions are only available inside the native app.",
       "logsOpened": "Opened logs folder.",
@@ -660,7 +775,7 @@
       "exporting": "Exporting..."
     },
     "byok": {
-      "description": "Bring your own provider keys. Nanobot reads these values from the current config and only configured providers can be used in model presets.",
+      "description": "Bring your own provider keys. Mira reads these values from the current config and only configured providers can be used in model presets.",
       "configured": "Configured",
       "notConfigured": "Not configured",
       "configuredSection": "Configured",
@@ -709,7 +824,7 @@
       "webSearch": "Web search",
       "imageGeneration": "Image generation",
       "voiceInput": "Voice input",
-      "workspace": "Workspace"
+      "workspace": "Default workspace"
     },
     "usage": {
       "title": "Token activity",
@@ -807,12 +922,12 @@
     },
     "observability": {
       "title": "Observability",
-      "configured": "Tracing credentials are available to nanobot.",
-      "environment": "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY, then restart nanobot.",
+      "configured": "Tracing credentials are available to Mira.",
+      "environment": "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY, then restart Mira.",
       "enable": "Enable tracing support"
     },
     "apps": {
-      "description": "Add tools to nanobot, then @ them in chat.",
+      "description": "Add tools to Mira, then @ them in chat.",
       "cliLabel": "App",
       "mcpLabel": "MCP",
       "channelLabel": "Channel",
@@ -835,21 +950,21 @@
       "browseApps": "Browse apps",
       "browseIntegrations": "Browse MCP tools",
       "emptyIntegrationsHint": "Add a custom MCP server below.",
-      "restartRequired": "Restart nanobot to apply updated apps and MCP tools."
+      "restartRequired": "Restart Mira to apply updated apps and MCP tools."
     },
     "channels": {
-      "description": "Connect chat apps, email, and WebUI to nanobot.",
+      "description": "Connect chat apps, email, and WebUI to Mira.",
       "caption": "{{enabled}} running · {{total}} channels",
       "searchPlaceholder": "Search channels",
       "backToChannels": "All channels",
       "catalog": "Channels",
       "loading": "Loading Channels...",
       "empty": "No channels match this filter.",
-      "restartRequired": "Restart nanobot to apply updated channel support.",
+      "restartRequired": "Restart Mira to apply updated channel support.",
       "requires": "Requires: {{requirements}}",
       "setUp": "Set up",
       "setupGuide": "Setup guide",
-      "setupSummary": "Enable only turns on nanobot support. Add the platform credentials, then restart nanobot.",
+      "setupSummary": "Enable only turns on Mira support. Add the platform credentials, then restart Mira.",
       "configKeys": "Config keys",
       "enable": "Enable channel",
       "disable": "Disable channel",
@@ -912,7 +1027,7 @@
       "missingDependency": "Support missing",
       "installSupport": "Install support",
       "installConfirmTitle": "Install support for {{name}}?",
-      "installConfirmDescription": "nanobot will add what {{name}} needs, then turn it on. Continue?",
+      "installConfirmDescription": "Mira will add what {{name}} needs, then turn it on. Continue?",
       "installConfirmAction": "Install and enable",
       "websocketRequired": "Required for WebUI",
       "channelDisabled": "Channel is disabled",
@@ -1056,7 +1171,7 @@
       "signedInAs": "Signed in as {{account}}",
       "signInHelp": "Sign in from this device; no API key is stored in config.",
       "remoteSignInHelp": "Select Sign in to open xAI on your computer, then paste the authorization code shown after login.",
-      "codexRemoteSignInHelp": "Sign in through this browser, then paste the full localhost callback URL back into nanobot.",
+      "codexRemoteSignInHelp": "Sign in through this browser, then paste the full localhost callback URL back into Mira.",
       "signInRequired": "Sign in required",
       "signInBeforeSaving": "Sign in before saving this provider in the preset.",
       "signedIn": "Signed in",
@@ -1064,9 +1179,9 @@
       "proxyLabel": "Network proxy",
       "proxySaveBeforeSignIn": "Save proxy changes before signing in.",
       "saveProxy": "Save proxy",
-      "localCodeHelp": "Complete sign-in in your browser. Nanobot usually finishes automatically; if it does not, paste the authorization code below.",
+      "localCodeHelp": "Complete sign-in in your browser. Mira usually finishes automatically; if it does not, paste the authorization code below.",
       "remoteCodeHelp": "Select Sign in to open xAI on your computer. After signing in, paste the authorization code shown by xAI below.",
-      "localCallbackHelp": "Complete sign-in in your browser. Nanobot usually finishes automatically; if it does not, copy the full localhost callback URL from the address bar and paste it below.",
+      "localCallbackHelp": "Complete sign-in in your browser. Mira usually finishes automatically; if it does not, copy the full localhost callback URL from the address bar and paste it below.",
       "remoteCallbackHelp": "Open ChatGPT in this browser and finish signing in. When the localhost page fails to load, copy the full URL from the address bar and paste it below.",
       "authorizationCode": "Authorization code",
       "callbackUrl": "Full callback URL",
@@ -1109,7 +1224,7 @@
       "deleteConfirmAction": "Delete skill",
       "instructionsTitle": "Skill instructions",
       "setupRequired": "Setup required",
-      "setupDescription": "Install the missing dependency on the machine running nanobot, then check again.",
+      "setupDescription": "Install the missing dependency on the machine running Mira, then check again.",
       "copySetupCommand": "Copy setup command",
       "checkAgain": "Check again",
       "marketplaceSearchFailed": "Could not search skill marketplaces.",
@@ -1309,7 +1424,7 @@
       "errorContentRequired": "Content is required",
       "metaLine": "{{type}} · {{priority}} · {{importance}}",
       "masterToggleTitle": "Memory auto extraction & retrieval",
-      "masterToggleDescription": "When on, nanobot extracts facts from chats and retrieves relevant memories on the next turn. Hot-takes-effect — no restart needed.",
+      "masterToggleDescription": "When on, Mira extracts facts from chats and retrieves relevant memories on the next turn. Hot-takes-effect — no restart needed.",
       "masterToggleAria": "Toggle memory extraction",
       "masterToggleOn": "On",
       "masterToggleOff": "Off",
@@ -1344,6 +1459,7 @@
     "showMore": "Show {{count}} more",
     "collapsed": "{{count}} hidden topics",
     "showLess": "Show less",
+    "expandGroup": "Expand",
     "actions": "Topic actions for {{title}}",
     "newInProject": "Start a new topic in {{project}}",
     "activity": {
@@ -1373,13 +1489,20 @@
     "delete": "Delete",
     "newChat": "New topic",
     "groups": {
+      "newChatInProject": "New chat in project",
+      "reveal": "Reveal in file manager",
+      "removeProject": "Remove project",
       "pinned": "Pinned",
       "all": "Topics",
       "projects": "Projects",
+      "addProject": "Add project",
       "today": "Today",
       "yesterday": "Yesterday",
       "earlier": "Earlier",
-      "archived": "Archived"
+      "archived": "Archived",
+      "emptyProject": "No chats yet",
+      "toggleProjects": "Toggle projects",
+      "projectsHint": "Each project is a folder on this computer."
     }
   },
   "deleteConfirm": {
@@ -1416,7 +1539,136 @@
     "closed": "Disconnected",
     "error": "Connection error"
   },
+  "workbench": {
+    "title": "Workbench",
+    "open": "Open workbench",
+    "collapse": "Collapse workbench",
+    "updatedAt": "Updated {{time}}",
+    "overview": "Overview",
+    "emptyOverview": "No summary yet",
+    "environment": "Environment",
+    "local": "Local",
+    "fullAccess": "Full access",
+    "restrictedAccess": "Restricted",
+    "files": "files",
+    "commitPush": "Commit or push",
+    "commitPushHint": "Wired with the workbench read-only API (phase 3)",
+    "integrations": "Skills & MCP",
+    "emptyIntegrations": "No MCP/CLI used this session",
+    "outputs": "Outputs",
+    "emptyOutputs": "No files changed yet",
+    "sources": "Sources",
+    "emptySources": "No web sources yet",
+    "treeLoading": "Loading…",
+    "treeEmpty": "This project is empty",
+    "treeEmptyFolder": "Empty",
+    "treeRetry": "Could not read this folder — retry",
+    "treeTruncated": "Showing the first items only",
+    "aria": "Conversation workbench",
+    "panes": "Panes",
+    "tabAria": "Group: {{title}}",
+    "panesInTab": "Panes in {{title}}",
+    "collapseTabGroup": "Collapse panes in {{title}}",
+    "expandTabGroup": "Expand panes in {{title}}",
+    "dropPane": "Move {{pane}} into {{tab}}",
+    "createGroup": "Create group",
+    "moveTo": "Move to",
+    "renameGroupTitle": "Rename group",
+    "renameGroupDescription": "Give this group a name.",
+    "renameGroupPlaceholder": "Group name",
+    "dissolveTab": "Dissolve group",
+    "layout": "Pane layout",
+    "addPane": "Add pane",
+    "paneLimit": "Maximum {{count}} panes",
+    "deleteConversations": "Delete all chats",
+    "movePane": "Move {{title}} pane",
+    "movePaneHint": "Drag to move · Arrow keys also work",
+    "resizePaneBoundary": "Resize pane boundary {{index}}",
+    "promotePane": "Make {{title}} the primary pane",
+    "paneActions": "{{title}} pane actions",
+    "detachPane": "Remove",
+    "composerAria": "Message {{title}}",
+    "layouts": {
+      "columns": "Columns",
+      "rows": "Rows",
+      "grid": "Grid",
+      "bsp": "BSP",
+      "main-stack": "Main and stack"
+    }
+  },
+  "startPanel": {
+    "title": "Start",
+    "files": "Workspace files",
+    "filesDesc": "Browse files in the session workspace",
+    "terminal": "New terminal",
+    "terminalDesc": "Run commands in the session workspace",
+    "terminalLimit": "Terminal limit reached (max 8)",
+    "terminalInput": "Command input",
+    "terminalInputPlaceholder": "Type a command and press Enter",
+    "terminalTabs": "Terminals",
+    "terminalTab": "Terminal",
+    "terminalClose": "Close terminal",
+    "terminalStarting": "Starting terminal…",
+    "terminalExit": "Exited with code {{code}}",
+    "terminalExpired": "Session expired",
+    "terminalGone": "This terminal is no longer available. Open a new one.",
+    "terminalCommandRejected": "The command could not be sent to this terminal.",
+    "shellUnavailable": "This shell is not installed on the host.",
+    "browser": "Browser",
+    "browserDesc": "Browse the web",
+    "openProjectFirst": "Available after you pick a project",
+    "externalOpen": "Open externally",
+    "embedBlocked": "This site refuses to be embedded.",
+    "filesRetry": "Could not load the workspace — retry",
+    "terminalPlaceholder": "The command console will appear here.",
+    "browserPlaceholder": "The embedded browser will appear here.",
+    "expand": "Expand the start panel",
+    "collapse": "Collapse the start panel",
+    "browserBack": "Back",
+    "browserForward": "Forward",
+    "browserRefresh": "Refresh",
+    "browserAddress": "Address",
+    "browserAddressPlaceholder": "https://example.com",
+    "browserGo": "Go",
+    "browserEmptyHint": "Enter an address to start browsing.",
+    "browserFrameTitle": "Embedded browser page",
+    "browserError_scheme": "Only http/https addresses can be opened here.",
+    "browserError_private": "Private or local-network addresses are not allowed.",
+    "browserError_malformed": "That doesn't look like a valid web address."
+  },
+  "dock": {
+    "tabFile": "Files",
+    "tabBrowser": "Browser",
+    "plusAria": "New tab",
+    "newTerminal": "New terminal",
+    "shellChoices": "Choose shell",
+    "takeoverRunning": "Running terminal",
+    "takeoverAction": "Take over",
+    "takeoverHint": "Press Enter to redraw",
+    "closeTab": "Close tab",
+    "platformDefaultShell": "Platform default"
+  },
+  "plusMenu": {
+    "groupAdd": "Add",
+    "groupCommands": "Commands",
+    "compact": "Compact",
+    "compactDesc": "Compact the conversation above",
+    "permission": "Permissions",
+    "permissionDesc": "Switch the permission preset (sandbox mode & approval policy)",
+    "model": "Model",
+    "modelDesc": "Choose the model for this session",
+    "feedback": "Feedback",
+    "feedbackDesc": "Send feedback about this session",
+    "feedbackPlaceholder": "Tell us what could be better…",
+    "feedbackSend": "Send",
+    "back": "Back"
+  },
   "thread": {
+    "activity": {
+      "viewDetails": "View details",
+      "hideDetails": "Hide",
+      "sourceCount": "{{count}} sources"
+    },
     "compaction": {
       "cancelled": "Context compaction cancelled",
       "empty": "Nothing to compact.",
@@ -1461,7 +1713,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "Design an app icon",
-          "prompt": "Generate a clean 1:1 app icon for nanobot: friendly robot, simple vector style, soft blue and white palette, no text."
+          "prompt": "Generate a clean 1:1 app icon for Mira: friendly robot, simple vector style, soft blue and white palette, no text."
         },
         "sticker": {
           "title": "Make a sticker",
@@ -1518,6 +1770,29 @@
       }
     },
     "composer": {
+      "menu": {
+        "aria": "Add",
+        "add": "Add",
+        "files": "Files and folders",
+        "filesDesc": "Attach images or files to this message",
+        "project": "Work in a project",
+        "projectDesc": "Pick a folder for this conversation",
+        "goal": "Goal",
+        "goalDesc": "Treat this request as a long-running goal",
+        "plan": "Plan mode",
+        "planDesc": "Ask for an execution plan before doing the work",
+        "draw": "Draw",
+        "drawDesc": "Generate an image with the image-generation skill",
+        "skills": "Skills",
+        "noSkills": "No skills installed",
+        "plugins": "Plugins",
+        "noPlugins": "No plugins installed",
+        "mcp": "MCP",
+        "noMcp": "No MCP servers configured",
+        "agents": "Agents",
+        "noAgents": "No agents available",
+        "agentInsert": "Run this with the agent \"{{name}}\": "
+      },
       "placeholderThread": "Type your message…",
       "placeholderHero": "Ask anything...",
       "placeholderOpening": "Opening a new topic…",
@@ -1539,6 +1814,28 @@
       "chooseAI": "Choose your AI",
       "switchModel": "Switch model for this chat",
       "manageModels": "Manage models",
+      "reasoningEffort": "Reasoning effort",
+      "effort": {
+        "default": "Default",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "xhigh": "Extra high",
+        "max": "Max",
+        "adaptive": "Adaptive"
+      },
+      "runtime": {
+        "thisComputer": "This computer",
+        "title": "Runtime environment",
+        "aria": "Runtime environment",
+        "host": "Hostname",
+        "gateway": "Gateway",
+        "sandbox": "Sandbox",
+        "access": "Access",
+        "unknown": "Unknown",
+        "enforced": "Enforced",
+        "notEnforced": "Not enforced"
+      },
       "context": {
         "tooltip": "Context {{percent}}%",
         "detailsLabel": "Open context usage",
@@ -1627,7 +1924,7 @@
             "description": "Cancel the active agent turn for this chat."
           },
           "restart": {
-            "title": "Restart nanobot",
+            "title": "Restart Mira",
             "description": "Restart the bot process in place."
           },
           "status": {
@@ -1681,14 +1978,14 @@
         "label": "Apps",
         "cliGroup": "CLI apps",
         "mcpGroup": "MCP services",
-        "sessionGroup": "Nanobot conversations",
+        "sessionGroup": "Mira conversations",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
         "cliDescription": "Use @{{name}} as a local CLI app",
         "mcpDescription": "Use @{{name}} as an MCP server",
         "cliTitle": "CLI app: {{name}}",
         "mcpTitle": "MCP server: {{name}}",
-        "sessionBadge": "Nanobot conversation",
+        "sessionBadge": "Mira conversation",
         "sessionDescription": "Reference @{{name}} as a previous chat"
       },
       "encoding": "Encoding…",
@@ -1801,6 +2098,12 @@
       "estimated": "Includes estimated usage"
     }
   },
+  "askQuestion": {
+    "recommended": "Recommended",
+    "otherPlaceholder": "Type another answer",
+    "noPreference": "No preference",
+    "submit": "Submit answer"
+  },
   "recovery": {
     "actionFailed": "Recovery action failed. Try again.",
     "interrupted": "Task interrupted",
@@ -1826,7 +2129,7 @@
     "close": "Close file preview",
     "loading": "Loading preview...",
     "failed": "Could not preview this file.",
-    "routeMissing": "File preview needs the latest gateway. Restart nanobot gateway and try again.",
+    "routeMissing": "File preview needs the latest gateway. Restart Mira gateway and try again.",
     "resize": "Resize file preview",
     "truncated": "Preview is truncated because this file is large."
   },
@@ -1835,39 +2138,6 @@
     "copyAria": "Copy code",
     "copy": "Copy",
     "copied": "Copied"
-  },
-  "workbench": {
-    "aria": "Conversation workbench",
-    "panes": "Panes",
-    "tabAria": "Group: {{title}}",
-    "panesInTab": "Panes in {{title}}",
-    "collapseTabGroup": "Collapse panes in {{title}}",
-    "expandTabGroup": "Expand panes in {{title}}",
-    "dropPane": "Move {{pane}} into {{tab}}",
-    "createGroup": "Create group",
-    "moveTo": "Move to",
-    "renameGroupTitle": "Rename group",
-    "renameGroupDescription": "Give this group a name.",
-    "renameGroupPlaceholder": "Group name",
-    "dissolveTab": "Dissolve group",
-    "layout": "Pane layout",
-    "addPane": "Add pane",
-    "paneLimit": "Maximum {{count}} panes",
-    "deleteConversations": "Delete all chats",
-    "movePane": "Move {{title}} pane",
-    "movePaneHint": "Drag to move · Arrow keys also work",
-    "resizePaneBoundary": "Resize pane boundary {{index}}",
-    "promotePane": "Make {{title}} the primary pane",
-    "paneActions": "{{title}} pane actions",
-    "detachPane": "Remove",
-    "composerAria": "Message {{title}}",
-    "layouts": {
-      "columns": "Columns",
-      "rows": "Rows",
-      "grid": "Grid",
-      "bsp": "BSP",
-      "main-stack": "Main and stack"
-    }
   },
   "common": {
     "dismiss": "Dismiss",
@@ -1902,11 +2172,49 @@
   },
   "workspace": {
     "dialog": {
-      "defaultProject": "Default workspace",
+      "title": "Create project",
+      "sourceFolder": "Source folder",
+      "addFromThisComputer": "Add a folder from this computer",
+      "add": "Add",
+      "unavailable": "Open the WebUI on the gateway machine, or use the desktop app",
+      "pickFailed": "Could not open the folder picker",
+      "pickerBusy": "A folder picker is already open",
+      "changeFolder": "Change folder",
+      "picking": "Choosing...",
+      "projectName": "Project name",
+      "create": "Create project",
+      "cancel": "Cancel",
+      "defaultProject": "Default workspace (no project)",
       "manual": "Paste path",
       "manualPlaceholder": "/Users/name/project",
       "usePath": "Use Path",
       "absolutePathRequired": "Enter an absolute folder path on this machine."
+    },
+    "brand": "知序",
+    "nav": {
+      "assistant": "Assistant",
+      "creative": "Creative"
+    },
+    "preview": {
+      "badge": "Interface preview · sample content"
+    },
+    "home": {
+      "eyebrow": "Workbench",
+      "title": "What do you want to get done today?",
+      "subtitle": "Start with a free-form task, or jump in from a capability below.",
+      "taskAria": "Free-form task",
+      "taskPlaceholder": "Describe your task, e.g. \"turn this week's memories into a note\".",
+      "previewHint": "Interface preview: nothing is actually sent.",
+      "submitHint": "Opens the assistant; you still confirm sending.",
+      "submit": "Start",
+      "capabilitiesTitle": "Capabilities",
+      "creativeTitle": "Creative space",
+      "creativeDesc": "Turn scattered material into an article.",
+      "assistantTitle": "General assistant",
+      "assistantDesc": "Keeps all existing skills and agents."
+    },
+    "creative": {
+      "comingSoon": "Creative module is coming soon."
     }
   }
 }

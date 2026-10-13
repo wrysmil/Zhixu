@@ -90,6 +90,7 @@ from nanobot.session.manager import SESSION_CACHE_MAX_SIZE, Session, SessionMana
 from nanobot.session.model_selection import (
     SESSION_MODEL_PRESET_METADATA_KEY,
     model_preset_from_metadata,
+    reasoning_effort_from_metadata,
 )
 from nanobot.session.recovery import (
     PENDING_FOLLOWUP_ID_KEY,
@@ -847,9 +848,12 @@ class AgentLoop:
         """Resolve the immutable runtime selected by one session."""
         name = model_preset_from_metadata(session.metadata)
         if name is None:
-            return self.llm_runtime()
+            return self._with_session_reasoning_effort(self.llm_runtime(), session)
         try:
-            return self.runtime_resolver.resolve_preset(name)
+            return self._with_session_reasoning_effort(
+                self.runtime_resolver.resolve_preset(name),
+                session,
+            )
         except KeyError:
             if not recover_removed or name in self.runtime_resolver.model_presets:
                 raise
@@ -860,7 +864,18 @@ class AgentLoop:
             )
             session.metadata.pop(SESSION_MODEL_PRESET_METADATA_KEY, None)
             self.sessions.save(session)
-            return self.llm_runtime()
+            return self._with_session_reasoning_effort(self.llm_runtime(), session)
+
+    def _with_session_reasoning_effort(
+        self,
+        runtime: LLMRuntime,
+        session: Session,
+    ) -> LLMRuntime:
+        """Apply the session-scoped reasoning effort override on top of a runtime."""
+        override = reasoning_effort_from_metadata(session.metadata)
+        if override is None or override == runtime.generation.reasoning_effort:
+            return runtime
+        return runtime.with_generation_overrides(reasoning_effort=override)
 
     def set_session_model_preset(
         self,

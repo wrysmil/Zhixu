@@ -1,8 +1,9 @@
 import { deriveTitle } from "@/lib/format";
-import type { ChatSummary, SidebarSortMode } from "@/lib/types";
+import type { ChatSummary, SidebarProjectEntry, SidebarSortMode } from "@/lib/types";
 import { normalizeWorkspacePath, projectNameFromPath, sameWorkspacePath } from "@/lib/workspace";
 
 export const COLLAPSED_CHATS_VISIBLE_COUNT = 8;
+export const COLLAPSED_PROJECT_VISIBLE_COUNT = 6;
 
 export interface SessionGroup {
   id: string;
@@ -30,6 +31,9 @@ export interface ChatGroupingOptions {
   archivedKeys: string[];
   titleOverrides: Record<string, string>;
   projectNameOverrides: Record<string, string>;
+  pinnedProjectKeys?: string[];
+  hiddenProjectKeys?: string[];
+  projectEntries?: SidebarProjectEntry[];
   sessionOrder: string[];
   showArchived: boolean;
   sort: SidebarSortMode;
@@ -41,95 +45,7 @@ export function groupSessions(
   labels: ChatGroupLabels,
   options: ChatGroupingOptions,
 ): SessionGroup[] {
-  if (sessions.some((session) => session.workspaceScope?.project_path)) {
-    return groupSessionsByProject(sessions, labels, options);
-  }
-
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
-  const buckets = new Map<string, ChatSummary[]>();
-  const pinned = new Set(options.pinnedKeys);
-  const archived = new Set(options.archivedKeys);
-
-  const pinnedSessions: ChatSummary[] = [];
-  const archivedSessions: ChatSummary[] = [];
-  const normalSessions: ChatSummary[] = [];
-
-  for (const session of sessions) {
-    if (archived.has(session.key)) {
-      if (options.showArchived) archivedSessions.push(session);
-      continue;
-    }
-    if (pinned.has(session.key)) {
-      pinnedSessions.push(session);
-      continue;
-    }
-    if (options.sort === "title_asc" || options.sort === "manual") {
-      normalSessions.push(session);
-      continue;
-    }
-    const timestamp = Date.parse(session.updatedAt ?? session.createdAt ?? "");
-    const label = Number.isFinite(timestamp) && timestamp >= startOfToday
-      ? labels.today
-      : Number.isFinite(timestamp) && timestamp >= startOfYesterday
-        ? labels.yesterday
-        : labels.earlier;
-    const bucket = buckets.get(label) ?? [];
-    bucket.push(session);
-    buckets.set(label, bucket);
-  }
-
-  const groups: SessionGroup[] = [labels.today, labels.yesterday, labels.earlier]
-    .map((label) => ({
-      id: `date:${label}`,
-      label,
-      sessions: sortSessions(
-        buckets.get(label) ?? [],
-        options.sort,
-        options.titleOverrides,
-        options.sessionOrder,
-      ),
-    }))
-    .filter((group) => group.sessions.length > 0);
-
-  if ((options.sort === "title_asc" || options.sort === "manual") && normalSessions.length) {
-    groups.push({
-      id: "date:all",
-      label: labels.all,
-      sessions: sortSessions(
-        normalSessions,
-        options.sort,
-        options.titleOverrides,
-        options.sessionOrder,
-      ),
-    });
-  }
-  if (pinnedSessions.length) {
-    groups.unshift({
-      id: "pinned",
-      label: labels.pinned,
-      sessions: sortSessions(
-        pinnedSessions,
-        options.sort,
-        options.titleOverrides,
-        options.sessionOrder,
-      ),
-    });
-  }
-  if (archivedSessions.length) {
-    groups.push({
-      id: "archived",
-      label: labels.archived,
-      sessions: sortSessions(
-        archivedSessions,
-        options.sort,
-        options.titleOverrides,
-        options.sessionOrder,
-      ),
-    });
-  }
-  return groups;
+  return groupSessionsByProject(sessions, labels, options);
 }
 
 export function limitGroups(
@@ -154,7 +70,7 @@ export function limitGroups(
     if (activeKey && visible.some((session) => session.key === activeKey)) {
       activeVisible = true;
     }
-    if (visible.length > 0) {
+    if (visible.length > 0 || group.kind === "project") {
       out.push({ ...group, sessions: visible });
     }
   }
@@ -185,7 +101,21 @@ export function isCollapsedProject(
 }
 
 export function isFoldableChatsGroup(group: SessionGroup): boolean {
-  return group.id === "workspace:chats" || group.id === "date:all";
+  return group.kind === "project"
+    || group.id === "workspace:chats"
+    || group.id === "date:all";
+}
+
+// Project groups keep their full-collapse state under group.id, so list folding
+// needs its own key to avoid collapsing the whole project when unfolding rows.
+export function groupFoldKey(group: SessionGroup): string {
+  return group.kind === "project" ? `${group.id}#fold` : group.id;
+}
+
+function foldedVisibleCount(group: SessionGroup): number {
+  return group.kind === "project"
+    ? COLLAPSED_PROJECT_VISIBLE_COUNT
+    : COLLAPSED_CHATS_VISIBLE_COUNT;
 }
 
 export function isFoldedChatsGroup(
@@ -194,8 +124,8 @@ export function isFoldedChatsGroup(
 ): boolean {
   return (
     isFoldableChatsGroup(group)
-    && group.sessions.length > COLLAPSED_CHATS_VISIBLE_COUNT
-    && collapsedGroups[group.id] !== false
+    && group.sessions.length > foldedVisibleCount(group)
+    && collapsedGroups[groupFoldKey(group)] !== false
   );
 }
 
@@ -207,7 +137,7 @@ export function visibleSessionsForGroup(
   if (!isFoldedChatsGroup(group, collapsedGroups)) {
     return group.sessions;
   }
-  const visible = group.sessions.slice(0, COLLAPSED_CHATS_VISIBLE_COUNT);
+  const visible = group.sessions.slice(0, foldedVisibleCount(group));
   if (!activeKey || visible.some((session) => session.key === activeKey)) {
     return visible;
   }
@@ -233,6 +163,7 @@ function groupSessionsByProject(
   options: ChatGroupingOptions,
 ): SessionGroup[] {
   const archived = new Set(options.archivedKeys);
+  const hiddenProjects = new Set(options.hiddenProjectKeys ?? []);
   const conversations: ChatSummary[] = [];
   const buckets = new Map<string, {
     path?: string;
@@ -252,6 +183,10 @@ function groupSessionsByProject(
       continue;
     }
     const key = normalizeWorkspacePath(path);
+    if (hiddenProjects.has(key)) {
+      conversations.push(session);
+      continue;
+    }
     const label = options.projectNameOverrides[key]?.trim()
       || scope?.project_name?.trim()
       || projectNameFromPath(path);
@@ -287,6 +222,26 @@ function groupSessionsByProject(
     ),
   }));
 
+  // Registered projects stay visible even before they have any session.
+  const groupedKeys = new Set(groups.map((group) => group.projectKey ?? ""));
+  for (const entry of options.projectEntries ?? []) {
+    if (!entry.key || groupedKeys.has(entry.key) || hiddenProjects.has(entry.key)) {
+      continue;
+    }
+    groupedKeys.add(entry.key);
+    groups.push({
+      id: `project:${entry.key}`,
+      label: entry.name.trim()
+        || options.projectNameOverrides[entry.key]?.trim()
+        || projectNameFromPath(entry.path),
+      kind: "project" as const,
+      projectPath: entry.path,
+      projectKey: entry.key,
+      updatedAt: entry.added_at || null,
+      sessions: [],
+    });
+  }
+
   if (conversations.length) {
     const chatsUpdatedAt = conversations.reduce<string | null>(
       (best, s) => {
@@ -310,7 +265,14 @@ function groupSessionsByProject(
     });
   }
 
+  const pinnedProjects = new Set(options.pinnedProjectKeys ?? []);
   groups.sort((a, b) => {
+    // Projects form one section above the topic list, matching the section header.
+    const kindOrder = Number(a.kind !== "project") - Number(b.kind !== "project");
+    if (kindOrder !== 0) return kindOrder;
+    const pinOrder = Number(pinnedProjects.has(b.projectKey ?? ""))
+      - Number(pinnedProjects.has(a.projectKey ?? ""));
+    if (pinOrder !== 0) return pinOrder;
     const timeOrder = dateToTime(b.updatedAt) - dateToTime(a.updatedAt);
     if (timeOrder !== 0) return timeOrder;
     return a.label.localeCompare(b.label, "en", {

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import time
 from collections import OrderedDict
 from pathlib import Path
@@ -167,6 +168,7 @@ def workspaces_payload(
     return {
         "schema_version": WEBUI_WORKSPACE_STATE_SCHEMA_VERSION,
         "default_access_mode": default_access_mode,
+        "hostname": socket.gethostname(),
         "default_scope": default_scope.payload(),
         "controls": {
             "can_change_project": controls_available,

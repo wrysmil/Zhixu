@@ -45,6 +45,9 @@ def default_webui_sidebar_state() -> dict[str, Any]:
         "session_order": [],
         "title_overrides": {},
         "project_name_overrides": {},
+        "pinned_project_keys": [],
+        "hidden_project_keys": [],
+        "project_entries": [],
         "tags_by_key": {},
         "collapsed_groups": {},
         "workbench": {"version": 1, "tabs": {}},
@@ -135,6 +138,33 @@ def _clean_tags_by_key(value: Any) -> dict[str, list[str]]:
     return out
 
 
+def _clean_project_entries(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for raw in cast(list[Any], value)[:_MAX_MAP_ITEMS]:
+        if not isinstance(raw, dict):
+            continue
+        item = cast(dict[Any, Any], raw)
+        path = _clean_string(item.get("path"))
+        if path is None:
+            continue
+        key = _clean_string(item.get("key")) or path
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            {
+                "key": key,
+                "path": path,
+                "name": _clean_string(item.get("name"), max_len=80) or "",
+                "added_at": _clean_string(item.get("added_at"), max_len=40) or "",
+            }
+        )
+    return out
+
+
 def _clean_view(value: Any) -> dict[str, Any]:
     default: dict[str, Any] = default_webui_sidebar_state()["view"]
     if not isinstance(value, dict):
@@ -212,6 +242,9 @@ def normalize_webui_sidebar_state(raw: Any) -> dict[str, Any]:
     state["project_name_overrides"] = _clean_title_overrides(
         raw.get("project_name_overrides")
     )
+    state["pinned_project_keys"] = _clean_string_list(raw.get("pinned_project_keys"))
+    state["hidden_project_keys"] = _clean_string_list(raw.get("hidden_project_keys"))
+    state["project_entries"] = _clean_project_entries(raw.get("project_entries"))
     state["tags_by_key"] = _clean_tags_by_key(raw.get("tags_by_key"))
     state["collapsed_groups"] = _clean_bool_map(raw.get("collapsed_groups"))
     state["workbench"] = _clean_workbench(raw.get("workbench"))

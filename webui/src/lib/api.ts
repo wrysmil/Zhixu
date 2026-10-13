@@ -31,6 +31,7 @@ import type {
   RecoveryState,
   ScratchpadPayload,
   SessionDeleteResult,
+  SessionDirectoryPayload,
   SessionHandle,
   SessionAutomationsPayload,
   SettingsPayload,
@@ -261,14 +262,24 @@ export async function fetchWebuiThread(
   return (await res.json()) as WebuiThreadPersistedPayload;
 }
 
+/**
+ * Fetch a read-only file preview.
+ *
+ * ``scope`` mirrors the workspace endpoints: when provided (e.g. ``"default"``
+ * from the home Start panel) the gateway anchors the path at that workspace
+ * instead of the session's own scope, so a session key is only needed to pass
+ * the route's WebUI-namespace format check.
+ */
 export async function fetchFilePreview(
   token: string,
   key: string,
   path: string,
   base: string = "",
+  scope: string | null = null,
 ): Promise<FilePreviewPayload> {
   const query = new URLSearchParams();
   query.set("path", path);
+  if (scope) query.set("scope", scope);
   return request<FilePreviewPayload>(
     `${base}/api/sessions/${encodeURIComponent(key)}/file-preview?${query}`,
     token,
@@ -293,6 +304,75 @@ export async function fetchFilePreviewAvailability(
     API_READ_TIMEOUT_MS,
   );
   return payload.available !== false;
+}
+
+export async function fetchSessionDirectory(
+  token: string,
+  key: string,
+  path: string | null,
+  base: string = "",
+): Promise<SessionDirectoryPayload> {
+  const query = new URLSearchParams();
+  if (path) query.set("path", path);
+  return request<SessionDirectoryPayload>(
+    `${base}/api/sessions/${encodeURIComponent(key)}/files?${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
+/**
+ * Workspace-anchored (no session) read-only directory listing used by the home
+ * "Start" panel. Mirrors ``fetchSessionDirectory``; the payload shape is
+ * identical (contract §2). 404 ``no_default_workspace`` surfaces as an
+ * ``ApiError`` so callers can render the pick-a-project empty state.
+ */
+export async function fetchWorkspaceFiles(
+  token: string,
+  path: string | null = null,
+  base: string = "",
+): Promise<SessionDirectoryPayload> {
+  const query = new URLSearchParams({ scope: "default" });
+  if (path) query.set("path", path);
+  return request<SessionDirectoryPayload>(
+    `${base}/api/workspace/files?${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
+/** One entry of the gateway's terminal shell whitelist (contract v2). */
+export interface TerminalShellEntry {
+  id: string;
+  label: string;
+  path: string;
+}
+
+/** Payload of ``GET /webui/terminal/shells`` used by the dock shell dropdown. */
+export interface TerminalShellsPayload {
+  shells: TerminalShellEntry[];
+  default: string | null;
+}
+
+/**
+ * Fetch the host shells the gateway allows for PTY terminals.
+ *
+ * Non-OK responses (401 without an api token, 404 on gateways older than the
+ * endpoint) surface as ``ApiError`` so callers can fall back to the platform
+ * default shell.
+ */
+export async function fetchTerminalShells(
+  token: string,
+  base: string = "",
+): Promise<TerminalShellsPayload> {
+  return request<TerminalShellsPayload>(
+    `${base}/webui/terminal/shells`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
 }
 
 export async function fetchSessionAutomations(

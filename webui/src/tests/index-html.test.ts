@@ -39,12 +39,12 @@ describe("index.html", () => {
 
     expect(themeColor?.content).toBe("#ffffff");
     expect(themeColor?.dataset.themeColorLight).toBe("#ffffff");
-    expect(themeColor?.dataset.themeColorDark).toBe("#303030");
+    expect(themeColor?.dataset.themeColorDark).toBe("#121212");
     expect(lightBodyBackground).toBe("#ffffff");
-    expect(darkBodyBackground).toBe("#303030");
+    expect(darkBodyBackground).toBe("#121212");
     expect(manifest.background_color).toBe("#ffffff");
     expect(manifest.theme_color).toBe("#ffffff");
-    expect(manifest.color_scheme_dark?.background_color).toBe("#303030");
-    expect(manifest.color_scheme_dark?.theme_color).toBe("#303030");
+    expect(manifest.color_scheme_dark?.background_color).toBe("#121212");
+    expect(manifest.color_scheme_dark?.theme_color).toBe("#121212");
   });
 });

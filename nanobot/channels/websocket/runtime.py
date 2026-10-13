@@ -411,6 +411,9 @@ class WebSocketChannel(BaseChannel):
     def webui_connection_chats(self, connection: ServerConnection) -> tuple[str, ...]:
         return tuple(self._conn_chats.get(connection, ()))
 
+    def webui_default_chat(self, connection: ServerConnection) -> str | None:
+        return self._conn_default.get(connection)
+
     def webui_attach(self, connection: ServerConnection, chat_id: str) -> None:
         self._attach(connection, chat_id)
 
@@ -1427,6 +1430,16 @@ class WebSocketChannel(BaseChannel):
         raw = json.dumps(body, ensure_ascii=False)
         for connection in conns:
             await self._safe_send_to(connection, raw, label=" goal_state ")
+
+    async def send_question_requested(self, chat_id: str, question: dict[str, Any]) -> None:
+        """Push an interactive ask_question request awaiting the user's answer."""
+        conns = list(self._subs.get(chat_id, ()))
+        if not conns:
+            return
+        body = {"event": "question_requested", "chat_id": chat_id, "question": question}
+        raw = json.dumps(body, ensure_ascii=False)
+        for connection in conns:
+            await self._safe_send_to(connection, raw, label=" question_requested ")
 
     async def send_goal_status(
         self,

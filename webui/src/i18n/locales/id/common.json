@@ -1,12 +1,124 @@
 {
+  "creative": {
+    "headline": "Apa yang ingin Anda tulis hari ini?",
+    "hero_description": "Kode, pengalaman praktik, wawasan baru — setiap artikel dimulai dari sesuatu.",
+    "topic_label": "Topik artikel",
+    "input_hint": "Mulai dari bahan dan ide Anda",
+    "template_heading": "Mulai dengan format yang familier",
+    "template_hint": "Templat hanyalah titik awal",
+    "library_heading": "Artikel saya",
+    "new_article": "Tulis artikel baru",
+    "sample_label": "Contoh",
+    "material_count": "{{count}} bahan",
+    "continue_writing": "Lanjutkan menulis",
+    "filter_all": "Semua",
+    "status": {
+      "idea": "Gagasan",
+      "draft": "Draf",
+      "review": "Perlu ditinjau",
+      "done": "Selesai"
+    },
+    "material": {
+      "type": {
+        "note": "Catatan",
+        "text": "Teks",
+        "code": "Kode",
+        "link": "Tautan"
+      },
+      "empty": "Belum ada materi",
+      "add": "Tambah materi",
+      "addConfirm": "Tambah",
+      "save": "Simpan perubahan",
+      "cancel": "Batal",
+      "edit": "Ubah materi",
+      "remove": "Hapus materi",
+      "included": "Digunakan untuk kolaborasi ini",
+      "field": {
+        "title": "Judul",
+        "content": "Isi",
+        "contentPlaceholder": "Isi",
+        "codePlaceholder": "Tempel kode — indentasi dan baris dipertahankan",
+        "url": "Alamat tautan",
+        "excerpt": "Kutipan (opsional)",
+        "source": "Sumber (opsional)",
+        "note": "Catatan (opsional)",
+        "language": "Bahasa (opsional)"
+      },
+      "error": {
+        "title": "Isi judul materi",
+        "content": "Isi materi",
+        "linkUrl": "Tautan harus diawali http:// atau https://"
+      },
+      "confirm": {
+        "title": "Hapus materi ini?",
+        "description": "Hanya materi ini yang dihapus; isi artikel dan data yang sudah disimpan tetap utuh.",
+        "cancel": "Batal",
+        "confirm": "Hapus"
+      }
+    },
+    "outline": {
+      "empty": "Belum ada kerangka",
+      "add": "Tambah bagian",
+      "addConfirm": "Oke",
+      "newPlaceholder": "Bagian baru",
+      "save": "Oke",
+      "cancel": "Batal",
+      "remove": "Hapus bagian",
+      "moveUp": "Naik",
+      "moveDown": "Turun",
+      "field": {
+        "text": "Poin kerangka"
+      }
+    },
+    "conflict": {
+      "title": "Artikel ini diperbarui di tempat lain",
+      "description": "Versi server adalah {{revision}}. Draf lokal yang belum disimpan tetap ada dan simpan otomatis dijeda.",
+      "deleted": "Artikel ini tidak ada lagi di server. Simpan draf Anda sebagai artikel baru.",
+      "remote": "Versi terbaru server",
+      "remoteLoading": "Membaca versi terbaru server…",
+      "remoteUnavailable": "Versi terbaru server belum dapat dibaca.",
+      "local": "Draf yang belum disimpan",
+      "reload": "Muat versi terbaru dan gabungkan manual",
+      "saveCopy": "Simpan sebagai salinan",
+      "savingCopy": "Menyimpan salinan…",
+      "discard": "Buang perubahan lokal dan muat ulang",
+      "discardWarning": "Draf lokal akan dihapus dan tidak bisa dipulihkan. Muat ulang versi server?",
+      "discardBack": "Lanjut mengedit",
+      "discardConfirm": "Konfirmasi buang",
+      "cancel": "Nanti",
+      "reopen": "Selesaikan konflik"
+    },
+    "template": {
+      "tech-explainer": {
+        "name": "Penjelasan teknis",
+        "desc": "Menjelaskan konsep rumit dengan jelas",
+        "outline": ["Dari mana masalahnya", "Konsep dan prinsip inti", "Ilustrasikan dengan contoh", "Cakupan dan batasan", "Pemahaman saya"]
+      },
+      "source-reading": {
+        "name": "Membaca kode",
+        "desc": "Menelusuri rantai pemanggilan untuk memahami desain",
+        "outline": ["Apa yang ingin dipahami", "Titik masuk dan rantai pemanggilan", "Implementasi utama", "Pertukaran desain", "Pemahaman saya sendiri"]
+      },
+      "practice-retro": {
+        "name": "Retrospeksi praktik",
+        "desc": "Mencatat proses sekaligus pertukarannya",
+        "outline": ["Latar belakang dan tujuan", "Bagaimana saya melakukannya", "Masalah dan pemeriksaan", "Hasil dan kekurangan", "Apa yang diubah berikutnya"]
+      },
+      "learning-summary": {
+        "name": "Ringkasan belajar",
+        "desc": "Mengubah pengetahuan baru menjadi pemahaman sendiri",
+        "outline": ["Belajar dengan pertanyaan apa", "Pengetahuan utama", "Verifikasi langsung", "Bagaimana pemahaman berubah", "Pertanyaan yang tersisa"]
+      }
+    }
+  },
   "app": {
-    "brand": "nanobot",
+    "brand": "Mira",
     "loading": {
-      "connecting": "Menghubungkan ke nanobot…",
-      "boot": "Memuat nanobot…"
+      "connecting": "Menghubungkan ke Mira…",
+      "boot": "Memuat Mira…"
     },
     "error": {
-      "title": "Tidak dapat menjangkau nanobot",
+      "title": "Tidak dapat menjangkau Mira",
       "gatewayHint": "Pastikan gateway sedang berjalan (`nanobot gateway`) dan halaman ini dibuka pada mesin yang sama."
     },
     "auth": {
@@ -24,8 +136,8 @@
     },
     "system": {
       "section": "Sistem",
-      "restartHint": "Mulai ulang nanobot untuk menerapkan perubahan runtime.",
-      "restart": "Mulai ulang nanobot",
+      "restartHint": "Mulai ulang Mira untuk menerapkan perubahan runtime.",
+      "restart": "Mulai ulang Mira",
       "restarting": "Memulai ulang...",
       "restartEngine": "Mulai ulang mesin",
       "restartingEngine": "Memulai ulang mesin..."
@@ -34,11 +146,11 @@
       "completed": "Mulai ulang selesai dalam {{seconds}} dtk."
     },
     "documentTitle": {
-      "base": "nanobot",
-      "chat": "{{title}} · nanobot"
+      "base": "Mira",
+      "chat": "{{title}} · Mira"
     },
     "meta": {
-      "description": "UI web nanobot — ngobrol dengan ruang kerja nanobot Anda."
+      "description": "UI web Mira — ngobrol dengan ruang kerja Mira Anda."
     },
     "pairing": {
       "title": "Hubungkan pengguna chat",
@@ -62,7 +174,8 @@
   "sidebar": {
     "navigation": "Navigasi bilah samping",
     "collapse": "Ciutkan sidebar",
-    "newChat": "Topik baru",
+    "home": "Beranda",
+    "newChat": "Obrolan baru",
     "searchAria": "Cari",
     "searchPlaceholder": "Cari",
     "searchResults": "Hasil",
@@ -134,7 +247,7 @@
       "language": "Bahasa",
       "provider": "Penyedia",
       "model": "Model",
-      "restart": "Mulai ulang nanobot",
+      "restart": "Mulai ulang Mira",
       "configPath": "Path konfigurasi",
       "activePreset": "Prasetel aktif",
       "gateway": "Gerbang",
@@ -176,7 +289,8 @@
       "transcriptionProviderStatus": "Status penyedia",
       "transcriptionModel": "Model",
       "transcriptionLanguage": "Bahasa",
-      "voiceLimits": "Batas"
+      "voiceLimits": "Batas",
+      "workspacePathHint": "Obrolan tanpa proyek memakai folder ini. Folder proyek ada di bagian Proyek di bilah sisi."
     },
     "help": {
       "theme": "Beralih antara tampilan terang dan gelap.",
@@ -209,7 +323,7 @@
       "selectedModelValue": "Ditentukan oleh model yang dipilih.",
       "brandLogos": "Tampilkan logo penyedia pihak ketiga dan CLI di Pengaturan.",
       "browserNotifications": "Beri tahu hanya saat halaman ini di latar belakang. Nonaktif secara bawaan.",
-      "cliAppsCatalog": "Instal hanya adaptor CLI aplikasi yang dapat dijalankan nanobot secara lokal; aplikasi asli tidak diubah.",
+      "cliAppsCatalog": "Instal hanya adaptor CLI aplikasi yang dapat dijalankan Mira secara lokal; aplikasi asli tidak diubah.",
       "cliAppsFilter": "Cari berdasarkan aplikasi, kategori, atau kemampuan.",
       "logs": "Buka folder log mesin asli.",
       "diagnostics": "Ekspor laporan waktu proses singkat untuk dukungan.",
@@ -251,18 +365,19 @@
       "restartingEngine": "Memulai ulang",
       "checking": "Memeriksa",
       "running": "Berjalan",
-      "needsSetup": "Perlu penyiapan"
+      "needsSetup": "Perlu penyiapan",
+      "workspaceSettings": "Pengaturan ruang kerja"
     },
     "status": {
       "loading": "Memuat pengaturan...",
       "loadError": "Tidak dapat memuat pengaturan",
       "unsaved": "Perubahan belum disimpan.",
       "upToDate": "Sudah terbaru.",
-      "savedRestart": "Tersimpan. Mulai ulang nanobot untuk menerapkan.",
+      "savedRestart": "Tersimpan. Mulai ulang Mira untuk menerapkan.",
       "restartAfterSaving": "Simpan perubahan, lalu mulai ulang saat siap.",
       "savedRestartApply": "Tersimpan. Mulai ulang saat siap.",
       "imageProviderRestart": "Perubahan penyedia gambar tersimpan. Mulai ulang saat siap.",
-      "hostRestartAfterSaving": "Saat disimpan, nanobot akan memulai ulang mesinnya.",
+      "hostRestartAfterSaving": "Saat disimpan, Mira akan memulai ulang mesinnya.",
       "hostRestartPending": "Tersimpan. Mesin akan dimulai ulang saat siap.",
       "hostApiUnavailable": "Tindakan host hanya tersedia di aplikasi asli.",
       "logsOpened": "Folder log dibuka.",
@@ -286,7 +401,7 @@
       "exporting": "Mengekspor..."
     },
     "byok": {
-      "description": "Gunakan kunci penyedia Anda sendiri. Nanobot membaca nilai ini dari konfigurasi saat ini dan hanya penyedia yang sudah dikonfigurasi yang dapat digunakan dalam prasetel model.",
+      "description": "Gunakan kunci penyedia Anda sendiri. Mira membaca nilai ini dari konfigurasi saat ini dan hanya penyedia yang sudah dikonfigurasi yang dapat digunakan dalam prasetel model.",
       "configured": "Terkonfigurasi",
       "notConfigured": "Belum dikonfigurasi",
       "configuredSection": "Terkonfigurasi",
@@ -335,7 +450,7 @@
       "webSearch": "Pencarian web",
       "imageGeneration": "Pembuatan gambar",
       "voiceInput": "Input suara",
-      "workspace": "Ruang kerja"
+      "workspace": "Ruang kerja default"
     },
     "usage": {
       "title": "Aktivitas token",
@@ -534,7 +649,7 @@
       "saveCustom": "Simpan MCP",
       "configImport": "Impor mcp.json",
       "importConfig": "Impor",
-      "restartRequired": "Mulai ulang nanobot untuk menyambungkan alat MCP yang diperbarui.",
+      "restartRequired": "Mulai ulang Mira untuk menyambungkan alat MCP yang diperbarui.",
       "toolsFound": "{{count}} alat",
       "loading": "Memuat prasetel MCP...",
       "empty": "Tidak ada prasetel MCP yang cocok dengan filter ini.",
@@ -562,14 +677,14 @@
       "preparingSignIn": "Menyiapkan proses masuk yang aman…",
       "openSignInToContinue": "Buka halaman masuk untuk melanjutkan.",
       "finishSignInInBrowser": "Selesaikan proses masuk di jendela browser.",
-      "manualCallbackRequired": "Selesaikan proses masuk, lalu tempel URL callback ke nanobot.",
+      "manualCallbackRequired": "Selesaikan proses masuk, lalu tempel URL callback ke Mira.",
       "manualCallbackHelp": "Setelah menyetujui akses, halaman localhost tidak akan terbuka. Salin URL lengkap dari bilah alamat lalu tempel di sini.",
       "finishingConnection": "Menyelesaikan koneksi…",
       "activatingTools": "Mengaktifkan alat…",
       "connected": "Terhubung.",
       "connectionFailed": "Koneksi gagal.",
       "connectionCancelled": "Koneksi dibatalkan.",
-      "reloadFailed": "Anda sudah masuk, tetapi nanobot tidak dapat menghubungkan alat. Coba mulai ulang nanobot.",
+      "reloadFailed": "Anda sudah masuk, tetapi Mira tidak dapat menghubungkan alat. Coba mulai ulang Mira.",
       "oauthFailed": "Tidak dapat terhubung. Coba masuk lagi.",
       "statusMissingDependency": "Butuh dependensi",
       "statusComingSoon": "Segera hadir",
@@ -642,15 +757,15 @@
     },
     "observability": {
       "title": "Observabilitas",
-      "configured": "Kredensial tracing tersedia untuk nanobot.",
-      "environment": "Atur LANGFUSE_SECRET_KEY dan LANGFUSE_PUBLIC_KEY, lalu mulai ulang nanobot.",
+      "configured": "Kredensial tracing tersedia untuk Mira.",
+      "environment": "Atur LANGFUSE_SECRET_KEY dan LANGFUSE_PUBLIC_KEY, lalu mulai ulang Mira.",
       "enable": "Aktifkan dukungan tracing"
     },
     "legal": {
       "thirdPartyBrands": "Nama produk, logo, dan merek adalah milik pemiliknya masing-masing. Penggunaan hanya untuk identifikasi dan tidak menyiratkan dukungan."
     },
     "apps": {
-      "description": "Tambahkan alat ke nanobot, lalu gunakan dengan @ di chat.",
+      "description": "Tambahkan alat ke Mira, lalu gunakan dengan @ di chat.",
       "cliLabel": "Aplikasi",
       "mcpLabel": "MCP",
       "channelLabel": "Kanal",
@@ -673,21 +788,21 @@
       "browseApps": "Jelajahi aplikasi",
       "browseIntegrations": "Jelajahi alat MCP",
       "emptyIntegrationsHint": "Tambahkan server MCP khusus di bawah.",
-      "restartRequired": "Mulai ulang nanobot untuk menerapkan aplikasi dan alat MCP yang diperbarui."
+      "restartRequired": "Mulai ulang Mira untuk menerapkan aplikasi dan alat MCP yang diperbarui."
     },
     "channels": {
-      "description": "Hubungkan nanobot ke aplikasi chat. Memasang dukungan hanya menambahkan paket integrasi; sebagian besar kanal tetap memerlukan token atau pengaturan ruang kerja.",
+      "description": "Hubungkan Mira ke aplikasi chat. Memasang dukungan hanya menambahkan paket integrasi; sebagian besar kanal tetap memerlukan token atau pengaturan ruang kerja.",
       "caption": "{{enabled}} aktif · {{total}} kanal",
       "searchPlaceholder": "Cari kanal",
       "backToChannels": "Semua kanal",
       "catalog": "Kanal",
       "loading": "Memuat kanal...",
       "empty": "Tidak ada kanal yang cocok dengan filter ini.",
-      "restartRequired": "Mulai ulang nanobot untuk menerapkan dukungan kanal yang diperbarui.",
+      "restartRequired": "Mulai ulang Mira untuk menerapkan dukungan kanal yang diperbarui.",
       "requires": "Memerlukan: {{requirements}}",
       "setUp": "Siapkan",
       "setupGuide": "Panduan penyiapan",
-      "setupSummary": "Mengaktifkan hanya menyalakan dukungan nanobot. Tambahkan kredensial platform, lalu mulai ulang nanobot.",
+      "setupSummary": "Mengaktifkan hanya menyalakan dukungan Mira. Tambahkan kredensial platform, lalu mulai ulang Mira.",
       "configKeys": "Kunci konfigurasi",
       "enable": "Aktifkan kanal",
       "disable": "Nonaktifkan kanal",
@@ -750,7 +865,7 @@
       "missingDependency": "Dukungan belum terpasang",
       "installSupport": "Instal dukungan",
       "installConfirmTitle": "Instal dukungan untuk {{name}}?",
-      "installConfirmDescription": "nanobot akan menambahkan yang dibutuhkan {{name}}, lalu mengaktifkannya. Lanjutkan?",
+      "installConfirmDescription": "Mira akan menambahkan yang dibutuhkan {{name}}, lalu mengaktifkannya. Lanjutkan?",
       "installConfirmAction": "Instal dan aktifkan",
       "websocketRequired": "Wajib untuk WebUI",
       "channelDisabled": "Kanal dinonaktifkan",
@@ -894,7 +1009,7 @@
       "signedInAs": "Masuk sebagai {{account}}",
       "signInHelp": "Masuk dari perangkat ini; kunci API tidak disimpan di config.",
       "remoteSignInHelp": "Pilih Masuk untuk membuka xAI di komputer Anda, lalu tempel kode otorisasi yang ditampilkan setelah masuk.",
-      "codexRemoteSignInHelp": "Masuk melalui browser ini, lalu tempel URL callback localhost lengkap kembali ke nanobot.",
+      "codexRemoteSignInHelp": "Masuk melalui browser ini, lalu tempel URL callback localhost lengkap kembali ke Mira.",
       "signInRequired": "Perlu masuk",
       "signInBeforeSaving": "Masuk ke penyedia ini sebelum menyimpan prasetel.",
       "signedIn": "Sudah masuk",
@@ -902,9 +1017,9 @@
       "proxyLabel": "Proksi jaringan",
       "proxySaveBeforeSignIn": "Simpan perubahan proksi sebelum login.",
       "saveProxy": "Simpan proksi",
-      "localCodeHelp": "Selesaikan proses masuk di browser. nanobot biasanya menyelesaikannya secara otomatis; jika tidak, tempel kode otorisasi di bawah.",
+      "localCodeHelp": "Selesaikan proses masuk di browser. Mira biasanya menyelesaikannya secara otomatis; jika tidak, tempel kode otorisasi di bawah.",
       "remoteCodeHelp": "Pilih Masuk untuk membuka xAI di komputer Anda. Setelah masuk, tempel kode otorisasi yang ditampilkan xAI di bawah.",
-      "localCallbackHelp": "Selesaikan proses masuk di browser. nanobot biasanya menyelesaikannya secara otomatis; jika tidak, salin URL callback localhost lengkap dari bilah alamat dan tempel di bawah.",
+      "localCallbackHelp": "Selesaikan proses masuk di browser. Mira biasanya menyelesaikannya secara otomatis; jika tidak, salin URL callback localhost lengkap dari bilah alamat dan tempel di bawah.",
       "remoteCallbackHelp": "Buka ChatGPT di browser ini dan selesaikan proses masuk. Saat halaman localhost gagal dimuat, salin URL lengkap dari bilah alamat dan tempel di bawah.",
       "authorizationCode": "Kode otorisasi",
       "callbackUrl": "URL callback lengkap",
@@ -947,7 +1062,7 @@
       "deleteConfirmAction": "Hapus keterampilan",
       "instructionsTitle": "Petunjuk keterampilan",
       "setupRequired": "Perlu penyiapan",
-      "setupDescription": "Instal dependensi yang belum tersedia di mesin yang menjalankan nanobot, lalu periksa lagi.",
+      "setupDescription": "Instal dependensi yang belum tersedia di mesin yang menjalankan Mira, lalu periksa lagi.",
       "copySetupCommand": "Salin perintah penyiapan",
       "checkAgain": "Periksa lagi",
       "marketplaceSearchFailed": "Tidak dapat mencari marketplace keterampilan.",
@@ -1104,7 +1219,7 @@
       "mdModalDiffCurrent": "MEMORY.md saat ini",
       "mdModalDiffCurrentPlaceholder": "（MEMORY.md tidak ada atau kosong）",
       "masterToggleTitle": "Ekstraksi & pencarian memori otomatis",
-      "masterToggleDescription": "Saat aktif, nanobot mengekstrak fakta dari obrolan dan mengambil memori terkait di giliran berikutnya. Berlaku seketika — tanpa restart.",
+      "masterToggleDescription": "Saat aktif, Mira mengekstrak fakta dari obrolan dan mengambil memori terkait di giliran berikutnya. Berlaku seketika — tanpa restart.",
       "masterToggleAria": "Alihkan ekstraksi memori",
       "masterToggleOn": "Aktif",
       "masterToggleOff": "Nonaktif"
@@ -1344,6 +1459,7 @@
     "showMore": "Tampilkan {{count}} lagi",
     "collapsed": "{{count}} topik diciutkan",
     "showLess": "Tampilkan lebih sedikit",
+    "expandGroup": "Perluas",
     "actions": "Aksi topik untuk {{title}}",
     "newInProject": "Mulai topik baru di {{project}}",
     "activity": {
@@ -1373,13 +1489,20 @@
     "delete": "Hapus",
     "newChat": "Topik baru",
     "groups": {
+      "newChatInProject": "Chat baru di proyek",
+      "reveal": "Tampilkan di pengelola file",
+      "removeProject": "Hapus proyek",
       "pinned": "Disematkan",
       "all": "Topik",
       "projects": "Proyek",
+      "addProject": "Tambahkan proyek",
       "today": "Hari ini",
       "yesterday": "Kemarin",
       "earlier": "Sebelumnya",
-      "archived": "Diarsipkan"
+      "archived": "Diarsipkan",
+      "emptyProject": "Belum ada obrolan",
+      "toggleProjects": "Alihkan proyek",
+      "projectsHint": "Setiap proyek adalah folder di komputer ini."
     }
   },
   "deleteConfirm": {
@@ -1416,7 +1539,79 @@
     "closed": "Terputus",
     "error": "Kesalahan koneksi"
   },
+  "startPanel": {
+    "title": "Mulai",
+    "files": "File ruang kerja",
+    "filesDesc": "Jelajahi file di ruang kerja sesi",
+    "terminal": "Terminal baru",
+    "terminalDesc": "Jalankan perintah di ruang kerja sesi",
+    "terminalLimit": "Batas terminal tercapai (maks 8)",
+    "terminalInput": "Input perintah",
+    "terminalInputPlaceholder": "Ketik perintah lalu tekan Enter",
+    "terminalTabs": "Terminal",
+    "terminalTab": "Terminal",
+    "terminalClose": "Tutup terminal",
+    "terminalStarting": "Menyiapkan terminal…",
+    "terminalExit": "Keluar dengan kode {{code}}",
+    "terminalExpired": "Sesi kedaluwarsa",
+    "terminalGone": "Terminal ini tidak lagi tersedia. Buka yang baru.",
+    "terminalCommandRejected": "Perintah tidak dapat dikirim ke terminal ini.",
+    "shellUnavailable": "Shell ini tidak terpasang di host ini.",
+    "browser": "Peramban",
+    "browserDesc": "Jelajahi web",
+    "openProjectFirst": "Tersedia setelah Anda memilih proyek",
+    "externalOpen": "Buka di eksternal",
+    "embedBlocked": "Situs ini menolak penyematan.",
+    "filesRetry": "Gagal memuat ruang kerja — coba lagi",
+    "terminalPlaceholder": "Konsol perintah akan muncul di sini.",
+    "browserPlaceholder": "Peramban sematan akan muncul di sini.",
+    "expand": "Lebarkan panel Mulai",
+    "collapse": "Perkecil panel Mulai",
+    "browserBack": "Kembali",
+    "browserForward": "Maju",
+    "browserRefresh": "Segarkan",
+    "browserAddress": "Alamat",
+    "browserAddressPlaceholder": "https://example.com",
+    "browserGo": "Tuju",
+    "browserEmptyHint": "Masukkan alamat untuk mulai menjelajah.",
+    "browserFrameTitle": "Halaman peramban sematan",
+    "browserError_scheme": "Hanya alamat http/https yang bisa dibuka di sini.",
+    "browserError_private": "Alamat privat atau jaringan lokal tidak diizinkan.",
+    "browserError_malformed": "Itu bukan alamat web yang tampak valid."
+  },
+  "dock": {
+    "tabFile": "Berkas",
+    "tabBrowser": "Peramban",
+    "plusAria": "Tab baru",
+    "newTerminal": "Terminal baru",
+    "shellChoices": "Pilih shell",
+    "takeoverRunning": "Terminal berjalan",
+    "takeoverAction": "Ambil alih",
+    "takeoverHint": "Tekan Enter untuk menggambar ulang layar",
+    "closeTab": "Tutup tab",
+    "platformDefaultShell": "Shell default host"
+  },
+  "plusMenu": {
+    "groupAdd": "Tambah",
+    "groupCommands": "Perintah",
+    "compact": "Ringkas",
+    "compactDesc": "Ringkas percakapan di atas",
+    "permission": "Izin",
+    "permissionDesc": "Ganti preset izin (mode sandbox & kebijakan persetujuan)",
+    "model": "Model",
+    "modelDesc": "Pilih model untuk sesi ini",
+    "feedback": "Umpan balik",
+    "feedbackDesc": "Kirim umpan balik tentang sesi ini",
+    "feedbackPlaceholder": "Tulis umpan balik Anda…",
+    "feedbackSend": "Kirim",
+    "back": "Kembali"
+  },
   "thread": {
+    "activity": {
+      "viewDetails": "Lihat detail",
+      "hideDetails": "Sembunyikan",
+      "sourceCount": "{{count}} sumber"
+    },
     "compaction": {
       "cancelled": "Pemadatan konteks dibatalkan",
       "empty": "Tidak ada konteks yang perlu dipadatkan.",
@@ -1461,7 +1656,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "Desain ikon aplikasi",
-          "prompt": "Buat ikon aplikasi 1:1 yang bersih untuk nanobot: robot ramah, gaya vektor sederhana, palet biru dan putih lembut, tanpa teks."
+          "prompt": "Buat ikon aplikasi 1:1 yang bersih untuk Mira: robot ramah, gaya vektor sederhana, palet biru dan putih lembut, tanpa teks."
         },
         "sticker": {
           "title": "Buat stiker",
@@ -1518,6 +1713,29 @@
       }
     },
     "composer": {
+      "menu": {
+        "aria": "Tambah",
+        "add": "Tambah",
+        "files": "Berkas dan folder",
+        "filesDesc": "Lampirkan gambar atau berkas ke pesan ini",
+        "project": "Kerja dalam proyek",
+        "projectDesc": "Pilih folder untuk percakapan ini",
+        "goal": "Tujuan",
+        "goalDesc": "Jadikan permintaan ini sebagai tujuan jangka panjang",
+        "plan": "Mode rencana",
+        "planDesc": "Minta rencana eksekusi sebelum mengerjakan",
+        "draw": "Gambar",
+        "drawDesc": "Buat gambar dengan skill image-generation",
+        "skills": "Keterampilan",
+        "noSkills": "Belum ada keterampilan terpasang",
+        "plugins": "Plugin",
+        "noPlugins": "Belum ada plugin terpasang",
+        "mcp": "MCP",
+        "noMcp": "Belum ada server MCP dikonfigurasi",
+        "agents": "Agen",
+        "noAgents": "Tidak ada agen yang tersedia",
+        "agentInsert": "Jalankan ini dengan agen \"{{name}}\": "
+      },
       "placeholderThread": "Ketik pesan Anda…",
       "placeholderHero": "Apa yang sedang Anda pikirkan?",
       "placeholderOpening": "Membuka topik baru…",
@@ -1539,6 +1757,28 @@
       "chooseAI": "Pilih AI Anda",
       "switchModel": "Ganti model untuk percakapan ini",
       "manageModels": "Kelola model",
+      "reasoningEffort": "Usaha penalaran",
+      "effort": {
+        "default": "Bawaan",
+        "low": "Rendah",
+        "medium": "Sedang",
+        "high": "Tinggi",
+        "xhigh": "Sangat tinggi",
+        "max": "Maksimal",
+        "adaptive": "Adaptif"
+      },
+      "runtime": {
+        "thisComputer": "Komputer ini",
+        "title": "Lingkungan runtime",
+        "aria": "Lingkungan runtime",
+        "host": "Nama host",
+        "gateway": "Gerbang",
+        "sandbox": "Sandbox",
+        "access": "Akses",
+        "unknown": "Tidak diketahui",
+        "enforced": "Isolasi diberlakukan",
+        "notEnforced": "Isolasi tidak diberlakukan"
+      },
       "context": {
         "tooltip": "Konteks {{percent}}%",
         "detailsLabel": "Buka penggunaan konteks",
@@ -1617,7 +1857,7 @@
             "description": "Batalkan giliran agen yang sedang aktif di chat ini."
           },
           "restart": {
-            "title": "Mulai ulang nanobot",
+            "title": "Mulai ulang Mira",
             "description": "Mulai ulang proses bot di tempat."
           },
           "status": {
@@ -1697,14 +1937,14 @@
         "label": "Aplikasi",
         "cliGroup": "Aplikasi CLI",
         "mcpGroup": "Layanan MCP",
-        "sessionGroup": "Percakapan Nanobot",
+        "sessionGroup": "Percakapan Mira",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
         "cliDescription": "Gunakan @{{name}} sebagai aplikasi CLI lokal",
         "mcpDescription": "Gunakan @{{name}} sebagai server MCP",
         "cliTitle": "Aplikasi CLI: {{name}}",
         "mcpTitle": "Server MCP: {{name}}",
-        "sessionBadge": "Percakapan Nanobot",
+        "sessionBadge": "Percakapan Mira",
         "sessionDescription": "Referensikan @{{name}} sebagai chat sebelumnya"
       },
       "workspace": {
@@ -1820,13 +2060,19 @@
     "next": "Gambar berikutnya",
     "close": "Tutup pratinjau"
   },
+  "askQuestion": {
+    "recommended": "Direkomendasikan",
+    "otherPlaceholder": "Ketik jawaban lain",
+    "noPreference": "Tidak ada preferensi",
+    "submit": "Kirim jawaban"
+  },
   "filePreview": {
     "aria": "Pratinjau file",
     "breadcrumb": "Jalur file",
     "close": "Tutup pratinjau file",
     "loading": "Memuat pratinjau...",
     "failed": "Tidak dapat mempratinjau file ini.",
-    "routeMissing": "Pratinjau file memerlukan gateway terbaru. Mulai ulang nanobot gateway lalu coba lagi.",
+    "routeMissing": "Pratinjau file memerlukan gateway terbaru. Mulai ulang Mira gateway lalu coba lagi.",
     "resize": "Ubah ukuran pratinjau file",
     "truncated": "Pratinjau dipotong karena file ini besar."
   },
@@ -1837,6 +2083,30 @@
     "copied": "Tersalin"
   },
   "workbench": {
+    "title": "Ruang kerja",
+    "open": "Buka ruang kerja",
+    "collapse": "Ciutkan ruang kerja",
+    "updatedAt": "Diperbarui {{time}}",
+    "overview": "Ringkasan",
+    "emptyOverview": "Belum ada ringkasan",
+    "environment": "Lingkungan",
+    "local": "Lokal",
+    "fullAccess": "Akses penuh",
+    "restrictedAccess": "Dibatasi",
+    "files": "berkas",
+    "commitPush": "Commit atau push",
+    "commitPushHint": "Tersedia bersama API baca-saja ruang kerja",
+    "integrations": "Skill & MCP",
+    "emptyIntegrations": "Tidak ada MCP/CLI yang dipakai di sesi ini",
+    "outputs": "Keluaran",
+    "emptyOutputs": "Belum ada berkas yang berubah",
+    "sources": "Sumber",
+    "emptySources": "Belum ada sumber web",
+    "treeLoading": "Memuat…",
+    "treeEmpty": "Proyek kosong",
+    "treeEmptyFolder": "Folder kosong",
+    "treeRetry": "Gagal membaca folder ini — coba lagi",
+    "treeTruncated": "Hanya menampilkan item pertama",
     "aria": "Ruang kerja percakapan",
     "panes": "Panel",
     "tabAria": "Grup: {{title}}",
@@ -1902,11 +2172,49 @@
   },
   "workspace": {
     "dialog": {
-      "defaultProject": "Ruang kerja bawaan",
+      "title": "Buat proyek",
+      "sourceFolder": "Folder sumber",
+      "addFromThisComputer": "Tambahkan folder dari komputer ini",
+      "add": "Tambah",
+      "unavailable": "Buka WebUI di komputer gateway atau gunakan aplikasi desktop",
+      "pickFailed": "Tidak dapat membuka pemilih folder",
+      "pickerBusy": "Sudah ada pemilih folder yang terbuka",
+      "changeFolder": "Ganti folder",
+      "picking": "Memilih...",
+      "projectName": "Nama proyek",
+      "create": "Buat proyek",
+      "cancel": "Batal",
+      "defaultProject": "Ruang kerja default (tanpa proyek)",
       "manual": "Tempel path",
       "manualPlaceholder": "/Users/name/project",
       "usePath": "Gunakan path",
       "absolutePathRequired": "Masukkan path folder absolut di mesin ini."
+    },
+    "brand": "知序",
+    "nav": {
+      "assistant": "Asisten",
+      "creative": "Kreatif"
+    },
+    "preview": {
+      "badge": "Pratinjau antarmuka · konten contoh"
+    },
+    "home": {
+      "eyebrow": "Meja kerja",
+      "title": "Apa yang ingin Anda selesaikan hari ini?",
+      "subtitle": "Mulai dengan tugas bebas, atau pilih kemampuan di bawah.",
+      "taskAria": "Tugas bebas",
+      "taskPlaceholder": "Jelaskan tugas Anda, misalnya \"ubah memori minggu ini menjadi catatan\".",
+      "previewHint": "Pratinjau antarmuka: tidak ada yang benar-benar dikirim.",
+      "submitHint": "Membuka asisten; Anda tetap mengonfirmasi pengiriman.",
+      "submit": "Mulai",
+      "capabilitiesTitle": "Kemampuan",
+      "creativeTitle": "Ruang kreatif",
+      "creativeDesc": "Ubah materi yang tersebar menjadi artikel.",
+      "assistantTitle": "Asisten umum",
+      "assistantDesc": "Mempertahankan semua skill dan agen yang ada."
+    },
+    "creative": {
+      "comingSoon": "Modul kreatif segera hadir."
     }
   }
 }

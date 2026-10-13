@@ -73,7 +73,7 @@ export function NanobotFeatureInstallDialog({
           <DialogDescription className="mt-3 max-w-[20rem] text-center text-[14px] leading-6 text-muted-foreground">
             {tx(
               "settings.nanobotFeatures.installConfirmDescription",
-              "nanobot will add what {{name}} needs, then turn it on. Continue?",
+              "Mira will add what {{name}} needs, then turn it on. Continue?",
               { name },
             )}
           </DialogDescription>
@@ -336,7 +336,7 @@ export function SettingsStatusMessage({
     <span
       className={cn(
         "inline-flex items-center gap-2",
-        tone === "accent" && "font-medium text-blue-600 dark:text-blue-300",
+        tone === "accent" && "font-medium text-primary",
         tone === "danger" && "font-medium text-destructive",
       )}
     >
@@ -344,8 +344,7 @@ export function SettingsStatusMessage({
         <span
           className={cn(
             "h-1.5 w-1.5 shrink-0 rounded-full",
-            tone === "accent" &&
-              "bg-blue-500 dark:bg-blue-400",
+            tone === "accent" && "bg-primary",
             tone === "danger" && "bg-destructive/70",
           )}
           aria-hidden

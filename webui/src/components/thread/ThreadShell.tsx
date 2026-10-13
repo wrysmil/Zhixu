@@ -2,13 +2,16 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { PanelRight } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { FilePreviewAvailabilityProvider } from "@/components/FilePreviewAvailabilityContext";
 import { FilePreviewPanel } from "@/components/FilePreviewPanel";
 import { SessionHandleLabel } from "@/components/SessionHandleLabel";
-import { PromptNavigator } from "@/components/thread/PromptNavigator";
+import { SessionWorkbench } from "@/components/workbench/SessionWorkbench";
+import { deriveSessionWorkbench } from "@/components/workbench/session-workbench-model";
 import { RecoveryNotice } from "@/components/thread/RecoveryNotice";
-import { SessionInfoPopover } from "@/components/thread/SessionInfoPopover";
+import { AskQuestionCard } from "@/components/thread/AskQuestionCard";
 import { ThreadComposer } from "@/components/thread/ThreadComposer";
 import type {
   ComposerContextUsage,
@@ -28,6 +31,8 @@ import {
   fetchSettings,
   listSlashCommands,
 } from "@/lib/api";
+import { listAgents } from "@/lib/agents/api";
+import type { AgentProfile } from "@/lib/agents/types";
 import {
   CLI_APPS_CHANGED_EVENT,
   installedCliAppsFromPayload,
@@ -416,10 +421,14 @@ interface ThreadShellProps {
   workspaceControls?: WorkspacesPayload["controls"] | null;
   workspaceScopeDisabled?: boolean;
   workspaceError?: string | null;
+  workspaceHostname?: string | null;
   onWorkspaceScopeChange?: (scope: WorkspaceScopePayload) => void;
   settingsSnapshot?: SettingsPayload | null;
   onOpenModelSettings?: () => void;
   skills?: SkillSummary[];
+  onWorkbenchOpenChange?: (open: boolean) => void;
+  draftSeed?: { text: string; token: number } | null;
+  onDraftSeedConsumed?: () => void;
 }
 
 function toModelBadgeLabel(modelName: string | null): string | null {
@@ -435,6 +444,7 @@ interface ModelBadgeInfo {
   model: string | null;
   provider: string | null;
   providerLabel: string | null;
+  reasoningEffort: string | null;
   needsSetup: boolean;
 }
 
@@ -488,6 +498,7 @@ function toModelBadgeInfo(
     model: toModelBadgeLabel(model),
     provider,
     providerLabel: provider ? providerDisplayLabel(settings?.providers ?? [], provider) : null,
+    reasoningEffort: preset?.reasoning_effort ?? null,
     needsSetup,
   };
 }
@@ -511,6 +522,7 @@ function modelPresetOptionsFromSettings(
         name,
         model: preset.model,
         provider: preset.resolved_provider || preset.provider,
+        reasoningEffort: preset.reasoning_effort ?? null,
       };
     });
 }
@@ -584,7 +596,7 @@ function HeroGreeting({ text }: { text: string }) {
       <h1
         ref={headingRef}
         data-testid="hero-greeting"
-        className="select-none whitespace-nowrap text-[34px] font-normal leading-[1.08] tracking-normal text-foreground sm:text-[48px] sm:leading-tight"
+        className="select-none whitespace-nowrap text-hero font-normal leading-tight tracking-normal text-foreground"
       >
         {text}
       </h1>
@@ -699,7 +711,6 @@ export function ThreadShell({
   onToggleTheme = () => {},
   hideSidebarToggleForHostChrome = false,
   hideSidebarToggle = false,
-  hideThemeButton = false,
   hideHeaderTitle = false,
   inlineHandle = false,
   hideHeader = false,
@@ -715,10 +726,14 @@ export function ThreadShell({
   workspaceControls = null,
   workspaceScopeDisabled = false,
   workspaceError = null,
+  workspaceHostname = null,
   onWorkspaceScopeChange,
   settingsSnapshot = null,
   onOpenModelSettings,
   skills = [],
+  onWorkbenchOpenChange,
+  draftSeed = null,
+  onDraftSeedConsumed,
 }: ThreadShellProps) {
   const { t } = useTranslation();
   const chatId = session?.chatId ?? null;
@@ -756,6 +771,18 @@ export function ThreadShell({
   const [fallbackModelName, setFallbackModelName] = useState<string | null>(null);
   const [booting, setBooting] = useState(false);
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
+  const [composerAgents, setComposerAgents] = useState<AgentProfile[]>([]);
+  useEffect(() => {
+    let alive = true;
+    listAgents(getToken())
+      .then((response) => {
+        if (alive) setComposerAgents(response.agents.filter((agent) => !agent.hidden));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [getToken]);
   const cliApps = useInstalledSettingItems({
     getToken,
     eventName: CLI_APPS_CHANGED_EVENT,
@@ -776,6 +803,13 @@ export function ThreadShell({
   const [filePreviewPath, setFilePreviewPath] = useState<string | null>(null);
   const [filePreviewClosing, setFilePreviewClosing] = useState(false);
   const [filePreviewWidth, setFilePreviewWidth] = useState(FILE_PREVIEW_DEFAULT_WIDTH);
+  const [workbenchOpen, setWorkbenchOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem("mira.workbench.open") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [quotedContext, setQuotedContext] = useState<string | null>(null);
   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   const shellRef = useRef<HTMLElement | null>(null);
@@ -825,6 +859,8 @@ export function ThreadShell({
     recoveryState,
     continueRecovery,
     dismissRecovery,
+    pendingQuestions,
+    answerQuestion,
     send,
     transcribeAudio,
     stop,
@@ -986,6 +1022,10 @@ export function ThreadShell({
   useEffect(() => {
     setLocalModelPreset(null);
   }, [session?.key, sessionModelPreset]);
+  const [sessionReasoningEffort, setSessionReasoningEffort] = useState<string | null>(null);
+  useEffect(() => {
+    setSessionReasoningEffort(null);
+  }, [chatId]);
   const configuredPresetNames = useMemo(
     () => new Set(settings?.model_presets.map((preset) => preset.name) ?? []),
     [settings],
@@ -1020,6 +1060,16 @@ export function ThreadShell({
     () => toModelBadgeInfo(modelName, settings, activeModelPreset),
     [activeModelPreset, modelName, settings],
   );
+  const modelReasoningEffort = sessionReasoningEffort ?? modelBadge.reasoningEffort;
+  const modelReasoningEffortValues = useMemo(
+    () => modelPresetForBadge(settings, activeModelPreset)?.reasoning_effort_values ?? null,
+    [activeModelPreset, settings],
+  );
+  const handleReasoningEffortChange = useCallback((value: string) => {
+    const next = value.trim();
+    setSessionReasoningEffort(next || null);
+    if (chatId) client.setReasoningEffort(chatId, next);
+  }, [chatId, client]);
   const modelBadgeLabel = modelBadge.needsSetup
     ? t("thread.composer.chooseAI", { defaultValue: "Choose your AI" })
     : modelBadge.label;
@@ -1062,6 +1112,26 @@ export function ThreadShell({
       void refreshModelSettings();
     });
   }, [client, refreshModelSettings]);
+
+  useEffect(() => {
+    if (!chatId) return;
+    return client.onChat(chatId, (event) => {
+      if (event.event !== "attached") return;
+      const effort = typeof event.reasoning_effort === "string"
+        ? event.reasoning_effort.trim()
+        : "";
+      setSessionReasoningEffort(effort || null);
+    });
+  }, [chatId, client]);
+
+  useEffect(() => {
+    if (!chatId) return;
+    return client.onSessionUpdate((updatedChatId, scope, _scopePayload, effort) => {
+      if (updatedChatId !== chatId || scope !== "metadata") return;
+      if (typeof effort !== "string") return;
+      setSessionReasoningEffort(effort.trim() || null);
+    });
+  }, [chatId, client]);
 
   useEffect(() => {
     if (!chatId) {
@@ -1545,6 +1615,9 @@ export function ThreadShell({
 
   const composer = (
     <>
+      {pendingQuestions.length > 0 ? (
+        <AskQuestionCard question={pendingQuestions[0]} onAnswer={answerQuestion} />
+      ) : null}
       {recoveryState ? (
         <RecoveryNotice
           state={recoveryState}
@@ -1576,6 +1649,9 @@ export function ThreadShell({
           onModelPresetChange={handleModelPresetChange}
           modelProvider={modelBadge.provider}
           modelProviderLabel={modelBadge.providerLabel}
+          modelReasoningEffort={modelReasoningEffort}
+          modelReasoningEffortValues={modelReasoningEffortValues}
+          onReasoningEffortChange={handleReasoningEffortChange}
           modelNeedsSetup={modelBadge.needsSetup}
           fallbackModelName={fallbackModelName}
           onModelBadgeClick={modelBadge.needsSetup ? onOpenModelSettings : undefined}
@@ -1588,6 +1664,7 @@ export function ThreadShell({
           mcpPresets={mcpPresets}
           sessions={mentionSessions}
           skills={skills}
+          agents={composerAgents}
           onStop={stop}
           onTranscribeAudio={transcribeAudio}
           goalState={currentGoalState}
@@ -1601,6 +1678,7 @@ export function ThreadShell({
             workspaceControls?.can_pick_folder ? pickWorkspaceFolder : undefined
           }
           onWorkspaceScopeChange={onWorkspaceScopeChange}
+          runtimeHostname={workspaceHostname}
           pendingQueueKey={temporary ? null : chatId}
           transcriptionProvider={settingsSnapshot?.transcription?.provider}
           ingressLimits={ingressLimits}
@@ -1626,6 +1704,9 @@ export function ThreadShell({
           onModelPresetChange={handleModelPresetChange}
           modelProvider={modelBadge.provider}
           modelProviderLabel={modelBadge.providerLabel}
+          modelReasoningEffort={modelReasoningEffort}
+          modelReasoningEffortValues={modelReasoningEffortValues}
+          onReasoningEffortChange={handleReasoningEffortChange}
           modelNeedsSetup={modelBadge.needsSetup}
           fallbackModelName={fallbackModelName}
           onModelBadgeClick={modelBadge.needsSetup ? onOpenModelSettings : undefined}
@@ -1638,6 +1719,7 @@ export function ThreadShell({
           mcpPresets={mcpPresets}
           sessions={mentionSessions}
           skills={skills}
+          agents={composerAgents}
           surfaceRef={composerSurfaceRef}
           onTranscribeAudio={transcribeAudio}
           goalState={currentGoalState}
@@ -1651,8 +1733,11 @@ export function ThreadShell({
             workspaceControls?.can_pick_folder ? pickWorkspaceFolder : undefined
           }
           onWorkspaceScopeChange={onWorkspaceScopeChange}
+          runtimeHostname={workspaceHostname}
           transcriptionProvider={settingsSnapshot?.transcription?.provider}
           ingressLimits={ingressLimits}
+          draftSeed={draftSeed}
+          onDraftSeedConsumed={onDraftSeedConsumed}
         />
       )}
     </>
@@ -1667,15 +1752,43 @@ export function ThreadShell({
       <HeroGreeting text={t(heroGreetingKey)} />
     </div>
   );
-  const sessionInfoAction = historyKey ? (
-    <SessionInfoPopover sessionKey={historyKey} token={token} title={title} />
-  ) : undefined;
-  const promptNavigatorAction = historyKey ? (
-    <PromptNavigator
-      messages={displayMessages}
-      onJumpToPrompt={(promptId) => viewportRef.current?.jumpToUserPrompt(promptId)}
-    />
-  ) : undefined;
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("mira.workbench.open", workbenchOpen ? "1" : "0");
+    } catch {
+      // Preference persistence is best-effort.
+    }
+  }, [workbenchOpen]);
+
+  const onWorkbenchOpenChangeRef = useRef(onWorkbenchOpenChange);
+  onWorkbenchOpenChangeRef.current = onWorkbenchOpenChange;
+  useEffect(() => {
+    onWorkbenchOpenChangeRef.current?.(workbenchOpen);
+    return () => {
+      onWorkbenchOpenChangeRef.current?.(false);
+    };
+  }, [workbenchOpen]);
+
+  const workbenchModel = useMemo(
+    () => deriveSessionWorkbench(displayMessages, workspaceScope),
+    [displayMessages, workspaceScope],
+  );
+
+  const workbenchAction = session ? (
+    <Button
+      variant="ghost"
+      size="icon"
+      type="button"
+      aria-label={t("workbench.open", { defaultValue: "Open workbench" })}
+      aria-pressed={workbenchOpen}
+      onClick={() => setWorkbenchOpen((open) => !open)}
+      className={`host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground ${
+        workbenchOpen ? "bg-accent/40 text-foreground" : ""
+      }`}
+    >
+      <PanelRight className="h-4 w-4" />
+    </Button>
+  ) : null;
 
   const threadHeader = !hideHeader ? (
     <ThreadHeader
@@ -1686,12 +1799,11 @@ export function ThreadShell({
       onToggleTheme={onToggleTheme}
       hideSidebarToggleForHostChrome={hideSidebarToggleForHostChrome}
       hideSidebarToggle={hideSidebarToggle}
-      hideThemeButton={hideThemeButton}
+      hideThemeButton
       hideTitle={hideHeaderTitle}
       actions={headerActions}
+      workbenchAction={workbenchAction}
       minimal={!session && !loading}
-      promptNavigatorAction={promptNavigatorAction}
-      sessionInfoAction={sessionInfoAction}
       temporaryChatEnabled={temporaryChatEnabled}
       temporaryChatDisabled={booting || turnActive}
       onTemporaryChatEnabledChange={
@@ -1749,6 +1861,15 @@ export function ThreadShell({
           />
         </FilePreviewAvailabilityProvider>
       </div>
+      {workbenchOpen && session ? (
+        <SessionWorkbench
+          model={workbenchModel}
+          onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
+          onCollapse={() => setWorkbenchOpen(false)}
+          sessionKey={historyKey ?? null}
+          getToken={getToken}
+        />
+      ) : null}
       {headerPortalTarget && headerActive
         ? createPortal(threadHeader, headerPortalTarget)
         : null}

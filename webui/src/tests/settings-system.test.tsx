@@ -320,7 +320,7 @@ describe("Settings system domains", () => {
 
     expect(await screen.findByText("AnyGen")).toBeInTheDocument();
     expect(
-      screen.queryByText("Add tools to nanobot, then @ them in chat."),
+      screen.queryByText("Add tools to Mira, then @ them in chat."),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ready" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "Apps" })).toHaveAttribute("aria-pressed", "true");
@@ -404,11 +404,11 @@ describe("Settings system domains", () => {
     const matrixRow = await screen.findByRole("button", { name: "View Matrix settings" });
     expect(matrixRow).toHaveAttribute("aria-pressed", "true");
     expect(screen.getAllByText("Matrix")).toHaveLength(2);
-    expect(screen.getAllByText("Use nanobot from Matrix rooms.")).toHaveLength(2);
-    expect(screen.queryByText(/Enabling Nanobot features may install Python packages/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("Use Mira from Matrix rooms.")).toHaveLength(2);
+    expect(screen.queryByText(/Enabling Mira features may install Python packages/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "Matrix channel" }));
     expect(screen.getByRole("dialog", { name: "Install support for Matrix?" })).toBeInTheDocument();
-    expect(screen.getByText("nanobot will add what Matrix needs, then turn it on. Continue?")).toBeInTheDocument();
+    expect(screen.getByText("Mira will add what Matrix needs, then turn it on. Continue?")).toBeInTheDocument();
     expect(requestMutationMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Install and enable" }));
 
@@ -423,7 +423,7 @@ describe("Settings system domains", () => {
       expect(screen.getByRole("switch", { name: "Matrix channel" })).toHaveAttribute("aria-checked", "true"),
     );
     expect(screen.queryByText("Enabled channel 'matrix'")).not.toBeInTheDocument();
-    expect(screen.queryByText("Restart nanobot to apply updated channel support.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Restart Mira to apply updated channel support.")).not.toBeInTheDocument();
     expect(screen.getAllByText("On").length).toBeGreaterThan(0);
 
     expect(screen.getByLabelText("Homeserver")).toBeInTheDocument();

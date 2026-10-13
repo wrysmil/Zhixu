@@ -473,7 +473,7 @@ describe("ThreadComposer", () => {
     expect(input.className).toContain("pt-[27px]");
     fireEvent.change(input, { target: { value: "1" } });
     expect(input.className).toContain("pt-[27px]");
-    expect(input.parentElement?.parentElement?.className).toContain("max-w-[58rem]");
+    expect(input.parentElement?.parentElement?.className).toContain("max-w-heroComposer");
   });
 
   it("defers textarea autosizing until IME composition commits", () => {
@@ -705,9 +705,9 @@ describe("ThreadComposer", () => {
     expect(input.className).toContain("min-h-[50px]");
     expect(input.className).toContain("text-[16px]");
     expect(input.parentElement?.parentElement?.className).toContain("max-w-[49.5rem]");
-    expect(input.parentElement?.parentElement?.className).toContain("rounded-panel");
+    expect(input.parentElement?.parentElement?.className).toContain("rounded-prominent");
     expect(input.parentElement?.parentElement?.className).not.toContain("shadow-");
-    expect(screen.getByRole("button", { name: "Attach files" }).className).toContain("bg-card");
+    expect(screen.getByRole("button", { name: "Add" }).className).toContain("bg-card");
     expect(screen.getByRole("button", { name: "Send message" }).className).toContain("bg-foreground");
     expect(screen.queryByText(/Enter to send/)).not.toBeInTheDocument();
   });
@@ -1290,7 +1290,7 @@ describe("ThreadComposer", () => {
     expect(await screen.findByLabelText("Paste path")).toHaveAttribute("placeholder", placeholder);
   });
 
-  it("slides project controls closed without offering a compact replacement", () => {
+  it("hides project controls in the context tab row without a compact replacement", () => {
     const defaultScope = {
       project_path: "/Users/test/.nanobot/workspace",
       project_name: "workspace",
@@ -1310,21 +1310,14 @@ describe("ThreadComposer", () => {
       />
     );
     const { container, rerender } = render(composer(false));
-    const drawer = container.querySelector("[data-composer-workspace-drawer]");
 
-    expect(drawer).toHaveAttribute("data-state", "open");
-    expect(drawer).not.toHaveAttribute("aria-hidden");
+    expect(screen.getByTestId("composer-context-tabs")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose project" })).toBeEnabled();
     expect(container.querySelector("[data-composer-workspace-compact]")).not.toBeInTheDocument();
 
     rerender(composer(true));
 
-    expect(container.querySelector("[data-composer-workspace-drawer]")).toBe(drawer);
-    expect(drawer).toHaveAttribute("data-state", "closed");
-    expect(drawer).toHaveAttribute("aria-hidden", "true");
-    expect(within(drawer as HTMLElement).getByRole("button", {
-      hidden: true,
-      name: "Choose project",
-    })).toBeDisabled();
+    expect(screen.queryByTestId("composer-context-tabs")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Choose project" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", {
       name: "Workspace access mode: Full Access",
@@ -1332,9 +1325,8 @@ describe("ThreadComposer", () => {
 
     rerender(composer(false));
 
-    expect(container.querySelector("[data-composer-workspace-drawer]")).toBe(drawer);
-    expect(drawer).toHaveAttribute("data-state", "open");
-    expect(within(drawer as HTMLElement).getByRole("button", {
+    expect(screen.getByTestId("composer-context-tabs")).toBeInTheDocument();
+    expect(screen.getByRole("button", {
       name: "Choose project",
     })).toBeEnabled();
   });
@@ -1855,7 +1847,7 @@ describe("ThreadComposer", () => {
       target: { value: "参考 @收费", selectionStart: 6 },
     });
 
-    expect(screen.getByRole("group", { name: "Nanobot conversations" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Mira conversations" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /@收费设计/i })).toBeInTheDocument();
     fireEvent.keyDown(input, { key: "Tab" });
 

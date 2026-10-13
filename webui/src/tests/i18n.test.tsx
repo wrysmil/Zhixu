@@ -211,6 +211,11 @@ const LOCALIZED_WORKSPACE_COPY_KEYS = [
   "workspace.dialog.defaultProject",
   "workspace.dialog.usePath",
   "workspace.dialog.absolutePathRequired",
+  "settings.values.workspaceSettings",
+  "settings.rows.workspacePathHint",
+  "chat.groups.emptyProject",
+  "chat.groups.toggleProjects",
+  "chat.groups.projectsHint",
 ];
 const LOCALIZED_CHANNEL_SHELL_KEYS = [
   "settings.channels.advanced",
@@ -351,7 +356,7 @@ const INDEX_HTML = readFileSync(resolve(process.cwd(), "index.html"), "utf8");
 const PREBOOT_SCRIPT = INDEX_HTML.match(
   /<script>\s*(\(function \(\) \{\s*var localeKey = "nanobot\.locale";[\s\S]*?\}\)\(\);)\s*<\/script>/,
 )?.[1];
-const BOOT_COPY_MARKUP = '<span data-boot-copy>Loading nanobot…</span>';
+const BOOT_COPY_MARKUP = '<span data-boot-copy>Loading Mira…</span>';
 
 function runPrebootLocale(storedLocale: string) {
   if (!PREBOOT_SCRIPT) throw new Error("Could not find the preboot locale script in index.html");
@@ -671,7 +676,8 @@ describe("webui i18n", () => {
     expect(settings.sections.webSearch).toBe("网络搜索");
     expect(settings.byok.tabs.webSearch).toBe("网络搜索");
     expect(settings.overview.webSearch).toBe("网络搜索");
-    expect(settings.overview.workspace).toBe("工作区");
+    expect(settings.overview.workspace).toBe("默认工作区");
+    expect(settings.values.workspaceSettings).toBe("工作区设置");
     expect(settings.skills.installedTab).toBe("已安装");
     expect(settings.skills.discoverTab).toBe("发现");
     expect(settings.skills.marketplaceProviderFilter).toBe("技能来源");
@@ -715,6 +721,6 @@ describe("webui i18n", () => {
     expect(settings.sections.webSearch).toBe("Busca na web");
     expect(settings.byok.tabs.webSearch).toBe("Busca na web");
     expect(settings.overview.webSearch).toBe("Busca na web");
-    expect(settings.overview.workspace).toBe("Espaço de trabalho");
+    expect(settings.overview.workspace).toBe("Espaço de trabalho padrão");
   });
 });

@@ -5,9 +5,19 @@ export interface RuntimeHost {
   capabilities: RuntimeCapabilities;
   socketFactory?: (url: string) => WebSocket;
   pickFolder?: () => Promise<string | null>;
+  revealInFolder?: (targetPath: string) => Promise<boolean>;
   restartEngine?: () => Promise<void>;
   openLogs?: () => Promise<void>;
   exportDiagnostics?: () => Promise<string>;
+}
+
+export interface MiraShellApi {
+  appName?: string;
+  platform?: string;
+  retryBoot?: () => void;
+  pickFolder?: () => Promise<string | null>;
+  revealInFolder?: (targetPath: string) => Promise<boolean>;
+  openExternal?: (url: string) => Promise<boolean>;
 }
 
 interface HostRuntimeInfo {
@@ -69,6 +79,7 @@ let loopbackHostApi: NanobotHostApi | null = null;
 declare global {
   interface Window {
     nanobotHost?: NanobotHostApi;
+    mira?: MiraShellApi;
   }
 }
 
@@ -108,11 +119,13 @@ export function createRuntimeHost(
     ...(capabilities ?? {}),
   };
   const bridge = getHostSocketBridge();
+  const shell = typeof window !== "undefined" ? window.mira : undefined;
   return {
     surface,
     capabilities: mergedCapabilities,
     socketFactory: bridge ? createHostWebSocket : undefined,
-    pickFolder: api?.pickFolder?.bind(api),
+    pickFolder: api?.pickFolder?.bind(api) ?? shell?.pickFolder?.bind(shell),
+    revealInFolder: shell?.revealInFolder?.bind(shell),
     restartEngine: api?.restartEngine?.bind(api),
     openLogs: api?.openLogs?.bind(api),
     exportDiagnostics: api?.exportDiagnostics?.bind(api),

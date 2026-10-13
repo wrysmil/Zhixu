@@ -602,8 +602,8 @@ describe("ThreadMessages", () => {
     const rows = Array.from(container.firstElementChild?.children ?? []);
 
     expect(rows).toHaveLength(2);
-    expect(rows[0]).not.toHaveClass("mt-2", "mt-4", "mt-5");
-    expect(rows[1]).toHaveClass("mt-4");
+    expect(rows[0]).not.toHaveClass("mt-3", "mt-5", "mt-6");
+    expect(rows[1]).toHaveClass("mt-5");
   });
 
   it("renders a fork boundary divider after the copied history", () => {

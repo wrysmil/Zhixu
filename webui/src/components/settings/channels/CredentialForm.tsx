@@ -73,7 +73,7 @@ export function channelValidationStatusClass(status: string): string {
     return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-200";
   }
   if (status === "configured") {
-    return "bg-blue-500/10 text-blue-700 dark:text-blue-200";
+    return "bg-primary/10 text-primary";
   }
   if (status === "invalid") {
     return "bg-destructive/10 text-destructive";

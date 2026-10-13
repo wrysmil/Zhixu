@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./globals.css";
 import { initializeI18n } from "./i18n";
+import { isPreviewEntry } from "./preview/preview-entry";
 import { initializeLoopbackRuntimeHost } from "./lib/runtime";
 
 // `crypto.randomUUID` is only defined in secure contexts (HTTPS or localhost).
@@ -24,17 +25,29 @@ if (typeof globalThis.crypto !== "undefined" && !("randomUUID" in globalThis.cry
 const root = document.getElementById("root");
 if (!root) throw new Error("root element missing");
 
-initializeLoopbackRuntimeHost();
+// The static `?preview=1` shell renders fixture content with no backend, so it
+// must not touch the loopback runtime or register a service worker. Both are
+// scoped to the normal (connected) entry only.
+const isPreview = isPreviewEntry(window.location.search);
+
+if (!isPreview) {
+  initializeLoopbackRuntimeHost();
+}
 
 async function renderWebui(container: HTMLElement) {
   await initializeI18n();
+  if (isPreview) {
+    const { default: PreviewApp } = await import("./preview/PreviewApp");
+    ReactDOM.createRoot(container).render(<PreviewApp />);
+    return;
+  }
   /* StrictMode disabled: dev double-invokes state updaters; delta accumulation must stay pure — see useNanobotStream. */
   ReactDOM.createRoot(container).render(<App />);
 }
 
 void renderWebui(root);
 
-if ("serviceWorker" in navigator) {
+if (!isPreview && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register("/sw.js", {

@@ -11,6 +11,7 @@ from nanobot.providers.factory import ProviderSnapshot
 from nanobot.sdk.types import SessionSnapshot
 from nanobot.session.model_selection import (
     SESSION_MODEL_PRESET_METADATA_KEY,
+    SESSION_REASONING_EFFORT_METADATA_KEY,
     model_preset_from_metadata,
 )
 from nanobot.utils.llm_runtime import LLMRuntime
@@ -130,6 +131,28 @@ async def test_removed_session_model_preset_falls_back_and_clears_metadata(tmp_p
     loop.sessions.invalidate(session_key)
     restored = loop.sessions.get_or_create(session_key)
     assert model_preset_from_metadata(restored.metadata) is None
+
+
+@pytest.mark.asyncio
+async def test_session_reasoning_effort_override_applies_to_runtime(tmp_path) -> None:
+    base = RecordingProvider("base-model")
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=base,
+        workspace=tmp_path,
+        model="base-model",
+        context_window_tokens=16_000,
+    )
+    session_key = "sdk:effort"
+    session = loop.sessions.get_or_create(session_key)
+    session.metadata[SESSION_REASONING_EFFORT_METADATA_KEY] = "high"
+    loop.sessions.save(session)
+
+    runtime = loop.runtime_for_session(loop.sessions.get_or_create(session_key))
+    assert runtime.generation.reasoning_effort == "high"
+
+    default_runtime = loop.runtime_for_session(loop.sessions.get_or_create("sdk:no-effort"))
+    assert default_runtime.generation.reasoning_effort is None
 
 
 @pytest.mark.asyncio
