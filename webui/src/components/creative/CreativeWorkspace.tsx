@@ -13,6 +13,7 @@ import {
   toSnapshotPayload,
   type CreateArticleRequest,
 } from "@/lib/writing-api";
+import { clearDraft, listDrafts, readDraft, type LocalArticleDraft } from "@/lib/writing-draft-cache";
 import type { Article, ArticleStatus, ArticleSummaryView } from "./types";
 import {
   createDraftInput,
@@ -24,6 +25,7 @@ import { demoArticles } from "./demo-data";
 import { ArticleList, type ArticleListState } from "./ArticleList";
 import { ArticleEditor } from "./ArticleEditor";
 import { useArticleSaveFlow } from "./use-article-save-flow";
+import { ArticleRecoveryBanner } from "./ArticleRecoveryBanner";
 
 export interface CreativeWorkspaceProps {
   getToken: () => string;
@@ -220,6 +222,77 @@ function EditorHost({
 }) {
   const flow = useArticleSaveFlow({ getToken, transport, article, workspacePath });
 
+  // 重开同一篇文章：spec A-07 列出三种情形——干净打开 / 本地恢复稿存在且版本对齐
+  // / 本地恢复稿存在但服务端已变。后两种必须在用户主动选择前进入浏览器。
+  const [recovery, setRecovery] = useState<LocalArticleDraft | null>(() =>
+    readDraft(workspacePath, article.id),
+  );
+  const [leaveGuard, setLeaveGuard] = useState(false);
+
+  /**
+   * On-mount 把恢复稿的选择处理掉：
+   * - 服务端版本未变：留给 banner，用户自己点；
+   * - 服务端版本已变：直接把冲突态灌进 save flow，让 A3.5 的 ConflictDialog 接管。
+   */
+  useEffect(() => {
+    if (!recovery) return;
+    if (recovery.baseRevision === article.revision) return;
+    // 服务端比本地稿新：进入 A3.5 冲突合并流程。
+    flow.applyRecovery(recovery.snapshot);
+    flow.forceConflict({ currentRevision: article.revision, articleId: article.id });
+    setRecovery(null);
+    // 仅在挂载时触发一次；recovery/baseRevision 的更新不影响这条决策。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleRecover = useCallback(() => {
+    if (!recovery) return;
+    flow.applyRecovery(recovery.snapshot);
+    setRecovery(null);
+  }, [recovery, flow]);
+
+  const handleDiscardRecovery = useCallback(() => {
+    flow.discardRecovery();
+    setRecovery(null);
+  }, [flow]);
+
+  const handleBack = useCallback(async () => {
+    const decision = await flow.tryLeave();
+    if (decision.status === "ok") {
+      flow.abandon();
+      onBack();
+      return;
+    }
+    setLeaveGuard(true);
+  }, [flow, onBack]);
+
+  const handleLeaveRetry = useCallback(async () => {
+    const decision = await flow.tryLeave();
+    if (decision.status === "ok") {
+      setLeaveGuard(false);
+      flow.abandon();
+      onBack();
+    }
+  }, [flow, onBack]);
+
+  const handleLeaveStay = useCallback(() => {
+    setLeaveGuard(false);
+  }, []);
+
+  const handleLeaveForce = useCallback(() => {
+    setLeaveGuard(false);
+    flow.abandon();
+    onBack();
+  }, [flow, onBack]);
+
+  // 文章卸载（包括切换到列表 / 切换到另一篇文章）时，告知 save flow 放弃
+  // 任何在飞 save，避免晚到的响应写回一个已经不存在或被替换的编辑器。
+  // 只在挂载/卸载期间触发，否则每渲染都重新注册会清掉内部定时器。
+  useEffect(() => () => {
+    flow.abandon();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** 冲突对话框要展示服务器那一版，读取入口由容器提供（契约 §4）。 */
   const handleFetchLatest = useCallback(
     () => readLatest(article.id),
@@ -277,7 +350,21 @@ function EditorHost({
       onAcknowledgeConflict={flow.acknowledgeConflict}
       onFetchLatest={handleFetchLatest}
       onSaveCopy={handleSaveCopy}
-      onBack={onBack}
+      onBack={handleBack}
+      recoveryBanner={recovery ? (
+        <ArticleRecoveryBanner
+          article={article}
+          recovery={recovery}
+          storageUnhealthy={!flow.storageHealthy}
+          onRecover={handleRecover}
+          onDiscard={handleDiscardRecovery}
+        />
+      ) : null}
+      storageUnhealthy={!flow.storageHealthy && !recovery}
+      leaveGuardOpen={leaveGuard}
+      onLeaveRetry={handleLeaveRetry}
+      onLeaveStay={handleLeaveStay}
+      onLeaveForce={handleLeaveForce}
     />
   );
 }
@@ -503,6 +590,9 @@ export default function CreativeWorkspace({
           baseRevision: row.revision,
           clientRequestId: newLocalId(),
         });
+        // 服务端确认删除后才清本地恢复稿与本地表，避免删除后晚到的 save 把文章
+        // 又写回去（A-02）。
+        clearDraft(workspacePath, row.id);
         if (activeArticle?.id === row.id) backToList();
         if (preview) {
           writePreview(previewRef.current.filter((item) => item.id !== row.id));
@@ -520,8 +610,17 @@ export default function CreativeWorkspace({
       mutationTransport,
       preview,
       refreshList,
+      workspacePath,
       writePreview,
     ],
+  );
+
+  // 把当前命名空间下仍缓存着本地恢复稿的文章 id 集合传给 ArticleList，
+  // 让删除确认对话框在仍有未保存内容时显示警告（A-02）。
+  const draftIds = useMemo(
+    () =>
+      new Set(listDrafts(workspacePath).map((draft) => draft.articleId)),
+    [workspacePath, listDrafts, actionError],
   );
 
   if (view === "editor" && activeArticle) {
@@ -568,6 +667,7 @@ export default function CreativeWorkspace({
       actionError={actionError}
       query={query}
       statusFilter={statusFilter}
+      draftIds={draftIds}
       onQueryChange={setQuery}
       onStatusFilterChange={setStatusFilter}
       onOpen={openEditor}

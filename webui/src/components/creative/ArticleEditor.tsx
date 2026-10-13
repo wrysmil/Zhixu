@@ -1,16 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Download, Save } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { MarkdownText } from "@/components/MarkdownText";
 import type { Article } from "./types";
 import { ARTICLE_STATUS_LABEL_KEY } from "./types";
 import type { ArticleSnapshotPayload } from "@/lib/writing-api";
+import { exportArticleMarkdown } from "@/lib/writing-export";
 import type { SaveFlowState } from "./use-article-save-flow";
 import { ARTICLE_DELETED_REVISION, mergeImeValue } from "./use-article-save-flow";
-import { buildExportFilename, countBodyChars, generateMarkdown } from "./article-model";
+import { countBodyChars } from "./article-model";
 import { ConflictDialog } from "./ConflictDialog";
 import { MaterialPanel } from "./MaterialPanel";
 import { OutlinePanel } from "./OutlinePanel";
@@ -39,6 +50,15 @@ interface Props {
   /** 用本地草稿另存一篇新文章（A-08 第 5 条），成功后编辑器切到新文章。 */
   onSaveCopy: () => Promise<void>;
   onBack: () => void;
+  /** A-07 重开恢复横幅，null 表示无可恢复内容。 */
+  recoveryBanner?: ReactNode;
+  /** A-07 本地恢复保障不可用时的静态提示开关。 */
+  storageUnhealthy?: boolean;
+  /** A-07 离开守卫对话框开关。 */
+  leaveGuardOpen?: boolean;
+  onLeaveRetry?: () => void;
+  onLeaveStay?: () => void;
+  onLeaveForce?: () => void;
 }
 
 export function ArticleEditor({
@@ -52,6 +72,12 @@ export function ArticleEditor({
   onFetchLatest,
   onSaveCopy,
   onBack,
+  recoveryBanner,
+  storageUnhealthy = false,
+  leaveGuardOpen = false,
+  onLeaveRetry,
+  onLeaveStay,
+  onLeaveForce,
 }: Props) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<EditorMode>("edit");
@@ -60,6 +86,7 @@ export function ArticleEditor({
   const [conflictOpen, setConflictOpen] = useState(false);
   const [latest, setLatest] = useState<Article | null>(null);
   const [latestLoading, setLatestLoading] = useState(false);
+  const [exportHint, setExportHint] = useState<null | "empty" | "failed" | "dirty" | "saved">(null);
 
   const conflict = saveState.conflict;
   const inConflict = saveState.phase === "conflict";
@@ -145,22 +172,17 @@ export function ArticleEditor({
   };
 
   const handleExport = () => {
-    const current: Article = {
-      ...article,
-      title: draft.title,
-      status: draft.status,
-      summary: draft.summary,
-      body: draft.body,
-    };
-    const md = generateMarkdown(current);
-    const filename = buildExportFilename(current.title);
-    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    // A-09 / 计划 A3.7：导出的是当前草稿，不是仅服务端版本。
+    const outcome = exportArticleMarkdown(draft);
+    if (outcome.status === "empty") {
+      setExportHint("empty");
+      return;
+    }
+    if (outcome.status === "failed") {
+      setExportHint("failed");
+      return;
+    }
+    setExportHint(dirty ? "dirty" : "saved");
   };
 
   const saveLabel = () => {
@@ -252,6 +274,53 @@ export function ArticleEditor({
           >
             {t("creative.conflict.reopen", { defaultValue: "处理冲突" })}
           </Button>
+        </div>
+      ) : null}
+
+      {recoveryBanner}
+
+      {storageUnhealthy ? (
+        <div
+          data-testid="recovery-storage-hint"
+          role="status"
+          className="flex items-center gap-2 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-[11px] text-amber-800 dark:text-amber-200"
+        >
+          <span className="min-w-0 truncate">
+            {t("creative.recovery.storageUnavailable", {
+              defaultValue: "本地恢复保障不可用，保存与导出仍可继续。",
+            })}
+          </span>
+        </div>
+      ) : null}
+
+      {exportHint === "empty" || exportHint === "failed" || exportHint === "dirty" ? (
+        <div
+          data-testid="export-hint"
+          role="status"
+          className={cn(
+            "flex items-center justify-between gap-3 border-b px-4 py-2 text-[11px]",
+            exportHint === "dirty"
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+              : "border-destructive/40 bg-destructive/5 text-destructive",
+          )}
+        >
+          <span className="min-w-0 truncate">
+            {exportHint === "empty"
+              ? t("creative.export.empty", { defaultValue: "正文为空，未生成文件。" })
+              : exportHint === "failed"
+                ? t("creative.export.failed", { defaultValue: "导出失败，请重试。" })
+                : t("creative.export.dirty", {
+                    defaultValue: "已导出含未保存修改的 Markdown，仅供本地参考。",
+                  })}
+          </span>
+          <button
+            type="button"
+            onClick={() => setExportHint(null)}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={t("creative.export.dismiss", { defaultValue: "知道了" })}
+          >
+            {t("creative.export.dismiss", { defaultValue: "知道了" })}
+          </button>
         </div>
       ) : null}
 
@@ -389,6 +458,54 @@ export function ArticleEditor({
           onDiscardLocal={() => onAcknowledgeConflict("discardLocal")}
           onCancel={() => setConflictOpen(false)}
         />
+      ) : null}
+
+      {leaveGuardOpen ? (
+        <AlertDialog open onOpenChange={(open) => (!open ? onLeaveStay?.() : undefined)}>
+          <AlertDialogContent
+            data-testid="leave-guard"
+            className="w-[min(calc(100vw-2rem),28rem)] gap-0 p-5"
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-left text-[15px] font-semibold leading-snug text-foreground">
+                {t("creative.leaveGuard.title", {
+                  defaultValue: "这篇文章还有未保存的修改",
+                })}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-left text-[12px] leading-relaxed">
+                {t("creative.leaveGuard.body", {
+                  defaultValue: "自动保存未成功完成。可以再试一次、留在当前页继续编辑，或确认离开。离开后本地恢复稿仍保留，下次回来还能再恢复。",
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="mt-5 grid grid-cols-1 gap-2 sm:flex sm:flex-row sm:justify-end">
+              <AlertDialogCancel
+                onClick={onLeaveStay}
+                data-testid="leave-guard-stay"
+                className="mt-0 h-7 w-auto min-w-0 text-[11px]"
+              >
+                {t("creative.leaveGuard.stay", { defaultValue: "留在当前页" })}
+              </AlertDialogCancel>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="leave-guard-retry"
+                onClick={onLeaveRetry}
+                className="h-7 cursor-pointer text-[11px]"
+              >
+                {t("creative.leaveGuard.retry", { defaultValue: "重试保存" })}
+              </Button>
+              <Button
+                size="sm"
+                data-testid="leave-guard-force"
+                onClick={onLeaveForce}
+                className="h-7 text-[11px]"
+              >
+                {t("creative.leaveGuard.force", { defaultValue: "确认离开" })}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       ) : null}
     </div>
   );
