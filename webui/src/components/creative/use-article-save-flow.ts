@@ -105,8 +105,6 @@ interface Attempt {
   seq: number;
 }
 
-const DELETED_MESSAGE = "article deleted";
-
 function newClientRequestId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return `req-${Date.now()}-${Math.random().toString(16).slice(2)}`;
