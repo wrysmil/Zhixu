@@ -105,10 +105,14 @@ export function TeamEditorDialog({
   const { t } = useTranslation();
   const [draft, setDraft] = useState<Draft>(() => (team ? draftFromTeam(team) : emptyDraft()));
 
-  // 每次打开都从服务端已加载的值重建草稿；编辑期间不自动覆盖用户正在输入的内容。
+  // 只在「打开」或「换了一支团队」时重建草稿。保存成功后列表会把刚落库的定义
+  // 回填到 editing.team，但那仍是同一支团队：若按对象身份重建，用户在慢保存期间
+  // 敲下去的字符会被基线覆盖掉。
+  const teamId = team?.id ?? "";
   useEffect(() => {
-    if (open) setDraft(team ? draftFromTeam(team) : emptyDraft());
-  }, [open, team]);
+    if (!open) return;
+    setDraft(team ? draftFromTeam(team) : emptyDraft());
+  }, [open, teamId]);
 
   const visibleAgents = useMemo(() => agents.filter((agent) => !agent.hidden), [agents]);
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents]);

@@ -215,6 +215,28 @@ describe("teams 管理页", () => {
     expect(screen.getByLabelText("Team name")).toHaveValue("增长团队");
   });
 
+  it("保存后继续编辑不被基线回填覆盖，下一次保存以新修订为锁基线", async () => {
+    const user = userEvent.setup();
+    listTeams.mockResolvedValue({ teams: [], nextCursor: null });
+    render(<TeamsView />);
+
+    await startNewTeam(user);
+    await user.selectOptions(await screen.findByLabelText("Leader"), "leader");
+    await user.click(screen.getByLabelText("Add 调研 as a member"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(saveTeam).toHaveBeenCalledTimes(1));
+
+    // 保存成功后列表把刚落库的定义回填给编辑器；此时继续敲字不能被清掉。
+    const nameInput = screen.getByLabelText("Team name");
+    await user.type(nameInput, " v2");
+    expect(nameInput).toHaveValue("增长团队 v2");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(saveTeam).toHaveBeenCalledTimes(2));
+    expect(saveTeam.mock.calls[1][1].expectedRevision).toBe(1);
+    expect(saveTeam.mock.calls[1][1].team.name).toBe("增长团队 v2");
+  });
+
   it("归档必须先确认，再带 expectedRevision 落库", async () => {
     const user = userEvent.setup();
     render(<TeamsView />);
