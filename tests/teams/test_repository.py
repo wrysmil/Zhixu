@@ -427,6 +427,45 @@ def test_teams_from_another_workspace_are_invisible(
         repo_b.get_team(team_definition.id)
 
 
+def test_run_child_tables_are_scoped_to_the_owning_workspace(
+    repository: TeamRepository, running_task: Any, team_workspace: Path
+) -> None:
+    """子表没有 workspace_key 列，读它们之前必须先过 run 作用域守卫（A18）。
+
+    两个 workspace_key 共用同一份库文件时（备份恢复、显式 db_path），只知道 runId
+    不该读到别的工作空间的事件流，也不该能往里写派单记录。
+    """
+    payload = {"tasks": [{"key": "research"}]}
+    repository.record_dispatch(
+        run_id=running_task.run_id,
+        batch_id="batch-1",
+        payload=payload,
+        task_ids=[running_task.task_id],
+    )
+    foreign = TeamRepository(
+        TeamDatabase(team_workspace.parent / "other-workspace", db_path=repository.db.db_path)
+    )
+    assert foreign.workspace_key != repository.workspace_key
+
+    with pytest.raises(RunNotFound):
+        foreign.list_events(running_task.run_id, after_seq=0, limit=50)
+    with pytest.raises(RunNotFound):
+        foreign.events_page(running_task.run_id, after_seq=0, limit=50)
+    # 守卫必须跑在幂等预检之前：否则冲突异常会泄露「这个 batch 确实存在」。
+    with pytest.raises(RunNotFound):
+        foreign.record_dispatch(
+            run_id=running_task.run_id,
+            batch_id="batch-1",
+            payload={"tasks": [{"key": "stolen"}]},
+            task_ids=["t-stolen"],
+        )
+    assert foreign.get_dispatch(running_task.run_id, "batch-1") is None
+
+    # 守卫不能反过来挡住本工作空间的正常读路径。
+    assert repository.list_events(running_task.run_id, after_seq=0, limit=50)
+    assert repository.get_dispatch(running_task.run_id, "batch-1") is not None
+
+
 def test_schema_version_is_recorded(team_db: TeamDatabase) -> None:
     with team_db.connect(create=True) as conn:
         row = conn.execute("SELECT value FROM _schema_meta WHERE key = 'version'").fetchone()

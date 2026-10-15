@@ -706,8 +706,14 @@ class TeamRepository:
     def list_events(
         self, run_id: str, *, after_seq: int = 0, limit: int = DEFAULT_EVENT_LIMIT
     ) -> list[TeamEvent]:
-        if isinstance(limit, bool) or not 1 <= limit <= MAX_EVENT_LIMIT:
-            raise TeamValidationError(f"event limit must be between 1 and {MAX_EVENT_LIMIT}")
+        self._validate_event_limit(limit)
+        self._require_run_scope(run_id)
+        return self._events_after(run_id, after_seq=after_seq, limit=limit)
+
+    def _events_after(
+        self, run_id: str, *, after_seq: int, limit: int
+    ) -> list[TeamEvent]:
+        """裸读事件页；调用方必须已经确认 run 在本工作空间内。"""
         events: list[TeamEvent] = []
         for row in self._read(
             "SELECT event FROM team_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC LIMIT ?",
@@ -716,12 +722,18 @@ class TeamRepository:
             events.append(TeamEvent.from_dict(self._loads(row["event"], "team event")))
         return events
 
+    @staticmethod
+    def _validate_event_limit(limit: int) -> None:
+        if isinstance(limit, bool) or not 1 <= limit <= MAX_EVENT_LIMIT:
+            raise TeamValidationError(f"event limit must be between 1 and {MAX_EVENT_LIMIT}")
+
     def events_page(
         self, run_id: str, *, after_seq: int = 0, limit: int = DEFAULT_EVENT_LIMIT
     ) -> dict[str, Any]:
         """带 lastSeq/hasMore/resetRequired 的补拉页（契约 §6 的客户端恢复协议）。"""
+        self._validate_event_limit(limit)
         run = self.get_run(run_id)
-        events = self.list_events(run_id, after_seq=after_seq, limit=limit)
+        events = self._events_after(run_id, after_seq=after_seq, limit=limit)
         highest = events[-1].seq if events else int(after_seq)
         return {
             "events": [event.to_dict() for event in events],
@@ -735,11 +747,14 @@ class TeamRepository:
     ) -> list[str]:
         """剪掉超阈值/超期的中间活动，让客户端回快照；终态事件永不清理（契约 §7）。"""
         cutoff = _days_ago(datetime.now(timezone.utc), older_than_days)
+        # team_events 没有 workspace_key 列，清理范围必须回到 team_runs 上取，
+        # 否则共用库文件时会删掉别的工作空间的活动事件。
+        own_runs = "run_id IN (SELECT run_id FROM team_runs WHERE workspace_key = ?)"
         with self.db.connect(create=True) as conn:
             rows = conn.execute(
-                "SELECT run_id FROM team_events WHERE type = 'task.activity'"
+                f"SELECT run_id FROM team_events WHERE type = 'task.activity' AND {own_runs}"
                 " GROUP BY run_id HAVING COUNT(*) > ?",
-                (retain,),
+                (self.workspace_key, retain),
             ).fetchall()
             affected = [str(row["run_id"]) for row in rows]
             for run_id in affected:
@@ -750,8 +765,9 @@ class TeamRepository:
                     (run_id, run_id, retain),
                 )
             conn.execute(
-                "DELETE FROM team_events WHERE type = 'task.activity' AND occurred_at < ?",
-                (cutoff,),
+                f"DELETE FROM team_events WHERE type = 'task.activity' AND {own_runs}"
+                " AND occurred_at < ?",
+                (self.workspace_key, cutoff),
             )
         return affected
 
@@ -807,6 +823,9 @@ class TeamRepository:
         result: Mapping[str, Any] | None = None,
     ) -> DispatchOutcome:
         """batchId 幂等：同 key 同载荷返回同一组任务，不同载荷冲突（契约 §2）。"""
+        # 作用域守卫跑在幂等预检之前：否则 DispatchKeyConflict 会泄露「别的 workspace 里
+        # 确实有这个 batch」。
+        self._require_run_scope(run_id)
         digest = _payload_key(payload)
         rows = self._read(
             "SELECT payload_hash, task_ids FROM team_dispatches WHERE run_id = ? AND batch_id = ?",
@@ -832,6 +851,8 @@ class TeamRepository:
         return DispatchOutcome(run_id=run_id, batch_id=batch_id, task_ids=list(task_ids), replayed=False)
 
     def get_dispatch(self, run_id: str, batch_id: str) -> dict[str, Any] | None:
+        if not self._run_in_scope(run_id):
+            return None
         rows = self._read(
             "SELECT payload_hash, task_ids, result FROM team_dispatches WHERE run_id = ? AND batch_id = ?",
             [run_id, batch_id],
@@ -911,6 +932,23 @@ class TeamRepository:
             "SELECT * FROM team_tasks WHERE task_id = ? AND workspace_key = ?",
             (task_id, self.workspace_key),
         ).fetchone()
+
+    def _run_in_scope(self, run_id: str) -> bool:
+        """run 是否属于本工作空间。
+
+        ``team_events`` / ``team_dispatches`` 没有 ``workspace_key`` 列，直接按 runId 查
+        就会跨工作空间命中；凡是读这两张表的入口都必须先过这道守卫。
+        """
+        return bool(
+            self._read(
+                "SELECT run_id FROM team_runs WHERE run_id = ? AND workspace_key = ?",
+                [run_id, self.workspace_key],
+            )
+        )
+
+    def _require_run_scope(self, run_id: str) -> None:
+        if not self._run_in_scope(run_id):
+            raise RunNotFound(run_id)
 
     def _team_row(self, team_id: str) -> sqlite3.Row:
         rows = self._read(
