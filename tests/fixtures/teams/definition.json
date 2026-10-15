@@ -1,0 +1,30 @@
+{
+  "id": "content-team",
+  "revision": 1,
+  "name": "内容团队",
+  "description": "先研究、再撰稿、最后由 Leader 汇总。",
+  "instructions": "研究员只读资料并给出来源；撰稿人按验收条件成稿；主编辑负责拆解任务、审阅成员结果并输出一次汇总。",
+  "leaderAgentId": "leader",
+  "members": [
+    {
+      "memberId": "m-researcher",
+      "agentId": "researcher",
+      "role": "查阅资料，输出可核对的来源清单"
+    },
+    {
+      "memberId": "m-writer",
+      "agentId": "writer",
+      "role": "依据研究结论撰写正文，遵守验收条件"
+    }
+  ],
+  "limits": {
+    "maxConcurrency": 3,
+    "maxTasks": 16,
+    "maxDispatchRounds": 4,
+    "taskTimeoutSeconds": 600,
+    "runTimeoutSeconds": 1800
+  },
+  "archived": false,
+  "createdAt": "2026-10-15T08:00:00+00:00",
+  "updatedAt": "2026-10-15T08:00:00+00:00"
+}
