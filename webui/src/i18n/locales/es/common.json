@@ -92,33 +92,57 @@
       "tech-explainer": {
         "name": "Explicación técnica",
         "desc": "Explica un concepto complejo con claridad",
-        "outline": ["De dónde viene el problema", "Conceptos y principios clave", "Ilustrarlo con un ejemplo", "Alcance y límites", "Mi comprensión"]
+        "outline": [
+          "De dónde viene el problema",
+          "Conceptos y principios clave",
+          "Ilustrarlo con un ejemplo",
+          "Alcance y límites",
+          "Mi comprensión"
+        ]
       },
       "source-reading": {
         "name": "Lectura de código",
         "desc": "Sigue la cadena de llamadas para entender el diseño",
-        "outline": ["Qué quiero entender", "Punto de entrada y cadena de llamadas", "Implementación clave", "Decisiones de diseño", "Mi propia comprensión"]
+        "outline": [
+          "Qué quiero entender",
+          "Punto de entrada y cadena de llamadas",
+          "Implementación clave",
+          "Decisiones de diseño",
+          "Mi propia comprensión"
+        ]
       },
       "practice-retro": {
         "name": "Retrospectiva práctica",
         "desc": "Registra el proceso y también las decisiones",
-        "outline": ["Contexto y objetivo", "Cómo lo hice", "Problemas y depuración", "Resultados y carencias", "Qué cambiaré la próxima vez"]
+        "outline": [
+          "Contexto y objetivo",
+          "Cómo lo hice",
+          "Problemas y depuración",
+          "Resultados y carencias",
+          "Qué cambiaré la próxima vez"
+        ]
       },
       "learning-summary": {
         "name": "Resumen de aprendizaje",
         "desc": "Convierte el nuevo conocimiento en tu propia comprensión",
-        "outline": ["Con qué pregunta aprendí", "Conocimiento clave", "Verificación práctica", "Cómo cambió mi comprensión", "Preguntas pendientes"]
+        "outline": [
+          "Con qué pregunta aprendí",
+          "Conocimiento clave",
+          "Verificación práctica",
+          "Cómo cambió mi comprensión",
+          "Preguntas pendientes"
+        ]
       }
     }
   },
   "app": {
-    "brand": "Mira",
+    "brand": "知序",
     "loading": {
-      "connecting": "Conectando con Mira…",
-      "boot": "Cargando Mira…"
+      "connecting": "Conectando con 知序…",
+      "boot": "Cargando 知序…"
     },
     "error": {
-      "title": "No se pudo conectar con Mira",
+      "title": "No se pudo conectar con 知序",
       "gatewayHint": "Asegúrate de que la gateway esté en ejecución (`nanobot gateway`) y de que esta página esté abierta en la misma máquina."
     },
     "auth": {
@@ -136,8 +160,8 @@
     },
     "system": {
       "section": "Sistema",
-      "restartHint": "Reinicia Mira para aplicar los cambios de ejecución.",
-      "restart": "Reiniciar Mira",
+      "restartHint": "Reinicia 知序 para aplicar los cambios de ejecución.",
+      "restart": "Reiniciar 知序",
       "restarting": "Reiniciando...",
       "restartEngine": "Reiniciar motor",
       "restartingEngine": "Reiniciando motor..."
@@ -146,11 +170,11 @@
       "completed": "Reinicio completado en {{seconds}} s."
     },
     "documentTitle": {
-      "base": "Mira",
-      "chat": "{{title}} · Mira"
+      "base": "知序",
+      "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "Interfaz web de Mira: conversa con tu espacio de trabajo de Mira."
+      "description": "Interfaz web de 知序: conversa con tu espacio de trabajo de 知序."
     },
     "pairing": {
       "title": "Vincular a un usuario del chat",
@@ -247,7 +271,7 @@
       "language": "Idioma",
       "provider": "Proveedor",
       "model": "Modelo",
-      "restart": "Reiniciar Mira",
+      "restart": "Reiniciar 知序",
       "configPath": "Ruta de configuración",
       "activePreset": "Preajuste activo",
       "gateway": "Pasarela",
@@ -323,7 +347,7 @@
       "selectedModelValue": "Definido por el modelo seleccionado.",
       "brandLogos": "Muestra logos de proveedores de terceros y CLI en Ajustes.",
       "browserNotifications": "Notifica solo cuando esta página está en segundo plano. Desactivado de forma predeterminada.",
-      "cliAppsCatalog": "Instala solo adaptadores CLI de aplicaciones que Mira puede ejecutar localmente; las aplicaciones nativas no se modifican.",
+      "cliAppsCatalog": "Instala solo adaptadores CLI de aplicaciones que 知序 puede ejecutar localmente; las aplicaciones nativas no se modifican.",
       "cliAppsFilter": "Busca por aplicación, categoría o capacidad.",
       "logs": "Abre la carpeta de registros del motor nativo.",
       "diagnostics": "Exporta un pequeño informe del tiempo de ejecución para soporte.",
@@ -373,11 +397,11 @@
       "loadError": "No se pudieron cargar los ajustes",
       "unsaved": "Cambios sin guardar.",
       "upToDate": "Actualizado.",
-      "savedRestart": "Guardado. Reinicia Mira para aplicar.",
+      "savedRestart": "Guardado. Reinicia 知序 para aplicar.",
       "restartAfterSaving": "Guarda los cambios y reinicia cuando puedas.",
       "savedRestartApply": "Guardado. Reinicia cuando puedas.",
       "imageProviderRestart": "Cambios del proveedor de imagen guardados. Reinicia cuando puedas.",
-      "hostRestartAfterSaving": "Al guardar, Mira reiniciará su motor.",
+      "hostRestartAfterSaving": "Al guardar, 知序 reiniciará su motor.",
       "hostRestartPending": "Guardado. El motor se reiniciará cuando esté listo.",
       "hostApiUnavailable": "Las acciones del host solo están disponibles en la app nativa.",
       "logsOpened": "Carpeta de registros abierta.",
@@ -401,7 +425,7 @@
       "exporting": "Exportando..."
     },
     "byok": {
-      "description": "Usa tus propias claves de proveedor. Mira lee estos valores desde la configuración actual y solo los proveedores configurados pueden usarse en los preajustes de modelo.",
+      "description": "Usa tus propias claves de proveedor. 知序 lee estos valores desde la configuración actual y solo los proveedores configurados pueden usarse en los preajustes de modelo.",
       "configured": "Configurado",
       "notConfigured": "Sin configurar",
       "configuredSection": "Configurados",
@@ -649,7 +673,7 @@
       "saveCustom": "Guardar MCP",
       "configImport": "Importar mcp.json",
       "importConfig": "Importar",
-      "restartRequired": "Reinicia Mira para conectar las herramientas MCP actualizadas.",
+      "restartRequired": "Reinicia 知序 para conectar las herramientas MCP actualizadas.",
       "toolsFound": "{{count}} herramientas",
       "loading": "Cargando preajustes MCP...",
       "empty": "Ningún preajuste MCP coincide con este filtro.",
@@ -677,14 +701,14 @@
       "preparingSignIn": "Preparando un inicio de sesión seguro…",
       "openSignInToContinue": "Abre la página de inicio de sesión para continuar.",
       "finishSignInInBrowser": "Termina de iniciar sesión en la ventana del navegador.",
-      "manualCallbackRequired": "Termina de iniciar sesión y pega la URL de devolución en Mira.",
+      "manualCallbackRequired": "Termina de iniciar sesión y pega la URL de devolución en 知序.",
       "manualCallbackHelp": "Después de aprobar el acceso, la página de localhost no se cargará. Copia la URL completa de la barra de direcciones y pégala aquí.",
       "finishingConnection": "Finalizando la conexión…",
       "activatingTools": "Activando herramientas…",
       "connected": "Conectado.",
       "connectionFailed": "Error de conexión.",
       "connectionCancelled": "Conexión cancelada.",
-      "reloadFailed": "Has iniciado sesión, pero Mira no pudo conectar las herramientas. Prueba a reiniciar Mira.",
+      "reloadFailed": "Has iniciado sesión, pero 知序 no pudo conectar las herramientas. Prueba a reiniciar 知序.",
       "oauthFailed": "No se pudo conectar. Intenta iniciar sesión de nuevo.",
       "statusMissingDependency": "Necesita dependencia",
       "statusComingSoon": "Próximamente",
@@ -757,15 +781,15 @@
     },
     "observability": {
       "title": "Observabilidad",
-      "configured": "Las credenciales de trazas están disponibles para Mira.",
-      "environment": "Configura LANGFUSE_SECRET_KEY y LANGFUSE_PUBLIC_KEY y reinicia Mira.",
+      "configured": "Las credenciales de trazas están disponibles para 知序.",
+      "environment": "Configura LANGFUSE_SECRET_KEY y LANGFUSE_PUBLIC_KEY y reinicia 知序.",
       "enable": "Habilitar soporte de trazas"
     },
     "legal": {
       "thirdPartyBrands": "Los nombres, logotipos y marcas de productos pertenecen a sus respectivos propietarios. Su uso es solo identificativo y no implica respaldo."
     },
     "apps": {
-      "description": "Añade herramientas a Mira y luego úsalas con @ en el chat.",
+      "description": "Añade herramientas a 知序 y luego úsalas con @ en el chat.",
       "cliLabel": "Aplicación",
       "mcpLabel": "MCP",
       "channelLabel": "Canal",
@@ -788,21 +812,21 @@
       "browseApps": "Explorar aplicaciones",
       "browseIntegrations": "Explorar herramientas MCP",
       "emptyIntegrationsHint": "Añade un servidor MCP personalizado abajo.",
-      "restartRequired": "Reinicia Mira para aplicar las aplicaciones y herramientas MCP actualizadas."
+      "restartRequired": "Reinicia 知序 para aplicar las aplicaciones y herramientas MCP actualizadas."
     },
     "channels": {
-      "description": "Conecta Mira con aplicaciones de chat. Instalar el soporte solo añade el paquete de integración; la mayoría de canales aún necesitan tokens o configuración del espacio de trabajo.",
+      "description": "Conecta 知序 con aplicaciones de chat. Instalar el soporte solo añade el paquete de integración; la mayoría de canales aún necesitan tokens o configuración del espacio de trabajo.",
       "caption": "{{enabled}} activados · {{total}} canales",
       "searchPlaceholder": "Buscar canales",
       "backToChannels": "Todos los canales",
       "catalog": "Canales",
       "loading": "Cargando canales...",
       "empty": "Ningún canal coincide con este filtro.",
-      "restartRequired": "Reinicia Mira para aplicar el soporte de canales actualizado.",
+      "restartRequired": "Reinicia 知序 para aplicar el soporte de canales actualizado.",
       "requires": "Requiere: {{requirements}}",
       "setUp": "Configurar",
       "setupGuide": "Guía de configuración",
-      "setupSummary": "Activar solo habilita el soporte en Mira. Añade las credenciales de la plataforma y reinicia Mira.",
+      "setupSummary": "Activar solo habilita el soporte en 知序. Añade las credenciales de la plataforma y reinicia 知序.",
       "configKeys": "Claves de configuración",
       "enable": "Activar canal",
       "disable": "Desactivar canal",
@@ -865,7 +889,7 @@
       "missingDependency": "Falta soporte",
       "installSupport": "Instalar soporte",
       "installConfirmTitle": "¿Instalar soporte para {{name}}?",
-      "installConfirmDescription": "Mira añadirá lo que {{name}} necesita y luego lo activará. ¿Continuar?",
+      "installConfirmDescription": "知序 añadirá lo que {{name}} necesita y luego lo activará. ¿Continuar?",
       "installConfirmAction": "Instalar y activar",
       "websocketRequired": "Requerido para WebUI",
       "channelDisabled": "El canal está desactivado",
@@ -1009,7 +1033,7 @@
       "signedInAs": "Sesión iniciada como {{account}}",
       "signInHelp": "Inicia sesión desde este dispositivo; no se guarda API key en config.",
       "remoteSignInHelp": "Selecciona Iniciar sesión para abrir xAI en tu computadora y luego pega el código de autorización que se muestra tras iniciar sesión.",
-      "codexRemoteSignInHelp": "Inicia sesión en este navegador y pega en Mira la URL completa de devolución de localhost.",
+      "codexRemoteSignInHelp": "Inicia sesión en este navegador y pega en 知序 la URL completa de devolución de localhost.",
       "signInRequired": "Inicio de sesión requerido",
       "signInBeforeSaving": "Inicia sesión en este proveedor antes de guardar el preajuste.",
       "signedIn": "Sesión iniciada",
@@ -1017,9 +1041,9 @@
       "proxyLabel": "Proxy de red",
       "proxySaveBeforeSignIn": "Guarda los cambios del proxy antes de iniciar sesión.",
       "saveProxy": "Guardar proxy",
-      "localCodeHelp": "Completa el inicio de sesión en el navegador. Mira suele finalizar automáticamente; si no lo hace, pega el código de autorización abajo.",
+      "localCodeHelp": "Completa el inicio de sesión en el navegador. 知序 suele finalizar automáticamente; si no lo hace, pega el código de autorización abajo.",
       "remoteCodeHelp": "Selecciona Iniciar sesión para abrir xAI en tu computadora. Después de iniciar sesión, pega abajo el código de autorización que muestra xAI.",
-      "localCallbackHelp": "Completa el inicio de sesión en el navegador. Mira suele finalizar automáticamente; si no lo hace, copia de la barra de direcciones la URL completa de devolución de localhost y pégala abajo.",
+      "localCallbackHelp": "Completa el inicio de sesión en el navegador. 知序 suele finalizar automáticamente; si no lo hace, copia de la barra de direcciones la URL completa de devolución de localhost y pégala abajo.",
       "remoteCallbackHelp": "Abre ChatGPT en este navegador y completa el inicio de sesión. Cuando la página de localhost no cargue, copia la URL completa de la barra de direcciones y pégala abajo.",
       "authorizationCode": "Código de autorización",
       "callbackUrl": "URL completa de devolución",
@@ -1062,7 +1086,7 @@
       "deleteConfirmAction": "Eliminar habilidad",
       "instructionsTitle": "Instrucciones de la habilidad",
       "setupRequired": "Requiere configuración",
-      "setupDescription": "Instala la dependencia que falta en el equipo donde se ejecuta Mira y vuelve a comprobarlo.",
+      "setupDescription": "Instala la dependencia que falta en el equipo donde se ejecuta 知序 y vuelve a comprobarlo.",
       "copySetupCommand": "Copiar comando de configuración",
       "checkAgain": "Comprobar de nuevo",
       "marketplaceSearchFailed": "No se pudieron buscar los mercados de habilidades.",
@@ -1219,7 +1243,7 @@
       "mdModalDiffCurrent": "MEMORY.md actual",
       "mdModalDiffCurrentPlaceholder": "（MEMORY.md no existe o está vacío）",
       "masterToggleTitle": "Extracción y búsqueda automáticas de memoria",
-      "masterToggleDescription": "Al activarlo, Mira extrae hechos de las conversaciones y recupera recuerdos en el siguiente turno. Efecto inmediato: sin reiniciar.",
+      "masterToggleDescription": "Al activarlo, 知序 extrae hechos de las conversaciones y recupera recuerdos en el siguiente turno. Efecto inmediato: sin reiniciar.",
       "masterToggleAria": "Alternar extracción de memoria",
       "masterToggleOn": "Activado",
       "masterToggleOff": "Desactivado"
@@ -1656,7 +1680,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "Diseñar un icono de aplicación",
-          "prompt": "Genera un icono de aplicación 1:1 limpio para Mira: robot amigable, estilo vectorial simple, paleta suave azul y blanca, sin texto."
+          "prompt": "Genera un icono de aplicación 1:1 limpio para 知序: robot amigable, estilo vectorial simple, paleta suave azul y blanca, sin texto."
         },
         "sticker": {
           "title": "Crear una pegatina",
@@ -1857,7 +1881,7 @@
             "description": "Cancela el turno activo del agente en este chat."
           },
           "restart": {
-            "title": "Reiniciar Mira",
+            "title": "Reiniciar 知序",
             "description": "Reinicia el proceso del bot en el mismo lugar."
           },
           "status": {
@@ -1937,14 +1961,14 @@
         "label": "Aplicaciones",
         "cliGroup": "Aplicaciones CLI",
         "mcpGroup": "Servicios MCP",
-        "sessionGroup": "Conversaciones de Mira",
+        "sessionGroup": "Conversaciones de 知序",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
         "cliDescription": "Usar @{{name}} como aplicación CLI local",
         "mcpDescription": "Usar @{{name}} como servidor MCP",
         "cliTitle": "Aplicación CLI: {{name}}",
         "mcpTitle": "Servidor MCP: {{name}}",
-        "sessionBadge": "Conversación de Mira",
+        "sessionBadge": "Conversación de 知序",
         "sessionDescription": "Referenciar @{{name}} como chat anterior"
       },
       "workspace": {
@@ -2072,7 +2096,7 @@
     "close": "Cerrar vista previa de archivo",
     "loading": "Cargando vista previa...",
     "failed": "No se pudo previsualizar este archivo.",
-    "routeMissing": "La vista previa necesita el gateway más reciente. Reinicia Mira gateway e inténtalo de nuevo.",
+    "routeMissing": "La vista previa necesita el gateway más reciente. Reinicia 知序 gateway e inténtalo de nuevo.",
     "resize": "Cambiar el tamaño de la vista previa",
     "truncated": "La vista previa está truncada porque el archivo es grande."
   },

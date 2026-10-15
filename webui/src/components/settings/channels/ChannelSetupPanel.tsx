@@ -303,7 +303,7 @@ function ChannelSetupSurface({
   const requirements = channelRequirements(feature, t);
   const summary = setup.summary ?? tx(
     "settings.channels.setupSummary",
-    "Enable only turns on Mira support. Add the platform credentials, then restart Mira.",
+    "Enable only turns on 知序 support. Add the platform credentials, then restart 知序.",
   );
   const [fieldValues, setFieldValues] = useState<Record<string, string>>(() =>
     defaultChannelFieldValues(editableFields, feature.config_values),

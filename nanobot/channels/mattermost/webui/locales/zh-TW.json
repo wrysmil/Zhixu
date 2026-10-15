@@ -1,5 +1,5 @@
 {
-  "description": "在 Mattermost 頻道和私訊中使用 Mira。",
+  "description": "在 Mattermost 頻道和私訊中使用 知序。",
   "requirements": "Mattermost 伺服器網址、機器人權杖和頻道權限",
   "setup": {
     "docsLabel": "開啟 Mattermost 設定指南",

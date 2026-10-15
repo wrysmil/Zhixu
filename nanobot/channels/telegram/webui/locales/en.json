@@ -1,5 +1,5 @@
 {
-  "description": "Chat with Mira from Telegram chats.",
+  "description": "Chat with 知序 from Telegram chats.",
   "requirements": "Bot token, allowed users, gateway",
   "setup": {
     "docsLabel": "Open Telegram setup",

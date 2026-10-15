@@ -1,5 +1,5 @@
 {
-  "description": "Utilisez Mira depuis les espaces Slack.",
+  "description": "Utilisez 知序 depuis les espaces Slack.",
   "requirements": "Jeton d’application Slack, jeton du bot et installation dans l’espace",
   "setup": {
     "docsLabel": "Ouvrir le guide Slack",

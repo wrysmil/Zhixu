@@ -92,33 +92,57 @@
       "tech-explainer": {
         "name": "Phân tích kỹ thuật",
         "desc": "Giải thích một khái niệm phức tạp cho rõ",
-        "outline": ["Vấn đề bắt nguồn từ đâu", "Khái niệm và nguyên lý cốt lõi", "Minh họa bằng một ví dụ", "Phạm vi và giới hạn", "Cách tôi hiểu"]
+        "outline": [
+          "Vấn đề bắt nguồn từ đâu",
+          "Khái niệm và nguyên lý cốt lõi",
+          "Minh họa bằng một ví dụ",
+          "Phạm vi và giới hạn",
+          "Cách tôi hiểu"
+        ]
       },
       "source-reading": {
         "name": "Đọc mã nguồn",
         "desc": "Theo chuỗi gọi để hiểu thiết kế",
-        "outline": ["Điều muốn hiểu lần này", "Điểm vào và chuỗi gọi", "Triển khai then chốt", "Đánh đổi thiết kế", "Cách tôi tự hiểu"]
+        "outline": [
+          "Điều muốn hiểu lần này",
+          "Điểm vào và chuỗi gọi",
+          "Triển khai then chốt",
+          "Đánh đổi thiết kế",
+          "Cách tôi tự hiểu"
+        ]
       },
       "practice-retro": {
         "name": "Tổng kết thực hành",
         "desc": "Ghi lại quá trình và cả những lựa chọn",
-        "outline": ["Bối cảnh và mục tiêu", "Tôi đã làm thế nào", "Vấn đề và cách rà soát", "Kết quả và hạn chế", "Lần sau sẽ sửa gì"]
+        "outline": [
+          "Bối cảnh và mục tiêu",
+          "Tôi đã làm thế nào",
+          "Vấn đề và cách rà soát",
+          "Kết quả và hạn chế",
+          "Lần sau sẽ sửa gì"
+        ]
       },
       "learning-summary": {
         "name": "Tổng kết học tập",
         "desc": "Biến kiến thức mới thành hiểu biết của mình",
-        "outline": ["Học với câu hỏi gì", "Kiến thức then chốt", "Tự tay kiểm chứng", "Hiểu biết đã thay đổi ra sao", "Còn những câu hỏi nào"]
+        "outline": [
+          "Học với câu hỏi gì",
+          "Kiến thức then chốt",
+          "Tự tay kiểm chứng",
+          "Hiểu biết đã thay đổi ra sao",
+          "Còn những câu hỏi nào"
+        ]
       }
     }
   },
   "app": {
-    "brand": "Mira",
+    "brand": "知序",
     "loading": {
-      "connecting": "Đang kết nối tới Mira…",
-      "boot": "Đang tải Mira…"
+      "connecting": "Đang kết nối tới 知序…",
+      "boot": "Đang tải 知序…"
     },
     "error": {
-      "title": "Không thể kết nối tới Mira",
+      "title": "Không thể kết nối tới 知序",
       "gatewayHint": "Hãy chắc chắn gateway đang chạy (`nanobot gateway`) và trang này được mở trên cùng máy."
     },
     "auth": {
@@ -136,8 +160,8 @@
     },
     "system": {
       "section": "Hệ thống",
-      "restartHint": "Khởi động lại Mira để áp dụng thay đổi thời gian chạy.",
-      "restart": "Khởi động lại Mira",
+      "restartHint": "Khởi động lại 知序 để áp dụng thay đổi thời gian chạy.",
+      "restart": "Khởi động lại 知序",
       "restarting": "Đang khởi động lại...",
       "restartEngine": "Khởi động lại bộ máy",
       "restartingEngine": "Đang khởi động lại bộ máy..."
@@ -146,11 +170,11 @@
       "completed": "Khởi động lại hoàn tất sau {{seconds}} giây."
     },
     "documentTitle": {
-      "base": "Mira",
-      "chat": "{{title}} · Mira"
+      "base": "知序",
+      "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "Giao diện web Mira — trò chuyện với không gian làm việc Mira của bạn."
+      "description": "Giao diện web 知序 — trò chuyện với không gian làm việc 知序 của bạn."
     },
     "pairing": {
       "title": "Liên kết người dùng chat",
@@ -247,7 +271,7 @@
       "language": "Ngôn ngữ",
       "provider": "Nhà cung cấp",
       "model": "Mô hình",
-      "restart": "Khởi động lại Mira",
+      "restart": "Khởi động lại 知序",
       "configPath": "Đường dẫn cấu hình",
       "activePreset": "Cấu hình đặt trước đang dùng",
       "gateway": "Cổng",
@@ -323,7 +347,7 @@
       "selectedModelValue": "Được đặt bởi mô hình đã chọn.",
       "brandLogos": "Hiển thị logo nhà cung cấp bên thứ ba và CLI trong Cài đặt.",
       "browserNotifications": "Chỉ thông báo khi trang này ở nền. Mặc định tắt.",
-      "cliAppsCatalog": "Chỉ cài đặt các bộ chuyển đổi CLI ứng dụng mà Mira có thể chạy cục bộ; ứng dụng gốc không bị thay đổi.",
+      "cliAppsCatalog": "Chỉ cài đặt các bộ chuyển đổi CLI ứng dụng mà 知序 có thể chạy cục bộ; ứng dụng gốc không bị thay đổi.",
       "cliAppsFilter": "Tìm theo ứng dụng, danh mục hoặc khả năng.",
       "logs": "Mở thư mục nhật ký của bộ máy gốc.",
       "diagnostics": "Xuất báo cáo thời gian chạy ngắn để hỗ trợ.",
@@ -373,11 +397,11 @@
       "loadError": "Không thể tải cài đặt",
       "unsaved": "Có thay đổi chưa lưu.",
       "upToDate": "Đã cập nhật.",
-      "savedRestart": "Đã lưu. Khởi động lại Mira để áp dụng.",
+      "savedRestart": "Đã lưu. Khởi động lại 知序 để áp dụng.",
       "restartAfterSaving": "Lưu thay đổi, rồi khởi động lại khi sẵn sàng.",
       "savedRestartApply": "Đã lưu. Khởi động lại khi sẵn sàng.",
       "imageProviderRestart": "Đã lưu thay đổi nhà cung cấp ảnh. Khởi động lại khi sẵn sàng.",
-      "hostRestartAfterSaving": "Sau khi lưu, Mira sẽ khởi động lại bộ máy.",
+      "hostRestartAfterSaving": "Sau khi lưu, 知序 sẽ khởi động lại bộ máy.",
       "hostRestartPending": "Đã lưu. Bộ máy sẽ khởi động lại khi sẵn sàng.",
       "hostApiUnavailable": "Các thao tác máy chủ chỉ khả dụng trong ứng dụng gốc.",
       "logsOpened": "Đã mở thư mục nhật ký.",
@@ -401,7 +425,7 @@
       "exporting": "Đang xuất..."
     },
     "byok": {
-      "description": "Dùng khóa nhà cung cấp của riêng bạn. Mira đọc các giá trị này từ cấu hình hiện tại và chỉ nhà cung cấp đã cấu hình mới có thể dùng trong cấu hình mô hình đặt trước.",
+      "description": "Dùng khóa nhà cung cấp của riêng bạn. 知序 đọc các giá trị này từ cấu hình hiện tại và chỉ nhà cung cấp đã cấu hình mới có thể dùng trong cấu hình mô hình đặt trước.",
       "configured": "Đã cấu hình",
       "notConfigured": "Chưa cấu hình",
       "configuredSection": "Đã cấu hình",
@@ -649,7 +673,7 @@
       "saveCustom": "Lưu MCP",
       "configImport": "Nhập mcp.json",
       "importConfig": "Nhập",
-      "restartRequired": "Khởi động lại Mira để kết nối các công cụ MCP đã cập nhật.",
+      "restartRequired": "Khởi động lại 知序 để kết nối các công cụ MCP đã cập nhật.",
       "toolsFound": "{{count}} công cụ",
       "loading": "Đang tải cấu hình đặt trước MCP...",
       "empty": "Không có cấu hình đặt trước MCP nào khớp bộ lọc này.",
@@ -677,14 +701,14 @@
       "preparingSignIn": "Đang chuẩn bị đăng nhập an toàn…",
       "openSignInToContinue": "Mở trang đăng nhập để tiếp tục.",
       "finishSignInInBrowser": "Hoàn tất đăng nhập trong cửa sổ trình duyệt.",
-      "manualCallbackRequired": "Hoàn tất đăng nhập, rồi dán URL callback vào Mira.",
+      "manualCallbackRequired": "Hoàn tất đăng nhập, rồi dán URL callback vào 知序.",
       "manualCallbackHelp": "Sau khi phê duyệt quyền truy cập, trang localhost sẽ không tải được. Hãy sao chép URL đầy đủ từ thanh địa chỉ và dán vào đây.",
       "finishingConnection": "Đang hoàn tất kết nối…",
       "activatingTools": "Đang kích hoạt công cụ…",
       "connected": "Đã kết nối.",
       "connectionFailed": "Kết nối thất bại.",
       "connectionCancelled": "Đã hủy kết nối.",
-      "reloadFailed": "Đã đăng nhập nhưng Mira không thể kết nối các công cụ. Hãy thử khởi động lại Mira.",
+      "reloadFailed": "Đã đăng nhập nhưng 知序 không thể kết nối các công cụ. Hãy thử khởi động lại 知序.",
       "oauthFailed": "Không thể kết nối. Hãy thử đăng nhập lại.",
       "statusMissingDependency": "Cần phụ thuộc",
       "statusComingSoon": "Sắp ra mắt",
@@ -757,15 +781,15 @@
     },
     "observability": {
       "title": "Khả năng quan sát",
-      "configured": "Thông tin xác thực tracing đã sẵn sàng cho Mira.",
-      "environment": "Đặt LANGFUSE_SECRET_KEY và LANGFUSE_PUBLIC_KEY rồi khởi động lại Mira.",
+      "configured": "Thông tin xác thực tracing đã sẵn sàng cho 知序.",
+      "environment": "Đặt LANGFUSE_SECRET_KEY và LANGFUSE_PUBLIC_KEY rồi khởi động lại 知序.",
       "enable": "Bật hỗ trợ tracing"
     },
     "legal": {
       "thirdPartyBrands": "Tên sản phẩm, logo và thương hiệu thuộc về chủ sở hữu tương ứng. Việc sử dụng chỉ nhằm nhận diện và không ngụ ý được xác nhận."
     },
     "apps": {
-      "description": "Thêm công cụ vào Mira, sau đó dùng @ trong cuộc trò chuyện.",
+      "description": "Thêm công cụ vào 知序, sau đó dùng @ trong cuộc trò chuyện.",
       "cliLabel": "Ứng dụng",
       "mcpLabel": "MCP",
       "channelLabel": "Kênh",
@@ -788,21 +812,21 @@
       "browseApps": "Xem ứng dụng",
       "browseIntegrations": "Xem công cụ MCP",
       "emptyIntegrationsHint": "Thêm máy chủ MCP tùy chỉnh ở bên dưới.",
-      "restartRequired": "Khởi động lại Mira để áp dụng ứng dụng và công cụ MCP đã cập nhật."
+      "restartRequired": "Khởi động lại 知序 để áp dụng ứng dụng và công cụ MCP đã cập nhật."
     },
     "channels": {
-      "description": "Kết nối Mira với các ứng dụng chat. Cài đặt hỗ trợ chỉ thêm gói tích hợp; hầu hết kênh vẫn cần token hoặc cấu hình không gian làm việc.",
+      "description": "Kết nối 知序 với các ứng dụng chat. Cài đặt hỗ trợ chỉ thêm gói tích hợp; hầu hết kênh vẫn cần token hoặc cấu hình không gian làm việc.",
       "caption": "{{enabled}} đã bật · {{total}} kênh",
       "searchPlaceholder": "Tìm kênh",
       "backToChannels": "Tất cả kênh",
       "catalog": "Kênh",
       "loading": "Đang tải kênh...",
       "empty": "Không có kênh nào phù hợp.",
-      "restartRequired": "Khởi động lại Mira để áp dụng hỗ trợ kênh đã cập nhật.",
+      "restartRequired": "Khởi động lại 知序 để áp dụng hỗ trợ kênh đã cập nhật.",
       "requires": "Yêu cầu: {{requirements}}",
       "setUp": "Thiết lập",
       "setupGuide": "Hướng dẫn thiết lập",
-      "setupSummary": "Bật chỉ kích hoạt hỗ trợ của Mira. Thêm thông tin xác thực nền tảng rồi khởi động lại Mira.",
+      "setupSummary": "Bật chỉ kích hoạt hỗ trợ của 知序. Thêm thông tin xác thực nền tảng rồi khởi động lại 知序.",
       "configKeys": "Khóa cấu hình",
       "enable": "Bật kênh",
       "disable": "Tắt kênh",
@@ -865,7 +889,7 @@
       "missingDependency": "Thiếu gói hỗ trợ",
       "installSupport": "Cài gói hỗ trợ",
       "installConfirmTitle": "Cài hỗ trợ cho {{name}}?",
-      "installConfirmDescription": "Mira sẽ thêm những gì {{name}} cần, rồi bật tính năng này. Tiếp tục?",
+      "installConfirmDescription": "知序 sẽ thêm những gì {{name}} cần, rồi bật tính năng này. Tiếp tục?",
       "installConfirmAction": "Cài và bật",
       "websocketRequired": "Bắt buộc cho WebUI",
       "channelDisabled": "Kênh đang tắt",
@@ -1009,7 +1033,7 @@
       "signedInAs": "Đã đăng nhập bằng {{account}}",
       "signInHelp": "Đăng nhập từ thiết bị này; khóa API không được lưu trong config.",
       "remoteSignInHelp": "Chọn Đăng nhập để mở xAI trên máy tính của bạn, sau đó dán mã ủy quyền được hiển thị sau khi đăng nhập.",
-      "codexRemoteSignInHelp": "Đăng nhập trong trình duyệt này, sau đó dán lại URL callback localhost đầy đủ vào Mira.",
+      "codexRemoteSignInHelp": "Đăng nhập trong trình duyệt này, sau đó dán lại URL callback localhost đầy đủ vào 知序.",
       "signInRequired": "Cần đăng nhập",
       "signInBeforeSaving": "Hãy đăng nhập nhà cung cấp này trước khi lưu cấu hình đặt trước.",
       "signedIn": "Đã đăng nhập",
@@ -1017,9 +1041,9 @@
       "proxyLabel": "Proxy mạng",
       "proxySaveBeforeSignIn": "Hãy lưu thay đổi proxy trước khi đăng nhập.",
       "saveProxy": "Lưu proxy",
-      "localCodeHelp": "Hoàn tất đăng nhập trong trình duyệt. Mira thường tự động hoàn tất; nếu không, hãy dán mã ủy quyền bên dưới.",
+      "localCodeHelp": "Hoàn tất đăng nhập trong trình duyệt. 知序 thường tự động hoàn tất; nếu không, hãy dán mã ủy quyền bên dưới.",
       "remoteCodeHelp": "Chọn Đăng nhập để mở xAI trên máy tính của bạn. Sau khi đăng nhập, hãy dán mã ủy quyền do xAI hiển thị bên dưới.",
-      "localCallbackHelp": "Hoàn tất đăng nhập trong trình duyệt. Mira thường tự động hoàn tất; nếu không, hãy sao chép URL callback localhost đầy đủ từ thanh địa chỉ và dán vào bên dưới.",
+      "localCallbackHelp": "Hoàn tất đăng nhập trong trình duyệt. 知序 thường tự động hoàn tất; nếu không, hãy sao chép URL callback localhost đầy đủ từ thanh địa chỉ và dán vào bên dưới.",
       "remoteCallbackHelp": "Mở ChatGPT trong trình duyệt này và hoàn tất đăng nhập. Khi trang localhost không tải được, hãy sao chép URL đầy đủ từ thanh địa chỉ và dán vào bên dưới.",
       "authorizationCode": "Mã ủy quyền",
       "callbackUrl": "URL callback đầy đủ",
@@ -1062,7 +1086,7 @@
       "deleteConfirmAction": "Xóa kỹ năng",
       "instructionsTitle": "Hướng dẫn kỹ năng",
       "setupRequired": "Cần thiết lập",
-      "setupDescription": "Cài đặt phần phụ thuộc còn thiếu trên máy chạy Mira rồi kiểm tra lại.",
+      "setupDescription": "Cài đặt phần phụ thuộc còn thiếu trên máy chạy 知序 rồi kiểm tra lại.",
       "copySetupCommand": "Sao chép lệnh thiết lập",
       "checkAgain": "Kiểm tra lại",
       "marketplaceSearchFailed": "Không thể tìm kiếm các chợ kỹ năng.",
@@ -1219,7 +1243,7 @@
       "mdModalDiffCurrent": "MEMORY.md hiện tại",
       "mdModalDiffCurrentPlaceholder": "（MEMORY.md không tồn tại hoặc trống）",
       "masterToggleTitle": "Trích xuất & tìm kiếm trí nhớ tự động",
-      "masterToggleDescription": "Khi bật, Mira trích xuất sự thật từ hội thoại và lấy trí nhớ liên quan ở lượt sau. Hiệu lực ngay — không cần khởi động lại.",
+      "masterToggleDescription": "Khi bật, 知序 trích xuất sự thật từ hội thoại và lấy trí nhớ liên quan ở lượt sau. Hiệu lực ngay — không cần khởi động lại.",
       "masterToggleAria": "Bật/tắt trích xuất trí nhớ",
       "masterToggleOn": "Bật",
       "masterToggleOff": "Tắt"
@@ -1656,7 +1680,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "Thiết kế biểu tượng ứng dụng",
-          "prompt": "Tạo một biểu tượng ứng dụng 1:1 gọn gàng cho Mira: robot thân thiện, phong cách vector đơn giản, bảng màu xanh trắng dịu, không có chữ."
+          "prompt": "Tạo một biểu tượng ứng dụng 1:1 gọn gàng cho 知序: robot thân thiện, phong cách vector đơn giản, bảng màu xanh trắng dịu, không có chữ."
         },
         "sticker": {
           "title": "Tạo nhãn dán",
@@ -1857,7 +1881,7 @@
             "description": "Hủy lượt của tác nhân đang chạy trong cuộc trò chuyện này."
           },
           "restart": {
-            "title": "Khởi động lại Mira",
+            "title": "Khởi động lại 知序",
             "description": "Khởi động lại tiến trình bot tại chỗ."
           },
           "status": {
@@ -1937,14 +1961,14 @@
         "label": "Ứng dụng",
         "cliGroup": "Ứng dụng CLI",
         "mcpGroup": "Dịch vụ MCP",
-        "sessionGroup": "Cuộc trò chuyện Mira",
+        "sessionGroup": "Cuộc trò chuyện 知序",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
         "cliDescription": "Dùng @{{name}} như ứng dụng CLI cục bộ",
         "mcpDescription": "Dùng @{{name}} như máy chủ MCP",
         "cliTitle": "Ứng dụng CLI: {{name}}",
         "mcpTitle": "Máy chủ MCP: {{name}}",
-        "sessionBadge": "Cuộc trò chuyện Mira",
+        "sessionBadge": "Cuộc trò chuyện 知序",
         "sessionDescription": "Tham chiếu @{{name}} như cuộc trò chuyện trước"
       },
       "workspace": {
@@ -2072,7 +2096,7 @@
     "close": "Đóng xem trước tệp",
     "loading": "Đang tải bản xem trước...",
     "failed": "Không thể xem trước tệp này.",
-    "routeMissing": "Xem trước tệp cần gateway mới nhất. Hãy khởi động lại Mira gateway rồi thử lại.",
+    "routeMissing": "Xem trước tệp cần gateway mới nhất. Hãy khởi động lại 知序 gateway rồi thử lại.",
     "resize": "Đổi kích thước bản xem trước tệp",
     "truncated": "Bản xem trước bị cắt vì tệp này lớn."
   },

@@ -1,10 +1,10 @@
 {
   "$schema": "https://json.schemastore.org/package",
-  "name": "mira-desktop",
-  "productName": "Mira",
+  "name": "zhixu-desktop",
+  "productName": "知序",
   "version": "0.1.0",
   "private": true,
-  "description": "Mira — desktop shell (Electron) for the Agent-With-Memory WebUI. Page style referenced from Hope Agent.",
+  "description": "知序 — desktop shell (Electron) for the Agent-With-Memory WebUI. Page style referenced from Hope Agent.",
   "author": "Agent-With-Memory",
   "main": "main.cjs",
   "scripts": {
@@ -19,33 +19,15 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "ai.mira.desktop",
-    "productName": "Mira",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "main.cjs",
-      "preload.cjs",
-      "boot.html",
-      "assets/**"
-    ],
-    "win": {
-      "target": ["nsis"],
-      "icon": "assets/icon.png"
-    },
+    "appId": "ai.zhixu.desktop",
+    "productName": "知序",
+    "directories": { "output": "release" },
+    "files": ["main.cjs", "preload.cjs", "boot.html", "assets/**"],
+    "win": { "target": ["nsis"], "icon": "assets/icon.png" },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "Mira-Setup-${version}.${ext}"
-    },
-    "mac": {
-      "target": "dmg",
-      "category": "public.app-category.productivity"
-    },
-    "linux": {
-      "target": ["AppImage"],
-      "category": "Utility"
+      "artifactName": "知序-Setup-${version}.${ext}"
     }
   }
 }

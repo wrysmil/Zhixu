@@ -56,7 +56,7 @@
     --radius-prominent: 1rem;
     --radius-pill: 9999px;
 
-    /* Mira UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
+    /* 知序 UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
     --rail-w: 54px;
     --chat-col-w: 220px;
     --dock-w: 336px;
@@ -120,7 +120,7 @@
     --scrollbar-thumb: hsl(var(--muted-foreground) / 0.28);
     --scrollbar-thumb-hover: hsl(var(--muted-foreground) / 0.44);
 
-    /* Mira UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
+    /* 知序 UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
     --rail-w: 54px;
     --chat-col-w: 220px;
     --dock-w: 336px;

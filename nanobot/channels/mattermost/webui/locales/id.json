@@ -1,5 +1,5 @@
 {
-  "description": "Gunakan Mira dari channel dan DM Mattermost.",
+  "description": "Gunakan 知序 dari channel dan DM Mattermost.",
   "requirements": "URL server Mattermost, token bot, dan akses channel",
   "setup": {
     "docsLabel": "Buka panduan Mattermost",

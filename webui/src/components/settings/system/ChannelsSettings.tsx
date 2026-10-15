@@ -187,7 +187,7 @@ export function ChannelsSettings({
       {requiresRestartPending ? (
         <div className="mt-3 shrink-0">
           <RestartRequiredNotice
-            message={tx("settings.channels.restartRequired", "Restart Mira to apply updated channel support.")}
+            message={tx("settings.channels.restartRequired", "Restart 知序 to apply updated channel support.")}
             onRestart={onRestart}
             isRestarting={isRestarting}
           />

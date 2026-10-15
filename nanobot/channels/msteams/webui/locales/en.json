@@ -1,5 +1,5 @@
 {
-  "description": "Use Mira from Microsoft Teams chats.",
+  "description": "Use 知序 from Microsoft Teams chats.",
   "requirements": "Azure bot app credentials, public callback endpoint",
   "setup": {
     "docsLabel": "Open Teams setup",

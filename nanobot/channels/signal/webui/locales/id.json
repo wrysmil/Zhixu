@@ -1,5 +1,5 @@
 {
-  "description": "Gunakan Mira dari pesan Signal.",
+  "description": "Gunakan 知序 dari pesan Signal.",
   "requirements": "Daemon HTTP signal-cli, nomor telepon, dan daftar izin",
   "setup": {
     "docsLabel": "Buka panduan Signal",

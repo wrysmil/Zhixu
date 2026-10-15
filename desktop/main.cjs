@@ -7,7 +7,7 @@ const os = require("os");
 const path = require("path");
 const http = require("http");
 
-const APP_NAME = "Mira";
+const APP_NAME = "知序";
 const IS_DEV_SHELL = process.env.MIRA_DESKTOP_DEV === "1";
 const SMOKE = process.env.MIRA_SMOKE === "1";
 const WEBUI_DEV_URL = process.env.MIRA_WEBUI_URL || "http://localhost:5173";

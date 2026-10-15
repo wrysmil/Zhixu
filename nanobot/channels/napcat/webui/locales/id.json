@@ -1,14 +1,14 @@
 {
-  "description": "Hubungkan Mira melalui gateway NapCat.",
+  "description": "Hubungkan 知序 melalui gateway NapCat.",
   "requirements": "Endpoint WebSocket NapCat dan token akses opsional",
   "setup": {
     "docsLabel": "Buka panduan NapCat",
     "officialLabel": "Buka dokumentasi NapCat",
     "tryIt": "Kirim pesan uji QQ melalui NapCat.",
-    "summary": "NapCat menghubungkan Mira ke QQ melalui endpoint OneBot WebSocket lokal atau jarak jauh.",
+    "summary": "NapCat menghubungkan 知序 ke QQ melalui endpoint OneBot WebSocket lokal atau jarak jauh.",
     "steps": [
       "Mulai NapCat dan aktifkan layanan Forward WebSocket.",
-      "Salin URL WebSocket dan token opsional ke Mira.",
+      "Salin URL WebSocket dan token opsional ke 知序.",
       "Simpan dan aktifkan NapCat, lalu kirim pesan uji QQ."
     ],
     "fields": {

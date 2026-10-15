@@ -77,6 +77,8 @@ interface PaneWorkbenchProps {
   onSplitRatiosChange?: (splitRatios: number[]) => void;
   composerRailInset?: string;
   renderPane: (pane: WorkbenchPane, context: PaneRenderContext) => ReactNode;
+  /** 顶栏右端的额外控件（如右侧 StartDock 的开关）。Portal 头占左，trailing 占右。 */
+  headerTrailingAction?: ReactNode;
 }
 
 const LAYOUT_MOTION_DURATION_MS = 260;
@@ -213,6 +215,7 @@ export function PaneWorkbench({
   onSplitRatiosChange = IGNORE_SPLIT_RATIO_CHANGE,
   composerRailInset,
   renderPane,
+  headerTrailingAction,
 }: PaneWorkbenchProps) {
   const { t } = useTranslation();
   const compact = useMediaQuery("(max-width: 767px)");
@@ -690,12 +693,20 @@ export function PaneWorkbench({
       className="flex h-full min-h-0 flex-col overflow-hidden bg-background"
     >
       <TooltipProvider delayDuration={500} skipDelayDuration={100}>
-        {chrome ? (
+        {(chrome || headerTrailingAction) ? (
           <header className="shrink-0 bg-background">
-            <div
-              ref={setHeaderPortalTarget}
-              data-testid="workbench-header-host"
-            />
+            <div className="flex items-center">
+              <div
+                ref={setHeaderPortalTarget}
+                data-testid="workbench-header-host"
+                className="min-w-0 flex-1"
+              />
+              {headerTrailingAction ? (
+                <div className="flex shrink-0 items-center pr-2">
+                  {headerTrailingAction}
+                </div>
+              ) : null}
+            </div>
           </header>
         ) : null}
         <div className="relative min-h-0 flex-1 bg-background">

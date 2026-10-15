@@ -1,5 +1,5 @@
 {
-  "description": "Let Mira receive and answer email messages.",
+  "description": "Let 知序 receive and answer email messages.",
   "requirements": "IMAP inbox, SMTP sender, app password, explicit consent",
   "setup": {
     "docsLabel": "Open Email setup",

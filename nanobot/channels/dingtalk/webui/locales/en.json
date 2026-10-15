@@ -1,5 +1,5 @@
 {
-  "description": "Use Mira from DingTalk groups.",
+  "description": "Use 知序 from DingTalk groups.",
   "requirements": "DingTalk app credentials and gateway",
   "setup": {
     "docsLabel": "Open DingTalk setup",

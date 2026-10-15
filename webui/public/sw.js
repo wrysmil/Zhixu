@@ -11,7 +11,6 @@ const NETWORK_FIRST_STATIC_PATHS = new Set([
   "/brand/mira_icon_192.png",
   "/brand/mira_icon_512.png",
   "/brand/mira_icon_maskable.png",
-  "/brand/mira_mark.svg",
 ]);
 
 function responseMayBeCached(response) {

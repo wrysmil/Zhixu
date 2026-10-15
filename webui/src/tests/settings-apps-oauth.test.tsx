@@ -489,7 +489,7 @@ describe("SettingsView Apps catalog", () => {
     const callbackInput = await screen.findByRole("textbox", { name: "Full callback URL" });
     expect(screen.getByText(/localhost page will not load/i)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Finish signing in, then paste the callback URL into Mira.",
+      "Finish signing in, then paste the callback URL into 知序.",
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 

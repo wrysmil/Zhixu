@@ -1,5 +1,5 @@
 {
-  "description": "Gunakan Mira dari workspace Slack.",
+  "description": "Gunakan 知序 dari workspace Slack.",
   "requirements": "Token aplikasi Slack, token bot, dan instalasi workspace",
   "setup": {
     "docsLabel": "Buka panduan Slack",

@@ -1,5 +1,5 @@
 {
-  "description": "Use Mira from Slack workspaces.",
+  "description": "Use 知序 from Slack workspaces.",
   "requirements": "Slack app token, bot token, workspace install",
   "setup": {
     "docsLabel": "Open Slack setup",

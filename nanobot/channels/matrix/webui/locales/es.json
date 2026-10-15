@@ -1,5 +1,5 @@
 {
-  "description": "Usa Mira desde salas de Matrix.",
+  "description": "Usa 知序 desde salas de Matrix.",
   "requirements": "Homeserver, token de cuenta y acceso a salas",
   "setup": {
     "docsLabel": "Abrir guía de Matrix",
@@ -7,7 +7,7 @@
     "tryIt": "Invita la cuenta de Matrix a una sala y envía un mensaje de prueba.",
     "summary": "Matrix necesita una cuenta de homeserver y acceso por contraseña o token.",
     "steps": [
-      "Crea o elige una cuenta de Matrix para Mira.",
+      "Crea o elige una cuenta de Matrix para 知序.",
       "Introduce el homeserver, ID de usuario y contraseña o token de acceso.",
       "Guarda y activa Matrix, invita la cuenta a una sala y envía un mensaje de prueba."
     ],
@@ -18,7 +18,7 @@
       },
       "userId": {
         "label": "ID de usuario",
-        "placeholder": "@Mira:matrix.org"
+        "placeholder": "@知序:matrix.org"
       },
       "password": {
         "label": "Contraseña",

@@ -3,7 +3,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("mira", {
-  appName: "Mira",
+  appName: "知序",
   platform: process.platform,
   retryBoot: () => ipcRenderer.send("mira:retry"),
   pickFolder: () => ipcRenderer.invoke("mira:pick-folder"),

@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 
-/** Generated folded-loop mark, adapted to the shell's light and dark themes. */
+/** Tanuki mark rendered as a transparent PNG so it sits cleanly on both the
+ *  light and dark shells without any theme-tinted CSS filter. */
 export function BrandMark({ className }: { className?: string }) {
   return (
     <img
@@ -11,10 +12,7 @@ export function BrandMark({ className }: { className?: string }) {
       height={40}
       draggable={false}
       decoding="async"
-      className={cn(
-        "shrink-0 object-contain [filter:sepia(0.55)_hue-rotate(66deg)_saturate(0.75)] dark:[filter:invert(1)_sepia(0.3)_hue-rotate(80deg)_brightness(1.15)]",
-        className,
-      )}
+      className={cn("shrink-0 object-contain", className)}
     />
   );
 }

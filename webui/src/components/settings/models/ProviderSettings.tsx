@@ -839,7 +839,7 @@ export function ProvidersSettings({
                         : provider.name === "openai_codex" && remoteBrowserAccess
                           ? tx(
                               "settings.oauth.codexRemoteSignInHelp",
-                              "Sign in through this browser, then paste the full localhost callback URL back into Mira.",
+                              "Sign in through this browser, then paste the full localhost callback URL back into 知序.",
                             )
                           : provider.name === "xai_grok" && remoteBrowserAccess
                           ? tx(

@@ -2835,7 +2835,6 @@ function Shell({
                             settingsSnapshot={settingsSnapshot}
                             onOpenModelSettings={onOpenModelSettings}
                             skills={skills}
-                            sidebarOpen={homeDockOpen}
                             draftSeed={composerDraftSeed}
                             onDraftSeedConsumed={onDraftSeedConsumed}
                           />
@@ -2896,20 +2895,17 @@ function Shell({
                           settingsSnapshot={settingsSnapshot}
                           onOpenModelSettings={onOpenModelSettings}
                           skills={skills}
-                          sidebarOpen={homeDockOpen}
                         />
                       );
                     }}
                   />
                 </div>
-                {dockVisible ? (
+                {dockVisible && homeDockOpen ? (
                   <Suspense fallback={null}>
                     <StartDock
                       scope={dockScope}
                       sessionKey={activeKey}
                       getToken={getToken}
-                      open={homeDockOpen}
-                      onOpenChange={setHomeDockOpen}
                     />
                   </Suspense>
                 ) : null}
