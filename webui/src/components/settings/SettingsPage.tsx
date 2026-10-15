@@ -2,6 +2,7 @@ import { ChevronLeft, Loader2 } from "lucide-react";
 
 import { SkillsCatalogSettings } from "@/components/settings/SkillsCatalogSettings";
 import { AgentsView } from "@/components/settings/agents/AgentsView";
+import { TeamsView } from "@/components/settings/teams/TeamsView";
 import { IdentityView } from "@/components/settings/identity/IdentityView";
 import { ImageGenerationSettings } from "@/components/settings/capabilities/ImageGenerationSettings";
 import { AdvancedSettings } from "@/components/settings/capabilities/SecuritySettings";
@@ -483,6 +484,8 @@ export function SettingsPage({
         return <SkillsCatalogSettings skills={skills} />;
       case "agents":
         return <AgentsView />;
+      case "teams":
+        return <TeamsView />;
       case "memory":
         return (
           <MemorySection
