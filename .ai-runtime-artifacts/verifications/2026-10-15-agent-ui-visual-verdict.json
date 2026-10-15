@@ -1,0 +1,46 @@
+{
+  "scope": "agent-workspace",
+  "baseline": {
+    "verdict": "needs_changes",
+    "screenshot": "assets/2026-10-15-agent-ui/before.jpg",
+    "evidence": [
+      "首页仅居中问候与输入，没有任务起点说明",
+      "rail功能仅有图标，首次使用需依靠悬停",
+      "背景纯平且选择色偏紫，与用户禁止清单冲突",
+      "记忆预览只有两行只读统计，不能体验分类与搜索"
+    ]
+  },
+  "final": {
+    "verdict": "pass",
+    "verified_at": "2026-10-15",
+    "evidence": [
+      "桌面首页：左对齐衬线标题 + 说明 + 两条列表式任务引导 + 右侧本地插画，无 Hero 三卡片",
+      "导航图标下带短文字，记忆可直达 settings/memory；进入记忆页后 rail 高亮正确",
+      "记忆页：MemoryGuide 引导态、总开关、长期信息/对话记录切换、本地搜索与全部分类筛选、5 条样例",
+      "深色模式可读：正文与次级文字对比正常，绿灰底色未出现纯黑或紫色偏色",
+      "手机 390x844：scrollWidth == clientWidth == 390，无横向溢出；正文不再被侧栏压成竖排单字",
+      "窄屏展开侧栏改为覆盖层 + 遮罩，点击遮罩或导航后自动收起",
+      "插画为 webui/public/illustrations 本地资源，附 ATTRIBUTION.txt"
+    ],
+    "fixes_during_verification": [
+      "PreviewApp 只在挂载时读一次 (max-width: 767px)，视口变化后不跟随，导致窄屏仍保持展开侧栏",
+      "窄屏下展开的会话列按 274px 占位，把主区挤到约 116px，标题逐字竖排、输入框不可用"
+    ]
+  },
+  "criteria": ["任务操作清楚", "三类页面风格一致", "图片本地可用", "手机无横向溢出", "深色可读", "无禁止样式", "不伪造运行状态"],
+  "criteria_result": {
+    "任务操作清楚": "pass",
+    "三类页面风格一致": "pass",
+    "图片本地可用": "pass",
+    "手机无横向溢出": "pass",
+    "深色可读": "pass",
+    "无禁止样式": "pass",
+    "不伪造运行状态": "pass"
+  },
+  "commands": [
+    "npx tsc -p tsconfig.build.json --noEmit",
+    "npx eslint --config webui/eslint.config.js webui/src --max-warnings 0",
+    "npx vitest run",
+    "npx vite build"
+  ]
+}

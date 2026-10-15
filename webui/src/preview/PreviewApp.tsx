@@ -47,9 +47,22 @@ export default function PreviewApp() {
   const [route, setRoute] = useState<WorkspaceRoute>(() =>
     parseWorkspaceHash(window.location.hash),
   );
-  const [collapsed, setCollapsed] = useState(() => window.matchMedia("(max-width: 767px)").matches);
+  const narrowQuery = "(max-width: 767px)";
+  const [collapsed, setCollapsed] = useState(() => window.matchMedia(narrowQuery).matches);
+  const [narrow, setNarrow] = useState(() => window.matchMedia(narrowQuery).matches);
   const [workspaceScope, setWorkspaceScope] = useState(PREVIEW_DEFAULT_SCOPE);
   const [projects, setProjects] = useState<SidebarProjectEntry[]>([]);
+
+  useEffect(() => {
+    const media = window.matchMedia(narrowQuery);
+    const sync = () => setNarrow(media.matches);
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (narrow) setCollapsed(true);
+  }, [narrow]);
 
   useEffect(() => {
     const previous = document.documentElement.classList.contains("dark");
@@ -77,6 +90,7 @@ export default function PreviewApp() {
   const navigate = useCallback((next: WorkspaceRoute) => {
     const hash = workspaceRouteHash(next);
     setRoute(next);
+    if (narrow) setCollapsed(true);
     // Preserve the `?preview=1` query by assigning only the hash fragment.
     if (window.location.hash !== hash) {
       window.location.hash = hash;
@@ -84,11 +98,13 @@ export default function PreviewApp() {
   }, []);
 
   return (
-    <div className="preview-app-shell flex h-[100dvh] w-full overflow-hidden bg-background text-foreground">
+    <div className="preview-app-shell relative flex h-[100dvh] w-full overflow-hidden bg-background text-foreground">
       <div
         className={cn(
           "shrink-0 border-r border-sidebar-border",
           route.view === "chat" && !collapsed ? "w-[274px]" : "w-rail",
+          narrow && route.view === "chat" && !collapsed &&
+            "absolute inset-y-0 left-0 z-30 shadow-[0_0_0_100vmax_rgb(0_0_0/0.28)]",
         )}
       >
         <WorkspaceNavigation
@@ -120,6 +136,15 @@ export default function PreviewApp() {
             projects={projects} onSelectWorkspace={selectWorkspace} />}
         />
       </div>
+
+      {narrow && route.view === "chat" && !collapsed ? (
+        <button
+          type="button"
+          aria-label={t("sidebar.close", { defaultValue: "Close sidebar" })}
+          onClick={() => setCollapsed(true)}
+          className="absolute inset-0 z-20 cursor-default"
+        />
+      ) : null}
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {route.view === "chat" ? (
