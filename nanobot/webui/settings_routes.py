@@ -26,6 +26,7 @@ from nanobot.webui import settings_capabilities as capability_domain
 from nanobot.webui import settings_contracts as contracts
 from nanobot.webui import settings_models as model_domain
 from nanobot.webui import settings_system as system_domain
+from nanobot.webui import teams_routes as teams_domain
 from nanobot.webui import writing_routes as writing_domain
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.cli_apps_api import cli_apps_action, cli_apps_payload
@@ -72,6 +73,7 @@ from nanobot.webui.settings_contracts import (
     WebUISettingsError,
 )
 from nanobot.webui.settings_services import WebUISettingsServices
+from nanobot.webui.teams_routes import TeamSettingsOperations
 from nanobot.webui.version_check import check_for_update
 from nanobot.webui.writing_routes import WritingSettingsOperations
 
@@ -183,6 +185,13 @@ _SYSTEM_ROUTES = {
     "/api/settings/agents/delete": "agents-delete",
     "/api/settings/agents/reset": "agents-reset",
     "/api/settings/agents/visibility": "agents-visibility",
+    # Agent Team（契约 §3）：读走认证 HTTP，写走 WS 白名单，动作名与 TS 客户端逐字一致。
+    "/api/settings/teams": "teams-list",
+    "/api/settings/teams/detail": "teams-detail",
+    "/api/settings/teams/revisions": "teams-revisions",
+    "/api/settings/teams/save": "teams-save",
+    "/api/settings/teams/archive": "teams-archive",
+    "/api/settings/teams/clone": "teams-clone",
     # 写作域两套动作名统一取点号（契约 §4）：article.list 既是 WS 动作名也是
     # 领域动作名。写路径同样要在这里登记，最终仍经 _route() 落到 writing handler。
     "/api/writing/articles": "article.list",
@@ -220,6 +229,13 @@ _AGENTS_MUTATION_PATHS = frozenset({
     "/api/settings/agents/delete",
     "/api/settings/agents/reset",
     "/api/settings/agents/visibility",
+})
+
+# 契约 §3：团队写动作（保存/归档/复制）全部 WS-only；三个读路径不在其中。
+_TEAMS_MUTATION_PATHS = frozenset({
+    "/api/settings/teams/save",
+    "/api/settings/teams/archive",
+    "/api/settings/teams/clone",
 })
 
 # 契约 §5：四条写作写路径全部 WS-only，HTTP 直连必须被 405 拒掉。
@@ -265,6 +281,7 @@ _SETTINGS_MUTATION_PATHS = frozenset({
     *_MEMORY_MUTATION_PATHS,
     *_IDENTITY_MUTATION_PATHS,
     *_AGENTS_MUTATION_PATHS,
+    *_TEAMS_MUTATION_PATHS,
     *_WRITING_MUTATION_PATHS,
 })
 
@@ -375,6 +392,22 @@ def _null_writing_operations() -> WritingSettingsOperations:
     )
 
 
+def _null_team_operations() -> TeamSettingsOperations:
+    """gateway 还没注入 TeamService 时的兜底：响亮的 503，而不是 dispatch 深处的一次 AttributeError。"""
+
+    def _unavailable(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise WebUISettingsError("team service is not configured", status=503)
+
+    return TeamSettingsOperations(
+        list_teams=_unavailable,
+        get_detail=_unavailable,
+        list_revisions=_unavailable,
+        save_team=_unavailable,
+        archive_team=_unavailable,
+        clone_team=_unavailable,
+    )
+
+
 class WebUISettingsRouter:
     """Authenticate and dispatch settings requests to transport-neutral domains."""
 
@@ -398,6 +431,7 @@ class WebUISettingsRouter:
         memory_operations: MemorySettingsOperations | None = None,
         identity_operations: IdentitySettingsOperations | None = None,
         agents_operations: AgentSettingsOperations | None = None,
+        team_operations: TeamSettingsOperations | None = None,
         writing_operations: WritingSettingsOperations | None = None,
     ) -> None:
         self.settings = settings
@@ -439,6 +473,9 @@ class WebUISettingsRouter:
             writing_operations
             if writing_operations is not None
             else _null_writing_operations()
+        )
+        self._teams = teams_domain.TeamSettingsHandler(
+            team_operations if team_operations is not None else _null_team_operations()
         )
 
     async def dispatch(
@@ -523,6 +560,11 @@ class WebUISettingsRouter:
             # 写作域同样是 stdlib sqlite3 + threading.Lock（阻塞），不能跑在事件循环里。
             result = await asyncio.to_thread(
                 lambda: self._writing.handle(action, domain_request),
+            )
+        elif action in teams_domain.TEAMS_ACTION_NAMES:
+            # 团队域同样是阻塞 SQLite，短事务走 to_thread（契约 §2）。
+            result = await asyncio.to_thread(
+                lambda: self._teams.handle(action, domain_request),
             )
         else:
             channel_connect = _channel_connect_route(path)

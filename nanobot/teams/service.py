@@ -220,6 +220,11 @@ class TeamService:
         snapshot = self.repository.get_revision_snapshot(team_id, revision=target)
         return {"team": definition.to_dict(), "snapshot": snapshot.to_dict()}
 
+    def list_revisions(self, team_id: str) -> dict[str, Any]:
+        """历史修订清单：编辑器展示「基于哪一版」，以及归档痕迹。"""
+        self.repository.get_team(team_id)
+        return {"revisions": self.repository.list_revisions(team_id)}
+
     def teams_referencing_profile(self, agent_id: str) -> list[str]:
         """给 Agent 删除动作用：被未归档团队引用时应返回 409 AGENT_IN_USE_BY_TEAM。"""
         return self.repository.teams_referencing_profile(agent_id)

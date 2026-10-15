@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
 from functools import partial
@@ -13,7 +14,9 @@ from loguru import logger as default_logger
 from nanobot.config.loader import get_config_path
 from nanobot.config.loader import load_config as _load_config
 from nanobot.memory.lifecycle import MemoryLifecycle
-from nanobot.webui import agents_api, identity_api, memory_api, writing_api
+from nanobot.teams.binding import TeamBindingStore
+from nanobot.teams.service import TeamService
+from nanobot.webui import agents_api, identity_api, memory_api, teams_api, writing_api
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.gateway_endpoint import WebUIGatewayEndpoint
 from nanobot.webui.gateway_tokens import GatewayTokenStore
@@ -24,6 +27,7 @@ from nanobot.webui.memory_routes import MemorySettingsOperations
 from nanobot.webui.memory_services import MemoryServices
 from nanobot.webui.session_projection import WebUISessionProjection
 from nanobot.webui.settings_services import WebUISettingsServices
+from nanobot.webui.teams_routes import TeamSettingsOperations
 from nanobot.webui.temporary_chats import WebUITemporaryChats
 from nanobot.webui.transcript import WebUITranscriptRecorder
 from nanobot.webui.workspaces import WebUIWorkspaceController
@@ -59,6 +63,9 @@ class GatewayServices:
     local_trigger_store: LocalTriggerStore | None
     cron_pending_job_ids: Callable[[str], set[str]] | None
     local_trigger_pending_ids: Callable[[str], set[str]] | None
+    team_service: TeamService | None = None
+    team_operations: TeamSettingsOperations | None = None
+    team_bindings: TeamBindingStore | None = None
 
 
 def build_memory_operations(
@@ -149,17 +156,23 @@ def build_agents_operations(
     *,
     workspace_path: Path,
     load_config: Callable[[], Config] | None = None,
+    team_reference_lookup: Callable[[str], list[str]] | None = None,
 ) -> AgentSettingsOperations:
     """Wire the real ``agents_api`` actions to a workspace-scoped store.
 
     ``load_config`` 只被 ``agents_catalog`` 消费（工具与模型描述符要读
     ``Config.tools`` / 模型预设），未注入时回落到进程级配置路径。
+
+    ``team_reference_lookup`` 给删除动作用：被未归档团队引用的档案要 409
+    ``AGENT_IN_USE_BY_TEAM``（契约 §3）。没注入时删除行为与团队存在与否无关。
     """
     workspace = Path(workspace_path)
     return AgentSettingsOperations(
         list_profiles=partial(agents_api.agents_list, workspace),
         save_profile=partial(agents_api.agents_save, workspace),
-        delete_profile=partial(agents_api.agents_delete, workspace),
+        delete_profile=partial(
+            agents_api.agents_delete, workspace, team_reference_lookup=team_reference_lookup
+        ),
         reset_profile=partial(agents_api.agents_reset, workspace),
         set_visibility=partial(agents_api.agents_visibility, workspace),
         list_catalog=partial(
@@ -167,6 +180,24 @@ def build_agents_operations(
             workspace,
             load_config=load_config or _load_config,
         ),
+    )
+
+
+def build_team_stack(
+    *,
+    workspace_path: Path,
+    enabled: bool,
+) -> tuple[TeamService, TeamSettingsOperations, TeamBindingStore]:
+    """装配团队服务、handler operations 与空聊天的绑定暂存。
+
+    ``enabled`` 只影响领域判断（关掉 → 503 ``TEAMS_DISABLED``），路由与 WS 白名单
+    照常登记，这样客户端拿到的是明确错误码而不是 404。
+    """
+    service = teams_api.build_service(Path(workspace_path), enabled=enabled)
+    return (
+        service,
+        teams_api.build_team_operations(service),
+        TeamBindingStore(service, now=time.monotonic),
     )
 
 
@@ -233,6 +264,11 @@ def build_gateway_services(
         logger=logger,
     )
     session_projection = WebUISessionProjection(session_manager, log=logger)
+    # 团队栈要在 agents operations 之前装配：删除档案要问「还有未归档团队引用它吗」。
+    team_service, team_operations, team_bindings = build_team_stack(
+        workspace_path=workspace_path,
+        enabled=bool(settings.config.load().agents.teams),
+    )
     http = GatewayHTTPHandler(
         config=config,
         session_manager=session_manager,
@@ -258,13 +294,16 @@ def build_gateway_services(
         ),
         agents_operations=build_agents_operations(
             workspace_path=workspace_path,
-            # 用 gateway 自己的配置路径，不要读进程级的默认路径。
+            # 用 gateway 自己的配置路径，不要读进程级的默认配置路径。
             load_config=settings.config.load,
+            team_reference_lookup=team_service.teams_referencing_profile,
         ),
         writing_operations=build_writing_operations(
             workspace_id="default",
             workspace_path=workspace_path,
         ),
+        team_operations=team_operations,
+        team_bindings=team_bindings,
         cron_service=cron_service,
         local_trigger_store=local_trigger_store,
         cron_pending_job_ids=cron_pending_job_ids,
@@ -294,4 +333,7 @@ def build_gateway_services(
         local_trigger_store=local_trigger_store,
         cron_pending_job_ids=cron_pending_job_ids,
         local_trigger_pending_ids=local_trigger_pending_ids,
+        team_service=team_service,
+        team_operations=team_operations,
+        team_bindings=team_bindings,
     )
