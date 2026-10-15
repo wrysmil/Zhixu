@@ -277,8 +277,8 @@ class WebuiTerminalBridge:
         )
         self._poll_interval_s = max(float(poll_interval_s), 0.01)
         self._terminals: dict[str, _ShellTerminal] = {}
-        # id -> (chat_id, shell, cwd, deadline) grace metadata, mirrors PtyTerminalBridge.
-        self._exited: dict[str, tuple[str, str, str, float]] = {}
+        # id -> (chat_id, shell, cwd, deadline, session_key) grace metadata.
+        self._exited: dict[str, tuple[str, str, str, float, str]] = {}
         self._closed = False
 
     # -- public API ---------------------------------------------------------
@@ -492,11 +492,12 @@ class WebuiTerminalBridge:
                     "status": "exited" if exited else "running",
                     "shell": terminal.shell,
                     "cwd": terminal.cwd,
+                    "session_key": terminal.session_key,
                 }
             )
         now = time.monotonic()
         for terminal_id, entry in list(self._exited.items()):
-            chat, shell_name, cwd, deadline = entry
+            chat, shell_name, cwd, deadline, session_key = entry
             if deadline < now:
                 self._exited.pop(terminal_id, None)
             elif chat in wanted:
@@ -506,6 +507,7 @@ class WebuiTerminalBridge:
                         "status": "exited",
                         "shell": shell_name,
                         "cwd": cwd,
+                        "session_key": session_key,
                     }
                 )
         return entries
@@ -679,13 +681,14 @@ class WebuiTerminalBridge:
         terminal.finalized = True
         self._terminals.pop(terminal.terminal_id, None)
         now = time.monotonic()
-        for stale in [key for key, (_, _, _, deadline) in self._exited.items() if deadline < now]:
+        for stale in [key for key, (_, _, _, deadline, _) in self._exited.items() if deadline < now]:
             self._exited.pop(stale, None)
         self._exited[terminal.terminal_id] = (
             terminal.chat_id,
             terminal.shell,
             terminal.cwd,
             now + EXITED_GRACE_S,
+            terminal.session_key,
         )
         task = terminal.poll_task
         if task is not None and task is not asyncio.current_task() and not task.done():

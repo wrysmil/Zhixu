@@ -98,6 +98,7 @@ class TerminalListEntryWire(TypedDict):
     status: Literal["running", "exited"]
     shell: str
     cwd: str
+    session_key: NotRequired[str]
 
 
 class TerminalListResultWirePayload(TypedDict):

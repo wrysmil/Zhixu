@@ -220,6 +220,7 @@ export class NanobotClient {
   private runStatusHandlers = new Set<RunStatusHandler>();
   private errorHandlers = new Set<ErrorHandler>();
   private terminalEventHandlers = new Set<(event: TerminalEvent) => void>();
+  private pendingTerminalStarts = new Map<string, ReturnType<typeof setTimeout>>();
   // chat_id -> handlers listening on it
   private chatHandlers = new Map<string, Set<EventHandler>>();
   /** Inbound frames received while no subscriber is registered (e.g. user switched away). */
@@ -1088,6 +1089,10 @@ export class NanobotClient {
     shell?: string | null,
   ): void {
     if (!TERMINAL_ID_PATTERN.test(terminalId)) return;
+    this.settleTerminalStart(terminalId);
+    this.pendingTerminalStarts.set(terminalId, setTimeout(() => {
+      this.failTerminalStarts([terminalId], "terminal_start_timeout");
+    }, 15_000));
     this.queueSend({
       type: "terminal_start",
       terminal_id: terminalId,
@@ -1119,6 +1124,10 @@ export class NanobotClient {
 
   terminalKill(terminalId: string): void {
     if (!TERMINAL_ID_PATTERN.test(terminalId)) return;
+    this.settleTerminalStart(terminalId);
+    this.sendQueue = this.sendQueue.filter((frame) => (
+      frame.type !== "terminal_start" || frame.terminal_id !== terminalId
+    ));
     this.queueSend({ type: "terminal_kill", terminal_id: terminalId });
   }
 
@@ -1155,7 +1164,35 @@ export class NanobotClient {
   private setStatus(status: ConnectionStatus): void {
     if (this.status_ === status) return;
     this.status_ = status;
+    if (status === "closed" || status === "error" || status === "reconnecting") {
+      this.failTerminalStarts([...this.pendingTerminalStarts.keys()], "terminal_connection_lost");
+    }
     for (const handler of this.statusHandlers) handler(status);
+  }
+
+  private settleTerminalStart(terminalId: string): void {
+    const timer = this.pendingTerminalStarts.get(terminalId);
+    if (timer !== undefined) clearTimeout(timer);
+    this.pendingTerminalStarts.delete(terminalId);
+  }
+
+  private emitTerminalEvent(event: TerminalEvent): void {
+    if (event.event === "terminal_list_result") {
+      for (const entry of event.terminals) this.settleTerminalStart(entry.terminal_id);
+    } else if (event.terminal_id) {
+      this.settleTerminalStart(event.terminal_id);
+    }
+    for (const handler of [...this.terminalEventHandlers]) handler(event);
+  }
+
+  private failTerminalStarts(terminalIds: string[], detail: string): void {
+    const failedIds = new Set(terminalIds);
+    this.sendQueue = this.sendQueue.filter((frame) => (
+      frame.type !== "terminal_start" || !failedIds.has(frame.terminal_id)
+    ));
+    for (const terminalId of terminalIds) {
+      this.emitTerminalEvent({ event: "error", terminal_id: terminalId, detail });
+    }
   }
 
   private clearRunStatusesForReconnect(): void {
@@ -1205,9 +1242,7 @@ export class NanobotClient {
     // contract events and terminal-scoped error frames to terminal
     // subscribers before the chat pipeline sees them.
     if (isTerminalFrameTarget(parsed)) {
-      for (const handler of [...this.terminalEventHandlers]) {
-        handler(parsed as unknown as TerminalEvent);
-      }
+      this.emitTerminalEvent(parsed as unknown as TerminalEvent);
       return;
     }
 

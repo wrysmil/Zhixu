@@ -65,7 +65,7 @@ function DockFilePreview({
     <div
       data-testid="dock-file-preview"
       aria-label={t("filePreview.aria", { defaultValue: "File preview" })}
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border/50 bg-background/70"
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border/50 bg-background/70"
     >
       <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border/40 px-2" title={path}>
         <span
@@ -171,7 +171,7 @@ export function DockFileTab({
   const openPreview = onOpenFilePreview ?? setPreviewPath;
 
   const renderTree = () => (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
+    <div className="flex min-h-0 min-w-0 flex-1 gap-2 overflow-hidden">
       {previewPath && !onOpenFilePreview ? (
         <DockFilePreview
           getToken={getToken}
@@ -180,6 +180,12 @@ export function DockFileTab({
           onClose={() => setPreviewPath(null)}
         />
       ) : null}
+      <div
+        data-testid="dock-file-tree"
+        className={previewPath && !onOpenFilePreview
+          ? "min-h-0 min-w-0 w-[38%] max-w-[14rem] shrink-0 overflow-auto border-l border-border/40 pl-2 scrollbar-thin"
+          : "min-h-0 min-w-0 flex-1 overflow-auto scrollbar-thin"}
+      >
       {homeAnchored ? (
         <WorkspaceFileTree
           getToken={getToken}
@@ -193,6 +199,7 @@ export function DockFileTab({
           onOpenFilePreview={openPreview}
         />
       )}
+      </div>
     </div>
   );
 
@@ -200,7 +207,7 @@ export function DockFileTab({
     return (
       <div
         data-scope={scope}
-        className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto px-3 py-2 scrollbar-thin"
+        className="flex h-full min-h-0 min-w-0 flex-col gap-2 overflow-hidden px-3 py-2"
       >
         {renderTree()}
       </div>
@@ -256,7 +263,7 @@ export function DockFileTab({
   return (
     <div
       data-scope={scope}
-      className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto px-3 py-2 scrollbar-thin"
+      className="flex h-full min-h-0 min-w-0 flex-col gap-2 overflow-hidden px-3 py-2"
     >
       {renderTree()}
     </div>

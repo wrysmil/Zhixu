@@ -337,12 +337,23 @@ describe("TerminalSurface (line mode, migrated from TerminalSection)", () => {
     );
   });
 
-  it("maps terminal_start_failed to the same shell fallback label", () => {
+  it("describes a startup failure without claiming the shell is missing", () => {
     const { client } = setup();
     client.emit(startedEvent(TERMINAL_ID, "error", "terminal_start_failed"));
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "This shell is not installed on the host.",
+      "The terminal could not start. Open a new one to retry.",
     );
+  });
+
+  it.each([
+    ["terminal_connection_lost", "Connection lost while starting the terminal. Reconnect and try again."],
+    ["terminal_start_timeout", "Terminal startup timed out. Open a new one to retry."],
+  ])("shows a readable failure for %s instead of remaining in startup", (detail, label) => {
+    const { client, store } = setup();
+    act(() => store.beginCreate(TERMINAL_ID, null));
+    client.emit(errorEvent(TERMINAL_ID, detail));
+    expect(screen.getByRole("alert")).toHaveTextContent(label);
+    expect(screen.queryByText("Starting terminal…")).not.toBeInTheDocument();
   });
 });
 

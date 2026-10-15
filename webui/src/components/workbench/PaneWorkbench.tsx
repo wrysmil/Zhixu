@@ -3,7 +3,6 @@ import {
   Grid2X2,
   PanelLeft,
   PanelsTopLeft,
-  Plus,
   Rows2,
   type LucideIcon,
 } from "lucide-react";
@@ -67,10 +66,7 @@ interface PaneWorkbenchProps {
   layout: WorkbenchLayout;
   chrome?: boolean;
   showLayoutControl: boolean;
-  addPaneDisabled?: boolean;
-  addPaneDisabledLabel?: string;
   onActivatePane: (key: string) => void;
-  onAddPane: () => void;
   onLayoutChange: (layout: WorkbenchLayout) => void;
   onPaneOrderChange: (paneKeys: string[]) => void;
   splitRatios?: number[];
@@ -161,41 +157,6 @@ function paneInDirection(
   return best?.key ?? null;
 }
 
-function HeaderIconButton({
-  disabled,
-  disabledLabel,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  disabled?: boolean;
-  disabledLabel?: string;
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            disabled={disabled}
-            aria-label={label}
-            title={disabled ? disabledLabel : undefined}
-            onClick={onClick}
-            className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
-          >
-            <Icon className="h-4 w-4" aria-hidden />
-          </Button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{disabled ? disabledLabel ?? label : label}</TooltipContent>
-    </Tooltip>
-  );
-}
 
 export function PaneWorkbench({
   panes,
@@ -203,10 +164,7 @@ export function PaneWorkbench({
   layout,
   chrome = true,
   showLayoutControl,
-  addPaneDisabled = false,
-  addPaneDisabledLabel,
   onActivatePane,
-  onAddPane,
   onLayoutChange,
   onPaneOrderChange,
   splitRatios = EMPTY_SPLIT_RATIOS,
@@ -671,23 +629,14 @@ export function PaneWorkbench({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
-      <HeaderIconButton
-        disabled={addPaneDisabled}
-        disabledLabel={addPaneDisabledLabel}
-        icon={Plus}
-        label={t("workbench.addPane", { defaultValue: "Add pane" })}
-        onClick={() => {
-          captureLayout();
-          onAddPane();
-        }}
-      />
+
     </div>
   ) : null;
 
   return (
     <section
       aria-label={t("workbench.aria", { defaultValue: "Conversation workbench" })}
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-background"
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
     >
       <TooltipProvider delayDuration={500} skipDelayDuration={100}>
         {chrome ? (
@@ -698,7 +647,7 @@ export function PaneWorkbench({
             />
           </header>
         ) : null}
-        <div className="relative min-h-0 flex-1 bg-background">
+        <div className="relative min-h-0 min-w-0 flex-1 bg-background">
           <div
             ref={gridRef}
             data-testid="pane-grid"
@@ -835,11 +784,16 @@ export function PaneWorkbench({
         {chrome ? (
           <footer className="shrink-0 bg-background px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4">
             <div
-              ref={setComposerPortalTarget}
-              data-testid="workbench-composer-host"
-              className="mx-auto w-full max-w-[58rem]"
-              style={composerRailInset ? { marginRight: composerRailInset } : undefined}
-            />
+              data-testid="workbench-composer-available"
+              className="min-w-0"
+              style={composerRailInset ? { paddingRight: composerRailInset } : undefined}
+            >
+              <div
+                ref={setComposerPortalTarget}
+                data-testid="workbench-composer-host"
+                className="mx-auto w-full min-w-0 max-w-[58rem]"
+              />
+            </div>
           </footer>
         ) : null}
       </TooltipProvider>

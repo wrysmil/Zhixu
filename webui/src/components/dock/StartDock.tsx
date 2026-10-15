@@ -27,6 +27,7 @@ import { TerminalSurface } from "@/components/workbench/TerminalSurface";
 import { defaultGenerateTerminalId } from "@/components/workbench/terminal-shared";
 import { useTerminalStore } from "@/hooks/useNanobotStream";
 import { fetchTerminalShells, type TerminalShellsPayload } from "@/lib/api";
+import { DOCK_OPEN_EVENT, type DockOpenDetail } from "@/lib/dock-shortcuts";
 import {
   dockStore,
   dockTerminalTitle,
@@ -82,27 +83,32 @@ const CARD_SPECS: CardSpec[] = [
 export interface StartDockProps {
   /** 宿主形态：rail = 首页独立右坞；embedded = SessionWorkbench 内嵌（Task 10），不渲染自身 aside 与折叠按钮。 */
   variant?: "rail" | "embedded";
+  defaultCollapsed?: boolean;
   /** dock scope：首页为 HOME_DOCK_SCOPE，会话页为 `websocket:<chat_id>`（Task 10）。 */
   scope: string;
   sessionKey: string | null;
   getToken: () => string;
   /** 传入则文件预览上抛宿主（SessionWorkbench 外置预览面板语义）。 */
   onOpenFilePreview?: (path: string) => void;
+  /** 宿主请求展开新建菜单（信号），用于工作区状态下直接唤起 文件/浏览器/终端。 */
+  openMenuSignal?: number;
 }
 
 export function StartDock({
   variant = "rail",
+  defaultCollapsed = false,
   scope,
   sessionKey,
   getToken,
   onOpenFilePreview,
+  openMenuSignal = 0,
 }: StartDockProps) {
   const { t } = useTranslation();
   const isEmbedded = variant === "embedded";
   const { client } = useClient();
   const snapshot = useDockTabs(scope);
   const { store: terminalStore, terminals } = useTerminalStore();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [plusOpen, setPlusOpen] = useState(false);
   const [shellSubOpen, setShellSubOpen] = useState(false);
   const [shells, setShells] = useState<TerminalShellsPayload | null>(null);
@@ -111,6 +117,18 @@ export function StartDock({
   // 本 dock 生命周期内被用户关闭过的 terminal id（tombstone）：
   // 后续 terminal_list_result 不得复活它们；terminal id 为 uuid，不会跨页复用。
   const closedTerminalIdsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (openMenuSignal === 0) return;
+    setPlusOpen(true);
+  }, [openMenuSignal]);
+  useEffect(() => {
+    const revealDock = (event: Event) => {
+      if ((event as CustomEvent<DockOpenDetail>).detail?.scope === scope) setCollapsed(false);
+    };
+    window.addEventListener(DOCK_OPEN_EVENT, revealDock);
+    return () => window.removeEventListener(DOCK_OPEN_EVENT, revealDock);
+  }, [scope]);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,9 +154,15 @@ export function StartDock({
   useEffect(() => {
     return client.onTerminalEvent((event: TerminalEvent) => {
       if (event.event !== "terminal_list_result") return;
+      // A connection can stay attached to several chats. Inventory entries
+      // must only restore into their owning dock, including while tools hide.
+      const ownerSessionKey = sessionKey
+        ?? (client.defaultChatId ? `websocket:${client.defaultChatId}` : null);
       for (const entry of event.terminals) {
         if (entry.status !== "running") continue;
         if (closedTerminalIdsRef.current.has(entry.terminal_id)) continue;
+        const knownOwner = terminalStore.getState().byId[entry.terminal_id]?.sessionKey;
+        if (!ownerSessionKey || (entry.session_key ?? knownOwner) !== ownerSessionKey) continue;
         const current = dockStore.getSnapshot(scope);
         if (current.tabs.some((tab) => tab.id === entry.terminal_id)) continue;
         if (dockStore.persistedTerminals(scope).some((item) => item.id === entry.terminal_id)) {
@@ -147,7 +171,7 @@ export function StartDock({
         dockStore.openTerminal(scope, entry.terminal_id, entry.shell);
       }
     });
-  }, [client, scope]);
+  }, [client, scope, sessionKey, terminalStore]);
 
   // 标题跟随：活动终端 terminal_started 回报 shell 后刷新 tab 标题（spec §3.1）。
   const activeTab = snapshot.tabs.find((tab) => tab.id === snapshot.activeId)
@@ -418,6 +442,7 @@ export function StartDock({
         <div className="flex min-h-0 flex-1 flex-col">
           {activeTab && activeTab.kind === "file" ? (
             <DockFileTab
+              key={scope}
               scope={scope}
               sessionKey={sessionKey}
               getToken={getToken}
@@ -438,7 +463,7 @@ export function StartDock({
       <div
         data-testid="start-dock"
         aria-label={t("startPanel.title", { defaultValue: "Start" })}
-        className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border-t border-border/40 bg-muted/20"
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-muted/20"
       >
         {shellInner}
       </div>
@@ -449,7 +474,7 @@ export function StartDock({
     <aside
       data-testid="start-dock"
       aria-label={t("startPanel.title", { defaultValue: "Start" })}
-      className="hidden w-dock shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 md:flex xl:w-dockXl"
+      className="hidden w-dock min-w-0 max-w-[55%] shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 md:flex xl:w-dockXl"
     >
       {shellInner}
     </aside>

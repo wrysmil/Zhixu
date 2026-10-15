@@ -651,16 +651,21 @@ class WebUICommandRouter:
             )
             await self._publish_terminal(chat_id, connection, payload)
             return
-        bridge = self._terminal_bridge()
-        session_key = webui_session_key(chat_id)
-        result = await bridge.start(
-            terminal_id=terminal_id,
-            scope=scope,
-            chat_id=chat_id,
-            session_key=session_key,
-            publisher=self._terminal_publisher(chat_id),
-            shell=raw_shell if isinstance(raw_shell, str) else None,
-        )
+        try:
+            bridge = self._terminal_bridge()
+            result = await bridge.start(
+                terminal_id=terminal_id,
+                scope=scope,
+                chat_id=chat_id,
+                session_key=webui_session_key(chat_id),
+                publisher=self._terminal_publisher(chat_id),
+                shell=raw_shell if isinstance(raw_shell, str) else None,
+            )
+        except Exception:
+            # Keep the connection alive and identify the failed request so its
+            # tab can leave "starting" without exposing subprocess internals.
+            logger.exception("webui terminal start failed for {}", terminal_id)
+            result = {"status": "error", "message": "terminal_start_failed"}
         payload = encode_terminal_started(
             terminal_id=terminal_id,
             shell=str(result.get("shell") or ""),

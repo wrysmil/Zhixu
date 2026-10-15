@@ -568,10 +568,8 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     expect(await screen.findByTestId("start-dock")).toBeInTheDocument();
-    expect(await screen.findByTestId("dock-launcher")).toBeInTheDocument();
-    expect(screen.getByTestId("dock-card-files")).toBeInTheDocument();
-    expect(screen.getByTestId("dock-card-browser")).toBeInTheDocument();
-    expect(screen.getByTestId("dock-card-terminal")).toBeInTheDocument();
+    expect(screen.queryByTestId("dock-launcher")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Expand the start panel" })).toBeInTheDocument();
 
     // Task 9 承接项：恢复旧「intercepts ⌘P」用例的拦截语义（spec B2 focus-or-open）。
     const event = new window.KeyboardEvent("keydown", {
@@ -583,6 +581,10 @@ describe("App layout", () => {
     act(() => window.dispatchEvent(event));
     expect(event.defaultPrevented).toBe(true);
     expect(dockStore.getSnapshot(HOME_DOCK_SCOPE).activeId).toBe("file");
+    expect(await screen.findByTestId("dock-tab-file")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse the start panel" }));
+    expect(screen.queryByTestId("dock-tab-file")).not.toBeInTheDocument();
 
     // 再按 = 聚焦不重复；文件标签天然单例。
     const again = new window.KeyboardEvent("keydown", {
@@ -592,6 +594,7 @@ describe("App layout", () => {
       cancelable: true,
     });
     act(() => window.dispatchEvent(again));
+    expect(await screen.findByTestId("dock-tab-file")).toBeVisible();
     expect(
       dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs.filter((tab) => tab.kind === "file"),
     ).toHaveLength(1);
@@ -623,8 +626,44 @@ describe("App layout", () => {
     act(() => window.dispatchEvent(event));
     expect(event.defaultPrevented).toBe(true);
     expect(dockStore.getSnapshot("websocket:existing-chat").activeId).toBe("file");
+    expect(await screen.findByTestId("dock-tab-file")).toBeVisible();
     // scope 隔离：不误开首页 dock 的标签。
     expect(dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs).toHaveLength(0);
+  });
+
+  it("uses the measured workspace and tool rail width for the shared composer", async () => {
+    mockSessions = [{
+      key: "websocket:rail-size",
+      channel: "websocket",
+      chatId: "rail-size",
+      createdAt: null,
+      updatedAt: null,
+      preview: "Rail size",
+    }];
+    localStorage.setItem("mira.workbench.open", "1");
+    window.history.replaceState(null, "", `#/chat/${encodeURIComponent("websocket:rail-size")}`);
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
+      if (this.dataset.testid === "session-workbench") {
+        return { width: this.dataset.mode === "tools" ? 576 : 304 } as DOMRect;
+      }
+      return originalBounds.call(this);
+    });
+    const view = render(<App />);
+    try {
+      const available = await screen.findByTestId("workbench-composer-available");
+      await waitFor(() => expect(available.style.paddingRight).toBe("304px"));
+      fireEvent.click(screen.getByRole("button", { name: "Expand sidebar tools" }));
+      await waitFor(() => expect(available.style.paddingRight).toBe("576px"));
+      fireEvent.click(screen.getByRole("button", { name: "Show workspace" }));
+      await waitFor(() => expect(available.style.paddingRight).toBe("304px"));
+      fireEvent.click(screen.getByRole("button", { name: "Collapse workbench" }));
+      await waitFor(() => expect(available.style.paddingRight).toBe(""));
+    } finally {
+      view.unmount();
+      bounds.mockRestore();
+      localStorage.removeItem("mira.workbench.open");
+    }
   });
 
   it("keeps a just-created topic route while the session list catches up", async () => {
@@ -3475,7 +3514,6 @@ describe("App layout", () => {
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
     })));
-    createChatSpy.mockResolvedValueOnce("chat-pane");
     mockSessions = [
       {
         key: "websocket:chat-alpha",
@@ -3495,31 +3533,57 @@ describe("App layout", () => {
         title: "Beta",
         preview: "Beta notes",
       },
+      {
+        key: "websocket:chat-pane",
+        channel: "websocket",
+        chatId: "chat-pane",
+        createdAt: "2026-04-16T12:00:00Z",
+        updatedAt: "2026-04-16T12:00:00Z",
+        title: "New topic",
+        preview: "",
+      },
     ];
     window.history.replaceState(
       null,
       "",
       "/#/chat/websocket%3Achat-alpha",
     );
+    // 窗格来自持久化的工作台状态；「添加窗格」入口已移除。
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: string | URL | Request) => {
+      if (String(url) === "/api/webui/sidebar-state") {
+        return {
+          ok: true,
+          json: async () => ({
+            workbench: {
+              version: 1,
+              tabs: {
+                "tab:websocket:chat-alpha": {
+                  explicit: true,
+                  title: "Alpha",
+                  paneKeys: ["websocket:chat-alpha", "websocket:chat-pane"],
+                  layout: "columns",
+                },
+              },
+            },
+          }),
+        };
+      }
+      return { ok: false, status: 404 };
+    }));
 
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const grid = await screen.findByTestId("pane-grid");
-    expect(Array.from(grid.children).map((pane) => pane.getAttribute("aria-label")))
-      .toEqual(["Alpha"]);
-    expect(screen.queryByRole("button", { name: "Pane layout" }))
-      .not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Add pane" }));
-    expect(screen.queryByRole("dialog", { name: "Search" })).not.toBeInTheDocument();
-    await waitFor(() => expect(createChatSpy).toHaveBeenCalledTimes(1));
-
-    await waitFor(() => expect(grid.children).toHaveLength(2));
+    await waitFor(() => expect(Array.from(grid.children).map(
+      (pane) => pane.getAttribute("aria-label"),
+    )).toEqual(["Alpha", "New topic"]));
     expect(screen.getByRole("button", { name: "Pane layout" })).toBeInTheDocument();
-    expect(window.location.hash).toBe("#/chat/websocket%3Achat-pane");
-    expect(Array.from(grid.children).map((pane) => pane.getAttribute("aria-label")))
-      .toEqual(["Alpha", "New topic"]);
+    expect(screen.queryByRole("button", { name: "Add pane" })).not.toBeInTheDocument();
+
+    const sidebarNav = screen.getByRole("navigation", { name: "Sidebar navigation" });
+    fireEvent.click(within(sidebarNav).getAllByRole("button", { name: "New topic" })[0]);
+    await waitFor(() => expect(window.location.hash).toBe("#/chat/websocket%3Achat-pane"));
 
     const activeComposer = screen.getByTestId("active-pane-composer");
     const paneInput = within(activeComposer).getByRole("textbox", {

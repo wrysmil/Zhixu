@@ -7,6 +7,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StartDock } from "@/components/dock/StartDock";
+import { getTerminalStore } from "@/hooks/useNanobotStream";
 import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
 import type { TerminalEvent } from "@/lib/types";
 import { ClientProvider } from "@/providers/ClientProvider";
@@ -149,7 +150,9 @@ function startedEvent(
 }
 
 function listResultEvent(
-  terminals: Array<{ terminal_id: string; status: "running" | "exited"; shell: string }>,
+  terminals: Array<{
+    terminal_id: string; status: "running" | "exited"; shell: string; session_key?: string;
+  }>,
 ): TerminalEvent {
   return {
     event: "terminal_list_result",
@@ -284,16 +287,48 @@ describe("StartDock tab close (terminal_kill + tombstone)", () => {
 
 describe("StartDock live terminal restore", () => {
   it("restores running terminals from terminal_list_result as titled tabs", () => {
-    const client = renderDock();
+    const client = renderDock({ scope: "websocket:chat1", sessionKey: "websocket:chat1" });
     expect(client.terminalList).toHaveBeenCalled();
     client.emit(listResultEvent([
-      { terminal_id: "remote-1", status: "running", shell: "/bin/bash" },
-      { terminal_id: "remote-2", status: "exited", shell: "/bin/zsh" },
+      { terminal_id: "remote-1", status: "running", shell: "/bin/bash", session_key: "websocket:chat1" },
+      { terminal_id: "remote-2", status: "exited", shell: "/bin/zsh", session_key: "websocket:chat1" },
     ]));
     expect(screen.getByTestId("dock-tab-remote-1")).toHaveTextContent(">. bash");
     expect(screen.queryByTestId("dock-tab-remote-2")).toBeNull();
     // 恢复只挂标签，不重建会话（不发 terminal_start）。
     expect(client.terminalStart).not.toHaveBeenCalled();
+  });
+
+  it("restores only terminals owned by each dock session on a shared connection", () => {
+    const client = makeFakeClient();
+    render(
+      <ClientProvider client={client as never} token="tok">
+        <StartDock variant="embedded" scope="websocket:chat-a" sessionKey="websocket:chat-a" getToken={() => "tok"} />
+        <StartDock variant="embedded" scope="websocket:chat-b" sessionKey="websocket:chat-b" getToken={() => "tok"} />
+      </ClientProvider>,
+    );
+    client.emit(listResultEvent([
+      { terminal_id: "terminal-a", status: "running", shell: "cmd", session_key: "websocket:chat-a" },
+      { terminal_id: "terminal-b", status: "running", shell: "cmd", session_key: "websocket:chat-b" },
+      { terminal_id: "legacy-unknown", status: "running", shell: "cmd" },
+    ]));
+    expect(dockStore.getSnapshot("websocket:chat-a").tabs.map((tab) => tab.id)).toEqual(["terminal-a"]);
+    expect(dockStore.getSnapshot("websocket:chat-b").tabs.map((tab) => tab.id)).toEqual(["terminal-b"]);
+  });
+
+  it("uses known session ownership to restore legacy entries without importing unknown ids", () => {
+    const client = renderDock({ scope: "websocket:chat-b", sessionKey: "websocket:chat-b" });
+    const terminalStore = getTerminalStore(client as never);
+    act(() => {
+      terminalStore.beginCreate("known-a", "websocket:chat-a");
+      terminalStore.beginCreate("known-b", "websocket:chat-b");
+    });
+    client.emit(listResultEvent([
+      { terminal_id: "known-a", status: "running", shell: "cmd" },
+      { terminal_id: "known-b", status: "running", shell: "cmd" },
+      { terminal_id: "legacy-unknown", status: "running", shell: "cmd" },
+    ]));
+    expect(dockStore.getSnapshot("websocket:chat-b").tabs.map((tab) => tab.id)).toEqual(["known-b"]);
   });
 
   it("leaves persisted takeover candidates to the banner instead of auto-restoring them", () => {
@@ -347,6 +382,13 @@ describe("StartDock reuses TerminalSurface for the pty flag", () => {
 });
 
 describe("StartDock collapse rail", () => {
+  it("can start with tools collapsed and reveal them only after expanding", () => {
+    renderDock({ defaultCollapsed: true });
+    expect(screen.queryByTestId("dock-launcher")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Expand the start panel" }));
+    expect(screen.getByTestId("dock-launcher")).toBeVisible();
+  });
+
   it("collapses to a rail and re-expands keeping the start-dock testid", () => {
     renderDock();
     fireEvent.click(screen.getByRole("button", { name: /Collapse/i }));

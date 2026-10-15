@@ -1617,6 +1617,8 @@ export interface TerminalListEntry {
   status: "running" | "exited";
   shell: string;
   cwd: string;
+  /** Owning session; absent on older gateways. */
+  session_key?: string;
 }
 
 export type TerminalEvent =

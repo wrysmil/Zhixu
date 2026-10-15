@@ -19,15 +19,13 @@ import { channelUiPresentation } from "@/channel-plugins/registry";
 import { Sidebar } from "@/components/Sidebar";
 import { PROJECTS_SECTION_KEY, type SidebarDeleteItem } from "@/components/ChatList";
 import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
-import { resolveDockShortcut } from "@/lib/dock-shortcuts";
+import { DOCK_OPEN_EVENT, resolveDockShortcut } from "@/lib/dock-shortcuts";
 import type { SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
 import { PaneWorkbench } from "@/components/workbench/PaneWorkbench";
-import { SESSION_WORKBENCH_RAIL_WIDTH } from "@/components/workbench/SessionWorkbench";
 import { WorkbenchTabBar } from "@/components/workbench/WorkbenchTabBar";
 import {
   MAX_WORKBENCH_PANES,
-  addWorkbenchPane,
   attachWorkbenchPane,
   createWorkbenchTab,
   detachWorkbenchPane,
@@ -1008,7 +1006,6 @@ function Shell({
     });
   }, [updateSidebarState]);
   const lastActivePaneByTabRef = useRef(new Map<string, string>());
-  const [creatingPane, setCreatingPane] = useState(false);
   const topicSessions = sessions;
   const [pendingDelete, setPendingDelete] = useState<{
     items: SidebarDeleteItem[];
@@ -1858,57 +1855,6 @@ function Shell({
     setSessionSearchOpen(true);
   }, []);
 
-  const onAddPane = useCallback(async () => {
-    const tabKey = activeTabKey;
-    if (
-      !tabKey
-      || !activeKey
-      || !activeSession
-      || creatingPane
-      || (activeTabState?.paneKeys.length ?? 0) >= MAX_WORKBENCH_PANES
-      || temporarySessionsRef.current[activeKey]
-    ) return;
-    setMobileSidebarOpen(false);
-    setSessionSearchOpen(false);
-    setCreatingPane(true);
-    try {
-      const scope = activeWorkspaceScope;
-      const chatId = await createChat(scope);
-      const paneKey = `websocket:${chatId}`;
-      pendingCreatedSessionKeyRef.current = paneKey;
-      updateWorkbenchState((current) => addWorkbenchPane(current, activeKey, paneKey));
-      navigate({
-        view: "chat",
-        activeKey: paneKey,
-        settingsSection: "overview",
-      });
-      if (scope) {
-        setWorkspaceOverrides((current) => ({
-          ...current,
-          [chatId]: normalizeWorkspaceScope(scope),
-        }));
-      }
-    } catch (error) {
-      console.error("Failed to create pane", error);
-      if (error instanceof Error && error.message.startsWith("workspace_scope_rejected:")) {
-        setWorkspaceError(t("errors.workspaceScopeRejected.body"));
-      }
-    } finally {
-      setCreatingPane(false);
-    }
-  }, [
-    activeKey,
-    activeSession,
-    activeTabKey,
-    activeTabState,
-    activeWorkspaceScope,
-    createChat,
-    creatingPane,
-    navigate,
-    t,
-    updateWorkbenchState,
-  ]);
-
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented) return;
@@ -1927,6 +1873,7 @@ function Shell({
         const scope = activeKey ?? HOME_DOCK_SCOPE;
         if (dockSection === "file") dockStore.openFile(scope);
         else dockStore.openBrowser(scope);
+        window.dispatchEvent(new CustomEvent(DOCK_OPEN_EVENT, { detail: { scope } }));
         return;
       }
       const plainCommandK =
@@ -2381,10 +2328,10 @@ function Shell({
     workbenchPaneSessions,
   ]);
   const renderedActivePaneKey = activeKey ?? renderedWorkbenchPanes[0].key;
-  const [paneWorkbenchOpen, setPaneWorkbenchOpen] = useState<Record<string, boolean>>({});
-  const onPaneWorkbenchOpenChange = useCallback((paneKey: string, open: boolean) => {
-    setPaneWorkbenchOpen((current) => (
-      current[paneKey] === open ? current : { ...current, [paneKey]: open }
+  const [paneWorkbenchRailWidths, setPaneWorkbenchRailWidths] = useState<Record<string, number>>({});
+  const onPaneWorkbenchRailWidthChange = useCallback((paneKey: string, width: number) => {
+    setPaneWorkbenchRailWidths((current) => (
+      current[paneKey] === width ? current : { ...current, [paneKey]: width }
     ));
   }, []);
   const renderedWorkbenchLayout = paneChromeEnabled && activeTabState
@@ -2422,9 +2369,6 @@ function Shell({
     sidebarTabPresentations,
     titleForSession,
   ]);
-  const activePaneLimitReached = Boolean(
-    activeTabState && activeTabState.paneKeys.length >= MAX_WORKBENCH_PANES,
-  );
 
   const onActivateWorkbenchPane = useCallback((paneKey: string) => {
     onSelectChat(paneKey);
@@ -2751,14 +2695,8 @@ function Shell({
                     splitRatios={renderedWorkbenchSplitRatios}
                     chrome={paneChromeEnabled}
                     showLayoutControl={activeTabVisible}
-                    addPaneDisabled={creatingPane || activePaneLimitReached}
-                    addPaneDisabledLabel={activePaneLimitReached
-                      ? t("workbench.paneLimit", {
-                          count: MAX_WORKBENCH_PANES,
-                        })
-                      : undefined}
                     onActivatePane={onActivateWorkbenchPane}
-                    onAddPane={onAddPane}
+
                     onLayoutChange={(layout) => {
                       if (!activeTabKey) return;
                       updateWorkbenchState((current) => (
@@ -2777,8 +2715,8 @@ function Shell({
                         setWorkbenchSplitRatios(current, activeTabKey, splitRatios)
                       ));
                     }}
-                    composerRailInset={paneWorkbenchOpen[renderedActivePaneKey]
-                      ? SESSION_WORKBENCH_RAIL_WIDTH
+                    composerRailInset={paneWorkbenchRailWidths[renderedActivePaneKey]
+                      ? `${paneWorkbenchRailWidths[renderedActivePaneKey]}px`
                       : undefined}
                     renderPane={(pane, context) => {
                       if (!paneChromeEnabled) {
@@ -2874,7 +2812,8 @@ function Shell({
                           settingsSnapshot={settingsSnapshot}
                           onOpenModelSettings={onOpenModelSettings}
                           skills={skills}
-                          onWorkbenchOpenChange={(open) => onPaneWorkbenchOpenChange(pane.key, open)}
+                          onWorkbenchRailWidthChange={(width) => onPaneWorkbenchRailWidthChange(pane.key, width)}
+                          showWorkbenchRail={context.active}
                         />
                       );
                     }}
@@ -2883,6 +2822,7 @@ function Shell({
                 {view === "chat" && activeKey === null && !mobileWorkbench ? (
                   <Suspense fallback={null}>
                     <StartDock
+                      defaultCollapsed
                       scope={HOME_DOCK_SCOPE}
                       sessionKey={null}
                       getToken={getToken}

@@ -137,6 +137,10 @@ async function waitForShells() {
   await waitFor(() => expect(mocks.fetchTerminalShells).toHaveBeenCalled());
 }
 
+function openTools() {
+  fireEvent.click(screen.getByRole("button", { name: "Expand sidebar tools" }));
+}
+
 beforeEach(() => {
   sessionStorage.clear();
   dockStore.resetForTests();
@@ -155,8 +159,57 @@ beforeEach(() => {
 });
 
 describe("SessionWorkbench embedded StartDock", () => {
+  it("reports the measured rail width when workspace changes to tools", () => {
+    const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
+      return { width: this.dataset.mode === "tools" ? 576 : 304 } as DOMRect;
+    });
+    const onRailWidthChange = vi.fn();
+    try {
+      const view = renderWorkbench({ onRailWidthChange });
+      expect(onRailWidthChange).toHaveBeenLastCalledWith(304);
+      openTools();
+      expect(onRailWidthChange).toHaveBeenLastCalledWith(576);
+      view.unmount();
+      expect(onRailWidthChange).toHaveBeenLastCalledWith(0);
+    } finally {
+      bounds.mockRestore();
+    }
+  });
+
+  it("reserves no composer space for a narrow overlay", () => {
+    const onRailWidthChange = vi.fn();
+    renderWorkbench({ overlay: true, onRailWidthChange });
+    expect(onRailWidthChange).toHaveBeenLastCalledWith(0);
+    openTools();
+    expect(onRailWidthChange).toHaveBeenLastCalledWith(0);
+    expect(screen.getByTestId("session-workbench")).toHaveAttribute("data-overlay", "true");
+  });
+
+  it("shows workspace information first and opens tools as a separate full-height mode", () => {
+    const { client } = renderWorkbench({ model: { ...emptyModel, summary: "Workspace summary" } });
+    expect(screen.getByText("Workspace summary")).toBeVisible();
+    expect(screen.queryByTestId("start-dock")).not.toBeInTheDocument();
+
+    openTools();
+    expect(screen.getByTestId("dock-launcher")).toBeVisible();
+    expect(screen.getByText("Workspace summary")).not.toBeVisible();
+    fireEvent.click(screen.getByTestId("dock-card-terminal"));
+    const terminalId = client.terminalStart.mock.calls[0][0] as string;
+    const surface = screen.getByTestId(`terminal-surface-${terminalId}`);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show workspace" }));
+    expect(screen.getByText("Workspace summary")).toBeVisible();
+    expect(surface).not.toBeVisible();
+    expect(client.terminalKill).not.toHaveBeenCalled();
+    openTools();
+    expect(screen.getByTestId(`terminal-surface-${terminalId}`)).toBe(surface);
+    expect(surface).toBeVisible();
+    expect(client.terminalStart).toHaveBeenCalledTimes(1);
+  });
+
   it("session dock replaces the three inline sections with one tabbed dock", async () => {
     const { client } = renderWorkbench({ sessionKey: "websocket:chat-7" });
+    openTools();
     expect(screen.getByTestId("start-dock")).toBeInTheDocument();
     expect(client.terminalList).toHaveBeenCalled();
     // 三个旧 Section 头（Files / New terminal / Browser）不复存在；
@@ -176,6 +229,7 @@ describe("SessionWorkbench embedded StartDock", () => {
 
   it("embedded variant renders inside the workbench without the rail collapse button", () => {
     renderWorkbench();
+    openTools();
     expect(screen.getByTestId("session-workbench")).toBeInTheDocument();
     expect(screen.getByTestId("start-dock")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Collapse the start panel/i })).toBeNull();
@@ -185,17 +239,20 @@ describe("SessionWorkbench embedded StartDock", () => {
 
   it("dock tabs are isolated per session scope", () => {
     const view = renderWorkbench({ sessionKey: "websocket:chat-a" });
+    openTools();
     fireEvent.click(screen.getByTestId("dock-card-browser"));
     expect(screen.getByTestId("dock-tab-browser")).toBeInTheDocument();
     view.unmount();
 
     renderWorkbench({ sessionKey: "websocket:chat-b" });
+    openTools();
     expect(screen.queryByTestId("dock-tab-browser")).toBeNull();
     expect(screen.getByTestId("dock-launcher")).toBeInTheDocument();
   });
 
   it("persisted takeover terminals are scoped per session key", async () => {
     const first = renderWorkbench({ sessionKey: "websocket:chat-a" });
+    openTools();
     await waitForShells();
     fireEvent.click(screen.getByTestId("dock-card-terminal"));
     const id = first.client.terminalStart.mock.calls[0][0] as string;
@@ -207,22 +264,31 @@ describe("SessionWorkbench embedded StartDock", () => {
     dockStore.resetForTests();
 
     const second = renderWorkbench({ sessionKey: "websocket:chat-b" });
+    openTools();
     expect(screen.queryByTestId(`dock-takeover-${id}`)).toBeNull();
     // 同 scope 重新挂载：接管横幅按会话 scope 的持久化清单出现（与首页行为一致）。
     second.unmount();
     renderWorkbench({ sessionKey: "websocket:chat-a" });
+    openTools();
     const banner = screen.getByTestId(`dock-takeover-${id}`);
     expect(banner).toHaveTextContent(">. zsh");
     // 与首页 rail 行为一致：无标签时接管横幅与启动器空态共存。
     expect(screen.getByTestId("dock-launcher")).toBeInTheDocument();
   });
 
-  it("file tab previews route through the session scoped callback", async () => {
+  it("previews clicked files beside the right-hand tree within the session tools", async () => {
     const onOpenFilePreview = vi.fn();
     renderWorkbench({ sessionKey: "websocket:chat-7", onOpenFilePreview });
+    openTools();
     fireEvent.click(screen.getByTestId("dock-card-files"));
     expect(await screen.findByText("README.md")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /README\.md/ }));
-    await waitFor(() => expect(onOpenFilePreview).toHaveBeenCalledWith("README.md"));
+    const preview = await screen.findByTestId("dock-file-preview");
+    const tree = screen.getByTestId("dock-file-tree");
+    expect(preview.parentElement).toBe(tree.parentElement);
+    expect(preview.compareDocumentPosition(tree) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(await screen.findByText("# Hello")).toBeVisible();
+    expect(mocks.fetchFilePreview).toHaveBeenCalledWith("tok", "websocket:chat-7", "README.md", "", null);
+    expect(onOpenFilePreview).not.toHaveBeenCalled();
   });
 });

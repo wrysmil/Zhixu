@@ -45,6 +45,7 @@ import {
 } from "@/lib/mcp-preset-events";
 import type { CanonicalRunSnapshot, StreamError } from "@/lib/nanobot-client";
 import { inferProviderFromModelName, providerDisplayLabel } from "@/lib/provider-brand";
+import { DOCK_OPEN_EVENT, type DockOpenDetail } from "@/lib/dock-shortcuts";
 import type {
   ChatSummary,
   RoundUsage,
@@ -427,6 +428,9 @@ interface ThreadShellProps {
   onOpenModelSettings?: () => void;
   skills?: SkillSummary[];
   onWorkbenchOpenChange?: (open: boolean) => void;
+  onWorkbenchRailWidthChange?: (width: number) => void;
+  /** Only the focused pane owns the sidebar rail; sibling panes stay chat-only. */
+  showWorkbenchRail?: boolean;
   draftSeed?: { text: string; token: number } | null;
   onDraftSeedConsumed?: () => void;
 }
@@ -732,6 +736,8 @@ export function ThreadShell({
   onOpenModelSettings,
   skills = [],
   onWorkbenchOpenChange,
+  showWorkbenchRail = true,
+  onWorkbenchRailWidthChange,
   draftSeed = null,
   onDraftSeedConsumed,
 }: ThreadShellProps) {
@@ -804,15 +810,41 @@ export function ThreadShell({
   const [filePreviewClosing, setFilePreviewClosing] = useState(false);
   const [filePreviewWidth, setFilePreviewWidth] = useState(FILE_PREVIEW_DEFAULT_WIDTH);
   const [workbenchOpen, setWorkbenchOpen] = useState(() => {
+    const defaultOpen = window.innerWidth >= 1024;
     try {
-      return window.localStorage.getItem("mira.workbench.open") === "1";
+      const preference = window.localStorage.getItem("mira.workbench.open");
+      return preference === null ? defaultOpen : preference === "1";
     } catch {
-      return false;
+      return defaultOpen;
     }
   });
+  const [toolsRequest, setToolsRequest] = useState<{ scope: string; sequence: number } | null>(null);
+  useEffect(() => {
+    const revealTools = (event: Event) => {
+      const scope = (event as CustomEvent<DockOpenDetail>).detail?.scope;
+      if (!scope || scope !== historyKey) return;
+      setWorkbenchOpen(true);
+      setToolsRequest((current) => ({ scope, sequence: (current?.sequence ?? 0) + 1 }));
+    };
+    window.addEventListener(DOCK_OPEN_EVENT, revealTools);
+    return () => window.removeEventListener(DOCK_OPEN_EVENT, revealTools);
+  }, [historyKey]);
   const [quotedContext, setQuotedContext] = useState<string | null>(null);
   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   const shellRef = useRef<HTMLElement | null>(null);
+  const [workbenchOverlay, setWorkbenchOverlay] = useState(window.innerWidth < 1024);
+  useLayoutEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const updateOverlay = () => {
+      const width = shell.getBoundingClientRect().width;
+      if (width > 0) setWorkbenchOverlay(width < 720);
+    };
+    updateOverlay();
+    const observer = new ResizeObserver(updateOverlay);
+    observer.observe(shell);
+    return () => observer.disconnect();
+  }, []);
   const composerSurfaceRef = useRef<HTMLDivElement | null>(null);
   const filePreviewWidthRef = useRef(FILE_PREVIEW_DEFAULT_WIDTH);
   const filePreviewCloseTimerRef = useRef<number | null>(null);
@@ -1774,17 +1806,22 @@ export function ThreadShell({
     [displayMessages, workspaceScope],
   );
 
-  const workbenchAction = session ? (
+  const collapseWorkbench = useCallback(() => {
+    setWorkbenchOpen(false);
+    // Drop any pending 侧栏工具 request so reopening always lands on 工作区 first.
+    setToolsRequest(null);
+  }, []);
+
+  // One right-side control at a time. While the rail is open its own header owns
+  // 工作区 <-> 侧栏工具 and collapse, so this slot never means two different panels.
+  const workbenchAction = session && !workbenchOpen ? (
     <Button
       variant="ghost"
       size="icon"
       type="button"
       aria-label={t("workbench.open", { defaultValue: "Open workbench" })}
-      aria-pressed={workbenchOpen}
-      onClick={() => setWorkbenchOpen((open) => !open)}
-      className={`host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground ${
-        workbenchOpen ? "bg-accent/40 text-foreground" : ""
-      }`}
+      onClick={() => setWorkbenchOpen(true)}
+      className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
     >
       <PanelRight className="h-4 w-4" />
     </Button>
@@ -1813,7 +1850,7 @@ export function ThreadShell({
   ) : null;
 
   return (
-    <section ref={shellRef} className="relative flex min-h-0 flex-1 overflow-hidden">
+    <section ref={shellRef} data-testid="thread-shell" className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         {hideHeaderTitle && inlineHandle && !temporary && session?.handle ? (
           <div
@@ -1861,13 +1898,17 @@ export function ThreadShell({
           />
         </FilePreviewAvailabilityProvider>
       </div>
-      {workbenchOpen && session ? (
+      {workbenchOpen && session && showWorkbenchRail ? (
         <SessionWorkbench
+          key={historyKey}
           model={workbenchModel}
           onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
-          onCollapse={() => setWorkbenchOpen(false)}
+          onCollapse={collapseWorkbench}
           sessionKey={historyKey ?? null}
           getToken={getToken}
+          overlay={workbenchOverlay}
+          onRailWidthChange={onWorkbenchRailWidthChange}
+          openToolsSignal={toolsRequest?.scope === historyKey ? toolsRequest.sequence : 0}
         />
       ) : null}
       {headerPortalTarget && headerActive

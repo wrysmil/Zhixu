@@ -23,10 +23,17 @@ def _request(path: str) -> SimpleNamespace:
 
 
 @pytest.mark.asyncio
-async def test_shells_route_lists_whitelisted_installed_shells(monkeypatch):
+@pytest.mark.parametrize(
+    ("is_windows", "shell", "shell_path"),
+    [(False, "zsh", "/bin/zsh"), (True, "cmd", "C:/Windows/System32/cmd.exe")],
+)
+async def test_shells_route_lists_whitelisted_installed_shells(
+    monkeypatch, is_windows, shell, shell_path
+):
+    monkeypatch.setattr("nanobot.webui.pty_terminal._IS_WINDOWS", is_windows)
     monkeypatch.setattr(
         "nanobot.webui.pty_terminal.shutil.which",
-        lambda name: "/bin/zsh" if name == "zsh" else None,
+        lambda name: shell_path if name == shell else None,
     )
     monkeypatch.setattr("nanobot.webui.pty_terminal.os.environ.get", lambda key, **k: None)
     handler = _handler(True)
@@ -36,8 +43,8 @@ async def test_shells_route_lists_whitelisted_installed_shells(monkeypatch):
     )
     assert response is not None and response.status_code == 200
     payload = json.loads(response.body)
-    assert [entry["id"] for entry in payload["shells"]] == ["zsh"]
-    assert payload["default"] == "zsh"
+    assert [entry["id"] for entry in payload["shells"]] == [shell]
+    assert payload["default"] == shell
     for entry in payload["shells"]:
         assert set(entry) == {"id", "label", "path"}
 

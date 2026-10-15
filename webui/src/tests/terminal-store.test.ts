@@ -103,6 +103,18 @@ describe("createTerminalStore ghost-tab tombstone", () => {
 });
 
 describe("createTerminalStore error frames", () => {
+  it("retains the owning session from terminal inventory entries", () => {
+    const store = createTerminalStore();
+    store.applyEvent({
+      event: "terminal_list_result",
+      terminals: [{
+        terminal_id: "remote-a", status: "running", shell: "cmd", cwd: "C:/project",
+        session_key: "websocket:chat-a",
+      }],
+    } as TerminalEvent);
+    expect(store.getState().byId["remote-a"]?.sessionKey).toBe("websocket:chat-a");
+  });
+
   it("surfaces an error frame on a running terminal record", () => {
     const store = createTerminalStore();
     openTerminal(store, "term-1");

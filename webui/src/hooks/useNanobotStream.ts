@@ -1676,6 +1676,7 @@ export function createTerminalStore(): TerminalStore {
             if (removedIds.has(entry.terminal_id)) continue;
             upsert(entry.terminal_id, (record) => ({
               ...record,
+              sessionKey: entry.session_key ?? record.sessionKey,
               status: record.status === "starting" || record.status === "failed"
                 ? (entry.status === "exited" ? "exited" : "running")
                 : record.status,

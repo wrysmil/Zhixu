@@ -424,6 +424,8 @@ function settingsWithFastPreset(): SettingsPayload {
 
 describe("ThreadShell", () => {
   beforeEach(() => {
+    // These chat lifecycle tests exercise the conversation without a mirrored workspace summary.
+    localStorage.setItem("mira.workbench.open", "0");
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -4260,6 +4262,65 @@ describe("ThreadShell", () => {
     expect(screen.getByRole("button", { name: "Stop response" })).toBeInTheDocument();
   });
 
+  it.each([
+    { width: 1440, preference: null, visible: true },
+    { width: 390, preference: null, visible: false },
+    { width: 390, preference: "1", visible: true },
+    { width: 1440, preference: "0", visible: false },
+  ])("defaults to workspace information without covering a new narrow window: $width / $preference", async ({ width, preference, visible }) => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+    if (preference === null) localStorage.removeItem("mira.workbench.open");
+    else localStorage.setItem("mira.workbench.open", preference);
+    const view = render(wrap(makeClient(), <ThreadShell
+      session={session("rail-default")}
+      title="Rail default"
+      onToggleSidebar={() => {}}
+    />));
+    try {
+      await screen.findByLabelText("Message input");
+      const rail = screen.queryByTestId("session-workbench");
+      expect(Boolean(rail)).toBe(visible);
+      if (visible) {
+        expect(rail).toHaveAttribute("data-mode", "workspace");
+        expect(rail).toHaveAttribute("data-overlay", width < 1024 ? "true" : "false");
+      }
+      expect(screen.queryByTestId("start-dock")).not.toBeInTheDocument();
+    } finally {
+      view.unmount();
+      localStorage.removeItem("mira.workbench.open");
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+    }
+  });
+
+  it("switches the rail to an overlay when its pane becomes narrow", async () => {
+    const resizeObserver = stubThreadResizeObserver();
+    localStorage.setItem("mira.workbench.open", "1");
+    const view = render(wrap(makeClient(), <ThreadShell
+      session={session("rail-responsive")}
+      title="Responsive rail"
+      onToggleSidebar={() => {}}
+    />));
+    try {
+      await screen.findByLabelText("Message input");
+      const shell = screen.getByTestId("thread-shell");
+      const observer = resizeObserver.observers.find((item) => item.elements.includes(shell));
+      expect(observer).toBeDefined();
+      const bounds = vi.spyOn(shell, "getBoundingClientRect");
+      bounds.mockReturnValue({ width: 1000 } as DOMRect);
+      act(() => observer!.callback([], observer as unknown as ResizeObserver));
+      expect(screen.getByTestId("session-workbench")).toHaveAttribute("data-overlay", "false");
+      bounds.mockReturnValue({ width: 650 } as DOMRect);
+      act(() => observer!.callback([], observer as unknown as ResizeObserver));
+      expect(screen.getByTestId("session-workbench")).toHaveAttribute("data-overlay", "true");
+      bounds.mockRestore();
+    } finally {
+      view.unmount();
+      resizeObserver.restore();
+      localStorage.removeItem("mira.workbench.open");
+    }
+  });
+
   it("reports session rail open state to the pane host", async () => {
     window.localStorage.setItem("mira.workbench.open", "1");
     const client = makeClient();
@@ -4281,6 +4342,54 @@ describe("ThreadShell", () => {
     expect(onWorkbenchOpenChange).toHaveBeenLastCalledWith(false);
 
     window.localStorage.removeItem("mira.workbench.open");
+  });
+
+  it("keeps the sidebar rail on the focused pane only", async () => {
+    localStorage.setItem("mira.workbench.open", "1");
+    const view = render(wrap(makeClient(), <ThreadShell
+      session={session("rail-focus")}
+      title="Rail focus"
+      onToggleSidebar={() => {}}
+      showWorkbenchRail={false}
+    />));
+    try {
+      await screen.findByLabelText("Message input");
+      // A background pane contributes no rail and no competing opener, so the
+      // 多窗格 layout cannot stack several 工作台 columns.
+      expect(screen.queryByTestId("session-workbench")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Open workbench" })).not.toBeInTheDocument();
+    } finally {
+      view.unmount();
+      localStorage.removeItem("mira.workbench.open");
+    }
+  });
+
+  it("gives the rail header sole ownership of the workbench toggle", async () => {
+    localStorage.setItem("mira.workbench.open", "1");
+    const view = render(wrap(makeClient(), <ThreadShell
+      session={session("rail-single-control")}
+      title="Rail single control"
+      onToggleSidebar={() => {}}
+    />));
+    try {
+      await screen.findByLabelText("Message input");
+      // Rail open -> no second right-side control competing with it.
+      expect(screen.queryByRole("button", { name: "Open workbench" })).not.toBeInTheDocument();
+      const rail = screen.getByTestId("session-workbench");
+      expect(rail).toHaveAttribute("data-mode", "workspace");
+
+      fireEvent.click(screen.getByRole("button", { name: "Expand sidebar tools" }));
+      expect(screen.getByTestId("session-workbench")).toHaveAttribute("data-mode", "tools");
+
+      // Collapsing drops the pending tools request, so reopening lands on 工作区.
+      fireEvent.click(screen.getByRole("button", { name: "Collapse workbench" }));
+      expect(screen.queryByTestId("session-workbench")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Open workbench" }));
+      expect(screen.getByTestId("session-workbench")).toHaveAttribute("data-mode", "workspace");
+    } finally {
+      view.unmount();
+      localStorage.removeItem("mira.workbench.open");
+    }
   });
 
 });

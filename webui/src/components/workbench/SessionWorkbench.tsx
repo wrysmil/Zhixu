@@ -1,8 +1,10 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ChevronRight,
   PanelRightClose,
+  Plus,
+  PanelRightOpen,
   Search,
   Wrench,
 } from "lucide-react";
@@ -15,15 +17,15 @@ import {
 } from "./session-workbench-model";
 import { cn } from "@/lib/utils";
 
-// Mirrors the rail's literal `w-[19rem]` below (Tailwind can't see dynamic classes).
-export const SESSION_WORKBENCH_RAIL_WIDTH = "19rem";
-
 interface SessionWorkbenchProps {
   model: SessionWorkbenchModel;
   onOpenFilePreview?: (path: string) => void;
   onCollapse: () => void;
   sessionKey?: string | null;
   getToken?: () => string;
+  overlay?: boolean;
+  onRailWidthChange?: (width: number) => void;
+  openToolsSignal?: number;
 }
 
 function formatUpdatedAt(ms: number | null, language: string): string {
@@ -94,18 +96,53 @@ export function SessionWorkbench({
   onCollapse,
   sessionKey,
   getToken,
+  overlay = false,
+  onRailWidthChange,
+  openToolsSignal = 0,
 }: SessionWorkbenchProps) {
   const { t, i18n } = useTranslation();
   const updated = formatUpdatedAt(model.updatedAtMs, i18n.language);
   const hasIntegrations = model.mcpUsed.length > 0 || model.cliUsed.length > 0;
   // StartDock 以 getToken 引用为壳列表拉取依赖；这里保持跨渲染稳定。
   const dockGetToken = useCallback(() => getToken?.() ?? "", [getToken]);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  // 工作区状态下点 ＋：直接切到工具并展开 文件/浏览器/终端 菜单，与工具态的 ＋ 行为一致。
+  const [menuSignal, setMenuSignal] = useState(0);
+  useEffect(() => {
+    if (openToolsSignal === 0) return;
+    setToolsOpen(true);
+  }, [openToolsSignal]);
+  const railRef = useRef<HTMLElement | null>(null);
+  const onRailWidthChangeRef = useRef(onRailWidthChange);
+  onRailWidthChangeRef.current = onRailWidthChange;
+
+  useLayoutEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const reportWidth = () => {
+      onRailWidthChangeRef.current?.(overlay ? 0 : rail.getBoundingClientRect().width);
+    };
+    reportWidth();
+    const observer = new ResizeObserver(reportWidth);
+    observer.observe(rail);
+    return () => {
+      observer.disconnect();
+      onRailWidthChangeRef.current?.(0);
+    };
+  }, [overlay, toolsOpen]);
 
   return (
     <aside
+      ref={railRef}
       data-testid="session-workbench"
+      data-mode={toolsOpen ? "tools" : "workspace"}
+      data-overlay={overlay ? "true" : "false"}
       aria-label={t("workbench.title", { defaultValue: "Workbench" })}
-      className="relative flex w-[19rem] shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20"
+      className={cn(
+        "flex min-h-0 min-w-0 max-w-full shrink-0 flex-col overflow-hidden border-l border-border/60 bg-background",
+        toolsOpen ? "w-[36rem]" : "w-[19rem]",
+        overlay ? "absolute inset-y-0 right-0 z-30 shadow-lg" : "relative max-w-[55%]",
+      )}
     >
       <header className="flex h-9 shrink-0 items-center gap-2 border-b border-border/40 px-3">
         <span className="text-[12.5px] font-semibold text-foreground/85">
@@ -121,15 +158,41 @@ export function SessionWorkbench({
         ) : null}
         <button
           type="button"
+          aria-label={t("workbench.toolsMenu", { defaultValue: "Open sidebar tool" })}
+          title={t("workbench.toolsMenu", { defaultValue: "Open sidebar tool" })}
+          data-testid="workbench-tools-menu"
+          onClick={() => {
+            setToolsOpen(true);
+            setMenuSignal((value) => value + 1);
+          }}
+          className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label={toolsOpen
+            ? t("workbench.showWorkspace", { defaultValue: "Show workspace" })
+            : t("workbench.expandTools", { defaultValue: "Expand sidebar tools" })}
+          aria-expanded={toolsOpen}
+          onClick={() => {
+            setToolsOpen((value) => !value);
+          }}
+          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <PanelRightOpen className="h-3.5 w-3.5" aria-hidden />
+        </button>
+        <button
+          type="button"
           aria-label={t("workbench.collapse", { defaultValue: "Collapse workbench" })}
           onClick={onCollapse}
-          className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
+          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
         >
           <PanelRightClose className="h-3.5 w-3.5" aria-hidden />
         </button>
       </header>
 
-      <div className="max-h-[45%] min-h-0 shrink overflow-y-auto scrollbar-thin">
+      <div hidden={toolsOpen} className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-thin", toolsOpen && "hidden")}>
         <Section
           title={t("workbench.overview", { defaultValue: "Overview" })}
           defaultOpen
@@ -269,15 +332,17 @@ export function SessionWorkbench({
         </Section>
       </div>
 
-      {/* 与首页同源的标签式右坞（embedded）：文件/浏览器/终端统一在此，scope=会话 key，
-          标签与接管清单按 scope 独立持久化；预览仍上抛宿主外置面板。 */}
-      <StartDock
-        variant="embedded"
-        scope={sessionKey ?? HOME_DOCK_SCOPE}
-        sessionKey={sessionKey ?? null}
-        getToken={dockGetToken}
-        onOpenFilePreview={onOpenFilePreview}
-      />
+      {/* 保留同一位置的工具组件，切换摘要不丢失预览或终端状态。
+          https://react.dev/learn/preserving-and-resetting-state */}
+      <div hidden={!toolsOpen} className={cn("min-h-0 min-w-0 flex-1 flex-col", toolsOpen ? "flex" : "hidden")}>
+        <StartDock
+          variant="embedded"
+          scope={sessionKey ?? HOME_DOCK_SCOPE}
+          sessionKey={sessionKey ?? null}
+          getToken={dockGetToken}
+          openMenuSignal={menuSignal}
+        />
+      </div>
     </aside>
   );
 }

@@ -21,8 +21,22 @@ export function failureLabel(
   if (message === "limit_reached" || message === "terminal_limit_reached") {
     return t("startPanel.terminalLimit", { defaultValue: "Terminal limit reached (max 8)" });
   }
-  // 契约 v2：shell 白名单在本机缺失 / PTY 启动失败走同一兜底文案。
-  if (message === "shell_unavailable" || message === "terminal_start_failed") {
+  if (message === "terminal_start_failed") {
+    return t("startPanel.terminalStartFailed", {
+      defaultValue: "The terminal could not start. Open a new one to retry.",
+    });
+  }
+  if (message === "terminal_start_timeout") {
+    return t("startPanel.terminalStartTimeout", {
+      defaultValue: "Terminal startup timed out. Open a new one to retry.",
+    });
+  }
+  if (message === "terminal_connection_lost") {
+    return t("startPanel.terminalConnectionLost", {
+      defaultValue: "Connection lost while starting the terminal. Reconnect and try again.",
+    });
+  }
+  if (message === "shell_unavailable") {
     return t("startPanel.shellUnavailable", {
       defaultValue: "This shell is not installed on the host.",
     });

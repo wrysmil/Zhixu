@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NanobotClient } from "@/lib/nanobot-client";
+import { createTerminalStore } from "@/hooks/useNanobotStream";
 import type { SidebarStatePayload } from "@/lib/types";
 
 /**
@@ -71,6 +72,78 @@ afterEach(() => {
 });
 
 describe("NanobotClient", () => {
+  it("fails only pending terminal starts when their socket disconnects", () => {
+    const client = new NanobotClient({
+      url: "ws://test", reconnect: false,
+      socketFactory: (url) => new FakeSocket(url) as unknown as WebSocket,
+    });
+    const store = createTerminalStore();
+    const detach = store.attach((handler) => client.onTerminalEvent(handler));
+    client.connect();
+    const socket = lastSocket();
+    socket.fakeOpen();
+    store.beginCreate("running", null);
+    client.terminalStart("running");
+    socket.fakeMessage({
+      event: "terminal_started", terminal_id: "running", shell: "cmd", cwd: "C:/project", status: "ok",
+    });
+    store.beginCreate("pending", null);
+    client.terminalStart("pending");
+
+    socket.fakeCloseWithCode(1006);
+
+    expect(store.getState().byId.pending).toMatchObject({
+      status: "failed", message: "terminal_connection_lost",
+    });
+    expect(store.getState().byId.running?.status).toBe("running");
+    detach();
+  });
+
+  it("times out unsent terminal starts and removes them from the reconnect queue", () => {
+    const client = new NanobotClient({
+      url: "ws://test", reconnect: false,
+      socketFactory: (url) => new FakeSocket(url) as unknown as WebSocket,
+    });
+    const store = createTerminalStore();
+    const detach = store.attach((handler) => client.onTerminalEvent(handler));
+    client.connect();
+    store.beginCreate("pending", null);
+    client.terminalStart("pending");
+
+    vi.advanceTimersByTime(15_000);
+
+    expect(store.getState().byId.pending).toMatchObject({
+      status: "failed", message: "terminal_start_timeout",
+    });
+    lastSocket().fakeOpen();
+    expect(lastSocket().sent).toHaveLength(0);
+    client.close();
+    detach();
+  });
+
+  it("clears a terminal start timeout once a correlated reply arrives", () => {
+    const client = new NanobotClient({
+      url: "ws://test", reconnect: false,
+      socketFactory: (url) => new FakeSocket(url) as unknown as WebSocket,
+    });
+    const store = createTerminalStore();
+    const detach = store.attach((handler) => client.onTerminalEvent(handler));
+    client.connect();
+    const socket = lastSocket();
+    socket.fakeOpen();
+    store.beginCreate("pending", null);
+    client.terminalStart("pending");
+    socket.fakeMessage({
+      event: "terminal_started", terminal_id: "pending", shell: "cmd", cwd: "C:/project", status: "ok",
+    });
+
+    vi.advanceTimersByTime(15_000);
+
+    expect(store.getState().byId.pending?.status).toBe("running");
+    client.close();
+    detach();
+  });
+
   it("reconciles simultaneous client submissions to the gateway-owned turn", () => {
     const client = new NanobotClient({
       url: "ws://test",

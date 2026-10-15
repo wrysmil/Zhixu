@@ -98,6 +98,7 @@ def _set_pty_size(fd: int, rows: int, cols: int) -> None:
 @dataclass
 class _ExitedMeta:
     chat_id: str
+    session_key: str
     shell: str
     cwd: str
     deadline: float
@@ -314,6 +315,7 @@ class PtyTerminalBridge:
                     "status": "exited" if exited else "running",
                     "shell": terminal.shell,
                     "cwd": terminal.cwd,
+                    "session_key": terminal.session_key,
                 }
             )
         now = time.monotonic()
@@ -327,6 +329,7 @@ class PtyTerminalBridge:
                         "status": "exited",
                         "shell": meta.shell,
                         "cwd": meta.cwd,
+                        "session_key": meta.session_key,
                     }
                 )
         return entries
@@ -426,6 +429,7 @@ class PtyTerminalBridge:
         self._terminals.pop(terminal.terminal_id, None)
         self._exited[terminal.terminal_id] = _ExitedMeta(
             chat_id=terminal.chat_id,
+            session_key=terminal.session_key,
             shell=terminal.shell,
             cwd=terminal.cwd,
             deadline=time.monotonic() + EXITED_GRACE_S,
@@ -509,7 +513,11 @@ class TerminalSupervisor:
         self._owner: dict[str, str] = {}
 
     def _live_count(self) -> int:
-        return len(self._pty._terminals) + len(self._pipe._terminals)  # pyright: ignore[reportPrivateUsage]
+        return sum(
+            len(bridge._terminals)  # pyright: ignore[reportPrivateUsage]
+            for bridge in (self._pty, self._pipe)
+            if bridge is not None
+        )
 
     def _route(self, terminal_id: str) -> Any | None:
         name = self._owner.get(terminal_id)

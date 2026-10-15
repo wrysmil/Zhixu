@@ -1172,3 +1172,73 @@ async def test_start_rejects_bad_shell_name_before_bridge(tmp_path: Path) -> Non
         assert started[-1]["message"] == "shell_unavailable"
     finally:
         await router.close()
+
+
+@pytest.mark.parametrize("restricted", [False, True])
+async def test_supervisor_without_pty_starts_writes_and_enforces_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, restricted: bool
+) -> None:
+    """Windows must keep a working pipe terminal when no PTY bridge exists."""
+    from nanobot.webui import pty_terminal
+
+    monkeypatch.setattr(pty_terminal, "PTY_SUPPORTED", False)
+    manager = ExecSessionManager(max_sessions=1, idle_timeout=1800)
+    bridge = pty_terminal.create_terminal_bridge(manager, max_terminals=1)
+    scope = default_workspace_scope(tmp_path, restrict_to_workspace=restricted)
+    collector = Collector()
+    start_fields = {
+        "scope": scope,
+        "chat_id": "chat1",
+        "session_key": "websocket:chat1",
+        "publisher": collector,
+    }
+    try:
+        result = await bridge.start(terminal_id="pipe-only", **start_fields)
+        assert result["status"] == "ok"
+        assert result["pty"] is False
+        assert bridge.owner_chat("pipe-only") == "chat1"
+        assert bridge.list_visible({"chat1"})[0]["session_key"] == "websocket:chat1"
+
+        takeover = await bridge.start(terminal_id="pipe-only", **start_fields)
+        assert takeover["status"] == "already_running"
+        overflow = await bridge.start(terminal_id="overflow", **start_fields)
+        assert overflow["status"] == "limit_reached"
+
+        assert await bridge.write(terminal_id="pipe-only", data="echo PIPE_ONLY_OK\n") is None
+        await _wait_until(lambda: "PIPE_ONLY_OK" in collector.text("terminal_output"))
+        assert await bridge.kill(terminal_id="pipe-only") is None
+        assert len(collector.of("terminal_exit")) == 1
+        assert bridge.list_visible({"chat1"})[0]["session_key"] == "websocket:chat1"
+    finally:
+        await bridge.aclose()
+
+
+async def test_router_reports_unexpected_start_failure_for_the_requested_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    router, transport, bridge, connection = _make_fake_bridge_router(tmp_path)
+
+    async def fail_start(**kwargs: Any) -> dict[str, Any]:
+        raise RuntimeError("private subprocess details")
+
+    monkeypatch.setattr(bridge, "start", fail_start)
+    try:
+        await router.dispatch(
+            connection,
+            "client-1",
+            {"type": "terminal_start", "terminal_id": "term-1"},
+        )
+        assert transport.of("terminal_started") == [
+            {
+                "event": "terminal_started",
+                "type": "terminal_started",
+                "terminal_id": "term-1",
+                "shell": "",
+                "cwd": str(tmp_path.resolve()),
+                "status": "error",
+                "message": "terminal_start_failed",
+                "pty": False,
+            }
+        ]
+    finally:
+        await router.close()
