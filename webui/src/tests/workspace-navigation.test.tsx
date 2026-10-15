@@ -30,6 +30,7 @@ const NAV_ITEMS = [
   "Apps",
   "Settings",
   "Memory",
+  "Identity",
 ];
 
 describe("WorkspaceNavigation", () => {
@@ -63,15 +64,27 @@ describe("WorkspaceNavigation", () => {
     expect(onNavigate).toHaveBeenCalledWith({ view: "chat" });
   });
 
-  it("opens memory settings directly from the navigation rail", () => {
+  it("opens the standalone Memory view directly from the navigation rail", () => {
     const { onNavigate } = renderNav();
     fireEvent.click(screen.getByRole("button", { name: "Memory" }));
-    expect(onNavigate).toHaveBeenCalledWith({ view: "settings", settingsSection: "memory" });
+    expect(onNavigate).toHaveBeenCalledWith({ view: "memory" });
   });
 
-  it("marks only Memory as current on the memory settings section", () => {
-    renderNav({ activeView: "settings", activeSettingsSection: "memory" });
+  it("opens the standalone Identity view directly from the navigation rail", () => {
+    const { onNavigate } = renderNav();
+    fireEvent.click(screen.getByRole("button", { name: "Identity" }));
+    expect(onNavigate).toHaveBeenCalledWith({ view: "identity" });
+  });
+
+  it("marks only Memory as current on the memory view", () => {
+    renderNav({ activeView: "memory" });
     expect(screen.getByRole("button", { name: "Memory" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Settings" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("marks only Identity as current on the identity view", () => {
+    renderNav({ activeView: "identity" });
+    expect(screen.getByRole("button", { name: "Identity" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: "Settings" })).not.toHaveAttribute("aria-current");
   });
 
@@ -79,6 +92,7 @@ describe("WorkspaceNavigation", () => {
     renderNav({ activeView: "settings", activeSettingsSection });
     expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: "Memory" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("button", { name: "Identity" })).not.toHaveAttribute("aria-current");
   });
 
   it("keeps nav entries reachable and collapses the rail when collapsed", () => {

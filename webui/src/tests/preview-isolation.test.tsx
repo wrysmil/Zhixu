@@ -65,15 +65,16 @@ describe("PreviewApp isolation", () => {
   });
 
   it("keeps the navigation current when changing sections inside preview settings", () => {
-    window.history.replaceState(null, "", "/?preview=1#/settings?section=memory");
+    // Memory and Identity moved out of settings into standalone views; the
+    // settings preview now starts on the Models section, which still exists.
+    window.history.replaceState(null, "", "/?preview=1#/settings?section=models");
     try {
       render(<PreviewApp />);
-      expect(screen.getByRole("button", { name: "Memory" })).toHaveAttribute("aria-current", "page");
-      const settingsNav = screen.getByRole("navigation", { name: "Settings sections" });
-      fireEvent.click(within(settingsNav).getByRole("button", { name: "模型" }));
-      expect(window.location.hash).toBe("#/settings?section=models");
       expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("aria-current", "page");
-      expect(screen.getByRole("button", { name: "Memory" })).not.toHaveAttribute("aria-current");
+      const settingsNav = screen.getByRole("navigation", { name: "Settings sections" });
+      fireEvent.click(within(settingsNav).getByRole("button", { name: "外观" }));
+      expect(window.location.hash).toBe("#/settings?section=appearance");
+      expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("aria-current", "page");
     } finally {
       window.history.replaceState(null, "", "/");
     }

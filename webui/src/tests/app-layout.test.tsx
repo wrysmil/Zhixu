@@ -509,9 +509,26 @@ describe("App layout", () => {
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
     fireEvent.click(within(sidebar).getByRole("button", { name: "Memory" }));
 
-    await waitFor(() => expect(window.location.hash).toBe("#/settings?section=memory"));
+    await waitFor(() => expect(window.location.hash).toBe("#/memory"));
     expect(await screen.findByTestId("memory-master-toggle")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-section-transition")).toHaveAttribute("data-settings-section", "memory");
+  });
+
+  it("opens Identity directly through the real sidebar and App routing", async () => {
+    mockFetchRoutes({
+      "/api/settings": baseSettingsPayload(),
+      "/api/settings/identity/files": { files: [], charLimit: 1500 },
+      "/api/settings/identity/presets": { presets: [] },
+      "/api/settings/identity/persona": { active: "", options: [] },
+      "/api/settings/identity/file?name=SOUL.md": { name: "SOUL.md", content: "" },
+    });
+    render(<App />);
+
+    await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Identity" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/identity"));
+    expect(await screen.findByRole("heading", { level: 1 })).toBeInTheDocument();
   });
 
   it("opens the full Models settings directly from the first-run prompt", async () => {
@@ -583,11 +600,16 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    expect(await screen.findByTestId("start-dock")).toBeInTheDocument();
-    expect(await screen.findByTestId("dock-launcher")).toBeInTheDocument();
-    expect(screen.getByTestId("dock-card-files")).toBeInTheDocument();
-    expect(screen.getByTestId("dock-card-browser")).toBeInTheDocument();
-    expect(screen.getByTestId("dock-card-terminal")).toBeInTheDocument();
+
+    // 右坞默认收起：首页不留常驻列，标签内容不挂载。
+    expect(screen.queryByTestId("start-dock")).not.toBeInTheDocument();
+    expect(screen.getByTestId("start-dock-toggle")).toBeInTheDocument();
+
+    // 开关必须真的能点开（曾经被会话头部的 z-30 层盖住而点不动）。
+    fireEvent.click(screen.getByTestId("start-dock-toggle"));
+    expect(screen.getByTestId("start-dock")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("start-dock-toggle"));
+    expect(screen.queryByTestId("start-dock")).not.toBeInTheDocument();
 
     // Task 9 承接项：恢复旧「intercepts ⌘P」用例的拦截语义（spec B2 focus-or-open）。
     const event = new window.KeyboardEvent("keydown", {
@@ -599,6 +621,11 @@ describe("App layout", () => {
     act(() => window.dispatchEvent(event));
     expect(event.defaultPrevented).toBe(true);
     expect(dockStore.getSnapshot(HOME_DOCK_SCOPE).activeId).toBe("file");
+
+    // 快捷键顺带拉起覆盖层，文件标签随之挂载。
+    expect(await screen.findByTestId("start-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("dock-tab-file")).toBeInTheDocument();
+    expect(screen.queryByTestId("dock-launcher")).not.toBeInTheDocument();
 
     // 再按 = 聚焦不重复；文件标签天然单例。
     const again = new window.KeyboardEvent("keydown", {
@@ -3491,7 +3518,27 @@ describe("App layout", () => {
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
     })));
-    createChatSpy.mockResolvedValueOnce("chat-pane");
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: string | URL | Request) => {
+      if (String(url) === "/api/webui/sidebar-state") {
+        return {
+          ok: true,
+          json: async () => ({
+            workbench: {
+              version: 1,
+              tabs: {
+                "tab:websocket:chat-alpha": {
+                  explicit: true,
+                  title: null,
+                  paneKeys: ["websocket:chat-alpha", "websocket:chat-beta"],
+                  layout: "columns",
+                },
+              },
+            },
+          }),
+        };
+      }
+      return { ok: false, status: 404 };
+    }));
     mockSessions = [
       {
         key: "websocket:chat-alpha",
@@ -3522,30 +3569,17 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const grid = await screen.findByTestId("pane-grid");
-    expect(Array.from(grid.children).map((pane) => pane.getAttribute("aria-label")))
-      .toEqual(["Alpha"]);
-    expect(screen.queryByRole("button", { name: "Pane layout" }))
-      .not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add pane" }));
-    expect(screen.queryByRole("dialog", { name: "Search" })).not.toBeInTheDocument();
-    await waitFor(() => expect(createChatSpy).toHaveBeenCalledTimes(1));
+    // 顶部不再有「添加窗格」按钮；多窗格由持久化的工作台状态恢复。
+    expect(screen.queryByRole("button", { name: "Add pane" })).not.toBeInTheDocument();
 
     await waitFor(() => expect(grid.children).toHaveLength(2));
-    expect(screen.getByRole("button", { name: "Pane layout" })).toBeInTheDocument();
-    expect(window.location.hash).toBe("#/chat/websocket%3Achat-pane");
     expect(Array.from(grid.children).map((pane) => pane.getAttribute("aria-label")))
-      .toEqual(["Alpha", "New topic"]);
+      .toEqual(["Alpha", "Beta"]);
+    expect(screen.getByRole("button", { name: "Pane layout" })).toBeInTheDocument();
+    expect(grid).toHaveAttribute("data-layout", "columns");
 
-    const activeComposer = screen.getByTestId("active-pane-composer");
-    const paneInput = within(activeComposer).getByRole("textbox", {
-      name: "Message New topic",
-    });
-    expect(paneInput).toHaveClass("min-h-[50px]");
-    fireEvent.change(paneInput, { target: { value: "route this to the new pane" } });
-    fireEvent.keyDown(paneInput, { key: "Enter" });
-    await waitFor(() => expect(sendMessageSpy).toHaveBeenCalled());
-    expect(sendMessageSpy.mock.calls.at(-1)?.[0]).toBe("chat-pane");
+    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "Pane layout" }), {
       button: 0,
@@ -3554,28 +3588,12 @@ describe("App layout", () => {
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Rows" }));
     expect(grid).toHaveAttribute("data-layout", "rows");
 
-    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
     const paneTopicButton = within(sidebar)
-      .getAllByRole("button", { name: "New topic" })
+      .getAllByRole("button", { name: "Beta" })
       .find((button) => button.closest("[data-sidebar-pane]"));
     expect(paneTopicButton).toBeDefined();
     expect(paneTopicButton?.closest("[data-sidebar-pane]"))
-      .toHaveAttribute("data-sidebar-pane", "websocket:chat-pane");
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Beta" }));
-    await waitFor(() => {
-      const nextGrid = screen.getByTestId("pane-grid");
-      expect(Array.from(nextGrid.children).map((pane) => pane.getAttribute("aria-label")))
-        .toEqual(["Beta"]);
-      expect(nextGrid).toHaveAttribute("data-layout", "columns");
-    });
-
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Alpha" }));
-    await waitFor(() => {
-      const restoredGrid = screen.getByTestId("pane-grid");
-      expect(Array.from(restoredGrid.children).map((pane) => pane.getAttribute("aria-label")))
-        .toEqual(["Alpha", "New topic"]);
-      expect(restoredGrid).toHaveAttribute("data-layout", "rows");
-    });
+      .toHaveAttribute("data-sidebar-pane", "websocket:chat-beta");
 
     const alphaGroupButton = within(sidebar).getByRole("button", {
       name: "Group: Alpha",
@@ -3595,7 +3613,7 @@ describe("App layout", () => {
       .toBeInTheDocument();
 
     fireEvent.pointerDown(within(sidebar).getByRole("button", {
-      name: "New topic pane actions",
+      name: "Beta pane actions",
     }), { button: 0, ctrlKey: false });
     fireEvent.click(screen.getByRole("menuitem", {
       name: "Remove",
@@ -3608,7 +3626,7 @@ describe("App layout", () => {
       .toBeInTheDocument();
     expect(within(researchGroup).getByRole("button", { name: "Alpha" }))
       .toBeInTheDocument();
-    expect(within(sidebar).getAllByRole("button", { name: "New topic" })).toHaveLength(1);
+    expect(within(sidebar).getAllByRole("button", { name: "Beta" })).toHaveLength(1);
   });
 
   it("keeps a named group and its remaining pane active after deleting a pane", async () => {

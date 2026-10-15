@@ -5,12 +5,10 @@ import {
   ReadOnlyRow,
   SettingsGroup,
   SettingsRow,
-  StatusPill,
 } from "@/components/settings/shared/SettingsControls";
 import { SettingsSectionFrame } from "@/components/settings/shared/SettingsSectionFrame";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { PreviewMemory } from "./PreviewMemory";
 
 /** The 11 non-capability settings sections the live app exposes. The four
  *  capability pages (apps/agents/skills/automations) live in
@@ -23,8 +21,6 @@ const NORMAL_SECTIONS = [
   "voice",
   "browser",
   "channels",
-  "memory",
-  "identity",
   "runtime",
   "advanced",
 ] as const;
@@ -39,8 +35,6 @@ const SECTION_LABELS: Record<NormalSection, string> = {
   voice: "语音",
   browser: "浏览器",
   channels: "渠道",
-  memory: "记忆",
-  identity: "身份",
   runtime: "运行时",
   advanced: "安全",
 };
@@ -91,7 +85,6 @@ function DisabledActionRow({
         <Button type="button" size="sm" disabled className="rounded-control">
           {action}
         </Button>
-        <StatusPill tone="warning">预览已禁用</StatusPill>
       </div>
     </SettingsRow>
   );
@@ -169,13 +162,6 @@ export function PreviewSettings({
         <DisabledActionRow title="安装渠道插件" description="安装会改动运行环境。" action="安装" />
       </SettingsGroup>
     ),
-    memory: <PreviewMemory />,
-    identity: (
-      <SettingsGroup>
-        <ReadOnlyRow title="显示名" value="知序用户（示例）" />
-        <ReadOnlyRow title="身份文档" value="AGENTS.md（示例）" />
-      </SettingsGroup>
-    ),
     runtime: (
       <SettingsGroup>
         <ReadOnlyRow title="运行面" value="本地预览" />
@@ -223,9 +209,8 @@ export function PreviewSettings({
         </label>
         <SettingsSectionFrame
           title={SECTION_LABELS[section]}
-          description={section === "memory" ? "查看与管理记住的内容，让每一次对话都能接着往下走。" : "界面预览 · 示例内容，保存与操作均不会改动真实配置。"}
+          description={"界面预览 · 示例内容，保存与操作均不会改动真实配置。"}
           actions={
-            section === "memory" ? <StatusPill tone="warning">示例预览</StatusPill> :
             <Button
               type="button"
               size="sm"

@@ -26,3 +26,16 @@ ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+identity-hero.svg: Select Character by Katerina Limpitsouni / unDraw
+Source: https://cdn.undraw.co/illustration/select-character_kdsh.svg
+identity-preview.svg: Setup Wizard by Katerina Limpitsouni / unDraw
+Source: https://cdn.undraw.co/illustration/setup-wizard_45kx.svg
+identity-empty.svg: Profile by Katerina Limpitsouni / unDraw
+Source: https://cdn.undraw.co/illustration/profile_9xdn.svg
+identity-save.svg: Thumbs Up by Katerina Limpitsouni / unDraw
+Source: https://cdn.undraw.co/illustration/thumbs-up_f300.svg
+identity-rules.svg: Guidelines by Katerina Limpitsouni / unDraw
+Source: https://cdn.undraw.co/illustration/guidelines_p5r7.svg
+Downloaded 2026-10-16. Recolor to the website forest/sage palette.
+Used only as website decoration, not for AI or machine-learning development.

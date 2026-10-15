@@ -14,9 +14,11 @@ import {
   Plug,
   Settings,
   Sparkles,
+  UserRound,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/components/ui/button";
 import {
   SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
   SidebarSelectionHighlight,
@@ -27,7 +29,6 @@ import type {
   WorkspaceRoute,
   WorkspaceView,
 } from "@/components/workspace/contracts";
-import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/workspace/BrandMark";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,6 @@ interface NavItem {
   labelKey: string;
   labelDefault: string;
   icon: typeof MessagesSquare;
-  settingsSection?: "memory";
 }
 
 const PRIMARY_ITEMS: NavItem[] = [
@@ -63,8 +63,13 @@ const SETTINGS_ITEM: NavItem = {
 };
 
 const MEMORY_ITEM: NavItem = {
-  view: "settings", labelKey: "settings.nav.memory", labelDefault: "Memory",
-  icon: BookOpen, settingsSection: "memory",
+  view: "memory", labelKey: "sidebar.memory.title", labelDefault: "Memory",
+  icon: BookOpen,
+};
+
+const IDENTITY_ITEM: NavItem = {
+  view: "identity", labelKey: "sidebar.identity.title", labelDefault: "Identity",
+  icon: UserRound,
 };
 
 /**
@@ -119,9 +124,11 @@ export function WorkspaceNavigation({
       activeView === item.view ||
       (item.view === "creative" && activeView === "article")
     );
-    const active = matchesView && (item.settingsSection
-      ? activeSettingsSection === item.settingsSection
-      : item.view !== "settings" || activeSettingsSection !== "memory");
+    // activeSettingsSection is no longer used for highlighting Memory/Identity
+    // because both are now standalone views, but it stays in the prop shape
+    // so existing callers do not need to change.
+    void activeSettingsSection;
+    const active = matchesView;
     const Icon = item.icon;
     return (
       <Tooltip key={item.view}>
@@ -132,9 +139,7 @@ export function WorkspaceNavigation({
         aria-current={active ? "page" : undefined}
         title={label}
         ref={active ? activeRailRef : undefined}
-        onClick={() => item.settingsSection
-          ? onNavigate({ view: item.view, settingsSection: item.settingsSection })
-          : navigateTo(item.view)}
+        onClick={() => navigateTo(item.view)}
         className={cn(
           "workspace-nav-item host-no-drag flex h-[48px] w-[46px] cursor-pointer flex-col items-center justify-center gap-1 rounded-control transition-colors duration-150",
           SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
@@ -145,11 +150,13 @@ export function WorkspaceNavigation({
         )}
       >
         <Icon className={cn("h-[19px] w-[19px] shrink-0", active && "text-accent-foreground")} strokeWidth={1.65} aria-hidden />
-        <span className="workspace-nav-label" aria-hidden>{item.settingsSection
-          ? (i18n.resolvedLanguage?.startsWith("zh") ? "记忆" : "Memory")
-          : item.view === "automations"
-            ? (i18n.resolvedLanguage?.startsWith("zh") ? "定时" : "Tasks")
-            : label}</span>
+        <span className="workspace-nav-label" aria-hidden>{item.view === "automations"
+          ? (i18n.resolvedLanguage?.startsWith("zh") ? "定时" : "Tasks")
+          : item.view === "memory"
+            ? (i18n.resolvedLanguage?.startsWith("zh") ? "记忆" : "Memory")
+            : item.view === "identity"
+              ? (i18n.resolvedLanguage?.startsWith("zh") ? "身份" : "Identity")
+              : label}</span>
       </button>
       </TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>
@@ -200,6 +207,7 @@ export function WorkspaceNavigation({
           <div className="flex shrink-0 flex-col gap-1">
             {CAPABILITY_ITEMS.map(renderItem)}
             {renderItem(MEMORY_ITEM)}
+            {renderItem(IDENTITY_ITEM)}
           </div>
           <div className="min-h-8 flex-1" />
           <div className="flex shrink-0 flex-col items-center gap-2">
@@ -218,6 +226,7 @@ export function WorkspaceNavigation({
               onClick={onToggleCollapsed}
             />
           </div> : null}
+
           {!collapsed && !showChatColumn && connectionStatus ? (
             <div className="sr-only">
               {connectionStatus}

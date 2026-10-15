@@ -13,8 +13,6 @@ const SETTINGS_SECTION_KEYS: SettingsSectionKey[] = [
   "automations",
   "skills",
   "agents",
-  "memory",
-  "identity",
   "runtime",
   "advanced",
 ];
@@ -57,6 +55,9 @@ export function parseWorkspaceHash(rawHash: string): WorkspaceRoute {
   if (path === "/new") return { view: "chat", chatKey: null };
 
   if (path === "/settings") return { view: "settings", chatKey, settingsSection };
+
+  if (path === "/memory") return { view: "memory", chatKey };
+  if (path === "/identity") return { view: "identity", chatKey };
 
   for (const capability of CAPABILITY_VIEWS) {
     if (path === `/${capability}`) {

@@ -36,10 +36,13 @@ describe("workspace route parsing", () => {
   });
 
   it("parses settings sections and capability routes", () => {
-    expect(parseWorkspaceHash("#/settings?section=memory")).toMatchObject({
+    expect(parseWorkspaceHash("#/settings?section=models")).toMatchObject({
       view: "settings",
-      settingsSection: "memory",
+      settingsSection: "models",
     });
+    // Memory and Identity moved out of settings into standalone views.
+    expect(parseWorkspaceHash("#/memory")).toMatchObject({ view: "memory" });
+    expect(parseWorkspaceHash("#/identity")).toMatchObject({ view: "identity" });
     expect(parseWorkspaceHash("#/agents")).toMatchObject({
       view: "agents",
       settingsSection: "agents",
@@ -58,5 +61,7 @@ describe("workspace route parsing", () => {
     expect(workspaceRouteHash({ view: "creative" })).toBe("#/creative");
     expect(workspaceRouteHash({ view: "article", articleId: "a/b" }))
       .toBe("#/article/a%2Fb");
+    expect(workspaceRouteHash({ view: "memory" })).toBe("#/memory");
+    expect(workspaceRouteHash({ view: "identity" })).toBe("#/identity");
   });
 });

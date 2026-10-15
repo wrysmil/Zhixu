@@ -8,7 +8,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Eye, EyeOff, Moon, PanelLeftOpen, ShieldCheck, Sun, X } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Moon,
+  PanelLeftOpen,
+  PanelRightOpen,
+  ShieldCheck,
+  Sun,
+  X,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   parseWorkspaceHash,
@@ -27,7 +36,6 @@ import { SESSION_WORKBENCH_RAIL_WIDTH } from "@/components/workbench/SessionWork
 import { WorkbenchTabBar } from "@/components/workbench/WorkbenchTabBar";
 import {
   MAX_WORKBENCH_PANES,
-  addWorkbenchPane,
   attachWorkbenchPane,
   createWorkbenchTab,
   detachWorkbenchPane,
@@ -141,7 +149,9 @@ type ShellView =
   | "apps"
   | "automations"
   | "skills"
-  | "agents";
+  | "agents"
+  | "memory"
+  | "identity";
 type ShellRoute = {
   view: ShellView;
   activeKey: string | null;
@@ -153,6 +163,14 @@ const loadSettingsView = () => import("@/components/settings/SettingsView");
 const SettingsView = lazy(async () => {
   const module = await loadSettingsView();
   return { default: module.SettingsView };
+});
+const MemoryPage = lazy(async () => {
+  const module = await import("@/components/workspace/MemoryPage");
+  return { default: module.MemoryPage };
+});
+const IdentityPage = lazy(async () => {
+  const module = await import("@/components/workspace/IdentityPage");
+  return { default: module.IdentityPage };
 });
 const CreativeWorkspace = lazy(() => import("./components/creative/CreativeWorkspace"));
 // 终端入口已迁移：TerminalSection 由 TerminalSurface + StartDock（Task 7/9）接管。
@@ -985,6 +1003,7 @@ function Shell({
     useSidebarState(sessions, !loading);
   const initialRouteRef = useRef<ShellRoute | null>(null);
   if (!initialRouteRef.current) initialRouteRef.current = readShellRoute();
+  const [homeDockOpen, setHomeDockOpen] = useState(false);
   const [activeKey, setActiveKey] = useState<string | null>(
     initialRouteRef.current.activeKey,
   );
@@ -1008,7 +1027,6 @@ function Shell({
     });
   }, [updateSidebarState]);
   const lastActivePaneByTabRef = useRef(new Map<string, string>());
-  const [creatingPane, setCreatingPane] = useState(false);
   const topicSessions = sessions;
   const [pendingDelete, setPendingDelete] = useState<{
     items: SidebarDeleteItem[];
@@ -1858,56 +1876,6 @@ function Shell({
     setSessionSearchOpen(true);
   }, []);
 
-  const onAddPane = useCallback(async () => {
-    const tabKey = activeTabKey;
-    if (
-      !tabKey
-      || !activeKey
-      || !activeSession
-      || creatingPane
-      || (activeTabState?.paneKeys.length ?? 0) >= MAX_WORKBENCH_PANES
-      || temporarySessionsRef.current[activeKey]
-    ) return;
-    setMobileSidebarOpen(false);
-    setSessionSearchOpen(false);
-    setCreatingPane(true);
-    try {
-      const scope = activeWorkspaceScope;
-      const chatId = await createChat(scope);
-      const paneKey = `websocket:${chatId}`;
-      pendingCreatedSessionKeyRef.current = paneKey;
-      updateWorkbenchState((current) => addWorkbenchPane(current, activeKey, paneKey));
-      navigate({
-        view: "chat",
-        activeKey: paneKey,
-        settingsSection: "overview",
-      });
-      if (scope) {
-        setWorkspaceOverrides((current) => ({
-          ...current,
-          [chatId]: normalizeWorkspaceScope(scope),
-        }));
-      }
-    } catch (error) {
-      console.error("Failed to create pane", error);
-      if (error instanceof Error && error.message.startsWith("workspace_scope_rejected:")) {
-        setWorkspaceError(t("errors.workspaceScopeRejected.body"));
-      }
-    } finally {
-      setCreatingPane(false);
-    }
-  }, [
-    activeKey,
-    activeSession,
-    activeTabKey,
-    activeTabState,
-    activeWorkspaceScope,
-    createChat,
-    creatingPane,
-    navigate,
-    t,
-    updateWorkbenchState,
-  ]);
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -1919,6 +1887,35 @@ function Shell({
         onNewChat();
         return;
       }
+      // ⌘B / Ctrl+B：折叠/展开侧边栏（对齐 VS Code 的常用快捷键）。
+      const commandB =
+        (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
+      if (commandB && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        toggleSidebar();
+        return;
+      }
+      // Esc：折叠桌面侧栏。仅在没开 modal 且焦点不在输入控件时触发，避免
+      // 与各组件本地 Esc 处理（清空 composer、关闭菜单等）冲突。
+      if (
+        event.key === "Escape" &&
+        !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+      ) {
+        const target = event.target as HTMLElement | null;
+        const inEditable =
+          !!target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable);
+        const openModal = document.querySelector(
+          '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]',
+        );
+        if (!inEditable && !openModal && hostSidebarOpen) {
+          event.preventDefault();
+          closeHostSidebar();
+          return;
+        }
+      }
       // spec B2：⌘P/⌘T 全场景直达 dock 标签（首页与会话页一致；terminal 标签不接快捷键）。
       // xterm 聚焦时 ⌘T 也走本 handler——浏览器新标签语义让位于 dock。
       const dockSection = resolveDockShortcut(event);
@@ -1927,6 +1924,8 @@ function Shell({
         const scope = activeKey ?? HOME_DOCK_SCOPE;
         if (dockSection === "file") dockStore.openFile(scope);
         else dockStore.openBrowser(scope);
+        // 首页右坞默认收起：快捷键直达标签时一并把覆盖层拉出来。
+        if (activeKey === null) setHomeDockOpen(true);
         return;
       }
       const plainCommandK =
@@ -1939,7 +1938,7 @@ function Shell({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeKey, onNewChat, onOpenSessionSearch]);
+  }, [activeKey, closeHostSidebar, hostSidebarOpen, onNewChat, onOpenSessionSearch, toggleSidebar]);
 
   const onSelectSearchResult = useCallback(
     (key: string) => {
@@ -2020,6 +2019,18 @@ function Shell({
   const onOpenCreative = useCallback(() => {
     setSessionSearchOpen(false);
     navigate({ view: "creative", activeKey: null, settingsSection: "overview" });
+    setMobileSidebarOpen(false);
+  }, [navigate]);
+
+  const onOpenMemory = useCallback(() => {
+    setSessionSearchOpen(false);
+    navigate({ view: "memory", activeKey: null, settingsSection: "overview" });
+    setMobileSidebarOpen(false);
+  }, [navigate]);
+
+  const onOpenIdentity = useCallback(() => {
+    setSessionSearchOpen(false);
+    navigate({ view: "identity", activeKey: null, settingsSection: "overview" });
     setMobileSidebarOpen(false);
   }, [navigate]);
 
@@ -2381,12 +2392,28 @@ function Shell({
     workbenchPaneSessions,
   ]);
   const renderedActivePaneKey = activeKey ?? renderedWorkbenchPanes[0].key;
-  const [paneWorkbenchOpen, setPaneWorkbenchOpen] = useState<Record<string, boolean>>({});
-  const onPaneWorkbenchOpenChange = useCallback((paneKey: string, open: boolean) => {
-    setPaneWorkbenchOpen((current) => (
-      current[paneKey] === open ? current : { ...current, [paneKey]: open }
-    ));
-  }, []);
+
+  // 首页右坞与会话内嵌工作台互斥：两者都是 StartDock，同时出现会上下叠成两块。
+  const dockToggle = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      data-testid="start-dock-toggle"
+      aria-label={homeDockOpen
+        ? t("startPanel.collapse", { defaultValue: "Collapse the start panel" })
+        : t("startPanel.expand", { defaultValue: "Expand the start panel" })}
+      aria-pressed={homeDockOpen}
+      onClick={() => setHomeDockOpen((open) => !open)}
+      className="host-no-drag h-8 w-8 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
+    >
+      <PanelRightOpen className="h-4 w-4" aria-hidden />
+    </Button>
+  );
+  // 文件/终端/浏览器只有一个入口：顶栏按钮打开的侧边栏（StartDock rail）。
+  // 工作台面板内不再内嵌启动器；会话页同样用这个按钮，scope 跟到会话 key。
+  const dockScope = activeKey ?? HOME_DOCK_SCOPE;
+  const dockVisible = view === "chat" && !mobileWorkbench;
   const renderedWorkbenchLayout = paneChromeEnabled && activeTabState
     ? activeTabState.layout
     : "columns";
@@ -2422,9 +2449,6 @@ function Shell({
     sidebarTabPresentations,
     titleForSession,
   ]);
-  const activePaneLimitReached = Boolean(
-    activeTabState && activeTabState.paneKeys.length >= MAX_WORKBENCH_PANES,
-  );
 
   const onActivateWorkbenchPane = useCallback((paneKey: string) => {
     onSelectChat(paneKey);
@@ -2566,6 +2590,8 @@ function Shell({
     onOpenHome,
     onOpenAssistant,
     onOpenCreative,
+    onOpenMemory,
+    onOpenIdentity,
     onOpenSettings,
     onOpenApps,
     onOpenAutomations,
@@ -2657,7 +2683,8 @@ function Shell({
               data-testid="host-sidebar-flow"
               className={cn(
                 "relative z-20 hidden shrink-0 overflow-hidden lg:block",
-                "transition-[width] duration-300 ease-out",
+                "transition-[width] duration-150 ease-out",
+                "host-sidebar-aside",
               )}
               style={{
                 width: hostSidebarFlowWidth,
@@ -2744,7 +2771,7 @@ function Shell({
                 onNewChat={onNewChat}
               />
               <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
                   <PaneWorkbench
                     panes={renderedWorkbenchPanes}
                     activePaneKey={renderedActivePaneKey}
@@ -2752,14 +2779,8 @@ function Shell({
                     splitRatios={renderedWorkbenchSplitRatios}
                     chrome={paneChromeEnabled}
                     showLayoutControl={activeTabVisible}
-                    addPaneDisabled={creatingPane || activePaneLimitReached}
-                    addPaneDisabledLabel={activePaneLimitReached
-                      ? t("workbench.paneLimit", {
-                          count: MAX_WORKBENCH_PANES,
-                        })
-                      : undefined}
+                    headerTrailingAction={dockVisible ? dockToggle : undefined}
                     onActivatePane={onActivateWorkbenchPane}
-                    onAddPane={onAddPane}
                     onLayoutChange={(layout) => {
                       if (!activeTabKey) return;
                       updateWorkbenchState((current) => (
@@ -2778,9 +2799,7 @@ function Shell({
                         setWorkbenchSplitRatios(current, activeTabKey, splitRatios)
                       ));
                     }}
-                    composerRailInset={paneWorkbenchOpen[renderedActivePaneKey]
-                      ? SESSION_WORKBENCH_RAIL_WIDTH
-                      : undefined}
+                    composerRailInset={SESSION_WORKBENCH_RAIL_WIDTH}
                     renderPane={(pane, context) => {
                       if (!paneChromeEnabled) {
                         return (
@@ -2795,6 +2814,7 @@ function Shell({
                               !activeKey ? onTemporaryChatEnabledChange : undefined
                             }
                             onToggleSidebar={toggleSidebar}
+                            headerActions={context.headerActions}
                             onNewChat={onNewChat}
                             onCreateChat={
                               temporaryChatEnabled ? onCreateTemporaryChat : onCreateChat
@@ -2815,6 +2835,7 @@ function Shell({
                             settingsSnapshot={settingsSnapshot}
                             onOpenModelSettings={onOpenModelSettings}
                             skills={skills}
+                            sidebarOpen={homeDockOpen}
                             draftSeed={composerDraftSeed}
                             onDraftSeedConsumed={onDraftSeedConsumed}
                           />
@@ -2875,18 +2896,20 @@ function Shell({
                           settingsSnapshot={settingsSnapshot}
                           onOpenModelSettings={onOpenModelSettings}
                           skills={skills}
-                          onWorkbenchOpenChange={(open) => onPaneWorkbenchOpenChange(pane.key, open)}
+                          sidebarOpen={homeDockOpen}
                         />
                       );
                     }}
                   />
                 </div>
-                {view === "chat" && activeKey === null && !mobileWorkbench ? (
+                {dockVisible ? (
                   <Suspense fallback={null}>
                     <StartDock
-                      scope={HOME_DOCK_SCOPE}
-                      sessionKey={null}
+                      scope={dockScope}
+                      sessionKey={activeKey}
                       getToken={getToken}
+                      open={homeDockOpen}
+                      onOpenChange={setHomeDockOpen}
                     />
                   </Suspense>
                 ) : null}
@@ -2914,7 +2937,7 @@ function Shell({
                 </Suspense>
               </div>
             ) : null}
-            {isSettingsLikeView && (
+            {isSettingsLikeView ? (
               <div className="absolute inset-0 flex flex-col">
                 <Suspense fallback={<SurfaceLoadingFallback />}>
                   <SettingsView
@@ -2936,7 +2959,53 @@ function Shell({
                   />
                 </Suspense>
               </div>
-            )}
+            ) : null}
+            {view === "memory" || view === "identity" ? (
+              <div className="absolute inset-0 flex flex-col overflow-y-auto bg-background">
+                <header
+                  className={cn(
+                    "flex h-14 items-center gap-3 border-b border-border px-5 sm:px-8",
+                    showHostChrome && "mt-10",
+                  )}
+                >
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 lg:hidden"
+                    aria-label={t("thread.header.toggleSidebar")}
+                    onClick={toggleSidebar}
+                  >
+                    <PanelLeftOpen className="h-4 w-4" aria-hidden />
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {view === "memory"
+                      ? t("sidebar.memory.title", { defaultValue: "记忆" })
+                      : t("sidebar.identity.title", { defaultValue: "身份" })}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="ml-auto h-8 w-8"
+                    aria-label={t("thread.header.toggleTheme")}
+                    onClick={toggle}
+                  >
+                    {theme === "dark" ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />}
+                  </Button>
+                </header>
+                <Suspense fallback={<SurfaceLoadingFallback />}>
+                  {view === "memory" ? (
+                    <MemoryPage
+                      settingsSnapshot={settingsSnapshot}
+                      onSettingsChange={setSettingsSnapshot}
+                    />
+                  ) : (
+                    <IdentityPage />
+                  )}
+                </Suspense>
+              </div>
+            ) : null}
           </main>
         </div>
 

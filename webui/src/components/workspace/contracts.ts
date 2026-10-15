@@ -11,7 +11,9 @@ export type WorkspaceView =
   | "skills"
   | "automations"
   | "apps"
-  | "settings";
+  | "settings"
+  | "memory"
+  | "identity";
 
 export interface WorkspaceRoute {
   view: WorkspaceView;

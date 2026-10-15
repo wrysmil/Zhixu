@@ -47,7 +47,6 @@ const SETTINGS_NAV_KEYS = [
   "automations",
   "runtime",
   "advanced",
-  "memory",
 ];
 const LOCALIZED_SETTINGS_COPY_KEYS = [
   "settings.backToChat",
@@ -293,7 +292,6 @@ const LOCALIZED_NEW_SURFACE_KEYS = [
   "workbench.renameGroupPlaceholder",
   "workbench.dissolveTab",
   "workbench.deleteConversations",
-  "workbench.paneLimit",
   "workbench.paneActions",
   "workbench.detachPane",
   "workbench.composerAria",
