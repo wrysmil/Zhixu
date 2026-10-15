@@ -1180,18 +1180,21 @@ class WebUICommandRouter:
         metadata[WORKSPACE_SCOPE_METADATA_KEY] = scope.metadata()
         # 团队绑定在发布这条消息之前取走：Leader 装配和会话落盘读同一份，「先普通回答、
         # 再变团队」就没有窗口（契约 §4）。取不到绑定的普通聊天照原样跑。
-        try:
-            team_binding = await self._claim_team_binding(chat_id)
-        except TeamBindingExpired as exc:
-            await self._transport.webui_send_event(
-                connection,
-                "error",
-                detail=str(exc),
-                **rejection_fields,
-            )
-            return
-        if team_binding is not None:
-            metadata[SESSION_TEAM_BINDING_KEY] = team_binding.to_dict()
+        # 只有完成过 WebUI 握手的连接才能取暂存：别的通道即便把 team_binding 塞进自己
+        # 的 metadata 也没有服务端暂存可消费，注入面在这里就被关掉了。
+        if trusted_webui:
+            try:
+                team_binding = await self._claim_team_binding(chat_id)
+            except TeamBindingExpired as exc:
+                await self._transport.webui_send_event(
+                    connection,
+                    "error",
+                    detail=str(exc),
+                    **rejection_fields,
+                )
+                return
+            if team_binding is not None:
+                metadata[SESSION_TEAM_BINDING_KEY] = team_binding.to_dict()
         is_webui = metadata.get("webui") is True
         queued_owner = None
         if is_webui and not is_user_shell and builtin_command_starts_agent_turn(content):

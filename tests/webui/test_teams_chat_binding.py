@@ -60,6 +60,9 @@ class _Transport:
     def is_allowed(self, client_id: str) -> bool:
         return bool(client_id)
 
+    def webui_subscribers(self, chat_id: str) -> list[Any]:
+        return []
+
     def webui_attach(self, connection: Any, chat_id: str) -> None:
         self.attached.append(chat_id)
 
@@ -126,7 +129,11 @@ def _make_router(
         http=SimpleNamespace(workspace_controls_available=lambda connection: True),
         endpoint=SimpleNamespace(webui_connections=[connection]),
         settings=SimpleNamespace(config=SimpleNamespace(path=tmp_path / "config.json")),
-        media=SimpleNamespace(store_inbound_attachments=lambda raw: ([], None)),
+        media=SimpleNamespace(
+            store_inbound_attachments=lambda raw: ([], None),
+            # 本文件的用例都不带附件：空进空出与真实实现一致。
+            augment_transcript_user_media=lambda paths: [],
+        ),
         ingress=SimpleNamespace(validate_text=lambda text: None),
         transcripts=SimpleNamespace(
             client_turn_metadata=lambda raw: {},
@@ -306,7 +313,7 @@ async def test_first_message_carries_the_staged_binding(
     await router.dispatch(
         connection,
         "client-1",
-        {"type": "message", "chat_id": chat_id, "content": "research this"},
+        {"type": "message", "chat_id": chat_id, "content": "research this", "webui": True},
     )
 
     inbound = transport.dispatched[0]
@@ -315,9 +322,34 @@ async def test_first_message_carries_the_staged_binding(
     await router.dispatch(
         connection,
         "client-1",
-        {"type": "message", "chat_id": chat_id, "content": "and then this"},
+        {"type": "message", "chat_id": chat_id, "content": "and then this", "webui": True},
     )
     assert "team_binding" not in transport.dispatched[1]["metadata"]
+
+
+async def test_only_a_webui_authenticated_connection_can_take_the_staging(
+    tmp_path: Path, clock_now: list[float]
+) -> None:
+    """没做过 WebUI 握手的连接不能消费暂存：注入 ``team_binding`` 的通道一无所获。"""
+    store = _store_with(clock_now)
+    router, transport, _connection = _make_router(tmp_path, reader=_Reader(), store=store)
+    chat_id = await _new_chat(router, transport, _connection, {"team_id": "content-team"})
+
+    # 同一台网关上一条来自未登记连接的消息（例如别的通道转投进来的帧）。
+    await router.dispatch(
+        object(),
+        "client-2",
+        {"type": "message", "chat_id": chat_id, "content": "research this", "webui": True},
+    )
+
+    assert "team_binding" not in transport.dispatched[0]["metadata"]
+    # 暂存原封不动：受信连接随后仍能正常取到绑定。
+    await router.dispatch(
+        _connection,
+        "client-1",
+        {"type": "message", "chat_id": chat_id, "content": "research this", "webui": True},
+    )
+    assert transport.dispatched[1]["metadata"]["team_binding"] == _BINDING_DICT
 
 
 async def test_plain_chat_messages_carry_no_binding(tmp_path: Path, clock_now: list[float]) -> None:
@@ -328,7 +360,7 @@ async def test_plain_chat_messages_carry_no_binding(tmp_path: Path, clock_now: l
     await router.dispatch(
         connection,
         "client-1",
-        {"type": "message", "chat_id": chat_id, "content": "hello"},
+        {"type": "message", "chat_id": chat_id, "content": "hello", "webui": True},
     )
 
     assert "team_binding" not in transport.dispatched[0]["metadata"]
@@ -346,7 +378,7 @@ async def test_expired_staging_fails_the_first_message_instead_of_plain_chat(
     await router.dispatch(
         connection,
         "client-1",
-        {"type": "message", "chat_id": chat_id, "content": "research this"},
+        {"type": "message", "chat_id": chat_id, "content": "research this", "webui": True},
     )
 
     error = transport.of("error")[-1]

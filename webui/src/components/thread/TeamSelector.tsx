@@ -34,15 +34,20 @@ export interface TeamSelectorProps {
  *
  * Contract §4: temporary chats never offer a team, a chat that already has messages
  * keeps the binding it was created with, and only the server can confirm one.
+ * ``temporaryRequested`` is the hero's "next chat is temporary" toggle — that send
+ * goes to ``new_temporary_chat`` and would silently drop any team choice.
  */
 export function teamPickerVisibility(state: {
   temporary: boolean;
+  temporaryRequested?: boolean;
   hasMessages: boolean;
   bound: TeamBinding | null;
   canSelect: boolean;
 }): "select" | "bound" | "hidden" {
   if (state.bound) return "bound";
-  if (state.temporary || state.hasMessages || !state.canSelect) return "hidden";
+  if (state.temporary || state.temporaryRequested || state.hasMessages || !state.canSelect) {
+    return "hidden";
+  }
   return "select";
 }
 

@@ -1433,6 +1433,7 @@ export function ThreadShell({
   // 已经有 chatId 的表面（比如新建的分屏）也不能再选：那条创建路径已经走完了。
   const teamMode = teamPickerVisibility({
     temporary: temporary === true,
+    temporaryRequested: temporaryChatEnabled,
     hasMessages: !showHeroComposer,
     bound: teamBound,
     canSelect: !!onTeamChange && !chatId,

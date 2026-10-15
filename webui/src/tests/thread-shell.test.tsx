@@ -1288,6 +1288,31 @@ describe("ThreadShell", () => {
     });
   });
 
+  it("hides the team picker when the next chat would be temporary", () => {
+    const client = makeClient();
+    render(
+      wrap(
+        client,
+        <ThreadShell
+          session={null}
+          title="nanobot"
+          onToggleSidebar={() => {}}
+          onGoHome={() => {}}
+          onCreateChat={vi.fn()}
+          temporaryChatEnabled
+          teamOptions={[{ id: "content-team", name: "内容团队", revision: 2 }]}
+          teamSelection={{ teamId: "content-team", teamRevision: 2 }}
+          teamSelectionName="内容团队"
+          onTeamChange={vi.fn()}
+        />,
+      ),
+    );
+
+    // 临时聊天那条发送走 new_temporary_chat，不带 team_id，所以选择器不能出现。
+    expect(screen.queryByRole("button", { name: "Team: 内容团队" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Choose team" })).not.toBeInTheDocument();
+  });
+
   it("applies the selected landing preset before sending the first prompt", async () => {
     const client = makeClient();
     const settings = settingsWithFastPreset();
