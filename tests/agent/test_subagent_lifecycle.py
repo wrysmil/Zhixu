@@ -381,6 +381,55 @@ class TestRunSubagent:
             assert status.phase == "done"
             assert status.stop_reason == "completed"
 
+    @pytest.mark.asyncio
+    async def test_result_construction_failure_never_announces_twice(self, tmp_path):
+        """一次执行最多回注一次。
+
+        结构化结果改成先构造、后 announce 就是为了这条：构造阶段一旦抛错，异常分支
+        会再 announce 一遍，同一份产出被回注两次 —— 对普通聊天是多一条消息，对团队
+        是多唤醒一次 Leader。
+        """
+
+        class _BrokenUsageResult:
+            stop_reason = "completed"
+            final_content = "ok"
+            error = None
+            tool_events: list = []
+
+            @property
+            def usage(self):
+                raise RuntimeError("runner double broke")
+
+        sm = _manager(tmp_path)
+        sm.runner.run = AsyncMock(return_value=_BrokenUsageResult())
+        status = SubagentStatus(task_id="t1", label="label", task_description="do task", started_at=time.monotonic())
+        with patch.object(sm, "_announce_result", new_callable=AsyncMock) as mock_announce:
+            text = await sm._run_subagent(
+                "t1", "do task", "label",
+                {"channel": "cli", "chat_id": "direct"}, status, _runtime(),
+            )
+            mock_announce.assert_awaited_once()
+        assert text.startswith("Error:")
+        assert status.phase == "error"
+
+    @pytest.mark.asyncio
+    async def test_execute_admitted_marks_max_iterations_failed(self, tmp_path):
+        """旧字符串接口不变，但结构化结论必须把迭代耗尽记成失败。"""
+        sm = _manager(tmp_path)
+        sm.runner.run = AsyncMock(return_value=AgentRunResult(
+            final_content=None, messages=[], stop_reason="max_iterations",
+        ))
+        status = SubagentStatus(task_id="t1", label="label", task_description="do task", started_at=time.monotonic())
+        with patch.object(sm, "_announce_result", new_callable=AsyncMock):
+            result = await sm._execute_admitted(
+                "t1", "do task", "label",
+                {"channel": "cli", "chat_id": "direct"}, status, _runtime(),
+            )
+        assert result.outcome == "failed"
+        assert result.stop_reason == "max_iterations"
+        # 兜底文案仍原样留给旧调用方。
+        assert result.final_content == "Task completed but no final response was generated."
+
 
 # ---------------------------------------------------------------------------
 # _announce_result
