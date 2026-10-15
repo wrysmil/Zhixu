@@ -27,12 +27,16 @@ from typing import Any
 
 import pytest
 
+from nanobot.teams.database import TeamDatabase
 from nanobot.teams.models import (
     AgentProfileSnapshot,
+    TeamBinding,
     TeamDefinition,
     TeamRevisionMember,
     TeamRevisionSnapshot,
+    TeamTaskSnapshot,
 )
+from nanobot.teams.repository import TeamRepository
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "teams"
 
@@ -115,3 +119,97 @@ def fake_profiles(revision_snapshot_payload: dict[str, Any]) -> FakeProfileProvi
         for item in revision_snapshot_payload["members"]
     }
     return FakeProfileProvider(profiles={leader.id: leader, **members})
+
+
+# ----------------------------------------------------------- 存储层（WU-02）
+
+
+@pytest.fixture
+def team_workspace(tmp_path: Path) -> Path:
+    """一个不存在的工作空间目录：读路径必须能在它缺席时工作且不把它建出来。"""
+    return tmp_path / "team-workspace"
+
+
+@pytest.fixture
+def team_db(team_workspace: Path) -> TeamDatabase:
+    """已建库的连接（写路径装置）；``team_db_uninitialized`` 才是未初始化状态。"""
+    db = TeamDatabase(team_workspace)
+    db.init_schema()
+    return db
+
+
+@pytest.fixture
+def team_db_uninitialized(team_workspace: Path) -> TeamDatabase:
+    return TeamDatabase(team_workspace)
+
+
+@pytest.fixture
+def repository(team_db: TeamDatabase, team_definition: TeamDefinition) -> TeamRepository:
+    """预置一个已保存的团队，revision=1。"""
+    repo = TeamRepository(team_db)
+    snapshot = FakeProfileProvider(
+        profiles=_profiles_from_snapshot(team_definition)
+    ).revision_snapshot(team_definition)
+    repo.save_team(
+        definition=team_definition,
+        snapshot=snapshot,
+        expected_revision=None,
+        request_id="req-seed",
+    )
+    return repo
+
+
+@dataclass(frozen=True)
+class CreatedTask:
+    """存储层测试的任务把手：``run_id`` 不属于契约里的 TeamTaskSnapshot 线格式，
+    所以不在领域类型上挂它，改由测试把手提供（plan Task 2 锚点用 ``running_task.run_id``）。"""
+
+    run_id: str
+    task_id: str
+    snapshot: TeamTaskSnapshot
+
+
+@pytest.fixture
+def running_task(
+    repository: TeamRepository, team_definition: TeamDefinition
+) -> CreatedTask:
+    """一个 running 团队运行里的单条 running 任务（plan Task 2 锚点装置）。"""
+    binding = TeamBinding(
+        team_id=team_definition.id,
+        team_revision=team_definition.revision,
+        team_name=team_definition.name,
+    )
+    snapshot = repository.run_binding_snapshot(binding)
+    run = repository.create_run(
+        binding=binding,
+        chat_id="chat-1",
+        session_key="session-1",
+        turn_id="turn-1",
+        internal_turn_id="internal-turn-1",
+        snapshot=snapshot,
+    )
+    task = repository.create_task(
+        run_id=run.run_id,
+        member=team_definition.members[0],
+        title="查阅资料",
+        acceptance="给出来源",
+        instruction="检索文档",
+        status="running",
+    )
+    return CreatedTask(run_id=run.run_id, task_id=task.task_id, snapshot=task)
+
+
+def _profiles_from_snapshot(definition: TeamDefinition) -> dict[str, AgentProfileSnapshot]:
+    """从 fixture 取档案快照，保证存储层测试用的就是跨语言锚点里的同一份数据。"""
+    payload = json.loads((FIXTURE_DIR / "snapshot.json").read_text(encoding="utf-8"))
+    leader = AgentProfileSnapshot.from_dict(payload["leader"])
+    profiles = {leader.id: leader}
+    for item in payload["members"]:
+        profile = AgentProfileSnapshot.from_dict(item["profile"])
+        profiles[profile.id] = profile
+    return {agent_id: profiles[agent_id] for agent_id in _definition_agent_ids(definition)}
+
+
+def _definition_agent_ids(definition: TeamDefinition) -> list[str]:
+    return [definition.leader_agent_id, *[member.agent_id for member in definition.members]]
+
