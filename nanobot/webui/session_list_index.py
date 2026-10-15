@@ -32,6 +32,7 @@ from nanobot.session.manager import (
 )
 from nanobot.session.model_selection import model_preset_from_metadata
 from nanobot.session.recovery import recovery_state_from_metadata
+from nanobot.teams.binding import binding_from_metadata
 from nanobot.webui.session_identity import (
     WEBUI_SESSION_STORAGE_PREFIX,
     is_webui_session_key,
@@ -39,7 +40,7 @@ from nanobot.webui.session_identity import (
     webui_session_key,
 )
 
-_INDEX_VERSION = 8
+_INDEX_VERSION = 9
 _INDEX_FILENAME = ".webui_session_index.json"
 _MODEL_PRESET_FIELD = "model_preset"
 _ROW_SOURCE_FIELD = "_source"
@@ -253,6 +254,7 @@ def _public_row(sessions_dir: Path, webui_dir: Path, row: dict[str, Any]) -> dic
         "preview": row.get("preview", ""),
         _MODEL_PRESET_FIELD: row.get(_MODEL_PRESET_FIELD),
         "recovery_state": row.get("recovery_state"),
+        "team_binding": row.get("team_binding"),
         _WORKSPACE_SCOPE_PRESENT_FIELD: row.get(_WORKSPACE_SCOPE_PRESENT_FIELD, False),
         _WORKSPACE_SCOPE_VALUE_FIELD: row.get(_WORKSPACE_SCOPE_VALUE_FIELD),
         "path": str(path),
@@ -265,6 +267,14 @@ def indexed_workspace_scope(row: dict[str, Any]) -> tuple[bool, object]:
         row.get(_WORKSPACE_SCOPE_PRESENT_FIELD) is True,
         cast(object, row.get(_WORKSPACE_SCOPE_VALUE_FIELD)),
     )
+
+
+def _indexed_team_binding(metadata: object) -> dict[str, Any] | None:
+    """会话归属哪个团队要能在列表里显示；没有绑定（或记录坏掉）都按普通聊天处理。"""
+    binding = binding_from_metadata(
+        cast("dict[str, Any]", metadata) if isinstance(metadata, dict) else None
+    )
+    return binding.to_dict() if binding is not None else None
 
 
 def _indexed_workspace_scope_fields(metadata: object) -> dict[str, object]:
@@ -494,6 +504,7 @@ def _indexed_row_for_session(session: Session, path: Path, webui_dir: Path) -> d
         "preview": _preview_from_messages(session.messages),
         _MODEL_PRESET_FIELD: model_preset_from_metadata(session.metadata),
         "recovery_state": recovery_state_from_metadata(session.metadata),
+        "team_binding": _indexed_team_binding(session.metadata),
         **_indexed_workspace_scope_fields(session.metadata),
         _ROW_SOURCE_FIELD: _SESSION_SOURCE,
         "file": path.name,
@@ -613,6 +624,7 @@ def _scan_transcript_row(
         "preview": preview or fallback_preview,
         _MODEL_PRESET_FIELD: None,
         "recovery_state": None,
+        "team_binding": None,
         **_indexed_workspace_scope_fields({}),
         _ROW_SOURCE_FIELD: _TRANSCRIPT_SOURCE,
         "file": stem,
@@ -700,6 +712,7 @@ def _scan_session_row(
                 "preview": preview or fallback_preview,
                 _MODEL_PRESET_FIELD: model_preset_from_metadata(metadata),
                 "recovery_state": recovery_state_from_metadata(metadata),
+                "team_binding": _indexed_team_binding(metadata),
                 **_indexed_workspace_scope_fields(metadata),
                 _ROW_SOURCE_FIELD: _SESSION_SOURCE,
                 "file": path.name,

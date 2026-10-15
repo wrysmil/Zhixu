@@ -502,3 +502,87 @@ async def test_leader_preset_runtime_reaches_tools_through_request_context(
     assert seen["runtime"] is not None
     assert seen["runtime"].model == "fast-model"
     assert seen["runtime"] is not loop.runtime_resolver.runtime
+
+
+@pytest.mark.asyncio
+async def test_first_team_message_persists_the_binding_before_the_leader(
+    tmp_path: Path,
+) -> None:
+    """首条团队消息：绑定先落到会话，Leader 装配与磁盘读到同一份（契约 §4 的懒创建）。
+
+    消息只送一次绑定：第二条起真值在 ``session.metadata`` 里，重启重连都不再依赖暂存。
+    """
+    from nanobot.bus.events import InboundMessage
+
+    provider = _RecordingProvider()
+    loop = _make_loop(tmp_path, provider)
+    seen: list[dict[str, Any]] = []
+
+    def provide(msg: Any, session: Any) -> None:
+        seen.append({"key": session.key, "metadata": dict(session.metadata)})
+        return None
+
+    loop.team_context_provider = provide
+    binding = {"teamId": "content-team", "teamRevision": 3, "teamName": "内容团队"}
+    await loop._dispatch(
+        InboundMessage(
+            channel="websocket",
+            sender_id="u1",
+            chat_id="team-chat",
+            content="research this",
+            metadata={"team_binding": binding},
+        )
+    )
+    while loop.bus.outbound_size > 0:
+        await loop.bus.consume_outbound()
+
+    assert seen[0]["metadata"]["team_binding"] == binding
+    stored = loop.sessions.read_session_metadata(seen[0]["key"])
+    assert stored is not None
+    assert stored["metadata"]["team_binding"] == binding
+
+    # 第二条消息不带绑定也仍然是团队会话：provider 从会话读数拿到同一份。
+    await loop._dispatch(
+        InboundMessage(
+            channel="websocket",
+            sender_id="u1",
+            chat_id="team-chat",
+            content="and then this",
+        )
+    )
+    while loop.bus.outbound_size > 0:
+        await loop.bus.consume_outbound()
+    assert seen[1]["metadata"]["team_binding"] == binding
+
+
+@pytest.mark.asyncio
+async def test_a_bound_session_is_not_overridden_by_the_message(tmp_path: Path) -> None:
+    """会话已经绑定过就以此为真：消息里的团队快照不能改写既有绑定（契约 §4）。"""
+    from nanobot.bus.events import InboundMessage
+
+    provider = _RecordingProvider()
+    loop = _make_loop(tmp_path, provider)
+    seen: list[dict[str, Any]] = []
+    loop.team_context_provider = lambda msg, session: seen.append(
+        dict(session.metadata)
+    )
+
+    loop.sessions.get_or_create("websocket:team-chat").metadata[
+        "team_binding"
+    ] = {"teamId": "other-team", "teamRevision": 1, "teamName": "别的团队"}
+    loop.sessions.save(loop.sessions.get_or_create("websocket:team-chat"))
+
+    await loop._dispatch(
+        InboundMessage(
+            channel="websocket",
+            sender_id="u1",
+            chat_id="team-chat",
+            content="research this",
+            metadata={"team_binding": {"teamId": "content-team", "teamRevision": 9, "teamName": "内容团队"}},
+        )
+    )
+    while loop.bus.outbound_size > 0:
+        await loop.bus.consume_outbound()
+
+    assert seen[0]["team_binding"]["teamId"] == "other-team"
+    assert seen[0]["team_binding"]["teamRevision"] == 1

@@ -560,6 +560,7 @@ def _make_router(
         temporary_chats=MagicMock(),
         session_projection=MagicMock(),
         session_manager=None,
+        team_bindings=None,
     )
     return WebUICommandRouter(transport, gateway)  # type: ignore[arg-type]
 

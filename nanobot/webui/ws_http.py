@@ -844,6 +844,10 @@ class GatewayHTTPHandler:
             # older clients and compact list responses stay unchanged.
             if row.get("recovery_state") is None:
                 row.pop("recovery_state", None)
+            # 团队绑定同理：契约 §4 说「列表里没有这个字段就按普通聊天解释」，
+            # 所以普通聊天不带键，只有绑了团队的会话才多这一项。
+            if row.get("team_binding") is None:
+                row.pop("team_binding", None)
             chat_id = key.split(":", 1)[1]
             started_at = websocket_turn_wall_started_at(chat_id)
             if started_at is not None:

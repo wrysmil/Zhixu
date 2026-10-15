@@ -106,6 +106,7 @@ from nanobot.session.summary import (
     SessionSummary,
     SessionSummaryCheckpoint,
 )
+from nanobot.teams.binding import persist_message_binding
 from nanobot.teams.leader import LeaderTurnContext, build_leader_registry, resolve_leader_runtime
 from nanobot.triggers.local_turns import LocalTriggerTurnCoordinator
 from nanobot.utils.cancellation import task_is_cancelling
@@ -2164,6 +2165,10 @@ class AgentLoop:
                 if name not in session.policy.disabled_tools and tool:
                     restricted.register(tool)
             tools = restricted
+        if ctx.kind is TurnKind.USER and persist_message_binding(session, msg):
+            # 绑定先落盘再装配 Leader：会话一旦知道自己是团队会话，重连、重启与后续回合
+            # 都读同一份真值，不依赖那条消息还活着。
+            self.sessions.save(session)
         ctx.team = self._team_context_for_turn(msg, session)
         if ctx.team is not None:
             # 白名单与会话禁用取交集：团队不能把会话级禁掉的工具再捞回来。

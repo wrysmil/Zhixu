@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import threading
+from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
@@ -23,6 +24,9 @@ SESSION_TEAM_BINDING_KEY = "team_binding"
 
 # 空聊天的暂存寿命：足够用户选好团队再发出第一条消息，又不至于让绑定无限期挂着。
 DEFAULT_STAGING_TTL_SECONDS = 600.0
+
+# 暂存表上限：与 WebUI 的项目范围草稿同一口径，超出就丢最旧的，不阻塞任何请求。
+_MAX_STAGED_BINDINGS = 256
 
 
 class TeamBindingExpired(RuntimeError):  # noqa: N818  # 对应契约 §2 的 TEAM_BINDING_EXPIRED
@@ -46,6 +50,9 @@ class TeamBindingStore:
 
     一次性和过期都靠同一把锁判定：两个首消息同时到达时只有一个能拿到绑定，
     否则同一会话会起两个 Leader（契约 §2 的单会话串行调度）。
+
+    「查无此项」和「已过期」是两件事：普通聊天从来没暂存过，安静返回 None；
+    暂存过又过期的一定是团队聊天，必须报错要求重选（契约 §4），不能静默退回普通模式。
     """
 
     def __init__(
@@ -59,7 +66,7 @@ class TeamBindingStore:
         self._now = now
         self._ttl = float(ttl_seconds)
         self._lock = threading.Lock()
-        self._staged: dict[str, _Staged] = {}
+        self._staged: OrderedDict[str, _Staged] = OrderedDict()
 
     def stage(self, *, chat_id: str, team_id: str, revision: int | None = None) -> TeamBinding:
         """准入检查在暂存之前：归档/禁用/档案缺失的团队不会留下半个绑定。"""
@@ -70,24 +77,39 @@ class TeamBindingStore:
             team_revision=definition.revision,
             team_name=definition.name,
         )
+        key = _require_chat(chat_id)
+        now = self._now()
         with self._lock:
-            self._staged[_require_chat(chat_id)] = _Staged(
-                binding=binding, expires_at=self._now() + self._ttl
-            )
+            self._purge_expired(now)
+            self._staged[key] = _Staged(binding=binding, expires_at=now + self._ttl)
+            self._staged.move_to_end(key)
+            while len(self._staged) > _MAX_STAGED_BINDINGS:
+                self._staged.popitem(last=False)
         return binding
 
-    def claim(self, chat_id: str, *, require: bool = False) -> TeamBinding | None:
-        """取走并清除暂存。``require=True`` 时空聊天按契约报错而不是返回 None。"""
+    def claim(self, chat_id: str) -> TeamBinding | None:
+        """取走并清除暂存；过期的一条改成报错，而不是按普通聊天继续跑。"""
+        key = _require_chat(chat_id)
+        with self._lock:
+            staged = self._staged.pop(key, None)
+        if staged is None:
+            return None
+        if staged.expires_at <= self._now():
+            raise TeamBindingExpired(f"TEAM_BINDING_EXPIRED chat_id={key}")
+        return staged.binding
+
+    def expired_binding(self, chat_id: str) -> TeamBinding | None:
+        """空聊天重连时读出那条已失效的暂存，用来告诉客户端「要重选」。
+
+        读一次就丢掉：同一个过期事实不应该在每个回合里重复通知客户端。
+        """
         key = _require_chat(chat_id)
         with self._lock:
             staged = self._staged.get(key)
-            if staged is not None and staged.expires_at > self._now():
-                del self._staged[key]
-                return staged.binding
-            self._staged.pop(key, None)
-        if require:
-            raise TeamBindingExpired(f"TEAM_BINDING_EXPIRED chat_id={key}")
-        return None
+            if staged is None or staged.expires_at > self._now():
+                return None
+            del self._staged[key]
+            return staged.binding
 
     def drop(self, chat_id: str) -> None:
         """换团队或删聊天时丢掉旧暂存，避免下一条消息吃到过期的选择。"""
@@ -111,6 +133,15 @@ class TeamBindingStore:
         binding = binding_from_metadata(getattr(session, "metadata", None))
         return binding.team_id if binding is not None else None
 
+    def _purge_expired(self, now: float) -> None:
+        """过期记录再多留一个 TTL 用来报错，之后就顺手扫掉，暂存表不会无限增长。"""
+        for key in [
+            key
+            for key, staged in self._staged.items()
+            if now > staged.expires_at + self._ttl
+        ]:
+            del self._staged[key]
+
 
 def binding_from_metadata(metadata: dict[str, Any] | None) -> TeamBinding | None:
     raw = (metadata or {}).get(SESSION_TEAM_BINDING_KEY)
@@ -121,6 +152,28 @@ def binding_from_metadata(metadata: dict[str, Any] | None) -> TeamBinding | None
     except Exception:
         # 坏掉的绑定记录不能把整个会话读路径带崩，也不能被当成团队会话继续跑。
         return None
+
+
+def persist_message_binding(session: Any, msg: Any) -> bool:
+    """把随首条团队消息到达的可信绑定落到会话元数据上；写了才返回 True（调用方负责落盘）。
+
+    与 ``WorkspaceScopeProvider.persist_message_scope`` 同构：绑定只在服务端暂存层产生，
+    客户端传什么都不算，所以这里只认我们已经放进入站 metadata 的那一份。
+    会话一旦绑定过就以此为真——契约 §4 明确禁止首条消息携带/覆盖可信 TeamSnapshot。
+    """
+    metadata = getattr(msg, "metadata", None)
+    if not isinstance(metadata, dict):
+        return False
+    binding = binding_from_metadata(cast("dict[str, Any]", metadata))
+    if binding is None:
+        return False
+    session_metadata = getattr(session, "metadata", None)
+    if not isinstance(session_metadata, dict):
+        return False
+    if binding_from_metadata(cast("dict[str, Any]", session_metadata)) is not None:
+        return False
+    session_metadata[SESSION_TEAM_BINDING_KEY] = binding.to_dict()
+    return True
 
 
 def _require_chat(chat_id: object) -> str:
