@@ -1,5 +1,9 @@
 import type { ContextCompaction, NotificationEvent, RecoveryState, RetryStatus as WireRetryStatus } from "../../../packages/client-events/notifications";
+import type { TeamBinding } from "./teams/types";
 export type { RecoveryState, RecoveryStatus } from "../../../packages/client-events/notifications";
+/** Chat-level team binding is part of the wire protocol, so it re-exports the
+ * single domain definition instead of duplicating a second shape. */
+export type { TeamBinding } from "./teams/types";
 
 type Role = "user" | "assistant" | "tool" | "system";
 
@@ -398,6 +402,8 @@ export interface ChatSummary {
   workspaceScope?: WorkspaceScopePayload | null;
   /** Stable, server-owned @handle for this session. */
   handle?: SessionHandle | null;
+  /** Server-confirmed team binding; absent or null means an ordinary chat. */
+  teamBinding?: TeamBinding | null;
 }
 
 export type WorkspaceAccessMode = "restricted" | "full";
@@ -1354,6 +1360,7 @@ export type InboundEvent =
       recovery_state?: RecoveryState;
       usage?: TurnUsage;
       reasoning_effort?: string | null;
+      team_binding?: TeamBinding | null;
     }
   | {
       event: "message_accepted";
@@ -1484,6 +1491,7 @@ export type InboundEvent =
       scope?: "metadata" | "thread" | string;
       workspace_scope?: WorkspaceScopePayload;
       reasoning_effort?: string | null;
+      team_binding?: TeamBinding | null;
     }
   | {
       event: "sidebar_state_updated";
@@ -1642,8 +1650,20 @@ export type TerminalEvent =
   | { event: "terminal_list_result"; terminals: TerminalListEntry[] }
   | { event: "error"; terminal_id?: string; detail?: string; reason?: string };
 
+/** Local choice for a brand-new chat. The server resolves the revision when it is
+ * omitted and the resulting binding is only ever read back from ``team_binding``. */
+export interface NewChatTeam {
+  teamId: string;
+  teamRevision?: number | null;
+}
+
 export type Outbound =
-  | { type: "new_chat"; workspace_scope?: WorkspaceScopePayload }
+  | {
+      type: "new_chat";
+      workspace_scope?: WorkspaceScopePayload;
+      team_id?: string;
+      team_revision?: number;
+    }
   | { type: "new_temporary_chat" }
   | {
       type: "webui_request";

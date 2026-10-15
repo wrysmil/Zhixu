@@ -2063,6 +2063,15 @@
         "defaultShort": "默认",
         "full": "完全访问权限",
         "fullShort": "完全"
+      },
+      "team": {
+        "aria": "团队选择",
+        "select": "选择团队",
+        "none": "不使用团队",
+        "empty": "还没有可用的团队",
+        "bound": "已绑定 {{name}}（修订 {{revision}}）",
+        "chip": "团队：{{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "滚动到底部",
@@ -2204,6 +2213,14 @@
     "workspaceScopeRejected": {
       "title": "工作区未更改",
       "body": "网关拒绝了此项目或访问权限。请选择已存在的项目或其他访问权限，然后重试。"
+    },
+    "teamBindingExpired": {
+      "title": "团队未生效",
+      "body": "这个空聊天的团队选择已过期。请重新选择团队后再发送第一条消息。"
+    },
+    "teamUnavailable": {
+      "title": "团队不可用",
+      "body": "该团队已归档，或它引用的 Agent 档案已被删除。请换一个团队，或按普通聊天发送。"
     },
     "turnRejected": {
       "title": "消息未发送",

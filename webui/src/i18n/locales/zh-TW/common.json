@@ -2007,6 +2007,15 @@
         "defaultShort": "預設",
         "full": "完整存取權",
         "fullShort": "完整"
+      },
+      "team": {
+        "aria": "團隊選擇",
+        "select": "選擇團隊",
+        "none": "不使用團隊",
+        "empty": "還沒有可用的團隊",
+        "bound": "已綁定 {{name}}（修訂 {{revision}}）",
+        "chip": "團隊：{{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "捲動到底部",
@@ -2205,6 +2214,14 @@
     "workspaceScopeRejected": {
       "title": "工作區未變更",
       "body": "閘道拒絕了此專案或存取模式。請選擇現有專案或其他存取模式，然後再試一次。"
+    },
+    "teamBindingExpired": {
+      "title": "團隊未生效",
+      "body": "這個空對話的團隊選擇已過期。請重新選擇團隊後再送出第一則訊息。"
+    },
+    "teamUnavailable": {
+      "title": "團隊不可用",
+      "body": "該團隊已歸檔，或其引用的 Agent 設定檔已遭移除。請換一個團隊，或改為普通對話送出。"
     },
     "turnRejected": {
       "title": "訊息未傳送",

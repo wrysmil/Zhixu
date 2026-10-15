@@ -2006,6 +2006,15 @@
         "defaultShort": "Par défaut",
         "full": "Accès complet",
         "fullShort": "Complet"
+      },
+      "team": {
+        "aria": "Choisir une équipe",
+        "select": "Sélectionner une équipe",
+        "none": "Aucune équipe",
+        "empty": "Aucune équipe disponible pour le moment",
+        "bound": "Liée à {{name}} (révision {{revision}})",
+        "chip": "Équipe : {{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "Faire défiler vers le bas",
@@ -2204,6 +2213,14 @@
     "workspaceScopeRejected": {
       "title": "L’espace de travail n’a pas changé",
       "body": "La passerelle a refusé ce projet ou ce mode d’accès. Choisissez un projet existant ou un autre mode d’accès, puis réessayez."
+    },
+    "teamBindingExpired": {
+      "title": "Aucune équipe n’a été attachée",
+      "body": "Le choix d’équipe pour cette conversation vide a expiré. Choisissez de nouveau l’équipe avant d’envoyer le premier message."
+    },
+    "teamUnavailable": {
+      "title": "Équipe indisponible",
+      "body": "Cette équipe a été archivée, ou un profil agent qu’elle référence a été supprimé. Choisissez une autre équipe ou envoyez le message comme conversation ordinaire."
     },
     "turnRejected": {
       "title": "Le message n’a pas été envoyé",

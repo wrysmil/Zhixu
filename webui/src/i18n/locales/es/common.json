@@ -2006,6 +2006,15 @@
         "defaultShort": "Predeterm.",
         "full": "Acceso completo",
         "fullShort": "Completo"
+      },
+      "team": {
+        "aria": "Elegir equipo",
+        "select": "Seleccionar equipo",
+        "none": "Sin equipo",
+        "empty": "Todavía no hay equipos disponibles",
+        "bound": "Vinculado a {{name}} (revisión {{revision}})",
+        "chip": "Equipo: {{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "Desplazarse al final",
@@ -2204,6 +2213,14 @@
     "workspaceScopeRejected": {
       "title": "El espacio de trabajo no cambió",
       "body": "El gateway rechazó este proyecto o modo de acceso. Elige un proyecto existente u otro modo de acceso e inténtalo de nuevo."
+    },
+    "teamBindingExpired": {
+      "title": "No se vinculó ningún equipo",
+      "body": "La elección de equipo para este chat vacío expiró. Vuelve a elegir el equipo antes de enviar el primer mensaje."
+    },
+    "teamUnavailable": {
+      "title": "El equipo no está disponible",
+      "body": "Este equipo fue archivado o se eliminó un perfil de agente que referencia. Elige otro equipo o envía el mensaje como chat ordinario."
     },
     "turnRejected": {
       "title": "El mensaje no se envió",

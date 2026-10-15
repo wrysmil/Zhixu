@@ -28,6 +28,7 @@ function makeClient() {
   const latestRunTurnIdByChatId = new Map<string, string>();
   const completedTurnIdsByChatId = new Map<string, Set<string>>();
   const goalStateByChatId = new Map<string, import("@/lib/types").GoalStateWsPayload>();
+  const teamBindingByChatId = new Map<string, import("@/lib/types").TeamBinding | null>();
   let status: ConnectionStatus = "open";
   const advanceRunGeneration = (chatId: string, turnId?: string) => {
     runGenerationByChatId.set(chatId, (runGenerationByChatId.get(chatId) ?? 0) + 1);
@@ -126,6 +127,7 @@ function makeClient() {
     canReconcileCanonicalCompletion,
     reconcileCanonicalCompletion,
     getGoalState: (chatId: string) => goalStateByChatId.get(chatId),
+    teamBindingFor: (chatId: string) => teamBindingByChatId.get(chatId) ?? null,
     onChat: (chatId: string, handler: (ev: import("@/lib/types").InboundEvent) => void) => {
       let handlers = chatHandlers.get(chatId);
       if (!handlers) {
@@ -176,6 +178,10 @@ function makeClient() {
       }
       if (ev.event === "goal_state") {
         goalStateByChatId.set(chatId, ev.goal_state);
+      }
+      // 与真实客户端同构：attached 带回的绑定进 map，页头/选择器只读它。
+      if (ev.event === "attached" && ev.team_binding !== undefined) {
+        teamBindingByChatId.set(chatId, ev.team_binding ?? null);
       }
       for (const h of chatHandlers.get(chatId) ?? []) h(ev);
     },
@@ -1242,8 +1248,44 @@ describe("ThreadShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-    expect(onCreateChat).toHaveBeenCalledWith(null, "start for real", null);
+    expect(onCreateChat).toHaveBeenCalledWith(null, "start for real", null, null);
     expect(onNewChat).not.toHaveBeenCalled();
+  });
+
+  it("carries the selected team into the create request", async () => {
+    const client = makeClient();
+    const onCreateChat = vi.fn().mockResolvedValue("chat-new");
+
+    render(
+      wrap(
+        client,
+        <ThreadShell
+          session={null}
+          title="nanobot"
+          onToggleSidebar={() => {}}
+          onGoHome={() => {}}
+          onCreateChat={onCreateChat}
+          teamOptions={[{ id: "content-team", name: "内容团队", revision: 2 }]}
+          teamSelection={{ teamId: "content-team", teamRevision: 2 }}
+          teamSelectionName="内容团队"
+          onTeamChange={vi.fn()}
+        />,
+      ),
+    );
+
+    // 选择器落在 composer 的上下文条上，并把当前选择显示出来。
+    expect(screen.getByRole("button", { name: "Team: 内容团队" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Message input"), {
+      target: { value: "research this" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+    expect(onCreateChat).toHaveBeenCalledWith(null, "research this", null, {
+      teamId: "content-team",
+      teamRevision: 2,
+    });
   });
 
   it("applies the selected landing preset before sending the first prompt", async () => {
@@ -1283,7 +1325,7 @@ describe("ThreadShell", () => {
       "chat-new",
       "/model fast",
     ));
-    expect(onCreateChat).toHaveBeenCalledWith(null, "use the selected model", "fast");
+    expect(onCreateChat).toHaveBeenCalledWith(null, "use the selected model", "fast", null);
 
     await act(async () => {
       rerender(view(session("chat-new", "fast")));

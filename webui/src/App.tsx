@@ -46,6 +46,7 @@ import { floatingSurfaceElevationClassName } from "@/components/ui/floating-surf
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 import { useSessions } from "@/hooks/useSessions";
+import { useTeamOptions } from "@/hooks/useTeamOptions";
 import { useDeferredTitleRefresh } from "@/hooks/useDeferredTitleRefresh";
 import { useSidebarState } from "@/hooks/useSidebarState";
 import { useSkills } from "@/hooks/useSkills";
@@ -71,6 +72,7 @@ import { ClientProvider, useClient } from "@/providers/ClientProvider";
 import type {
   BootstrapResponse,
   ChatSummary,
+  NewChatTeam,
   RuntimeSurface,
   PairingRequestInfo,
   SessionAutomationJob,
@@ -966,7 +968,7 @@ function Shell({
   onNativeEngineRestart: () => Promise<string>;
 }) {
   const { t, i18n } = useTranslation();
-  const { client, getToken } = useClient();
+  const { client, getToken, token } = useClient();
   const { theme, toggle } = useTheme();
   const {
     sessions,
@@ -1049,6 +1051,10 @@ function Shell({
   } | null>(null);
   const [draftWorkspaceScope, setDraftWorkspaceScope] =
     useState<WorkspaceScopePayload | null>(null);
+  // 只在还没发出第一条消息的聊天里存在的本地团队选择；生效与否由服务端确认的绑定决定。
+  const [pendingTeam, setPendingTeam] = useState<NewChatTeam | null>(null);
+  const [pendingTeamName, setPendingTeamName] = useState<string | null>(null);
+  const teamChoices = useTeamOptions(token);
   const [workspaceOverrides, setWorkspaceOverrides] =
     useState<Record<string, WorkspaceScopePayload>>({});
   const runningChatIdsRef = useRef<Set<string>>(new Set());
@@ -1445,12 +1451,16 @@ function Shell({
     workspaceScope?: WorkspaceScopePayload | null,
     _initialMessage?: string,
     modelPreset?: string | null,
+    team?: NewChatTeam | null,
   ) => {
     try {
       const scope = workspaceScope ?? activeWorkspaceScope;
-      const chatId = await createChat(scope, modelPreset);
+      const chatId = await createChat(scope, modelPreset, team ?? null);
       const key = `websocket:${chatId}`;
       pendingCreatedSessionKeyRef.current = key;
+      // 服务端已经确认过绑定，本地选择就此失效：下一条新聊天从普通模式重新开始。
+      setPendingTeam(null);
+      setPendingTeamName(null);
       navigate({
         view: "chat",
         activeKey: key,
@@ -1466,12 +1476,28 @@ function Shell({
       return chatId;
     } catch (e) {
       console.error("Failed to create chat", e);
-      if (e instanceof Error && e.message.startsWith("workspace_scope_rejected:")) {
+      const message = e instanceof Error ? e.message : "";
+      if (message.startsWith("workspace_scope_rejected:")) {
         setWorkspaceError(t("errors.workspaceScopeRejected.body"));
+      } else if (/^TEAM[S]_/.test(message)) {
+        setWorkspaceError(
+          message.startsWith("TEAM_BINDING_EXPIRED")
+            ? t("errors.teamBindingExpired.body")
+            : t("errors.teamUnavailable.body"),
+        );
       }
       return null;
     }
   }, [activeWorkspaceScope, createChat, navigate, t]);
+
+  const onTeamChange = useCallback((
+    team: NewChatTeam | null,
+    teamName: string | null,
+  ) => {
+    setPendingTeam(team);
+    setPendingTeamName(teamName);
+    setWorkspaceError(null);
+  }, []);
 
   const onCreateTemporaryChat = useCallback(
     async (
@@ -1545,6 +1571,8 @@ function Shell({
     navigate(newChatRoute());
     setTemporaryChatEnabled(false);
     setDraftWorkspaceScope(null);
+    setPendingTeam(null);
+    setPendingTeamName(null);
     setWorkspaceError(null);
     setSessionSearchOpen(false);
     setMobileSidebarOpen(false);
@@ -1573,6 +1601,8 @@ function Shell({
         access_mode: base.access_mode,
         restrict_to_workspace: base.access_mode === "restricted",
       }));
+      setPendingTeam(null);
+      setPendingTeamName(null);
       setWorkspaceError(null);
       setMobileSidebarOpen(false);
       const projectKey = normalizeWorkspacePath(trimmed);
@@ -1873,7 +1903,9 @@ function Shell({
     setCreatingPane(true);
     try {
       const scope = activeWorkspaceScope;
-      const chatId = await createChat(scope);
+      const chatId = await createChat(scope, null, pendingTeam);
+      setPendingTeam(null);
+      setPendingTeamName(null);
       const paneKey = `websocket:${chatId}`;
       pendingCreatedSessionKeyRef.current = paneKey;
       updateWorkbenchState((current) => addWorkbenchPane(current, activeKey, paneKey));
@@ -1890,8 +1922,15 @@ function Shell({
       }
     } catch (error) {
       console.error("Failed to create pane", error);
-      if (error instanceof Error && error.message.startsWith("workspace_scope_rejected:")) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.startsWith("workspace_scope_rejected:")) {
         setWorkspaceError(t("errors.workspaceScopeRejected.body"));
+      } else if (/^TEAM[S]_/.test(message)) {
+        setWorkspaceError(
+          message.startsWith("TEAM_BINDING_EXPIRED")
+            ? t("errors.teamBindingExpired.body")
+            : t("errors.teamUnavailable.body"),
+        );
       }
     } finally {
       setCreatingPane(false);
@@ -1905,6 +1944,7 @@ function Shell({
     createChat,
     creatingPane,
     navigate,
+    pendingTeam,
     t,
     updateWorkbenchState,
   ]);
@@ -2812,6 +2852,10 @@ function Shell({
                             workspaceScopeDisabled={activeChatRunning}
                             workspaceError={workspaceError}
                             onWorkspaceScopeChange={applyWorkspaceScope}
+                            teamOptions={teamChoices.options}
+                            teamSelection={pendingTeam}
+                            teamSelectionName={pendingTeamName}
+                            onTeamChange={onTeamChange}
                             settingsSnapshot={settingsSnapshot}
                             onOpenModelSettings={onOpenModelSettings}
                             skills={skills}

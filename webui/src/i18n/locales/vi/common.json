@@ -2006,6 +2006,15 @@
         "defaultShort": "Mặc định",
         "full": "Toàn quyền truy cập",
         "fullShort": "Toàn quyền"
+      },
+      "team": {
+        "aria": "Chọn nhóm",
+        "select": "Chọn nhóm",
+        "none": "Không dùng nhóm",
+        "empty": "Chưa có nhóm nào khả dụng",
+        "bound": "Đã gắn với {{name}} (bản sửa đổi {{revision}})",
+        "chip": "Nhóm: {{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "Cuộn xuống cuối",
@@ -2204,6 +2213,14 @@
     "workspaceScopeRejected": {
       "title": "Không gian làm việc không thay đổi",
       "body": "Gateway đã từ chối dự án hoặc chế độ truy cập này. Chọn dự án hiện có hoặc chế độ truy cập khác rồi thử lại."
+    },
+    "teamBindingExpired": {
+      "title": "Chưa gắn nhóm nào",
+      "body": "Lựa chọn nhóm cho cuộc trò chuyện trống này đã hết hạn. Hãy chọn lại nhóm trước khi gửi tin nhắn đầu tiên."
+    },
+    "teamUnavailable": {
+      "title": "Nhóm không khả dụng",
+      "body": "Nhóm này đã được lưu trữ, hoặc hồ sơ agent mà nó tham chiếu đã bị xóa. Hãy chọn nhóm khác, hoặc gửi tin nhắn dưới dạng cuộc trò chuyện thường."
     },
     "turnRejected": {
       "title": "Tin nhắn chưa được gửi",

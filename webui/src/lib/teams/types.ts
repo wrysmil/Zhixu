@@ -69,6 +69,13 @@ export interface TeamBinding {
   teamName: string;
 }
 
+/** What the chat creator needs from a team: enough to label it and pin its revision. */
+export interface TeamOption {
+  id: string;
+  name: string;
+  revision: number;
+}
+
 export interface AgentProfileSnapshot {
   id: string;
   updatedAt: string;

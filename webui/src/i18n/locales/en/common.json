@@ -2063,6 +2063,15 @@
         "defaultShort": "Default",
         "full": "Full Access",
         "fullShort": "Full"
+      },
+      "team": {
+        "aria": "Choose team",
+        "select": "Select team",
+        "none": "No team",
+        "empty": "No teams available yet",
+        "bound": "Bound to {{name}} (revision {{revision}})",
+        "chip": "Team: {{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "Scroll to bottom",
@@ -2204,6 +2213,14 @@
     "workspaceScopeRejected": {
       "title": "Workspace was not changed",
       "body": "The gateway rejected this project or access mode. Choose an existing project or a different access mode, then try again."
+    },
+    "teamBindingExpired": {
+      "title": "Team was not attached",
+      "body": "The team choice for this empty chat expired. Pick the team again before sending the first message."
+    },
+    "teamUnavailable": {
+      "title": "Team is not available",
+      "body": "This team was archived, or an agent profile it references was removed. Choose another team, or send the message as an ordinary chat."
     },
     "turnRejected": {
       "title": "Message was not sent",

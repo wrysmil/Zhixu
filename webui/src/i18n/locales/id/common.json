@@ -2006,6 +2006,15 @@
         "defaultShort": "Bawaan",
         "full": "Akses penuh",
         "fullShort": "Penuh"
+      },
+      "team": {
+        "aria": "Pilih tim",
+        "select": "Pilih tim",
+        "none": "Tanpa tim",
+        "empty": "Belum ada tim yang tersedia",
+        "bound": "Terikat pada {{name}} (revisi {{revision}})",
+        "chip": "Tim: {{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "Gulir ke bawah",
@@ -2204,6 +2213,14 @@
     "workspaceScopeRejected": {
       "title": "Ruang kerja tidak berubah",
       "body": "Gateway menolak proyek atau mode akses ini. Pilih proyek yang sudah ada atau mode akses lain, lalu coba lagi."
+    },
+    "teamBindingExpired": {
+      "title": "Tim belum dipasang",
+      "body": "Pilihan tim untuk chat kosong ini sudah kedaluwarsa. Pilih tim lagi sebelum mengirim pesan pertama."
+    },
+    "teamUnavailable": {
+      "title": "Tim tidak tersedia",
+      "body": "Tim ini telah diarsipkan, atau profil agen yang direferensikannya dihapus. Pilih tim lain, atau kirim pesan sebagai chat biasa."
     },
     "turnRejected": {
       "title": "Pesan tidak terkirim",
