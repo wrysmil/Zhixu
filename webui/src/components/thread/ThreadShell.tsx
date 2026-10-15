@@ -19,6 +19,7 @@ import type {
 } from "@/components/thread/ComposerUsagePopover";
 import type { ModelPresetOption } from "@/components/thread/ModelPresetBadge";
 import { ThreadHeader } from "@/components/thread/ThreadHeader";
+import { ThreadWelcome } from "@/components/thread/ThreadWelcome";
 import { StreamErrorNotice } from "@/components/thread/StreamErrorNotice";
 import { ThreadViewport, type ThreadViewportHandle } from "@/components/thread/ThreadViewport";
 import { useNanobotStream, type SendAttachment, type SendOptions } from "@/hooks/useNanobotStream";
@@ -534,76 +535,6 @@ const HERO_GREETING_KEYS = [
   "thread.empty.greetings.tackle",
 ] as const;
 
-function HeroGreeting({ text }: { text: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const headingRef = useRef<HTMLHeadingElement>(null);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const heading = headingRef.current;
-    if (!container || !heading) return;
-
-    const fitToWidth = () => {
-      heading.style.removeProperty("font-size");
-      const availableWidth = container.clientWidth;
-      if (availableWidth <= 0) return;
-
-      const naturalWidth = heading.scrollWidth;
-      const maximumFontSize = Number.parseFloat(window.getComputedStyle(heading).fontSize);
-      if (
-        naturalWidth <= availableWidth
-        || !Number.isFinite(maximumFontSize)
-        || maximumFontSize <= 0
-      ) {
-        return;
-      }
-
-      const fittedFontSize = Math.max(
-        12,
-        Math.floor(maximumFontSize * ((availableWidth - 2) / naturalWidth) * 100) / 100,
-      );
-      heading.style.fontSize = `${fittedFontSize}px`;
-    };
-
-    fitToWidth();
-
-    let lastObservedWidth = container.clientWidth;
-    const resizeObserver = typeof ResizeObserver === "undefined"
-      ? null
-      : new ResizeObserver(([entry]) => {
-          const nextWidth = entry?.contentRect.width ?? container.clientWidth;
-          if (nextWidth === lastObservedWidth) return;
-          lastObservedWidth = nextWidth;
-          fitToWidth();
-        });
-    resizeObserver?.observe(container);
-    window.addEventListener("resize", fitToWidth);
-
-    let cancelled = false;
-    void document.fonts?.ready.then(() => {
-      if (!cancelled) fitToWidth();
-    });
-
-    return () => {
-      cancelled = true;
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", fitToWidth);
-    };
-  }, [text]);
-
-  return (
-    <div ref={containerRef} className="min-w-0 w-full max-w-[44rem]">
-      <h1
-        ref={headingRef}
-        data-testid="hero-greeting"
-        className="select-none whitespace-nowrap text-hero font-normal leading-tight tracking-normal text-foreground"
-      >
-        {text}
-      </h1>
-    </div>
-  );
-}
-
 function randomHeroGreetingKey(): (typeof HERO_GREETING_KEYS)[number] {
   const index = Math.floor(Math.random() * HERO_GREETING_KEYS.length);
   return HERO_GREETING_KEYS[index] ?? HERO_GREETING_KEYS[0];
@@ -799,6 +730,8 @@ export function ThreadShell({
   });
   const [settings, setSettings] = useState<SettingsPayload | null>(settingsSnapshot);
   const [heroGreetingKey, setHeroGreetingKey] = useState(randomHeroGreetingKey);
+  const [welcomeDraftSeed, setWelcomeDraftSeed] = useState<{ text: string; token: number; mode: "append" } | null>(null);
+  const welcomeDraftTokenRef = useRef(0);
   const [submittedViewportTurnId, setSubmittedViewportTurnId] = useState<string | null>(null);
   const [filePreviewPath, setFilePreviewPath] = useState<string | null>(null);
   const [filePreviewClosing, setFilePreviewClosing] = useState(false);
@@ -1613,6 +1546,11 @@ export function ThreadShell({
     [chatId, onForkChat],
   );
 
+  const handleDraftSeedConsumed = useCallback(() => {
+    if (welcomeDraftSeed) setWelcomeDraftSeed(null);
+    else onDraftSeedConsumed?.();
+  }, [onDraftSeedConsumed, welcomeDraftSeed]);
+
   const composer = (
     <>
       {pendingQuestions.length > 0 ? (
@@ -1685,6 +1623,8 @@ export function ThreadShell({
           quotedContext={quotedContext}
           focusRequest={composerFocusSignal}
           onQuotedContextChange={setQuotedContext}
+          draftSeed={welcomeDraftSeed ?? draftSeed}
+          onDraftSeedConsumed={handleDraftSeedConsumed}
         />
       ) : (
         <ThreadComposer
@@ -1736,8 +1676,8 @@ export function ThreadShell({
           runtimeHostname={workspaceHostname}
           transcriptionProvider={settingsSnapshot?.transcription?.provider}
           ingressLimits={ingressLimits}
-          draftSeed={draftSeed}
-          onDraftSeedConsumed={onDraftSeedConsumed}
+          draftSeed={welcomeDraftSeed ?? draftSeed}
+          onDraftSeedConsumed={handleDraftSeedConsumed}
         />
       )}
     </>
@@ -1748,9 +1688,13 @@ export function ThreadShell({
       {t("thread.loadingConversation")}
     </div>
   ) : (
-    <div className="flex w-full flex-col items-center text-center animate-in fade-in-0 slide-in-from-bottom-2 [animation-duration:220ms] motion-reduce:animate-none">
-      <HeroGreeting text={t(heroGreetingKey)} />
-    </div>
+    <ThreadWelcome
+      greeting={t(heroGreetingKey)}
+      onChoosePrompt={(text) => {
+        welcomeDraftTokenRef.current -= 1;
+        setWelcomeDraftSeed({ text, token: welcomeDraftTokenRef.current, mode: "append" });
+      }}
+    />
   );
   useEffect(() => {
     try {
@@ -1813,7 +1757,7 @@ export function ThreadShell({
   ) : null;
 
   return (
-    <section ref={shellRef} className="relative flex min-h-0 flex-1 overflow-hidden">
+    <section ref={shellRef} className="agent-thread-shell relative flex min-h-0 flex-1 overflow-hidden">
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         {hideHeaderTitle && inlineHandle && !temporary && session?.handle ? (
           <div

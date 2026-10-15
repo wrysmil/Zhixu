@@ -498,6 +498,22 @@ describe("App layout", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
   });
 
+  it("opens Memory directly through the real sidebar and App routing", async () => {
+    mockFetchRoutes({
+      "/api/settings": baseSettingsPayload(),
+      "/api/settings/memory/memories?order=created": { items: [] },
+    });
+    render(<App />);
+
+    await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Memory" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/settings?section=memory"));
+    expect(await screen.findByTestId("memory-master-toggle")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-section-transition")).toHaveAttribute("data-settings-section", "memory");
+  });
+
   it("opens the full Models settings directly from the first-run prompt", async () => {
     const user = userEvent.setup();
     const base = baseSettingsPayload();

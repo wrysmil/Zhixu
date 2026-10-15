@@ -61,7 +61,6 @@ interface Props {
 }
 
 export function ArticleEditor({
-  article: _article,
   draft,
   dirty,
   saveState,

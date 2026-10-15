@@ -5,6 +5,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useClient } from "@/providers/ClientProvider";
 import { EpisodeListView } from "./EpisodeListView";
 import { MemoryListView } from "./MemoryListView";
+import { MemoryGuide } from "./MemoryGuide";
 import type { SettingsPayload } from "@/lib/types";
 
 type MemoryTab = "semantic" | "episode";
@@ -21,7 +22,8 @@ export function MemorySection({
   settings: SettingsPayload | null;
   onSettingsChange: (payload: SettingsPayload) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const zh = i18n.resolvedLanguage?.startsWith("zh");
   const tx = (key: string, fallback: string) => t(key, { defaultValue: fallback });
   const { client } = useClient();
   const [tab, setTab] = useState<MemoryTab>("semantic");
@@ -59,23 +61,24 @@ export function MemorySection({
   const offLabel = tx("settings.memory.masterToggleOff", "Off");
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
+      <MemoryGuide />
       <div
-        className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-card p-4"
+        className="flex items-start justify-between gap-4 rounded-xl border border-border/65 bg-gradient-to-r from-card/85 to-primary/[0.025] px-5 py-4"
         data-testid="memory-master-toggle"
       >
         <div className="flex flex-col gap-1">
-          <span className="text-sm font-medium">
-            {tx("settings.memory.masterToggleTitle", "Memory auto extraction & retrieval")}
+          <span className="text-[13px] font-medium">
+            {zh ? "自动记住有用的信息" : "Remember useful details automatically"}
           </span>
           <span className="text-xs text-muted-foreground">
-            {tx(
-              "settings.memory.masterToggleDescription",
-              "When on, Mira extracts facts from chats and retrieves relevant memories on the next turn. Hot-takes-effect — no restart needed.",
-            )}
+            {zh
+              ? "从对话中整理有用的信息，在之后需要时参考。关闭后，仍可查看和管理已有内容。"
+              : "Save useful details from chats for future conversations. You can still review and manage saved content when this is off."}
           </span>
+          <span className="mt-1 text-[11px] font-medium text-primary">{enabled ? onLabel : offLabel}</span>
           {error ? (
-            <span className="text-xs text-destructive">{error}</span>
+            <span role="alert" className="text-xs text-destructive">{error}</span>
           ) : null}
         </div>
         <button
@@ -86,7 +89,7 @@ export function MemorySection({
           disabled={saving}
           onClick={() => onToggle(!enabled)}
           className={
-            "inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border transition-colors " +
+            "mt-0.5 inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border transition-colors duration-150 ease-out " +
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 " +
             "disabled:cursor-not-allowed disabled:opacity-60 " +
             (enabled
@@ -96,26 +99,26 @@ export function MemorySection({
         >
           <span
             className={
-              "inline-block h-5 w-5 transform rounded-full bg-background shadow ring-0 transition-transform " +
+              "inline-block h-5 w-5 transform rounded-full bg-background shadow-sm ring-0 transition-transform duration-150 ease-out " +
               (enabled ? "translate-x-5" : "translate-x-0.5")
             }
           />
         </button>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {enabled ? onLabel : offLabel}
-      </p>
-      <SegmentedControl
-        mode="tabs"
-        ariaLabel={tx("settings.memory.tabsLabel", "Memory sections")}
-        value={tab}
-        options={MEMORY_TABS.map(({ value, labelKey, defaultLabel }) => ({
-          value,
-          label: tx(labelKey, defaultLabel),
-        }))}
-        onChange={setTab}
-        className="w-fit max-w-full"
-      />
+      <div className="border-b border-border/60 pb-4">
+        <SegmentedControl
+          mode="tabs"
+          ariaLabel={tx("settings.memory.tabsLabel", "Memory sections")}
+          value={tab}
+          options={MEMORY_TABS.map(({ value, labelKey, defaultLabel }) => ({
+            value,
+            label: zh ? (value === "semantic" ? "长期信息" : "对话记录") : tx(labelKey, defaultLabel),
+          }))}
+          onChange={setTab}
+          className="w-fit max-w-full bg-primary/[0.06]"
+          itemClassName="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      </div>
       {tab === "semantic" && <MemoryListView />}
       {tab === "episode" && <EpisodeListView />}
     </div>

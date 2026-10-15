@@ -17,6 +17,7 @@ import {
 } from "@/components/SidebarSelectionHighlight";
 import { WorkspaceNavigation } from "@/components/workspace/WorkspaceNavigation";
 import type { WorkspaceView } from "@/components/workspace/contracts";
+import type { SettingsSectionKey } from "@/components/settings/contracts";
 import { Button } from "@/components/ui/button";
 import type {
   ChatSummary,
@@ -52,10 +53,11 @@ interface SidebarProps {
   onTogglePinProject?: (projectKey: string) => void;
   onRemoveProject?: (projectKey: string, label: string) => void;
   activeView: WorkspaceView;
+  activeSettingsSection?: SettingsSectionKey;
   onOpenHome: () => void;
   onOpenAssistant: () => void;
   onOpenCreative: () => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (section?: SettingsSectionKey) => void;
   onOpenApps: () => void;
   onOpenSkills: () => void;
   onOpenAutomations: () => void;
@@ -116,6 +118,7 @@ export function Sidebar(props: SidebarProps) {
   return (
     <WorkspaceNavigation
       activeView={activeView}
+      activeSettingsSection={props.activeSettingsSection}
       collapsed={Boolean(props.collapsed)}
       preview={false}
       newChatActive={props.newChatActive}
@@ -149,7 +152,7 @@ export function Sidebar(props: SidebarProps) {
             props.onOpenAgents();
             break;
           case "settings":
-            props.onOpenSettings();
+            props.onOpenSettings(route.settingsSection);
             break;
           default:
             break;

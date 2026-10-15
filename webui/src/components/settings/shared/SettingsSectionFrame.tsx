@@ -24,21 +24,21 @@ export function SettingsSectionFrame({
   className,
 }: SettingsSectionFrameProps) {
   return (
-    <section className={cn("mx-auto w-full max-w-[1040px] px-5 py-6 sm:px-8", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+    <section className={cn("w-full max-w-[1180px] px-5 py-6 sm:px-8 lg:px-10 lg:py-8", className)}>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-border/60 pb-5">
         <div className="min-w-0">
-          <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-foreground">
+          <h2 className="font-serif text-[28px] leading-tight tracking-tight text-foreground">
             {title}
           </h2>
           {description ? (
-            <p className="mt-1 max-w-[70ch] text-[13px] leading-relaxed text-muted-foreground">
+            <p className="mt-2 max-w-[70ch] text-[12px] leading-relaxed text-muted-foreground">
               {description}
             </p>
           ) : null}
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
       </div>
-      <div className="mt-5">{children}</div>
+      <div className="mt-6">{children}</div>
     </section>
   );
 }

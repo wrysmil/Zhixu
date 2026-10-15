@@ -1508,6 +1508,34 @@ describe("ThreadShell", () => {
     });
   });
 
+  it("prepares a suggested task without creating a chat or sending a message", async () => {
+    const client = makeClient();
+    const createChat = vi.fn();
+    render(wrap(client, <ThreadShell session={null} title="nanobot" onToggleSidebar={() => {}}
+      onCreateChat={createChat} />));
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: /Organize notes/ }));
+    expect(screen.getByRole("textbox", { name: "Message input" })).toHaveValue(
+      "Help me organize these notes into key points, open questions, and next steps.",
+    );
+    expect(createChat).not.toHaveBeenCalled();
+    expect(client.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("appends a suggested task to the draft of an existing empty conversation", async () => {
+    const client = makeClient();
+    render(wrap(client, <ThreadShell session={session("empty-welcome")} title="Empty conversation"
+      onToggleSidebar={() => {}} />));
+    const suggestion = await screen.findByRole("button", { name: /Organize notes/ });
+    const input = screen.getByRole("textbox", { name: "Message input" });
+    fireEvent.change(input, { target: { value: "Keep this conversation draft." } });
+    fireEvent.click(suggestion);
+    expect(input).toHaveValue(
+      "Keep this conversation draft.\nHelp me organize these notes into key points, open questions, and next steps.",
+    );
+    expect(client.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("keeps the empty thread landing focused on the composer", async () => {
     const client = makeClient();
     render(

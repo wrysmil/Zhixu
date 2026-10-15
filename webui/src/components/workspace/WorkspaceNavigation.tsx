@@ -5,6 +5,7 @@ import {
 } from "react";
 import {
   Bot,
+  BookOpen,
   CalendarClock,
   Feather,
   MessagesSquare,
@@ -28,6 +29,7 @@ import type {
 } from "@/components/workspace/contracts";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/workspace/BrandMark";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -38,6 +40,7 @@ interface NavItem {
   labelKey: string;
   labelDefault: string;
   icon: typeof MessagesSquare;
+  settingsSection?: "memory";
 }
 
 const PRIMARY_ITEMS: NavItem[] = [
@@ -59,6 +62,11 @@ const SETTINGS_ITEM: NavItem = {
   icon: Settings,
 };
 
+const MEMORY_ITEM: NavItem = {
+  view: "settings", labelKey: "settings.nav.memory", labelDefault: "Memory",
+  icon: BookOpen, settingsSection: "memory",
+};
+
 /**
  * Global 知序 icon navigation. It owns the sidebar landmark, the selection
  * highlight, the nav entries and the collapse control. The chat-context column
@@ -68,17 +76,19 @@ const SETTINGS_ITEM: NavItem = {
  */
 export function WorkspaceNavigation({
   activeView,
+  activeSettingsSection,
   collapsed,
   preview,
   onNavigate,
   onToggleCollapsed,
   chatNavigation,
   connectionStatus,
+  footerAction,
   newChatActive = false,
   activeUtility = null,
   hostChromeInset = false,
 }: WorkspaceNavigationProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const activeActionRef = useRef<HTMLButtonElement>(null);
   const activeRailRef = useRef<HTMLButtonElement>(null);
 
@@ -105,9 +115,13 @@ export function WorkspaceNavigation({
 
   const renderItem = (item: NavItem) => {
     const label = t(item.labelKey, { defaultValue: item.labelDefault });
-    const active =
+    const matchesView = (
       activeView === item.view ||
-      (item.view === "creative" && activeView === "article");
+      (item.view === "creative" && activeView === "article")
+    );
+    const active = matchesView && (item.settingsSection
+      ? activeSettingsSection === item.settingsSection
+      : item.view !== "settings" || activeSettingsSection !== "memory");
     const Icon = item.icon;
     return (
       <Tooltip key={item.view}>
@@ -118,9 +132,11 @@ export function WorkspaceNavigation({
         aria-current={active ? "page" : undefined}
         title={label}
         ref={active ? activeRailRef : undefined}
-        onClick={() => navigateTo(item.view)}
+        onClick={() => item.settingsSection
+          ? onNavigate({ view: item.view, settingsSection: item.settingsSection })
+          : navigateTo(item.view)}
         className={cn(
-          "host-no-drag flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl transition-colors duration-150",
+          "workspace-nav-item host-no-drag flex h-[48px] w-[46px] cursor-pointer flex-col items-center justify-center gap-1 rounded-control transition-colors duration-150",
           SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           active
@@ -129,7 +145,11 @@ export function WorkspaceNavigation({
         )}
       >
         <Icon className={cn("h-[19px] w-[19px] shrink-0", active && "text-accent-foreground")} strokeWidth={1.65} aria-hidden />
-        <span className="sr-only">{label}</span>
+        <span className="workspace-nav-label" aria-hidden>{item.settingsSection
+          ? (i18n.resolvedLanguage?.startsWith("zh") ? "记忆" : "Memory")
+          : item.view === "automations"
+            ? (i18n.resolvedLanguage?.startsWith("zh") ? "定时" : "Tasks")
+            : label}</span>
       </button>
       </TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>
@@ -155,16 +175,16 @@ export function WorkspaceNavigation({
         <div
           data-testid="sidebar-rail"
           className={cn(
-            "workspace-navigation-rail flex w-rail min-h-0 shrink-0 flex-col items-center gap-2 overflow-y-auto overscroll-contain border-r border-sidebar-border pb-3",
+            "workspace-navigation-rail flex w-rail min-h-0 shrink-0 flex-col items-center gap-1 overflow-y-auto overscroll-contain border-r border-sidebar-border pb-3",
             topInset,
           )}
         >
           <div
             className={cn(
-              "flex shrink-0 items-center justify-center pb-4",
+              "flex shrink-0 items-center justify-center pb-3",
             )}
           >
-            <BrandMark className="h-10 w-10" />
+            <BrandMark className="h-9 w-9" />
             <span className="sr-only">{t("workspace.brand", { defaultValue: "知序" })}</span>
           </div>
           {preview ? (
@@ -175,15 +195,18 @@ export function WorkspaceNavigation({
               {t("workspace.preview.badge", { defaultValue: "界面预览 · 示例内容" })}
             </span>
           ) : null}
-          <div className="flex shrink-0 flex-col gap-2">{PRIMARY_ITEMS.map(renderItem)}</div>
+          <div className="flex shrink-0 flex-col gap-1">{PRIMARY_ITEMS.map(renderItem)}</div>
           <div className="my-1 h-px w-7 bg-sidebar-border" />
-          <div className="flex shrink-0 flex-col gap-2">
+          <div className="flex shrink-0 flex-col gap-1">
             {CAPABILITY_ITEMS.map(renderItem)}
+            {renderItem(MEMORY_ITEM)}
           </div>
           <div className="min-h-8 flex-1" />
           <div className="flex shrink-0 flex-col items-center gap-2">
             {renderItem(SETTINGS_ITEM)}
           </div>
+          <div className="workspace-language-switcher"><LanguageSwitcher /></div>
+          {footerAction ? <div className="flex shrink-0 items-center justify-center">{footerAction}</div> : null}
           {activeView === "chat" ? <div className="shrink-0">
             <RailToggleButton
               collapsed={collapsed}

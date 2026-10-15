@@ -2562,6 +2562,7 @@ function Shell({
     onTogglePinProject,
     onRemoveProject,
     activeView: view === "article" ? "creative" : view,
+    activeSettingsSection: settingsInitialSection,
     onOpenHome,
     onOpenAssistant,
     onOpenCreative,

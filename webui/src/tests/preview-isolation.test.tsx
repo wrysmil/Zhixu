@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import PreviewApp from "@/preview/PreviewApp";
 
@@ -52,5 +52,30 @@ describe("PreviewApp isolation", () => {
     expect(screen.getByRole("textbox", { name: "Message input" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Choose project" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add project" })).toBeInTheDocument();
+  });
+
+  it("switches the preview theme locally without using business transports", () => {
+    render(<PreviewApp />);
+    fireEvent.click(screen.getByRole("button", { name: "Switch to dark theme" }));
+    expect(document.documentElement).toHaveClass("dark");
+    fireEvent.click(screen.getByRole("button", { name: "Memory" }));
+    expect(document.documentElement).toHaveClass("dark");
+    fireEvent.click(screen.getByRole("button", { name: "Switch to light theme" }));
+    expect(document.documentElement).not.toHaveClass("dark");
+  });
+
+  it("keeps the navigation current when changing sections inside preview settings", () => {
+    window.history.replaceState(null, "", "/?preview=1#/settings?section=memory");
+    try {
+      render(<PreviewApp />);
+      expect(screen.getByRole("button", { name: "Memory" })).toHaveAttribute("aria-current", "page");
+      const settingsNav = screen.getByRole("navigation", { name: "Settings sections" });
+      fireEvent.click(within(settingsNav).getByRole("button", { name: "模型" }));
+      expect(window.location.hash).toBe("#/settings?section=models");
+      expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+      expect(screen.getByRole("button", { name: "Memory" })).not.toHaveAttribute("aria-current");
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
   });
 });

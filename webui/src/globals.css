@@ -9,39 +9,39 @@
   }
 }
 
-/* Neutral graphite surfaces, with indigo reserved for selection and focus. */
+/* Warm paper and forest-green accents keep long sessions calm and readable. */
 @layer base {
   :root {
     color-scheme: light;
-    --background: 240 6.67% 97.06%;
-    --foreground: 231.43 9.86% 13.92%;
-    --card: 0 0% 100%;
+    --background: 42 32% 96%;
+    --foreground: 153 15% 17%;
+    --card: 48 38% 99%;
     --card-foreground: var(--foreground);
-    --popover: 0 0% 100%;
+    --popover: 48 38% 99%;
     --popover-foreground: var(--foreground);
-    --primary: 231.43 8.64% 15.88%;
+    --primary: 154 29% 29%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 10.34% 94.31%;
+    --secondary: 43 22% 92%;
     --secondary-foreground: var(--foreground);
-    --muted: 240 10.34% 94.31%;
-    --muted-foreground: 230 5.77% 40.78%;
-    --accent: 245 50% 95.29%;
-    --accent-foreground: 241.57 50.66% 55.49%;
+    --muted: 43 22% 92%;
+    --muted-foreground: 139 7% 43%;
+    --accent: 143 21% 90%;
+    --accent-foreground: 154 29% 29%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 230 11.54% 89.8%;
+    --border: 43 16% 84%;
     --input: var(--border);
     --ring: var(--accent-foreground);
     /* Tier below --background: the window shell behind panels. */
-    --surface-app: 240 10.34% 94.31%;
+    --surface-app: 42 24% 92%;
     /* Tiered sidebar/inspector surface, separated by a hairline. */
-    --surface-panel: 0 0% 100%;
+    --surface-panel: 46 35% 98%;
     --border-soft: var(--border);
-    --inline-token-highlight: #5754c7;
+    --inline-token-highlight: #35654e;
     --usage-token: 29 86% 56%;
     --session-handle-lightness: 0.5;
     --session-handle-chroma: 0.12;
-    --temporary-control-active: #5754c7;
+    --temporary-control-active: #35654e;
     --temporary-accent: var(--accent-foreground);
     --temporary-foreground: var(--accent-foreground);
     --temporary-border: var(--accent-foreground);
@@ -65,11 +65,11 @@
     --browser-toolbar-h: 36px;
     --terminal-font-size: 12.5px;
     --hero-text-size: 30px;
-    --hero-composer-max-w: 44rem;
-    --sidebar: 240 10.34% 94.31%;
+    --hero-composer-max-w: 62rem;
+    --sidebar: 43 23% 92%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);
-    --sidebar-accent: 240 8% 91%;
+    --sidebar-accent: 42 19% 87%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
     --settings-canvas: var(--background);
@@ -80,39 +80,39 @@
 
   .dark {
     color-scheme: dark;
-    --background: 228 9.8% 10%;
-    --foreground: 230 20% 94.12%;
-    --card: 231.43 9.86% 13.92%;
+    --background: 153 13% 10%;
+    --foreground: 45 20% 91%;
+    --card: 151 12% 13%;
     --card-foreground: var(--foreground);
-    --popover: 231.43 9.86% 13.92%;
+    --popover: 151 12% 14%;
     --popover-foreground: var(--foreground);
-    --primary: var(--foreground);
-    --primary-foreground: 231.43 9.86% 13.92%;
-    --secondary: 230 10% 18%;
+    --primary: 143 26% 66%;
+    --primary-foreground: 153 20% 12%;
+    --secondary: 151 10% 18%;
     --secondary-foreground: var(--foreground);
-    --muted: 230 10% 18%;
-    --muted-foreground: 230.77 7.6% 66.47%;
-    --accent: 244.8 23.36% 20.98%;
-    --accent-foreground: 242.34 77.78% 80.59%;
+    --muted: 151 10% 18%;
+    --muted-foreground: 135 8% 64%;
+    --accent: 151 16% 21%;
+    --accent-foreground: 142 31% 73%;
     --destructive: 0 62% 55%;
     --destructive-foreground: 0 0% 98%;
-    --border: 230 10.71% 21.96%;
+    --border: 151 8% 25%;
     --input: var(--border);
     --ring: var(--accent-foreground);
-    --surface-app: 228 9.8% 10%;
-    --surface-panel: 231.43 9.86% 13.92%;
+    --surface-app: 153 13% 9%;
+    --surface-panel: 151 12% 13%;
     --border-soft: var(--border);
-    --inline-token-highlight: #aaa7f4;
+    --inline-token-highlight: #a5cbb0;
     --session-handle-lightness: 0.75;
     --session-handle-chroma: 0.11;
-    --temporary-control-active: #aaa7f4;
+    --temporary-control-active: #a5cbb0;
     --temporary-accent: var(--accent-foreground);
     --temporary-foreground: var(--accent-foreground);
     --temporary-border: var(--accent-foreground);
-    --sidebar: 230 9.68% 12.16%;
+    --sidebar: 151 13% 12%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);
-    --sidebar-accent: 230 10% 18%;
+    --sidebar-accent: 151 10% 18%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
     --settings-canvas: var(--background);
@@ -129,7 +129,7 @@
     --browser-toolbar-h: 36px;
     --terminal-font-size: 12.5px;
     --hero-text-size: 30px;
-    --hero-composer-max-w: 44rem;
+    --hero-composer-max-w: 62rem;
   }
 }
 
@@ -395,7 +395,7 @@
     background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: streaming-text-sheen-ltr 2.8s ease-in-out infinite;
+    animation: streaming-text-sheen-ltr 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
   }
   .dark .streaming-text-sheen::after {
     background-image: linear-gradient(
@@ -563,7 +563,7 @@
       transition:
         grid-template-rows var(--composer-workspace-drawer-duration)
           cubic-bezier(0.4, 0, 0.2, 1),
-        opacity var(--composer-workspace-drawer-duration) ease-in-out;
+        opacity var(--composer-workspace-drawer-duration) cubic-bezier(0.22, 1, 0.36, 1);
     }
     .composer-workspace-drawer-content {
       transform: translateY(-6px);
@@ -626,7 +626,7 @@
     }
   }
   .goal-shell-glow {
-    animation: goal-shell-glow-breathe 4.8s ease-in-out infinite;
+    animation: goal-shell-glow-breathe 4.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
   }
   @keyframes goal-shell-glow-breathe-dark {
     0%,
@@ -1030,4 +1030,328 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   .workspace-navigation button {
     transition: none;
   }
+}
+
+
+/* The canvas has a quiet paper grain. All assets are local and the gradients
+   adapt to semantic tokens, including the dark theme. */
+body,
+.bg-background,
+.bg-settings-canvas,
+.agent-thread-shell,
+.workspace-navigation {
+  background-image:
+    radial-gradient(ellipse at 95% 0%, hsl(var(--primary) / 0.045), transparent 58%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%237d7665' opacity='.035' filter='url(%23grain)' d='M0 0h180v180H0z'/%3E%3C/svg%3E");
+}
+
+.bg-card,
+.bg-settings-surface,
+.thread-composer-surface {
+  background-image: linear-gradient(115deg, hsl(var(--card)), hsl(var(--background) / 0.45));
+}
+
+.workspace-navigation-rail {
+  background: linear-gradient(165deg, hsl(var(--sidebar) / 0.4), hsl(var(--sidebar)));
+}
+
+.workspace-nav-label {
+  display: block;
+  max-width: 44px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+  font-size: 9px;
+  line-height: 12px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.workspace-nav-item[aria-current="page"] {
+  color: hsl(var(--accent-foreground));
+  background: hsl(var(--accent));
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.08);
+}
+
+.workspace-language-switcher button {
+  width: 38px;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+}
+
+.workspace-language-switcher button > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.thread-welcome {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  animation: workspace-arrive 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.thread-welcome-intro {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  align-items: start;
+  gap: 1.5rem;
+  padding-bottom: 2.5rem;
+}
+
+.thread-welcome-copy {
+  min-width: 0;
+  padding-top: 0.75rem;
+}
+
+.thread-welcome-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 1.5rem;
+  color: hsl(var(--primary));
+  font-size: 10px;
+  line-height: 1.5;
+  font-weight: 650;
+  letter-spacing: 0.13em;
+}
+
+.thread-welcome-title {
+  max-width: 580px;
+  white-space: normal;
+  text-wrap: balance;
+  font-family: Georgia, "Songti SC", "Noto Serif SC", serif;
+  font-size: clamp(2rem, 3.8vw, 3.25rem);
+  font-weight: 400;
+  line-height: 1.18;
+  letter-spacing: -0.05em;
+  color: hsl(var(--foreground));
+}
+
+.thread-welcome-description {
+  max-width: 27rem;
+  margin-top: 1.1rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.thread-welcome-illustration {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  padding-top: 0.5rem;
+}
+
+.thread-welcome-illustration > img {
+  position: relative;
+  width: 190px;
+  height: 165px;
+  object-fit: contain;
+  opacity: 0.9;
+}
+
+.thread-welcome-orbit {
+  position: absolute;
+  inset: -0.25rem -0.75rem 0;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, hsl(var(--primary) / 0.08), transparent 68%);
+}
+
+.thread-welcome-caption {
+  position: relative;
+  margin-top: 1rem;
+  color: hsl(var(--muted-foreground) / 0.8);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.dark .thread-welcome-illustration > img {
+  opacity: 0.78;
+  filter: brightness(0.9) saturate(0.7);
+}
+
+.thread-welcome-starts {
+  padding-top: 1.2rem;
+  border-top: 1px solid hsl(var(--border));
+}
+
+.thread-welcome-starts-label {
+  margin-bottom: 0.7rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 9px;
+  line-height: 1.5;
+  font-weight: 550;
+  letter-spacing: 0.1em;
+}
+
+.thread-welcome-prompt-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.75rem;
+}
+
+.thread-welcome-prompt {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.8rem 0 1rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.65);
+  color: hsl(var(--primary));
+  text-align: left;
+  cursor: pointer;
+  transition: color 160ms ease-out, border-color 160ms ease-out;
+}
+
+.thread-welcome-prompt:hover {
+  color: hsl(var(--foreground));
+  border-bottom-color: hsl(var(--primary) / 0.55);
+}
+
+.thread-welcome-prompt-number {
+  align-self: flex-start;
+  padding-top: 1px;
+  margin-right: 0.1rem;
+  color: hsl(var(--muted-foreground) / 0.7);
+  font-family: Georgia, serif;
+  font-size: 10px;
+}
+
+.thread-welcome-prompt > svg {
+  flex-shrink: 0;
+}
+
+.thread-welcome-prompt-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.thread-welcome-prompt-copy strong {
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 550;
+}
+
+.thread-welcome-prompt-copy > span {
+  color: hsl(var(--muted-foreground));
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.thread-welcome-prompt-arrow {
+  margin-left: 0.25rem;
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.thread-welcome-prompt:hover .thread-welcome-prompt-arrow {
+  transform: translate(2px, -2px);
+}
+
+.agent-preview-welcome-content {
+  width: 100%;
+  max-width: 62rem;
+  margin-inline: auto;
+  padding: clamp(2.5rem, 6vw, 5.25rem) clamp(1.5rem, 5vw, 5rem) 2rem;
+}
+
+.agent-preview-welcome-content .preview-composer-wrap {
+  padding: 2.25rem 0 0;
+}
+
+.thread-welcome-footnote {
+  margin-top: 1rem;
+  color: hsl(var(--muted-foreground) / 0.8);
+  font-size: 10px;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] {
+  max-width: 62rem;
+  padding: clamp(2.5rem, 6vw, 5.25rem) clamp(1.5rem, 5vw, 5rem) 2rem;
+  grid-template-rows: auto auto minmax(1.5rem, 1fr);
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] > [data-testid="thread-empty-region"] {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-bottom: 2.25rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] > [data-testid="thread-composer-dock"] {
+  align-self: start;
+}
+
+.thread-composer-surface {
+  border-color: hsl(var(--border));
+  border-radius: 12px;
+  box-shadow: 0 4px 18px -10px hsl(var(--foreground) / 0.12), 0 1px 2px hsl(var(--foreground) / 0.02);
+}
+
+.thread-composer-surface:focus-within {
+  border-color: hsl(var(--primary) / 0.45);
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.035), 0 4px 18px -10px hsl(var(--foreground) / 0.12);
+}
+
+.agent-thread-header {
+  background: linear-gradient(100deg, hsl(var(--card) / 0.4), transparent);
+}
+
+.agent-thread-header h1 {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.agent-preview-transcript > div {
+  max-width: 48rem;
+}
+
+@keyframes workspace-arrive {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1050px) {
+  .thread-welcome-intro {
+    grid-template-columns: minmax(0, 1fr) 145px;
+    gap: 1rem;
+  }
+  .thread-welcome-illustration > img {
+    width: 145px;
+    height: 145px;
+  }
+  .thread-welcome-caption { display: none; }
+}
+
+@media (max-width: 767px) {
+  .thread-welcome-intro {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 2rem;
+  }
+  .thread-welcome-illustration { display: none; }
+  .thread-welcome-eyebrow { margin-bottom: 1rem; font-size: 9px; }
+  .thread-welcome-title { font-size: 2.25rem; max-width: 25rem; }
+  .thread-welcome-description { font-size: 12px; margin-top: 1rem; }
+  .thread-welcome-prompt-list { grid-template-columns: 1fr; gap: 0; }
+  .thread-welcome-prompt { padding-block: 0.85rem; }
+  .agent-preview-welcome-content,
+  .agent-thread-shell .thread-layout[data-layout="hero"] {
+    padding: 2.75rem 1.25rem 1.5rem;
+  }
+  .agent-preview-welcome-content .preview-composer-wrap { padding-top: 1.75rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-welcome { animation: none; }
+  .thread-welcome-prompt-arrow { transition: none; }
 }

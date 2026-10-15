@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, Suspense, lazy } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageSquareMore, Plus, Search } from "lucide-react";
+import { MessageSquareMore, Moon, Plus, Search, Sun } from "lucide-react";
 
 import { WorkspaceNavigation } from "@/components/workspace/WorkspaceNavigation";
 import { ChatList } from "@/components/ChatList";
@@ -39,13 +39,25 @@ const PREVIEW_NO_TRANSPORT: WebUIMutationTransport = {
  * copy, and an explicit "interface preview" badge is always visible.
  */
 export default function PreviewApp() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const [darkPreview, setDarkPreview] = useState(() => document.documentElement.classList.contains("dark"));
+  const themeLabel = i18n.resolvedLanguage?.startsWith("zh")
+    ? darkPreview ? "切换为浅色主题" : "切换为深色主题"
+    : darkPreview ? "Switch to light theme" : "Switch to dark theme";
   const [route, setRoute] = useState<WorkspaceRoute>(() =>
     parseWorkspaceHash(window.location.hash),
   );
   const [collapsed, setCollapsed] = useState(() => window.matchMedia("(max-width: 767px)").matches);
   const [workspaceScope, setWorkspaceScope] = useState(PREVIEW_DEFAULT_SCOPE);
   const [projects, setProjects] = useState<SidebarProjectEntry[]>([]);
+
+  useEffect(() => {
+    const previous = document.documentElement.classList.contains("dark");
+    document.documentElement.classList.toggle("dark", darkPreview);
+    return () => {
+      document.documentElement.classList.toggle("dark", previous);
+    };
+  }, [darkPreview]);
 
   const selectWorkspace = useCallback((scope: WorkspaceScopePayload) => {
     setWorkspaceScope(scope);
@@ -72,19 +84,27 @@ export default function PreviewApp() {
   }, []);
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden bg-background text-foreground">
+    <div className="preview-app-shell flex h-[100dvh] w-full overflow-hidden bg-background text-foreground">
       <div
         className={cn(
           "shrink-0 border-r border-sidebar-border",
-          route.view === "chat" && !collapsed ? "w-[312px]" : "w-16",
+          route.view === "chat" && !collapsed ? "w-[274px]" : "w-rail",
         )}
       >
         <WorkspaceNavigation
           activeView={route.view}
+          activeSettingsSection={route.settingsSection}
           collapsed={collapsed}
           preview
           onNavigate={navigate}
           onToggleCollapsed={() => setCollapsed((value) => !value)}
+          footerAction={
+            <button type="button" aria-label={themeLabel} title={themeLabel}
+              onClick={() => setDarkPreview((current) => !current)}
+              className="host-no-drag flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors duration-150 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              {darkPreview ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
+            </button>
+          }
           connectionStatus={
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <span
@@ -107,7 +127,11 @@ export default function PreviewApp() {
             workspaceScope={workspaceScope} onWorkspaceScopeChange={selectWorkspace}
             onManageModels={() => navigate({ view: "settings", settingsSection: "models" })} />
         ) : route.view === "settings" ? (
-          <PreviewSettings />
+          <PreviewSettings key={route.settingsSection ?? "overview"} initialSection={
+            route.settingsSection === "apps" || route.settingsSection === "agents"
+              || route.settingsSection === "skills" || route.settingsSection === "automations"
+              ? "overview" : route.settingsSection
+          } onSectionChange={(settingsSection) => navigate({ view: "settings", settingsSection })} />
         ) : route.view === "apps" ||
           route.view === "agents" ||
           route.view === "skills" ||

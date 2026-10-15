@@ -184,7 +184,7 @@ export function MemoryListView() {
             : tx("settings.memory.empty", "No memories yet. Create your first one above.")}
         </div>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/65 bg-card/65">
           {visible.map((memory) => (
             <MemoryCard
               key={memory.id}
@@ -231,10 +231,10 @@ function MemoryCard({
   const { t } = useTranslation();
   const tx = (key: string, fallback: string) => t(key, { defaultValue: fallback });
   return (
-    <li className="rounded-panel border border-border/55 bg-settings-surface px-4 py-3">
+    <li className="px-4 py-4 sm:px-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate text-[14px] font-medium leading-5 text-foreground">
+          <div className="break-words text-[13px] font-medium leading-6 text-foreground">
             {memory.content}
           </div>
           <div className="mt-0.5 text-[12px] leading-5 text-muted-foreground">
@@ -254,14 +254,14 @@ function MemoryCard({
           <button
             type="button"
             onClick={onEdit}
-            className="text-[12.5px] text-primary underline-offset-2 hover:underline"
+            className="rounded-sm text-[12.5px] text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {tx("settings.memory.edit", "Edit")}
           </button>
           <button
             type="button"
             onClick={onDelete}
-            className="text-[12.5px] text-destructive underline-offset-2 hover:underline"
+            className="rounded-sm text-[12.5px] text-destructive underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {tx("settings.memory.delete", "Delete")}
           </button>

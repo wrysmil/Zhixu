@@ -23,7 +23,7 @@ const DOCK_KEYS = [
   "platformDefaultShell",
 ];
 
-function loadLocale(lang: string): Record<string, any> {
+function loadLocale(lang: string): Record<string, Record<string, string>> {
   return JSON.parse(readFileSync(join(ROOT, "src/i18n/locales", lang, "common.json"), "utf8"));
 }
 

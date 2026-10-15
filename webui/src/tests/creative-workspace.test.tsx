@@ -9,7 +9,6 @@ import {
   DRAFT_STORAGE_KEY,
   writeDraft,
 } from "@/lib/writing-draft-cache";
-import type { Article } from "@/components/creative/types";
 import { preloadMarkdownText } from "@/components/MarkdownText";
 
 // A3.1 起演示数据只能经 preview 入口进入正式工作区（A-T11），真实挂载点不再有任何
@@ -206,7 +205,7 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
       jsonResponse(listBody([summaryRow()])),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const requestMutation = vi.fn(async (action: string, payload: Record<string, unknown>) => {
+    const requestMutation = vi.fn<(action: string, payload: Record<string, unknown>) => Promise<unknown>>(async (action) => {
       if (action === "article.delete") return { deleted_article_id: "srv-1", revision: 4 };
       throw new Error(`unexpected action ${action}`);
     });
@@ -265,7 +264,7 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
       jsonResponse(listBody([summaryRow()])),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const requestMutation = vi.fn(async (action: string, payload: Record<string, unknown>) => {
+    const requestMutation = vi.fn<(action: string, payload: Record<string, unknown>) => Promise<unknown>>(async (action) => {
       if (action === "article.duplicate") {
         return { article: wireArticle({ id: "srv-copy", title: "文章标题（副本）", revision: 1 }) };
       }
@@ -333,7 +332,7 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
       return jsonResponse(listCalls > 2 ? listBody([]) : listBody([summaryRow()]));
     });
     vi.stubGlobal("fetch", fetchMock);
-    const requestMutation = vi.fn(async (action: string, payload: Record<string, unknown>) => {
+    const requestMutation = vi.fn<(action: string, payload: Record<string, unknown>) => Promise<unknown>>(async (action) => {
       if (action === "article.save") {
         // 第一条 save 立即被服务端 409 拒绝（语义：服务端在 user 点 Back 之前
         // 已经删除了文章），让 tryLeave 走 blocked 分支并弹出 A3.6 离开守卫。

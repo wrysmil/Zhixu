@@ -12,7 +12,7 @@ export function BrandMark({ className }: { className?: string }) {
       draggable={false}
       decoding="async"
       className={cn(
-        "shrink-0 object-contain dark:[filter:invert(1)_hue-rotate(180deg)_brightness(1.15)]",
+        "shrink-0 object-contain [filter:sepia(0.55)_hue-rotate(66deg)_saturate(0.75)] dark:[filter:invert(1)_sepia(0.3)_hue-rotate(80deg)_brightness(1.15)]",
         className,
       )}
     />

@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   "Automations",
   "Apps",
   "Settings",
+  "Memory",
 ];
 
 describe("WorkspaceNavigation", () => {
@@ -60,6 +61,24 @@ describe("WorkspaceNavigation", () => {
     const { onNavigate } = renderNav();
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     expect(onNavigate).toHaveBeenCalledWith({ view: "chat" });
+  });
+
+  it("opens memory settings directly from the navigation rail", () => {
+    const { onNavigate } = renderNav();
+    fireEvent.click(screen.getByRole("button", { name: "Memory" }));
+    expect(onNavigate).toHaveBeenCalledWith({ view: "settings", settingsSection: "memory" });
+  });
+
+  it("marks only Memory as current on the memory settings section", () => {
+    renderNav({ activeView: "settings", activeSettingsSection: "memory" });
+    expect(screen.getByRole("button", { name: "Memory" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Settings" })).not.toHaveAttribute("aria-current");
+  });
+
+  it.each([undefined, "overview", "models"] as const)("marks Settings as current for the %s settings section", (activeSettingsSection) => {
+    renderNav({ activeView: "settings", activeSettingsSection });
+    expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Memory" })).not.toHaveAttribute("aria-current");
   });
 
   it("keeps nav entries reachable and collapses the rail when collapsed", () => {

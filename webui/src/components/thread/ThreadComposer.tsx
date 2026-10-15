@@ -242,8 +242,8 @@ interface ThreadComposerProps {
   quotedContext?: string | null;
   focusRequest?: number;
   onQuotedContextChange?: (text: string | null) => void;
-  /** One-shot text seeded from outside (e.g. the workspace home input). */
-  draftSeed?: { text: string; token: number } | null;
+  /** One-shot text from outside. Suggestions can append without losing a draft. */
+  draftSeed?: { text: string; token: number; mode?: "append" } | null;
   onDraftSeedConsumed?: () => void;
 }
 
@@ -1533,13 +1533,16 @@ export function ThreadComposer({
     consumedDraftSeedTokenRef.current = draftSeed.token;
     if (disabled) return;
     secondEnterPromptIdRef.current = null;
-    setValue(draftSeed.text);
-    setCursorPosition(draftSeed.text.length);
+    const seededValue = draftSeed.mode === "append" && value.length > 0
+      ? `${value}\n${draftSeed.text}`
+      : draftSeed.text;
+    setValue(seededValue);
+    setCursorPosition(seededValue.length);
     setSlashMenuDismissed(false);
     setCliAppMenuDismissed(false);
     resizeTextarea();
     onDraftSeedConsumed?.();
-  }, [disabled, draftSeed, onDraftSeedConsumed, resizeTextarea]);
+  }, [disabled, draftSeed, onDraftSeedConsumed, resizeTextarea, value]);
 
   const appendTranscription = useCallback((text: string) => {
     const transcript = text.trim();

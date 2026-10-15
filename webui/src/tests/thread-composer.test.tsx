@@ -347,6 +347,33 @@ function renderPresetComposer(
 }
 
 describe("ThreadComposer", () => {
+  it("appends a one-shot draft seed without replacing text already written", () => {
+    const send = vi.fn();
+    const consumed = vi.fn();
+    const { rerender } = render(<ThreadComposer onSend={send} />);
+    const input = screen.getByRole("textbox", { name: "Message input" });
+    fireEvent.change(input, { target: { value: "Keep my existing notes. " } });
+    rerender(<ThreadComposer onSend={send} draftSeed={{ text: "Organize these notes.", token: 1, mode: "append" }}
+      onDraftSeedConsumed={consumed} />);
+    expect(input).toHaveValue("Keep my existing notes. \nOrganize these notes.");
+    expect(send).not.toHaveBeenCalled();
+    expect(consumed).toHaveBeenCalledTimes(1);
+    rerender(<ThreadComposer onSend={send} draftSeed={{ text: "Organize these notes.", token: 1, mode: "append" }}
+      onDraftSeedConsumed={consumed} />);
+    expect(input).toHaveValue("Keep my existing notes. \nOrganize these notes.");
+    expect(consumed).toHaveBeenCalledTimes(1);
+  });
+
+  it("fills an empty draft in append mode and preserves default seed replacement", () => {
+    const send = vi.fn();
+    const { rerender } = render(<ThreadComposer onSend={send}
+      draftSeed={{ text: "First suggestion.", token: 1, mode: "append" }} />);
+    const input = screen.getByRole("textbox", { name: "Message input" });
+    expect(input).toHaveValue("First suggestion.");
+    rerender(<ThreadComposer onSend={send} draftSeed={{ text: "External replacement.", token: 2 }} />);
+    expect(input).toHaveValue("External replacement.");
+  });
+
   it("locks an async send and keeps the draft when it is rejected", async () => {
     let resolveSend!: (accepted: boolean) => void;
     const onSend = vi.fn(() => new Promise<boolean>((resolve) => {

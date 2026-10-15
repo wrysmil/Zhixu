@@ -20,6 +20,38 @@ function forbidTransports() {
 }
 
 describe("PreviewThread", () => {
+  it("keeps an existing draft when the user chooses a suggested task", () => {
+    const restore = forbidTransports();
+    try {
+      render(<PreviewThread />);
+      const input = screen.getByRole("textbox", { name: "Message input" });
+      fireEvent.change(input, { target: { value: "These are my own notes." } });
+      fireEvent.click(screen.getByRole("button", { name: /Organize notes/ }));
+      expect(input).toHaveValue(
+        "These are my own notes.\nHelp me organize these notes into key points, open questions, and next steps.",
+      );
+      expect(screen.queryByText((content) => content.includes("（演示回复）"))).not.toBeInTheDocument();
+    } finally {
+      restore();
+    }
+  });
+
+  it("fills a suggested task into the composer and waits for the user to send", () => {
+    const restore = forbidTransports();
+    try {
+      render(<PreviewThread />);
+      fireEvent.click(screen.getByRole("button", { name: /Organize notes/ }));
+      expect(screen.getByRole("textbox", { name: "Message input" })).toHaveValue(
+        "Help me organize these notes into key points, open questions, and next steps.",
+      );
+      expect(screen.queryByText((content) => content.includes("（演示回复）"))).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+      expect(screen.getByText((content) => content.includes("（演示回复）"))).toBeInTheDocument();
+    } finally {
+      restore();
+    }
+  });
+
   it("renders the seeded demo conversation without touching the network", async () => {
     const restore = forbidTransports();
     try {

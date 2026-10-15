@@ -10,6 +10,7 @@ import {
 import { SettingsSectionFrame } from "@/components/settings/shared/SettingsSectionFrame";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PreviewMemory } from "./PreviewMemory";
 
 /** The 11 non-capability settings sections the live app exposes. The four
  *  capability pages (apps/agents/skills/automations) live in
@@ -105,13 +106,19 @@ function DisabledActionRow({
  */
 export function PreviewSettings({
   initialSection = "overview",
+  onSectionChange,
 }: {
   initialSection?: NormalSection;
+  onSectionChange?: (section: NormalSection) => void;
 }) {
   const { t } = useTranslation();
   const [section, setSection] = useState<NormalSection>(initialSection);
   const [theme, setTheme] = useState({ auto: false, reduceMotion: true });
   const [saved, setSaved] = useState(false);
+  const changeSection = (next: NormalSection) => {
+    setSection(next);
+    onSectionChange?.(next);
+  };
 
   const body: Record<NormalSection, ReactNode> = {
     overview: (
@@ -162,12 +169,7 @@ export function PreviewSettings({
         <DisabledActionRow title="安装渠道插件" description="安装会改动运行环境。" action="安装" />
       </SettingsGroup>
     ),
-    memory: (
-      <SettingsGroup>
-        <ReadOnlyRow title="会话历史" value="12 条（示例）" />
-        <ReadOnlyRow title="自动整理" value="两阶段 Dream（示例）" />
-      </SettingsGroup>
-    ),
+    memory: <PreviewMemory />,
     identity: (
       <SettingsGroup>
         <ReadOnlyRow title="显示名" value="知序用户（示例）" />
@@ -189,22 +191,23 @@ export function PreviewSettings({
   };
 
   return (
-    <div className="flex h-full min-w-0 bg-background">
+    <div className="flex h-full min-w-0 bg-[radial-gradient(ellipse_at_top_right,hsl(var(--primary)/0.045),transparent_60%)]">
       <nav
         aria-label={t("settings.sidebar.ariaLabel", { defaultValue: "Settings sections" })}
-        className="hidden w-[210px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border/60 p-3 md:flex"
+        className="hidden w-[190px] shrink-0 flex-col gap-1 overflow-y-auto border-r border-border/60 bg-card/35 px-3 py-6 md:flex"
       >
+        <p className="mb-3 px-3 text-[10px] font-medium tracking-[0.18em] text-muted-foreground">偏好与设置</p>
         {NORMAL_SECTIONS.map((key) => (
           <button
             key={key}
             type="button"
             aria-current={section === key ? "page" : undefined}
-            onClick={() => setSection(key)}
+            onClick={() => changeSection(key)}
             className={cn(
-              "rounded-control px-3 py-2 text-left text-[13px] transition-colors",
+              "rounded-control border px-3 py-2 text-left text-[12px] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               section === key
-                ? "bg-primary/10 font-medium text-primary"
-                : "text-foreground/80 hover:bg-accent/50",
+                ? "border-primary/15 bg-primary/[0.08] font-medium text-primary"
+                : "border-transparent text-foreground/75 hover:bg-accent/50",
             )}
           >
             {SECTION_LABELS[key]}
@@ -212,10 +215,17 @@ export function PreviewSettings({
         ))}
       </nav>
       <div className="min-w-0 flex-1 overflow-y-auto">
+        <label className="mx-5 mt-5 flex items-center gap-3 text-[12px] text-muted-foreground md:hidden">
+          设置页面
+          <select aria-label="设置页面" value={section} onChange={(event) => changeSection(event.target.value as NormalSection)} className="min-w-0 flex-1 rounded-control border border-input bg-card px-3 py-2 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {NORMAL_SECTIONS.map((key) => <option key={key} value={key}>{SECTION_LABELS[key]}</option>)}
+          </select>
+        </label>
         <SettingsSectionFrame
           title={SECTION_LABELS[section]}
-          description="界面预览 · 示例内容，保存与操作均不会改动真实配置。"
+          description={section === "memory" ? "查看与管理记住的内容，让每一次对话都能接着往下走。" : "界面预览 · 示例内容，保存与操作均不会改动真实配置。"}
           actions={
+            section === "memory" ? <StatusPill tone="warning">示例预览</StatusPill> :
             <Button
               type="button"
               size="sm"

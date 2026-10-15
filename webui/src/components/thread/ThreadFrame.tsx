@@ -14,7 +14,7 @@ export interface ThreadFrameProps {
  */
 export function ThreadFrame({ header, children, composer, details }: ThreadFrameProps) {
   return (
-    <div className="flex h-full min-w-0 flex-1 overflow-hidden">
+    <div className="agent-thread-shell flex h-full min-w-0 flex-1 overflow-hidden">
       <div className="thread-layout flex min-w-0 flex-1 flex-col bg-background">
         <header className="shrink-0 border-b border-border/70">{header}</header>
         <main className="flex min-h-0 flex-1 flex-col">{children}</main>
