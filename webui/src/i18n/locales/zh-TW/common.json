@@ -2098,6 +2098,7 @@
     "failed": "無法預覽這個檔案。",
     "routeMissing": "檔案預覽需要最新版本的閘道。請重新啟動 知序 閘道後再試一次。",
     "resize": "調整檔案預覽寬度",
+    "pickFile": "選擇檔案後在這裡預覽。",
     "truncated": "檔案較大，因此預覽內容已截斷。"
   },
   "code": {
@@ -2108,8 +2109,7 @@
   },
   "workbench": {
     "title": "對話工作台",
-    "open": "展開工作台",
-    "collapse": "收合工作台",
+    "tools": "工具側邊欄",
     "updatedAt": "更新於 {{time}}",
     "overview": "概覽",
     "emptyOverview": "尚無摘要",

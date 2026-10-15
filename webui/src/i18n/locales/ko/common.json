@@ -2098,6 +2098,7 @@
     "failed": "이 파일을 미리 볼 수 없습니다.",
     "routeMissing": "파일 미리보기에는 최신 gateway가 필요합니다. 知序 gateway를 다시 시작한 뒤 다시 시도하세요.",
     "resize": "파일 미리보기 크기 조절",
+    "pickFile": "파일을 선택하면 여기에 미리보기가 표시됩니다.",
     "truncated": "파일이 커서 미리보기가 잘렸습니다."
   },
   "code": {
@@ -2108,8 +2109,7 @@
   },
   "workbench": {
     "title": "워크벤치",
-    "open": "워크벤치 열기",
-    "collapse": "워크벤치 접기",
+    "tools": "도구 사이드바",
     "updatedAt": "갱신 {{time}}",
     "overview": "개요",
     "emptyOverview": "아직 요약이 없습니다",

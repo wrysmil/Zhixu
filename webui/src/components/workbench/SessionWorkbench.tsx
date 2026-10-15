@@ -1,14 +1,11 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ChevronRight,
-  PanelRightClose,
   Search,
   Wrench,
 } from "lucide-react";
 
-import { StartDock } from "@/components/dock/StartDock";
-import { HOME_DOCK_SCOPE } from "@/lib/dock-store";
 import {
   type SessionWorkbenchModel,
   type WorkbenchSource,
@@ -21,9 +18,6 @@ export const SESSION_WORKBENCH_RAIL_WIDTH = "19rem";
 interface SessionWorkbenchProps {
   model: SessionWorkbenchModel;
   onOpenFilePreview?: (path: string) => void;
-  onCollapse: () => void;
-  sessionKey?: string | null;
-  getToken?: () => string;
 }
 
 function formatUpdatedAt(ms: number | null, language: string): string {
@@ -91,15 +85,10 @@ function SourceLink({ source }: { source: WorkbenchSource }) {
 export function SessionWorkbench({
   model,
   onOpenFilePreview,
-  onCollapse,
-  sessionKey,
-  getToken,
 }: SessionWorkbenchProps) {
   const { t, i18n } = useTranslation();
   const updated = formatUpdatedAt(model.updatedAtMs, i18n.language);
   const hasIntegrations = model.mcpUsed.length > 0 || model.cliUsed.length > 0;
-  // StartDock 以 getToken 引用为壳列表拉取依赖；这里保持跨渲染稳定。
-  const dockGetToken = useCallback(() => getToken?.() ?? "", [getToken]);
 
   return (
     <aside
@@ -119,17 +108,9 @@ export function SessionWorkbench({
             })}
           </span>
         ) : null}
-        <button
-          type="button"
-          aria-label={t("workbench.collapse", { defaultValue: "Collapse workbench" })}
-          onClick={onCollapse}
-          className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
-        >
-          <PanelRightClose className="h-3.5 w-3.5" aria-hidden />
-        </button>
       </header>
 
-      <div className="max-h-[45%] min-h-0 shrink overflow-y-auto scrollbar-thin">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
         <Section
           title={t("workbench.overview", { defaultValue: "Overview" })}
           defaultOpen
@@ -268,16 +249,6 @@ export function SessionWorkbench({
           )}
         </Section>
       </div>
-
-      {/* 与首页同源的标签式右坞（embedded）：文件/浏览器/终端统一在此，scope=会话 key，
-          标签与接管清单按 scope 独立持久化；预览仍上抛宿主外置面板。 */}
-      <StartDock
-        variant="embedded"
-        scope={sessionKey ?? HOME_DOCK_SCOPE}
-        sessionKey={sessionKey ?? null}
-        getToken={dockGetToken}
-        onOpenFilePreview={onOpenFilePreview}
-      />
     </aside>
   );
 }

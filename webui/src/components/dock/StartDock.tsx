@@ -1,5 +1,5 @@
 // 标签式右侧坞（批次 home-dock-pty-terminal-v1.1 Task 9）。
-// 单组件双宿主：首页 rail（本批）+ SessionWorkbench embedded 变体（Task 10 接入）。
+// 单组件双宿主：首页 rail + 会话页覆盖在工作台列上的工具侧边栏（embedded）。
 // 承接 v1 TerminalSection 的容器职责：挂载即 ``terminal_list`` 探活并按
 // ``terminal_list_result`` 恢复存活终端标签；file/browser 单例 focus-or-open、
 // terminal 标签 ≤8（dockStore 强制）；关闭 terminal 标签走 ``terminal_kill`` +
@@ -14,7 +14,6 @@ import {
   Files,
   Globe,
   PanelRightClose,
-  PanelRightOpen,
   Plus,
   SquareTerminal,
   X,
@@ -80,7 +79,7 @@ const CARD_SPECS: CardSpec[] = [
 ];
 
 export interface StartDockProps {
-  /** 宿主形态：rail = 首页独立右坞；embedded = SessionWorkbench 内嵌（Task 10），不渲染自身 aside 与折叠按钮。 */
+  /** 宿主形态：rail = 首页独立右坞；embedded = 会话页工具侧边栏，铺满宿主给的容器（不渲染自身 aside）。 */
   variant?: "rail" | "embedded";
   /** dock scope：首页为 HOME_DOCK_SCOPE，会话页为 `websocket:<chat_id>`（Task 10）。 */
   scope: string;
@@ -88,6 +87,11 @@ export interface StartDockProps {
   getToken: () => string;
   /** 传入则文件预览上抛宿主（SessionWorkbench 外置预览面板语义）。 */
   onOpenFilePreview?: (path: string) => void;
+  /**
+   * 收起回调：收起一律由宿主卸载整条坞，组件内部不留 40px 竖条——
+   * 后者会让头部开关与实际可见状态各说各话。
+   */
+  onCollapse?: () => void;
 }
 
 export function StartDock({
@@ -96,13 +100,13 @@ export function StartDock({
   sessionKey,
   getToken,
   onOpenFilePreview,
+  onCollapse,
 }: StartDockProps) {
   const { t } = useTranslation();
   const isEmbedded = variant === "embedded";
   const { client } = useClient();
   const snapshot = useDockTabs(scope);
   const { store: terminalStore, terminals } = useTerminalStore();
-  const [collapsed, setCollapsed] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [shellSubOpen, setShellSubOpen] = useState(false);
   const [shells, setShells] = useState<TerminalShellsPayload | null>(null);
@@ -209,25 +213,6 @@ export function StartDock({
     // 无 shell 数据（拉取失败/旧网关）：走平台默认 shell。
     openTerminalTab(null);
   };
-
-  if (!isEmbedded && collapsed) {
-    return (
-      <aside
-        data-testid="start-dock"
-        aria-label={t("startPanel.title", { defaultValue: "Start" })}
-        className="hidden w-10 shrink-0 flex-col items-center border-l border-border/60 bg-muted/20 py-2 md:flex"
-      >
-        <button
-          type="button"
-          aria-label={t("startPanel.expand", { defaultValue: "Expand the start panel" })}
-          onClick={() => setCollapsed(false)}
-          className="grid h-7 w-7 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
-        >
-          <PanelRightOpen className="h-4 w-4" aria-hidden />
-        </button>
-      </aside>
-    );
-  }
 
   const shellInner = (
     <>
@@ -339,11 +324,11 @@ export function StartDock({
             </div>
           ) : null}
         </div>
-        {!isEmbedded ? (
+        {onCollapse ? (
           <button
             type="button"
             aria-label={t("startPanel.collapse", { defaultValue: "Collapse the start panel" })}
-            onClick={() => setCollapsed(true)}
+            onClick={onCollapse}
             className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
           >
             <PanelRightClose className="h-3.5 w-3.5" aria-hidden />
@@ -438,7 +423,7 @@ export function StartDock({
       <div
         data-testid="start-dock"
         aria-label={t("startPanel.title", { defaultValue: "Start" })}
-        className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border-t border-border/40 bg-muted/20"
+        className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden border-l border-border/40 bg-muted/20"
       >
         {shellInner}
       </div>

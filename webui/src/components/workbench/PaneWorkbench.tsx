@@ -3,7 +3,6 @@ import {
   Grid2X2,
   PanelLeft,
   PanelsTopLeft,
-  Plus,
   Rows2,
   type LucideIcon,
 } from "lucide-react";
@@ -67,10 +66,7 @@ interface PaneWorkbenchProps {
   layout: WorkbenchLayout;
   chrome?: boolean;
   showLayoutControl: boolean;
-  addPaneDisabled?: boolean;
-  addPaneDisabledLabel?: string;
   onActivatePane: (key: string) => void;
-  onAddPane: () => void;
   onLayoutChange: (layout: WorkbenchLayout) => void;
   onPaneOrderChange: (paneKeys: string[]) => void;
   splitRatios?: number[];
@@ -163,52 +159,13 @@ function paneInDirection(
   return best?.key ?? null;
 }
 
-function HeaderIconButton({
-  disabled,
-  disabledLabel,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  disabled?: boolean;
-  disabledLabel?: string;
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            disabled={disabled}
-            aria-label={label}
-            title={disabled ? disabledLabel : undefined}
-            onClick={onClick}
-            className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
-          >
-            <Icon className="h-4 w-4" aria-hidden />
-          </Button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{disabled ? disabledLabel ?? label : label}</TooltipContent>
-    </Tooltip>
-  );
-}
-
 export function PaneWorkbench({
   panes,
   activePaneKey,
   layout,
   chrome = true,
   showLayoutControl,
-  addPaneDisabled = false,
-  addPaneDisabledLabel,
   onActivatePane,
-  onAddPane,
   onLayoutChange,
   onPaneOrderChange,
   splitRatios = EMPTY_SPLIT_RATIOS,
@@ -674,16 +631,6 @@ export function PaneWorkbench({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
-      <HeaderIconButton
-        disabled={addPaneDisabled}
-        disabledLabel={addPaneDisabledLabel}
-        icon={Plus}
-        label={t("workbench.addPane", { defaultValue: "Add pane" })}
-        onClick={() => {
-          captureLayout();
-          onAddPane();
-        }}
-      />
     </div>
   ) : null;
 

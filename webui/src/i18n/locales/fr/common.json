@@ -2098,6 +2098,7 @@
     "failed": "Impossible de prévisualiser ce fichier.",
     "routeMissing": "L’aperçu du fichier nécessite le dernier gateway. Redémarrez 知序 gateway puis réessayez.",
     "resize": "Redimensionner l’aperçu du fichier",
+    "pickFile": "Sélectionnez un fichier pour l’aperçu ici.",
     "truncated": "L’aperçu est tronqué car le fichier est volumineux."
   },
   "code": {
@@ -2108,8 +2109,7 @@
   },
   "workbench": {
     "title": "Espace de travail",
-    "open": "Ouvrir l’espace de travail",
-    "collapse": "Réduire l’espace de travail",
+    "tools": "Barre latérale d’outils",
     "updatedAt": "Mis à jour {{time}}",
     "overview": "Aperçu",
     "emptyOverview": "Pas encore de résumé",

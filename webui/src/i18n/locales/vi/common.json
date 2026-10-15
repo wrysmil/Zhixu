@@ -2098,6 +2098,7 @@
     "failed": "Không thể xem trước tệp này.",
     "routeMissing": "Xem trước tệp cần gateway mới nhất. Hãy khởi động lại 知序 gateway rồi thử lại.",
     "resize": "Đổi kích thước bản xem trước tệp",
+    "pickFile": "Chọn một tệp để xem trước ở đây.",
     "truncated": "Bản xem trước bị cắt vì tệp này lớn."
   },
   "code": {
@@ -2108,8 +2109,7 @@
   },
   "workbench": {
     "title": "Bảng làm việc",
-    "open": "Mở bảng làm việc",
-    "collapse": "Thu gọn bảng làm việc",
+    "tools": "Thanh công cụ bên",
     "updatedAt": "Cập nhật {{time}}",
     "overview": "Tổng quan",
     "emptyOverview": "Chưa có tóm tắt",

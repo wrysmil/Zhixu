@@ -7,6 +7,7 @@ import { PanelRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FilePreviewAvailabilityProvider } from "@/components/FilePreviewAvailabilityContext";
 import { FilePreviewPanel } from "@/components/FilePreviewPanel";
+import { StartDock } from "@/components/dock/StartDock";
 import { SessionHandleLabel } from "@/components/SessionHandleLabel";
 import { SessionWorkbench } from "@/components/workbench/SessionWorkbench";
 import { deriveSessionWorkbench } from "@/components/workbench/session-workbench-model";
@@ -34,6 +35,7 @@ import {
 } from "@/lib/api";
 import { listAgents } from "@/lib/agents/api";
 import type { AgentProfile } from "@/lib/agents/types";
+import { HOME_DOCK_SCOPE } from "@/lib/dock-store";
 import {
   CLI_APPS_CHANGED_EVENT,
   installedCliAppsFromPayload,
@@ -427,7 +429,6 @@ interface ThreadShellProps {
   settingsSnapshot?: SettingsPayload | null;
   onOpenModelSettings?: () => void;
   skills?: SkillSummary[];
-  onWorkbenchOpenChange?: (open: boolean) => void;
   draftSeed?: { text: string; token: number } | null;
   onDraftSeedConsumed?: () => void;
 }
@@ -662,7 +663,6 @@ export function ThreadShell({
   settingsSnapshot = null,
   onOpenModelSettings,
   skills = [],
-  onWorkbenchOpenChange,
   draftSeed = null,
   onDraftSeedConsumed,
 }: ThreadShellProps) {
@@ -736,9 +736,9 @@ export function ThreadShell({
   const [filePreviewPath, setFilePreviewPath] = useState<string | null>(null);
   const [filePreviewClosing, setFilePreviewClosing] = useState(false);
   const [filePreviewWidth, setFilePreviewWidth] = useState(FILE_PREVIEW_DEFAULT_WIDTH);
-  const [workbenchOpen, setWorkbenchOpen] = useState(() => {
+  const [toolsOpen, setToolsOpen] = useState(() => {
     try {
-      return window.localStorage.getItem("mira.workbench.open") === "1";
+      return window.localStorage.getItem("mira.dock-tools.open") === "1";
     } catch {
       return false;
     }
@@ -1698,36 +1698,28 @@ export function ThreadShell({
   );
   useEffect(() => {
     try {
-      window.localStorage.setItem("mira.workbench.open", workbenchOpen ? "1" : "0");
+      window.localStorage.setItem("mira.dock-tools.open", toolsOpen ? "1" : "0");
     } catch {
       // Preference persistence is best-effort.
     }
-  }, [workbenchOpen]);
-
-  const onWorkbenchOpenChangeRef = useRef(onWorkbenchOpenChange);
-  onWorkbenchOpenChangeRef.current = onWorkbenchOpenChange;
-  useEffect(() => {
-    onWorkbenchOpenChangeRef.current?.(workbenchOpen);
-    return () => {
-      onWorkbenchOpenChangeRef.current?.(false);
-    };
-  }, [workbenchOpen]);
+  }, [toolsOpen]);
 
   const workbenchModel = useMemo(
     () => deriveSessionWorkbench(displayMessages, workspaceScope),
     [displayMessages, workspaceScope],
   );
 
+  // 工作台本体常驻、无收起入口：这个按钮只切右侧工具坞（文件/终端/浏览器）。
   const workbenchAction = session ? (
     <Button
       variant="ghost"
       size="icon"
       type="button"
-      aria-label={t("workbench.open", { defaultValue: "Open workbench" })}
-      aria-pressed={workbenchOpen}
-      onClick={() => setWorkbenchOpen((open) => !open)}
+      aria-label={t("workbench.tools", { defaultValue: "Tools sidebar" })}
+      aria-pressed={toolsOpen}
+      onClick={() => setToolsOpen((open) => !open)}
       className={`host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground ${
-        workbenchOpen ? "bg-accent/40 text-foreground" : ""
+        toolsOpen ? "bg-accent/40 text-foreground" : ""
       }`}
     >
       <PanelRight className="h-4 w-4" />
@@ -1805,14 +1797,39 @@ export function ThreadShell({
           />
         </FilePreviewAvailabilityProvider>
       </div>
-      {workbenchOpen && session ? (
-        <SessionWorkbench
-          model={workbenchModel}
-          onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
-          onCollapse={() => setWorkbenchOpen(false)}
-          sessionKey={historyKey ?? null}
-          getToken={getToken}
+      {filePreviewPath && historyKey ? (
+        // 预览排在会话工作台之前：文件树（工具侧边栏）恒在最右列，预览在它左边展开。
+        <FilePreviewPanel
+          sessionKey={historyKey}
+          path={filePreviewPath}
+          token={token}
+          desktopWidth={filePreviewWidth}
+          isClosing={filePreviewClosing}
+          onResizeStart={handleFilePreviewResizeStart}
+          onClose={handleCloseFilePreview}
         />
+      ) : null}
+      {session ? (
+        <div className="relative hidden shrink-0 md:flex">
+          <SessionWorkbench
+            model={workbenchModel}
+            onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
+          />
+          {toolsOpen ? (
+            // 工具侧边栏不占工作台版面：打开时整列盖住工作台，关掉后工作台原样露出。
+            // bg-background 打底是必须的——dock 自身只有半透明 tint，否则工作台文字会透出来重影。
+            <div className="absolute inset-0 z-30 flex bg-background">
+              <StartDock
+                variant="embedded"
+                scope={historyKey ?? HOME_DOCK_SCOPE}
+                sessionKey={historyKey ?? null}
+                getToken={getToken}
+                onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
+                onCollapse={() => setToolsOpen(false)}
+              />
+            </div>
+          ) : null}
+        </div>
       ) : null}
       {headerPortalTarget && headerActive
         ? createPortal(threadHeader, headerPortalTarget)
@@ -1826,17 +1843,6 @@ export function ThreadShell({
           {composer}
         </div>,
         composerPortalTarget,
-      ) : null}
-      {filePreviewPath && historyKey ? (
-        <FilePreviewPanel
-          sessionKey={historyKey}
-          path={filePreviewPath}
-          token={token}
-          desktopWidth={filePreviewWidth}
-          isClosing={filePreviewClosing}
-          onResizeStart={handleFilePreviewResizeStart}
-          onClose={handleCloseFilePreview}
-        />
       ) : null}
     </section>
   );

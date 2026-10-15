@@ -1565,8 +1565,7 @@
   },
   "workbench": {
     "title": "Workbench",
-    "open": "Open workbench",
-    "collapse": "Collapse workbench",
+    "tools": "Tools sidebar",
     "updatedAt": "Updated {{time}}",
     "overview": "Overview",
     "emptyOverview": "No summary yet",
@@ -2155,6 +2154,7 @@
     "failed": "Could not preview this file.",
     "routeMissing": "File preview needs the latest gateway. Restart 知序 gateway and try again.",
     "resize": "Resize file preview",
+    "pickFile": "Pick a file to preview it here.",
     "truncated": "Preview is truncated because this file is large."
   },
   "code": {

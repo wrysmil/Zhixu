@@ -107,7 +107,7 @@ function DockFilePreview({
               chrome="none"
               highlight
               showLineNumbers={false}
-              wrapLongLines={false}
+              wrapLongLines
             />
           </>
         )}
@@ -169,30 +169,54 @@ export function DockFileTab({
   }, []);
 
   const openPreview = onOpenFilePreview ?? setPreviewPath;
+  // 宿主自带外置预览面板时（会话工作台）不内嵌预览列，文件树占满整列。
+  const inlinePreview = !onOpenFilePreview;
 
   const renderTree = () => (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      {previewPath && !onOpenFilePreview ? (
-        <DockFilePreview
-          getToken={getToken}
-          sessionKey={sessionKey}
-          path={previewPath}
-          onClose={() => setPreviewPath(null)}
-        />
+    <div className="flex min-h-0 flex-1 gap-2">
+      {inlinePreview ? (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {previewPath ? (
+            <DockFilePreview
+              getToken={getToken}
+              sessionKey={sessionKey}
+              path={previewPath}
+              onClose={() => setPreviewPath(null)}
+            />
+          ) : (
+            <p
+              data-testid="dock-file-preview-empty"
+              className="px-1 py-1 text-[12px] text-muted-foreground/60"
+            >
+              {t("filePreview.pickFile", {
+                defaultValue: "Pick a file to preview it here.",
+              })}
+            </p>
+          )}
+        </div>
       ) : null}
-      {homeAnchored ? (
-        <WorkspaceFileTree
-          getToken={getToken}
-          fetchDirectory={fetchDirectory}
-          onOpenFilePreview={openPreview}
-        />
-      ) : (
-        <WorkspaceFileTree
-          sessionKey={sessionKey ?? ""}
-          getToken={getToken}
-          onOpenFilePreview={openPreview}
-        />
-      )}
+      <div
+        data-testid="dock-file-tree-column"
+        className={
+          inlinePreview
+            ? "flex min-h-0 w-[46%] shrink-0 flex-col gap-2"
+            : "flex min-h-0 flex-1 flex-col gap-2"
+        }
+      >
+        {homeAnchored ? (
+          <WorkspaceFileTree
+            getToken={getToken}
+            fetchDirectory={fetchDirectory}
+            onOpenFilePreview={openPreview}
+          />
+        ) : (
+          <WorkspaceFileTree
+            sessionKey={sessionKey ?? ""}
+            getToken={getToken}
+            onOpenFilePreview={openPreview}
+          />
+        )}
+      </div>
     </div>
   );
 

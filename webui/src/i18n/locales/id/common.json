@@ -2098,6 +2098,7 @@
     "failed": "Tidak dapat mempratinjau file ini.",
     "routeMissing": "Pratinjau file memerlukan gateway terbaru. Mulai ulang 知序 gateway lalu coba lagi.",
     "resize": "Ubah ukuran pratinjau file",
+    "pickFile": "Pilih file untuk pratinjau di sini.",
     "truncated": "Pratinjau dipotong karena file ini besar."
   },
   "code": {
@@ -2108,8 +2109,7 @@
   },
   "workbench": {
     "title": "Ruang kerja",
-    "open": "Buka ruang kerja",
-    "collapse": "Ciutkan ruang kerja",
+    "tools": "Bilah sisi alat",
     "updatedAt": "Diperbarui {{time}}",
     "overview": "Ringkasan",
     "emptyOverview": "Belum ada ringkasan",

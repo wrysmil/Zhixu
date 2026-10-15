@@ -671,6 +671,25 @@ describe("App layout", () => {
     expect(dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs).toHaveLength(0);
   });
 
+  it("leaves the right toolbar to the session workbench on the chat page", async () => {
+    mockSessions = [{
+      key: "websocket:existing-chat",
+      channel: "websocket",
+      chatId: "existing-chat",
+      createdAt: "2026-08-06T10:00:00Z",
+      updatedAt: "2026-08-06T10:00:00Z",
+      preview: "Existing topic",
+    }];
+    window.history.replaceState(null, "", `#/chat/${encodeURIComponent("websocket:existing-chat")}`);
+    render(<App />);
+
+    await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+    // 会话页的右侧工具栏（文件/终端/浏览器）只挂在会话工作台里，由会话头部的
+    // workbench 按钮独占开关；首页右坞的第二个开关会在会话页叠出重复 dock。
+    expect(screen.queryByTestId("start-dock-toggle")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("start-dock")).not.toBeInTheDocument();
+  });
+
   it("keeps a just-created topic route while the session list catches up", async () => {
     render(<App />);
 

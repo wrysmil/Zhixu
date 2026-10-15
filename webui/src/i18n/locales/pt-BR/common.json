@@ -2098,6 +2098,7 @@
     "failed": "Não foi possível pré-visualizar este arquivo.",
     "routeMissing": "A pré-visualização de arquivo precisa do gateway mais recente. Reinicie o 知序 gateway e tente novamente.",
     "resize": "Redimensionar pré-visualização de arquivo",
+    "pickFile": "Escolha um arquivo para visualizar aqui.",
     "truncated": "A pré-visualização foi truncada porque este arquivo é grande."
   },
   "code": {
@@ -2108,8 +2109,7 @@
   },
   "workbench": {
     "title": "Bancada de trabalho",
-    "open": "Abrir a bancada de trabalho",
-    "collapse": "Recolher a bancada de trabalho",
+    "tools": "Barra lateral de ferramentas",
     "updatedAt": "Atualizado {{time}}",
     "overview": "Visão geral",
     "emptyOverview": "Ainda não há resumo",

@@ -13,6 +13,7 @@ import {
   EyeOff,
   Moon,
   PanelLeftOpen,
+  PanelRightClose,
   PanelRightOpen,
   ShieldCheck,
   Sun,
@@ -2393,7 +2394,8 @@ function Shell({
   ]);
   const renderedActivePaneKey = activeKey ?? renderedWorkbenchPanes[0].key;
 
-  // 首页右坞与会话内嵌工作台互斥：两者都是 StartDock，同时出现会上下叠成两块。
+  // 首页右坞与会话内嵌工作台互斥：两者都是 StartDock，同时出现会叠成两块，
+  // 各自还带一个收起按钮、状态互不同步。会话页只保留会话工作台内的内嵌 dock。
   const dockToggle = (
     <Button
       type="button"
@@ -2407,13 +2409,14 @@ function Shell({
       onClick={() => setHomeDockOpen((open) => !open)}
       className="host-no-drag h-8 w-8 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
     >
-      <PanelRightOpen className="h-4 w-4" aria-hidden />
+      {homeDockOpen
+        ? <PanelRightClose className="h-4 w-4" aria-hidden />
+        : <PanelRightOpen className="h-4 w-4" aria-hidden />}
     </Button>
   );
-  // 文件/终端/浏览器只有一个入口：顶栏按钮打开的侧边栏（StartDock rail）。
-  // 工作台面板内不再内嵌启动器；会话页同样用这个按钮，scope 跟到会话 key。
-  const dockScope = activeKey ?? HOME_DOCK_SCOPE;
-  const dockVisible = view === "chat" && !mobileWorkbench;
+  // 文件/终端/浏览器在会话页只有一个入口：会话头部的工作台按钮 → SessionWorkbench
+  // 内嵌 dock。首页没有会话工作台，才由顶栏这个按钮挂独立右坞。
+  const dockVisible = view === "chat" && activeKey === null && !mobileWorkbench;
   const renderedWorkbenchLayout = paneChromeEnabled && activeTabState
     ? activeTabState.layout
     : "columns";
@@ -2903,9 +2906,10 @@ function Shell({
                 {dockVisible && homeDockOpen ? (
                   <Suspense fallback={null}>
                     <StartDock
-                      scope={dockScope}
+                      scope={HOME_DOCK_SCOPE}
                       sessionKey={activeKey}
                       getToken={getToken}
+                      onCollapse={() => setHomeDockOpen(false)}
                     />
                   </Suspense>
                 ) : null}

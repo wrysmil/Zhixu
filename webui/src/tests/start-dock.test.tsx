@@ -346,13 +346,22 @@ describe("StartDock reuses TerminalSurface for the pty flag", () => {
   });
 });
 
-describe("StartDock collapse rail", () => {
-  it("collapses to a rail and re-expands keeping the start-dock testid", () => {
-    renderDock();
+describe("StartDock collapse", () => {
+  it("hands the collapse to the host instead of leaving an orphan rail", () => {
+    const onCollapse = vi.fn();
+    renderDock({ onCollapse });
     fireEvent.click(screen.getByRole("button", { name: /Collapse/i }));
-    expect(screen.queryByTestId("dock-launcher")).toBeNull();
-    expect(screen.getByTestId("start-dock")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Expand/i }));
-    expect(screen.getByTestId("dock-launcher")).toBeInTheDocument();
+    // 收起 = 宿主卸载整条坞；组件内部再留一个 40px 竖条会和头部开关各说各话。
+    expect(onCollapse).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the collapse button available to the session overlay host", () => {
+    renderDock({ variant: "embedded", onCollapse: vi.fn() });
+    expect(screen.getByRole("button", { name: /Collapse/i })).toBeInTheDocument();
+  });
+
+  it("renders no collapse affordance when the host owns the toggle", () => {
+    renderDock();
+    expect(screen.queryByRole("button", { name: /Collapse/i })).not.toBeInTheDocument();
   });
 });

@@ -1565,8 +1565,7 @@
   },
   "workbench": {
     "title": "工作台",
-    "open": "打开工作台",
-    "collapse": "收起工作台",
+    "tools": "工具侧边栏",
     "updatedAt": "更新于 {{time}}",
     "overview": "概览",
     "emptyOverview": "暂无摘要",
@@ -2155,6 +2154,7 @@
     "failed": "无法预览这个文件。",
     "routeMissing": "文件预览需要最新的网关。请重启 知序 gateway 后再试。",
     "resize": "调整文件预览宽度",
+    "pickFile": "选择文件后在这里预览。",
     "truncated": "文件较大，当前只显示前半部分预览。"
   },
   "code": {
