@@ -237,6 +237,38 @@ describe("teams 管理页", () => {
     expect(saveTeam.mock.calls[1][1].team.name).toBe("增长团队 v2");
   });
 
+  it("编辑器只改并行上限，其余限额原样带回不被重置成默认值", async () => {
+    const user = userEvent.setup();
+    listTeams.mockResolvedValue({
+      teams: [
+        team({
+          limits: {
+            maxConcurrency: 2,
+            maxTasks: 32,
+            maxDispatchRounds: 6,
+            taskTimeoutSeconds: 900,
+            runTimeoutSeconds: 3600,
+          },
+        }),
+      ],
+      nextCursor: null,
+    });
+    render(<TeamsView />);
+
+    await screen.findByText("内容团队");
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    await user.click(await screen.findByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(saveTeam).toHaveBeenCalledTimes(1));
+    expect(saveTeam.mock.calls[0][1].team.limits).toEqual({
+      maxConcurrency: 2,
+      maxTasks: 32,
+      maxDispatchRounds: 6,
+      taskTimeoutSeconds: 900,
+      runTimeoutSeconds: 3600,
+    });
+  });
+
   it("归档必须先确认，再带 expectedRevision 落库", async () => {
     const user = userEvent.setup();
     render(<TeamsView />);

@@ -210,7 +210,11 @@ export function TeamEditorDialog({
       instructions: draft.instructions,
       leaderAgentId: draft.leaderAgentId,
       members: draft.members.map((member) => ({ ...member })),
-      limits: { ...defaultTeamLimits(), maxConcurrency: Number.parseInt(draft.maxConcurrency, 10) },
+      // 本编辑器只改 maxConcurrency；其余限额必须原样带回去，不能被默认值悄悄重置。
+      limits: {
+        ...(team ? team.limits : defaultTeamLimits()),
+        maxConcurrency: Number.parseInt(draft.maxConcurrency, 10),
+      },
       archived: draft.archived,
       createdAt: team ? team.createdAt : now,
       updatedAt: now,
