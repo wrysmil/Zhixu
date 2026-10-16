@@ -243,6 +243,7 @@
       "skills": "技能",
       "memory": "记忆",
       "identity": "身份",
+      "agents": "智能体",
       "teams": "团队"
     },
     "teams": {
@@ -330,6 +331,13 @@
       "archive": "归档",
       "archiveTitle": "归档团队",
       "archiveBody": "归档后不能再发起新的团队运行，已有聊天会继续使用它绑定的修订，历史运行仍可查看。",
+      "showArchived": "显示归档",
+      "hideArchived": "隐藏归档",
+      "unarchive": "取消归档",
+      "unarchiveTitle": "取消归档这支团队？",
+      "unarchiveBody": "取消归档后，这支团队可以重新发起运行，并因此生成一个新修订。",
+      "allArchived": "所有团队都已归档，打开「显示归档」就能看到它们。",
+      "workspaceSubtitle": "把各有所长的 Agent 编成一支团队：队长拆解目标并分派任务，成员各自执行。适合需要多步协作的事。",
       "archived": "已归档",
       "conflict": "团队已被其他改动更新，请重新加载后再保存（你的草稿已保留）。",
       "createTitle": "创建团队",
@@ -340,20 +348,20 @@
       "revisionNote": "当前修订 v{{revision}}；保存后生成 v{{next}}"
     },
     "agents": {
-      "create": "新建 Agent",
+      "create": "新建智能体",
       "untitled": "未命名",
       "loading": "加载中…",
-      "empty": "暂无 Agent",
+      "empty": "暂无智能体",
       "search": "搜索名称或描述…",
       "categoryAll": "全部",
       "viewMode": "视图模式",
       "viewTree": "树",
-      "hiddenGroup": "已隐藏的 Agent（{{count}}）",
+      "hiddenGroup": "已隐藏的智能体（{{count}}）",
       "deleteTitle": "删除「{{name}}」？",
-      "deleteBody": "删除后该 Agent 不可恢复，历史会话不受影响。",
+      "deleteBody": "删除后该智能体不可恢复，历史会话不受影响。",
       "mode": {
-        "all": "全部",
-        "include": "仅所选",
+        "all": "全部可用",
+        "include": "只用所选",
         "exclude": "排除所选"
       },
       "section": {
@@ -367,7 +375,7 @@
         "enabledCount": "已启用 {{count}}",
         "locked": "框架依赖",
         "empty": "没有匹配项",
-        "allModeHint": "当前为「全部」，下方仅供查看。切换到「仅所选」即可逐项勾选。",
+        "allModeHint": "已启用全部可用项，下方仅供查看。切换到「只用所选」即可逐项勾选。",
         "selectGroup": "全选",
         "clearGroup": "全不选"
       },
@@ -378,16 +386,19 @@
         "modeLabel": "搜索技能"
       },
       "model": {
+        "label": "模型",
+        "auto": "跟随全局模型",
+        "autoHint": "该智能体跟随全局模型设置。",
         "context": "上下文",
         "vision": "支持视觉",
         "toolUse": "支持工具调用"
       },
       "prompt": {
-        "label": "系统提示词",
-        "placeholder": "描述这个 Agent 的职责、边界与输出风格。可使用 {{name}} 等变量。",
+        "label": "工作指令",
+        "placeholder": "描述这个智能体的职责、边界与输出要求。可使用 {{name}} 等变量。",
         "expand": "展开编辑",
         "collapse": "完成",
-        "expandedTitle": "编辑提示词"
+        "expandedTitle": "编辑工作指令"
       },
       "basics": {
         "id": "ID",
@@ -424,9 +435,9 @@
         "empty": "没有匹配的图标"
       },
       "editor": {
-        "new": "新建 Agent",
+        "new": "新建智能体",
         "edit": "编辑 · {{name}}",
-        "subtitle": "配置该 Agent 可用的能力、模型与提示词。",
+        "subtitle": "配置该智能体可用的能力、模型与提示词。",
         "reset": "重置为默认",
         "unsaved": "有未保存的修改",
         "saved": "已保存",
@@ -434,6 +445,37 @@
         "discardTitle": "放弃未保存的修改？",
         "discardBody": "关闭后本次编辑不会保存。",
         "discard": "放弃修改"
+      },
+      "workspace": {
+        "identity": "职责与身份",
+        "capabilities": "工具与技能",
+        "more": "模型与更多",
+        "subtitle": "先写清职责，再为它选择合适的能力。",
+        "identityHint": "给它一个明确的角色，以及做事的方法。",
+        "capabilitiesHint": "按需选择可执行的操作和可参考的做事方法。",
+        "moreHint": "选择模型，整理档案的分类与外观。",
+        "toolsHint": "允许它执行的操作，比如读文件、搜索网页。",
+        "skillsHint": "完成某类任务时可参考的做事方法。",
+        "profileDetails": "档案信息",
+        "summary": "配置摘要",
+        "summaryToggle": "查看配置摘要",
+        "unnamed": "尚未填写名称",
+        "noDescription": "用一句话说明它负责什么。",
+        "noSkills": "未添加技能",
+        "noTools": "未选择工具",
+        "selectedCount": "已启用 {{count}} 项",
+        "remaining": "等 {{count}} 项",
+        "unavailableModel": "原模型当前不可用",
+        "globalModel": "跟随全局模型",
+        "promptHint": "写清它负责什么、怎样完成任务，以及结果怎么交付。",
+        "promptLimit": "工作指令不能超过 {{count}} 字。",
+        "nameRequired": "请先填写名称。",
+        "idRequired": "智能体标识不能为空。",
+        "description": "一句话说明",
+        "modelMissing": "原模型当前不可用",
+        "modelMissingHint": "保留原模型设置。你可以选择其他模型，或改为跟随全局。",
+        "selectionIncludeHint": "只启用勾选项。切换选择方式会清空当前选择。",
+        "selectionExcludeHint": "勾选表示启用，取消勾选表示排除。切换选择方式会清空当前选择。"
       },
       "tree": {
         "empty": "没有可显示的智能体"
@@ -449,7 +491,7 @@
       },
       "summary": {
         "all": "全部{{noun}}",
-        "subAgentNoun": "个子 Agent"
+        "subAgentNoun": "个子智能体"
       },
       "category": {
         "general": "通用",
@@ -2392,5 +2434,9 @@
     "creative": {
       "comingSoon": "创作模块即将上线。"
     }
+  },
+  "toast": {
+    "saved": "已保存",
+    "saveFailed": "保存失败：{{message}}"
   }
 }

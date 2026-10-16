@@ -243,6 +243,7 @@
       "skills": "Compétences",
       "memory": "Mémoire",
       "identity": "Identité",
+      "agents": "Agents",
       "teams": "Équipes"
     },
     "sections": {
@@ -1354,6 +1355,13 @@
       "archive": "Archiver",
       "archiveTitle": "Archiver l'équipe",
       "archiveBody": "L'archivage empêche toute nouvelle exécution d'équipe. Les conversations existantes gardent la révision à laquelle elles sont liées, et l'historique reste consultable.",
+      "showArchived": "Afficher les archivées",
+      "hideArchived": "Masquer les archivées",
+      "unarchive": "Désarchiver",
+      "unarchiveTitle": "Désarchiver cette équipe ?",
+      "unarchiveBody": "Désarchiver permet à cette équipe de relancer des exécutions, ce qui crée une nouvelle révision.",
+      "allArchived": "Toutes les équipes sont archivées. Activez « Afficher les archivées » pour les voir.",
+      "workspaceSubtitle": "Réunissez vos profils d'Agent en une équipe : le Leader découpe l'objectif et répartit les tâches, les membres les exécutent. Idéal pour les travaux à plusieurs étapes.",
       "archived": "Archivée",
       "conflict": "Cette équipe a été modifiée ailleurs. Rechargez avant d'enregistrer ; votre brouillon est conservé.",
       "createTitle": "Créer une équipe",
@@ -2348,5 +2356,9 @@
     "creative": {
       "comingSoon": "Le module création arrive bientôt."
     }
+  },
+  "toast": {
+    "saved": "Enregistré",
+    "saveFailed": "Échec de l'enregistrement : {{message}}"
   }
 }

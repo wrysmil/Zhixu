@@ -243,6 +243,7 @@
       "skills": "Skills",
       "memory": "Memory",
       "identity": "Identity",
+      "agents": "Agents",
       "teams": "Teams"
     },
     "teams": {
@@ -332,6 +333,13 @@
       "archive": "Archive",
       "archiveTitle": "Archive this team?",
       "archiveBody": "Archiving stops new team runs. Existing chats keep using the revision they are bound to, and past runs stay readable.",
+      "showArchived": "Show archived",
+      "hideArchived": "Hide archived",
+      "unarchive": "Unarchive",
+      "unarchiveTitle": "Unarchive this team?",
+      "unarchiveBody": "Unarchiving lets this team start new runs again, which adds a new revision.",
+      "allArchived": "All teams are archived. Turn on “Show archived” to see them.",
+      "workspaceSubtitle": "Turn your Agent profiles into a team: the Leader splits the goal and hands out tasks, members carry them out. Best for work that takes several hands.",
       "archived": "Archived",
       "conflict": "This team was changed elsewhere. Reload before saving — your draft is kept.",
       "createTitle": "Create team",
@@ -354,7 +362,7 @@
       "deleteTitle": "Delete “{{name}}”?",
       "deleteBody": "This cannot be undone. Existing sessions are not affected.",
       "mode": {
-        "all": "All",
+        "all": "All available",
         "include": "Only selected",
         "exclude": "Exclude selected"
       },
@@ -369,7 +377,7 @@
         "enabledCount": "{{count}} enabled",
         "locked": "Required",
         "empty": "No matches",
-        "allModeHint": "Currently set to “All” — the list below is read-only. Switch to “Only selected” to pick individual items.",
+        "allModeHint": "All available items are enabled. Switch to “Only selected” to choose individual items.",
         "selectGroup": "Select all",
         "clearGroup": "Clear"
       },
@@ -380,6 +388,9 @@
         "modeLabel": "Search skills"
       },
       "model": {
+        "label": "Model",
+        "auto": "Follow global model",
+        "autoHint": "This agent follows the global model setting.",
         "context": "context",
         "vision": "Vision",
         "toolUse": "Tool use"
@@ -436,6 +447,37 @@
         "discardTitle": "Discard unsaved changes?",
         "discardBody": "Closing now will not save this edit.",
         "discard": "Discard changes"
+      },
+      "workspace": {
+        "identity": "Identity & role",
+        "capabilities": "Tools & skills",
+        "more": "Model & more",
+        "subtitle": "Define its role, then choose what it can use.",
+        "identityHint": "Give it a clear role and instructions to follow.",
+        "capabilitiesHint": "Choose the actions it can take and the guidance it can follow.",
+        "moreHint": "Choose a model and organize its profile.",
+        "toolsHint": "Actions it may perform, such as reading files or searching the web.",
+        "skillsHint": "Guidance it can refer to for specific tasks.",
+        "profileDetails": "Profile details",
+        "summary": "Configuration summary",
+        "summaryToggle": "Show configuration summary",
+        "unnamed": "Name not set",
+        "noDescription": "Add a sentence about what it does.",
+        "noSkills": "No skills added",
+        "noTools": "No tools selected",
+        "selectedCount": "{{count}} enabled",
+        "remaining": "and {{count}} more",
+        "unavailableModel": "Original model unavailable",
+        "globalModel": "Follow global model",
+        "promptHint": "Describe its responsibilities, how it should work, and what it should deliver.",
+        "promptLimit": "Instructions must be within {{count}} characters.",
+        "nameRequired": "Enter a name to continue.",
+        "idRequired": "Agent ID is required.",
+        "description": "One-line description",
+        "modelMissing": "Saved model is currently unavailable",
+        "modelMissingHint": "The saved model is preserved. Choose another model or follow the global setting.",
+        "selectionIncludeHint": "Only checked items are enabled. Changing the selection mode clears its entries.",
+        "selectionExcludeHint": "Checked items are enabled; unchecked items are excluded. Changing the selection mode clears its entries."
       },
       "tree": {
         "empty": "No agents to show"
@@ -2394,5 +2436,9 @@
     "creative": {
       "comingSoon": "Creative module is coming soon."
     }
+  },
+  "toast": {
+    "saved": "Saved",
+    "saveFailed": "Save failed: {{message}}"
   }
 }

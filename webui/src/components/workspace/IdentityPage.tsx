@@ -26,7 +26,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { formControlFocusClassName } from "@/components/ui/form-control";
-import { floatingSurfaceElevationClassName } from "@/components/ui/floating-surface";
 import {
   fetchIdentityFile,
   getActivePersona,
@@ -36,6 +35,7 @@ import {
   setActivePersona,
   type IdentityPreset,
 } from "@/lib/api";
+import { notify } from "@/lib/toast-events";
 import { useClient } from "@/providers/ClientProvider";
 import { cn } from "@/lib/utils";
 import {
@@ -672,6 +672,10 @@ export function IdentityPage() {
       setInitial(form);
       initialRef.current = form;
       setSaveState("saved");
+      notify({
+        message: zh ? "身份设定已保存，已立即生效" : "Identity saved — live now",
+        durationMs: 2600,
+      });
       window.setTimeout(() => setSaveState("idle"), 2600);
     } catch (reason) {
       setSaveState("idle");
@@ -1019,25 +1023,6 @@ export function IdentityPage() {
         </aside>
       </div>
 
-      {saveState === "saved" ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className="pointer-events-none fixed left-1/2 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 flex w-[min(28rem,calc(100vw-1rem))] -translate-x-1/2 justify-center animate-in fade-in-0 slide-in-from-top-2 duration-200"
-        >
-          <div
-            className={cn(
-              floatingSurfaceElevationClassName,
-              "inline-flex max-w-full items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium text-foreground",
-            )}
-          >
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-              <Check className="h-3 w-3" strokeWidth={2.5} aria-hidden />
-            </span>
-            {zh ? "身份设定已保存，已立即生效" : "Identity saved — live now"}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

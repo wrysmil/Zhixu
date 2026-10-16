@@ -243,6 +243,7 @@
       "skills": "Habilidades",
       "memory": "Memória",
       "identity": "Identidade",
+      "agents": "Agentes",
       "teams": "Equipes"
     },
     "sections": {
@@ -1354,6 +1355,13 @@
       "archive": "Arquivar",
       "archiveTitle": "Arquivar equipe",
       "archiveBody": "Depois de arquivar não é possível iniciar novas execuções da equipe. Os chats existentes continuam usando a revisão à qual estão vinculados e o histórico permanece visível.",
+      "showArchived": "Mostrar arquivadas",
+      "hideArchived": "Ocultar arquivadas",
+      "unarchive": "Desarquivar",
+      "unarchiveTitle": "Desarquivar esta equipe?",
+      "unarchiveBody": "Ao desarquivar, a equipe pode iniciar novas execuções, o que gera uma nova revisão.",
+      "allArchived": "Todas as equipes estão arquivadas. Ative “Mostrar arquivadas” para vê-las.",
+      "workspaceSubtitle": "Reúna seus perfis de Agent em uma equipe: o Leader divide o objetivo e distribui as tarefas, e os membros as executam. Ideal para trabalhos de várias etapas.",
       "archived": "Arquivada",
       "conflict": "A equipe foi alterada em outro lugar. Recarregue antes de salvar; seu rascunho é mantido.",
       "createTitle": "Criar equipe",
@@ -2348,5 +2356,9 @@
     "creative": {
       "comingSoon": "O módulo criativo chega em breve."
     }
+  },
+  "toast": {
+    "saved": "Salvo",
+    "saveFailed": "Falha ao salvar: {{message}}"
   }
 }

@@ -53,6 +53,7 @@ import {
 } from "@/components/workbench/workbench-model";
 import { floatingSurfaceElevationClassName } from "@/components/ui/floating-surface";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Toaster } from "@/components/ui/toaster";
 
 import { useSessions } from "@/hooks/useSessions";
 import { useTeamOptions } from "@/hooks/useTeamOptions";
@@ -77,6 +78,7 @@ import {
 import { displayTitle, sortSessions } from "@/lib/chat-groups";
 import { deriveTitle } from "@/lib/format";
 import { NanobotClient } from "@/lib/nanobot-client";
+import { notify } from "@/lib/toast-events";
 import { ClientProvider, useClient } from "@/providers/ClientProvider";
 import type {
   BootstrapResponse,
@@ -1049,7 +1051,6 @@ function Shell({
     label: string;
   } | null>(null);
   const restartSawDisconnectRef = useRef(false);
-  const [restartToast, setRestartToast] = useState<string | null>(null);
   const [isRestarting, setIsRestarting] = useState(false);
   const [pairingRequests, setPairingRequests] = useState<PairingRequestInfo[]>([]);
   const [pairingBusyCode, setPairingBusyCode] = useState<string | null>(null);
@@ -2190,8 +2191,10 @@ function Shell({
         // ignore storage errors
       }
       setIsRestarting(false);
-      setRestartToast(t("app.restart.completed", { seconds: (elapsedMs / 1000).toFixed(1) }));
-      window.setTimeout(() => setRestartToast(null), 3_500);
+      notify({
+        message: t("app.restart.completed", { seconds: (elapsedMs / 1000).toFixed(1) }),
+        durationMs: 3_500,
+      });
     });
   }, [client, t]);
 
@@ -3074,19 +3077,7 @@ function Shell({
             />
           </Suspense>
         ) : null}
-        {restartToast ? (
-          <div className="fixed left-1/2 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 flex w-[min(32rem,calc(100vw-1rem))] -translate-x-1/2 flex-col items-center gap-2">
-            <div
-              role="status"
-              className={cn(
-                floatingSurfaceElevationClassName,
-                "max-w-full rounded-full px-4 py-2 text-sm font-medium",
-              )}
-            >
-              {restartToast}
-            </div>
-          </div>
-        ) : null}
+        <Toaster />
         <PairingCodePopup
           requests={visiblePairingRequests}
           total={visiblePairingRequests.length}

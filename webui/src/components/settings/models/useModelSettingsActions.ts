@@ -28,6 +28,7 @@ import {
   updateProviderSettings,
 } from "@/lib/api";
 import type { NanobotClient } from "@/lib/nanobot-client";
+import { notifySaveFailed, notifySaved } from "@/lib/save-feedback";
 import type {
   ProviderOAuthAuthorizationRequired,
   ProviderOAuthCompletionResult,
@@ -145,7 +146,9 @@ export function useModelSettingsActions({
       showPresetNameConflict();
       return;
     }
-    setError((reason as Error).message);
+    const message = (reason as Error).message;
+    setError(message);
+    notifySaveFailed(message);
   };
 
   const saveModelSettings = async () => {
@@ -211,6 +214,7 @@ export function useModelSettingsActions({
         onModelNameChange(finalPayload.agent.model || null);
         setModelPresetNameError(null);
         setError(null);
+        notifySaved();
       } catch (err) {
         handlePresetSaveError(err);
       } finally {
@@ -257,6 +261,7 @@ export function useModelSettingsActions({
       onModelNameChange(payload.agent.model || null);
       setModelPresetNameError(null);
       setError(null);
+      notifySaved();
     } catch (err) {
       handlePresetSaveError(err);
     } finally {
@@ -433,8 +438,10 @@ export function useModelSettingsActions({
       setEditingProviderKeys((prev) => ({ ...prev, [providerName]: false }));
       if (!isOauthProvider) setExpandedProvider(null);
       setError(null);
+      notifySaved({ restartRequired: payload.requires_restart });
     } catch (err) {
       setError((err as Error).message);
+      notifySaveFailed((err as Error).message);
     } finally {
       setProviderSaving(null);
     }
@@ -457,9 +464,11 @@ export function useModelSettingsActions({
       applyPayload(payload);
       setExpandedProvider(null);
       setError(null);
+      notifySaved();
       return true;
     } catch (err) {
       setError((err as Error).message);
+      notifySaveFailed((err as Error).message);
       return false;
     } finally {
       setProviderSaving(null);

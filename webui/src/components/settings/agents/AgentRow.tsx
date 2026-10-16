@@ -8,14 +8,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/settings/agents/shared";
-import type {
-  AgentProfile,
-  ModelDescriptor,
-  SkillDescriptor,
-  ToolDescriptor,
-} from "@/lib/agents/types";
+import type { AgentProfile } from "@/lib/agents/types";
 import { AGENT_CATEGORY_LABEL_KEY } from "@/lib/agents/i18n";
-import { breakdown, describeCapability, describeSubAgents } from "@/lib/agents/summary";
 import { cn } from "@/lib/utils";
 
 export interface AgentRowMenu {
@@ -74,10 +68,6 @@ export function RowMenu({ menu }: { menu: AgentRowMenu }) {  const { t } = useTr
 
 export function AgentRow({
   agent,
-  agentIds,
-  tools,
-  skills,
-  models,
   dimmed,
   onEdit,
   onDuplicate,
@@ -85,10 +75,6 @@ export function AgentRow({
   onDelete,
 }: {
   agent: AgentProfile;
-  agentIds: string[];
-  tools: ToolDescriptor[];
-  skills: SkillDescriptor[];
-  models: ModelDescriptor[];
   dimmed?: boolean;
   onEdit: () => void;
   onDuplicate: () => void;
@@ -96,24 +82,6 @@ export function AgentRow({
   onDelete?: () => void;
 }) {
   const { t } = useTranslation();
-
-  const toolIds = tools.map((tool) => tool.name);
-  const lockedToolIds = tools.filter((tool) => tool.locked).map((tool) => tool.name);
-  const skillIds = skills.map((skill) => skill.name);
-  const selectableAgentIds = agentIds.filter((id) => id !== agent.id);
-
-  const toolText = describeCapability(
-    breakdown(agent.tools, toolIds, lockedToolIds),
-    t("settings.agents.noun.tools", "工具"),
-    t,
-  );
-  const skillText = describeCapability(
-    breakdown(agent.skills, skillIds),
-    t("settings.agents.noun.skills", "技能"),
-    t,
-  );
-  const subAgentText = describeSubAgents(breakdown(agent.subAgents, selectableAgentIds), t);
-  const modelLabel = models.find((model) => model.id === agent.modelId)?.label ?? null;
   const categoryKey = agent.categoryId ? AGENT_CATEGORY_LABEL_KEY[agent.categoryId] : null;
 
   return (
@@ -158,20 +126,6 @@ export function AgentRow({
 
           <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
             {agent.description || t("settings.agents.card.noDescription", "未填写描述")}
-          </span>
-
-          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground/85">
-            <code className="font-mono">{agent.id}</code>
-            <span aria-hidden>·</span>
-            <span>{toolText}</span>
-            <span aria-hidden>·</span>
-            <span>{skillText}</span>
-            <span aria-hidden>·</span>
-            <span>{subAgentText}</span>
-            <span aria-hidden>·</span>
-            <span>
-              {modelLabel ?? t("settings.agents.card.modelAuto", "跟随全局模型")}
-            </span>
           </span>
         </span>
       </button>

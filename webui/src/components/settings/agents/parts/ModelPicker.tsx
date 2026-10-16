@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useId, useState, type KeyboardEvent } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, CircleAlert, CircleX, Sparkles } from "lucide-react";
+import { Check, ChevronDown, CircleAlert, CircleX, Cpu } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/settings/agents/shared";
@@ -42,6 +42,19 @@ export function ModelPicker({
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const selected = models.find((model) => model.id === value) ?? null;
+  const missing = value !== null && !selected;
+  const listId = useId();
+
+  const moveOptionFocus = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const options = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="option"]:not(:disabled)')];
+    if (!options.length) return;
+    event.preventDefault();
+    const current = options.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1
+      : (current + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+    options[next]?.focus();
+  };
 
   const grouped = HEALTH_ORDER.map((health) => ({
     health,
@@ -56,19 +69,25 @@ export function ModelPicker({
             type="button"
             role="combobox"
             aria-expanded={open}
+            aria-controls={listId}
+            aria-haspopup="listbox"
             aria-label={t("settings.agents.model.label", "模型")}
-            className="flex h-10 w-full items-center gap-2 rounded-control border border-border bg-background px-3 text-left text-[13px] transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onKeyDown={(event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}
+            className="flex min-h-11 w-full items-center gap-2 rounded-control border border-border bg-background px-3 py-2 text-left text-[13px] transition-colors duration-150 [transition-timing-function:cubic-bezier(.2,.8,.2,1)] hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700/40 motion-reduce:transition-none"
           >
-            <Sparkles className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-            <span className="min-w-0 flex-1 truncate text-foreground/90">
+            <Cpu className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden />
+            <span className="min-w-0 flex-1 break-words text-foreground/90">
               {selected
                 ? selected.label
+                : missing
+                ? `${t("settings.agents.workspace.modelMissing", "Saved model is currently unavailable")} · ${value}`
                 : `${t("settings.agents.model.auto", "自动（跟随全局）")} · ${globalModelLabel}`}
             </span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-[--radix-popover-trigger-width] p-1">
+        <PopoverContent align="start" className="max-h-[350px] w-[--radix-popover-trigger-width] overflow-y-auto p-1">
+          <div id={listId} role="listbox" aria-label={t("settings.agents.model.label", "模型")} onKeyDown={moveOptionFocus}>
           <button
             type="button"
             role="option"
@@ -82,11 +101,11 @@ export function ModelPicker({
               value === null && "bg-muted/60",
             )}
           >
-            <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+            <Cpu className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
             <span className="min-w-0 flex-1 truncate">
               {t("settings.agents.model.auto", "自动（跟随全局）")}
             </span>
-            <span className="shrink-0 text-[11px] text-muted-foreground">{globalModelLabel}</span>
+            <span className="max-w-[40%] truncate text-[11px] text-muted-foreground">{globalModelLabel}</span>
           </button>
 
           {grouped.map((group) => {
@@ -120,7 +139,7 @@ export function ModelPicker({
                       <Icon className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
                       <span className="min-w-0 flex-1 truncate">{model.label}</span>
                       {model.statusNote ? (
-                        <span className="shrink-0 truncate text-[11px] text-muted-foreground">
+                        <span className="max-w-[40%] truncate text-[11px] text-muted-foreground">
                           {model.statusNote}
                         </span>
                       ) : null}
@@ -131,6 +150,7 @@ export function ModelPicker({
               </div>
             );
           })}
+          </div>
         </PopoverContent>
       </Popover>
 
@@ -144,6 +164,11 @@ export function ModelPicker({
           <span>{selected.provider}</span>
           {selected.vision ? <span>{t("settings.agents.model.vision", "支持视觉")}</span> : null}
           {selected.toolUse ? <span>{t("settings.agents.model.toolUse", "支持工具调用")}</span> : null}
+        </div>
+      ) : missing ? (
+        <div className="flex items-start gap-2 rounded-control bg-amber-500/10 px-3 py-2 text-[12px] leading-5 text-amber-900 dark:text-amber-200">
+          <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <p>{t("settings.agents.workspace.modelMissingHint", "The saved model is preserved. Choose another model or follow the global setting.")}</p>
         </div>
       ) : (
         <p className="text-[12px] text-muted-foreground">

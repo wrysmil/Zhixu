@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { notifySaveFailed, notifySaved } from "@/lib/save-feedback";
 import { useClient } from "@/providers/ClientProvider";
 import { EpisodeListView } from "./EpisodeListView";
 import { MemoryListView } from "./MemoryListView";
@@ -43,9 +44,11 @@ export function MemorySection({
       if (payload && typeof payload === "object" && "runtime" in payload) {
         onSettingsChange(payload as unknown as SettingsPayload);
       }
+      notifySaved();
     } catch (err) {
       setEnabled(!next);
       setError((err as Error).message);
+      notifySaveFailed((err as Error).message);
     } finally {
       setSaving(false);
     }

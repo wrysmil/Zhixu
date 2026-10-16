@@ -243,6 +243,7 @@
       "skills": "Keterampilan",
       "memory": "Memori",
       "identity": "Identitas",
+      "agents": "Agent",
       "teams": "Tim"
     },
     "sections": {
@@ -1354,6 +1355,13 @@
       "archive": "Arsipkan",
       "archiveTitle": "Arsipkan tim",
       "archiveBody": "Setelah diarsipkan, tim tidak bisa memulai jalannya baru. Chat yang ada tetap memakai revisi yang terikat, dan riwayat tetap dapat dilihat.",
+      "showArchived": "Tampilkan yang diarsipkan",
+      "hideArchived": "Sembunyikan yang diarsipkan",
+      "unarchive": "Batalkan arsip",
+      "unarchiveTitle": "Batalkan arsip tim ini?",
+      "unarchiveBody": "Setelah dibatalkan, tim ini bisa memulai jalannya lagi dan akan menghasilkan revisi baru.",
+      "allArchived": "Semua tim sudah diarsipkan. Aktifkan “Tampilkan yang diarsipkan” untuk melihatnya.",
+      "workspaceSubtitle": "Satukan profil Agent menjadi satu tim: Leader memecah tujuan dan membagi tugas, anggota menjalankannya. Cocok untuk pekerjaan yang butuh beberapa langkah.",
       "archived": "Diarsipkan",
       "conflict": "Tim diubah di tempat lain. Muat ulang sebelum menyimpan; draf Anda tetap dijaga.",
       "createTitle": "Buat tim",
@@ -2348,5 +2356,9 @@
     "creative": {
       "comingSoon": "Modul kreatif segera hadir."
     }
+  },
+  "toast": {
+    "saved": "Tersimpan",
+    "saveFailed": "Gagal menyimpan: {{message}}"
   }
 }

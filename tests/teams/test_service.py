@@ -187,6 +187,28 @@ def test_archived_team_blocks_new_runs_but_keeps_history_readable(
     assert service.get_team_detail(team_id)["team"]["archived"] is True
 
 
+def test_archived_team_only_accepts_unarchive(
+    service: TeamService, team_payload: dict[str, Any]
+) -> None:
+    """归档态内容冻结：只有显式 archived=false 的保存能过，过完新运行随之解锁。"""
+    saved = service.save_team(create_payload(team_payload), expected_revision=None, request_id="r1")
+    team_id = saved["team"]["id"]
+    service.archive_team(team_id, expected_revision=1, request_id="r2")
+
+    payload = {**TeamDefinition.from_dict(saved["team"]).to_dict(), "archived": True, "name": "改名"}
+    for key in ("revision", "createdAt", "updatedAt"):
+        payload.pop(key, None)
+    with pytest.raises(TeamArchived):
+        service.save_team(payload, expected_revision=2, request_id="r3")
+
+    unarchived = service.save_team(
+        {**payload, "archived": False}, expected_revision=2, request_id="r4"
+    )
+    assert unarchived["team"]["archived"] is False
+    assert TeamDefinition.from_dict(unarchived["team"]).name == "改名"
+    assert service.prepare_new_run(team_id).definition.revision == 3
+
+
 def test_clone_starts_a_fresh_revision_with_a_new_id(
     service: TeamService, team_payload: dict[str, Any]
 ) -> None:

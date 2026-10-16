@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { IdentityPage } from "@/components/workspace/IdentityPage";
+import { Toaster } from "@/components/ui/toaster";
 import i18n from "@/i18n";
 import {
   fetchIdentityFile,
@@ -36,6 +37,7 @@ function renderPage() {
   return render(
     <ClientProvider client={transport} token="tok">
       <IdentityPage />
+      <Toaster />
     </ClientProvider>,
   );
 }

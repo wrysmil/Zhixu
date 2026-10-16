@@ -142,7 +142,10 @@ class TeamService:
             if not isinstance(team_id, str) or not team_id:
                 raise TeamValidationError("team update requires an id")
             previous = self.repository.get_team(team_id)
-            if previous.archived:
+            # 归档团队只留一条可写路径：显式把 archived 置回 false（取消归档）。其余编辑仍
+            # 被挡在门外，让「已归档」保持内容冻结；契约 §4 的硬不变量是禁止新运行，那条
+            # 拦截在 prepare_new_run，与本处无关。
+            if previous.archived and editable.get("archived") is not False:
                 raise TeamArchived(f"team {previous.id} is archived")
             definition = TeamDefinition.from_dict(
                 {

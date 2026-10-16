@@ -7,6 +7,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { TeamsView } from "@/components/settings/teams/TeamsView";
+import { Toaster } from "@/components/ui/toaster";
 import type { AgentProfile } from "@/lib/agents/types";
 import type { TeamDefinition } from "@/lib/teams/types";
 
@@ -117,7 +118,7 @@ describe("teams 管理页", () => {
   });
 
   it("列出团队、Leader 与并行上限", async () => {
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     await screen.findByText("内容团队");
     expect(screen.getByText("Leader: 主持")).toBeInTheDocument();
@@ -128,7 +129,7 @@ describe("teams 管理页", () => {
   it("没有任何团队时给团队自己的空态，而不是 Agent 域的文案", async () => {
     listTeams.mockResolvedValue({ teams: [], nextCursor: null });
 
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     expect(
       await screen.findByText("Create an Agent profile first, then build a team from it."),
@@ -139,7 +140,7 @@ describe("teams 管理页", () => {
   it("拒绝没有 Leader 的团队 —— 连请求都不发", async () => {
     const user = userEvent.setup();
     listTeams.mockResolvedValue({ teams: [], nextCursor: null });
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     await startNewTeam(user);
 
@@ -158,7 +159,7 @@ describe("teams 管理页", () => {
       ],
     });
     listTeams.mockResolvedValue({ teams: [], nextCursor: null });
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     await startNewTeam(user);
     await user.selectOptions(screen.getByLabelText("Leader"), "leader");
@@ -175,7 +176,7 @@ describe("teams 管理页", () => {
   it("创建成功后带幂等 requestId 与 expectedRevision=null", async () => {
     const user = userEvent.setup();
     listTeams.mockResolvedValue({ teams: [], nextCursor: null });
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     await startNewTeam(user);
     await user.selectOptions(await screen.findByLabelText("Leader"), "leader");
@@ -200,7 +201,7 @@ describe("teams 管理页", () => {
     saveTeam.mockRejectedValueOnce(
       new Error("TEAM_REVISION_CONFLICT: team content-team is now at v4"),
     );
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     await startNewTeam(user);
     await user.selectOptions(await screen.findByLabelText("Leader"), "leader");
@@ -219,7 +220,7 @@ describe("teams 管理页", () => {
   it("保存后继续编辑不被基线回填覆盖，下一次保存以新修订为锁基线", async () => {
     const user = userEvent.setup();
     listTeams.mockResolvedValue({ teams: [], nextCursor: null });
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     await startNewTeam(user);
     await user.selectOptions(await screen.findByLabelText("Leader"), "leader");
@@ -254,7 +255,7 @@ describe("teams 管理页", () => {
       ],
       nextCursor: null,
     });
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     await screen.findByText("内容团队");
     await user.click(screen.getByRole("button", { name: "Edit" }));
@@ -270,9 +271,9 @@ describe("teams 管理页", () => {
     });
   });
 
-  it("归档必须先确认，再带 expectedRevision 落库", async () => {
+  it("归档先确认，落库后离场，再在「显示归档」里取消归档", async () => {
     const user = userEvent.setup();
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     await screen.findByText("内容团队");
     await user.click(screen.getByRole("button", { name: "Archive" }));
@@ -292,12 +293,55 @@ describe("teams 管理页", () => {
       2,
       expect.any(String),
     ]);
-    await waitFor(() => expect(screen.getByText("Archived")).toBeInTheDocument());
+
+    // 归档即离场：卡片从列表消失，只剩「显示归档」这条回头路。
+    await waitFor(() => expect(screen.queryByText("内容团队")).not.toBeInTheDocument());
+    expect(screen.getByText(/all teams are archived/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Show archived/ }));
+    expect(screen.getByText("内容团队")).toBeInTheDocument();
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+
+    // 取消归档复用 save 通道：把 archived 显式置回 false，锁基线用归档后的修订号。
+    await user.click(screen.getByRole("button", { name: "Unarchive" }));
+    const unarchiveButtons = screen.getAllByRole("button", { name: "Unarchive" });
+    await user.click(unarchiveButtons[unarchiveButtons.length - 1]);
+
+    await waitFor(() => expect(saveTeam).toHaveBeenCalledTimes(1));
+    expect(saveTeam.mock.calls[0][1].expectedRevision).toBe(3);
+    expect(saveTeam.mock.calls[0][1].team.archived).toBe(false);
+    await waitFor(() => expect(screen.queryByText("Archived")).not.toBeInTheDocument());
+  });
+
+  it("归档团队默认不进列表，且卡片上没有编辑入口", async () => {
+    const user = userEvent.setup();
+    listTeams.mockResolvedValue({
+      teams: [team(), team({ id: "old-team", name: "旧团队", archived: true, revision: 41 })],
+      nextCursor: null,
+    });
+    render(<><TeamsView /><Toaster /></>);
+
+    // 计数只算可见团队，免得出现「计数 02、卡片 1」。
+    await screen.findByText("内容团队");
+    expect(screen.queryByText("旧团队")).not.toBeInTheDocument();
+    expect(screen.getByText(/My teams/)).toHaveTextContent("My teams01");
+
+    await user.click(screen.getByRole("button", { name: /Show archived/ }));
+
+    expect(screen.getByText("旧团队")).toBeInTheDocument();
+    expect(screen.getByText(/My teams/)).toHaveTextContent("My teams02");
+    // 归档态内容冻结（服务端会拒绝保存），所以只给复制与取消归档。
+    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Unarchive" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Archive" })).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: /Hide archived/ }));
+    expect(screen.queryByText("旧团队")).not.toBeInTheDocument();
   });
 
   it("复制走服务端 clone，不在前端拼新 ID", async () => {
     const user = userEvent.setup();
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     await screen.findByText("内容团队");
     await user.click(screen.getByRole("button", { name: "Duplicate" }));
@@ -311,7 +355,7 @@ describe("teams 管理页", () => {
   it("读取失败显示错误而不是假装空态", async () => {
     listTeams.mockRejectedValueOnce(new Error("TEAM_MEMBER_UNAVAILABLE: gateway down"));
 
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("TEAM_MEMBER_UNAVAILABLE");
     expect(
@@ -321,7 +365,7 @@ describe("teams 管理页", () => {
 
   it("编辑已有团队时带上 expectedRevision 作为乐观锁基线", async () => {
     const user = userEvent.setup();
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
 
     await screen.findByText("内容团队");
     await user.click(screen.getByRole("button", { name: "Edit" }));
@@ -335,7 +379,7 @@ describe("teams 管理页", () => {
 
   it("将已有成员改为队长时移出其成员席位，并保留其他成员职责", async () => {
     const user = userEvent.setup();
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
     await user.click(await screen.findByRole("button", { name: "Edit" }));
 
     await user.selectOptions(screen.getByLabelText("Leader"), "researcher");
@@ -354,7 +398,7 @@ describe("teams 管理页", () => {
   it("搜索只筛选候选人，不会隐藏或清空已选成员和职责", async () => {
     const user = userEvent.setup();
     listTeams.mockResolvedValue({ teams: [], nextCursor: null });
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
     await startNewTeam(user);
     await user.selectOptions(screen.getByLabelText("Leader"), "leader");
     await user.click(screen.getByLabelText("Add 调研 as a member"));
@@ -375,7 +419,7 @@ describe("teams 管理页", () => {
 
   it("关系预览中的成员可定位职责输入框，移除成员后预览同步消失", async () => {
     const user = userEvent.setup();
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     await user.click(screen.getByRole("button", { name: "Edit 调研's role" }));
     expect(screen.getByLabelText("调研's role in this team")).toHaveFocus();
@@ -390,7 +434,7 @@ describe("teams 管理页", () => {
     const user = userEvent.setup();
     let resolveSave!: (value: { team: TeamDefinition }) => void;
     saveTeam.mockImplementationOnce(() => new Promise((resolve) => { resolveSave = resolve; }));
-    render(<TeamsView />);
+    render(<><TeamsView /><Toaster /></>);
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
 

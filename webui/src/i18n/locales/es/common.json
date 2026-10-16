@@ -243,6 +243,7 @@
       "skills": "Habilidades",
       "memory": "Memoria",
       "identity": "Identidad",
+      "agents": "Agentes",
       "teams": "Equipos"
     },
     "sections": {
@@ -1354,6 +1355,13 @@
       "archive": "Archivar",
       "archiveTitle": "Archivar equipo",
       "archiveBody": "Al archivar ya no se pueden lanzar nuevas ejecuciones del equipo. Los chats existentes siguen usando la revisión a la que están vinculados y el historial se puede consultar.",
+      "showArchived": "Mostrar archivados",
+      "hideArchived": "Ocultar archivados",
+      "unarchive": "Desarchivar",
+      "unarchiveTitle": "¿Desarchivar este equipo?",
+      "unarchiveBody": "Al desarchivar, el equipo puede volver a lanzar ejecuciones y se crea una nueva revisión.",
+      "allArchived": "Todos los equipos están archivados. Activa «Mostrar archivados» para verlos.",
+      "workspaceSubtitle": "Reúne tus perfiles de Agent en un equipo: el Leader divide el objetivo y reparte tareas, y los miembros las ejecutan. Ideal para trabajos de varios pasos.",
       "archived": "Archivado",
       "conflict": "El equipo cambió en otro lugar. Recarga antes de guardar; tu borrador se conserva.",
       "createTitle": "Crear equipo",
@@ -2348,5 +2356,9 @@
     "creative": {
       "comingSoon": "El módulo creativo llegará pronto."
     }
+  },
+  "toast": {
+    "saved": "Guardado",
+    "saveFailed": "Error al guardar: {{message}}"
   }
 }

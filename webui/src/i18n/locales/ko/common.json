@@ -243,6 +243,7 @@
       "skills": "스킬",
       "memory": "기억",
       "identity": "ID",
+      "agents": "에이전트",
       "teams": "팀"
     },
     "sections": {
@@ -1354,6 +1355,13 @@
       "archive": "보관",
       "archiveTitle": "팀 보관",
       "archiveBody": "보관하면 새로운 팀 실행을 시작할 수 없습니다. 기존 채팅은 연결된 리비전을 계속 사용하며 이전 실행은 계속 볼 수 있습니다.",
+      "showArchived": "보관된 팀 보기",
+      "hideArchived": "보관된 팀 숨기기",
+      "unarchive": "보관 해제",
+      "unarchiveTitle": "이 팀의 보관을 해제할까요?",
+      "unarchiveBody": "보관을 해제하면 이 팀이 다시 실행을 시작할 수 있으며 새 리비전이 만들어집니다.",
+      "allArchived": "모든 팀이 보관되어 있습니다. ‘보관된 팀 보기’를 켜면 확인할 수 있습니다.",
+      "workspaceSubtitle": "각기 다른 강점을 가진 Agent를 하나의 팀으로 묶습니다. 리더가 목표를 나눠 맡기고 멤버가 실행합니다. 여러 단계의 협업이 필요한 일에 알맞습니다.",
       "archived": "보관됨",
       "conflict": "팀이 다른 곳에서 변경되었습니다. 새로고침한 뒤 저장하세요. 작성 중인 내용은 보존됩니다.",
       "createTitle": "팀 만들기",
@@ -2348,5 +2356,9 @@
     "creative": {
       "comingSoon": "크리에이티브 모듈은 곧 제공됩니다."
     }
+  },
+  "toast": {
+    "saved": "저장됨",
+    "saveFailed": "저장 실패: {{message}}"
   }
 }

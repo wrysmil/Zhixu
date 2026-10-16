@@ -3,9 +3,11 @@
 // 沿用 AgentsView 的卡片、搜索与写操作壳子（`runWrite` 统一把失败落到 actionError），
 // 不复制 Agent 的工具/技能编辑器 —— 团队页只编辑**成员引用与职责**。
 // 归档只阻止新执行：历史运行仍可读，因此确认框里必须把这句话讲清楚。
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// 归档默认不进列表（对齐对话侧的「显示归档」惯例），并且可以取消归档；归档态下内容
+// 冻结，所以卡片不给「编辑」——取消归档是唯一的回头路。
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Archive, ArrowUpRight, Check, Copy, Crown, Plus, Search } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowUpRight, Copy, Crown, Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +28,7 @@ import "./teams.css";
 import { useClient } from "@/providers/ClientProvider";
 import { listAgents } from "@/lib/agents/api";
 import type { AgentProfile } from "@/lib/agents/types";
+import { notifySaved } from "@/lib/save-feedback";
 import { archiveTeam, cloneTeam, listTeams, saveTeam, teamErrorCode } from "@/lib/teams/api";
 import type { TeamDefinition } from "@/lib/teams/types";
 
@@ -41,8 +44,8 @@ export function TeamsView() {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<{ team: TeamDefinition | null } | null>(null);
   const [pendingArchive, setPendingArchive] = useState<TeamDefinition | null>(null);
-  const [savedNotice, setSavedNotice] = useState(false);
-  const savedNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [pendingUnarchive, setPendingUnarchive] = useState<TeamDefinition | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const nameById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent.name])), [agents]);
 
@@ -68,23 +71,26 @@ export function TeamsView() {
     void reload();
   }, [reload]);
 
-  useEffect(
-    () => () => {
-      if (savedNoticeTimer.current) clearTimeout(savedNoticeTimer.current);
-    },
-    [],
+  // 归档默认不占列表位；计数与搜索都基于这份可见集合，免得出现「计数 2、卡片 1」的错位。
+  const archivedCount = useMemo(
+    () => teams.reduce((total, team) => (team.archived ? total + 1 : total), 0),
+    [teams],
+  );
+  const visible = useMemo(
+    () => (showArchived ? teams : teams.filter((team) => !team.archived)),
+    [showArchived, teams],
   );
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return teams;
-    return teams.filter(
+    if (!needle) return visible;
+    return visible.filter(
       (team) =>
         team.name.toLowerCase().includes(needle) ||
         team.description.toLowerCase().includes(needle) ||
         team.members.some((member) => (nameById.get(member.agentId) ?? "").toLowerCase().includes(needle)),
     );
-  }, [nameById, query, teams]);
+  }, [nameById, query, visible]);
 
   const upsert = (team: TeamDefinition) => {
     setTeams((prev) => {
@@ -96,12 +102,6 @@ export function TeamsView() {
     });
   };
 
-  const flashSaved = () => {
-    setSavedNotice(true);
-    if (savedNoticeTimer.current) clearTimeout(savedNoticeTimer.current);
-    savedNoticeTimer.current = setTimeout(() => setSavedNotice(false), 3000);
-  };
-
   /** 写操作统一壳：失败只落到 actionError，并保留编辑器里的草稿。 */
   const runWrite = async (work: () => Promise<TeamDefinition | null>) => {
     setBusy(true);
@@ -110,7 +110,7 @@ export function TeamsView() {
       const saved = await work();
       if (saved) {
         upsert(saved);
-        flashSaved();
+        notifySaved();
       }
       return saved;
     } catch (reason: unknown) {
@@ -148,6 +148,19 @@ export function TeamsView() {
     setPendingArchive(null);
   };
 
+  const handleUnarchive = (team: TeamDefinition) => {
+    // 取消归档复用 save 通道：服务端只放行这一种对归档团队的写（archived 显式置回 false）。
+    void runWrite(async () => {
+      const payload = await saveTeam(client, {
+        requestId: crypto.randomUUID(),
+        team: { ...team, archived: false },
+        expectedRevision: team.revision,
+      });
+      return payload.team;
+    });
+    setPendingUnarchive(null);
+  };
+
   const handleClone = (team: TeamDefinition) => {
     if (busy) return;
     void runWrite(async () => {
@@ -168,7 +181,7 @@ export function TeamsView() {
   return (
     <div className="teams-surface space-y-4">
       <div className="teams-toolbar">
-        <div className="teams-heading"><TeamStructureIcon className="teams-heading-icon" /><div><p className="teams-kicker">{t("settings.teams.workspaceEyebrow", "Agent teams")}</p><p className="teams-toolbar-title">{t("settings.teams.myTeams", "我的团队")}<span className="teams-count">{teams.length.toString().padStart(2, "0")}</span></p></div></div>
+        <div className="teams-heading"><TeamStructureIcon className="teams-heading-icon" /><div><p className="teams-kicker">{t("settings.teams.workspaceEyebrow", "Agent teams")}</p><p className="teams-toolbar-title">{t("settings.teams.myTeams", "我的团队")}<span className="teams-count">{visible.length.toString().padStart(2, "0")}</span></p>{teams.length > 0 ? <p className="teams-toolbar-subtitle">{t("settings.teams.workspaceSubtitle", "把各有所长的 Agent 编成一支团队：队长拆解目标并分派任务，成员各自执行。适合需要多步协作的事。")}</p> : null}</div></div>
         <div className="relative min-w-[10rem] flex-1 sm:max-w-[16rem]">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input
@@ -179,6 +192,22 @@ export function TeamsView() {
             className="pl-8"
           />
         </div>
+        {archivedCount > 0 ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy || loading}
+            aria-pressed={showArchived}
+            onClick={() => setShowArchived((prev) => !prev)}
+          >
+            <ArchiveRestore className="mr-1.5 h-4 w-4" aria-hidden />
+            {showArchived
+              ? t("settings.teams.hideArchived", "隐藏归档")
+              : t("settings.teams.showArchived", "显示归档")}
+            <span className="teams-count">{archivedCount.toString().padStart(2, "0")}</span>
+          </Button>
+        ) : null}
         <Button type="button" disabled={busy || loading || Boolean(loadError)} onClick={() => setEditing({ team: null })}>
           <Plus className="mr-1.5 h-4 w-4" aria-hidden />
           {t("settings.teams.create", "创建团队")}
@@ -187,12 +216,6 @@ export function TeamsView() {
 
       {/* 写错误只显示一处：编辑器开着就归对话框，避免同一句话在遮罩上下各刷一遍。 */}
       <StatusBlock status={status} error={loadError ?? (editing ? null : actionError)} />
-
-      {savedNotice ? (
-        <p role="status" className="flex items-center gap-1.5 text-[12px] text-emerald-700 dark:text-emerald-300"><Check className="h-3.5 w-3.5" aria-hidden="true" />
-          {t("settings.teams.saved", "已保存")}
-        </p>
-      ) : null}
 
       {!loading && teams.length === 0 && !loadError ? (
         <div className="teams-empty">
@@ -232,24 +255,35 @@ export function TeamsView() {
               <span className="shrink-0 text-[10px] text-muted-foreground">{t("settings.teams.concurrency", "最多并行 {{count}} 项", { count: team.limits.maxConcurrency })}</span>
             </div>
             <div className="team-card-actions">
-              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setEditing({ team })}>
-                {t("settings.teams.edit", "编辑")}
-                <ArrowUpRight className="ml-1.5 h-3 w-3" aria-hidden="true" />
-              </Button>
+              {/* 归档态内容冻结（服务端会拒绝保存），所以卡片只留复制与取消归档两条出路。 */}
+              {!team.archived ? (
+                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setEditing({ team })}>
+                  {t("settings.teams.edit", "编辑")}
+                  <ArrowUpRight className="ml-1.5 h-3 w-3" aria-hidden="true" />
+                </Button>
+              ) : null}
               <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => handleClone(team)}><Copy className="mr-1.5 h-3 w-3" aria-hidden="true" />
                 {t("settings.teams.duplicate", "复制")}
               </Button>
-              {!team.archived ? (
+              {team.archived ? (
+                <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setPendingUnarchive(team)}><ArchiveRestore className="mr-1.5 h-3 w-3" aria-hidden="true" />
+                  {t("settings.teams.unarchive", "取消归档")}
+                </Button>
+              ) : (
                 <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setPendingArchive(team)}><Archive className="mr-1.5 h-3 w-3" aria-hidden="true" />
                   {t("settings.teams.archive", "归档")}
                 </Button>
-              ) : null}
+              )}
             </div>
           </li>
         ))}
       </ul>
 
-      {teams.length > 0 && filtered.length === 0 ? (
+      {!loading && teams.length > 0 && visible.length === 0 ? (
+        <p className="text-[12px] text-muted-foreground">{t("settings.teams.allArchived", "所有团队都已归档，打开「显示归档」就能看到它们。")}</p>
+      ) : null}
+
+      {visible.length > 0 && filtered.length === 0 ? (
         <p className="text-[12px] text-muted-foreground">{t("settings.teams.noMatch", "没有匹配的团队")}</p>
       ) : null}
 
@@ -288,6 +322,31 @@ export function TeamsView() {
             <AlertDialogCancel>{t("settings.teams.cancel", "取消")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => pendingArchive && handleArchive(pendingArchive)}>
               {t("settings.teams.archive", "归档")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={pendingUnarchive !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingUnarchive(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("settings.teams.unarchiveTitle", "取消归档这支团队？")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                "settings.teams.unarchiveBody",
+                "取消归档后，这支团队可以重新发起运行，并因此生成一个新修订。",
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("settings.teams.cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => pendingUnarchive && handleUnarchive(pendingUnarchive)}>
+              {t("settings.teams.unarchive", "取消归档")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -357,13 +357,29 @@ def test_list_and_save_run_through_the_real_service(team_service: TeamService) -
     assert archived.payload is not None
     assert archived.payload == {"id": definition.id, "archived": True, "revision": 2}
 
-    # 归档后按契约 §4 的 404 口径回应：不能再被当成可用团队更新。
-    after_archive = handler.handle(
+    # 归档后仍带 archived=true 的更新按契约 §4 的 404 口径回绝：不能被当成可用团队改。
+    frozen = handler.handle(
         "teams-save",
-        _request(payload={"requestId": "req-4", "team": create, "expectedRevision": 2}),
+        _request(
+            payload={
+                "requestId": "req-4",
+                "team": {**create, "archived": True, "name": "改名"},
+                "expectedRevision": 2,
+            }
+        ),
     )
-    assert after_archive.status == 404
-    assert after_archive.error is not None and after_archive.error.startswith("TEAM_NOT_FOUND")
+    assert frozen.status == 404
+    assert frozen.error is not None and frozen.error.startswith("TEAM_NOT_FOUND")
+
+    # 唯一的例外是取消归档：显式 archived=false 放行，并推进一个新修订。
+    unarchived = handler.handle(
+        "teams-save",
+        _request(payload={"requestId": "req-5", "team": create, "expectedRevision": 2}),
+    )
+    assert unarchived.status == 200
+    assert unarchived.payload is not None
+    assert unarchived.payload["team"]["archived"] is False
+    assert unarchived.payload["team"]["revision"] == 3
 
 
 # --------------------------------------------------- 运行查询与控制（契约 §5）

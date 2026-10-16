@@ -32,6 +32,7 @@ import { createBlankAgent, slugifyAgentId, uniqueAgentId } from "@/lib/agents/ca
 import type { AgentCatalog } from "@/lib/agents/catalog";
 import type { AgentProfile } from "@/lib/agents/types";
 import { AGENT_CATEGORY_LABEL_KEY } from "@/lib/agents/i18n";
+import { notifySaved } from "@/lib/save-feedback";
 
 const ALL = "__all__";
 type ViewMode = "list" | "card" | "tree";
@@ -55,17 +56,8 @@ export function AgentsView() {
 
   const [editing, setEditing] = useState<{ agent: AgentProfile | null; isNew: boolean } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AgentProfile | null>(null);
-  const [savedNotice, setSavedNotice] = useState(false);
 
   const originalsRef = useRef(new Map<string, AgentProfile>());
-  const savedNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (savedNoticeTimer.current) clearTimeout(savedNoticeTimer.current);
-    },
-    [],
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -146,6 +138,7 @@ export function AgentsView() {
         return copy;
       });
       originalsRef.current.set(saved.id, saved);
+      notifySaved();
       return saved;
     } catch (reason: unknown) {
       setActionError(reason instanceof Error ? reason.message : String(reason));
@@ -161,13 +154,9 @@ export function AgentsView() {
       return payload.agent;
     }).then((saved) => {
       if (!saved) return;
-      // 保存后留在编辑器里接着改：基线换成刚落库的那份，dirty 随之归零，
-      // 再闪一次「已保存」作为回执。改回 setEditing(null) 会让用户每存一次
-      // 就被弹回列表，想微调提示词就得重开一遍。
+      // 保存后留在编辑器里接着改：基线换成刚落库的那份，dirty 随之归零。
+      // 改回 setEditing(null) 会让用户每存一次就被弹回列表，想微调提示词就得重开一遍。
       setEditing((prev) => (prev ? { ...prev, agent: saved, isNew: false } : prev));
-      setSavedNotice(true);
-      if (savedNoticeTimer.current) clearTimeout(savedNoticeTimer.current);
-      savedNoticeTimer.current = setTimeout(() => setSavedNotice(false), 3000);
     });
   };
 
@@ -347,10 +336,6 @@ export function AgentsView() {
                 <AgentRow
                   key={agent.id}
                   agent={agent}
-                  agentIds={agentIds}
-                  tools={catalog.tools}
-                  skills={catalog.skills}
-                  models={catalog.models}
                   onEdit={() => setEditing({ agent, isNew: false })}
                   onDuplicate={() => handleDuplicate(agent)}
                   onToggleHidden={() => handleToggleHidden(agent)}
@@ -403,10 +388,6 @@ export function AgentsView() {
               <AgentRow
                 key={agent.id}
                 agent={agent}
-                agentIds={agentIds}
-                tools={catalog.tools}
-                skills={catalog.skills}
-                models={catalog.models}
                 dimmed
                 onEdit={() => setEditing({ agent, isNew: false })}
                 onDuplicate={() => handleDuplicate(agent)}
@@ -427,7 +408,6 @@ export function AgentsView() {
           catalog={catalog}
           globalModelLabel={globalModelLabel}
           saving={busy}
-          savedNotice={savedNotice}
           onOpenChange={(open) => {
             if (!open) setEditing(null);
           }}

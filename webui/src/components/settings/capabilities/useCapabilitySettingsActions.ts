@@ -18,6 +18,7 @@ import {
   updateWebSearchSettings,
 } from "@/lib/api";
 import type { NanobotClient } from "@/lib/nanobot-client";
+import { notifySaveFailed, notifySaved } from "@/lib/save-feedback";
 import type { SettingsPayload, WebSearchSettingsUpdate } from "@/lib/types";
 
 interface CapabilitySettingsActionsOptions {
@@ -79,8 +80,10 @@ export function useCapabilitySettingsActions({
       }
       await maybeRestartHostEngine(payload);
       setError(null);
+      notifySaved({ restartRequired: payload.requires_restart });
     } catch (err) {
       setError((err as Error).message);
+      notifySaveFailed((err as Error).message);
     } finally {
       setImageGenerationSaving(false);
     }
@@ -97,8 +100,10 @@ export function useCapabilitySettingsActions({
       }
       await maybeRestartHostEngine(payload);
       setError(null);
+      notifySaved({ restartRequired: payload.requires_restart });
     } catch (err) {
       setError((err as Error).message);
+      notifySaveFailed((err as Error).message);
     } finally {
       setTranscriptionSaving(false);
     }
@@ -115,8 +120,10 @@ export function useCapabilitySettingsActions({
       }
       await maybeRestartHostEngine(payload);
       setError(null);
+      notifySaved({ restartRequired: payload.requires_restart });
     } catch (err) {
       setError((err as Error).message);
+      notifySaveFailed((err as Error).message);
     } finally {
       setNetworkSafetySaving(false);
     }
@@ -178,8 +185,10 @@ export function useCapabilitySettingsActions({
       setWebSearchKeyVisible(false);
       setWebSearchKeyEditing(false);
       setError(null);
+      notifySaved({ restartRequired: payload.requires_restart || webFetchRestartRequired });
     } catch (err) {
       setError((err as Error).message);
+      notifySaveFailed((err as Error).message);
     } finally {
       setWebSearchSaving(false);
     }

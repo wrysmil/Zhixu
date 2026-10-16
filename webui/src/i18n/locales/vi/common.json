@@ -243,6 +243,7 @@
       "skills": "Kỹ năng",
       "memory": "Bộ nhớ",
       "identity": "Danh tính",
+      "agents": "Agent",
       "teams": "Nhóm"
     },
     "sections": {
@@ -1354,6 +1355,13 @@
       "archive": "Lưu trữ",
       "archiveTitle": "Lưu trữ nhóm",
       "archiveBody": "Sau khi lưu trữ, nhóm không thể bắt đầu chạy mới. Chat đã có vẫn dùng bản ràng buộc và lịch sử chạy vẫn xem được.",
+      "showArchived": "Hiện nhóm đã lưu trữ",
+      "hideArchived": "Ẩn nhóm đã lưu trữ",
+      "unarchive": "Bỏ lưu trữ",
+      "unarchiveTitle": "Bỏ lưu trữ nhóm này?",
+      "unarchiveBody": "Sau khi bỏ lưu trữ, nhóm có thể chạy lại và sẽ tạo một bản mới.",
+      "allArchived": "Tất cả nhóm đều đã lưu trữ. Bật “Hiện nhóm đã lưu trữ” để xem.",
+      "workspaceSubtitle": "Ghép các hồ sơ Agent thành một nhóm: Leader chia mục tiêu và giao việc, thành viên thực hiện. Phù hợp với việc cần nhiều bước phối hợp.",
       "archived": "Đã lưu trữ",
       "conflict": "Nhóm đã bị thay đổi ở nơi khác. Hãy tải lại trước khi lưu; bản nháp của bạn vẫn được giữ.",
       "createTitle": "Tạo nhóm",
@@ -2348,5 +2356,9 @@
     "creative": {
       "comingSoon": "Module sáng tạo sẽ sớm ra mắt."
     }
+  },
+  "toast": {
+    "saved": "Đã lưu",
+    "saveFailed": "Lưu thất bại: {{message}}"
   }
 }

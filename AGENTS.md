@@ -108,6 +108,21 @@ Messages flow through an async `MessageBus` (`nanobot/bus/queue.py`) that decoup
 - Security boundaries: [`.agent/security.md`](.agent/security.md)
 - Common gotchas: [`.agent/gotchas.md`](.agent/gotchas.md)
 
+## WebUI 连接密码（Connect 页 Password 的来源）
+
+**结论：** WebUI 登录页（`webui/src/App.tsx` 的 `AuthForm`，文案 `app.auth.label` = Password、`app.auth.submit` = Connect）要求输入的密码，就是配置文件 `~/.nanobot/config.json` 里
+
+```
+channels.websocket.tokenIssueSecret
+```
+
+的值；该项为空时回退到同级的 `channels.websocket.token`（取值逻辑见 `nanobot/cli/webui_support.py::webui_bootstrap_secret`）。它不是单独的用户账号密码。
+
+- **生成**：首次启用 WebUI 时自动写入 `secrets.token_urlsafe(32)`（43 字符，见 `nanobot/cli/webui_support.py::_ensure_local_webui_channel`）；`nanobot onboard` Quick Start 会提示「Set a WebUI password」并写同一字段（`nanobot/cli/onboard.py`）。
+- **用途/校验**：它是 bootstrap 与 token-issue 的共享密钥，HTTP 侧用 `Authorization: Bearer <secret>` 或 `X-Nanobot-Auth: <secret>` 校验（`nanobot/webui/ws_http.py::_handle_bootstrap`、`nanobot/webui/http_utils.py::issue_route_secret_matches`）。填错 → 前端提示 `app.auth.invalid`（Incorrect password）。
+- **正常路径不会弹出此页**：`nanobot webui` 和桌面端 `desktop/main.cjs` 都把 URL 开成 `http://127.0.0.1:<port>/#/?bootstrapSecret=<secret>`，自动完成认证。只有裸开 `http://127.0.0.1:8765`（不带 `bootstrapSecret` fragment）、或 config 缺该字段时才需要手输。
+- **查看/重置**：直接读或改 config 中该字段即可；若清空，下次启动会重新生成一个新密码。
+
 ## Contribution Flow
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for contribution flow and PR guidelines.
