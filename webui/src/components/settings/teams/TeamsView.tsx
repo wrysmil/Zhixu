@@ -7,7 +7,7 @@
 // 冻结，所以卡片不给「编辑」——取消归档是唯一的回头路。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Archive, ArchiveRestore, ArrowUpRight, Copy, Crown, Plus, Search } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowUpRight, Copy, Crown, Plus, Search, Target, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,9 @@ import { archiveTeam, cloneTeam, listTeams, saveTeam, teamErrorCode } from "@/li
 import type { TeamDefinition } from "@/lib/teams/types";
 
 export function TeamsView() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // 引导面板文案沿用 MemoryGuide 的组件内 zh/en 惯例：这是策展文案，不进 i18n 资源。
+  const zh = i18n.resolvedLanguage?.startsWith("zh");
   const { client, getToken } = useClient();
   const [teams, setTeams] = useState<TeamDefinition[]>([]);
   const [agents, setAgents] = useState<AgentProfile[]>([]);
@@ -278,6 +280,44 @@ export function TeamsView() {
           </li>
         ))}
       </ul>
+
+      {/* 有团队时的引导面板：填补列表下方的空白，讲清队长/成员分工与归档语义。 */}
+      {!loading && teams.length > 0 ? (
+        <aside className="teams-guide">
+          <div className="teams-guide-copy">
+            <p className="teams-kicker">{zh ? "团队怎么运作" : "How teams work"}</p>
+            <h2 className="teams-guide-title">{zh ? "一个目标，一次干净的分工。" : "One goal, one clean handoff."}</h2>
+            <p className="teams-guide-body">
+              {zh
+                ? "队长把你的目标拆成任务分给成员，结果由队长汇总交回。归档只是暂停新运行，随时可以取消归档继续。"
+                : "The Leader splits your goal into tasks and hands them out, then reports back with the result. Archiving only pauses new runs — unarchive anytime to pick up where you left off."}
+            </p>
+            <dl className="teams-guide-points">
+              <div className="flex items-start gap-2.5">
+                <Target className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--team-accent)" }} aria-hidden />
+                <div>
+                  <dt>{zh ? "队长拆解并分派" : "The Leader splits and assigns"}</dt>
+                  <dd>{zh ? "你只描述目标，谁做什么由队长安排。" : "Describe the goal; the Leader decides who does what."}</dd>
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <Users className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--team-accent)" }} aria-hidden />
+                <div>
+                  <dt>{zh ? "成员按职责执行" : "Members work their role"}</dt>
+                  <dd>{zh ? "职责只在本团队生效，不会改动 Agent 档案。" : "Roles apply to this team only and never change the Agent profile."}</dd>
+                </div>
+              </div>
+            </dl>
+          </div>
+          <img
+            src={teamIllustration}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            className="teams-guide-art"
+          />
+        </aside>
+      ) : null}
 
       {!loading && teams.length > 0 && visible.length === 0 ? (
         <p className="text-[12px] text-muted-foreground">{t("settings.teams.allArchived", "所有团队都已归档，打开「显示归档」就能看到它们。")}</p>
