@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import inspect
 import os
 import time
 import weakref
@@ -403,11 +404,16 @@ class AgentLoop:
             self._image_generation_provider_configs["openrouter"] = image_generation_provider_config
         self.cron_service = cron_service
         self.local_trigger_store = local_trigger_store
-        # Team Leader 每回合装配的注入点（WU-05 在 gateway 装配时接 TeamService）。
+        # Team Leader 每回合装配的注入点（WU-06 在 gateway 装配时接 TeamService + 调度器）。
         # 默认 None：没有注入时本 loop 永远跑普通聊天，团队代码路径一行都不执行。
+        # 允许返回协程：「起一个团队运行」要写 SQLite，注入点自己决定同步还是异步。
         self.team_context_provider: (
-            Callable[[InboundMessage, Session], LeaderTurnContext | None] | None
+            Callable[
+                ..., LeaderTurnContext | None | Awaitable[LeaderTurnContext | None]
+            ] | None
         ) = None
+        # 停止一个聊天时连带停掉它的团队运行（契约 §6）；返回被停止的运行数。
+        self.team_run_cancel_hook: Callable[[str], Awaitable[int]] | None = None
         self.restrict_to_workspace = restrict_to_workspace
         self.workspace_scopes = WorkspaceScopeResolver(
             default_workspace=workspace,
@@ -1084,12 +1090,21 @@ class AgentLoop:
             workspace=scope.project_path,
         )
 
-    def _team_context_for_turn(self, msg: InboundMessage, session: Session) -> LeaderTurnContext | None:
-        """每回合向注入点取一次团队装配；没注入时恒为 None（普通聊天一行团队代码都不跑）。"""
+    async def _team_context_for_turn(
+        self, msg: InboundMessage, session: Session, turn_id: str
+    ) -> LeaderTurnContext | None:
+        """每回合向注入点取一次团队装配；没注入时恒为 None（普通聊天一行团队代码都不跑）。
+
+        ``turn_id`` 是 loop 的内部轮次 id：可见轮次 id 来自服务端确认的入站 metadata，
+        两者都要落到运行记录上（契约 §4），所以注入点必须拿到它，但不能用它替代可见 id。
+        """
         provider = self.team_context_provider
         if provider is None:
             return None
-        return provider(msg, session)
+        context = provider(msg, session, turn_id)
+        if inspect.isawaitable(context):
+            return await context
+        return context
 
     def _leader_runtime(self, session: Session, team: LeaderTurnContext) -> LLMRuntime:
         """Leader 档案的 preset 优先；未指定时沿用本会话 runtime（普通聊天的解析路径）。"""
@@ -1246,7 +1261,11 @@ class AgentLoop:
                 await t
         sub_cancelled = await self.subagents.cancel_by_session(key)
         exec_cancelled = await self._exec_session_manager.terminate_by_owner(key)
-        return cancelled + sub_cancelled + exec_cancelled
+        team_cancelled = 0
+        if self.team_run_cancel_hook is not None:
+            # 停聊天就是停团队（契约 §6）：调度器把该会话在场成员的取消 await 完再返回。
+            team_cancelled = await self.team_run_cancel_hook(key)
+        return cancelled + sub_cancelled + exec_cancelled + team_cancelled
 
     async def discard_session(self, key: str) -> None:
         """Stop active work for *key* and forget its cached session."""
@@ -2065,15 +2084,37 @@ class AgentLoop:
 
             ctx.events = EventSink(track_output, ctx.events.accepts)
 
-        await self._run_turn_stage(ctx, "restore", self._restore_turn)
-        await self._run_turn_stage(ctx, "compact", self._compact_session)
-        if await self._run_turn_stage(ctx, "command", self._dispatch_command):
-            return ctx.outbound
-        await self._run_turn_stage(ctx, "build", self._build_turn)
-        await self._run_turn_stage(ctx, "run", self._run_turn)
-        await self._run_turn_stage(ctx, "save", self._persist_turn)
-        await self._run_turn_stage(ctx, "respond", self._prepare_outbound)
+        try:
+            await self._run_turn_stage(ctx, "restore", self._restore_turn)
+            await self._run_turn_stage(ctx, "compact", self._compact_session)
+            if await self._run_turn_stage(ctx, "command", self._dispatch_command):
+                return ctx.outbound
+            await self._run_turn_stage(ctx, "build", self._build_turn)
+            await self._run_turn_stage(ctx, "run", self._run_turn)
+            await self._run_turn_stage(ctx, "save", self._persist_turn)
+            await self._run_turn_stage(ctx, "respond", self._prepare_outbound)
+        except BaseException:
+            # 团队运行不能因为回合半路炸掉就一直挂着「running」。
+            await self._finish_team_turn(ctx, delivered=False)
+            raise
+        if not turn_continuation.internal_continuation_pending(ctx.msg.metadata):
+            # 内部续接（跑满轮次预算后排队的下一片）不收口：同一可见轮次还要接着派活。
+            await self._finish_team_turn(
+                ctx,
+                delivered=not ctx.suppress_response and bool((ctx.final_content or "").strip()),
+            )
         return ctx.outbound
+
+    async def _finish_team_turn(self, ctx: TurnContext, *, delivered: bool) -> None:
+        """回合结束时的团队收口：只有起了运行的回合才有收口动作。"""
+        team = ctx.team
+        if team is None or team.turn_finalizer is None:
+            return
+        try:
+            await team.turn_finalizer(delivered)
+        except Exception:
+            # 收口失败不能把已经完成的答案吞掉；运行会由重启恢复路径标成 interrupted。
+            logger.exception("team run {} failed to finalize", team.run_id)
 
     async def _run_turn_stage(
         self,
@@ -2169,7 +2210,7 @@ class AgentLoop:
             # 绑定先落盘再装配 Leader：会话一旦知道自己是团队会话，重连、重启与后续回合
             # 都读同一份真值，不依赖那条消息还活着。
             self.sessions.save(session)
-        ctx.team = self._team_context_for_turn(msg, session)
+        ctx.team = await self._team_context_for_turn(msg, session, ctx.turn_id)
         if ctx.team is not None:
             # 白名单与会话禁用取交集：团队不能把会话级禁掉的工具再捞回来。
             tools = build_leader_registry(tools, ctx.team)

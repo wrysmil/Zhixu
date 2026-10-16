@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Protocol, TypeAlias
 
 from loguru import logger
 
@@ -23,6 +23,7 @@ from nanobot.bus.outbound_events import (
     UserInputEvent,
 )
 from nanobot.session.webui_turns import clear_websocket_turn_if_current
+from nanobot.teams.events import TeamRunUpdateEvent
 from nanobot.webui.metadata import (
     WEBSOCKET_TURN_OWNER_METADATA_KEY,
     WEBUI_SYSTEM_COMMAND_TURN_PREFIX,
@@ -31,6 +32,7 @@ from nanobot.webui.metadata import (
 from nanobot.webui.outbound_wire import (
     WebUIWirePayload,
     WebUIWirePersistence,
+    encode_team_snapshot,
     encode_turn_end,
     project_notification,
 )
@@ -39,6 +41,9 @@ from nanobot.webui.session_projection import WebUISessionProjection
 
 if TYPE_CHECKING:
     from websockets.asyncio.server import ServerConnection
+
+# 重连时要补发的运行快照：调用方负责已经过白名单投影，返回的是 run 的 wire dict。
+TeamHydrationProvider: TypeAlias = Callable[[str], Awaitable[list[dict[str, Any]]]]
 
 
 class WebUIOutboundTransport(Protocol):
@@ -122,9 +127,12 @@ class WebUIOutboundProjector:
         self,
         transport: WebUIOutboundTransport,
         session_projection: WebUISessionProjection,
+        team_hydration: TeamHydrationProvider | None = None,
     ) -> None:
         self._transport = transport
         self._session_projection = session_projection
+        # 团队快照来自 gateway 的那一份 TeamService：投影层不认识存储，只认已投影的 run。
+        self._team_hydration = team_hydration
 
     async def hydrate(self, chat_id: str) -> None:
         """Replay reconnect state through the existing stable wire operations."""
@@ -143,6 +151,14 @@ class WebUIOutboundProjector:
             )
         for question in pending_for_chat(chat_id):
             await self._transport.send_question_requested(chat_id, question)
+        if self._team_hydration is None:
+            return
+        for run in await self._team_hydration(chat_id):
+            await self._transport.send_payload(
+                chat_id,
+                encode_team_snapshot(chat_id, run),
+                persistence="transient",
+            )
 
     async def send(self, msg: OutboundMessage) -> None:
         event = msg.event
@@ -168,6 +184,7 @@ class WebUIOutboundProjector:
                 GoalStateSyncEvent,
                 QuestionRequestedEvent,
                 ContextCompactionEvent,
+                TeamRunUpdateEvent,
             )
             log = (
                 logger.debug

@@ -1480,6 +1480,20 @@ export type InboundEvent =
       chat_id: string;
       goal_state: GoalStateWsPayload;
     }
+  | ({
+      /** 团队运行增量；载荷由 `@/lib/teams/events` 的 parseTeamFrame 解析。 */
+      event: "team_event";
+      chat_id: string;
+      turn_id: string;
+      data: unknown;
+    } & InboundTurnMetadata)
+  | ({
+      /** 重连补发：整份运行快照，不是增量。 */
+      event: "team_snapshot";
+      chat_id: string;
+      turn_id: string;
+      data: unknown;
+    } & InboundTurnMetadata)
   | {
       event: "question_requested";
       chat_id: string;

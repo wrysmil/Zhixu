@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
 from nanobot.agent.model_runtime import ModelRuntimeResolver
@@ -53,6 +53,9 @@ class LeaderTurnContext:
     skill_exclude: frozenset[str] = frozenset()
     model_id: str | None = None
     dispatch_tool: Tool | None = None
+    # 回合结束时的收口动作（由 WU-06 的回合装配挂上）：参数是「本回合有没有交付答案」。
+    # 没有它，Leader 不回话/报错时运行会一直停在 running，UI 上是一个永远转圈的任务。
+    turn_finalizer: Callable[[bool], Awaitable[None]] | None = None
 
 
 def render_role_prompt(

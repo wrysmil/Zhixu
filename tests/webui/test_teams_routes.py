@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 from nanobot.teams.database import TeamDatabase
+from nanobot.teams.leader import ModelPresetUnavailable
 from nanobot.teams.models import (
     SERVER_OWNED_DEFINITION_FIELDS,
     TeamDefinition,
@@ -22,10 +23,12 @@ from nanobot.teams.models import (
 )
 from nanobot.teams.repository import (
     RunNotFound,
+    TaskNotFound,
     TeamNotFound,
     TeamRepository,
     TeamRevisionConflict,
 )
+from nanobot.teams.runs import CrossSessionForbidden
 from nanobot.teams.service import (
     ProfileRecord,
     TeamArchived,
@@ -33,9 +36,10 @@ from nanobot.teams.service import (
     TeamProfileUnavailable,
     TeamService,
 )
-from nanobot.webui.settings_contracts import SettingsRequest
+from nanobot.webui.settings_contracts import SettingsRequest, WebUISettingsError
 from nanobot.webui.teams_routes import (
     TEAMS_ACTION_NAMES,
+    TEAMS_CONTROL_ACTION_NAMES,
     TeamSettingsHandler,
     TeamSettingsOperations,
 )
@@ -58,6 +62,20 @@ _DEFAULTS: dict[str, Callable[..., Any]] = {
     "save_team": lambda **kw: {"team": {}},
     "archive_team": lambda **kw: {"id": "t", "archived": True, "revision": 2},
     "clone_team": lambda **kw: {"team": {}},
+    "list_runs": lambda **kw: {"runs": [], "nextCursor": None},
+    "run_detail": lambda **kw: {"run": {}},
+    "run_events": lambda **kw: {"events": [], "lastSeq": 0, "hasMore": False, "resetRequired": False},
+}
+
+
+async def _async_refused(**_kw: Any) -> dict[str, Any]:
+    raise WebUISettingsError("team run control is not wired", status=503)
+
+
+_ASYNC_DEFAULTS: dict[str, Callable[..., Any]] = {
+    "cancel_run": _async_refused,
+    "cancel_task": _async_refused,
+    "retry_run": _async_refused,
 }
 
 
@@ -70,7 +88,7 @@ class _Ops:
 
     def __init__(self, **overrides: Callable[..., Any]) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
-        for name, impl in {**_DEFAULTS, **overrides}.items():
+        for name, impl in {**_DEFAULTS, **_ASYNC_DEFAULTS, **overrides}.items():
             setattr(self, name, self._record(name, impl))
 
     def _record(self, name: str, impl: Callable[..., Any]) -> Callable[..., Any]:
@@ -107,6 +125,17 @@ def test_action_names_are_the_frozen_contract_set() -> None:
         "teams-save",
         "teams-archive",
         "teams-clone",
+        "team-runs-list",
+        "team-run-detail",
+        "team-run-events",
+        "team-run-cancel",
+        "team-task-cancel",
+        "team-run-retry",
+    })
+    assert TEAMS_CONTROL_ACTION_NAMES == frozenset({
+        "team-run-cancel",
+        "team-task-cancel",
+        "team-run-retry",
     })
 
 
@@ -281,6 +310,12 @@ def test_list_and_save_run_through_the_real_service(team_service: TeamService) -
         list_revisions=lambda **kw: {
             "revisions": team_service.repository.list_revisions(kw["team_id"])
         },
+        list_runs=lambda **kw: team_service.list_runs(**kw),
+        run_detail=lambda **kw: team_service.get_run(**kw),
+        run_events=lambda **kw: team_service.run_events(**kw),
+        cancel_run=_async_refused,
+        cancel_task=_async_refused,
+        retry_run=_async_refused,
     )
     handler = TeamSettingsHandler(operations)
 
@@ -331,8 +366,149 @@ def test_list_and_save_run_through_the_real_service(team_service: TeamService) -
     assert after_archive.error is not None and after_archive.error.startswith("TEAM_NOT_FOUND")
 
 
-# ---------------------------------------------------- 路由与白名单登记（传输层可达）
+# --------------------------------------------------- 运行查询与控制（契约 §5）
 
+
+def test_run_list_requires_chat_id_and_passes_paging() -> None:
+    """运行清单按会话过滤：没有 chatId 就不知道该回哪条会话的历史。"""
+    ops = _Ops()
+    assert TeamSettingsHandler(ops).handle("team-runs-list", _request(query={})).status == 400
+    assert ops.names() == []
+
+    echoed = TeamSettingsHandler(_Ops(list_runs=lambda **kw: {"echo": kw})).handle(
+        "team-runs-list", _request(query={"chatId": "chat-1", "limit": "5", "cursor": "c1"})
+    )
+    assert echoed.status == 200
+    assert echoed.payload is not None
+    assert echoed.payload["echo"] == {
+        "chat_id": "chat-1",
+        "limit": 5,
+        "cursor": "c1",
+        "caller_chats": (),
+    }
+
+
+def test_run_detail_requires_run_id() -> None:
+    assert _handler().handle("team-run-detail", _request(query={})).status == 400
+    ok = TeamSettingsHandler(_Ops(run_detail=lambda **kw: {"echo": kw})).handle(
+        "team-run-detail", _request(query={"runId": "run-1"})
+    )
+    assert ok.payload is not None
+    assert ok.payload["echo"] == {"run_id": "run-1", "caller_chats": ()}
+
+
+def test_run_events_pass_after_seq_and_limit() -> None:
+    """afterSeq/limit 是重连补拉的入口，字符串必须转成整数。"""
+    echoed = TeamSettingsHandler(_Ops(run_events=lambda **kw: {"echo": kw})).handle(
+        "team-run-events", _request(query={"runId": "run-1", "afterSeq": "12", "limit": "50"})
+    )
+    assert echoed.status == 200
+    assert echoed.payload is not None
+    assert echoed.payload["echo"] == {
+        "run_id": "run-1",
+        "after_seq": 12,
+        "limit": 50,
+        "caller_chats": (),
+    }
+
+    assert _handler().handle(
+        "team-run-events", _request(query={"runId": "run-1", "afterSeq": "x"})
+    ).status == 400
+
+
+@pytest.mark.parametrize("action", sorted(TEAMS_CONTROL_ACTION_NAMES))
+def test_control_actions_require_request_id(action: str) -> None:
+    """控制动作也必须带 requestId：重连重放不能重复取消或重复重试（契约 §5）。"""
+    ops = _Ops()
+    result = TeamSettingsHandler(ops).handle(
+        action, _request(payload={"runId": "run-1", "taskId": "task-1"})
+    )
+    assert result.status == 400
+    assert ops.names() == []
+
+
+async def test_control_dispatch_reaches_the_controller() -> None:
+    async def _cancelled_run(*, run_id: str, caller_chats: tuple[str, ...] = ()) -> dict[str, Any]:
+        return {"runId": run_id, "status": "cancelling"}
+
+    async def _cancelled_task(
+        *, run_id: str, task_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        return {"taskId": task_id, "status": "cancelled"}
+
+    async def _retried(
+        *, run_id: str, request_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        return {"runId": run_id, "newRunId": "run-2", "turnId": "retry:1", "requestId": request_id}
+
+    ops = _Ops(
+        cancel_run=_cancelled_run, cancel_task=_cancelled_task, retry_run=_retried
+    )
+    handler = TeamSettingsHandler(ops)
+
+    cancelled = await handler.handle_control(
+        "team-run-cancel", _request(payload={"requestId": "r1", "runId": "run-1"})
+    )
+    assert cancelled.status == 200
+    assert cancelled.payload == {"runId": "run-1", "status": "cancelling"}
+
+    single = await handler.handle_control(
+        "team-task-cancel",
+        _request(payload={"requestId": "r2", "runId": "run-1", "taskId": "task-1"}),
+    )
+    assert single.payload == {"taskId": "task-1", "status": "cancelled"}
+
+    retried = await handler.handle_control(
+        "team-run-retry", _request(payload={"requestId": "r3", "runId": "run-1"})
+    )
+    assert retried.payload is not None
+    assert retried.payload["newRunId"] == "run-2"
+
+
+def test_control_action_refused_on_the_threaded_handler() -> None:
+    """控制动作必须走不包 ``to_thread`` 的分支，否则永远叫不醒在场的运行。"""
+    result = _handler().handle(
+        "team-run-cancel", _request(payload={"requestId": "r1", "runId": "run-1"})
+    )
+    assert result.status == 404
+    assert "handle_control" in (result.error or "")
+
+
+async def test_control_errors_are_translated_to_contract_codes() -> None:
+    async def _forbidden(*, run_id: str, caller_chats: tuple[str, ...] = ()) -> dict[str, Any]:
+        raise CrossSessionForbidden(f"run {run_id} is not in this session")
+
+    async def _missing(
+        *, run_id: str, task_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        raise TaskNotFound(task_id)
+
+    async def _bad_preset(
+        *, run_id: str, request_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        raise ModelPresetUnavailable("MODEL_PRESET_UNAVAILABLE preset is gone")
+
+    cross = await TeamSettingsHandler(_Ops(cancel_run=_forbidden)).handle_control(
+        "team-run-cancel", _request(payload={"requestId": "r1", "runId": "run-1"})
+    )
+    assert cross.status == 403
+    assert (cross.error or "").startswith("CROSS_SESSION_FORBIDDEN")
+
+    missing = await TeamSettingsHandler(_Ops(cancel_task=_missing)).handle_control(
+        "team-task-cancel",
+        _request(payload={"requestId": "r2", "runId": "run-1", "taskId": "task-x"}),
+    )
+    assert missing.status == 404
+    assert (missing.error or "").startswith("TASK_NOT_FOUND")
+
+    preset = await TeamSettingsHandler(_Ops(retry_run=_bad_preset)).handle_control(
+        "team-run-retry", _request(payload={"requestId": "r3", "runId": "run-1"})
+    )
+    assert preset.status == 400
+    assert (preset.error or "").startswith("MODEL_PRESET_UNAVAILABLE")
+
+
+# ---------------------------------------------------- 路由与白名单登记（传输层可达）
 
 def test_teams_paths_are_registered_in_the_settings_router() -> None:
     """动作名必须与冻结契约和 TS 客户端逐字一致：写错一个字符就是前端 404。"""
@@ -345,6 +521,12 @@ def test_teams_paths_are_registered_in_the_settings_router() -> None:
         "/api/settings/teams/save": "teams-save",
         "/api/settings/teams/archive": "teams-archive",
         "/api/settings/teams/clone": "teams-clone",
+        "/api/team-runs": "team-runs-list",
+        "/api/team-runs/detail": "team-run-detail",
+        "/api/team-runs/events": "team-run-events",
+        "/api/team-runs/cancel": "team-run-cancel",
+        "/api/team-tasks/cancel": "team-task-cancel",
+        "/api/team-runs/retry": "team-run-retry",
     }.items():
         assert settings_routes._SYSTEM_ROUTES[path] == action
         assert settings_routes.WebUISettingsRouter._route(path) == ("system", action)
@@ -359,9 +541,19 @@ def test_team_writes_are_ws_only() -> None:
         "/api/settings/teams/save",
         "/api/settings/teams/archive",
         "/api/settings/teams/clone",
+        "/api/team-runs/cancel",
+        "/api/team-tasks/cancel",
+        "/api/team-runs/retry",
     ):
         assert router.is_mutation_path(path) is True
-    for path in ("/api/settings/teams", "/api/settings/teams/detail", "/api/settings/teams/revisions"):
+    for path in (
+        "/api/settings/teams",
+        "/api/settings/teams/detail",
+        "/api/settings/teams/revisions",
+        "/api/team-runs",
+        "/api/team-runs/detail",
+        "/api/team-runs/events",
+    ):
         assert router.is_mutation_path(path) is False
 
 
@@ -372,8 +564,24 @@ def test_ws_mutation_actions_resolve_to_team_paths() -> None:
         "teams.save": "/api/settings/teams/save",
         "teams.archive": "/api/settings/teams/archive",
         "teams.clone": "/api/settings/teams/clone",
+        "teamRuns.cancel": "/api/team-runs/cancel",
+        "teamTasks.cancel": "/api/team-tasks/cancel",
+        "teamRuns.retry": "/api/team-runs/retry",
     }.items():
         assert ws_http._WEBUI_MUTATION_PATHS[action] == path
+
+
+def test_control_mutation_actions_pass_the_ws_action_filter() -> None:
+    """``teamRuns.cancel`` 带大写：action 正则不放行的话整条 WS 写通道都是 404。"""
+    from nanobot.webui import inbound_commands
+
+    for action in ("teamRuns.cancel", "teamTasks.cancel", "teamRuns.retry"):
+        assert inbound_commands.is_webui_mutation_action(action) is True
+    for action in ("teams.save", "teams.archive"):
+        assert inbound_commands.is_webui_mutation_action(action) is True
+    for action in ("bad action", "../../etc/passwd", "", "1teams.save", "a" * 129):
+        assert inbound_commands.is_webui_mutation_action(action) is False
+    assert inbound_commands.is_webui_mutation_action(None) is False
 
 
 # --------------------------------------------------------------- teams_api 绑定层

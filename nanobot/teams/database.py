@@ -223,6 +223,7 @@ class TeamDatabase:
         self.workspace_key = compute_workspace_key(self.workspace)
         self.busy_timeout_ms = DEFAULT_BUSY_TIMEOUT_MS
         self._lock = threading.Lock()
+        self._writer: FileLock | None = None
 
     def exists(self) -> bool:
         return self.db_path.exists()
@@ -297,13 +298,40 @@ class TeamDatabase:
         默认 ``timeout=0``：抢不到就立刻失败，而不是排队等一个可能永远不放手的
         前一个 gateway。未持锁的服务不得改写遗留运行（契约 §6）。
         """
-        self.writer_lock_path.parent.mkdir(parents=True, exist_ok=True)
-        lock = FileLock(str(self.writer_lock_path), timeout=timeout)
+        lock = self.writer_lock()
         try:
-            lock.acquire()
+            lock.acquire(timeout=timeout)
         except Timeout:
             raise WriterBusy(f"team writer already owned for {self.db_path.parent}") from None
         try:
             yield None
         finally:
+            lock.release()
+
+    def writer_lock(self) -> FileLock:
+        """本进程持有的那个 writer 锁句柄。
+
+        必须是**同一个实例**：``FileLock`` 自带重入计数，进程级持有之后再用
+        ``claim_writer`` 写短事务才不会自己跟自己抢锁。
+        """
+        if self._writer is None:
+            self.writer_lock_path.parent.mkdir(parents=True, exist_ok=True)
+            self._writer = FileLock(str(self.writer_lock_path))
+        return self._writer
+
+    @property
+    def writer_held(self) -> bool:
+        return self._writer is not None and self._writer.is_locked
+
+    def hold_writer(self) -> bool:
+        """进程级占用调度权；抢不到说明别的 gateway 已经在调度这个 workspace。"""
+        try:
+            self.writer_lock().acquire(timeout=0.0)
+        except Timeout:
+            return False
+        return True
+
+    def release_writer(self) -> None:
+        lock = self._writer
+        if lock is not None and lock.is_locked:
             lock.release()

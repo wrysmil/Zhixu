@@ -717,6 +717,8 @@ export function useNanobotStream(
     if (!chatId) return;
 
     const handle = (ev: InboundEvent) => {
+      // 团队帧由 TeamProgressPanel 自己消费：这里放行会让 turn 被误标成已投递。
+      if (ev.event === "team_event" || ev.event === "team_snapshot") return;
       if (ev.event === "error") {
         if (ev.detail === "message_too_big") {
           applyStreamError({

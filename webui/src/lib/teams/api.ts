@@ -10,7 +10,9 @@ import type {
   TeamLimits,
   TeamMember,
   TeamRevisionSnapshot,
+  TeamRunSnapshot,
 } from "@/lib/teams/types";
+import type { TeamEvent } from "@/lib/teams/events";
 
 const TEAMS_BASE = "/api/settings/teams";
 const TEAMS_READ_TIMEOUT_MS = 20_000;
@@ -160,7 +162,131 @@ export function teamErrorCode(error: unknown): string | null {
         : undefined;
   if (!message) return null;
   const match = message.match(
-    /(TEAM_[A-Z_]+|RUN_NOT_FOUND|DISPATCH_KEY_CONFLICT|MODEL_PRESET_UNAVAILABLE|AGENT_IN_USE_BY_TEAM)/,
+    /(TEAM_[A-Z_]+|RUN_NOT_FOUND|TASK_NOT_FOUND|CROSS_SESSION_FORBIDDEN|DISPATCH_KEY_CONFLICT|MODEL_PRESET_UNAVAILABLE|AGENT_IN_USE_BY_TEAM)/,
   );
   return match ? match[1] : null;
+}
+
+// ------------------------------------------------------------ 运行查询与控制（契约 §5）
+
+export interface TeamRunListResponse {
+  runs: TeamRunSnapshot[];
+  nextCursor: string | null;
+}
+
+export interface TeamRunDetailResponse {
+  run: TeamRunSnapshot;
+}
+
+export interface TeamRunEventsResponse {
+  events: TeamEvent[];
+  lastSeq: number;
+  hasMore: boolean;
+  /** 增量被剪过或客户端自报丢失：必须先回快照，不能继续顺序应用。 */
+  resetRequired: boolean;
+}
+
+export interface CancelTeamRunResponse {
+  runId: string;
+  /** 可能仍是 `cancelling`：服务端不提前宣称全部停止。 */
+  status: string;
+}
+
+export interface CancelTeamTaskResponse {
+  taskId: string;
+  status: string;
+}
+
+export interface RetryTeamRunResponse {
+  newRunId: string;
+  turnId: string;
+  taskIds: string[];
+}
+
+export async function listTeamRuns(
+  token: string,
+  chatId: string,
+  options: { base?: string; cursor?: string | null; limit?: number } = {},
+): Promise<TeamRunListResponse> {
+  const params = new URLSearchParams({ chatId });
+  if (options.cursor) params.set("cursor", options.cursor);
+  params.set("limit", String(options.limit ?? 20));
+  return request<TeamRunListResponse>(
+    `${options.base ?? ""}/api/team-runs?${params.toString()}`,
+    token,
+    undefined,
+    TEAMS_READ_TIMEOUT_MS,
+  );
+}
+
+export async function loadTeamRun(
+  token: string,
+  runId: string,
+  options: { base?: string } = {},
+): Promise<TeamRunDetailResponse> {
+  const params = new URLSearchParams({ runId });
+  return request<TeamRunDetailResponse>(
+    `${options.base ?? ""}/api/team-runs/detail?${params.toString()}`,
+    token,
+    undefined,
+    TEAMS_READ_TIMEOUT_MS,
+  );
+}
+
+export async function loadTeamRunEvents(
+  token: string,
+  runId: string,
+  options: { base?: string; afterSeq?: number; limit?: number } = {},
+): Promise<TeamRunEventsResponse> {
+  const params = new URLSearchParams({
+    runId,
+    afterSeq: String(options.afterSeq ?? 0),
+    limit: String(options.limit ?? 200),
+  });
+  return request<TeamRunEventsResponse>(
+    `${options.base ?? ""}/api/team-runs/events?${params.toString()}`,
+    token,
+    undefined,
+    TEAMS_READ_TIMEOUT_MS,
+  );
+}
+
+export async function cancelTeamRun(
+  transport: WebUIMutationTransport,
+  runId: string,
+  requestId: string,
+): Promise<CancelTeamRunResponse> {
+  return mutation<CancelTeamRunResponse>(
+    transport,
+    "teamRuns.cancel",
+    { requestId, runId },
+    TEAMS_MUTATION_TIMEOUT_MS,
+  );
+}
+
+export async function cancelTeamTask(
+  transport: WebUIMutationTransport,
+  runId: string,
+  taskId: string,
+  requestId: string,
+): Promise<CancelTeamTaskResponse> {
+  return mutation<CancelTeamTaskResponse>(
+    transport,
+    "teamTasks.cancel",
+    { requestId, runId, taskId },
+    TEAMS_MUTATION_TIMEOUT_MS,
+  );
+}
+
+export async function retryTeamRun(
+  transport: WebUIMutationTransport,
+  runId: string,
+  requestId: string,
+): Promise<RetryTeamRunResponse> {
+  return mutation<RetryTeamRunResponse>(
+    transport,
+    "teamRuns.retry",
+    { requestId, runId },
+    TEAMS_MUTATION_TIMEOUT_MS,
+  );
 }

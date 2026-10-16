@@ -1764,6 +1764,46 @@
         "none": "沒有下次執行"
       }
     },
+    "teamProgress": {
+      "title": "團隊進度",
+      "leader": "Leader",
+      "leaderAction": {
+        "planning": "規劃中",
+        "waiting": "等待成員",
+        "reviewing": "審閱中",
+        "summarizing": "彙整中",
+        "idle": "待命"
+      },
+      "status": {
+        "running": "進行中",
+        "cancelling": "正在停止…",
+        "completed": "已完成",
+        "partial": "部分完成",
+        "failed": "失敗",
+        "cancelled": "已停止",
+        "interrupted": "已中斷"
+      },
+      "taskStatus": {
+        "pending": "待派單",
+        "queued": "排隊中",
+        "running": "執行中",
+        "cancelling": "正在停止…",
+        "succeeded": "已完成",
+        "failed": "失敗",
+        "cancelled": "已停止",
+        "blocked": "被阻塞",
+        "interrupted": "已中斷"
+      },
+      "stop": "停止團隊",
+      "stopping": "正在停止…",
+      "retry": "重試失敗任務",
+      "retryHint": "重試會重新執行失敗的任務，可能重複既有副作用。",
+      "cancelTask": "停止此任務",
+      "noTasks": "本輪由 Leader 直接處理。",
+      "resyncing": "正在同步團隊狀態…",
+      "artifacts": "產出：{{names}}",
+      "memberFallback": "成員 {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "新增",

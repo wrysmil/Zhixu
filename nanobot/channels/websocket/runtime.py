@@ -33,6 +33,7 @@ from nanobot.session.webui_turns import (
     mark_websocket_turn_transcript_persistence_failed,
     websocket_turn_transcript_persistence_failed,
 )
+from nanobot.teams.events import project_run_snapshot
 from nanobot.webui.gateway_services import GatewayServices
 from nanobot.webui.http_utils import (
     normalize_config_path as _normalize_config_path,
@@ -397,7 +398,9 @@ class WebSocketChannel(BaseChannel):
         self._webui_request_tasks = self._commands.request_tasks
         self._webui_request_operations = self._commands.request_operations
         self._webui_request_locks = self._commands.request_locks
-        self._outbound = WebUIOutboundProjector(self, self._session_projection)
+        self._outbound = WebUIOutboundProjector(
+            self, self._session_projection, team_hydration=self._team_run_snapshots,
+        )
 
         self._stream_text_buffers: dict[tuple[str, str], list[str]] = {}
         self._reasoning_text_buffers: dict[tuple[str, str], list[str]] = {}
@@ -428,6 +431,21 @@ class WebSocketChannel(BaseChannel):
 
     async def webui_hydrate(self, chat_id: str) -> None:
         await self._hydrate_after_subscribe(chat_id)
+
+    async def _team_run_snapshots(self, chat_id: str) -> list[dict[str, Any]]:
+        """重连补发未收口的团队运行；历史运行由前端按需查询，不一次性推全部。
+
+        ``finished_at`` 为空等价于非终态（``TeamRunSnapshot`` 的构造不变式保证）。
+        """
+        service = self.gateway.team_service
+        if service is None:
+            return []
+        page = await asyncio.to_thread(service.repository.list_runs, chat_id)
+        return [
+            project_run_snapshot(run)
+            for run in page["runs"]
+            if getattr(run, "finished_at", None) is None
+        ]
 
     async def webui_send_event(
         self,

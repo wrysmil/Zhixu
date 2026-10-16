@@ -15,7 +15,9 @@ from nanobot.config.loader import get_config_path
 from nanobot.config.loader import load_config as _load_config
 from nanobot.memory.lifecycle import MemoryLifecycle
 from nanobot.teams.binding import TeamBindingStore
+from nanobot.teams.runs import TeamRunController
 from nanobot.teams.service import TeamService
+from nanobot.teams.turn import TeamLeaderTurns, build_team_turns
 from nanobot.webui import agents_api, identity_api, memory_api, teams_api, writing_api
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.gateway_endpoint import WebUIGatewayEndpoint
@@ -66,6 +68,7 @@ class GatewayServices:
     team_service: TeamService | None = None
     team_operations: TeamSettingsOperations | None = None
     team_bindings: TeamBindingStore | None = None
+    team_turns: TeamLeaderTurns | None = None
 
 
 def build_memory_operations(
@@ -194,6 +197,16 @@ def build_team_stack(
     照常登记，这样客户端拿到的是明确错误码而不是 404。
     """
     service = teams_api.build_service(Path(workspace_path), enabled=enabled)
+    recovery = teams_api.claim_team_writer(service)
+    if service.writer_owned:
+        default_logger.info(
+            f"team writer acquired for {workspace_path}:"
+            f" interrupted={len(recovery['interruptedRuns'])} pruned={len(recovery['prunedRuns'])}"
+        )
+    else:
+        default_logger.warning(
+            f"team writer busy for {workspace_path}; team scheduling is disabled in this gateway"
+        )
     return (
         service,
         teams_api.build_team_operations(service),
@@ -225,6 +238,7 @@ def build_gateway_services(
     mcp_reload: Callable[[], Awaitable[dict[str, Any]]] | None = None,
     skill_state_action: Callable[[set[str]], None] | None = None,
     recovery_action: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]] | None = None,
+    team_host: Any | None = None,
     logger: Any = default_logger,
 ) -> GatewayServices:
     settings = WebUISettingsServices.create(
@@ -269,6 +283,26 @@ def build_gateway_services(
         workspace_path=workspace_path,
         enabled=bool(settings.config.load().agents.teams),
     )
+    # 团队执行栈要有宿主（子执行器/工具目录/默认运行时）才能装配；CLI 或测试构造的
+    # gateway 没有 host 时留 None，普通聊天路径完全不受影响。
+    team_turns = (
+        build_team_turns(service=team_service, host=team_host, workspace=workspace_path)
+        if team_host is not None
+        else None
+    )
+    if team_turns is not None:
+        # 取消/重试要碰调度器里的活句柄，所以控制动作只能在执行栈装好之后接上；
+        # 没装执行栈的 gateway（CLI/测试）保持 503「未接线」。
+        team_operations = teams_api.with_team_controller(
+            team_operations,
+            TeamRunController(
+                service=team_service,
+                scheduler=team_turns.scheduler,
+                runtime_provider=team_turns.runtime_provider or (lambda: None),
+                preset_resolver=team_turns.preset_resolver,
+                workspace=workspace_path,
+            ),
+        )
     http = GatewayHTTPHandler(
         config=config,
         session_manager=session_manager,
@@ -336,4 +370,5 @@ def build_gateway_services(
         team_service=team_service,
         team_operations=team_operations,
         team_bindings=team_bindings,
+        team_turns=team_turns,
     )

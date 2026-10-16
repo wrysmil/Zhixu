@@ -1105,8 +1105,10 @@ def test_teams_dir_falls_back_to_default_workspace(tmp_path: Any) -> None:
 
 
 def test_teams_dir_expands_user_path() -> None:
-    assert str(get_teams_dir("~/proj")).endswith("/proj/teams")
-    assert "~" not in str(get_teams_dir("~/proj"))
+    # 用 parts 断言：Windows 上 expanduser 后是反斜杠，按 "/" 结尾判断只在类 Unix 通过。
+    path = get_teams_dir("~/proj")
+    assert path.parts[-2:] == ("proj", "teams")
+    assert "~" not in str(path)
 
 
 def test_config_loads_without_teams_section_and_stays_enabled(tmp_path: Any) -> None:

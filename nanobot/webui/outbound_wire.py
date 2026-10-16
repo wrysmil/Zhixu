@@ -14,6 +14,7 @@ from nanobot.bus.outbound_events import (
     TurnEndEvent,
 )
 from nanobot.events import AgentEvent
+from nanobot.teams.events import TeamRunUpdateEvent
 from nanobot.webui.metadata import WEBUI_TURN_METADATA_KEY
 
 
@@ -58,6 +59,25 @@ class ContextCompactionWirePayload(_ChatWirePayload):
     event: Literal["context_compaction"]
     compaction_id: str
     phase: Literal["started", "succeeded", "failed", "cancelled"]
+
+
+class TeamEventWirePayload(TypedDict):
+    # 契约 §6 的运行更新帧：``data`` 是白名单投影后的 TeamEvent，``turn_id`` 用它自己的
+    # turnId（一条运行的事件属于开始它的那一轮，不跟当前轮走）。
+    event: Literal["team_event"]
+    type: Literal["team_event"]
+    chat_id: str
+    turn_id: str
+    data: dict[str, Any]
+
+
+class TeamSnapshotWirePayload(TypedDict):
+    # 重连补发的运行快照：前端先收快照再按 seq 补拉，两条路都必须带 lastSeq。
+    event: Literal["team_snapshot"]
+    type: Literal["team_snapshot"]
+    chat_id: str
+    turn_id: str
+    data: dict[str, Any]
 
 
 TerminalWireStatus: TypeAlias = Literal["ok", "already_running", "limit_reached", "error"]
@@ -107,7 +127,8 @@ class TerminalListResultWirePayload(TypedDict):
 
 
 WebUIWirePayload: TypeAlias = (
-    RetryStatusWirePayload | ContextCompactionWirePayload | RecoveryStateWirePayload | TurnEndWirePayload
+    RetryStatusWirePayload | ContextCompactionWirePayload | RecoveryStateWirePayload
+    | TurnEndWirePayload | TeamEventWirePayload | TeamSnapshotWirePayload
 )
 WebUIWirePersistence: TypeAlias = Literal[
     "transient",
@@ -149,6 +170,29 @@ def encode_context_compaction(
     return payload
 
 
+def encode_team_event(chat_id: str, event: TeamRunUpdateEvent) -> TeamEventWirePayload:
+    """Project one persisted team update onto its frame; the payload is already allowlisted."""
+    data = dict(event.payload)
+    return {
+        "event": "team_event",
+        "type": "team_event",
+        "chat_id": chat_id,
+        "turn_id": str(data.get("turnId") or ""),
+        "data": data,
+    }
+
+
+def encode_team_snapshot(chat_id: str, run: Mapping[str, Any]) -> TeamSnapshotWirePayload:
+    """Project one run snapshot onto the reconnect frame."""
+    return {
+        "event": "team_snapshot",
+        "type": "team_snapshot",
+        "chat_id": chat_id,
+        "turn_id": str(run.get("turnId") or ""),
+        "data": dict(run),
+    }
+
+
 @dataclass(frozen=True)
 class NotificationProjection:
     """Allowlisted public payload and its durability policy."""
@@ -172,6 +216,9 @@ def project_notification(
         )
     if isinstance(event, RetryStatusEvent):
         return NotificationProjection(encode_retry_status(chat_id, event, metadata))
+    if isinstance(event, TeamRunUpdateEvent):
+        # 团队事件不进 transcript：状态已经落在 teams/state.db，重连靠快照 + 按 seq 补拉。
+        return NotificationProjection(encode_team_event(chat_id, event))
     if isinstance(event, RecoveryStateEvent):
         return NotificationProjection(encode_recovery_state(chat_id, event))
     return None

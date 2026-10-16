@@ -1763,6 +1763,46 @@
         "none": "Không có lần chạy tiếp theo"
       }
     },
+    "teamProgress": {
+      "title": "Tiến độ nhóm",
+      "leader": "Trưởng nhóm",
+      "leaderAction": {
+        "planning": "đang lên kế hoạch",
+        "waiting": "đang chờ thành viên",
+        "reviewing": "đang duyệt",
+        "summarizing": "đang tổng hợp",
+        "idle": "đang chờ"
+      },
+      "status": {
+        "running": "Đang chạy",
+        "cancelling": "Đang dừng…",
+        "completed": "Đã hoàn thành",
+        "partial": "Hoàn thành một phần",
+        "failed": "Thất bại",
+        "cancelled": "Đã dừng",
+        "interrupted": "Bị gián đoạn"
+      },
+      "taskStatus": {
+        "pending": "Chưa giao",
+        "queued": "Trong hàng đợi",
+        "running": "Đang chạy",
+        "cancelling": "Đang dừng…",
+        "succeeded": "Xong",
+        "failed": "Thất bại",
+        "cancelled": "Đã dừng",
+        "blocked": "Bị chặn",
+        "interrupted": "Bị gián đoạn"
+      },
+      "stop": "Dừng nhóm",
+      "stopping": "Đang dừng…",
+      "retry": "Chạy lại tác vụ thất bại",
+      "retryHint": "Chạy lại sẽ thực thi lại các tác vụ thất bại và có thể lặp lại tác dụng phụ đã xảy ra.",
+      "cancelTask": "Dừng tác vụ này",
+      "noTasks": "Trưởng nhóm đã trực tiếp xử lý lượt này.",
+      "resyncing": "Đang đồng bộ trạng thái nhóm…",
+      "artifacts": "Sản phẩm: {{names}}",
+      "memberFallback": "Thành viên {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "Thêm",

@@ -376,6 +376,10 @@ class SubagentManager:
             restrict_to_workspace=self.restrict_to_workspace,
         )
 
+    def subagent_tool_names(self) -> list[str]:
+        """子执行真实存在的工具名（``scope="subagent"``）；团队档案求交要用活目录。"""
+        return list(self._build_tools().names())
+
     def _build_tools(
         self,
         workspace: Path | None = None,

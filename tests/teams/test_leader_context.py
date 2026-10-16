@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -38,6 +39,7 @@ from nanobot.teams.leader import (
     render_role_prompt,
     resolve_leader_runtime,
 )
+from nanobot.teams.turn import build_team_turns
 from nanobot.utils.llm_runtime import LLMRuntime
 
 
@@ -316,6 +318,7 @@ def _leader_context(
     *,
     tool_allow: frozenset[str] = frozenset({"read_file", "write_file"}),
     model_id: str | None = None,
+    **overrides: Any,
 ) -> LeaderTurnContext:
     return _context(
         team_id=f"team-{team_name}",
@@ -330,13 +333,14 @@ def _leader_context(
         ),
         tool_allow=tool_allow,
         model_id=model_id,
+        **overrides,
     )
 
 
 def _wired_loop(tmp_path: Path, provider: _RecordingProvider) -> tuple[AgentLoop, dict[str, Any]]:
     loop = _make_loop(tmp_path, provider)
     holder: dict[str, Any] = {"context": None}
-    loop.team_context_provider = lambda msg, session: holder["context"]
+    loop.team_context_provider = lambda msg, session, turn_id: holder["context"]
     return loop, holder
 
 
@@ -410,7 +414,7 @@ async def test_team_revision_switch_drops_only_the_provider_continuation(
     loop, holder = _wired_loop(tmp_path, provider)
     seen: dict[str, Any] = {}
 
-    def provide(msg: Any, session: Any) -> LeaderTurnContext | None:
+    def provide(msg: Any, session: Any, turn_id: str) -> LeaderTurnContext | None:
         context = holder["context"]
         if context is not None and context.team_revision == 4:
             seen["transcript_before"] = len(session.messages)
@@ -518,7 +522,7 @@ async def test_first_team_message_persists_the_binding_before_the_leader(
     loop = _make_loop(tmp_path, provider)
     seen: list[dict[str, Any]] = []
 
-    def provide(msg: Any, session: Any) -> None:
+    def provide(msg: Any, session: Any, turn_id: str) -> None:
         seen.append({"key": session.key, "metadata": dict(session.metadata)})
         return None
 
@@ -563,7 +567,7 @@ async def test_a_bound_session_is_not_overridden_by_the_message(tmp_path: Path) 
     provider = _RecordingProvider()
     loop = _make_loop(tmp_path, provider)
     seen: list[dict[str, Any]] = []
-    loop.team_context_provider = lambda msg, session: seen.append(
+    loop.team_context_provider = lambda msg, session, turn_id: seen.append(
         dict(session.metadata)
     )
 
@@ -586,3 +590,86 @@ async def test_a_bound_session_is_not_overridden_by_the_message(tmp_path: Path) 
 
     assert seen[0]["team_binding"]["teamId"] == "other-team"
     assert seen[0]["team_binding"]["teamRevision"] == 1
+
+
+# --------------------------------------------------------------- 回合收口与停止桥接
+
+
+@pytest.mark.asyncio
+async def test_leader_turn_finalizes_the_run_with_the_delivery_verdict(
+    tmp_path: Path,
+) -> None:
+    """Leader 交付了答案才算 completed：收口必须拿到「本轮有没有交付」这个判定。"""
+    provider = _RecordingProvider()
+    loop, holder = _wired_loop(tmp_path, provider)
+    seen: list[bool] = []
+
+    async def finalize(delivered: bool) -> None:
+        seen.append(delivered)
+
+    async def respond(**kwargs: Any) -> LLMResponse:
+        provider.last_tool_definitions = list(kwargs.get("tools") or [])
+        return LLMResponse(content="答案在这里", tool_calls=[])
+
+    provider.chat_with_retry.side_effect = respond
+    holder["context"] = _leader_context(turn_finalizer=finalize)
+
+    await loop.process_direct("派活", session_key="cli:team")
+
+    assert seen == [True]
+
+
+@pytest.mark.asyncio
+async def test_stage_failure_still_finalizes_the_team_run(tmp_path: Path) -> None:
+    """回合半路炸掉（保存阶段抛错）也必须收口，否则运行永远停在 running。"""
+    provider = _RecordingProvider()
+    loop, holder = _wired_loop(tmp_path, provider)
+    seen: list[bool] = []
+
+    async def finalize(delivered: bool) -> None:
+        seen.append(delivered)
+
+    async def exploding_save(ctx: Any) -> None:
+        raise RuntimeError("save stage blew up")
+
+    loop._persist_turn = exploding_save  # pyright: ignore[reportAttributeAccessIssue]
+    holder["context"] = _leader_context(turn_finalizer=finalize)
+
+    with pytest.raises(RuntimeError):
+        await loop.process_direct("派活", session_key="cli:team")
+
+    assert seen == [False], "异常收口必须是未交付"
+
+
+@pytest.mark.asyncio
+async def test_stop_bridge_cancels_team_runs_of_that_session(tmp_path: Path) -> None:
+    """停聊天 = 停该会话的团队运行；别的会话不受影响（契约 §6）。"""
+    loop = _make_loop(tmp_path, _RecordingProvider())
+    stopped: list[str] = []
+
+    async def cancel(key: str) -> int:
+        stopped.append(key)
+        return 2
+
+    loop.team_run_cancel_hook = cancel
+
+    total = await loop._cancel_active_tasks("websocket:team-chat")
+
+    assert stopped == ["websocket:team-chat"]
+    assert total >= 2
+
+
+def test_team_stack_factory_matches_the_real_loop_surface(tmp_path: Path) -> None:
+    """工厂只认 loop 的真实表面；属性名写错是 gateway 启动即坏，这里先钉住。"""
+    loop = _make_loop(tmp_path, _RecordingProvider())
+    entries = loop.context.skills.list_skills(filter_unavailable=False)
+    assert all("name" in item for item in entries)
+    assert "read_file" in loop.tool_names
+    assert "read_file" in loop.subagents.subagent_tool_names()
+
+    service = SimpleNamespace(repository=None, prepare_new_run=lambda *a, **k: None)
+    turns = build_team_turns(service=service, host=loop, workspace=tmp_path)  # pyright: ignore[reportArgumentType]
+
+    assert "read_file" in turns.tool_names()
+    assert turns.runtime_provider is not None
+    assert turns.runtime_provider() is loop.runtime_resolver.runtime

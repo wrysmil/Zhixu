@@ -4,6 +4,7 @@ import asyncio
 import json
 import threading
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock
@@ -17,6 +18,7 @@ from nanobot.webui.http_utils import http_json_response
 from nanobot.webui.mcp_presets_api import custom_mcp_action
 from nanobot.webui.settings_routes import WebUISettingsRouter
 from nanobot.webui.settings_services import WebUISettingsServices
+from nanobot.webui.teams_routes import TeamSettingsOperations
 
 
 def _router(
@@ -27,6 +29,7 @@ def _router(
     mcp_reload: Callable[[], Awaitable[dict[str, object]]] | None = None,
     rename_model_preset: Callable[[str, str], int] | None = None,
     refresh_runtime_config: Callable[[], None] | None = None,
+    team_operations: TeamSettingsOperations | None = None,
 ) -> WebUISettingsRouter:
     return WebUISettingsRouter(
         settings=WebUISettingsServices.create(
@@ -48,6 +51,7 @@ def _router(
         mcp_runtime_status=mcp_runtime_status,
         mcp_reload=mcp_reload,
         mcp_oauth_redirect_uri=lambda _request: "https://gateway.example/auth/mcp/callback",
+        team_operations=team_operations,
     )
 
 
@@ -450,6 +454,127 @@ async def test_model_update_route_forwards_session_rename_dependency(monkeypatch
         "rename_model_preset": rename_model_preset,
     }
     refresh_runtime_config.assert_called_once_with()
+
+
+# ------------------------------------------------------- 团队运行控制（契约 §5）
+
+
+def _team_operations(
+    calls: list[tuple[str, dict[str, object]]], **overrides: object
+) -> TeamSettingsOperations:
+    """只把控制三条接上真实现，其余留空返回——这里测的是路由与线程口径。"""
+
+    def _sync(name: str) -> Callable[..., dict[str, object]]:
+        def _inner(**kwargs: object) -> dict[str, object]:
+            calls.append((name, kwargs))
+            return {}
+
+        return _inner
+
+    async def _cancel_run(*, run_id: str) -> dict[str, object]:
+        calls.append(("cancel_run", {"run_id": run_id}))
+        return {"runId": run_id, "status": "cancelling"}
+
+    async def _cancel_task(*, run_id: str, task_id: str) -> dict[str, object]:
+        calls.append(("cancel_task", {"run_id": run_id, "task_id": task_id}))
+        return {"taskId": task_id, "status": "cancelling"}
+
+    async def _retry_run(*, run_id: str, request_id: str) -> dict[str, object]:
+        calls.append(("retry_run", {"run_id": run_id, "request_id": request_id}))
+        return {"newRunId": "run-2", "turnId": "retry:abc"}
+
+    base = TeamSettingsOperations(
+        list_teams=_sync("list_teams"),
+        get_detail=_sync("get_detail"),
+        list_revisions=_sync("list_revisions"),
+        save_team=_sync("save_team"),
+        archive_team=_sync("archive_team"),
+        clone_team=_sync("clone_team"),
+        list_runs=_sync("list_runs"),
+        run_detail=_sync("run_detail"),
+        run_events=_sync("run_events"),
+        cancel_run=_cancel_run,
+        cancel_task=_cancel_task,
+        retry_run=_retry_run,
+    )
+    return replace(base, **overrides)  # pyright: ignore[reportArgumentType]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "payload", "expected_name", "expected_body"),
+    [
+        (
+            "/api/team-runs/cancel",
+            {"requestId": "r1", "runId": "run-1"},
+            "cancel_run",
+            {"runId": "run-1", "status": "cancelling"},
+        ),
+        (
+            "/api/team-tasks/cancel",
+            {"requestId": "r2", "runId": "run-1", "taskId": "task-1"},
+            "cancel_task",
+            {"taskId": "task-1", "status": "cancelling"},
+        ),
+        (
+            "/api/team-runs/retry",
+            {"requestId": "r3", "runId": "run-1"},
+            "retry_run",
+            {"newRunId": "run-2", "turnId": "retry:abc"},
+        ),
+    ],
+)
+async def test_team_control_mutations_reach_the_controller(
+    path: str,
+    payload: dict[str, object],
+    expected_name: str,
+    expected_body: dict[str, object],
+) -> None:
+    """控制动作必须由不包 ``to_thread`` 的分支送达：线程里叫不醒在场的运行。"""
+    calls: list[tuple[str, dict[str, object]]] = []
+    router = _router(team_operations=_team_operations(calls))
+
+    response = await router.dispatch(None, _mutation_request(path, payload), path)
+
+    assert response is not None
+    assert response.status_code == 200
+    assert json.loads(response.body) == expected_body
+    assert [name for name, _ in calls] == [expected_name]
+
+
+@pytest.mark.asyncio
+async def test_team_control_mutation_without_request_id_is_rejected() -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+    router = _router(team_operations=_team_operations(calls))
+    path = "/api/team-runs/retry"
+
+    response = await router.dispatch(None, _mutation_request(path, {"runId": "run-1"}), path)
+
+    assert response is not None
+    assert response.status_code == 400
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_team_run_reads_are_dispatched_off_the_event_loop() -> None:
+    """读走 ``to_thread``：阻塞 SQLite 不能占住事件循环。"""
+    calling_thread = threading.get_ident()
+    worker_threads: list[int] = []
+
+    def list_runs(*, chat_id: str, limit: int, cursor: str | None) -> dict[str, object]:
+        worker_threads.append(threading.get_ident())
+        return {"runs": [], "nextCursor": None, "chatId": chat_id}
+
+    router = _router(team_operations=_team_operations([], list_runs=list_runs))
+    path = "/api/team-runs"
+    request = SimpleNamespace(path=f"{path}?chatId=chat-1", headers=Headers())
+
+    response = await router.dispatch(None, request, path)
+
+    assert response is not None
+    assert response.status_code == 200
+    assert json.loads(response.body)["chatId"] == "chat-1"
+    assert worker_threads and worker_threads[0] != calling_thread
 
 
 @pytest.mark.asyncio

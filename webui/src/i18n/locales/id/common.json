@@ -1763,6 +1763,46 @@
         "none": "Tidak ada jadwal berikutnya"
       }
     },
+    "teamProgress": {
+      "title": "Kemajuan tim",
+      "leader": "Pemimpin",
+      "leaderAction": {
+        "planning": "menyusun rencana",
+        "waiting": "menunggu anggota",
+        "reviewing": "meninjau",
+        "summarizing": "merangkum",
+        "idle": "siap"
+      },
+      "status": {
+        "running": "Berjalan",
+        "cancelling": "Menghentikan…",
+        "completed": "Selesai",
+        "partial": "Selesai sebagian",
+        "failed": "Gagal",
+        "cancelled": "Dihentikan",
+        "interrupted": "Terhenti"
+      },
+      "taskStatus": {
+        "pending": "Belum ditugaskan",
+        "queued": "Antre",
+        "running": "Berjalan",
+        "cancelling": "Menghentikan…",
+        "succeeded": "Selesai",
+        "failed": "Gagal",
+        "cancelled": "Dihentikan",
+        "blocked": "Terblokir",
+        "interrupted": "Terhenti"
+      },
+      "stop": "Hentikan tim",
+      "stopping": "Menghentikan…",
+      "retry": "Ulangi tugas yang gagal",
+      "retryHint": "Mengulang menjalankan kembali tugas yang gagal dan dapat mengulangi efek samping yang sudah terjadi.",
+      "cancelTask": "Hentikan tugas ini",
+      "noTasks": "Pemimpin menjawab langsung pada giliran ini.",
+      "resyncing": "Menyinkronkan status tim…",
+      "artifacts": "Keluaran: {{names}}",
+      "memberFallback": "Anggota {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "Tambah",

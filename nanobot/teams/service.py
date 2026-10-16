@@ -19,12 +19,14 @@ Step 3）：SQLite 读写不进事件循环，也不在持锁期间 await 网络
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from nanobot.agents.models import AgentSelection
 from nanobot.agents.runtime import resolve_selection
+from nanobot.teams.database import StorageUnavailable
+from nanobot.teams.events import project_run_snapshot
 from nanobot.teams.models import (
     SERVER_OWNED_DEFINITION_FIELDS,
     AgentProfileSnapshot,
@@ -33,7 +35,7 @@ from nanobot.teams.models import (
     TeamRevisionSnapshot,
     TeamValidationError,
 )
-from nanobot.teams.repository import TeamRepository, new_id, utc_now_iso
+from nanobot.teams.repository import DEFAULT_EVENT_LIMIT, TeamRepository, new_id, utc_now_iso
 
 
 class TeamDisabled(RuntimeError):  # noqa: N818  # 映射 503 TEAMS_DISABLED
@@ -50,6 +52,10 @@ class TeamReferenceError(ValueError):  # noqa: N818  # 映射 400 TEAM_INVALID
 
 class TeamProfileUnavailable(ValueError):  # noqa: N818  # 映射 409 TEAM_MEMBER_UNAVAILABLE
     """被引用的 Agent 档案缺失或已隐藏。"""
+
+
+class CrossSessionForbidden(PermissionError):  # noqa: N818  # 映射 403 CROSS_SESSION_FORBIDDEN
+    """调用方所在会话不拥有这条运行/任务：拒绝跨会话读写控制（契约 §3/§5）。"""
 
 
 @dataclass(frozen=True)
@@ -104,10 +110,12 @@ class TeamService:
         profiles: ProfileDirectory,
         *,
         enabled: bool = True,
+        writer_owned: bool = True,
     ) -> None:
         self.repository = repository
         self.profiles = profiles
         self.enabled = enabled
+        self.writer_owned = writer_owned
 
     # ------------------------------------------------------------------ 写入
 
@@ -233,6 +241,9 @@ class TeamService:
         """新运行的准入检查：开关、归档与档案可用性；返回该修订的冻结快照。"""
         if not self.enabled:
             raise TeamDisabled("agents.teams.enabled is false")
+        if not self.writer_owned:
+            # 另一个 gateway 已经持有本 workspace 的调度权（契约 §6：不支持双 writer）。
+            raise StorageUnavailable("team scheduling is owned by another gateway")
         definition = self.repository.get_team(team_id)
         if definition.archived:
             raise TeamArchived(f"team {definition.id} is archived")
@@ -242,6 +253,57 @@ class TeamService:
         for member in definition.members:
             self._require_available(member.agent_id)
         return snapshot
+
+    def list_runs(
+        self, chat_id: str, *, limit: int = 20, cursor: str | None = None
+    ) -> dict[str, Any]:
+        """某次聊天的运行清单（契约 §5 ``GET /api/team-runs``）；只投影白名单字段。"""
+        page = self.repository.list_runs(chat_id, limit=limit, cursor=cursor)
+        return {
+            "runs": [project_run_snapshot(run) for run in page["runs"]],
+            "nextCursor": page["nextCursor"],
+        }
+
+    def get_run(
+        self, run_id: str, *, caller_chats: Sequence[str] = ()
+    ) -> dict[str, Any]:
+        self.require_run_session(run_id, caller_chats)
+        return {"run": project_run_snapshot(self.repository.get_run(run_id))}
+
+    def run_events(
+        self, run_id: str, *, after_seq: int = 0, limit: int = DEFAULT_EVENT_LIMIT
+    ) -> dict[str, Any]:
+        """按 seq 补拉事件页；跨工作空间在这里就抛 RUN_NOT_FOUND。"""
+        return self.repository.events_page(run_id, after_seq=after_seq, limit=limit)
+
+    def require_run_session(self, run_id: str, caller_chats: Sequence[str]) -> None:
+        """这条运行属于调用方的会话吗（契约 §3/§5 的会话访问检查 → 403）。
+
+        ``caller_chats`` 是服务端从连接推导的，客户端自称的 chatId 覆盖不了。推导不出
+        身份时**不拦**：读动作也能走普通 HTTP GET，那条路上没有聊天身份，边界是工作空间。
+        控制动作（取消/重试）只走已认证 WS，那边由 :class:`~nanobot.teams.runs.TeamRunController`
+        按同一套 run_context 比对，推导不出就拒。
+        """
+        if not caller_chats:
+            return
+        context = self.repository.run_context(run_id)
+        owner = str(context.get("chatId") or "")
+        if owner and owner in caller_chats:
+            return
+        raise CrossSessionForbidden(f"run {run_id} does not belong to the calling session")
+
+    def recover_after_restart(self) -> dict[str, list[str]]:
+        """gateway 启动清理（契约 §6/§7）。
+
+        遗留的 ``running`` / ``cancelling`` 一律落 ``interrupted``：本机没有活着的子进程，
+        重放只会二次执行工具。没有 writer 权的一方什么都不做——那是别的 gateway 的权威数据。
+        """
+        if not self.writer_owned:
+            return {"interruptedRuns": [], "prunedRuns": []}
+        with self.repository.claim_writer():
+            interrupted = self.repository.mark_interrupted_runs()
+            pruned = self.repository.prune_activity_events()
+        return {"interruptedRuns": interrupted, "prunedRuns": pruned}
 
     # -------------------------------------------------------------- 异步入口
 

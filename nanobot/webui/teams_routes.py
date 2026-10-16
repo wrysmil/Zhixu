@@ -4,15 +4,18 @@
 对着注入进来的 operations 分发，返回 ``SettingsRouteResult``。路径 → action 的映射、
 WebSocket / HTTP 的门禁都在 ``settings_routes.py``。
 
-读动作（list / detail / revisions）走普通认证 HTTP GET；写动作（save / archive /
-clone）改变磁盘状态，只走已认证 WS 的 ``requestMutation`` 白名单（契约 §3）。
+读动作（团队 list / detail / revisions，运行 list / detail / events）走普通认证 HTTP
+GET；写动作（save / archive / clone / cancel / retry）改变状态，只走已认证 WS 的
+``requestMutation`` 白名单（契约 §3）。其中三个 run 控制动作要叫醒事件循环上的活句柄，
+所以另有 :meth:`TeamSettingsHandler.handle_control` 一条 async 入口。
 
-领域异常在这儿翻译成契约 §4 的错误码前缀：传输层的信封仍是全站统一的
+领域异常在这儿翻译成契约 §5 的错误码前缀：传输层的信封仍是全站统一的
 ``{error: string}``，代码放在消息前缀里，本功能不单独改 error 结构。
 """
 
 from __future__ import annotations
 
+from collections.abc import Awaitable
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -23,9 +26,11 @@ from nanobot.teams.repository import (
     DispatchKeyConflict,
     RequestReplayConflict,
     RunNotFound,
+    TaskNotFound,
     TeamNotFound,
     TeamRevisionConflict,
 )
+from nanobot.teams.runs import CrossSessionForbidden
 from nanobot.teams.service import (
     TeamArchived,
     TeamDisabled,
@@ -46,9 +51,24 @@ TEAMS_ACTION_NAMES = frozenset({
     "teams-save",
     "teams-archive",
     "teams-clone",
+    "team-runs-list",
+    "team-run-detail",
+    "team-run-events",
+    "team-run-cancel",
+    "team-task-cancel",
+    "team-run-retry",
+})
+
+# 控制动作要叫醒事件循环上的活句柄（``TeamRunHandle``），所以 handler 必须直接在 loop
+# 上跑：settings router 给这一组名单开了一条不包 ``asyncio.to_thread`` 的分支。
+TEAMS_CONTROL_ACTION_NAMES = frozenset({
+    "team-run-cancel",
+    "team-task-cancel",
+    "team-run-retry",
 })
 
 _DEFAULT_LIST_LIMIT = 20
+_DEFAULT_EVENT_LIMIT = 200
 
 
 @dataclass(frozen=True)
@@ -65,6 +85,13 @@ class TeamSettingsOperations:
     save_team: Callable[..., dict[str, Any]]
     archive_team: Callable[..., dict[str, Any]]
     clone_team: Callable[..., dict[str, Any]]
+    list_runs: Callable[..., dict[str, Any]]
+    run_detail: Callable[..., dict[str, Any]]
+    run_events: Callable[..., dict[str, Any]]
+    # 三个控制动作是协程：它们要在 loop 上叫醒活句柄。
+    cancel_run: Callable[..., Awaitable[dict[str, Any]]]
+    cancel_task: Callable[..., Awaitable[dict[str, Any]]]
+    retry_run: Callable[..., Awaitable[dict[str, Any]]]
 
 
 class TeamSettingsHandler:
@@ -76,11 +103,35 @@ class TeamSettingsHandler:
     def handle(self, action: str, request: SettingsRequest) -> SettingsRouteResult:
         if action not in TEAMS_ACTION_NAMES:
             return SettingsRouteResult.failure(404, f"unknown team action: {action}")
+        if action in TEAMS_CONTROL_ACTION_NAMES:
+            # 控制动作在别的线程里叫醒不了活句柄，也不会自动跑到事件循环上。
+            try:
+                control_arguments(action, request)
+            except WebUISettingsError as exc:
+                return SettingsRouteResult.failure(exc.status, exc.message)
+            return SettingsRouteResult.failure(404, "team control action needs handle_control")
         try:
             payload = dispatch(self._ops, action, request)
         except WebUISettingsError as exc:
             return SettingsRouteResult.failure(exc.status, exc.message)
         except Exception as exc:  # 领域异常统一翻译成契约 §4 的错误码
+            status, message = translate(exc)
+            return SettingsRouteResult.failure(status, message)
+        return SettingsRouteResult.success(payload)
+
+    async def handle_control(
+        self,
+        action: str,
+        request: SettingsRequest,
+    ) -> SettingsRouteResult:
+        """取消/重试的异步入口：必须跑在 loop 上（``runs.py`` 要碰活句柄）。"""
+        if action not in TEAMS_CONTROL_ACTION_NAMES:
+            return SettingsRouteResult.failure(404, f"unknown team control action: {action}")
+        try:
+            payload = await dispatch_control(self._ops, action, request)
+        except WebUISettingsError as exc:
+            return SettingsRouteResult.failure(exc.status, exc.message)
+        except Exception as exc:
             status, message = translate(exc)
             return SettingsRouteResult.failure(status, message)
         return SettingsRouteResult.success(payload)
@@ -97,10 +148,12 @@ _ERROR_CODES: dict[type[BaseException], tuple[int, str]] = {
     TeamNotFound: (404, "TEAM_NOT_FOUND"),
     TeamArchived: (404, "TEAM_NOT_FOUND"),
     RunNotFound: (404, "RUN_NOT_FOUND"),
+    TaskNotFound: (404, "TASK_NOT_FOUND"),
     TeamRevisionConflict: (409, "TEAM_REVISION_CONFLICT"),
     TeamProfileUnavailable: (409, "TEAM_MEMBER_UNAVAILABLE"),
     RequestReplayConflict: (409, "TEAM_REVISION_CONFLICT"),
     DispatchKeyConflict: (409, "DISPATCH_KEY_CONFLICT"),
+    CrossSessionForbidden: (403, "CROSS_SESSION_FORBIDDEN"),
     TeamDisabled: (503, "TEAMS_DISABLED"),
     WriterBusy: (503, "STORAGE_UNAVAILABLE"),
     StorageUnavailable: (503, "STORAGE_UNAVAILABLE"),
@@ -175,8 +228,66 @@ def dispatch(
             request_id=_required_request_id(payload),
         )
 
+    if action == "team-runs-list":
+        return operations.list_runs(
+            chat_id=_required_text(request, "chatId"),
+            limit=_int_query(request, "limit", _DEFAULT_LIST_LIMIT),
+            cursor=_opt_query(request, "cursor"),
+            caller_chats=request.caller_chats,
+        )
+
+    if action == "team-run-detail":
+        return operations.run_detail(
+            run_id=_required_text(request, "runId"),
+            caller_chats=request.caller_chats,
+        )
+
+    if action == "team-run-events":
+        return operations.run_events(
+            run_id=_required_text(request, "runId"),
+            after_seq=_int_query(request, "afterSeq", 0),
+            limit=_int_query(request, "limit", _DEFAULT_EVENT_LIMIT),
+            caller_chats=request.caller_chats,
+        )
+
     # 已知动作不会走到这里；留着作为将来新增动作时的兜底。
     raise WebUISettingsError(f"unsupported team action: {action}")
+
+
+async def dispatch_control(
+    operations: TeamSettingsOperations,
+    action: str,
+    request: SettingsRequest,
+) -> dict[str, Any]:
+    """取消与重试（契约 §5 三条 run mutation）：参数一律来自 mutation payload。"""
+    arguments = control_arguments(action, request)
+    caller = request.caller_chats
+    if action == "team-run-cancel":
+        return await operations.cancel_run(run_id=arguments["run_id"], caller_chats=caller)
+
+    if action == "team-task-cancel":
+        return await operations.cancel_task(
+            run_id=arguments["run_id"], task_id=arguments["task_id"], caller_chats=caller
+        )
+
+    return await operations.retry_run(
+        run_id=arguments["run_id"], request_id=arguments["request_id"], caller_chats=caller
+    )
+
+
+def control_arguments(action: str, request: SettingsRequest) -> dict[str, Any]:
+    """控制动作的入参校验；同步部分两条入口共用。
+
+    缺 ``requestId`` 是 400 的调用方错误，与「这条路由是不是接了执行栈」无关，所以要在
+    ``handle`` 的 404 分支之前就验掉。
+    """
+    payload = request.payload or {}
+    arguments: dict[str, Any] = {"run_id": _required_text(request, "runId", in_payload=True)}
+    if action == "team-task-cancel":
+        arguments["task_id"] = _required_text(request, "taskId", in_payload=True)
+    _required_request_id(payload)
+    arguments["request_id"] = payload["requestId"].strip()
+    return arguments
 
 
 # ---- 参数取值 --------------------------------------------------------------

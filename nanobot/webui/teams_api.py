@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +16,23 @@ from nanobot.agents.models import AgentProfile
 from nanobot.agents.store import AgentStore, AgentStoreError
 from nanobot.teams.database import TeamDatabase
 from nanobot.teams.repository import TeamRepository
-from nanobot.teams.service import ProfileRecord, TeamService
+from nanobot.teams.runs import TeamRunController
+from nanobot.teams.service import CrossSessionForbidden, ProfileRecord, TeamService
+from nanobot.webui.settings_contracts import WebUISettingsError
 from nanobot.webui.teams_routes import TeamSettingsOperations
+
+
+def require_caller_session(chat_id: str, caller_chats: tuple[str, ...]) -> None:
+    """按 chatId 列运行前先过会话访问检查（契约 §5 的「会话访问检查」→ 403）。
+
+    ``chat_id`` 来自客户端查询串，``caller_chats`` 是服务端从连接推导的：推导不出身份
+    （普通 HTTP GET）时不拦，那条路的边界是工作空间；能推导时必须命中。
+    """
+    if not caller_chats:
+        return
+    if chat_id in caller_chats:
+        return
+    raise CrossSessionForbidden("chat is not attached to the calling session")
 
 
 class AgentProfileDirectory:
@@ -69,6 +85,18 @@ def build_service(workspace: Path, *, enabled: bool = True) -> TeamService:
     )
 
 
+def claim_team_writer(service: TeamService) -> dict[str, list[str]]:
+    """抢下本 workspace 的团队调度权并做启动清理（契约 §6）。
+
+    抢不到说明已经有另一个 gateway 在调度同一个 workspace：这个进程**不**改写那些
+    运行，只把 ``writer_owned`` 关掉，之后所有新运行准入都会拿到 503。
+    """
+    if not service.repository.hold_writer():
+        service.writer_owned = False
+        return {"interruptedRuns": [], "prunedRuns": []}
+    return service.recover_after_restart()
+
+
 def build_team_operations(service: TeamService) -> TeamSettingsOperations:
     """领域服务 → handler operations。同步入口：路由层已经用 ``asyncio.to_thread`` 包过。
 
@@ -100,6 +128,31 @@ def build_team_operations(service: TeamService) -> TeamSettingsOperations:
     def clone_team(*, team_id: str, name: str, request_id: str) -> dict[str, Any]:
         return service.clone_team(team_id, name=name, request_id=request_id)
 
+    def list_runs(
+        *, chat_id: str, limit: int, cursor: str | None, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        require_caller_session(chat_id, caller_chats)
+        return service.list_runs(chat_id, limit=limit, cursor=cursor)
+
+    def run_detail(
+        *, run_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        return service.get_run(run_id, caller_chats=caller_chats)
+
+    def run_events(
+        *, run_id: str, after_seq: int, limit: int, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        service.require_run_session(run_id, caller_chats)
+        return service.run_events(run_id, after_seq=after_seq, limit=limit)
+
+    async def control_refused(**_kwargs: Any) -> dict[str, Any]:
+        """没有执行栈（CLI/测试构造的 gateway）时的控制入口：响亮 503。
+
+        读动作只需要 service + 磁盘，取消/重试却需要 :class:`TeamScheduler` 的活句柄，
+        所以由 :func:`with_team_controller` 在装配执行栈之后替换掉这三条。
+        """
+        raise WebUISettingsError("team run control is not wired", status=503)
+
     return TeamSettingsOperations(
         list_teams=list_teams,
         get_detail=get_detail,
@@ -107,6 +160,40 @@ def build_team_operations(service: TeamService) -> TeamSettingsOperations:
         save_team=save_team,
         archive_team=archive_team,
         clone_team=clone_team,
+        list_runs=list_runs,
+        run_detail=run_detail,
+        run_events=run_events,
+        cancel_run=control_refused,
+        cancel_task=control_refused,
+        retry_run=control_refused,
+    )
+
+
+def with_team_controller(
+    operations: TeamSettingsOperations,
+    controller: TeamRunController,
+) -> TeamSettingsOperations:
+    """把三个控制动作接到真实控制器上（装配层调用一次）。"""
+
+    async def cancel_run(
+        *, run_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        return await controller.cancel_run(run_id, caller_chats=caller_chats)
+
+    async def cancel_task(
+        *, run_id: str, task_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        return await controller.cancel_task(run_id, task_id, caller_chats=caller_chats)
+
+    async def retry_run(
+        *, run_id: str, request_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        return await controller.retry_run(
+            run_id, request_id=request_id, caller_chats=caller_chats
+        )
+
+    return replace(
+        operations, cancel_run=cancel_run, cancel_task=cancel_task, retry_run=retry_run
     )
 
 

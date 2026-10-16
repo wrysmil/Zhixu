@@ -147,6 +147,8 @@ from nanobot.webui.writing_routes import WritingSettingsOperations
 _SLOW_WEBUI_HTTP_LOG_MS = 1_000
 _WEBUI_MUTATION_PAYLOAD_ATTR = "_nanobot_webui_mutation_payload"
 _WEBUI_MUTATION_REQUEST_ATTR = "_nanobot_webui_mutation_request"
+# 发起这次 mutation 的连接当前挂在哪些聊天上：由服务端从连接推导，payload 覆盖不了。
+_WEBUI_MUTATION_CALLER_ATTR = "_nanobot_webui_mutation_caller_chats"
 _NO_STORE_HEADERS = [("Cache-Control", "no-store")]
 
 _WEBUI_MUTATION_PATHS = {
@@ -218,6 +220,11 @@ _WEBUI_MUTATION_PATHS = {
     "teams.save": "/api/settings/teams/save",
     "teams.archive": "/api/settings/teams/archive",
     "teams.clone": "/api/settings/teams/clone",
+    # 契约 §5：运行级控制的动作名逐字照抄（teamRuns./teamTasks. 是 camelCase 段），
+    # 所以 WS 动作名校验要允许大写——见 nanobot/webui/inbound_commands.py。
+    "teamRuns.cancel": "/api/team-runs/cancel",
+    "teamRuns.retry": "/api/team-runs/retry",
+    "teamTasks.cancel": "/api/team-tasks/cancel",
     # 契约 §5：写作域四条写动作只能走已认证 WS 的 webui_request；动作名与领域
     # 动作名同名取点号（契约 §4），不再有 WS/领域双口径映射。
     "article.create": "/api/writing/articles/create",
@@ -482,6 +489,8 @@ class GatewayHTTPHandler:
         connection: Any,
         action: str,
         payload: dict[str, Any],
+        *,
+        caller_chats: tuple[str, ...] = (),
     ) -> Response:
         """Run one explicitly allowlisted mutation for an authenticated WebUI socket."""
         path = self._webui_mutation_path(action, payload)
@@ -504,6 +513,7 @@ class GatewayHTTPHandler:
         setattr(request, "_nanobot_trusted_proxy_authenticated", True)
         setattr(request, _WEBUI_MUTATION_REQUEST_ATTR, True)
         setattr(request, _WEBUI_MUTATION_PAYLOAD_ATTR, dict(payload))
+        setattr(request, _WEBUI_MUTATION_CALLER_ATTR, tuple(caller_chats))
         response = await self._dispatch_resolved(connection, request, path)
         if isinstance(response, Response):
             return response

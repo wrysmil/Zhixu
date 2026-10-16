@@ -1763,6 +1763,46 @@
         "none": "Sin próxima ejecución"
       }
     },
+    "teamProgress": {
+      "title": "Progreso del equipo",
+      "leader": "Líder",
+      "leaderAction": {
+        "planning": "planificando",
+        "waiting": "esperando a los miembros",
+        "reviewing": "revisando",
+        "summarizing": "resumiendo",
+        "idle": "inactivo"
+      },
+      "status": {
+        "running": "En curso",
+        "cancelling": "Deteniendo…",
+        "completed": "Completado",
+        "partial": "Completado parcialmente",
+        "failed": "Falló",
+        "cancelled": "Detenido",
+        "interrupted": "Interrumpido"
+      },
+      "taskStatus": {
+        "pending": "Sin asignar",
+        "queued": "En cola",
+        "running": "En curso",
+        "cancelling": "Deteniendo…",
+        "succeeded": "Hecho",
+        "failed": "Falló",
+        "cancelled": "Detenido",
+        "blocked": "Bloqueado",
+        "interrupted": "Interrumpido"
+      },
+      "stop": "Detener equipo",
+      "stopping": "Deteniendo…",
+      "retry": "Reintentar tareas fallidas",
+      "retryHint": "Reintentar vuelve a ejecutar las tareas fallidas y puede repetir efectos ya producidos.",
+      "cancelTask": "Detener esta tarea",
+      "noTasks": "El Líder respondió directamente en este turno.",
+      "resyncing": "Sincronizando el estado del equipo…",
+      "artifacts": "Artefactos: {{names}}",
+      "memberFallback": "Miembro {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "Añadir",

@@ -23,7 +23,9 @@ import { ThreadWelcome } from "@/components/thread/ThreadWelcome";
 import { StreamErrorNotice } from "@/components/thread/StreamErrorNotice";
 import { ThreadViewport, type ThreadViewportHandle } from "@/components/thread/ThreadViewport";
 import { TeamSelector, teamPickerVisibility } from "@/components/thread/TeamSelector";
+import { TeamProgressPanel } from "@/components/thread/TeamProgressPanel";
 import { useNanobotStream, type SendAttachment, type SendOptions } from "@/hooks/useNanobotStream";
+import { useTeamProgress } from "@/hooks/useTeamProgress";
 import { useSessionHistory } from "@/hooks/useSessions";
 import {
   ApiError,
@@ -972,6 +974,11 @@ export function ThreadShell({
   const [sessionReasoningEffort, setSessionReasoningEffort] = useState<string | null>(null);
   /** Server-confirmed team binding for this chat; null means an ordinary chat. */
   const [teamBound, setTeamBound] = useState<TeamBinding | null>(null);
+  const teamProgress = useTeamProgress(client, {
+    chatId: teamBound ? chatId : null,
+    token,
+    transport: client,
+  });
   useEffect(() => {
     setSessionReasoningEffort(null);
   }, [chatId]);
@@ -1604,6 +1611,26 @@ export function ThreadShell({
 
   const composer = (
     <>
+      {teamProgress.activeRun ? (
+        <div className="px-3 pt-2">
+          <TeamProgressPanel
+            run={teamProgress.activeRun}
+            memberNames={teamProgress.memberNames}
+            canControl={!temporary}
+            onCancelRun={(runId) => {
+              void teamProgress.cancelRun(runId).catch(() => {
+                // 控制失败不打断聊天：下一次事件会带出服务端的真实状态。
+              });
+            }}
+            onCancelTask={(runId, taskId) => {
+              void teamProgress.cancelTask(runId, taskId).catch(() => {});
+            }}
+            onRetryRun={(runId) => {
+              void teamProgress.retryRun(runId).catch(() => {});
+            }}
+          />
+        </div>
+      ) : null}
       {pendingQuestions.length > 0 ? (
         <AskQuestionCard question={pendingQuestions[0]} onAnswer={answerQuestion} />
       ) : null}

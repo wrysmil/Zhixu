@@ -79,6 +79,7 @@ from nanobot.webui.writing_routes import WritingSettingsOperations
 
 _WEBUI_MUTATION_PAYLOAD_ATTR = "_nanobot_webui_mutation_payload"
 _WEBUI_MUTATION_REQUEST_ATTR = "_nanobot_webui_mutation_request"
+_WEBUI_MUTATION_CALLER_ATTR = "_nanobot_webui_mutation_caller_chats"
 _CHANNEL_CONNECT_ACTIONS = frozenset({"start", "poll", "cancel"})
 _MCP_OAUTH_CALLBACK_URL_MAX_BYTES = 8 * 1024
 _MCP_RELOAD_TIMEOUT_SECONDS = 15.0
@@ -192,6 +193,13 @@ _SYSTEM_ROUTES = {
     "/api/settings/teams/save": "teams-save",
     "/api/settings/teams/archive": "teams-archive",
     "/api/settings/teams/clone": "teams-clone",
+    # 运行查询/控制（契约 §5）：三个读走认证 HTTP，三个写走 WS 白名单。
+    "/api/team-runs": "team-runs-list",
+    "/api/team-runs/detail": "team-run-detail",
+    "/api/team-runs/events": "team-run-events",
+    "/api/team-runs/cancel": "team-run-cancel",
+    "/api/team-tasks/cancel": "team-task-cancel",
+    "/api/team-runs/retry": "team-run-retry",
     # 写作域两套动作名统一取点号（契约 §4）：article.list 既是 WS 动作名也是
     # 领域动作名。写路径同样要在这里登记，最终仍经 _route() 落到 writing handler。
     "/api/writing/articles": "article.list",
@@ -236,6 +244,10 @@ _TEAMS_MUTATION_PATHS = frozenset({
     "/api/settings/teams/save",
     "/api/settings/teams/archive",
     "/api/settings/teams/clone",
+    # 契约 §5：运行级控制同样是写动作，只走已认证 WS 的 requestMutation。
+    "/api/team-runs/cancel",
+    "/api/team-tasks/cancel",
+    "/api/team-runs/retry",
 })
 
 # 契约 §5：四条写作写路径全部 WS-only，HTTP 直连必须被 405 拒掉。
@@ -291,6 +303,17 @@ def _mutation_payload(request: WsRequest) -> dict[str, Any] | None:
     if not isinstance(payload, dict):
         return None
     return cast(dict[str, Any], payload)
+
+
+def _mutation_caller_chats(request: WsRequest) -> tuple[str, ...]:
+    """这次 mutation 的调用方挂在哪些聊天上；没经过 WS 的入口一律空集合。
+
+    空集合不表示「随便」，而表示**无法证明归属**——需要归属的域（团队运行控制）必须因此拒绝。
+    """
+    chats = getattr(request, _WEBUI_MUTATION_CALLER_ATTR, None)
+    if not isinstance(chats, tuple):
+        return ()
+    return tuple(chat for chat in cast(tuple[Any, ...], chats) if isinstance(chat, str) and chat)
 
 
 def _query_value(value: Any) -> str:
@@ -398,6 +421,9 @@ def _null_team_operations() -> TeamSettingsOperations:
     def _unavailable(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
         raise WebUISettingsError("team service is not configured", status=503)
 
+    async def _async_unavailable(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise WebUISettingsError("team service is not configured", status=503)
+
     return TeamSettingsOperations(
         list_teams=_unavailable,
         get_detail=_unavailable,
@@ -405,6 +431,12 @@ def _null_team_operations() -> TeamSettingsOperations:
         save_team=_unavailable,
         archive_team=_unavailable,
         clone_team=_unavailable,
+        list_runs=_unavailable,
+        run_detail=_unavailable,
+        run_events=_unavailable,
+        cancel_run=_async_unavailable,
+        cancel_task=_async_unavailable,
+        retry_run=_async_unavailable,
     )
 
 
@@ -561,6 +593,10 @@ class WebUISettingsRouter:
             result = await asyncio.to_thread(
                 lambda: self._writing.handle(action, domain_request),
             )
+        elif action in teams_domain.TEAMS_CONTROL_ACTION_NAMES:
+            # 取消/重试要在事件循环上叫醒在场的 TeamRunHandle，包进 to_thread 就永远
+            # 叫不醒了（见 nanobot/teams/runs.py）。
+            result = await self._teams.handle_control(action, domain_request)
         elif action in teams_domain.TEAMS_ACTION_NAMES:
             # 团队域同样是阻塞 SQLite，短事务走 to_thread（契约 §2）。
             result = await asyncio.to_thread(
@@ -618,6 +654,7 @@ class WebUISettingsRouter:
                 if needs_local_browser
                 else False
             ),
+            caller_chats=_mutation_caller_chats(request),
         )
 
     def _authorized(self, request: WsRequest) -> bool:

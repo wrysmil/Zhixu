@@ -69,6 +69,14 @@ _TERMINAL_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _MAX_TERMINAL_WRITE_CHARS = 64_000
 _MAX_TEAM_ID_CHARS = 128
 
+# 动作名只是白名单表的键，未登记一律 404；所以这里放行 camelCase 段（契约 §5 的
+# teamRuns.cancel / teamTasks.cancel），不放宽别的：仍不许空格、斜杠或超过 128 字符。
+_WEBUI_ACTION_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9_.]{0,127}")
+
+
+def is_webui_mutation_action(action: object) -> bool:
+    return isinstance(action, str) and _WEBUI_ACTION_RE.fullmatch(action) is not None
+
 
 def _team_selection(envelope: dict[str, Any]) -> tuple[str | None, int | None, str | None]:
     """读 ``new_chat`` 的团队选择，返回 ``(team_id, team_revision, 非法提示)``。
@@ -1311,10 +1319,7 @@ class WebUICommandRouter:
 
         action = envelope.get("action")
         payload = envelope.get("payload")
-        if not isinstance(action, str) or re.fullmatch(
-            r"[a-z][a-z0-9_.]{0,127}",
-            action,
-        ) is None:
+        if not is_webui_mutation_action(action):
             await self.send_webui_response(
                 connection,
                 request_id,
@@ -1353,15 +1358,17 @@ class WebUICommandRouter:
             )
             return
         if operation is None:
+            # 上面 is_webui_mutation_action 已经把 action 收紧成 str。
+            action_name = cast(str, action)
             operation_task = asyncio.create_task(
                 self.execute_webui_request(
                     connection,
-                    action,
+                    action_name,
                     cast(dict[str, Any], payload),
                 )
             )
             new_operation = WebUIRequestOperation(
-                action=action,
+                action=action_name,
                 payload_digest=payload_digest,
                 task=operation_task,
             )
@@ -1463,6 +1470,8 @@ class WebUICommandRouter:
                     connection,
                     action,
                     payload,
+                    # 会话身份由服务端从连接推导，绝不信 payload 里自称的 chatId。
+                    caller_chats=self._transport.webui_connection_chats(connection),
                 )
                 status = response.status_code
                 body = bytes(response.body).decode("utf-8", errors="replace").strip()

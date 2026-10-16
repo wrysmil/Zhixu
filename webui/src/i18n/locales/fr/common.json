@@ -1763,6 +1763,46 @@
         "none": "Aucune prochaine exécution"
       }
     },
+    "teamProgress": {
+      "title": "Progression de l'équipe",
+      "leader": "Leader",
+      "leaderAction": {
+        "planning": "planification",
+        "waiting": "en attente des membres",
+        "reviewing": "révision",
+        "summarizing": "synthèse",
+        "idle": "inactif"
+      },
+      "status": {
+        "running": "En cours",
+        "cancelling": "Arrêt…",
+        "completed": "Terminé",
+        "partial": "Partiellement terminé",
+        "failed": "Échec",
+        "cancelled": "Arrêté",
+        "interrupted": "Interrompu"
+      },
+      "taskStatus": {
+        "pending": "Non assignée",
+        "queued": "En file",
+        "running": "En cours",
+        "cancelling": "Arrêt…",
+        "succeeded": "Terminée",
+        "failed": "Échec",
+        "cancelled": "Arrêtée",
+        "blocked": "Bloquée",
+        "interrupted": "Interrompue"
+      },
+      "stop": "Arrêter l'équipe",
+      "stopping": "Arrêt…",
+      "retry": "Relancer les tâches échouées",
+      "retryHint": "La relance réexécute les tâches échouées et peut répéter des effets déjà produits.",
+      "cancelTask": "Arrêter cette tâche",
+      "noTasks": "Le Leader a répondu directement durant ce tour.",
+      "resyncing": "Synchronisation de l'état de l'équipe…",
+      "artifacts": "Livrables : {{names}}",
+      "memberFallback": "Membre {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "Ajouter",

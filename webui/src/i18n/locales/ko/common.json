@@ -1763,6 +1763,46 @@
         "none": "다음 실행 없음"
       }
     },
+    "teamProgress": {
+      "title": "팀 진행 상황",
+      "leader": "리더",
+      "leaderAction": {
+        "planning": "계획 중",
+        "waiting": "멤버 대기 중",
+        "reviewing": "검토 중",
+        "summarizing": "요약 중",
+        "idle": "대기"
+      },
+      "status": {
+        "running": "진행 중",
+        "cancelling": "중지하는 중…",
+        "completed": "완료",
+        "partial": "부분 완료",
+        "failed": "실패",
+        "cancelled": "중지됨",
+        "interrupted": "중단됨"
+      },
+      "taskStatus": {
+        "pending": "미할당",
+        "queued": "대기 중",
+        "running": "실행 중",
+        "cancelling": "중지하는 중…",
+        "succeeded": "완료",
+        "failed": "실패",
+        "cancelled": "중지됨",
+        "blocked": "차단됨",
+        "interrupted": "중단됨"
+      },
+      "stop": "팀 중지",
+      "stopping": "중지하는 중…",
+      "retry": "실패한 작업 다시 시도",
+      "retryHint": "다시 시도하면 실패한 작업을 다시 실행하므로 기존 부작용이 반복될 수 있습니다.",
+      "cancelTask": "이 작업 중지",
+      "noTasks": "이번 턴은 리더가 직접 처리했습니다.",
+      "resyncing": "팀 상태 동기화 중…",
+      "artifacts": "산출물: {{names}}",
+      "memberFallback": "멤버 {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "추가",

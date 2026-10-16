@@ -1820,6 +1820,46 @@
         "none": "No next run"
       }
     },
+    "teamProgress": {
+      "title": "Team progress",
+      "leader": "Leader",
+      "leaderAction": {
+        "planning": "planning",
+        "waiting": "waiting for members",
+        "reviewing": "reviewing",
+        "summarizing": "summarizing",
+        "idle": "idle"
+      },
+      "status": {
+        "running": "Running",
+        "cancelling": "Stopping…",
+        "completed": "Completed",
+        "partial": "Partially completed",
+        "failed": "Failed",
+        "cancelled": "Stopped",
+        "interrupted": "Interrupted"
+      },
+      "taskStatus": {
+        "pending": "Not dispatched",
+        "queued": "Queued",
+        "running": "Running",
+        "cancelling": "Stopping…",
+        "succeeded": "Done",
+        "failed": "Failed",
+        "cancelled": "Stopped",
+        "blocked": "Blocked",
+        "interrupted": "Interrupted"
+      },
+      "stop": "Stop team",
+      "stopping": "Stopping…",
+      "retry": "Retry failed tasks",
+      "retryHint": "Retry re-runs the failed tasks and may repeat existing side effects.",
+      "cancelTask": "Stop this task",
+      "noTasks": "The Leader handled this turn directly.",
+      "resyncing": "Syncing team state…",
+      "artifacts": "Artifacts: {{names}}",
+      "memberFallback": "Member {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "Add",
