@@ -217,6 +217,22 @@ export function WritingPartnerPanel({
     [collab, draftText],
   );
 
+  /**
+   * 「以此角度继续」：只更新协作目标，**不写文章**（spec §12.3 第一行）。
+   * 集成层想自己发 `writing.reply` 就接管回调；否则面板用 ideate 带上作者选的角度。
+   */
+  const handleUseAngle = useCallback(
+    async (angle: { title: string; rationale?: string }) => {
+      if (onUseAngle) {
+        onUseAngle(angle);
+        return;
+      }
+      const instruction = angle.rationale ? `${angle.title} — ${angle.rationale}` : angle.title;
+      await collab.start("ideate", instruction);
+    },
+    [collab, onUseAngle],
+  );
+
   const handleConfirmOutline = useCallback(
     async (outline: OutlinePoint[], artifactId?: string) => {
       if (!collab.pendingHandoff) {
@@ -464,7 +480,7 @@ export function WritingPartnerPanel({
                 artifact={artifact}
                 locale={document.documentElement.lang || "en"}
                 busy={busy || busyArtifactId === artifact.id}
-                onUseAngle={onUseAngle}
+                onUseAngle={(angle) => void handleUseAngle(angle)}
                 onAddMaterial={(material) => onAddMaterial?.({ id: material.id, title: material.title })}
                 onConfirmOutline={(outline) => void handleConfirmOutline(outline, artifact.id)}
                 onInsertDraft={(payload) =>

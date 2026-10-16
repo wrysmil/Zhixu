@@ -239,6 +239,16 @@ export function artifactSummaryText(
   return "summary" in artifact ? artifact.summary : "";
 }
 
+/**
+ * 列表投影（`CollabArtifactSummary`）里没有 `status`：那种情况下不能凭空断定
+ * 「待处理」或「失败」，否则摘要卡片的动作会在补全文之前先消失。
+ */
+export function artifactStatusOf(
+  artifact: CollabArtifact | CollabArtifactSummary,
+): string {
+  return "status" in artifact ? artifact.status : "";
+}
+
 export function ArtifactCard({
   artifact,
   locale = "en",
@@ -272,7 +282,10 @@ export function ArtifactCard({
     if (!edited) setPoints(parsed.outline);
   }, [edited, parsed.outline]);
 
-  const actionable = artifact.status !== "pending" && artifact.status !== "failed";
+  const status = artifactStatusOf(artifact);
+  const actionable = status !== "pending" && status !== "failed";
+  const pending = status === "pending";
+  const failed = status === "failed";
   const primaryLabel = t(artifactActionLabelKey(artifact.kind), {
     defaultValue: PARTNER_DEFAULTS[artifactActionLabelKey(artifact.kind)] ?? label,
   });
@@ -289,11 +302,11 @@ export function ArtifactCard({
     </header>
   );
 
-  const banner = artifact.status === "pending" ? (
+  const banner = pending ? (
     <p data-artifact-state="pending" className="mt-1 text-[11px] text-muted-foreground">
       {t("creative.partner.ui.pending", { defaultValue: PARTNER_DEFAULTS["creative.partner.ui.pending"] })}
     </p>
-  ) : artifact.status === "failed" ? (
+  ) : failed ? (
     <p data-artifact-state="failed" className="mt-1 text-[11px] text-destructive">
       {t("creative.partner.ui.failed", { defaultValue: PARTNER_DEFAULTS["creative.partner.ui.failed"] })}
     </p>
@@ -626,13 +639,13 @@ export function ArtifactCard({
   return (
     <section
       data-artifact-kind={artifact.kind}
-      data-artifact-status={artifact.status}
+      data-artifact-status={status || "summary"}
       aria-label={`${label} ${artifact.version}`}
       lang={locale}
       className={cn(
         "rounded-control border border-border bg-settings-surface px-2.5 py-2",
-        artifact.status === "pending" && "border-amber-500/40",
-        artifact.status === "failed" && "border-destructive/40",
+        pending && "border-amber-500/40",
+        failed && "border-destructive/40",
       )}
     >
       {heading}
