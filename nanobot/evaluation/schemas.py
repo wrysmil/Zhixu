@@ -704,13 +704,17 @@ class GoldSamplePage(JsonModel):
 
 
 class GoldReview(JsonModel):
-    """契约 §3.1：reviewer 由服务端本地身份填充，客户端不可指定。"""
+    """契约 §3.1：reviewer 由服务端本地身份填充，客户端不可指定。
+
+    ``confirm`` 是字面量 true：契约只定义「确认」这一种写入。传 false 若被当成普通布尔，
+    服务端照样会把标签落 confirmed，等于给「AI/客户端替用户确认」留了后门。
+    """
 
     base_gold_revision: PositiveInt
     expected_verdict: Literal["passed", "failed"]
     expected_scores: list[GoldScore]
     comment: StrictStr = ""
-    confirm: StrictBool
+    confirm: Literal[True]
 
 
 class CalibrationCreate(JsonModel):

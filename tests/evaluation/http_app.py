@@ -8,6 +8,7 @@ conftest 的约定是「后续 WU 在自己的文件里定义局部 fixture，�
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from aiohttp import web
 from aiohttp.test_utils import TestClient
@@ -43,10 +44,24 @@ def auth_config() -> AuthConfig:
     )
 
 
-def build_app(repository: EvaluationRepository, data_dir: Path) -> web.Application:
-    """起真应用（含调度器生命周期），端口由 TestServer 随机分配。"""
+def build_app(
+    repository: EvaluationRepository,
+    data_dir: Path,
+    *,
+    judge_runner: Any = None,
+    profiles: tuple[Profile, ...] | None = None,
+) -> web.Application:
+    """起真应用（含调度器生命周期），端口由 TestServer 随机分配。
+
+    ``judge_runner`` 是服务层留给测试的评分注入缝：离线用例不必为每条 gold 起一个
+    评分子进程。默认 None 时走的仍是生产的子进程实现。
+    """
+    active_profiles = profiles or default_profiles()
     service = EvaluationService(
-        repository=repository, data_dir=data_dir, profiles=default_profiles()
+        repository=repository,
+        data_dir=data_dir,
+        profiles=active_profiles,
+        judge_runner=judge_runner,
     )
     return create_app(
         repository=repository,
@@ -55,7 +70,7 @@ def build_app(repository: EvaluationRepository, data_dir: Path) -> web.Applicati
         scheduler_config=SchedulerConfig(
             data_dir=data_dir, concurrency=1, poll_interval_s=0.05
         ),
-        profiles=default_profiles(),
+        profiles=active_profiles,
     )
 
 

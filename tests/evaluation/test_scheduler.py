@@ -28,6 +28,7 @@ import pytest
 from nanobot.evaluation.repository import EvaluationRepository
 from nanobot.evaluation.scheduler import (
     AttemptOutcome,
+    CalibrationItemOutcome,
     RecoveryNotice,
     Scheduler,
     SchedulerAlreadyRunningError,
@@ -51,6 +52,10 @@ class _FakePipeline:
     judge_calls: list[str] = field(default_factory=list)
     judge_gate: dict[str, asyncio.Event] = field(default_factory=dict)
     outcome_override: dict[str, AttemptOutcome] = field(default_factory=dict)
+    calibration_hold: asyncio.Event | None = None
+    calibration_hold: asyncio.Event | None = None
+    calibration_entered: list[str] = field(default_factory=list)
+    settled_jobs: list[str] = field(default_factory=list)
 
     async def execute(
         self, attempt: Mapping[str, Any], *, run: Mapping[str, Any]
@@ -72,6 +77,16 @@ class _FakePipeline:
             return self.outcome_override.get(name, AttemptOutcome.passed())
         finally:
             self.live -= 1
+
+    async def calibrate(self, claimed: Mapping[str, Any]) -> CalibrationItemOutcome:
+        """校准项替身：和 attempt 一样占一个槽位，用来验证两者共用总闸。"""
+        self.calibration_entered.append(str(claimed["id"]))
+        if self.calibration_hold is not None:
+            await self.calibration_hold.wait()
+        return CalibrationItemOutcome(status="completed", result={"matched": True})
+
+    def settle_calibration(self, job_id: str) -> None:
+        self.settled_jobs.append(job_id)
 
     def blocked(self, name: str) -> asyncio.Event:
         gate = asyncio.Event()
@@ -443,6 +458,76 @@ async def test_recovery_also_settles_residual_calibrations(
     async with scheduler:
         pass
     assert repository.open_calibrations() == []
+
+
+# --------------------------------------------------------------------- 校准派发
+
+
+def _seed_calibration_job(
+    repository: EvaluationRepository, *, item_count: int = 1
+) -> dict[str, Any]:
+    return repository.create_calibration(
+        snapshot={"judge_profile_id": "judge-1", "gold_revision": 1,
+                  "sample_ids": [f"g{i}" for i in range(item_count)]},
+        sample_ids=[f"g{i}" for i in range(item_count)],
+    )
+
+
+async def test_calibration_waits_for_a_slot_held_by_an_attempt(
+    repository: EvaluationRepository, tmp_path: Path
+) -> None:
+    """总闸只有一个：attempt 攥着唯一槽位时，校准项必须原地排队，不能被领取。"""
+    pipeline = _FakePipeline()
+    gate = pipeline.blocked("case-0")
+    _seed_run(repository, case_count=1, concurrency=1)
+    job = _seed_calibration_job(repository)
+    scheduler = _make_scheduler(repository, pipeline, tmp_path, concurrency=1)
+
+    async with scheduler:
+        await _wait_until(lambda: pipeline.entered == ["case-0"], message="attempt in flight")
+        await asyncio.sleep(0.05)
+        # 领取只是把行标成 running，真正执行还要等槽位：entered 里必须还没有校准项。
+        assert pipeline.calibration_entered == []
+        assert [item["status"] for item in repository.list_calibration_items(job["id"])] == [
+            "running"
+        ]
+
+        gate.set()
+        await _wait_until(
+            lambda: pipeline.calibration_entered != [], message="calibration item claimed"
+        )
+        await _wait_until(
+            lambda: job["id"] in pipeline.settled_jobs, message="job settled"
+        )
+
+    assert repository.get_calibration(job["id"])["status"] == "completed"
+    assert repository.list_calibration_items(job["id"])[0]["status"] == "completed"
+
+
+async def test_inflight_calibration_item_cannot_resurrect_a_cancelled_job(
+    repository: EvaluationRepository, tmp_path: Path
+) -> None:
+    """取消先落终态：最后一个在飞项跑完也不能把作业改回 completed 并盖上通过章。"""
+    pipeline = _FakePipeline()
+    pipeline.calibration_hold = asyncio.Event()
+    job = _seed_calibration_job(repository)
+    scheduler = _make_scheduler(repository, pipeline, tmp_path, concurrency=1)
+
+    async with scheduler:
+        await _wait_until(
+            lambda: pipeline.calibration_entered != [], message="calibration item in flight"
+        )
+        repository.cancel_calibration(job["id"])
+        pipeline.calibration_hold.set()
+        await asyncio.sleep(0.1)
+
+    detail = repository.get_calibration(job["id"])
+    assert detail["status"] == "cancelled"
+    assert detail["result"] is None
+    assert job["id"] not in pipeline.settled_jobs
+    assert [item["status"] for item in repository.list_calibration_items(job["id"])] == [
+        "cancelled"
+    ]
 
 
 # --------------------------------------------------------------------- 收尾

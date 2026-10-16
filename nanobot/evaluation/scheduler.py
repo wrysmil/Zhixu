@@ -463,7 +463,10 @@ class Scheduler:
             if row["status"] in ("running", "cancelling"):
                 self._repository.mark_interrupted(str(row["id"]))
         for job in self._repository.open_calibrations():
-            self._repository.mark_calibration_interrupted(str(job["id"]))
+            # 与 attempt 同一口径：queued 的作业是正常待办，不是上次进程留下的残留。
+            # 领取会把作业推到 running，所以 running 才是「有项真的在飞」。
+            if job["status"] == "running":
+                self._repository.mark_calibration_interrupted(str(job["id"]))
 
     def _recover_process(
         self, attempt: Mapping[str, Any], pid: int, nonce: str
