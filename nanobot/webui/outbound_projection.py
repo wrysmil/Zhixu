@@ -21,6 +21,7 @@ from nanobot.bus.outbound_events import (
     TurnEndEvent,
     TurnModelUpdatedEvent,
     UserInputEvent,
+    WritingEvent,
 )
 from nanobot.session.webui_turns import clear_websocket_turn_if_current
 from nanobot.teams.events import TeamRunUpdateEvent
@@ -113,6 +114,15 @@ class WebUIOutboundTransport(Protocol):
         metadata: dict[str, Any] | None = None,
     ) -> None: ...
 
+    async def send_writing_event(
+        self,
+        chat_id: str,
+        name: str,
+        body: dict[str, Any],
+    ) -> None:
+        """Fan out one authored writing-collaboration frame (``event`` = *name*)."""
+        ...
+
     async def send_projected_message(
         self,
         msg: OutboundMessage,
@@ -172,6 +182,13 @@ class WebUIOutboundProjector:
             )
             return
 
+        if isinstance(event, WritingEvent):
+            # 一个分支覆盖三种协作事件：帧名由 event_name 决定，载荷是已经白名单的 body
+            # （契约 §5）。状态已落在写作库，重连靠 writing.collab.get 快照，不进 transcript。
+            conns = list(self._transport.webui_subscribers(msg.chat_id))
+            if conns:
+                await self._transport.send_writing_event(msg.chat_id, event.event_name, event.body)
+            return
         conns = list(self._transport.webui_subscribers(msg.chat_id))
         if not conns:
             quiet_events = (
@@ -185,6 +202,7 @@ class WebUIOutboundProjector:
                 QuestionRequestedEvent,
                 ContextCompactionEvent,
                 TeamRunUpdateEvent,
+                WritingEvent,
             )
             log = (
                 logger.debug

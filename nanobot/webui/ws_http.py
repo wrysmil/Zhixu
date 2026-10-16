@@ -35,6 +35,7 @@ from nanobot.session.session_handles import (
 )
 from nanobot.teams.binding import TeamBindingStore
 from nanobot.triggers.local_types import LocalTrigger
+from nanobot.webui import writing_collab_routes
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.file_preview import (
     WebUIFilePreviewError,
@@ -142,6 +143,7 @@ from nanobot.webui.workspace_files import (
     workspace_directory_payload,
 )
 from nanobot.webui.workspaces import WebUIWorkspaceController
+from nanobot.webui.writing_collab_routes import WritingCollabSettingsOperations
 from nanobot.webui.writing_routes import WritingSettingsOperations
 
 _SLOW_WEBUI_HTTP_LOG_MS = 1_000
@@ -231,6 +233,10 @@ _WEBUI_MUTATION_PATHS = {
     "article.save": "/api/writing/articles/save",
     "article.duplicate": "/api/writing/articles/duplicate",
     "article.delete": "/api/writing/articles/delete",
+    # 契约 §3：协作域七个写动作同样只能走已认证 WS；两个读动作走认证 HTTP GET，
+    # 因此**不**在这张表里（放进来的话 HTTP GET 会被 405 弹回）。path→action 的
+    # 唯一真相源是 writing_collab_routes，这里按写动作名单派生。
+    **writing_collab_routes.WRITING_COLLAB_MUTATION_WS_ACTIONS,
 }
 
 _WEBUI_CHANNEL_CONNECT_ACTIONS = {
@@ -377,6 +383,7 @@ class GatewayHTTPHandler:
         identity_operations: IdentitySettingsOperations | None = None,
         agents_operations: AgentSettingsOperations | None = None,
         writing_operations: WritingSettingsOperations | None = None,
+        writing_collab_operations: WritingCollabSettingsOperations | None = None,
         team_operations: TeamSettingsOperations | None = None,
         team_bindings: TeamBindingStore | None = None,
         log: Any = logger,
@@ -396,6 +403,7 @@ class GatewayHTTPHandler:
         self.identity_operations = identity_operations
         self.agents_operations = agents_operations
         self.writing_operations = writing_operations
+        self.writing_collab_operations = writing_collab_operations
         self.team_operations = team_operations
         # 空聊天的团队绑定暂存；没装配团队服务时为 None，new_chat 会明确拒绝带 team_id 的请求。
         self.team_bindings = team_bindings
@@ -436,6 +444,7 @@ class GatewayHTTPHandler:
             identity_operations=self.identity_operations,
             agents_operations=self.agents_operations,
             writing_operations=self.writing_operations,
+            writing_collab_operations=self.writing_collab_operations,
             team_operations=self.team_operations,
         )
 

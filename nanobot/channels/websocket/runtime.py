@@ -1572,3 +1572,23 @@ class WebSocketChannel(BaseChannel):
         raw = json.dumps(body, ensure_ascii=False)
         for connection in conns:
             await self._safe_send_to(connection, raw, label=" turn_model_updated ")
+
+    async def send_writing_event(
+        self,
+        chat_id: str,
+        name: str,
+        body: dict[str, Any],
+    ) -> None:
+        """Fan out one writing-collaboration frame to *chat_id*'s subscribers.
+
+        帧形状由契约 §5 固定：``{"event": <event_name>, "chat_id": <协作会话>, ...body}``。
+        协作状态已落在写作库，重连靠 ``writing.collab.get`` 快照，因此这里**不**做
+        transcript 持久化（与团队事件同构）。
+        """
+        conns = list(self._subs.get(chat_id, ()))
+        if not conns:
+            return
+        frame: dict[str, Any] = {"event": name, "chat_id": chat_id, **body}
+        raw = json.dumps(frame, ensure_ascii=False)
+        for connection in conns:
+            await self._safe_send_to(connection, raw, label=f" {name} ")
