@@ -30,6 +30,7 @@ import type {
   WorkspaceView,
 } from "@/components/workspace/contracts";
 import { BrandMark } from "@/components/workspace/BrandMark";
+import { TeamStructureIcon } from "@/components/settings/teams/TeamVisuals";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -40,7 +41,7 @@ interface NavItem {
    *  English accessible names (Apps/Skills/Automations/Agents/Settings). */
   labelKey: string;
   labelDefault: string;
-  icon: typeof MessagesSquare;
+  icon: typeof MessagesSquare | typeof TeamStructureIcon;
 }
 
 const PRIMARY_ITEMS: NavItem[] = [
@@ -70,6 +71,11 @@ const MEMORY_ITEM: NavItem = {
 const IDENTITY_ITEM: NavItem = {
   view: "identity", labelKey: "sidebar.identity.title", labelDefault: "Identity",
   icon: UserRound,
+};
+
+const TEAM_ITEM: NavItem = {
+  view: "teams", labelKey: "settings.nav.teams", labelDefault: "Teams",
+  icon: TeamStructureIcon,
 };
 
 /**
@@ -124,9 +130,9 @@ export function WorkspaceNavigation({
       activeView === item.view ||
       (item.view === "creative" && activeView === "article")
     );
-    // activeSettingsSection is no longer used for highlighting Memory/Identity
-    // because both are now standalone views, but it stays in the prop shape
-    // so existing callers do not need to change.
+    // activeSettingsSection is no longer used for highlighting the rail items
+    // because every page is now its own view (Memory/Identity/Teams included),
+    // but it stays in the prop shape so existing callers do not need to change.
     void activeSettingsSection;
     const active = matchesView;
     const Icon = item.icon;
@@ -149,7 +155,7 @@ export function WorkspaceNavigation({
             : "text-sidebar-foreground/85 hover:bg-sidebar-foreground/[0.05] hover:text-sidebar-foreground dark:hover:bg-white/[0.06]",
         )}
       >
-        <Icon className={cn("h-[19px] w-[19px] shrink-0", active && "text-accent-foreground")} strokeWidth={1.65} aria-hidden />
+        <Icon className={cn("h-[19px] w-[19px] shrink-0", active && "text-accent-foreground")} strokeWidth={item.view === "teams" ? undefined : 1.65} aria-hidden />
         <span className="workspace-nav-label" aria-hidden>{item.view === "automations"
           ? (i18n.resolvedLanguage?.startsWith("zh") ? "定时" : "Tasks")
           : item.view === "memory"
@@ -208,6 +214,7 @@ export function WorkspaceNavigation({
             {CAPABILITY_ITEMS.map(renderItem)}
             {renderItem(MEMORY_ITEM)}
             {renderItem(IDENTITY_ITEM)}
+            {renderItem(TEAM_ITEM)}
           </div>
           <div className="min-h-8 flex-1" />
           <div className="flex shrink-0 flex-col items-center gap-2">

@@ -13,7 +13,8 @@ export type WorkspaceView =
   | "apps"
   | "settings"
   | "memory"
-  | "identity";
+  | "identity"
+  | "teams";
 
 export interface WorkspaceRoute {
   view: WorkspaceView;

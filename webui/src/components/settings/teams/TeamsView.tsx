@@ -5,7 +5,7 @@
 // 归档只阻止新执行：历史运行仍可读，因此确认框里必须把这句话讲清楚。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Layers, Plus, Search } from "lucide-react";
+import { Archive, ArrowUpRight, Check, Copy, Crown, Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge, SectionLabel, StatusBlock } from "@/components/settings/agents/shared";
+import { Badge, StatusBlock } from "@/components/settings/agents/shared";
 import { TeamEditorDialog, type TeamDraft } from "@/components/settings/teams/TeamEditorDialog";
+import { AgentAvatar, TeamMark, TeamStructureIcon, teamIllustration } from "./TeamVisuals";
+import "./teams.css";
 import { useClient } from "@/providers/ClientProvider";
 import { listAgents } from "@/lib/agents/api";
 import type { AgentProfile } from "@/lib/agents/types";
@@ -147,6 +149,7 @@ export function TeamsView() {
   };
 
   const handleClone = (team: TeamDefinition) => {
+    if (busy) return;
     void runWrite(async () => {
       const payload = await cloneTeam(
         client,
@@ -163,10 +166,10 @@ export function TeamsView() {
   const status = loading ? "loading" : "ready";
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <SectionLabel index="01">{t("settings.teams.title", "团队")}</SectionLabel>
-        <div className="relative ml-auto min-w-[12rem] flex-1 sm:max-w-[18rem]">
+    <div className="teams-surface space-y-4">
+      <div className="teams-toolbar">
+        <div className="teams-heading"><TeamStructureIcon className="teams-heading-icon" /><div><p className="teams-kicker">{t("settings.teams.workspaceEyebrow", "Agent teams")}</p><p className="teams-toolbar-title">{t("settings.teams.myTeams", "我的团队")}<span className="teams-count">{teams.length.toString().padStart(2, "0")}</span></p></div></div>
+        <div className="relative min-w-[10rem] flex-1 sm:max-w-[16rem]">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input
             value={query}
@@ -176,7 +179,7 @@ export function TeamsView() {
             className="pl-8"
           />
         </div>
-        <Button type="button" onClick={() => setEditing({ team: null })}>
+        <Button type="button" disabled={busy || loading || Boolean(loadError)} onClick={() => setEditing({ team: null })}>
           <Plus className="mr-1.5 h-4 w-4" aria-hidden />
           {t("settings.teams.create", "创建团队")}
         </Button>
@@ -186,37 +189,35 @@ export function TeamsView() {
       <StatusBlock status={status} error={loadError ?? (editing ? null : actionError)} />
 
       {savedNotice ? (
-        <p role="status" className="text-[12px] text-emerald-700 dark:text-emerald-300">
+        <p role="status" className="flex items-center gap-1.5 text-[12px] text-emerald-700 dark:text-emerald-300"><Check className="h-3.5 w-3.5" aria-hidden="true" />
           {t("settings.teams.saved", "已保存")}
         </p>
       ) : null}
 
       {!loading && teams.length === 0 && !loadError ? (
-        <div className="flex flex-col items-start gap-2 rounded-panel border border-dashed border-border px-4 py-6 text-[13px] text-muted-foreground">
-          <Layers className="h-5 w-5" aria-hidden />
-          <span>{t("settings.teams.emptyHint", "先创建 Agent 档案，再组建团队")}</span>
+        <div className="teams-empty">
+          <div className="teams-empty-copy">
+            <p className="teams-kicker">{t("settings.teams.emptyEyebrow", "Better, together")}</p>
+            <h2 className="teams-empty-title">{t("settings.teams.emptyTitle", "让各有所长的 Agent，成为一支团队。")}</h2>
+            <p className="teams-empty-description">{t("settings.teams.emptyDescription", "选一位队长协调任务，邀请成员发挥专长。从一个目标开始，一起完成更大的事。")}</p>
+            <Button className="mt-6" type="button" disabled={busy} onClick={() => setEditing({ team: null })}>{t("settings.teams.buildFirst", "组建第一支团队")}<ArrowUpRight className="ml-2 h-4 w-4" aria-hidden="true" /></Button>
+            <p className="teams-empty-note">{t("settings.teams.emptyHint", "先创建 Agent 档案，再组建团队")}</p>
+          </div>
+          <img className="teams-empty-art" src={teamIllustration} alt={t("settings.teams.illustrationAlt", "一位队长与研究、编码、检查 Agent 组成的小队")} width="1536" height="1024" />
         </div>
       ) : null}
 
-      <ul className="grid gap-3 sm:grid-cols-2">
+      <ul className="team-card-list">
         {filtered.map((team) => (
-          <li key={team.id} className="rounded-panel border border-border bg-card/40 p-3">
-            <div className="flex items-start gap-2">
+          <li key={team.id} className="team-card">
+            <div className="flex items-start gap-3">
+              <TeamMark id={team.id} name={team.name} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold text-foreground/90">{team.name}</p>
-                <p className="mt-0.5 text-[12px] text-muted-foreground">
+                <p className="truncate text-[15px] font-semibold">{team.name}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{team.description || t("settings.teams.noDescription", "为共同的目标，各展所长。")}</p>
+                <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground"><Crown className="h-3 w-3" aria-hidden="true" />
                   {t("settings.teams.leaderLine", "Leader：{{name}}", {
                     name: nameById.get(team.leaderAgentId) ?? team.leaderAgentId,
-                  })}
-                </p>
-                <p className="mt-1 line-clamp-2 text-[12px] text-foreground/75">
-                  {team.members
-                    .map((member) => nameById.get(member.agentId) ?? member.agentId)
-                    .join(" / ")}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {t("settings.teams.concurrency", "最多并行 {{count}} 项", {
-                    count: team.limits.maxConcurrency,
                   })}
                 </p>
               </div>
@@ -225,15 +226,21 @@ export function TeamsView() {
                 {team.archived ? <Badge tone="warn">{t("settings.teams.archived", "已归档")}</Badge> : null}
               </div>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="outline" onClick={() => setEditing({ team })}>
+            <div className="team-card-members">
+              <div className="flex pr-2" aria-hidden="true">{team.members.slice(0, 5).map((member) => <AgentAvatar key={member.memberId} id={member.agentId} name={nameById.get(member.agentId) ?? member.agentId} />)}</div>
+              <p className="min-w-0 flex-1 truncate pl-1 text-xs">{team.members.map((member) => nameById.get(member.agentId) ?? member.agentId).join(" / ")}</p>
+              <span className="shrink-0 text-[10px] text-muted-foreground">{t("settings.teams.concurrency", "最多并行 {{count}} 项", { count: team.limits.maxConcurrency })}</span>
+            </div>
+            <div className="team-card-actions">
+              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setEditing({ team })}>
                 {t("settings.teams.edit", "编辑")}
+                <ArrowUpRight className="ml-1.5 h-3 w-3" aria-hidden="true" />
               </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => handleClone(team)}>
+              <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => handleClone(team)}><Copy className="mr-1.5 h-3 w-3" aria-hidden="true" />
                 {t("settings.teams.duplicate", "复制")}
               </Button>
               {!team.archived ? (
-                <Button type="button" size="sm" variant="outline" onClick={() => setPendingArchive(team)}>
+                <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setPendingArchive(team)}><Archive className="mr-1.5 h-3 w-3" aria-hidden="true" />
                   {t("settings.teams.archive", "归档")}
                 </Button>
               ) : null}

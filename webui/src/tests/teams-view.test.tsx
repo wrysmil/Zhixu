@@ -168,6 +168,7 @@ describe("teams 管理页", () => {
       await screen.findByText("The Leader profile does not allow delegating to: 写作"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.queryByText("Basic setup is ready")).not.toBeInTheDocument();
     expect(saveTeam).not.toHaveBeenCalled();
   });
 
@@ -330,5 +331,77 @@ describe("teams 管理页", () => {
     const payload = saveTeam.mock.calls[0][1];
     expect(payload.expectedRevision).toBe(2);
     expect(payload.team.id).toBe("content-team");
+  });
+
+  it("将已有成员改为队长时移出其成员席位，并保留其他成员职责", async () => {
+    const user = userEvent.setup();
+    render(<TeamsView />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+
+    await user.selectOptions(screen.getByLabelText("Leader"), "researcher");
+
+    expect(screen.queryByLabelText("调研's role in this team")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("写作's role in this team")).toHaveValue("成稿");
+    expect(screen.getByText("调研 is now the Leader and has been removed from the member seats.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(saveTeam).toHaveBeenCalledTimes(1));
+    expect(saveTeam.mock.calls[0][1].team.leaderAgentId).toBe("researcher");
+    expect(saveTeam.mock.calls[0][1].team.members).toEqual([
+      { memberId: "m-writer", agentId: "writer", role: "成稿" },
+    ]);
+  });
+
+  it("搜索只筛选候选人，不会隐藏或清空已选成员和职责", async () => {
+    const user = userEvent.setup();
+    listTeams.mockResolvedValue({ teams: [], nextCursor: null });
+    render(<TeamsView />);
+    await startNewTeam(user);
+    await user.selectOptions(screen.getByLabelText("Leader"), "leader");
+    await user.click(screen.getByLabelText("Add 调研 as a member"));
+    const role = screen.getByLabelText("调研's role in this team");
+    await user.clear(role);
+    await user.type(role, "资料核验");
+
+    await user.type(screen.getByLabelText("Search Agent names or strengths"), "写作");
+    expect(screen.queryByLabelText("Add 调研 as a member")).not.toBeInTheDocument();
+    expect(role).toHaveValue("资料核验");
+    expect(screen.getByRole("button", { name: "Edit 调研's role" })).toBeInTheDocument();
+    await user.click(screen.getByLabelText("Add 写作 as a member"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(saveTeam).toHaveBeenCalledTimes(1));
+    expect(saveTeam.mock.calls[0][1].team.members.map((entry: { agentId: string }) => entry.agentId)).toEqual(["researcher", "writer"]);
+    expect(saveTeam.mock.calls[0][1].team.members[0].role).toBe("资料核验");
+  });
+
+  it("关系预览中的成员可定位职责输入框，移除成员后预览同步消失", async () => {
+    const user = userEvent.setup();
+    render(<TeamsView />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(screen.getByRole("button", { name: "Edit 调研's role" }));
+    expect(screen.getByLabelText("调研's role in this team")).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Remove 调研" }));
+    expect(screen.queryByRole("button", { name: "Edit 调研's role" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("调研's role in this team")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Add 调研 as a member")).not.toBeChecked();
+  });
+
+  it("保存进行中冻结草稿与预览操作，防止重复保存", async () => {
+    const user = userEvent.setup();
+    let resolveSave!: (value: { team: TeamDefinition }) => void;
+    saveTeam.mockImplementationOnce(() => new Promise((resolve) => { resolveSave = resolve; }));
+    render(<TeamsView />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getByLabelText("Team name")).toBeDisabled();
+    expect(screen.getByLabelText("Leader")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Edit 调研's role" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(saveTeam).toHaveBeenCalledTimes(1);
+
+    resolveSave({ team: team({ revision: 3 }) });
+    await waitFor(() => expect(screen.getByLabelText("Team name")).not.toBeDisabled());
   });
 });

@@ -532,6 +532,26 @@ describe("App layout", () => {
     expect(await screen.findByRole("heading", { level: 1 })).toBeInTheDocument();
   });
 
+  it("opens the team page straight from the dock, without the settings sidebar", async () => {
+    mockFetchRoutes({
+      "/api/settings": baseSettingsPayload(),
+      "/api/settings/teams?limit=100": { teams: [], nextCursor: null },
+      "/api/settings/agents": { agents: [] },
+    });
+    render(<App />);
+
+    await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Teams" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/teams"));
+    expect(await screen.findByLabelText("Search teams")).toBeInTheDocument();
+    // 团队不再挂在设置里：设置侧栏没有它，页面也不带设置导航。
+    expect(
+      screen.queryByRole("navigation", { name: "Settings sections" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("opens the full Models settings directly from the first-run prompt", async () => {
     const user = userEvent.setup();
     const base = baseSettingsPayload();

@@ -34,7 +34,7 @@ function decodeRouteSegment(encoded: string): string | null {
   }
 }
 
-const CAPABILITY_VIEWS = ["apps", "automations", "skills", "agents"] as const;
+const CAPABILITY_VIEWS = ["apps", "automations", "skills", "agents", "teams"] as const;
 
 /**
  * Pure hash parser shared by the live App and the static preview. It never
@@ -114,7 +114,7 @@ export function settingsSectionForView(
   view: WorkspaceRoute["view"],
   section?: SettingsSectionKey,
 ): SettingsSectionKey {
-  if (view === "apps" || view === "automations" || view === "skills" || view === "agents") {
+  if (view === "apps" || view === "automations" || view === "skills" || view === "agents" || view === "teams") {
     return view;
   }
   return section ?? "overview";

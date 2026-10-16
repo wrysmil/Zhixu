@@ -153,6 +153,7 @@ type ShellView =
   | "automations"
   | "skills"
   | "agents"
+  | "teams"
   | "memory"
   | "identity";
 type ShellRoute = {
@@ -2011,6 +2012,12 @@ function Shell({
     setMobileSidebarOpen(false);
   }, [activeKey, navigate]);
 
+  const onOpenTeams = useCallback(() => {
+    setSessionSearchOpen(false);
+    navigate({ view: "teams", activeKey, settingsSection: "teams" });
+    setMobileSidebarOpen(false);
+  }, [activeKey, navigate]);
+
   const onOpenSkills = useCallback(() => {
     setSessionSearchOpen(false);
     navigate({ view: "skills", activeKey, settingsSection: "skills" });
@@ -2024,6 +2031,7 @@ function Shell({
         || section === "automations"
         || section === "skills"
         || section === "agents"
+        || section === "teams"
           ? section
           : "settings";
       navigate({
@@ -2630,6 +2638,7 @@ function Shell({
     onOpenAutomations,
     onOpenAgents,
     onOpenSkills,
+    onOpenTeams,
     onSettingsIntent,
     onOpenSearch: onOpenSessionSearch,
     activeUtility:
@@ -2666,7 +2675,8 @@ function Shell({
     || view === "apps"
     || view === "automations"
     || view === "skills"
-    || view === "agents";
+    || view === "agents"
+    || view === "teams";
 
   useEffect(() => {
     document.documentElement.classList.toggle("native-host", showHostChrome);

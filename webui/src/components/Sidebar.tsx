@@ -62,6 +62,7 @@ interface SidebarProps {
   onOpenSkills: () => void;
   onOpenAutomations: () => void;
   onOpenAgents: () => void;
+  onOpenTeams: () => void;
   onOpenMemory: () => void;
   onOpenIdentity: () => void;
   onOpenSearch: () => void;
@@ -152,6 +153,9 @@ export function Sidebar(props: SidebarProps) {
             break;
           case "agents":
             props.onOpenAgents();
+            break;
+          case "teams":
+            props.onOpenTeams();
             break;
           case "settings":
             props.onOpenSettings(route.settingsSection);
