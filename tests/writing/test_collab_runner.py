@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from nanobot.agent.skills import SkillsLoader
 from nanobot.channels.websocket.runtime import WebSocketConfig
 from nanobot.config.loader import save_config
 from nanobot.config.schema import Config
@@ -31,6 +33,7 @@ from nanobot.writing.collab.models import (
     CollaborationStatus,
     HandoffStatus,
 )
+from nanobot.writing.collab.recipe import RECIPES
 from nanobot.writing.collab.repository import (
     ActiveBatchConflict,
     CollabRepository,
@@ -42,8 +45,6 @@ from nanobot.writing.collab.runner import (
     StartCollabRequest,
     frozen_preparer,
 )
-from nanobot.agent.skills import SkillsLoader
-from nanobot.writing.collab.recipe import RECIPES
 from nanobot.writing.database import WritingDatabase
 from nanobot.writing.models import snapshot_digest
 from nanobot.writing.repository import ArticleRepository
@@ -77,6 +78,9 @@ class _FakeArtifact:
 class _FakeTeam:
     started: list[dict[str, Any]] = field(default_factory=list)
     cancelled: list[str] = field(default_factory=list)
+    #: 停 run 期间的回调：用来复现「``cancel_run`` 还没返回、批次行仍是 queued/running」
+    #: 这段窗口里到达的晚到结果（生产里由团队域的事件投递触发）。
+    on_cancel: Callable[[str], None] | None = None
 
     async def start_batch(self, **kwargs: Any) -> str:
         run_id = f"run-{len(self.started) + 1}"
@@ -85,6 +89,8 @@ class _FakeTeam:
 
     async def cancel_run(self, run_id: str) -> None:
         self.cancelled.append(run_id)
+        if self.on_cancel is not None:
+            self.on_cancel(run_id)
 
 
 @dataclass
@@ -460,6 +466,110 @@ async def test_cancel_generation_blocks_late_results(tmp_path: Path) -> None:
     assert [
         record for record in h.logs.records if record.get("event") == "writing_collab_event_dropped"
     ]
+
+
+def _dropped_reasons(h: _Harness) -> list[str]:
+    return [
+        str(record.get("reason"))
+        for record in h.logs.records
+        if record.get("event") == "writing_collab_event_dropped"
+    ]
+
+
+async def test_cancel_window_drops_late_result_without_live_handle(tmp_path: Path) -> None:
+    """M-3：``cancel_run`` 尚未返回时到达的结果只能靠「活句柄已释放」拦住。
+
+    这是 ``if not ref.live`` 唯一不可替代的窗口：``_cancel_chain`` 先就地换代（旧 ref
+    ``live=False``、``current_generation`` 已 +1）再 ``await cancel_run``，此刻批次行仍是
+    ``queued``、协作仍是 ``running`` 且它是活动批次 —— 闸门的其余条件**全部通过**，
+    只有活句柄标记能拦下这条晚到结果。变异探针：把 ``if not ref.live`` 改成 ``if False``
+    时本用例必须变红（产物会落库、可采纳事件会外推）。
+    """
+    h = _harness(tmp_path)
+    article = _create_article(h.articles)
+    handle = await h.runner.start(h.request(article=article))
+    run_id = h.team.started[0]["run_id"]
+
+    h.artifacts.scripted.append(_FakeArtifact(id="art-window", kind="outline", version=1))
+    # 事件带的是换代后的代数（团队域回显协作当前代数）：代数闸门不会拦它。
+    late = _event(run_id, cancelGeneration=1)
+    h.team.on_cancel = lambda _run_id: h.runner.on_team_event(late)
+
+    await h.runner.cancel(
+        collaboration_id=handle.collaboration_id, active_batch_id=handle.batch_id
+    )
+    await h.runner.drain()
+
+    assert h.artifacts.ingested == []
+    assert h.publisher.events == []
+    assert _dropped_reasons(h) == ["batch handle has been released"]
+    assert h.repo.list_artifacts(handle.collaboration_id) == {}
+    assert h.repo.get_collaboration(handle.collaboration_id).status == (
+        CollaborationStatus.CANCELLED
+    )
+
+
+async def test_cancel_then_reopen_drops_old_run_and_stale_generation(tmp_path: Path) -> None:
+    """M-3：同一协作取消后重开新批次，旧 run 事件与旧代数事件都不得落产物。
+
+    三个边界一次锁死：
+    1. 旧 ``run_id`` 的事件随后到达（句柄已释放）→ 只落 warning 日志，不落产物、不推
+       可采纳事件；
+    2. 新 run 回显的是取消前的代数（批次行里那份 0 从不递增，内存代数才是水位）→ 代数
+       闸门拒绝；
+    3. 新 run 用当前代数时必须正常交付 —— 闸门不是一律拒绝。
+    变异探针：把 ``cancel_generation`` 校验改成 ``if False`` 时本用例必须变红（第 2 步会
+    落产物并外推 ``writing_artifact``/``writing_handoff``）。
+    """
+    h = _harness(tmp_path)
+    article = _create_article(h.articles)
+    handle = await h.runner.start(h.request(article=article))
+    old_run = h.team.started[0]["run_id"]
+
+    cancelled = await h.runner.cancel(
+        collaboration_id=handle.collaboration_id, active_batch_id=handle.batch_id
+    )
+    assert cancelled.status == CollaborationStatus.CANCELLED
+
+    # 同一协作重开新批次（内存丢弃代数 0 → 1）。
+    reopened = await h.runner.reply(
+        collaboration_id=handle.collaboration_id,
+        feedback="按新方向重开",
+        expect_version=cancelled.version,
+    )
+    new_run = h.team.started[-1]["run_id"]
+    assert reopened.attempt == 2
+    assert new_run != old_run
+
+    # 1) 旧 run 的事件随后到达：句柄已释放，必须只落 warning。
+    h.artifacts.scripted.append(_FakeArtifact(id="art-old-run", kind="outline", version=1))
+    h.runner.on_team_event(_event(old_run))
+    await h.runner.drain()
+
+    assert h.artifacts.ingested == []
+    assert h.publisher.events == []
+    assert _dropped_reasons(h) == ["batch handle has been released"]
+
+    # 2) 新 run 回显取消前的代数：换代闸门必须拒绝（否则旧世代结果会落进重开的批次）。
+    h.runner.on_team_event(_event(new_run, cancelGeneration=0))
+    await h.runner.drain()
+
+    assert h.artifacts.ingested == []
+    assert h.publisher.events == []
+    assert _dropped_reasons(h) == [
+        "batch handle has been released",
+        "cancel generation mismatch",
+    ]
+    assert h.repo.list_artifacts(handle.collaboration_id) == {}
+
+    # 3) 新 run 用当前代数（缺省即启动代数 1）：正常落产物并外推。
+    h.artifacts.scripted.clear()
+    h.artifacts.scripted.append(_FakeArtifact(id="art-new-run", kind="outline", version=1))
+    h.runner.on_team_event(_event(new_run))
+    await h.runner.drain()
+
+    assert [entry["batch_id"] for entry in h.artifacts.ingested] == [reopened.id]
+    assert [name for name, _ in h.publisher.events] == ["writing_artifact", "writing_handoff"]
 
 
 async def test_batch_timeout_uses_same_cancel_chain(tmp_path: Path) -> None:

@@ -7,8 +7,14 @@ from typing import Any
 
 import pytest
 
-from nanobot.writing.collab.apply import apply_batch, apply_suggestion, undo
+from nanobot.writing.collab.apply import (
+    _record_response,
+    apply_batch,
+    apply_suggestion,
+    undo,
+)
 from nanobot.writing.collab.database import ensure_collab_schema
+from nanobot.writing.collab.repository import RequestReplayConflict
 from nanobot.writing.database import WritingDatabase
 from nanobot.writing.models import ArticleLimitError, new_id, utc_now_iso
 from nanobot.writing.repository import ArticleConflict, ArticleRepository
@@ -272,6 +278,7 @@ def test_apply_request_id_idempotent(store) -> None:
         db, suggestion_id, article_id=article["id"], base_revision=1,
         client_request_id="ap-1",
     )
+    records = _request_ops(db)
     replay = apply_suggestion(
         db, suggestion_id, article_id=article["id"], base_revision=1,
         client_request_id="ap-1",
@@ -281,3 +288,103 @@ def test_apply_request_id_idempotent(store) -> None:
     assert _article_state(db, article["id"]) == (2, first["digest"], "改写段。\n第二段。")
     assert _suggestion_status(db, suggestion_id) == "applied"
     assert _applied_revision(db, suggestion_id) == 2
+    # 真重放只读既有幂等行：不新增幂等记录、不写第二条撤销条目。
+    assert _request_ops(db) == records
+    with db.connect() as conn:
+        undo_rows = conn.execute(
+            "SELECT COUNT(*) AS n FROM writing_collab_undo_entries WHERE workspace_key = ?",
+            (db.workspace_key,),
+        ).fetchone()
+    assert int(undo_rows["n"]) == 1
+
+
+def _request_ops(db: WritingDatabase) -> dict[str, str]:
+    with db.connect() as conn:
+        rows = conn.execute(
+            "SELECT request_id, op FROM article_requests WHERE workspace_key = ?",
+            (db.workspace_key,),
+        ).fetchall()
+    return {str(row["request_id"]): str(row["op"]) for row in rows}
+
+
+def _save_records(db: WritingDatabase) -> dict[str, str]:
+    return {
+        request_id: op
+        for request_id, op in _request_ops(db).items()
+        if op.startswith("article.save:")
+    }
+
+
+def test_apply_keeps_the_save_snapshot_idempotency_record(store) -> None:
+    """m-5：采纳事务不得把 ``save_snapshot`` 自己的幂等行覆盖掉。
+
+    ``apply_batch`` 在同事务内调用 ``ArticleRepository.save_snapshot``（它按
+    ``client_request_id`` 记一行 ``article.save:…``），随后又记 ``writing.apply:…``。
+    两条记录共用 ``article_requests`` 主键，若外层用 ``INSERT OR REPLACE`` 直写同一
+    ``request_id``，保存流那一行就被静默删掉了。
+    """
+    db, _articles, article = store
+    suggestion_id = _add_suggestion(
+        db, article, target=_replace(FIRST_SPAN, "第一段。"), after="改写段。",
+    )
+
+    applied = apply_suggestion(
+        db, suggestion_id, article_id=article["id"], base_revision=1,
+        client_request_id="ap-1",
+    )
+
+    ops = _request_ops(db)
+    assert ops["ap-1"].startswith("writing.apply:")
+    saves = _save_records(db)
+    assert len(saves) == 1, saves
+    save_request_id = next(iter(saves))
+    # 派生键（``#`` 不在客户端 request_id 正则里，构造上撞不上）。
+    assert save_request_id.startswith("ap-1#")
+    assert save_request_id != "ap-1"
+    # 保存流那一行仍然对应本次采纳后的文章状态。
+    assert _article_state(db, article["id"])[0] == applied["revision"]
+
+
+def test_undo_keeps_the_save_snapshot_idempotency_record(store) -> None:
+    """撤销同样只允许写自己那一行：保存流的幂等记录必须留下。"""
+    db, _articles, article = store
+    suggestion_id = _add_suggestion(
+        db, article, target=_replace(FIRST_SPAN, "第一段。"), after="改写段。",
+    )
+    applied = apply_suggestion(
+        db, suggestion_id, article_id=article["id"], base_revision=1,
+        client_request_id="ap-1",
+    )
+    before = _save_records(db)
+
+    undone = undo(
+        db, applied["undo_id"], base_revision=applied["revision"], client_request_id="un-1",
+    )
+
+    ops = _request_ops(db)
+    assert ops["un-1"].startswith("writing.undo:")
+    after = _save_records(db)
+    assert len(after) == len(before) + 1  # 撤销自己那次保存也留行，不回退既有的那行
+    assert set(before.items()) <= set(after.items())
+    assert undone["revision"] == applied["revision"] + 1
+
+
+def test_record_response_refuses_to_replace_a_foreign_op(store) -> None:
+    """m-5 写路径守卫：同 ``request_id`` 的既有行属于别的 op 时不得替换。"""
+    db, _articles, article = store
+    suggestion_id = _add_suggestion(
+        db, article, target=_replace(FIRST_SPAN, "第一段。"), after="改写段。",
+    )
+    applied = apply_suggestion(
+        db, suggestion_id, article_id=article["id"], base_revision=1,
+        client_request_id="ap-1",
+    )
+    before = _request_ops(db)["ap-1"]
+
+    with db.connect() as conn, pytest.raises(RequestReplayConflict):
+        _record_response(
+            conn, db.workspace_key, article["id"], "ap-1", "writing.undo:foreign",
+            {"undo_id": applied["undo_id"]},
+        )
+
+    assert _request_ops(db)["ap-1"] == before

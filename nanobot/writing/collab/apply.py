@@ -128,7 +128,7 @@ def apply_batch(
 
         saved = _repository(db, conn).save_snapshot(
             article_id, int(base_revision), _apply_patches(record.fields, rows),
-            client_request_id=client_request_id,
+            client_request_id=_snapshot_request_id(client_request_id),
         )
         applied_revision = int(saved["revision"])
         now = utc_now_iso()
@@ -212,7 +212,8 @@ def undo(
         snapshot = dict(record.fields)
         snapshot["body"] = str(entry["before_body"])
         saved = _repository(db, conn).save_snapshot(
-            article_id, record.revision, snapshot, client_request_id=client_request_id,
+            article_id, record.revision, snapshot,
+            client_request_id=_snapshot_request_id(client_request_id),
         )
         now = utc_now_iso()
         conn.execute(
@@ -354,6 +355,18 @@ def _record_response(
     op_key: str,
     response: Mapping[str, Any],
 ) -> None:
+    """写路径的幂等守卫：同 ``request_id`` 只允许同一个 ``op`` 覆盖。
+
+    ``_replay_response`` 管读路径；``INSERT OR REPLACE`` 本身会无条件覆盖主键行，
+    所以写之前必须按主键核对 ``op`` —— 否则本动作会顶掉别条流（例如
+    ``article.save:…``）在同一 ``request_id`` 上留下的幂等记录。
+    """
+    row = conn.execute(
+        "SELECT op FROM article_requests WHERE workspace_key = ? AND request_id = ?",
+        (workspace_key, client_request_id),
+    ).fetchone()
+    if row is not None and str(row["op"]) != op_key:
+        raise RequestReplayConflict()
     conn.execute(
         "INSERT OR REPLACE INTO article_requests"
         " (request_id, workspace_key, article_id, op, response, created_at)"
@@ -363,3 +376,16 @@ def _record_response(
             json.dumps(dict(response), ensure_ascii=False), utc_now_iso(),
         ),
     )
+
+
+def _snapshot_request_id(client_request_id: str) -> str:
+    """派生给同事务 ``save_snapshot`` 用的 request_id。
+
+    采纳/撤销会在同一个事务里两次写 ``article_requests``：``save_snapshot`` 记
+    ``article.save:…``，本动作记 ``writing.apply:…``/``writing.undo:…``。两条记录的主键
+    都是 ``(workspace_key, request_id)``，用同一个 id 就必然一行顶掉另一行。这里按
+    ``#`` 派生（客户端 request_id 的正则是 ``[A-Za-z0-9._:-]{1,128}``，**不含** ``#``，
+    所以构造上撞不上客户端身份），两条记录都留下；外层动作的重放判定仍然只看本动作
+    在原始 id 上的那一行，重放语义不变。
+    """
+    return f"{client_request_id}#snapshot"

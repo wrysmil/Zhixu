@@ -217,6 +217,120 @@ def test_same_request_id_replays_without_second_batch(store: _Store) -> None:
         store.batch(collab.id, request_id="req-1", action="outline")
 
 
+def _op(db: WritingDatabase, request_id: str) -> str:
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT op FROM article_requests WHERE workspace_key = ? AND request_id = ?",
+            (db.workspace_key, request_id),
+        ).fetchone()
+    assert row is not None, request_id
+    return str(row["op"])
+
+
+def test_same_request_id_different_payload_is_replay_conflict(store: _Store) -> None:
+    """契约 §4：``request_id was already used for a different WebUI mutation``(409)。
+
+    同 ``request_id`` + 异载荷（不同 goal / 不同快照指纹 / 不同文章）一律 409，
+    且既有行、既有批次都不受影响。
+    """
+    collab = store.collab(article_id="a-1", chat_id="chat-1", request_id="req-1")
+    create_op = _op(store.db, "req-1")
+
+    # 同文章、异 goal：写动作内容变了。
+    with pytest.raises(RequestReplayConflict):
+        store.collab(
+            article_id="a-1", chat_id="chat-1", request_id="req-1",
+            goal={"action": "ideate"},
+        )
+    assert _op(store.db, "req-1") == create_op
+    assert _count(store.db, "writing_collaborations") == 1
+
+    # 异文章：幂等键的身份段就不同，绝不允许把 a-2 的请求重放成 a-1 的协作。
+    with pytest.raises(RequestReplayConflict):
+        store.collab(article_id="a-2", chat_id="chat-1", request_id="req-1")
+    assert _op(store.db, "req-1") == create_op
+    assert _count(store.db, "writing_collaborations") == 1
+
+    batch = store.batch(collab.id, request_id="req-2")
+    batch_op = _op(store.db, "req-2")
+
+    # 同协作、异快照指纹：不能静默覆盖幂等行，也不能开出第二个批次。
+    with pytest.raises(RequestReplayConflict):
+        store.repo.create_batch(
+            collaboration_id=collab.id,
+            action="start_full",
+            base_revision=1,
+            snapshot_digest="d-2",
+            instruction="写一篇稿子",
+            frozen={"workspace_key": store.workspace_key},
+            expect_version=None,
+            request_id="req-2",
+        )
+    assert _op(store.db, "req-2") == batch_op
+    assert _count(store.db, "writing_collab_batches") == 1
+    assert store.repo.get_batch(batch.id).id == batch.id
+
+
+def test_record_request_refuses_to_replace_a_foreign_op(store: _Store) -> None:
+    """M-1 写路径守卫：同 request_id 的既有行属于别的 op 时不得静默替换。
+
+    ``_replay`` 是读路径的守卫；写路径（``INSERT OR REPLACE``）本身也必须按主键核对
+    ``op``，否则任何绕过 ``_replay`` 的写入 / 并发插入都会用一份异载荷覆盖既有行，
+    让「同 id 异载荷 → 409」在写路径失效。
+    """
+    store.collab(article_id="a-1", chat_id="chat-1", request_id="req-1")
+    before = _op(store.db, "req-1")
+    assert before.startswith("writing.collab.create:")
+
+    with store.db.connect() as conn, pytest.raises(RequestReplayConflict):
+        store.repo._record_request(
+            conn, "req-1", "a-1", "writing.collab.start:foreign", {"x": 1},
+        )
+
+    assert _op(store.db, "req-1") == before
+
+
+def test_record_request_refuses_to_replace_a_foreign_article(store: _Store) -> None:
+    """写路径守卫同时核对文章归属：同 op 但 article_id 不同也不许替换。"""
+    store.collab(article_id="a-1", chat_id="chat-1", request_id="req-1")
+    op = _op(store.db, "req-1")
+
+    with store.db.connect() as conn, pytest.raises(RequestReplayConflict):
+        store.repo._record_request(conn, "req-1", "a-2", op, {"collaboration_id": "x"})
+
+    assert _op(store.db, "req-1") == op
+
+
+def test_op_key_binds_article_and_payload_fingerprint(store: _Store) -> None:
+    """契约 §10.4：幂等 ``op`` = 动作 + 协作/文章身份 + 实际载荷指纹。
+
+    身份段让「同 request_id 换文章/换协作」必然算成异 op；末段指纹让同一动作的
+    任意载荷差异（快照摘要、指令）也算成异 op。
+    """
+    collab = store.collab(article_id="a-1", chat_id="chat-1", request_id="req-c")
+    assert _op(store.db, "req-c").split(":")[:2] == ["writing.collab.create", "a-1"]
+
+    store.batch(collab.id, request_id="req-b")
+    head, collaboration_id, article_id, fingerprint = _op(store.db, "req-b").split(":")
+    assert head == "writing.collab.start"
+    assert collaboration_id == collab.id
+    assert article_id == "a-1"
+    assert fingerprint
+
+    store.repo.finish_batch(batch_id=store.repo.list_batches(collab.id)[0].id, status="completed")
+    store.repo.create_batch(
+        collaboration_id=collab.id,
+        action="start_full",
+        base_revision=1,
+        snapshot_digest="d-1",
+        instruction="换过的指令",
+        frozen={"workspace_key": store.workspace_key},
+        expect_version=None,
+        request_id="req-b2",
+    )
+    assert _op(store.db, "req-b2").split(":")[-1] != fingerprint
+
+
 def test_active_batch_uniqueness(store: _Store) -> None:
     collab = store.collab()
     first = store.batch(collab.id, request_id="req-1")

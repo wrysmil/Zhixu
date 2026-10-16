@@ -214,6 +214,16 @@ def _payload_key(payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()[:16]
 
 
+def _request_op(action: str, *identity: str, payload: Mapping[str, Any]) -> str:
+    """幂等 ``op``：动作 + 身份段（协作/文章）+ 实际载荷指纹（契约 §2 / §10.4）。
+
+    身份段是明文，便于人工核对「这一行属于哪个协作/文章」；指纹段保证同一动作下任何
+    载荷差异（快照摘要、指令、goal）都算成异 ``op`` —— 同 ``request_id`` 撞上异 ``op``
+    就是 409，绝不静默执行两次。
+    """
+    return f"{':'.join((action, *identity))}:{_payload_key(payload)}"
+
+
 class CollabRepository:
     """一个工作区一个实例；所有写操作都在单事务内完成。"""
 
@@ -356,9 +366,9 @@ class CollabRepository:
             raise InvalidFieldError("session_key", session_key)
         goal_payload = _normalize_goal(goal)
 
-        op_key = (
-            f"writing.collab.create:{article_id}:"
-            f"{_payload_key({'chat_id': chat_id, 'session_key': session_key, 'goal': goal_payload})}"
+        op_key = _request_op(
+            "writing.collab.create", article_id,
+            payload={"chat_id": chat_id, "session_key": session_key, "goal": goal_payload},
         )
         with self._db.connect() as conn:
             replay = self._replay(conn, request_id, op_key)
@@ -418,17 +428,23 @@ class CollabRepository:
         snapshot_digest = _require_id("snapshot_digest", snapshot_digest)
         expected = _optional_int("expect_version", expect_version)
         frozen_payload = dict(frozen or {})
-        op_key = (
-            f"writing.collab.start:{collaboration_id}:"
-            f"{_payload_key({'action': action, 'base_revision': base_revision, 'snapshot_digest': snapshot_digest, 'instruction': instruction or '', 'frozen': frozen_payload})}"
-        )
 
         with self._db.connect() as conn:
+            collaboration = self._require_collaboration(conn, collaboration_id)
+            # 幂等键带协作与文章身份段 + 载荷指纹：同 request_id 换文章/换协作/换载荷
+            # 都算异 op（409），绝不静默重放别人的批次。
+            op_key = _request_op(
+                "writing.collab.start", collaboration_id, collaboration.article_id,
+                payload={
+                    "action": action, "base_revision": base_revision,
+                    "snapshot_digest": snapshot_digest, "instruction": instruction or "",
+                    "frozen": frozen_payload,
+                },
+            )
             replay = self._replay(conn, request_id, op_key)
             if replay is not None:
                 return self._require_batch(conn, str(replay.get("batch_id", "")))
 
-            collaboration = self._require_collaboration(conn, collaboration_id)
             if expected is not None and expected != collaboration.version:
                 raise CollabVersionConflict(expected=expected, actual=collaboration.version)
 
@@ -775,6 +791,23 @@ class CollabRepository:
         op_key: str,
         response: Mapping[str, Any],
     ) -> None:
+        """写路径的幂等守卫：同 ``request_id`` 只允许同一个 ``op`` + 同一篇文章。
+
+        :meth:`_replay` 是**读路径**的守卫；这里是**写路径**的守卫，因为
+        ``INSERT OR REPLACE`` 本身会无条件覆盖主键行：任何绕过 ``_replay`` 的写入或
+        与别的域（共用 ``article_requests`` 主键）并发/嵌套的写入，都会用一份异载荷
+        静默顶掉既有行，让「同 id 异载荷 → 409」在写路径失效。守卫只在真重放
+        （同 ``op`` 同文章）时放行替换，其余一律 :class:`RequestReplayConflict`。
+        """
+        row = conn.execute(
+            "SELECT op, article_id FROM article_requests"
+            " WHERE workspace_key = ? AND request_id = ?",
+            (self._workspace_key, request_id),
+        ).fetchone()
+        if row is not None and (
+            str(row["op"]) != op_key or str(row["article_id"]) != article_id
+        ):
+            raise RequestReplayConflict()
         conn.execute(
             "INSERT OR REPLACE INTO article_requests"
             " (request_id, workspace_key, article_id, op, response, created_at)"
