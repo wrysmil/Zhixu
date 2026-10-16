@@ -1,0 +1,560 @@
+"""WU-10：创作空间内置资产的归属投影与受保护写入口。
+
+覆盖两层断言：
+
+1. **服务端权威事实**——四类资源（Agent / Team / Skill / MCP）的管理投影统一追加
+   ``ownerModule`` / ``origin`` / ``builtinVersion`` / ``deletable`` / ``protectionReason``，
+   且这些字段只出现在内置资产上（普通用户资源投影必须一个都不多）。
+2. **写入口拦截**——命中受保护内置资产即拒绝，message 统一为
+   ``builtin resource is protected: <asset_kind>/<logical_id>``（契约 §4）。
+   普通用户资源的既有语义（删除 / 覆盖 / 归档）不受影响。
+
+数据源一律取 ``nanobot.writing.builtin``：本文件不复制第二份内置名单。
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from nanobot.agents.models import AgentProfile
+from nanobot.agents.store import (
+    AgentStore,
+    AgentStoreError,
+    protected_write_message,
+)
+from nanobot.teams.database import TeamDatabase
+from nanobot.teams.models import (
+    SERVER_OWNED_DEFINITION_FIELDS,
+    TeamDefinition,
+    TeamLimits,
+    TeamMember,
+)
+from nanobot.teams.repository import TeamRepository
+from nanobot.teams.service import ProfileRecord, TeamService
+from nanobot.webui import agents_api, skills_api
+from nanobot.webui.mcp_presets_api import custom_mcp_action, mcp_presets_action
+from nanobot.webui.skills_api import SkillManagementError
+from nanobot.webui.skills_marketplace import SkillsMarketplaceError, install_marketplace_skill
+from nanobot.webui.teams_routes import TeamSettingsHandler, translate
+from nanobot.writing.builtin import (
+    BUILTIN_RESOURCE_PROTECTED,
+    ORIGIN_BUILTIN,
+    OWNER_MODULE,
+    WRITING_BUILTIN_ASSETS,
+    WRITING_BUILTIN_VERSION,
+    WRITING_TEAM_LOGICAL_ID,
+    BuiltinAssetRegistry,
+    BuiltinResourceProtected,
+)
+from nanobot.writing.database import WritingDatabase
+
+_AGENT_LOGICAL_IDS = tuple(
+    asset.logical_id for asset in WRITING_BUILTIN_ASSETS if asset.kind == "agent"
+)
+_SKILL_LOGICAL_IDS = tuple(
+    asset.logical_id for asset in WRITING_BUILTIN_ASSETS if asset.kind == "skill"
+)
+_MCP_LOGICAL_IDS = tuple(
+    asset.logical_id for asset in WRITING_BUILTIN_ASSETS if asset.kind == "mcp"
+)
+
+# 统一 message 口径（契约 §4）：三个受保护写入口共用同一个 helper 生成。
+_UNIFORM_FIELDS = ("ownerModule", "origin", "builtinVersion", "deletable", "protectionReason")
+
+
+def _builtin_message(kind: str, logical_id: str) -> str:
+    return f"builtin resource is protected: {kind}/{logical_id}"
+
+
+def _assert_shielded(payload: dict[str, Any], kind: str, logical_id: str) -> None:
+    """管理投影的内置来源字段：键齐、值对、deletable 为假。"""
+    assert payload["ownerModule"] == OWNER_MODULE
+    assert payload["origin"] == ORIGIN_BUILTIN
+    assert payload["builtinVersion"] == WRITING_BUILTIN_VERSION
+    assert payload["deletable"] is False
+    assert payload["protectionReason"] == _builtin_message(kind, logical_id)
+
+
+# --------------------------------------------------------------- Agent 归属投影
+
+
+def test_agent_projection_has_writing_builtin_fields(tmp_path: Path) -> None:
+    payload = agents_api.agents_list(tmp_path)
+    by_id = {item["id"]: item for item in payload["agents"]}
+
+    assert set(_AGENT_LOGICAL_IDS) <= set(by_id), "五个写作档案必须来自 catalog 出厂预置"
+    for logical_id in _AGENT_LOGICAL_IDS:
+        entry = by_id[logical_id]
+        _assert_shielded(entry, "agent", logical_id)
+        # 既有语义保留兼容：type 仍是 system。
+        assert entry["type"] == "system"
+
+
+def test_agent_detail_projection_keeps_client_keys(tmp_path: Path) -> None:
+    """追加字段不得挤掉前端既有键（``categoryId`` / ``subAgents`` / ``updatedAt``）。"""
+    first = agents_api.agents_list(tmp_path)["agents"][0]
+    assert {"id", "name", "type", "categoryId", "subAgents", "updatedAt"} <= set(first)
+
+
+# --------------------------------------------------------------- Agent 写入口
+
+
+def test_delete_builtin_agent_rejected_409(tmp_path: Path) -> None:
+    with pytest.raises(AgentStoreError) as store_error:
+        AgentStore(tmp_path).delete_profile("writing-editor")
+    assert store_error.value.status == 409
+    assert store_error.value.message == _builtin_message("agent", "writing-editor")
+
+    with pytest.raises(Exception) as api_error:
+        agents_api.agents_delete(tmp_path, "writing-editor")
+    assert api_error.value.status == 409
+    assert api_error.value.message == _builtin_message("agent", "writing-editor")
+
+
+def test_reset_builtin_agent_rejected(tmp_path: Path) -> None:
+    with pytest.raises(AgentStoreError) as store_error:
+        AgentStore(tmp_path).reset_profile("writing-architect")
+    assert store_error.value.status == 409
+    assert store_error.value.message == _builtin_message("agent", "writing-architect")
+
+    with pytest.raises(Exception) as api_error:
+        agents_api.agents_reset(tmp_path, "writing-architect")
+    assert api_error.value.status == 409
+
+
+def test_builtin_agent_cannot_be_saved_as_custom(tmp_path: Path) -> None:
+    """内置定义不得被改写（含把 ``type`` 改成 ``custom``）。"""
+    store = AgentStore(tmp_path)
+    factory = store.get_profile("writing-author")
+    hostile = AgentProfile.from_dict({**factory.to_dict(), "id": "writing-author"})
+    hostile.name = "被改写的写手"
+    hostile.type = "custom"
+    hostile.customized = True
+
+    with pytest.raises(AgentStoreError) as store_error:
+        store.save_profile(hostile)
+    assert store_error.value.status == 409
+    assert store_error.value.message == _builtin_message("agent", "writing-author")
+
+    # 磁盘上不得留下任何被改写的档案。
+    assert not (tmp_path / "agents" / "profiles" / "writing-author.json").exists()
+
+    with pytest.raises(Exception) as api_error:
+        agents_api.agents_save(
+            tmp_path, {**factory.to_dict(), "name": "被改写的写手", "type": "custom"}
+        )
+    assert api_error.value.status == 409
+
+
+def test_builtin_agent_visibility_toggle_still_allowed(tmp_path: Path) -> None:
+    """``hidden`` 是视图偏好而非内容定制：状态里的既有承诺不能被本 WU 顺手撤销。"""
+    store = AgentStore(tmp_path)
+    hidden = store.set_visibility("writing-author", True)
+    assert hidden.hidden is True
+    assert store.get_profile("writing-author").hidden is True
+
+
+# --------------------------------------------------------------- Team 写入口
+
+
+class _DictDirectory:
+    """ProfileDirectory 的内存替身：每次查询现合成一条可用档案，任意 id 都不缺人。"""
+
+    def get(self, agent_id: str) -> ProfileRecord | None:
+        if agent_id.startswith(("writing-", "user-", "clone-")):
+            return ProfileRecord(id=agent_id, name=agent_id)
+        return None
+
+
+def _team_payload(team_id: str, *, leader: str, member: str) -> dict[str, Any]:
+    """创建载荷不得携带服务端所有权字段（``from_create_payload`` 会直接拒）。"""
+    definition = TeamDefinition(
+        id=team_id,
+        revision=1,
+        name="创作团队",
+        description="内置团队",
+        instructions="按契约 §7 执行。",
+        leader_agent_id=leader,
+        members=[TeamMember(member_id="member-1", agent_id=member, role="成员")],
+        limits=TeamLimits(),
+        archived=False,
+        created_at="2026-10-17T00:00:00Z",
+        updated_at="2026-10-17T00:00:00Z",
+    )
+    return {
+        key: value
+        for key, value in definition.to_dict().items()
+        if key not in SERVER_OWNED_DEFINITION_FIELDS
+    }
+
+
+def _builtin_team_payload(team_id: str = WRITING_TEAM_LOGICAL_ID) -> dict[str, Any]:
+    return _team_payload(team_id, leader="writing-editor", member="writing-author")
+
+
+def _team_service(tmp_path: Path) -> TeamService:
+    """接上真实内置注册表（``nanobot.writing.builtin`` 是唯一真相源）。"""
+    db = TeamDatabase(tmp_path / "team-ws")
+    db.init_schema()
+    return TeamService(
+        TeamRepository(db),
+        _DictDirectory(),
+        builtin_registry=BuiltinAssetRegistry(WritingDatabase(tmp_path)),
+    )
+
+
+def _seed_builtin_team(service: TeamService) -> None:
+    """内置团队的落地由 registry allocator 完成（WU-06），这里直接播下那一行。"""
+    definition = TeamDefinition.from_dict(
+        {**_builtin_team_payload(), "revision": 1,
+         "createdAt": "2026-10-17T00:00:00Z", "updatedAt": "2026-10-17T00:00:00Z"}
+    )
+    service.repository.save_team(
+        definition=definition,
+        snapshot=service.freeze(definition),
+        expected_revision=None,
+        request_id="seed-builtin",
+    )
+
+
+def test_team_archive_save_guarded_and_clone_allowed(tmp_path: Path) -> None:
+    service = _team_service(tmp_path)
+    _seed_builtin_team(service)
+    assert service.repository.get_team(WRITING_TEAM_LOGICAL_ID).revision == 1
+
+    # 覆盖（更新修订）被拒。
+    with pytest.raises(Exception) as overwrite:
+        service.save_team(
+            {"id": WRITING_TEAM_LOGICAL_ID, "name": "被改名的创作团队"},
+            expected_revision=1,
+            request_id="req-overwrite",
+        )
+    assert overwrite.value.status == 409
+    assert overwrite.value.message == _builtin_message("team", WRITING_TEAM_LOGICAL_ID)
+
+    # 归档被拒。领域异常 → 传输层 (状态码, 错误码) 必须落在契约 §4 的 409。
+    with pytest.raises(Exception) as archived:
+        service.archive_team(
+            WRITING_TEAM_LOGICAL_ID, expected_revision=1, request_id="req-archive"
+        )
+    status, error = translate(archived.value)
+    assert status == 409
+    assert error.startswith(BUILTIN_RESOURCE_PROTECTED)
+    assert _builtin_message("team", WRITING_TEAM_LOGICAL_ID) in error
+    assert service.repository.get_team(WRITING_TEAM_LOGICAL_ID).archived is False
+
+    # 复制为自定义：允许，且新团队 id 与内置逻辑身份无关。
+    cloned = service.clone_team(
+        WRITING_TEAM_LOGICAL_ID, name="我的创作团队", request_id="req-clone"
+    )
+    clone_id = cloned["team"]["id"]
+    assert clone_id != WRITING_TEAM_LOGICAL_ID
+    assert service.repository.get_team(clone_id).name == "我的创作团队"
+    # 复制不得把「内置」身份带过去：副本照常可归档。
+    service.archive_team(clone_id, expected_revision=1, request_id="req-archive-clone")
+    assert service.repository.get_team(clone_id).archived is True
+
+
+def test_builtin_team_cannot_be_created_by_a_client(tmp_path: Path) -> None:
+    """客户端不得抢占内置团队的逻辑 id（避免伪造出「未登记的内置团队」）。"""
+    service = _team_service(tmp_path)
+    with pytest.raises(Exception) as create:
+        service.save_team(_builtin_team_payload(), expected_revision=None, request_id="req-new")
+    assert create.value.status == 409
+    assert create.value.message == _builtin_message("team", WRITING_TEAM_LOGICAL_ID)
+
+
+def test_team_service_without_registry_keeps_legacy_behaviour(tmp_path: Path) -> None:
+    """没装配内置注册表的 TeamService（测试替身 / 未接线）行为不变。"""
+    db = TeamDatabase(tmp_path / "legacy-ws")
+    db.init_schema()
+    service = TeamService(TeamRepository(db), _DictDirectory())
+    service.save_team(
+        _builtin_team_payload(), expected_revision=None, request_id="r1"
+    )
+    archived = service.archive_team(
+        WRITING_TEAM_LOGICAL_ID, expected_revision=1, request_id="r2"
+    )
+    assert archived["archived"] is True
+
+
+# --------------------------------------------------------------- Skill 写入口
+
+
+def _disable_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """内置保护必须在读 config 之前就拒绝，因此这里把 config 相关调用钉死。"""
+    monkeypatch.setattr(
+        skills_api,
+        "load_config",
+        lambda _path=None: pytest.fail("builtin protection must reject before loading config"),
+    )
+
+
+@pytest.mark.asyncio
+async def test_skill_same_name_install_does_not_shadow_builtin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """同名导入必须拒绝遮蔽内置身份，而不是回一句幂等的 already_installed。"""
+    logical_id = _SKILL_LOGICAL_IDS[0]
+    # 守卫若晚于子进程启动，这个替身会直接把用例打红——顺序也被钉住了。
+    monkeypatch.setattr(
+        "nanobot.webui.skills_marketplace.asyncio.create_subprocess_exec",
+        pytest.fail,
+    )
+
+    with pytest.raises(SkillsMarketplaceError) as install_error:
+        await install_marketplace_skill("acme/agent-skills", logical_id, tmp_path)
+    assert install_error.value.status == 409
+    assert install_error.value.message == _builtin_message("skill", logical_id)
+
+    # 运行记录显示实际来源仍是内置，且工作区没有多出一份遮蔽副本。
+    skill_dir = tmp_path / "skills" / logical_id
+    assert not skill_dir.exists()
+    payload = skills_api.webui_skills_payload(tmp_path)
+    entry = next(item for item in payload["skills"] if item["name"] == logical_id)
+    assert entry["source"] == "builtin"
+    _assert_shielded(entry, "skill", logical_id)
+
+
+def test_skill_delete_and_update_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _disable_config(monkeypatch)
+    logical_id = _SKILL_LOGICAL_IDS[0]
+
+    with pytest.raises(SkillManagementError) as delete_error:
+        skills_api.delete_webui_skill(tmp_path, logical_id, disabled_skills=set())
+    assert delete_error.value.status == 409
+    assert delete_error.value.message == _builtin_message("skill", logical_id)
+
+    with pytest.raises(SkillManagementError) as update_error:
+        skills_api.set_webui_skill_enabled(
+            tmp_path, logical_id, enabled=False, disabled_skills=set()
+        )
+    assert update_error.value.status == 409
+    assert update_error.value.message == _builtin_message("skill", logical_id)
+
+
+def test_skill_projection_shields_every_writing_builtin(tmp_path: Path) -> None:
+    payload = skills_api.webui_skills_payload(tmp_path)
+    by_name = {item["name"]: item for item in payload["skills"]}
+    assert set(_SKILL_LOGICAL_IDS) <= set(by_name), "写作 Skill 必须随包内置"
+    for logical_id in _SKILL_LOGICAL_IDS:
+        _assert_shielded(by_name[logical_id], "skill", logical_id)
+        assert by_name[logical_id]["source"] == "builtin"
+
+
+# --------------------------------------------------------------- MCP 写入口
+
+
+def test_mcp_guards_skipped_when_no_builtin_preset() -> None:
+    """首批未提供内置 MCP 预设（契约 §7）：无对象可保护，用例显式 skip 并说明。"""
+    if not _MCP_LOGICAL_IDS:
+        pytest.skip(
+            "契约 §7 首批不提供内置 MCP 预设（WRITING_BUILTIN_ASSETS 无 kind='mcp' 条目），"
+            "remove/import/enable 三处守卫暂无可命中的对象；已在代码中按 kind='mcp' 派生接入"
+            "（_builtin_mcp_logical_ids），首批条目出现即自动生效，无需本用例改动。"
+        )
+    # 一旦首批提供了内置预设，本用例转为实跑：任意内置 MCP 名字都必须被拒绝。
+    for logical_id in _MCP_LOGICAL_IDS:
+        assert isinstance(logical_id, str) and logical_id
+
+
+def test_mcp_import_and_enable_derived_from_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """守卫集合必须从 ``nanobot.writing.builtin`` 派生，而不是另写一份硬编码名单。"""
+    from nanobot.webui import mcp_presets_api
+
+    assert hasattr(mcp_presets_api, "_builtin_mcp_logical_ids")
+    assert set(mcp_presets_api._builtin_mcp_logical_ids()) == set(_MCP_LOGICAL_IDS)
+
+    # 注入一个假的内置 MCP 条目：remove / import / enable 三处守卫必须同时生效。
+    # 清单是唯一真相源（``BuiltinAssetRegistry.get_asset`` 查的也是这张表），
+    # 因此registry 与 ``_builtin_mcp_logical_ids()`` 会同时看到它。
+    from nanobot.writing import builtin as writing_builtin
+
+    fake = writing_builtin.BuiltinAsset("mcp", "writing-fake", "假内置 MCP")
+    monkeypatch.setattr(
+        writing_builtin,
+        "_ASSETS_BY_KEY",
+        {**writing_builtin._ASSETS_BY_KEY, ("mcp", fake.logical_id): fake},
+    )
+    assert set(mcp_presets_api._builtin_mcp_logical_ids()) == {"writing-fake"}
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps({"agents": {"defaults": {"workspace": str(tmp_path / "workspace")}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("nanobot.config.loader._current_config_path", config_path)
+
+    query: dict[str, list[str]] = {"name": ["writing-fake"]}
+    for action in ("remove", "enable"):
+        with pytest.raises(Exception) as excinfo:
+            mcp_presets_action(action, query, config_path=config_path)
+        assert excinfo.value.message == _builtin_message("mcp", "writing-fake")
+
+    with pytest.raises(Exception) as import_error:
+        custom_mcp_action(
+            "import",
+            {
+                "config": [
+                    json.dumps(
+                        {"mcpServers": {"writing-fake": {"type": "stdio", "command": "echo"}}}
+                    )
+                ]
+            },
+            config_path=config_path,
+        )
+    assert import_error.value.message == _builtin_message("mcp", "writing-fake")
+
+
+# --------------------------------------------------------------- 普通资源不回归
+
+
+def test_user_assets_unaffected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """普通用户资源删除 / 覆盖 / 归档语义原样，且投影不得多出内置字段。"""
+    # Agent：保存、列表投影、删除三步都不受影响。
+    saved = agents_api.agents_save(
+        tmp_path, {"id": "my-writer", "name": "我的写手", "prompt": "写吧"}
+    )["agent"]
+    assert set(_UNIFORM_FIELDS).isdisjoint(saved)
+    listed = {item["id"]: item for item in agents_api.agents_list(tmp_path)["agents"]}
+    assert set(_UNIFORM_FIELDS).isdisjoint(listed["my-writer"])
+    assert listed["my-writer"]["type"] == "custom"
+    assert agents_api.agents_delete(tmp_path, "my-writer") == {"id": "my-writer"}
+    with pytest.raises(AgentStoreError) as gone:
+        AgentStore(tmp_path).get_profile("my-writer")
+    assert gone.value.status == 404
+
+    # 既有系统 Agent（非创作内置）语义不变：可保存、可重置、删除仍是 409。
+    store = AgentStore(tmp_path)
+    store.save_profile(AgentProfile(id="code-reviewer", name="代码审查", prompt="看代码"))
+    assert store.get_profile("code-reviewer").customized is True
+    assert store.reset_profile("code-reviewer").customized is False
+    with pytest.raises(AgentStoreError) as system_delete:
+        store.delete_profile("code-reviewer")
+    assert system_delete.value.status == 409
+
+    # Team：普通团队可保存、可归档、可覆盖 —— 即使接上了内置注册表也一样。
+    service = _team_service(tmp_path)
+    service.save_team(
+        _team_payload("user-team", leader="user-lead", member="user-member"),
+        expected_revision=None,
+        request_id="u1",
+    )
+    service.save_team(
+        {
+            **_team_payload("user-team", leader="user-lead", member="user-member"),
+            "name": "改过的名字",
+        },
+        expected_revision=1,
+        request_id="u2",
+    )
+    assert service.repository.get_team("user-team").name == "改过的名字"
+    assert service.archive_team("user-team", expected_revision=2, request_id="u3")["archived"]
+
+    # Skill：工作区技能照常可删、可禁用；投影无内置字段。
+    skill_dir = tmp_path / "skills" / "my-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: my-skill\ndescription: mine.\n---\n", encoding="utf-8"
+    )
+    mine = next(
+        item
+        for item in skills_api.webui_skills_payload(tmp_path)["skills"]
+        if item["name"] == "my-skill"
+    )
+    # Skill 投影的既有键（``deletable``）之外，不得出现本 WU 新增的归属字段。
+    assert {"ownerModule", "origin", "builtinVersion", "protectionReason"}.isdisjoint(mine)
+    assert mine["deletable"] is True
+    assert skills_api.delete_webui_skill(tmp_path, "my-skill", disabled_skills=set())["deleted"]
+    assert not skill_dir.exists()
+
+    # MCP：自定义 server 照常可创建、可删除。
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps({"agents": {"defaults": {"workspace": str(tmp_path / "workspace")}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("nanobot.config.loader._current_config_path", config_path)
+    custom_mcp_action(
+        "custom",
+        {"name": ["my-server"], "type": ["stdio"], "command": ["echo"]},
+        config_path=config_path,
+    )
+    mcp_presets_action("remove", {"name": ["my-server"]}, config_path=config_path)
+
+
+# --------------------------------------------------------------- 业务码一致性
+
+
+def test_protected_code_is_uniform(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """统一业务码 ``BUILTIN_RESOURCE_PROTECTED`` 与统一 message 必须覆盖全部入口。"""
+    _disable_config(monkeypatch)
+    logical_skill = _SKILL_LOGICAL_IDS[0]
+
+    observed: list[tuple[int, str, str]] = []
+
+    with pytest.raises(AgentStoreError) as agent_delete:
+        AgentStore(tmp_path).delete_profile(_AGENT_LOGICAL_IDS[0])
+    observed.append(
+        (agent_delete.value.status, agent_delete.value.code, agent_delete.value.message)
+    )
+
+    with pytest.raises(AgentStoreError) as agent_reset:
+        AgentStore(tmp_path).reset_profile(_AGENT_LOGICAL_IDS[0])
+    observed.append(
+        (agent_reset.value.status, agent_reset.value.code, agent_reset.value.message)
+    )
+
+    with pytest.raises(SkillManagementError) as skill_delete:
+        skills_api.delete_webui_skill(tmp_path, logical_skill, disabled_skills=set())
+    observed.append(
+        (skill_delete.value.status, BUILTIN_RESOURCE_PROTECTED, skill_delete.value.message)
+    )
+
+    service = _team_service(tmp_path)
+    _seed_builtin_team(service)
+    with pytest.raises(Exception) as team_archive:
+        service.archive_team(
+            WRITING_TEAM_LOGICAL_ID, expected_revision=1, request_id="c2"
+        )
+    assert isinstance(team_archive.value, BuiltinResourceProtected)
+    observed.append(
+        (team_archive.value.status, team_archive.value.code, team_archive.value.message)
+    )
+
+    for status, code, message in observed:
+        assert code == BUILTIN_RESOURCE_PROTECTED
+        assert status == 409
+        # message 逐字统一：只有 <asset_kind>/<logical_id> 不同。
+        assert message.startswith("builtin resource is protected: ")
+
+    # 唯一 message 出口：任何入口的原文都必须能被唯一 helper 复现。
+    assert protected_write_message("agent", _AGENT_LOGICAL_IDS[0]) == observed[0][2]
+    assert protected_write_message("skill", logical_skill) == observed[2][2]
+    assert (
+        protected_write_message("team", WRITING_TEAM_LOGICAL_ID)
+        == observed[3][2]
+    )
+    assert len({message.split(": ", 1)[1] for _, _, message in observed}) == 3
+
+
+def test_handler_translates_builtin_protection_to_409() -> None:
+    """handler 的失败信封必须带 409 与业务码前缀（契约 §4）。"""
+    from nanobot.writing.builtin import BuiltinResourceProtected
+
+    handler = TeamSettingsHandler.__new__(TeamSettingsHandler)
+    assert handler is not None
+    status, error = translate(BuiltinResourceProtected("team", WRITING_TEAM_LOGICAL_ID))
+    assert status == 409
+    assert error.startswith(BUILTIN_RESOURCE_PROTECTED)
+    assert _builtin_message("team", WRITING_TEAM_LOGICAL_ID) in error

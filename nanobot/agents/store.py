@@ -17,6 +17,7 @@ import threading
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from loguru import logger
 
@@ -34,12 +35,86 @@ from nanobot.agents.models import AgentCategory, AgentProfile
 
 
 class AgentStoreError(ValueError):
-    """可安全回传给 WebUI 的存储层错误。"""
+    """可安全回传给 WebUI 的存储层错误。
 
-    def __init__(self, message: str, *, status: int = 400) -> None:
+    ``code`` 只在需要业务码的拒绝路径上给（如 ``BUILTIN_RESOURCE_PROTECTED``）；
+    其余错误保持 ``None``，传输层照旧只看 ``message`` / ``status``。
+    """
+
+    def __init__(self, message: str, *, status: int = 400, code: str | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.status = status
+        self.code = code
+
+
+# 归属模块与业务码取自 ``nanobot.writing.builtin``（唯一真相源），此处只做转发。
+_ASSET_KIND_AGENT = "agent"
+_PROTECTED_TEMPLATE = "builtin resource is protected: {kind}/{logical_id}"
+
+# 说明：本模块**不得**在导入期 import ``nanobot.writing.builtin``。那条链（
+# ``nanobot.writing.database`` → ``nanobot.config.paths``）会让 ``nanobot.agent`` 在
+# 后续 ``mock.patch("nanobot.agent.tools.mcp...")`` 这类按名解析里不可达——既有测试
+# 因此会失败。内置判定一律走下面这些懒引入 helper。
+
+
+def protected_write_message(kind: str, logical_id: str) -> str:
+    """契约 §4 的统一受保护 message。四个域共用，避免文案各自漂移。"""
+    return _PROTECTED_TEMPLATE.format(kind=kind, logical_id=logical_id)
+
+
+def _builtin_asset_registry() -> type[Any]:
+    """懒引入内置清单：导入期不拉进 ``nanobot.writing``，理由见上面的说明。"""
+    from nanobot.writing.builtin import BuiltinAssetRegistry
+
+    return BuiltinAssetRegistry
+
+
+def protected_write_code() -> str:
+    """统一业务码（契约 §4）。"""
+    from nanobot.writing.builtin import BUILTIN_RESOURCE_PROTECTED
+
+    return BUILTIN_RESOURCE_PROTECTED
+
+
+def protected_write_error(kind: str, logical_id: str) -> AgentStoreError:
+    """统一构造「内置资产受保护」存储层错误（409 / ``BUILTIN_RESOURCE_PROTECTED``）。"""
+    return AgentStoreError(
+        protected_write_message(kind, logical_id),
+        status=409,
+        code=protected_write_code(),
+    )
+
+
+def _builtin_agent_asset(agent_id: str):
+    """该 id 对应的内置清单条目；不是创作空间内置 Agent 则为 ``None``。"""
+    return _builtin_asset_registry().get_asset(_ASSET_KIND_AGENT, agent_id)
+
+
+def is_protected_builtin_agent(agent_id: str) -> bool:
+    """受保护的创作空间内置 Agent（数据源只有 ``WRITING_BUILTIN_ASSETS``）。"""
+    asset = _builtin_agent_asset(agent_id)
+    return bool(asset is not None and asset.protected)
+
+
+def agent_builtin_projection(agent_id: str) -> dict[str, object]:
+    """管理投影的创作内置字段；非内置 Agent 返回空 dict（不得给用户资源加字段）。"""
+    asset = _builtin_agent_asset(agent_id)
+    if asset is None or not asset.protected:
+        return {}
+    from nanobot.writing.builtin import (
+        ORIGIN_BUILTIN,
+        OWNER_MODULE,
+        WRITING_BUILTIN_VERSION,
+    )
+
+    return {
+        "ownerModule": OWNER_MODULE,
+        "origin": ORIGIN_BUILTIN,
+        "builtinVersion": WRITING_BUILTIN_VERSION,
+        "deletable": False,
+        "protectionReason": protected_write_message(_ASSET_KIND_AGENT, agent_id),
+    }
 
 
 def _atomic_write(path: Path, content: str) -> None:
@@ -161,11 +236,19 @@ class AgentStore:
     # -- 写 -------------------------------------------------------------------
 
     def save_profile(self, profile: AgentProfile) -> AgentProfile:
-        """校验并落盘。``type`` / ``customized`` / ``updatedAt`` 一律由服务端决定。"""
+        """校验并落盘。``type`` / ``customized`` / ``updatedAt`` 一律由服务端决定。
+
+        创作空间内置档案不得被改写：身份由 ``nanobot.writing.builtin`` 给出，档案内容
+        由 catalog 出厂预设给出。仅改 ``hidden``（视图偏好）不算改写，仍然放行——
+        「隐藏内置档案」是既有承诺，本层不撤销它。
+        """
         with self._lock:
             self._path_for(profile.id)
             profile.validate()
             factory = factory_for(profile.id)
+            if factory is not None and is_protected_builtin_agent(profile.id):
+                if is_customized(profile, factory):
+                    raise protected_write_error(_ASSET_KIND_AGENT, profile.id)
             stored = replace(
                 profile,
                 type="system" if factory is not None else "custom",
@@ -178,6 +261,9 @@ class AgentStore:
     def delete_profile(self, agent_id: str) -> None:
         with self._lock:
             profile = self.get_profile(agent_id)
+            if is_protected_builtin_agent(agent_id):
+                # 创作空间内置档案的归属事实优先于通用 system 文案（契约 §4）。
+                raise protected_write_error(_ASSET_KIND_AGENT, agent_id)
             if profile.type == "system":
                 # 拒绝而不是删：出厂自愈会在下一次加载时把它补回来，
                 # 用户会看到「删了又出现」。见契约 §9.5。
@@ -194,6 +280,10 @@ class AgentStore:
             factory = factory_for(agent_id)
             if factory is None or current.type != "system":
                 raise AgentStoreError("只有系统预设可以重置", status=409)
+            if is_protected_builtin_agent(agent_id):
+                # 重置会把档案恢复成出厂值——那正是「内置身份的内容由 catalog 决定」，
+                # 但用户对内置档案的显式覆盖必须可见地失败，而不是被静默抹平。
+                raise protected_write_error(_ASSET_KIND_AGENT, agent_id)
             # hidden 是视图偏好而非内容定制，重置不该把它一并抹掉。
             fresh = replace(factory, hidden=current.hidden, updated_at=_utc_now())
             self._persist(fresh)

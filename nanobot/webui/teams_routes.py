@@ -42,6 +42,7 @@ from nanobot.webui.settings_contracts import (
     SettingsRouteResult,
     WebUISettingsError,
 )
+from nanobot.writing.builtin import BUILTIN_RESOURCE_PROTECTED, BuiltinResourceProtected
 
 # 本域认识的动作全集；settings router 用它把 action 路由进来。
 TEAMS_ACTION_NAMES = frozenset({
@@ -157,6 +158,9 @@ _ERROR_CODES: dict[type[BaseException], tuple[int, str]] = {
     TeamDisabled: (503, "TEAMS_DISABLED"),
     WriterBusy: (503, "STORAGE_UNAVAILABLE"),
     StorageUnavailable: (503, "STORAGE_UNAVAILABLE"),
+    # 创作空间内置团队受保护（契约 §4）：业务码与异常自带的 message 原文一致，
+    # ``translate`` 的 ``startswith`` 去重逻辑据此不会拼两遍。
+    BuiltinResourceProtected: (409, BUILTIN_RESOURCE_PROTECTED),
 }
 
 

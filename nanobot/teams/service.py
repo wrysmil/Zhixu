@@ -36,6 +36,7 @@ from nanobot.teams.models import (
     TeamValidationError,
 )
 from nanobot.teams.repository import DEFAULT_EVENT_LIMIT, TeamRepository, new_id, utc_now_iso
+from nanobot.writing.builtin import BuiltinAssetRegistry
 
 
 class TeamDisabled(RuntimeError):  # noqa: N818  # 映射 503 TEAMS_DISABLED
@@ -102,7 +103,12 @@ def _snapshot_of(record: ProfileRecord) -> AgentProfileSnapshot:
 
 
 class TeamService:
-    """一个 workspace 一个实例；由 gateway 注入，不通过模块全局读取 Loop。"""
+    """一个 workspace 一个实例；由 gateway 注入，不通过模块全局读取 Loop。
+
+    ``builtin_registry`` 是创作空间内置资产的权威登记处（``nanobot.writing.builtin``）。
+    未注入时本层不做内置判定，团队写入口保持原语义——测试替身与未接线的装配因此
+    不需要改动，也不会出现「静默保护」。
+    """
 
     def __init__(
         self,
@@ -111,11 +117,24 @@ class TeamService:
         *,
         enabled: bool = True,
         writer_owned: bool = True,
+        builtin_registry: BuiltinAssetRegistry | None = None,
     ) -> None:
         self.repository = repository
         self.profiles = profiles
         self.enabled = enabled
         self.writer_owned = writer_owned
+        self.builtin_registry = builtin_registry
+
+    # ------------------------------------------------------------------ 内置保护
+
+    def _require_team_writable(self, team_id: str) -> None:
+        """内置团队（``asset_kind="team"``）受保护：覆盖 / 归档一律拒绝。
+
+        抛 :class:`~nanobot.writing.builtin.BuiltinResourceProtected`（业务码
+        ``BUILTIN_RESOURCE_PROTECTED``、HTTP 409、message 见契约 §4）。
+        """
+        if self.builtin_registry is not None:
+            self.builtin_registry.ensure_writable("team", team_id)
 
     # ------------------------------------------------------------------ 写入
 
@@ -132,6 +151,7 @@ class TeamService:
             # 创建路径原样交给 from_create_payload：客户端伪造服务端字段要报错，
             # 不是悄悄丢掉，否则前端拼错的载荷会被当成合法请求。
             definition = TeamDefinition.from_create_payload(data, now=utc_now_iso())
+            self._require_team_writable(definition.id)
         else:
             editable = {
                 key: value
@@ -141,6 +161,7 @@ class TeamService:
             team_id = editable.get("id")
             if not isinstance(team_id, str) or not team_id:
                 raise TeamValidationError("team update requires an id")
+            self._require_team_writable(team_id)
             previous = self.repository.get_team(team_id)
             # 归档团队只留一条可写路径：显式把 archived 置回 false（取消归档）。其余编辑仍
             # 被挡在门外，让「已归档」保持内容冻结；契约 §4 的硬不变量是禁止新运行，那条
@@ -164,11 +185,13 @@ class TeamService:
         )
 
     def archive_team(self, team_id: str, *, expected_revision: int, request_id: str) -> dict[str, Any]:
+        self._require_team_writable(team_id)
         return self.repository.set_archived(
             team_id, expected_revision=expected_revision, request_id=request_id
         )
 
     def clone_team(self, team_id: str, *, name: str, request_id: str) -> dict[str, Any]:
+        """内置团队**可以**复制为自定义：只读源定义，新 id 由服务端分配。"""
         source = self.repository.get_team(team_id)
         snapshot = self.freeze(source)
         return self.repository.clone_team(

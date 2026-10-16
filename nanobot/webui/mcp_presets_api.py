@@ -31,6 +31,8 @@ from nanobot.config.loader import load_config, resolve_config_env_vars, save_con
 from nanobot.config.paths import get_runtime_subdir
 from nanobot.config.schema import MCPServerConfig
 from nanobot.utils.helpers import ensure_dir
+from nanobot.webui.skills_api import protected_write_message
+from nanobot.writing import builtin as writing_builtin
 
 QueryParams = dict[str, list[str]]
 
@@ -1454,6 +1456,31 @@ def _oauth_credentials_replaced(
     return replacement.auth != "oauth" or replacement.url != previous.url
 
 
+# 内置资产类别；与契约 §7 的清单口径一致。
+_ASSET_KIND_MCP = "mcp"
+
+
+def _builtin_mcp_logical_ids() -> frozenset[str]:
+    """创作空间内置 MCP 预设的逻辑 id 集合。
+
+    数据源只有 ``nanobot.writing.builtin`` 的内置清单——不在这里另写一份硬编码名单。
+    契约 §7 首批不提供内置预设，因此本集合当前为空，三处守卫保持静默；首批条目出现时
+    自动生效。查表走 registry 的同一张表（``get_asset`` 用的就是它），因此「内置」的
+    判定口径在投影与写入口之间不会分叉。
+    """
+    return frozenset(
+        logical_id
+        for (kind, logical_id), asset in writing_builtin._ASSETS_BY_KEY.items()
+        if kind == _ASSET_KIND_MCP and asset.protected
+    )
+
+
+def _require_mcp_not_builtin(name: str) -> None:
+    """受保护的内置 MCP 预设：覆盖 / 删除 / 导入一律拒绝（契约 §4，HTTP 409）。"""
+    if name in _builtin_mcp_logical_ids():
+        raise McpPresetError(protected_write_message(_ASSET_KIND_MCP, name), status=409)
+
+
 def custom_mcp_action(
     action: str,
     query: QueryParams,
@@ -1463,6 +1490,8 @@ def custom_mcp_action(
     config = load_config(config_path) if config_path is not None else load_config()
     if action == "custom":
         name, cfg = _custom_server_from_query(query)
+        # 直接写一个与内置预设同名的自定义 server 同样是覆盖内置身份。
+        _require_mcp_not_builtin(name)
         delete_credentials = _oauth_credentials_replaced(config.tools.mcp_servers.get(name), cfg)
         config.tools.mcp_servers[name] = cfg
         save_config(config, config_path)
@@ -1477,6 +1506,8 @@ def custom_mcp_action(
 
     if action in {"import", "import-cursor"}:
         servers = _import_mcp_servers(_query_first(query, "config"))
+        for name in servers:
+            _require_mcp_not_builtin(name)
         delete_credentials = [
             name
             for name, cfg in servers.items()
@@ -1521,6 +1552,8 @@ def ensure_mcp_oauth_server(
 ) -> tuple[str, MCPServerConfig]:
     """Materialize an OAuth preset on first click and return its saved config."""
     name = _validated_server_name((_query_first(query, "name") or "").strip())
+    # OAuth 首点同样会把配置写进 config：内置预设在这里也要拦（契约 §4）。
+    _require_mcp_not_builtin(name)
     config = load_config(config_path) if config_path is not None else load_config()
     cfg = config.tools.mcp_servers.get(name)
     if cfg is None:
@@ -1544,6 +1577,8 @@ def mcp_presets_action(
     name = (_query_first(query, "name") or "").strip()
     if not name:
         raise McpPresetError("missing MCP preset name")
+    # 内置保护先于存在性判定：受保护的身份不因「当前没配」而变成可写。
+    _require_mcp_not_builtin(name)
     preset = _preset_by_name_optional(name)
 
     config = load_config(config_path) if config_path is not None else load_config()
