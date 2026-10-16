@@ -1,0 +1,327 @@
+"""T05：为单个 case_attempt 构造隔离运行环境（spec §8）。
+
+顺序是硬要求：**先**把本进程的配置路径上下文指向 attempt 目录，**再**构造 SDK ——
+``Config.runtime_data_dir`` 由 ``bind_source_path`` 的父目录决定，只覆盖 workspace 并不能
+隔离会话、记忆与运行时数据。
+
+凭据只存在于内存与私有管道：profile_bundle 深合并进 ``Config`` 的内存副本，原始 boot 与合并后的
+配置都不落盘；落盘的只有该 attempt 自己的会话/记忆/Trace 目录。
+
+工具侧沿用 SDK 的构造链（``AgentLoop.from_config`` + 现有 hook factories），默认注册的 20 多个工具
+在注册表里被**逐个 unregister**（不是只隐藏名字），再补上契约允许的受控工具；MCP provider 干脆不构造，
+因此不存在自动连接。最后把生效能力清单交给报告（spec §7.3 的工具口径）。
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from copy import deepcopy
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from nanobot.agent.hooks import create_file_edit_activity_hook
+from nanobot.agent.loop import AgentLoop
+from nanobot.agent.tools.registry import ToolRegistry
+from nanobot.config import loader
+from nanobot.config.schema import Config
+from nanobot.evaluation.fixtures import (
+    CONTROLLED_TOOL_NAMES,
+    ControlledClock,
+    FixtureTable,
+    materialize_fixtures,
+    register_controlled_tools,
+    seed_memory,
+)
+from nanobot.evaluation.schemas import AgentWorkerBoot, CaseWrite, JudgeWorkerBoot, ToolFixture
+from nanobot.nanobot import Nanobot
+
+ATTEMPT_SESSION_PREFIX = "eval:"
+CONFIG_FILE_NAME = "config.json"
+
+RUNTIME_ROOT_NOT_ABSOLUTE = "RUNTIME_ROOT_NOT_ABSOLUTE"
+PROFILE_BUNDLE_INVALID = "PROFILE_BUNDLE_INVALID"
+PROFILE_MODEL_MISSING = "PROFILE_MODEL_MISSING"
+TOOL_NOT_REGISTERED = "TOOL_NOT_REGISTERED"
+SANDBOX_VIOLATION = "SANDBOX_VIOLATION"
+
+#: 首版 Worker 绝不允许出现的能力（spec §8：原生 shell、任意 MCP、投递、自修改、goal、插件等）。
+FORBIDDEN_TOOLS: frozenset[str] = frozenset(
+    {
+        "exec", "exec_session", "list_exec_sessions", "apply_patch", "run_cli_app",
+        "spawn", "message", "send_session_message", "my",
+        "create_goal", "update_goal", "list_sessions", "read_session", "search_sessions",
+        "ask_question",
+    }
+)
+#: 报告里显式声明已关闭的外部副作用子系统。
+DISABLED_SUBSYSTEMS: tuple[str, ...] = (
+    "mcp_auto_connect",
+    "channel_delivery",
+    "cron_jobs",
+    "dream_consolidation",
+    "self_modification",
+    "native_shell",
+    "subagent_spawn",
+    "sustained_goals",
+    "cli_apps",
+    "image_generation",
+    "third_party_tool_plugins",
+)
+
+_MCP_PREFIX = "mcp_"
+
+
+@dataclass(frozen=True)
+class AttemptPaths:
+    """一个 attempt 专属的目录布局（全部落在服务端下发的 runtime root 之下）。"""
+
+    attempt_id: str
+    root: Path
+    runtime_root: Path
+    workspace: Path
+    config_path: Path
+    sessions_dir: Path
+    trace_dir: Path
+    artifact_dir: Path
+    log_path: Path
+
+    def create(self) -> None:
+        for directory in (
+            self.root, self.runtime_root, self.workspace,
+            self.trace_dir, self.artifact_dir,
+        ):
+            directory.mkdir(parents=True, exist_ok=True)
+
+
+@dataclass
+class AttemptRuntime:
+    """Worker 拿到的全部运行侧对象；关闭时只释放本 attempt 的 SDK 资源。"""
+
+    attempt_id: str
+    role: str
+    paths: AttemptPaths
+    config: Config
+    bot: Nanobot
+    loop: AgentLoop
+    registry: ToolRegistry
+    capability: dict[str, Any]
+    session_key: str
+    clock: ControlledClock
+    _closed: bool = False
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    @property
+    def provider(self) -> Any:
+        """实际生效的 provider 实例（Worker 只在这里挂 usage observer）。"""
+        return self.loop.provider
+
+    async def aclose(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        await self.bot.aclose()
+
+
+def attempt_paths(*, attempt_id: str, runtime_root: str, workspace: str) -> AttemptPaths:
+    root = Path(runtime_root)
+    if not root.is_absolute() or not Path(workspace).is_absolute():
+        raise ValueError(
+            f"{RUNTIME_ROOT_NOT_ABSOLUTE}: runtime_root and workspace must be absolute"
+        )
+    runtime = root.resolve()
+    resolved_workspace = Path(workspace).resolve()
+    return AttemptPaths(
+        attempt_id=attempt_id,
+        root=runtime.parent,
+        runtime_root=runtime,
+        workspace=resolved_workspace,
+        config_path=runtime / CONFIG_FILE_NAME,
+        sessions_dir=runtime / "sessions",
+        trace_dir=runtime.parent / "trace",
+        artifact_dir=runtime.parent / "artifacts",
+        log_path=runtime.parent / "worker.log",
+    )
+
+
+def _merge(base: dict[str, Any], patch: Mapping[str, Any]) -> dict[str, Any]:
+    """递归合并配置片段；列表与非 dict 值整体替换，不做元素级追加。"""
+    merged = dict(base)
+    for key, value in patch.items():
+        if isinstance(value, Mapping) and isinstance(merged.get(key), dict):
+            merged[key] = _merge(merged[key], value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
+
+
+def _sandbox_overlay(paths: AttemptPaths, max_iterations: int | None) -> dict[str, Any]:
+    defaults: dict[str, Any] = {
+        "workspace": str(paths.workspace),
+        "idleCompactAfterMinutes": 0,
+        "idle_compact_check_interval_seconds": 0,
+        "unifiedSession": False,
+        # 外部投递与后台任务一律关掉：评估进程没有渠道，也不该有。
+        "dream": {"enabled": False},
+        "fallbackModels": [],
+    }
+    if max_iterations is not None:
+        defaults["maxToolIterations"] = max_iterations
+    return {
+        "agents": {"defaults": defaults},
+        "tools": {
+            "restrictToWorkspace": True,
+            "mcpServers": {},
+            "ssrfWhitelist": [],
+            "exec": {"enable": False},
+            "my": {"enable": False},
+            "cliApps": {"enable": False},
+            "imageGeneration": {"enabled": False},
+            "webuiAllowLocalServiceAccess": False,
+            "webuiAllowRemotePackageInstall": False,
+        },
+        # ChannelsConfig 是 extra=allow：整体替换才能连用户配置里的渠道条目一起清掉。
+        "channels": {
+            "sendProgress": False,
+            "sendToolHints": False,
+            "showReasoning": False,
+        },
+    }
+
+
+def build_attempt_config(
+    *,
+    profile_bundle: Mapping[str, Any],
+    paths: AttemptPaths,
+    max_iterations: int | None = None,
+    base_config: Config | None = None,
+) -> Config:
+    """内存里合成执行配置：profile 先合并，沙箱覆盖层最后生效且不可被 profile 翻转。"""
+    config_part = profile_bundle.get("config")
+    if not isinstance(config_part, Mapping):
+        raise ValueError(
+            f"{PROFILE_BUNDLE_INVALID}: profile_bundle.config must be an object"
+        )
+    base = base_config if base_config is not None else Config()
+    data = _merge(
+        base.model_dump(mode="json", by_alias=True), config_part
+    )
+    data = _merge(data, _sandbox_overlay(paths, max_iterations))
+    config = Config.model_validate(data)
+    # 只记路径归属，不写文件：runtime_data_dir 由此指向 attempt 的 runtime root。
+    config.bind_source_path(paths.config_path)
+    if not config.resolve_preset().model.strip():
+        raise ValueError(f"{PROFILE_MODEL_MISSING}: agents.defaults.model is empty")
+    return config
+
+
+def _tool_fixtures(case: CaseWrite | None) -> list[ToolFixture]:
+    return list(case.tool_fixtures) if case is not None else []
+
+
+def _apply_tool_whitelist(
+    registry: ToolRegistry, *, allowed: list[str], table: FixtureTable
+) -> tuple[list[str], list[str], list[str]]:
+    """注销所有未授权的默认工具，再注册契约允许的受控工具。"""
+    registered_before = list(registry.tool_names)
+    for name in registered_before:
+        if name not in allowed:
+            registry.unregister(name)
+    controlled = register_controlled_tools(registry, table, allowed)
+    registered = list(registry.tool_names)
+    missing = [name for name in allowed if name not in registered]
+    if missing:
+        raise ValueError(f"{TOOL_NOT_REGISTERED}: {', '.join(sorted(missing))}")
+    forbidden = [
+        name for name in registered
+        if name in FORBIDDEN_TOOLS or name.startswith(_MCP_PREFIX)
+    ]
+    if forbidden:
+        raise ValueError(f"{SANDBOX_VIOLATION}: {', '.join(sorted(forbidden))}")
+    removed = [name for name in registered_before if name not in registered]
+    return registered, removed, controlled
+
+
+async def create_attempt(
+    boot: AgentWorkerBoot | JudgeWorkerBoot,
+    *,
+    provider: Any | None = None,
+    base_config: Config | None = None,
+) -> AttemptRuntime:
+    """按 boot 建立隔离运行环境，并完成文件种子、记忆种子与能力清单。"""
+    paths = attempt_paths(
+        attempt_id=str(boot.attempt_id),
+        runtime_root=boot.runtime_root,
+        workspace=boot.workspace,
+    )
+    paths.create()
+    # 先设配置上下文，再构造 SDK：任何按 get_config_path() 派生路径的子系统都指向本 attempt。
+    loader.set_config_path(paths.config_path)
+
+    case = getattr(boot, "case_snapshot", None)
+    execution = case.execution if isinstance(case, CaseWrite) else None
+    allowed = list(execution.allowed_tools) if execution is not None else []
+    clock = ControlledClock(case.clock_iso if isinstance(case, CaseWrite) else None)
+    config = build_attempt_config(
+        profile_bundle=boot.profile_bundle,
+        paths=paths,
+        max_iterations=execution.max_iterations if execution is not None else None,
+        base_config=base_config,
+    )
+
+    registry = ToolRegistry()
+    # 不构造 MCPProvider：首版 Worker 没有自动连接外部 MCP 的入口。
+    loop = AgentLoop.from_config(
+        config,
+        tool_registry=registry,
+        hook_factories=[create_file_edit_activity_hook],
+        provider=provider,
+    )
+    table = FixtureTable.from_fixtures(
+        _tool_fixtures(case if isinstance(case, CaseWrite) else None), clock=clock
+    )
+    registered, removed, controlled = _apply_tool_whitelist(
+        registry, allowed=allowed, table=table
+    )
+
+    bot = Nanobot(loop, config=config)
+    session_key = f"{ATTEMPT_SESSION_PREFIX}{boot.attempt_id}"
+    fixtures_written: list[str] = []
+    seeded = 0
+    if isinstance(case, CaseWrite):
+        fixtures_written = materialize_fixtures(paths.workspace, case.fixtures)
+        seeded = seed_memory(bot.memory, case.memory_seed, session_key=session_key)
+
+    capability = {
+        "role": boot.role,
+        "tool_mode": execution.tool_mode if execution is not None else "none",
+        "allowed_tools": allowed,
+        "registered_tools": sorted(registered),
+        "removed_tools": sorted(removed),
+        "controlled_tools": sorted(controlled),
+        "fixture_files": sorted(fixtures_written),
+        "memory_seed_entries": seeded,
+        "external_dependencies": execution.tool_mode == "live" if execution is not None else False,
+        "disabled_subsystems": list(DISABLED_SUBSYSTEMS),
+        "controlled_tool_names": sorted(CONTROLLED_TOOL_NAMES),
+        "model": config.resolve_preset().model,
+        "provider": config.resolve_preset().provider,
+        "clock_iso": clock.clock_iso,
+        "max_iterations": execution.max_iterations if execution is not None else None,
+        "timeout_s": execution.timeout_s if execution is not None else None,
+    }
+    return AttemptRuntime(
+        attempt_id=str(boot.attempt_id),
+        role=boot.role,
+        paths=paths,
+        config=config,
+        bot=bot,
+        loop=loop,
+        registry=registry,
+        capability=capability,
+        session_key=session_key,
+        clock=clock,
+    )
