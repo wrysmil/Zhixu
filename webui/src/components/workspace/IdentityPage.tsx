@@ -4,6 +4,8 @@ import {
   AlertTriangle,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Compass,
   Feather,
   FlaskConical,
@@ -24,6 +26,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { formControlFocusClassName } from "@/components/ui/form-control";
+import { floatingSurfaceElevationClassName } from "@/components/ui/floating-surface";
 import {
   fetchIdentityFile,
   getActivePersona,
@@ -128,6 +131,42 @@ const LANGUAGE_OPTIONS: Array<{ value: LanguageKey; label: string; description: 
 // Helpers
 // -----------------------------------------------------------------------------
 
+interface IdentityStep {
+  key: string;
+  label: string;
+  hint: string;
+}
+
+/**
+ * The editor is split into paged steps instead of one long scroll: every step
+ * fits the desktop viewport, so picking a vibe and filling the form never
+ * pushes the save actions below the fold.
+ */
+function identitySteps(zh: boolean): IdentityStep[] {
+  return [
+    {
+      key: "vibe",
+      label: zh ? "性格卡片" : "Vibe",
+      hint: zh ? "选中后会自动填好后面的表单" : "Selecting one fills the form for you",
+    },
+    {
+      key: "voice",
+      label: zh ? "称呼与语气" : "Name & tone",
+      hint: zh ? "空白处会自动跳过" : "Empty entries are skipped",
+    },
+    {
+      key: "rules",
+      label: zh ? "底线与备注" : "Rules & notes",
+      hint: zh ? "告诉它什么不能做" : "What it must not do",
+    },
+    {
+      key: "advanced",
+      label: zh ? "高级 Markdown" : "Advanced",
+      hint: zh ? "直接编辑身份文件" : "Edit the identity file directly",
+    },
+  ];
+}
+
 
 
 // -----------------------------------------------------------------------------
@@ -149,7 +188,7 @@ function PersonaGallery({
   const zh = i18n.resolvedLanguage?.startsWith("zh");
 
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {PERSONA_CARDS.map((spec, index) => {
         const Icon = spec.icon;
         const isActive = spec.presetKey === activePresetKey;
@@ -161,13 +200,12 @@ function PersonaGallery({
         const tagline = preset
           ? t(preset.descriptionKey, { defaultValue: spec.fallbackTagline })
           : spec.fallbackTagline;
-        // Asymmetric grid: the first card spans wider, last card sits a bit
-        // higher — avoids the perfectly-aligned "three equal cards" feel.
+        // The default vibe leads the gallery: it spans both columns wherever
+        // the grid has room, so the five cards fill whole rows instead of
+        // leaving a hole and no card gets squeezed below a readable width.
         const offsetClass = index === 0
-          ? "xl:col-span-2 xl:row-span-2"
-          : index === PERSONA_CARDS.length - 1
-            ? "xl:mt-6"
-            : "";
+          ? "sm:col-span-2"
+          : "";
 
         return (
           <button
@@ -176,7 +214,7 @@ function PersonaGallery({
             disabled={!preset || isBusy}
             onClick={() => preset && onSelect(preset)}
             className={cn(
-              "group relative flex flex-col items-start gap-3 overflow-hidden rounded-2xl border bg-gradient-to-br p-4 text-left transition-all duration-200 ease-out",
+              "group relative flex flex-col items-start gap-3 overflow-hidden rounded-2xl border bg-gradient-to-br p-3.5 text-left transition-all duration-200 ease-out",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               "disabled:cursor-default disabled:opacity-90",
               spec.toneClass,
@@ -244,7 +282,7 @@ function TonePicker({
   onChange: (next: ToneKey) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2">
       {TONE_OPTIONS.map((option) => {
         const Icon = option.icon;
         const active = option.value === value;
@@ -505,7 +543,7 @@ function AdvancedPanel({
 
 export function IdentityPage() {
   const { i18n } = useTranslation();
-  const zh = i18n.resolvedLanguage?.startsWith("zh");
+  const zh = i18n.resolvedLanguage?.startsWith("zh") ?? false;
   const { client, token } = useClient();
 
   const [form, setForm] = useState<IdentityFormState>(DEFAULT_FORM_STATE);
@@ -523,6 +561,8 @@ export function IdentityPage() {
   const [dirty, setDirty] = useState(false);
   const [initial, setInitial] = useState<IdentityFormState>(DEFAULT_FORM_STATE);
   const initialRef = useRef<IdentityFormState>(DEFAULT_FORM_STATE);
+  const [step, setStep] = useState(0);
+  const steps = useMemo(() => identitySteps(zh), [zh]);
 
   // Load presets, persona options, and SOUL.md once on mount.
   useEffect(() => {
@@ -632,7 +672,7 @@ export function IdentityPage() {
       setInitial(form);
       initialRef.current = form;
       setSaveState("saved");
-      window.setTimeout(() => setSaveState("idle"), 1800);
+      window.setTimeout(() => setSaveState("idle"), 2600);
     } catch (reason) {
       setSaveState("idle");
       setSaveError(
@@ -661,7 +701,7 @@ export function IdentityPage() {
   }, [client, token]);
 
   return (
-    <div className="mx-auto w-full max-w-[1180px] px-4 py-8 sm:px-8 lg:px-10">
+    <div className="mx-auto w-full max-w-[1180px] px-4 py-8 sm:px-8 lg:px-10 2xl:max-w-[1400px]">
       <header className="grid grid-cols-1 items-end gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="space-y-2">
           <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-primary/85">
@@ -670,7 +710,7 @@ export function IdentityPage() {
           <h1 className="text-[28px] font-semibold leading-tight text-foreground sm:text-[32px]">
             {zh ? "让 Agent 用你想要的方式说话" : "Make the agent sound like you want"}
           </h1>
-          <p className="max-w-[560px] text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="max-w-[720px] text-[13.5px] leading-relaxed text-muted-foreground">
             {zh
               ? "从一张性格卡片开始，再用几个简单问题补充细节。下面看到的就是 Agent 之后会怎么开口。"
               : "Pick a vibe, answer a few quick questions, and see exactly how the agent will greet you next time."}
@@ -681,7 +721,7 @@ export function IdentityPage() {
             src="/illustrations/identity-hero.svg"
             alt=""
             aria-hidden
-            className="h-[148px] w-auto select-none"
+            className="h-[120px] w-auto select-none 2xl:h-[148px]"
             draggable={false}
           />
         </div>
@@ -700,36 +740,69 @@ export function IdentityPage() {
         </div>
       ) : null}
 
-      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-        {/* Left column: persona + form */}
-        <div className="space-y-8">
-          <section className="space-y-4">
-            <header className="flex items-baseline justify-between gap-3">
-              <h2 className="text-[16px] font-semibold text-foreground">
-                {zh ? "1 · 选一张性格卡片" : "1 · Pick a vibe"}
-              </h2>
-              <span className="text-[11.5px] text-muted-foreground">
-                {zh ? "选中后会自动填好下面的表单" : "Selecting one fills the form for you"}
-              </span>
-            </header>
-            <PersonaGallery
-              presets={presets}
-              activePresetKey={activePersona}
-              busyKey={personaBusy}
-              onSelect={handleSelectPreset}
-            />
-          </section>
+      <div className="mt-4 grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+        {/* Left column: paged identity editor (one step at a time) */}
+        <div className="min-w-0 space-y-3">
+          <div
+            role="tablist"
+            aria-label={zh ? "身份设定步骤" : "Identity setup steps"}
+            className="flex flex-wrap items-center gap-2"
+          >
+            {steps.map((entry, index) => {
+              const active = index === step;
+              return (
+                <button
+                  key={entry.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  aria-controls={`identity-step-${entry.key}`}
+                  onClick={() => setStep(index)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150 ease-out",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    active
+                      ? "border-primary/55 bg-primary text-primary-foreground shadow-sm"
+                      : "border-border/70 bg-background/60 text-foreground/75 hover:border-primary/35 hover:bg-primary/[0.05]",
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex h-[18px] w-[18px] items-center justify-center rounded-full text-[10.5px] font-semibold",
+                      active ? "bg-white/25" : "bg-foreground/[0.07] text-foreground/70",
+                    )}
+                  >
+                    {index + 1}
+                  </span>
+                  {entry.label}
+                </button>
+              );
+            })}
+          </div>
 
-          <section className="space-y-4">
-            <header className="flex items-baseline justify-between gap-3">
-              <h2 className="text-[16px] font-semibold text-foreground">
-                {zh ? "2 · 说说你是谁" : "2 · Tell the agent about you"}
-              </h2>
-              <span className="text-[11.5px] text-muted-foreground">
-                {zh ? "空白处会自动跳过" : "Empty entries are skipped"}
-              </span>
+          <section
+            id={`identity-step-${steps[step].key}`}
+            role="tabpanel"
+            aria-label={steps[step].label}
+            className="space-y-4"
+          >
+            <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <h2 className="text-[16px] font-semibold text-foreground">{steps[step].label}</h2>
+              <span className="text-[11.5px] text-muted-foreground">{steps[step].hint}</span>
             </header>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+            {step === 0 ? (
+              <PersonaGallery
+                presets={presets}
+                activePresetKey={activePersona}
+                busyKey={personaBusy}
+                onSelect={handleSelectPreset}
+              />
+            ) : null}
+
+            {step === 1 ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="flex flex-col gap-1.5 md:col-span-2">
                 <FieldLabel
                   icon={UserRound}
@@ -784,7 +857,11 @@ export function IdentityPage() {
                 />
                 <LanguagePicker value={form.language} onChange={(next) => updateField("language", next)} />
               </div>
+            </div>
+            ) : null}
 
+            {step === 2 ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="flex flex-col gap-1.5 md:col-span-2">
                 <FieldLabel
                   icon={ShieldCheck}
@@ -825,38 +902,63 @@ export function IdentityPage() {
                   )}
                 />
               </label>
-            </div>
+              </div>
+            ) : null}
+
+            {step === 3 ? (
+              <AdvancedPanel
+                draft={rawDirty ? rawDraft : composeForm(form, { language: chooseLanguage(form, zh ? "zh" : "en") })}
+                onDraftChange={(next) => {
+                  setRawDraft(next);
+                  setRawDirty(true);
+                  const parsed = parseForm(next);
+                  setForm(parsed);
+                }}
+                onReload={() => void handleReload()}
+                reloading={reloading}
+              />
+            ) : null}
           </section>
 
-          <AdvancedPanel
-            draft={rawDirty ? rawDraft : composeForm(form, { language: chooseLanguage(form, zh ? "zh" : "en") })}
-            onDraftChange={(next) => {
-              setRawDraft(next);
-              setRawDirty(true);
-              const parsed = parseForm(next);
-              setForm(parsed);
-            }}
-            onReload={() => void handleReload()}
-            reloading={reloading}
-          />
-
-          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-5">
-            <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-              {saveError ? (
-                <span className="inline-flex items-center gap-1 text-destructive">
-                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                  {saveError}
-                </span>
-              ) : dirty ? (
-                <span>{zh ? "有未保存的改动" : "Unsaved changes"}</span>
-              ) : (
-                <span className="inline-flex items-center gap-1">
-                  <Check className="h-3.5 w-3.5 text-primary" aria-hidden />
-                  {zh ? "已是最新" : "Up to date"}
-                </span>
-              )}
-            </div>
+          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setStep((prev) => Math.max(0, prev - 1))}
+                disabled={step === 0}
+                className="h-9 gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+                {zh ? "上一步" : "Back"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep((prev) => Math.min(steps.length - 1, prev + 1))}
+                disabled={step === steps.length - 1}
+                className="h-9 gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium"
+              >
+                {zh ? "下一步" : "Next"}
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                {saveError ? (
+                  <span className="inline-flex items-center gap-1 text-destructive">
+                    <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+                    {saveError}
+                  </span>
+                ) : dirty ? (
+                  <span>{zh ? "有未保存的改动" : "Unsaved changes"}</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1">
+                    <Check className="h-3.5 w-3.5 text-primary" aria-hidden />
+                    {zh ? "已是最新" : "Up to date"}
+                  </span>
+                )}
+              </div>
               <Button
                 type="button"
                 variant="ghost"
@@ -897,7 +999,7 @@ export function IdentityPage() {
         </div>
 
         {/* Right column: live preview */}
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+        <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
           <LivePreview state={form} personaLabel={activePersonaLabel} />
           {personaOptions.length > 0 ? (
             <div className="rounded-2xl border border-border/60 bg-background/55 p-4">
@@ -916,6 +1018,26 @@ export function IdentityPage() {
           ) : null}
         </aside>
       </div>
+
+      {saveState === "saved" ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed left-1/2 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 flex w-[min(28rem,calc(100vw-1rem))] -translate-x-1/2 justify-center animate-in fade-in-0 slide-in-from-top-2 duration-200"
+        >
+          <div
+            className={cn(
+              floatingSurfaceElevationClassName,
+              "inline-flex max-w-full items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium text-foreground",
+            )}
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+              <Check className="h-3 w-3" strokeWidth={2.5} aria-hidden />
+            </span>
+            {zh ? "身份设定已保存，已立即生效" : "Identity saved — live now"}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
