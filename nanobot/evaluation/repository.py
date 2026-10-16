@@ -1033,6 +1033,24 @@ class EvaluationRepository:
                 (execution_status, now, attempt_id),
             )
 
+    def set_attempt_process(
+        self, attempt_id: str, *, pid: int, nonce: str
+    ) -> None:
+        """记录本次服务亲自启动的进程身份，供重启恢复核对。
+
+        nonce 只存在这一列与进程内存，不进命令行、不进 API 响应；重启后核不上就
+        只能走人工处置，这正是「禁止按进程名杀」要保住的后果。
+        """
+        with self._db.connect(immediate=True) as conn:
+            if conn.execute(
+                "SELECT 1 FROM attempts WHERE id = ?", (attempt_id,)
+            ).fetchone() is None:
+                raise RecordNotFound(f"ATTEMPT_NOT_FOUND {attempt_id}")
+            conn.execute(
+                "UPDATE attempts SET pid = ?, process_nonce = ? WHERE id = ?",
+                (pid, nonce, attempt_id),
+            )
+
     def mark_attempt_grading_running(self, attempt_id: str) -> None:
         """评分开始：让「等 Judge」与「还没排到评分」在库里可区分。"""
         with self._db.connect(immediate=True) as conn:
