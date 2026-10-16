@@ -1,5 +1,119 @@
 {
   "creative": {
+    "partner": {
+      "ui": {
+        "after": "After",
+        "angles": "Angles",
+        "before": "Before",
+        "busy": "Working…",
+        "copyRewrite": "Copy rewrite",
+        "dismissMaterial": "Remove from this selection",
+        "empty": "Nothing has come back yet.",
+        "errorUnknown": "The writing partner could not handle that. Try again.",
+        "failed": "This item failed. Try again.",
+        "handoffUnknown": "Waiting for your decision",
+        "inputLabel": "Message the editor",
+        "insertIntoArticle": "Insert into article",
+        "insertSection": "Insert this section",
+        "issues": "Issues to handle",
+        "materials": "Materials",
+        "nextStep": "Next step",
+        "nextStepUnknown": "Open the collaboration process for the next step",
+        "noProgress": "No task is running for this article.",
+        "outlineConfirm": "Save outline and continue",
+        "outlinePoint": "Outline point",
+        "pending": "Waiting for your decision",
+        "plan": "Plan",
+        "quickTasks": "Quick tasks",
+        "rejectRewrite": "Reject",
+        "replaceArticle": "Replace the empty draft",
+        "retry": "Try again",
+        "retryRewrite": "Try another rewrite",
+        "sections": "Sections",
+        "send": "Send to the team",
+        "showFewerIssues": "Show fewer",
+        "showMoreIssues": "Show {{count}} more",
+        "stop": "Stop",
+        "stopping": "Stopping…",
+        "untitled": "Untitled article",
+        "viewAndInsert": "View and insert",
+        "viewMaterials": "View materials",
+        "viewOutline": "View outline"
+      },
+      "title": "Writing partner",
+      "builtinBadge": "Built-in",
+      "process": {
+        "toggle": "View collaboration process"
+      },
+      "input": {
+        "placeholder": "Keep my voice; make section 2 more concrete…"
+      },
+      "requirements": {
+        "toggle": "This article's requirements"
+      },
+      "stage": {
+        "idle": "Idle",
+        "queued": "Queued",
+        "running": "Running",
+        "waiting_author": "Waiting for you",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "interrupted": "Interrupted"
+      },
+      "action": {
+        "start_full": "Run the full pipeline",
+        "ideate": "Find an angle",
+        "research": "Research",
+        "outline": "Build an outline",
+        "draft": "Write a draft",
+        "rewrite_selection": "Rewrite selection",
+        "review_all": "Review everything",
+        "reply": "Reply"
+      },
+      "artifact": {
+        "brief": "Brief",
+        "material_list": "Materials",
+        "outline": "Outline",
+        "draft": "Draft",
+        "rewrite": "Rewrite",
+        "review": "Review"
+      },
+      "artifactAction": {
+        "useAngle": "Use this angle",
+        "addMaterial": "Add material",
+        "writeFromOutline": "Write from outline",
+        "insertDraft": "Insert draft",
+        "applyRewrite": "Apply rewrite",
+        "viewIssues": "View issues"
+      },
+      "handoff": {
+        "outline_confirm": "Outline ready — confirm to continue",
+        "materials_request": "More materials needed",
+        "final_accept": "Final result ready — accept to finish"
+      },
+      "progress": {
+        "researching": "Researching",
+        "outlining": "Outlining",
+        "drafting": "Drafting",
+        "reviewing": "Reviewing",
+        "waitingAuthor": "Waiting for you",
+        "stopped": "Stopped"
+      },
+      "error": {
+        "selectionRequired": "Select some text first",
+        "versionConflict": "The article changed. Reload and try again.",
+        "notPending": "This item is no longer waiting for you.",
+        "serviceUnavailable": "The writing service is unavailable. Try again later.",
+        "requestTooLarge": "That request is too large. Shorten it and try again."
+      },
+      "next": {
+        "writeFromOutline": "Write from this outline",
+        "insertToArticle": "Insert into article",
+        "viewChanges": "View changes",
+        "addMaterials": "Add materials"
+      }
+    },
     "headline": "What would you like to write today?",
     "hero_description": "A piece of code, a hands-on project, a new insight — every article begins somewhere.",
     "topic_label": "Article topic",

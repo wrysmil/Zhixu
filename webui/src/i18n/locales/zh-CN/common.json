@@ -1,5 +1,119 @@
 {
   "creative": {
+    "partner": {
+      "ui": {
+        "after": "修改后",
+        "angles": "切入角度",
+        "before": "修改前",
+        "busy": "处理中…",
+        "copyRewrite": "复制改写",
+        "dismissMaterial": "从本次选择中移除",
+        "empty": "还没有返回结果。",
+        "errorUnknown": "写作搭档无法处理该请求，请重试。",
+        "failed": "该事项失败，请重试。",
+        "handoffUnknown": "等待你的决定",
+        "inputLabel": "给编辑发消息",
+        "insertIntoArticle": "插入正文",
+        "insertSection": "插入本节",
+        "issues": "待处理问题",
+        "materials": "素材",
+        "nextStep": "下一步",
+        "nextStepUnknown": "打开协作过程查看下一步",
+        "noProgress": "这篇文章当前没有运行中的任务。",
+        "outlineConfirm": "保存提纲并继续",
+        "outlinePoint": "提纲要点",
+        "pending": "等待你的决定",
+        "plan": "计划",
+        "quickTasks": "快捷任务",
+        "rejectRewrite": "拒绝",
+        "replaceArticle": "替换空白草稿",
+        "retry": "重试",
+        "retryRewrite": "换一种改写",
+        "sections": "小节",
+        "send": "发送给团队",
+        "showFewerIssues": "收起",
+        "showMoreIssues": "再显示 {{count}} 条",
+        "stop": "停止",
+        "stopping": "正在停止…",
+        "untitled": "未命名文章",
+        "viewAndInsert": "查看并插入",
+        "viewMaterials": "查看素材",
+        "viewOutline": "查看提纲"
+      },
+      "title": "写作搭档",
+      "builtinBadge": "内置",
+      "process": {
+        "toggle": "查看协作过程"
+      },
+      "input": {
+        "placeholder": "保留我的语气；把第 2 节写得更具体…"
+      },
+      "requirements": {
+        "toggle": "本文的要求"
+      },
+      "stage": {
+        "idle": "空闲",
+        "queued": "排队中",
+        "running": "进行中",
+        "waiting_author": "等待你确认",
+        "completed": "已完成",
+        "failed": "失败",
+        "cancelled": "已取消",
+        "interrupted": "已中断"
+      },
+      "action": {
+        "start_full": "启动完整流程",
+        "ideate": "寻找选题角度",
+        "research": "调研",
+        "outline": "生成提纲",
+        "draft": "写初稿",
+        "rewrite_selection": "改写所选内容",
+        "review_all": "全文审校",
+        "reply": "回复"
+      },
+      "artifact": {
+        "brief": "选题简报",
+        "material_list": "素材清单",
+        "outline": "提纲",
+        "draft": "初稿",
+        "rewrite": "改写",
+        "review": "审校"
+      },
+      "artifactAction": {
+        "useAngle": "采用这个角度",
+        "addMaterial": "加入素材",
+        "writeFromOutline": "按提纲写作",
+        "insertDraft": "插入初稿",
+        "applyRewrite": "应用改写",
+        "viewIssues": "查看问题"
+      },
+      "handoff": {
+        "outline_confirm": "提纲已就绪，确认后继续",
+        "materials_request": "还需要更多素材",
+        "final_accept": "终稿已就绪，确认后结束"
+      },
+      "progress": {
+        "researching": "调研中",
+        "outlining": "梳理提纲",
+        "drafting": "撰写初稿中",
+        "reviewing": "审校中",
+        "waitingAuthor": "等待你确认",
+        "stopped": "已停止"
+      },
+      "error": {
+        "selectionRequired": "请先选中一段文字",
+        "versionConflict": "文章已发生变化，请重新加载后再试。",
+        "notPending": "该事项已不再等待你处理。",
+        "serviceUnavailable": "写作服务暂不可用，请稍后重试。",
+        "requestTooLarge": "请求内容过大，请精简后重试。"
+      },
+      "next": {
+        "writeFromOutline": "按此提纲写作",
+        "insertToArticle": "插入正文",
+        "viewChanges": "查看改动",
+        "addMaterials": "补充素材"
+      }
+    },
     "headline": "今天，想写点什么？",
     "hero_description": "一段代码、一次实践、一个新理解，都可以是一篇文章的开始。",
     "topic_label": "文章主题",
@@ -274,6 +388,8 @@
       "memberMinimum": "至少加入 1 位成员。职责只在本团队生效，不会改动 Agent 原始档案。",
       "advancedSettings": "协作约定与工作方式",
       "rosterCount": "1 位队长 · {{count}} 位成员",
+      "rosterCount_one": "1 位队长 · {{count}} 位成员",
+      "rosterCount_other": "1 位队长 · {{count}} 位成员",
       "rosterPrompt": "从一个目标开始，组成你的 Agent 团队。",
       "errorRoleLength": "成员职责不能超过 {{max}} 字",
       "errorInstructionsLength": "协作约定不能超过 {{max}} 字",
