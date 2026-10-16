@@ -48,6 +48,7 @@ from nanobot.webui.build import BuildMode
 from nanobot.webui.dev import WebUIDevError, WebUIDevServer
 from nanobot.webui.memory_services import MemoryServices
 from nanobot.webui.sidebar_state import read_webui_sidebar_state
+from nanobot.writing.collab.runner import converge_collaborations
 
 __all__ = ["_run_gateway"]
 
@@ -796,6 +797,9 @@ def _run_gateway(
     # 这里只把 loop 的两个注入点挂上；没启用 websocket 通道时什么都不做。
     if channels.webui_gateway is not None:
         bind_team_turns(agent, channels.webui_gateway.team_turns)
+        # 协作域启动收敛：进程重启后把在途批次标 interrupted（不重放可能产生副作用的
+        # 工具调用），已交付产物一律保留。
+        converge_collaborations(config.workspace_path)
 
     def _pick_heartbeat_target() -> tuple[str, str]:
         """Pick a routable channel/chat target for heartbeat-triggered messages."""
