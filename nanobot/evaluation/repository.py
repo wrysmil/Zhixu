@@ -1178,7 +1178,7 @@ class EvaluationRepository:
             "gold_revision": 0 if state is None else state["revision"],
             "data": [
                 {**json.loads(row["definition_json"]), "id": row["id"],
-                 "revision": row["revision"], "label_status": row["label_status"],
+                 "label_status": row["label_status"],
                  "reviewer": row["reviewer"], "comment": row["comment"],
                  "updated_at": row["updated_at"]}
                 for row in rows

@@ -271,6 +271,21 @@ async def create_attempt(
         max_iterations=execution.max_iterations if execution is not None else None,
         base_config=base_config,
     )
+    if provider is None and isinstance(case, CaseWrite) and case.script:
+        # fixture 模式 + 声明了脚本：走受控 provider，判分链路才能离线端到端跑通。
+        # 没声明脚本就照常按配置构造真实 provider——静默回放空回答会让「Agent 什么
+        # 都没说」看起来像一次正常执行。
+        from nanobot.evaluation.controlled_provider import (
+            ControlledProvider,
+            steps_from_script,
+        )
+
+        provider = ControlledProvider(
+            steps=steps_from_script(
+                [step.model_dump(mode="json") for step in case.script]
+            ),
+            generation=dict(boot.profile_bundle.get("generation") or {}),
+        )
 
     registry = ToolRegistry()
     # 不构造 MCPProvider：首版 Worker 没有自动连接外部 MCP 的入口。

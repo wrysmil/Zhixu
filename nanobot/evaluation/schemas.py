@@ -280,6 +280,26 @@ class Turn(JsonModel):
     content: Annotated[StrictStr, Field(min_length=1, max_length=32000)]
 
 
+class ScriptToolCall(JsonModel):
+    name: Identifier
+    arguments: JsonObject = Field(default_factory=dict)
+
+
+class ScriptStep(JsonModel):
+    """离线脚本的一步：文本回复与/或工具调用。
+
+    只在 ``execution.tool_mode == "fixture"`` 时被受控 provider 消费；live 模式下
+    字段可以留着但不会生效。这是为了让判分链路能离线端到端跑通（spec §验证：
+    离线用受控 provider，与真实 provider 冒烟分开表述）。
+    """
+
+    text: StrictStr = ""
+    json_text: StrictStr | None = None
+    tool_calls: Annotated[list[ScriptToolCall], Field(max_length=10)] = Field(
+        default_factory=list
+    )
+
+
 class Fixture(JsonModel):
     path: StrictStr
     content: StrictStr
@@ -352,6 +372,10 @@ class _CaseFields(JsonModel):
     execution: ExecutionConfig
     assertions: Annotated[list[Assertion], Field(min_length=1, max_length=50)]
     rubric: Rubric | None = None
+    #: 离线脚本（仅 tool_mode=fixture 生效）；live 模式忽略。
+    script: Annotated[list[ScriptStep], Field(max_length=20)] = Field(
+        default_factory=list
+    )
     artifact_paths: Annotated[list[StrictStr], Field(max_length=50)] = Field(
         default_factory=list
     )

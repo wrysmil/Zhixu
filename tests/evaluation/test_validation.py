@@ -190,7 +190,7 @@ def test_case_write_field_set_matches_contract() -> None:
     assert set(CaseWrite.model_fields) == {
         "name", "description", "tags", "enabled", "suite_id", "base_revision",
         "turns", "fixtures", "memory_seed", "clock_iso", "tool_fixtures",
-        "execution", "assertions", "rubric", "artifact_paths",
+        "execution", "assertions", "rubric", "script", "artifact_paths",
     }
 
 
