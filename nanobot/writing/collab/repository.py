@@ -18,6 +18,7 @@ from nanobot.webui.session_identity import (
     WEBUI_SESSION_STORAGE_PREFIX,
     is_valid_webui_chat_id,
 )
+from nanobot.writing.collab.database import ensure_collab_schema
 from nanobot.writing.collab.models import (
     ACTIONS,
     ACTIVE_BATCH_STATUSES,
@@ -219,8 +220,10 @@ class CollabRepository:
     def __init__(self, db: WritingDatabase) -> None:
         self._db = db
         self._workspace_key = db.workspace_key
-        # 协作表由本包自管（契约 §2 的双出口拆分）：幂等补建，保证任何入口
-        # 拿到 repository 就能用，不依赖调用方记得先跑 ensure_collab_schema。
+        # 契约 §2 的双出口拆分：协作表由本包自管。幂等补建（主库 DDL + 协作 DDL，
+        # 幂等键要复用 article_requests），保证任何入口拿到 repository 就能用，
+        # 不依赖调用方记得先跑 ensure_schema / ensure_collab_schema。
+        db.ensure_schema()
         ensure_collab_schema(db)
 
     # ---- 读取 --------------------------------------------------------------

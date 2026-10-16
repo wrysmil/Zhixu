@@ -542,16 +542,33 @@ def test_handoff_version_cas(store: _Store) -> None:
 
     with pytest.raises(CollabVersionConflict) as error:
         store.repo.resolve_handoff(
-            handoff_id=handoff.id, expected_version="confirmed", status="confirmed",
+            handoff_id=handoff.id, expected_version=artifact.version + 1, status="confirmed",
         )
-    assert str(error.value) == "handoff version conflict expected=confirmed actual=pending"
+    assert error.value.status == 409
+    assert str(error.value) == (
+        f"handoff version conflict expected={artifact.version + 1}"
+        f" actual={artifact.version}"
+    )
     assert store.repo.get_handoff(handoff.id).status == "pending"
 
+    # 交接 CAS 口径是 artifact_version 整数（writing.confirm 的 expected_handoff_version）
     resolved = store.repo.resolve_handoff(
-        handoff_id=handoff.id, expected_version=handoff.status, status="confirmed",
+        handoff_id=handoff.id, expected_version=artifact.version, status="confirmed",
     )
     assert resolved.status == "confirmed"
     assert resolved.resolved_at
+    assert resolved.artifact_version == artifact.version
+
+    # 已确认（终态）后再按同一整数版本裁决：读到的 actual 仍是整数版本
+    with pytest.raises(CollabVersionConflict) as error:
+        store.repo.resolve_handoff(
+            handoff_id=handoff.id, expected_version=artifact.version + 1, status="superseded",
+        )
+    assert str(error.value) == (
+        f"handoff version conflict expected={artifact.version + 1}"
+        f" actual={artifact.version}"
+    )
+    assert store.repo.get_handoff(handoff.id).status == "confirmed"
 
     with pytest.raises(InvalidEnumValueError):
         store.repo.add_handoff(
@@ -579,6 +596,29 @@ def test_schema_statements_are_collab_only(tmp_path: Path) -> None:
         "writing_collab_suggestions",
         "writing_collab_undo_entries",
     } <= _tables(db)
+
+
+def test_repository_self_provisions_collab_schema(tmp_path: Path) -> None:
+    """契约 §2 双出口拆分：任何入口拿到 repository 就能用，无需调用方先建 schema。"""
+    db = WritingDatabase(tmp_path / "ws-auto")
+    repo = CollabRepository(db)
+    assert {
+        "writing_collaborations",
+        "writing_collab_batches",
+        "writing_collab_artifacts",
+        "writing_collab_handoffs",
+        "writing_collab_suggestions",
+        "writing_collab_undo_entries",
+        "article_requests",
+    } <= _tables(db)
+
+    collab = repo.create_collaboration(
+        article_id="a-1", chat_id="chat-1", session_key="websocket:chat-1",
+        goal={}, request_id="req-auto",
+    )
+    assert repo.get_by_article("a-1").id == collab.id
+    CollabRepository(db)  # 重复构造必须幂等
+    assert _count(db, "writing_collaborations") == 1
 
 
 def test_models_enums_are_frozen() -> None:
