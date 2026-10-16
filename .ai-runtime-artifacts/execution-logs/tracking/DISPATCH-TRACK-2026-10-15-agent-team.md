@@ -144,3 +144,71 @@ Detail(extra): 安全面已核对且未发现问题的项：SQL 全参数化（�
 Detail(extra): 移交后续 GROUP 的安全约束——**L1**：`TeamDatabase(db_path=...)` 是公开 kwarg，Task 5 的 API/路由层绝不能让请求体/query/header 影响 workspace 或 db 路径，否则 S1 的修复会被上层绕过；**L3**：团队 `instructions`/成员 `role` 是要进 Leader 系统提示的自由文本（设计内信任配置），但成员产出**绝不能**回流去改团队定义、成员授权或工具集，否则被提示注入的成员可自我提权；**L4**：`prune_activity_events` 仍无调用方，事件只增不减，且 S2 的修复没有专属测试。
 Detail(extra): 本批**未**做任何 push / PR / 合并回 `feature/desktop-app` 的动作（须用户确认后按 `git-xywh` 执行）；未跟踪的 `memory/` 与 drawio 备份未被触碰。
 
+[2026-10-16 00:20] WU-04-implement | Leader | Status: completed
+Detail: Leader 主线程 TDD 完成 Leader 每回合装配（全程不派 worker，用户已拒绝 `Agent` 派发）。先按 plan Task 4 的锚点写失败测试，坐实三处真实缺陷：`ToolRegistry.__len__` 让空 registry 变假值，`tools or self.tools` 会把「本轮零工具」静默扩成全量集合（`loop.py` 三处 falsy 回退改为 `is None` 判定，commit d6a036e）；每回合 registry 必须是**新对象**，不能 `unregister(self.tools)` 再恢复，否则同一工具实例会在团队/普通会话间串上下文；Leader 的 preset 必须走 `ModelRuntimeResolver.resolve_preset` 且失败即整回合报错（`provider.calls == 0`），不回退默认模型。
+Sub-agents: 0
+Context: ~88%
+Output: `nanobot/teams/leader.py`（新增 `TEAM_HIDDEN_TOOLS`/`LeaderTurnContext`/`render_role_prompt`/`build_leader_registry`/`resolve_leader_runtime`）、`tests/teams/test_leader_context.py`（新增 18 用例）、改 `nanobot/agent/loop.py`（`TurnContext.team`、`team_context_provider` 注入点、`_team_context_for_turn`/`_leader_runtime`/`_team_revision_switched`/`_stamp_team_revision`）、`nanobot/agent/context.py`（`role_section` + `skill_exclude`）、`nanobot/agent/skills.py`（`build_explicit_skill_runtime_context(..., exclude=)`）（commit 43d3075）
+Error: none
+Next: WU-05 团队 API 与聊天绑定
+GROUP: 3 | WU: WU-04 | ITER: 1 | STEP: done
+WorktreeId: wt-agent-team | WorktreePath: /Users/mima0000/Documents/学习-001/do-project/.harness-worktrees/zhixu/wt-agent-team | Branch: harness/wt-agent-team | Base: 2700025 | Head: 43d3075
+Tests: `pytest tests/teams/test_leader_context.py -q` 18 passed；`pytest tests/teams tests/webui tests/agent -q` 全绿；`ruff check`（触及文件）All checks passed；`basedpyright nanobot/teams nanobot/agent/context.py nanobot/agent/skills.py` 0 errors
+Queue-remaining: WU-05, WU-09, WU-06, WU-10, WU-07, WU-11
+Reviewer: Leader 自审（未派独立子代理） | Worktree: wt-agent-team | Branch: harness/wt-agent-team | Title(zh): Leader 每回合装配与模型接线
+Closeout: collective-test=pending code-review=pending | status=in-progress
+Detail(extra): plan 锚点逐字保留——`test_empty_registry_stays_empty` 断言 `provider.last_tool_definitions == []`，这是「零授权不等于全授权」的唯一机器证据。
+Detail(extra): provider 续接失效按 `团队 id @ 修订` 签名判定（`teamAppliedSignature`），换一个团队即使修订号相同也会失效；且只删续接、不动 transcript（同时断言 `transcript 变长` 与 `provider_state is None`）。这条守卫原先写成「修订变了才失效」是自造缺陷，测试换成团队切换时才暴露。
+Detail(extra): 「subagent 默认模型继承本次 Leader runtime」经 `git blame` + 读源码确认已由既有实现满足（`nanobot/agent/tools/spawn.py:133-154` 读 `current_request_context().runtime`），本 WU **没有**为此改生产代码，只补 `test_leader_preset_runtime_reaches_tools_through_request_context` 钉住该事实。
+
+[2026-10-16 01:05] WU-05-implement | Leader | Status: completed
+Detail: Leader 主线程 TDD 完成团队 API、WS 写白名单与会话绑定暂存。领域异常→契约 §4 错误码的翻译表放在 `teams_routes.translate()`，未登记类型只回固定文案（`team request failed`），内部细节进日志不进 error 字符串。测试设备暴露一个真实缺陷：`_query` 对裸字符串 query 值走 `values[0]` 会返回**首字符**（`id` 读成 `"i"`），已加 400 守卫并把测试 helper 改成忠实的 `dict[str, list[str]]`。
+Sub-agents: 0
+Context: ~92%
+Output: `nanobot/webui/teams_routes.py`、`nanobot/webui/teams_api.py`、`nanobot/teams/binding.py`（commit 8412f9b）、改 `settings_routes.py`（六条 `teams-*` 路由 + `_TEAMS_MUTATION_PATHS` + `asyncio.to_thread`）、`ws_http.py`（`teams.save/archive/clone` 白名单 + 注入）、`gateway_services.py`（`build_team_stack`）、`agents_api.py`（删除守卫 409 `AGENT_IN_USE_BY_TEAM`）、`tests/webui/test_teams_routes.py`（26 用例）、`tests/webui/test_teams_binding.py`（8 用例）、`tests/webui/test_agents_api.py`（+2）
+Error: none
+Next: 同一 WU 的第二段（new_chat 暂存 → 首消息持久化 → attach/list 可空 team_binding）
+GROUP: 3 | WU: WU-05（第一段） | ITER: 1 | STEP: done
+WorktreeId: wt-agent-team | WorktreePath: /Users/mima0000/Documents/学习-001/do-project/.harness-worktrees/zhixu/wt-agent-team | Branch: harness/wt-agent-team | Base: 2700025 | Head: 8412f9b
+Tests: `pytest tests/teams tests/webui -q` 1096 passed；`ruff check`（触及文件）All checks passed；`basedpyright nanobot/teams nanobot/webui/teams_api.py nanobot/webui/teams_routes.py` 0 errors
+Queue-remaining: WU-09, WU-06, WU-10, WU-07, WU-11
+Reviewer: Leader 自审（未派独立子代理） | Worktree: wt-agent-team | Branch: harness/wt-agent-team | Title(zh): 团队设置 API 与绑定暂存
+Closeout: collective-test=pending code-review=pending | status=in-progress
+Detail(extra): `TeamRevisionConflict` 的消息本身已带错误码，`translate()` 检测前缀避免拼两遍；`_Ops` 替身必须给全部六个动作默认值，否则 handler 的 AttributeError 会被兜底成 500「team request failed」而看不出真因。
+Detail(extra): basedpyright 严格模式下 30 个错全部来自 `lambda **kw` 无注解闭包与 `Any` 传播——改成带注解的具名闭包 + `cast` + 一处 `# pyright: ignore[reportUnnecessaryIsInstance]`（仓库先例：`nanobot/channels/signal/runtime.py:632`）后清零。**新增模块保持 0 error 是可达成的**，不必跟着既有 webui 模块一起脏。
+
+[2026-10-16 01:25] WU-05-implement-2 | Leader | Status: completed
+Detail: 补齐 Task 5 的第二段——绑定真的接到传输层与回合：**`new_chat` 带 `team_id`/`team_revision` 时先服务端准入再暂存**（失败即不 attach、不 hydrate、并回收刚暂存的 workspace scope），首条消息一次性取走暂存并随入站 metadata 下发，回合内在 `loop._restore_turn` 里 **先落盘 `session.metadata["team_binding"]` 再装配 Leader**，所以「先普通回答、再变团队」没有窗口；空聊天重连时暂存过期明确报 `TEAM_BINDING_EXPIRED`。`attach`/`session_updated`/聊天列表新增可空 `team_binding`。
+Sub-agents: 0
+Context: ~94%
+Output: 改 `nanobot/teams/binding.py`（`claim` 过期即报错、`expired_binding` 一次性告知、TTL 宽限清理 + 256 条上限、`persist_message_binding`）、`nanobot/webui/inbound_commands.py`（`_team_selection` + 三个私有方法 + 首消息注入）、`nanobot/webui/session_projection.py`、`nanobot/webui/session_list_index.py`（`_INDEX_VERSION` 8→9）、`nanobot/webui/ws_http.py`（列表不带 null 键）、`nanobot/agent/loop.py`、`tests/webui/test_teams_chat_binding.py`（新增 22 用例）、`tests/webui/test_teams_binding.py`（+5）、`tests/teams/test_leader_context.py`（+2）、`tests/webui/test_session_projection.py`（+1）、`tests/webui/test_session_list_index.py`（+1）、`tests/test_webui_terminal.py`（替身补 `team_bindings=None`）（commit 0fa81be）
+Error: none
+Next: WU-09 新聊天选择 Team 与绑定展示
+GROUP: 3 | WU: WU-05（第二段） | ITER: 1 | STEP: done
+WorktreeId: wt-agent-team | WorktreePath: /Users/mima0000/Documents/学习-001/do-project/.harness-worktrees/zhixu/wt-agent-team | Branch: harness/wt-agent-team | Base: 2700025 | Head: 0fa81be
+Tests: `pytest tests/teams tests/webui tests/agent tests/test_webui_terminal.py -q` 2815 passed（仅 `test_mcp_reconnect_during_shutdown_does_not_crash` 失败，已在 `2700025` 原始代码复现，属基线）；`ruff check`（触及文件）All checks passed；`basedpyright nanobot/teams nanobot/webui/session_list_index.py nanobot/webui/session_projection.py nanobot/webui/teams_api.py nanobot/webui/teams_routes.py tests/teams tests/webui/test_teams_*.py` 0 errors 0 warnings 0 notes
+Queue-remaining: WU-09, WU-06, WU-10, WU-07, WU-11
+Reviewer: Leader 自审（未派独立子代理） | Worktree: wt-agent-team | Branch: harness/wt-agent-team | Title(zh): 团队绑定接入 new_chat / 首条消息 / 会话读数
+Closeout: collective-test=pending code-review=pending | status=in-progress
+Detail(extra): 「查无此项」与「已过期」分成两种结果：普通聊天从来没暂存过，安静返回 None；暂存过又过期的一定是团队聊天，必须报错要求重选。原先给 `claim(require=True)` 才报错的设计会把每条普通消息都判成过期——契约 §4 的空聊天口径靠的是「存在过期记录」而不是「调用方要求」。
+Detail(extra): `inbound_commands.py` 有 5 个**基线已有**的 basedpyright 错（terminal 帧的 `TerminalStartedWirePayload`/可选属性访问）；用 `git show HEAD:<file>` 落到临时同名文件跑同一份 pyright 配置复验，确认与本次改动无关，故未修（不在本 WU 范围）。
+Detail(extra): 回合内落盘选择 `persist_message_binding`（消息 → 会话）而不是 WebUI 侧直接写会话文件：单一写者、并发首消息的两条都携带同一份可信绑定，且 `loop` 早于 Leader 装配保存会话。已绑定会话**不被消息覆盖**（契约 §4「首次消息不得携带/覆盖可信 TeamSnapshot」）。
+
+[2026-10-16 02:05] WU-09-implement | Leader | Status: completed
+Detail: Leader 主线程 TDD 完成前端「新聊天选团队 + 绑定展示」。前端只认服务端确认的绑定：客户端把 `attached`/`session_updated` 带回来的 `team_binding` 存进按 chatId 的表并只暴露 `teamBindingFor()`，`useSessions` 的乐观行、composer 上下文条、页头 chip、侧边栏标记全部读这一份，本地选择（`pendingTeam`）在创建成功即失效。**没有伪造入口**：`new_chat` 只能声明 `team_id`/`team_revision`，是否生效由服务端准入检查决定。
+Sub-agents: 0
+Context: ~96%
+Output: `webui/src/components/thread/TeamSelector.tsx`、`webui/src/hooks/useTeamOptions.ts`、`webui/src/tests/team-chat-creation.test.tsx`（11 用例）、`webui/src/tests/team-selector.test.tsx`（7 用例）；改 `webui/src/lib/{types,api,nanobot-client}.ts`、`webui/src/lib/teams/types.ts`、`webui/src/hooks/useSessions.ts`、`webui/src/components/thread/{ThreadShell,ThreadComposer,ThreadHeader}.tsx`、`webui/src/components/ChatList.tsx`、`webui/src/App.tsx`、10 × `webui/src/i18n/locales/*/common.json`、`webui/src/tests/{app-layout,chat-list,thread-shell,useSessions}.test.tsx`（commit ec9b10a）
+Error: none
+Next: G3 尾盘（collective-test → 代码审查 + 安全审查 → 落盘）
+GROUP: 3 | WU: WU-09 | ITER: 1 | STEP: done
+WorktreeId: wt-agent-team | WorktreePath: /Users/mima0000/Documents/学习-001/do-project/.harness-worktrees/zhixu/wt-agent-team | Branch: harness/wt-agent-team | Base: 2700025 | Head: ec9b10a
+Tests: `npx vitest run`（webui 全量）118 files / 1573 passed；`npx tsc -p tsconfig.build.json --noEmit` 无输出；`npm run build` exit 0（`✓ built in 6.87s`）；`npx eslint --config webui/eslint.config.js webui/src --max-warnings 0` exit 0；后端同批复验 `pytest tests/teams tests/webui -q` 1127 passed
+Queue-remaining: WU-06, WU-10, WU-07, WU-11
+Reviewer: Leader 自审（未派独立子代理） | Worktree: wt-agent-team | Branch: harness/wt-agent-team | Title(zh): 新聊天选择 Team 与绑定展示
+Closeout: collective-test=pending code-review=pending security-review=pending | status=in-progress
+Detail(extra): 一次性撞出的真实回归：`App` 新增的 `client.teamBindingFor` 调用让 `app-layout.test.tsx` 的 `MockClient` 缺方法而抛错，React scheduler 被污染后**连带 54 个用例**报「Should not already be working」。教训：给共享客户端加方法时必须同步所有测试替身（本轮共补 3 个：`useSessions`/`thread-shell`/`app-layout`），否则错误信息会把归因指向无关用例。
+Detail(extra): 可见性规则单独抽成纯函数 `teamPickerVisibility({temporary, hasMessages, bound, canSelect})`，避免为了「临时聊天不显示、有消息的聊天只读」写一套 ThreadShell 集成替身；`canSelect` 额外要求 `!chatId`，因为新建分屏已经建好会话，再显示选择器会是假的（它没有重暂存的通道）。
+Detail(extra): `onCreateChat` 加第 4 个参数后，`thread-shell.test.tsx` 两处 `toHaveBeenCalledWith(...)` 必须补第 4 个实参（`null`，来自 `teamSelection = null` 默认值）——vitest 不做尾随 undefined 容忍，这是既有测试的忠实性修正而非放宽。
+Detail(extra): i18n 新增 `thread.composer.team.*`（7 键）与 `errors.teamBindingExpired` / `errors.teamUnavailable`，10 语言的键集与 `{{}}` 插值集合由既有 `webui/src/tests/i18n.test.tsx`「与英文资源形状一致」用例强制一致。
+
