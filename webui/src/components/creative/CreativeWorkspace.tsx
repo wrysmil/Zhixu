@@ -26,7 +26,7 @@ import { ArticleList, type ArticleListState } from "./ArticleList";
 import { ArticleEditor } from "./ArticleEditor";
 import { WritingPartnerPanel } from "./WritingPartnerPanel";
 import { useArticleSaveFlow } from "./use-article-save-flow";
-import { collabSnapshotDigest } from "@/lib/writing-collab-api";
+import { collabSnapshotDigest, createCollabApi } from "@/lib/writing-collab-api";
 import { ArticleRecoveryBanner } from "./ArticleRecoveryBanner";
 
 export interface CreativeWorkspaceProps {
@@ -344,6 +344,13 @@ function EditorHost({
     });
   }, [flow.draft, onArticleReplaced, transport]);
 
+  // 协作读动作走 HTTP、写动作走 WS：这里把 token 取用方式与 transport 一起注入。
+  // 身份必须稳定（依赖 transport/getToken），否则 hook 的 reload 依赖会抖动成反复重取。
+  const partnerApi = useMemo(
+    () => createCollabApi({ transport, getToken }),
+    [transport, getToken],
+  );
+
   const partnerPanel = partnerEnabled ? (
     <WritingPartnerPanel
       articleId={article.id}
@@ -354,6 +361,7 @@ function EditorHost({
       snapshotDigest={collabSnapshotDigest(flow.draft)}
       chatId={`${article.id}:partner`}
       client={transport}
+      api={partnerApi}
       onInsertDraft={({ body, replaceWhole }) => {
         const current = flow.draft.body ?? "";
         flow.setField("body", replaceWhole || !current.trim() ? body : `${current}\n\n${body}`);

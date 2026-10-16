@@ -127,6 +127,42 @@ describe("创作搭档侧栏挂载（WU-13）", () => {
     expect(screen.getByTestId("suggestions-placeholder")).toBeInTheDocument();
   });
 
+  it("协作读请求带上 Authorization（否则面板一进来就整屏报错）", async () => {
+    // 回归：集成层一度没有注入 { token, transport }，`collabApi` 的默认实例从
+    // globalThis 取到空配置 → 读快照带 `Bearer ` → 401 → 面板显示「写作搭档无法
+    // 处理该请求」。这里直接断言线上那条读请求的鉴权头。
+    const seen: Array<{ url: string; auth: string }> = [];
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      seen.push({ url, auth: String(headers.Authorization ?? "") });
+      if (url.includes("srv-1")) return jsonResponse({ article: wireArticle() });
+      if (url.includes("/api/writing/collab")) {
+        return jsonResponse({
+          collaboration: null, artifacts: [], handoffs: [], suggestions: [],
+        });
+      }
+      return jsonResponse(listBody([summaryRow()]));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const props: CreativeWorkspaceProps = {
+      getToken: () => "t",
+      transport: {
+        requestMutation: vi.fn(async () => ({})),
+      } as unknown as WebUIMutationTransport,
+      workspacePath: "/workspace",
+    };
+
+    render(<CreativeWorkspace {...props} />);
+    fireEvent.click(await screen.findByText("文章标题"));
+    await screen.findByTestId("creative-partner-column");
+
+    const collabRead = seen.find((entry) => entry.url.includes("/api/writing/collab"));
+    expect(collabRead).toBeTruthy();
+    expect(collabRead?.auth).toBe("Bearer t");
+    vi.unstubAllGlobals();
+  });
+
   it("真实工作区打开文章时挂上真面板（非预览入口）", async () => {
     const fetchMock = vi.fn(async (input: unknown) => {
       const url = String(input);

@@ -331,6 +331,8 @@ export interface UndoResult {
 export interface CollabClient {
   base?: string;
   token?: string;
+  /** 按请求取 token（应用侧 token 会刷新；`token` 是静态兜底，主要给测试用）。 */
+  getToken?: () => string;
   transport?: WebUIMutationTransport | null;
   requestIds?: RequestIdFactory;
   readTimeoutMs?: number;
@@ -1269,6 +1271,9 @@ export function createCollabApi(client: CollabClient = {}): CollabApi {
   const base = client.base ?? "";
   const requestIds = client.requestIds ?? createRequestIdFactory();
   const readTimeoutMs = client.readTimeoutMs ?? COLLAB_READ_TIMEOUT_MS;
+  // 读动作走 HTTP，必须在**发请求那一刻**取 token：集成层注入静态串会在 token 轮换后
+  // 变成 401（面板一挂载就整屏报「写作搭档无法处理该请求」）。
+  const readToken = (): string => client.getToken?.() ?? client.token ?? "";
   const send = async (
     action: string,
     payload: Record<string, unknown>,
@@ -1279,7 +1284,7 @@ export function createCollabApi(client: CollabClient = {}): CollabApi {
     async getSnapshot(articleId: string): Promise<CollabSnapshot> {
       const body = await request<Record<string, unknown>>(
         snapshotPath(base, articleId),
-        client.token ?? "",
+        readToken(),
         undefined,
         readTimeoutMs,
       );
@@ -1289,7 +1294,7 @@ export function createCollabApi(client: CollabClient = {}): CollabApi {
     async getArtifact(artifactId: string): Promise<CollabArtifact> {
       const body = await request<Record<string, unknown>>(
         artifactPath(base, artifactId),
-        client.token ?? "",
+        readToken(),
         undefined,
         readTimeoutMs,
       );
