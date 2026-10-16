@@ -1400,9 +1400,11 @@ class EvaluationRepository:
         ) == 0
         agreement = (matched / total) if total and complete else None
         status = "completed" if complete else "cancelled"
+        # status 谓词：取消会抢先把作业落终态，此时最后一个在飞项跑完也不能把它
+        # 复活成 completed——那等于用一份缺项的样本算出一致率并盖上通过章。
         conn.execute(
             "UPDATE calibration_jobs SET status = ?, result_json = ?, finished_at = ?"
-            " WHERE id = ?",
+            " WHERE id = ? AND status IN ('queued', 'running')",
             (
                 status,
                 _dump({"total": total, "matched": matched, "agreement": agreement,
@@ -1411,6 +1413,43 @@ class EvaluationRepository:
                 job_id,
             ),
         )
+
+    def list_calibration_items(self, job_id: str) -> list[dict[str, Any]]:
+        """校准项读出（含逐项 ``matched``）；作业错误诊断与测试都靠它。"""
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT id, position, status, result_json FROM calibration_items"
+                " WHERE job_id = ? ORDER BY position",
+                (job_id,),
+            ).fetchall()
+        return [
+            {
+                "id": row["id"], "position": row["position"],
+                "status": row["status"], "result": _load(row["result_json"], {}),
+            }
+            for row in rows
+        ]
+
+    def save_calibration_job_result(
+        self, job_id: str, result: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """把作业级补充字段并进 ``result_json``（指纹、错误）。
+
+        只做合并、不改 ``total/matched/agreement/passed``——那四个数由
+        :meth:`_settle_calibration_if_done` 从逐项结果汇总，是唯一口径。
+        """
+        with self._db.connect(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT result_json FROM calibration_jobs WHERE id = ?", (job_id,)
+            ).fetchone()
+            if row is None:
+                raise RecordNotFound(f"CALIBRATION_NOT_FOUND {job_id}")
+            merged = {**_load(row["result_json"], {}), **dict(result)}
+            conn.execute(
+                "UPDATE calibration_jobs SET result_json = ? WHERE id = ?",
+                (_dump(merged), job_id),
+            )
+        return merged
 
     def open_calibrations(self) -> list[dict[str, Any]]:
         with self._db.connect() as conn:

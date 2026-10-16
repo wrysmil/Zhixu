@@ -18,7 +18,7 @@ import asyncio
 import contextlib
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -29,8 +29,12 @@ from nanobot.evaluation.evidence import (
     build_attempt_evidence,
 )
 from nanobot.evaluation.graders.calibration import (
+    CalibrationError,
+    judge_fingerprint,
     lookup_calibration,
-    run_calibration,
+    rubric_payload,
+    rubric_version,
+    verdict_from_scores,
 )
 from nanobot.evaluation.graders.judge import JudgeResult
 from nanobot.evaluation.graders.rules import evaluate_rules
@@ -39,7 +43,7 @@ from nanobot.evaluation.processes import WorkerProcess
 from nanobot.evaluation.reports import aggregate_run, export_run_csv, export_run_json
 from nanobot.evaluation.repository import EvaluationRepository
 from nanobot.evaluation.runtime_factory import attempt_paths
-from nanobot.evaluation.scheduler import AttemptOutcome
+from nanobot.evaluation.scheduler import AttemptOutcome, CalibrationItemOutcome
 from nanobot.evaluation.schemas import (
     AgentWorkerBoot,
     AttemptError,
@@ -51,12 +55,15 @@ from nanobot.evaluation.schemas import (
     RunLimits,
 )
 from nanobot.evaluation.trace import read_trace
-from nanobot.evaluation.worker import ARTIFACT_INDEX_NAME
+from nanobot.evaluation.worker import ARTIFACT_INDEX_NAME, evidence_from_payload
 
 WORKER_MODULE = "nanobot.evaluation.worker"
 
 #: 契约 §5：评分总预算（含格式重试），超时按 judge_error 记，不无限等。
 JUDGE_BUDGET_S = 60
+
+#: 评分实现的可注入点：attempt 评分与校准项评分共用，生产默认是评分子进程。
+JudgeRunner = Callable[..., Awaitable[JudgeResult]]
 
 
 class ServiceError(RuntimeError):
@@ -109,6 +116,7 @@ class EvaluationService:
         data_dir: Path,
         profiles: Sequence[Profile] = (),
         judge_slots: asyncio.Semaphore | None = None,
+        judge_runner: JudgeRunner | None = None,
     ) -> None:
         self._repository = repository
         self._data_dir = Path(data_dir)
@@ -117,6 +125,7 @@ class EvaluationService:
         }
         # Judge 与 Agent 共用的进程预算；与调度器传入的是同一个对象。
         self._judge_slots = judge_slots or asyncio.Semaphore(3)
+        self._judge_runner: JudgeRunner = judge_runner or self._run_judge
 
     # ------------------------------------------------------------------ 配置
 
@@ -482,14 +491,41 @@ class EvaluationService:
         calibration = self._find_calibration(fingerprint, rubric)
         # 评分子进程必须有自己的 runtime/trace 目录：共用 agent 的 trace 目录会让
         # 评分事件追加到已密封的段上，既污染被测证据，又让 judge 自己 seal 失败。
-        judge_paths = self._judge_paths(attempt_id)
-        judge_paths.create()
+        paths = self._judge_paths(attempt_id)
+        paths.create()
+        raw = await self._judge_runner(
+            attempt_id=attempt_id, rubric=rubric, evidence=evidence,
+            profile=profile, paths=paths,
+        )
+        return (
+            JudgeResult(
+                **raw.model_dump(exclude={"calibrated"}),
+                # 未校准就是未校准：不在这里替用户把分数变成可信。
+                calibrated=bool(calibration and calibration.get("passed")),
+            ),
+            calibration,
+        )
+
+    async def _run_judge(
+        self,
+        *,
+        attempt_id: str,
+        rubric: Rubric,
+        evidence: AttemptEvidence,
+        profile: Mapping[str, Any],
+        paths: Any,
+    ) -> JudgeResult:
+        """默认评分实现：拉起评分子进程并回解析结果。
+
+        Judge 实现在 :attr:`judge_runner` 处注入——attempt 评分与校准项评分共用这一处，
+        离线测试可换成受控回放而不必为每个用例付出一次子进程。
+        """
         boot = JudgeWorkerBoot(
             type="boot",
             protocol_version=1,
             attempt_id=attempt_id,
-            runtime_root=str(judge_paths.runtime_root),
-            workspace=str(judge_paths.workspace),
+            runtime_root=str(paths.runtime_root),
+            workspace=str(paths.workspace),
             profile_bundle=_judge_bundle(profile),
             role="judge",
             rubric=rubric,
@@ -499,7 +535,7 @@ class EvaluationService:
             owner = WorkerProcess(
                 attempt_id=attempt_id,
                 command=[sys.executable, "-m", WORKER_MODULE, attempt_id],
-                log_path=judge_paths.log_path,
+                log_path=paths.log_path,
             )
             try:
                 await owner.start(boot.model_dump(mode="json"))
@@ -514,7 +550,7 @@ class EvaluationService:
                     status="failed", model=str(profile.get("model", "")),
                     version="judge-v1", calibrated=False,
                     error="JUDGE_WORKER_FAILED",
-                ), calibration
+                )
             finally:
                 with contextlib.suppress(Exception):
                     await owner.cancel()
@@ -527,21 +563,18 @@ class EvaluationService:
                 status="failed", model=str(profile.get("model", "")),
                 version="judge-v1", calibrated=False,
                 error=error or "JUDGE_RESULT_MISSING",
-            ), calibration
+            )
         return JudgeResult(
             status="completed",
             model=str(payload.get("model") or profile.get("model", "")),
             version=str(payload.get("version") or "judge-v1"),
             dimensions=dimensions,
-            # 未校准就是未校准：不在这里替用户把分数变成可信。
-            calibrated=bool(calibration and calibration.get("passed")),
-        ), calibration
+            calibrated=False,
+        )
 
     def _find_calibration(
         self, fingerprint: str, rubric: Rubric
     ) -> Mapping[str, Any] | None:
-        from nanobot.evaluation.graders.calibration import rubric_version
-
         with contextlib.suppress(Exception):
             # gold 版本必须带上：旧版本的校准结论在新标签下不成立。
             return lookup_calibration(
@@ -554,29 +587,150 @@ class EvaluationService:
 
     # ------------------------------------------------------------------ 校准
 
-    async def run_calibration_job(
-        self, job_id: str, *, judge: Any, samples: Sequence[Mapping[str, Any]] = ()
-    ) -> dict[str, Any]:
-        """校准作业与普通运行共享并发与取消：逐项领取、逐项提交。"""
-        snapshot = self._repository.get_calibration(job_id)["snapshot"]
-        rubric = Rubric.model_validate(snapshot["rubric"])
-        result = await run_calibration(
-            self._repository,
-            profile=snapshot.get("profile") or {},
+    def _gold_rows(self, sample_ids: Sequence[str]) -> list[dict[str, Any]]:
+        rows = {
+            str(row["id"]): dict(row)
+            for row in self._repository.list_gold_samples()["data"]
+        }
+        missing = [sample_id for sample_id in sample_ids if sample_id not in rows]
+        if missing:
+            raise CalibrationError(f"GOLD_SAMPLE_NOT_FOUND: {missing}")
+        return [rows[sample_id] for sample_id in sample_ids]
+
+    @staticmethod
+    def _job_rubric(rows: Sequence[Mapping[str, Any]]) -> Rubric:
+        """作业内所有 gold 必须共用同一份量表。
+
+        指纹与一致率都是「按量表」算的：混用量表等于把不同标尺的成绩平均成一个数，
+        得到的 agreement 没有意义。
+        """
+        bodies = {
+            json.dumps(rubric_payload(row.get("rubric") or {}), sort_keys=True, ensure_ascii=False)
+            for row in rows
+        }
+        if len(bodies) > 1:
+            raise CalibrationError("GOLD_RUBRIC_MISMATCH: 校准样本的量表不一致")
+        if not rows:
+            raise CalibrationError("GOLD_SAMPLES_EMPTY: 校准作业没有任何样本")
+        return Rubric.model_validate(rows[0].get("rubric") or {})
+
+    def _judge_profile(self, snapshot: Mapping[str, Any]) -> dict[str, Any]:
+        profile = self.profile(str(snapshot.get("judge_profile_id") or ""))
+        return {
+            "provider": profile.provider,
+            "model": profile.model,
+            "bundle": dict(profile.bundle or {}),
+        }
+
+    def _calibration_paths(self, item_id: str) -> Any:
+        base = self.runtime_root / "calibrations" / item_id
+        return self._layout(item_id, base), self._layout(item_id, base.with_name(f"{item_id}-judge"))
+
+    async def calibrate(self, claimed: Mapping[str, Any]) -> CalibrationItemOutcome:
+        """执行**一个**已领取的校准项；调度器是唯一提交者。
+
+        证据只认 gold 行里冻结的那份 ``evidence``：不重跑 attempt，也不接受调用方递进来的
+        证据对象——否则一致率就变成自己给自己打分。标签与量表版本的前置校验在评分之前，
+        失败按项记 failed，绝不写成「跑完了但一致率偏低」。
+        """
+        snapshot = dict(claimed.get("snapshot") or {})
+        sample_ids = [str(item) for item in snapshot.get("sample_ids") or ()]
+        item_id = str(claimed["id"])
+        position = int(claimed["position"])
+        if not 1 <= position <= len(sample_ids):
+            raise CalibrationError(f"CALIBRATION_ITEM_OUT_OF_RANGE: position={position}")
+        frozen = int(snapshot.get("gold_revision", -1))
+        if frozen != self._repository.gold_revision():
+            raise CalibrationError(
+                f"GOLD_REVISION_STALE: 作业冻结 {frozen}，当前 {self._repository.gold_revision()}"
+            )
+        rows = self._gold_rows(sample_ids)
+        row = rows[position - 1]
+        unconfirmed = sorted(
+            str(item["id"]) for item in rows if item.get("label_status") != "confirmed"
+        )
+        if unconfirmed:
+            raise CalibrationError(
+                f"GOLD_NOT_CONFIRMED: {len(unconfirmed)} 条标签仍是建议状态，需用户确认后才能校准"
+            )
+        rubric = self._job_rubric(rows)
+        paths, judge_paths = self._calibration_paths(item_id)
+        paths.create()
+        judge_paths.create()
+        evidence = evidence_from_payload(row.get("evidence") or {}, workspace=paths.workspace)
+        graded = await self._judge_runner(
+            attempt_id=item_id,
             rubric=rubric,
-            judge=judge,
-            evidence_for=lambda row: None,
-            samples=list(samples),
-            gold_revision=snapshot.get("gold_revision"),
+            evidence=evidence,
+            profile=self._judge_profile(snapshot),
+            paths=judge_paths,
         )
-        self._repository.record_calibration_result(
-            judge_fingerprint=result["judge_fingerprint"],
-            rubric_version=result["rubric_version"],
-            gold_revision=result["gold_revision"],
-            total=result["total"],
-            matched=result["matched"],
+        actual = verdict_from_scores(rubric, graded.dimensions)
+        matched = graded.status == "completed" and actual == row.get("expected_verdict")
+        return CalibrationItemOutcome(
+            status="completed" if graded.status == "completed" else "failed",
+            result={
+                "id": str(row["id"]),
+                "expected_verdict": row.get("expected_verdict"),
+                "actual_verdict": actual,
+                "judge_status": graded.status,
+                "matched": bool(matched),
+                "error": graded.error,
+            },
         )
-        return result
+
+    def settle_calibration(self, job_id: str) -> None:
+        """把作业结论并进 ``calibration_results``（门禁查的表），并补指纹与错误。
+
+        只有作业真的 ``completed`` 才写结论：取消、中断、任一项失败都保持 ``passed=null``，
+        宁可「未校准」也不要一个假的一致率。幂等：指纹已写入就直接返回。
+        """
+        job = self._repository.get_calibration(job_id)
+        snapshot = dict(job.get("snapshot") or {})
+        result = dict(job.get("result") or {})
+        errors = [
+            str(item["result"]["error"])
+            for item in self._repository.list_calibration_items(job_id)
+            if item["status"] != "completed" and item["result"].get("error")
+        ]
+        if job["status"] != "completed":
+            if errors:
+                self._repository.save_calibration_job_result(
+                    job_id, {"error": "; ".join(errors)}
+                )
+            return
+        if result.get("judge_fingerprint"):
+            return
+        try:
+            rows = self._gold_rows(
+                [str(item) for item in snapshot.get("sample_ids") or ()]
+            )
+            rubric = self._job_rubric(rows)
+            fingerprint = judge_fingerprint(profile=self._judge_profile(snapshot), rubric=rubric)
+        except (CalibrationError, ServiceError) as exc:
+            # 作业已完成但结论算不出来：留错误、不写门禁行，保持未校准。
+            self._repository.save_calibration_job_result(job_id, {"error": str(exc)})
+            return
+        recorded = self._repository.record_calibration_result(
+            judge_fingerprint=fingerprint,
+            rubric_version=rubric_version(rubric),
+            gold_revision=int(snapshot.get("gold_revision", 0)),
+            total=int(result.get("total", 0)),
+            matched=int(result.get("matched", 0)),
+        )
+        self._repository.save_calibration_job_result(
+            job_id,
+            {
+                "judge_fingerprint": recorded["judge_fingerprint"],
+                "rubric_version": recorded["rubric_version"],
+                "gold_revision": recorded["gold_revision"],
+                "total": recorded["total"],
+                "matched": recorded["matched"],
+                "agreement": recorded["agreement"],
+                "passed": recorded["passed"],
+                "error": "; ".join(errors) or None,
+            },
+        )
 
     # ------------------------------------------------------------------ 读出
 

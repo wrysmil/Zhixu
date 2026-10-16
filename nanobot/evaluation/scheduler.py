@@ -100,12 +100,26 @@ class AttemptOutcome:
         )
 
 
+@dataclass
+class CalibrationItemOutcome:
+    """一个校准项的结论；``status`` 决定作业能否汇总出 agreement。"""
+
+    status: str
+    result: dict[str, Any] = field(default_factory=dict)
+
+
 class AttemptPipeline(Protocol):
     """执行一次 attempt 并给出结论；真实实现见 :mod:`nanobot.evaluation.services`。"""
 
     async def execute(
         self, attempt: Mapping[str, Any], *, run: Mapping[str, Any]
     ) -> AttemptOutcome: ...
+
+    async def calibrate(
+        self, claimed: Mapping[str, Any]
+    ) -> CalibrationItemOutcome: ...
+
+    def settle_calibration(self, job_id: str) -> None: ...
 
 
 def kill_verified_process(pid: int) -> None:
@@ -282,6 +296,7 @@ class Scheduler:
                 if not self._any_task_for(run_id):
                     self._repository.finalize_cancel(run_id)
                     self._cancel_requests.discard(run_id)
+        dispatched_any = False
         for row in self._repository.open_runs():
             run_id = str(row["id"])
             if run_id in self._cancel_requests:
@@ -290,12 +305,70 @@ class Scheduler:
                 continue
             claimed = self._repository.claim_attempt()
             if claimed is None:
-                continue
+                break
+            # 领取是全队 FIFO，回来的行未必属于这一轮正在看的 run：任务名与取消判定
+            # 都必须跟 attempt 自己的 run_id，否则取消一个 run 会放过它名下在飞的项。
+            run_id = str(claimed["run_id"])
+            dispatched_any = True
             task = asyncio.create_task(
                 self._run_attempt(claimed, run_id),
                 name=f"attempt:{run_id}:{claimed['id']}",
             )
             self._tasks[task.get_name()] = task
+        if not dispatched_any:
+            await self._dispatch_calibration()
+
+    async def _dispatch_calibration(self) -> None:
+        """领取并派发一个校准项；与 attempt 共用同一个服务级信号量（契约 §3.1/§4）。
+
+        排在 attempt 之后：运行是用户等着看结果的主链路，校准是后台门禁。空表时
+        ``claim_calibration_item`` 返回 None，不会写任何状态。
+        """
+        claimed = self._repository.claim_calibration_item()
+        if claimed is None:
+            return
+        task = asyncio.create_task(
+            self._run_calibration_item(claimed),
+            name=f"calibration:{claimed['job_id']}:{claimed['id']}",
+        )
+        self._tasks[task.get_name()] = task
+
+    async def _run_calibration_item(self, claimed: Mapping[str, Any]) -> None:
+        item_id = str(claimed["id"])
+        job_id = str(claimed["job_id"])
+        try:
+            async with self._slots:
+                if self._calibration_stopped(job_id):
+                    raise asyncio.CancelledError
+                outcome = await self._pipeline.calibrate(claimed)
+            # 取消之后不能再把一致率提交上去：作业已由 cancel_calibration 落终态。
+            if self._calibration_stopped(job_id):
+                raise asyncio.CancelledError
+            self._finish_calibration_item(
+                item_id, status=outcome.status, result=outcome.result
+            )
+        except asyncio.CancelledError:
+            self._finish_calibration_item(item_id, status="cancelled", result={})
+            raise
+        except Exception as exc:
+            # 前置不满足（未确认 / 量表不匹配 / gold 版本变了）与执行异常都只让**这一项**
+            # 落 failed；作业随后收口成未完成，绝不伪装成「跑完了但一致率是零」。
+            self._finish_calibration_item(item_id, status="failed", result={"error": str(exc)})
+        self._pipeline.settle_calibration(job_id)
+
+    def _finish_calibration_item(
+        self, item_id: str, *, status: str, result: Mapping[str, Any]
+    ) -> None:
+        """已终结（多为取消抢先）的项静默跳过：重复提交不该掀翻派发任务。"""
+        with contextlib.suppress(StateConflict):
+            self._repository.finish_calibration_item(item_id, status=status, result=result)
+
+    def _calibration_stopped(self, job_id: str) -> bool:
+        try:
+            status = self._repository.get_calibration(job_id)["status"]
+        except Exception:
+            return True
+        return status in ("cancelled", "interrupted")
 
     def _reap_done(self) -> None:
         for name, task in list(self._tasks.items()):
