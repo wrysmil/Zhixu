@@ -16,11 +16,13 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
+
+from loguru import logger as default_logger
 
 from nanobot.agents.models import AgentProfile, AgentSelection
 from nanobot.agents.runtime import ResolvedAgent, render_profile_prompt, resolve_selection
@@ -55,6 +57,17 @@ UNDECLARED_WRITE_RESOURCE = "workspace-write"
 
 # 上游结果拼进下游 instruction 的总预算：下游要看懂依赖，但不能吃掉整个上下文窗口。
 UPSTREAM_CONTEXT_BUDGET = 8000
+
+#: 下游准备阶段的「全文展开」出口：给定上游 taskId，返回该任务的完整产出。
+#: 只有写作协作批次注入它（长稿不得被 8000 字符摘要截断）；不注入即保持通用摘要语义。
+UpstreamExpander = Callable[[str], Awaitable[str | None]]
+
+#: 写作批次的下游全文预算：仍受 ``MAX_TASK_INSTRUCTION_CHARS=32000`` 约束。
+WRITING_UPSTREAM_BUDGET = 24_000
+
+#: 事件观察者：按 seq 批量收到已落盘的 ``TeamEvent``（协作域用它桥接 CollabRunner）。
+#: 与总线发布并行，互不影响：出口缺失不改变任务怎么跑。
+EventObserver = Callable[[Sequence[Any]], Awaitable[None]]
 
 # 子执行结论 → 任务终态。``interrupted`` 只能由恢复路径写，调度器这里拿不到。
 _OUTCOME_TO_STATUS = {"succeeded": "succeeded", "failed": "failed", "cancelled": "cancelled"}
@@ -167,6 +180,9 @@ class TeamRunHandle:
         clock: Callable[[], float],
         task_timeout_seconds: float | None,
         events: TeamRunEventSink | None = None,
+        upstream_expander: UpstreamExpander | None = None,
+        upstream_budget: int = UPSTREAM_CONTEXT_BUDGET,
+        observers: list[EventObserver] | None = None,
     ) -> None:
         self._repository = repository
         self._executor = executor
@@ -181,6 +197,10 @@ class TeamRunHandle:
         self._origin_message_id = origin_message_id
         self._clock = clock
         self._task_timeout_override = task_timeout_seconds
+        self._upstream_expander = upstream_expander
+        self._upstream_budget = int(upstream_budget)
+        # 与调度器共享同一个列表对象：运行起跑后再 ``observe()`` 也立刻生效。
+        self._observers: list[EventObserver] = observers if observers is not None else []
         self.run_id = run.run_id
         self.chat_id = run.chat_id
         self.turn_id = run.turn_id
@@ -473,16 +493,25 @@ class TeamRunHandle:
                 return await self._cancel_open_task(planned, stop_reason="run_timeout")
             return await self._invoke(planned)
 
-    def _instruction_for(self, planned: _PlannedTask) -> str:
-        """把已成功的前置结果拼进本任务指令（契约 §5：dependsOn 不只是排序标签）。"""
+    async def _instruction_for(self, planned: _PlannedTask) -> str:
+        """把已成功的前置结果拼进本任务指令（契约 §5：dependsOn 不只是排序标签）。
+
+        默认只拼 ``result.summary``（8000 字符预算内截断）；注入了 ``upstream_expander``
+        的写作批次改为展开**完整产出**——否则审校拿到的是被摘要截断的初稿。
+        """
         blocks: list[str] = []
-        budget = UPSTREAM_CONTEXT_BUDGET
+        budget = self._upstream_budget
         for dep_id in planned.depends_on:
             result = self._results.get(dep_id)
             if result is None or result.status != "succeeded":
                 continue
             title = self._planned[dep_id].title if dep_id in self._planned else dep_id
-            lines = [f"### {title}", result.summary]
+            detail = result.summary
+            if self._upstream_expander is not None:
+                expanded = await self._upstream_expander(dep_id)
+                if expanded:
+                    detail = expanded
+            lines = [f"### {title}", detail]
             if result.artifacts:
                 lines.append("产出：" + ", ".join(result.artifacts))
             block = "\n".join(lines)
@@ -504,7 +533,7 @@ class TeamRunHandle:
             attempt_id=started.attempt_id or planned.task_id,
             member_id=planned.member.member.member_id,
             agent_id=planned.member.member.agent_id,
-            instruction=self._instruction_for(planned),
+            instruction=await self._instruction_for(planned),
             acceptance=planned.acceptance,
             agent=self._members.resolve(planned.member.profile, workspace=self._workspace),
             runtime=self._runtime,
@@ -735,8 +764,11 @@ class TeamRunHandle:
         并发孩子可能同时写完各自的事务，所以这里串行化：一次读到的区间整体投递，
         避免两个任务的事件交错，也避免同一个事件被投两次。一次写最多追加一条事件，
         但续接运行首投要从 seq 0 回放，所以按页排空，不留没广播过的历史事件。
+
+        观察者（协作域）拿到的是**未经投影的原事件**：写作域要读 ``task.result`` 与
+        ``taskId``，而线格式白名单会把这些裁掉。观察者异常只记日志——执行已经落盘。
         """
-        if self._events is None:
+        if self._events is None and not self._observers:
             return
         async with self._publish_lock:
             while True:
@@ -749,7 +781,17 @@ class TeamRunHandle:
                 if not events:
                     return
                 self._published_seq = max(int(item.seq) for item in events)
-                await self._events.emit(events)
+                if self._events is not None:
+                    await self._events.emit(events)
+                for observer in self._observers:
+                    try:
+                        await observer(events)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as error:  # noqa: BLE001 - 出口故障不能改变领域状态
+                        default_logger.bind(
+                            event="team_event_observer_failed", run_id=self.run_id
+                        ).warning(f"team event observer failed: {error}")
                 if len(events) < MAX_EVENT_LIMIT:
                     return
 
@@ -800,11 +842,21 @@ class TeamScheduler:
         self._clock = clock
         self._task_timeout_seconds = task_timeout_seconds
         self._publisher = publisher
+        self._observers: list[EventObserver] = []
         self._handles: dict[str, TeamRunHandle] = {}
 
     @property
     def repository(self) -> TeamRepository:
         return self._repository
+
+    def observe(self, observer: EventObserver) -> None:
+        """追加一个事件观察者（同一次运行的事件投递顺序：总线出口 → 观察者）。
+
+        协作域用它在**不夺取** WebUI 广播出口的前提下接住团队事件；观察者抛错只记日志，
+        不能让一次广播失败改变已经落盘的任务状态。
+        """
+        if observer not in self._observers:
+            self._observers.append(observer)
 
     def active_runs(self) -> list[TeamRunHandle]:
         return list(self._handles.values())
@@ -845,11 +897,16 @@ class TeamScheduler:
         parent_run_id: str | None = None,
         snapshot: TeamRevisionSnapshot | None = None,
         runtime: Any = None,
+        upstream_expander: UpstreamExpander | None = None,
+        upstream_budget: int | None = None,
     ) -> TeamRunHandle:
         """``runtime`` 让调用方按回合注入当前默认执行配置；不传则用装配时的调度器默认。
 
         用户在设置里换默认模型后，``ModelRuntimeResolver.runtime`` 是新对象，装配时抓
         的那一份会过期，所以运行必须由调用方给当回合的 runtime。
+
+        ``upstream_expander`` / ``upstream_budget`` 是**写作批次**的下游全文出口：只有
+        显式传入的调用方（协作 TeamPort）才展开完整产物；主编回合与重试不传，摘要语义不变。
         """
         # 准入检查（开关/归档/档案可用）已经冻结过快照时直接沿用，不再读第二次盘。
         revision = snapshot or await asyncio.to_thread(
@@ -873,6 +930,8 @@ class TeamScheduler:
             workspace_scope=workspace_scope,
             origin_message_id=origin_message_id,
             runtime=runtime if runtime is not None else self._runtime,
+            upstream_expander=upstream_expander,
+            upstream_budget=upstream_budget,
         )
         self._handles[run.run_id] = handle
         return handle
@@ -921,6 +980,8 @@ class TeamScheduler:
         workspace_scope: WorkspaceScope | None,
         origin_message_id: str | None,
         runtime: Any,
+        upstream_expander: UpstreamExpander | None = None,
+        upstream_budget: int | None = None,
     ) -> TeamRunHandle:
         return TeamRunHandle(
             repository=self._repository,
@@ -940,6 +1001,11 @@ class TeamScheduler:
                 if self._publisher is not None
                 else None
             ),
+            upstream_expander=upstream_expander,
+            upstream_budget=(
+                UPSTREAM_CONTEXT_BUDGET if upstream_budget is None else int(upstream_budget)
+            ),
+            observers=self._observers,
         )
 
     async def cancel_run(self, run_id: str) -> TeamRunSnapshot | None:
