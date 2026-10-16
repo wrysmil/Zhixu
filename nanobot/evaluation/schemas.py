@@ -529,6 +529,247 @@ class ManualReview(JsonModel):
     created_at: datetime
 
 
+# ====================================================================== 读出模型
+# 契约 §3/§4 的响应形状。仓储内部仍返回 dict，读出模型只在这一层做类型化序列化：
+# 边界一次收口，handler 不再自己拼字段。
+
+
+class RunSummary(JsonModel):
+    id: Uuid
+    suite_id: Uuid
+    suite_name: StrictStr
+    status: RunStatus
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    parent_run_id: Uuid | None = None
+    planned_count: NonNegativeInt
+    # 契约 §4：只数已经执行且评分终结的项；Agent finished 而 Judge pending 不算。
+    terminal_count: NonNegativeInt
+
+
+class RunSnapshot(JsonModel):
+    """契约 §4：冻结内容只含可公开信息，秘密不进快照。"""
+
+    suite_id: Uuid
+    suite_revision: PositiveInt
+    case_revisions: dict[str, PositiveInt]
+    agent_profile_id: Identifier
+    judge_profile_id: Identifier | None = None
+    provider: StrictStr
+    model: StrictStr
+    generation: JsonObject = Field(default_factory=dict)
+    limits: RunLimits
+    rules_version: StrictStr
+    grader_version: StrictStr
+    tool_mode: StrictStr
+
+
+class RunCounts(JsonModel):
+    """契约 §4 的 verdict 计数；未终结的项不计入任何一个终态桶。"""
+
+    pending: NonNegativeInt
+    passed: NonNegativeInt
+    failed: NonNegativeInt
+    review_required: NonNegativeInt
+    not_evaluated: NonNegativeInt
+
+
+class QualityEntry(JsonModel):
+    dimension_id: Identifier
+    mean: float | None = None
+    valid_count: NonNegativeInt
+    eligible_count: NonNegativeInt
+
+
+class DurationStats(JsonModel):
+    median_ms: float | None = None
+    p95_ms: float | None = None
+    count: NonNegativeInt
+
+
+class UsageLedgerView(JsonModel):
+    agent: UsageAggregate
+    judge: UsageAggregate
+
+
+class RunMetrics(JsonModel):
+    planned: NonNegativeInt
+    passed: NonNegativeInt
+    failed: NonNegativeInt
+    review_required: NonNegativeInt
+    not_evaluated: NonNegativeInt
+    overall_pass_rate: float | None = None
+    evaluated_pass_rate: float | None = None
+    evaluation_coverage: float | None = None
+    tool_case_pass_rate: float | None = None
+    tool_eligible_cases: NonNegativeInt
+    tool_valid_cases: NonNegativeInt
+    quality: list[QualityEntry] = Field(default_factory=list)
+    agent_duration: DurationStats
+    usage: UsageLedgerView
+
+
+class RunRead(RunSummary):
+    """契约 §4：run 详情 = 摘要 + 冻结快照 + 计数 + 指标 + attempts 链接。"""
+
+    snapshot: RunSnapshot
+    counts: RunCounts
+    metrics: RunMetrics
+    attempts_url: StrictStr
+
+
+class AttemptRead(JsonModel):
+    """契约 §4 的尝试详情；judge 为 null 表示未评分，calibrated=false 只能进复核。"""
+
+    id: Uuid
+    run_id: Uuid
+    position: PositiveInt
+    case_id: Uuid
+    case_revision: PositiveInt
+    case_name: StrictStr
+    execution_status: ExecutionStatus
+    grading_status: GradingStatus
+    verdict: Verdict
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    final_answer: StrictStr | None = None
+    stop_reason: StrictStr | None = None
+    errors: list[AttemptError] = Field(default_factory=list)
+    assertions: list[AssertionResult] = Field(default_factory=list)
+    judge: JudgeResult | None = None
+    usage: UsageLedgerView
+    timing: AttemptTiming
+    trace_complete: StrictBool
+    artifacts: list[ArtifactRef] = Field(default_factory=list)
+    reviews: list[ManualReview] = Field(default_factory=list)
+
+
+class TracePage(JsonModel):
+    """契约 §3：``after_seq`` 严格递增，``sealed`` 为 false 时前端不得视为最终 Trace。"""
+
+    data: list[TraceEvent]
+    next_after_seq: NonNegativeInt
+    has_more: StrictBool
+    sealed: StrictBool
+
+
+class GoldScore(JsonModel):
+    dimension_id: Identifier
+    score: Annotated[int, Field(strict=True, ge=0, le=4)]
+
+
+class GoldSample(JsonModel):
+    """契约 §3.1：``label_status`` 只有用户确认才写 confirmed，AI 建议一律 proposed。"""
+
+    id: Identifier
+    task: StrictStr
+    rubric: Rubric
+    evidence: JsonObject
+    expected_verdict: Literal["passed", "failed"]
+    expected_scores: list[GoldScore] = Field(default_factory=list)
+    label_status: Literal["proposed", "confirmed"]
+    reviewer: StrictStr | None = None
+    comment: StrictStr = ""
+    updated_at: datetime
+
+
+class GoldSamplePage(JsonModel):
+    gold_revision: PositiveInt
+    data: list[GoldSample]
+
+
+class GoldReview(JsonModel):
+    """契约 §3.1：reviewer 由服务端本地身份填充，客户端不可指定。"""
+
+    base_gold_revision: PositiveInt
+    expected_verdict: Literal["passed", "failed"]
+    expected_scores: list[GoldScore]
+    comment: StrictStr = ""
+    confirm: StrictBool
+
+
+class CalibrationCreate(JsonModel):
+    judge_profile_id: Identifier
+    gold_revision: PositiveInt
+    sample_ids: Annotated[list[Identifier], Field(min_length=10, max_length=10)]
+
+    @model_validator(mode="after")
+    def _sample_ids_unique(self) -> "CalibrationCreate":
+        if len(set(self.sample_ids)) != len(self.sample_ids):
+            raise ValueError("DUPLICATE_SAMPLE_IDS")
+        return self
+
+
+class CalibrationRead(JsonModel):
+    """契约 §3.1：未完成/失败/取消时 agreement 与 passed 均为 null，不填 0 冒充结果。"""
+
+    id: Uuid
+    status: RunStatus
+    judge_fingerprint: StrictStr
+    gold_revision: PositiveInt
+    total: NonNegativeInt
+    completed: NonNegativeInt
+    matched: NonNegativeInt
+    agreement: float | None = None
+    passed: StrictBool | None = None
+    created_at: datetime
+    finished_at: datetime | None = None
+    error: StrictStr | None = None
+
+
+class ProfileRead(JsonModel):
+    """契约 §3：只回传可选模型的公开信息，绝不回传原配置或密钥。"""
+
+    id: Identifier
+    label: StrictStr
+    provider: StrictStr
+    model: StrictStr
+    kind: Literal["agent", "judge", "both"]
+    role: StrictStr | None = None
+
+
+class Overview(JsonModel):
+    """契约 §3：状态计数与指标都派生自持久状态，浏览器不持有调度状态。"""
+
+    recent_runs: list[RunSummary]
+    metrics: RunMetrics | None = None
+    status_counts: dict[RunStatus, NonNegativeInt]
+
+
+class SampleImportRequest(JsonModel):
+    sample_id: Literal["basic-v1"]
+
+
+class ImportSuiteRequest(JsonModel):
+    """契约 §3：导入忽略旧 id 并重建关联，全部合法才提交。"""
+
+    schema_version: Literal[1] = 1
+    suite: SuiteWrite
+    cases: Annotated[list[CaseWrite], Field(min_length=1, max_length=200)]
+
+
+class RerunCreate(JsonModel):
+    """契约 §3：只能重跑同运行的终态尝试，引用原冻结快照。"""
+
+    attempt_ids: Annotated[list[Uuid], Field(min_length=1, max_length=200)]
+
+    @model_validator(mode="after")
+    def _attempt_ids_unique(self) -> "RerunCreate":
+        if len(set(self.attempt_ids)) != len(self.attempt_ids):
+            raise ValueError("DUPLICATE_ATTEMPT_IDS")
+        return self
+
+
+class ManualReviewCreate(JsonModel):
+    verdict: Literal["passed", "failed"]
+    comment: StrictStr = ""
+
+
+class EmptyBody(JsonModel):
+    """取消类路由的请求体：契约要求 `{}`，不接受额外字段。"""
+
+
 # =========================================================================== Trace 与 Worker IPC
 
 

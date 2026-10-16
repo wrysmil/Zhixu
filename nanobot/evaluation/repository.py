@@ -42,6 +42,17 @@ TERMINAL_RUN_STATUSES = frozenset({"completed", "cancelled", "interrupted"})
 #: attempt 的非终态 execution_status（契约 §4）。
 OPEN_EXECUTION_STATUSES = frozenset({"queued", "running"})
 CANCELLABLE_RUN_STATUSES = frozenset({"queued", "running"})
+#: 契约 §4：terminal_count 同时要求执行与评分都终结。单看 execution 会把
+#: 「Agent 已结束、Judge 仍在跑」的 attempt 误算成完成，运行会提前显示 completed。
+TERMINAL_EXECUTION_STATUSES = frozenset(
+    {"succeeded", "failed", "timed_out", "cancelled", "interrupted", "setup_error"}
+)
+TERMINAL_GRADING_STATUSES = frozenset({"completed", "judge_error", "not_applicable"})
+
+_TERMINAL_PREDICATE = (
+    "execution_status NOT IN ('queued', 'running')"
+    " AND grading_status IN ('completed', 'judge_error', 'not_applicable')"
+)
 
 
 class RevisionConflict(ValueError):  # noqa: N818 - 名称由错误码映射锁定
@@ -665,6 +676,205 @@ class EvaluationRepository:
             run = self._run_dict(conn, row["run_id"])
         return next(item for item in run["attempts"] if item["id"] == attempt_id)
 
+    # ----------------------------------------------------------------- 只读查询
+
+    def get_case_name(self, case_id: str) -> str | None:
+        with self._db.connect() as conn:
+            row = conn.execute(
+                "SELECT name FROM cases WHERE id = ?", (case_id,)
+            ).fetchone()
+        return None if row is None else str(row["name"])
+
+    def get_suite_name(self, suite_id: str) -> str:
+        with self._db.connect() as conn:
+            row = conn.execute(
+                "SELECT name FROM suites WHERE id = ?", (suite_id,)
+            ).fetchone()
+        if row is None:
+            raise RecordNotFound(f"SUITE_NOT_FOUND {suite_id}")
+        return str(row["name"])
+
+    def list_runs(
+        self,
+        *,
+        status: str | None = None,
+        suite_id: str | None = None,
+        parent_run_id: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """运行列表；软删运行不出现在这里，但软删本身不释放幂等 key。"""
+        where = ["r.is_deleted = 0"]
+        params: dict[str, Any] = {"limit": limit}
+        if status is not None:
+            where.append("r.status = :status")
+            params["status"] = status
+        if suite_id is not None:
+            where.append("r.suite_id = :suite_id")
+            params["suite_id"] = suite_id
+        if parent_run_id is not None:
+            where.append("r.parent_run_id = :parent_run_id")
+            params["parent_run_id"] = parent_run_id
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT r.id, r.suite_id, s.name AS suite_name, r.status,"
+                " r.created_at, r.started_at, r.finished_at, r.parent_run_id,"
+                " (SELECT COUNT(*) FROM attempts a WHERE a.run_id = r.id)"
+                "   AS planned_count,"
+                " (SELECT COUNT(*) FROM attempts a WHERE a.run_id = r.id"
+                "   AND " + _TERMINAL_PREDICATE + ") AS terminal_count"
+                " FROM runs r JOIN suites s ON s.id = r.suite_id"
+                " WHERE " + " AND ".join(where) +
+                " ORDER BY r.created_at DESC, r.id LIMIT :limit",
+                params,
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def run_counts(self, run_id: str) -> dict[str, int]:
+        """按终态分桶；未终结的 attempt 只进 pending。
+
+        不能直接 ``GROUP BY verdict``：未领取的项 verdict 初始就是 not_evaluated，
+        直接分组会把它算成「已判为未评估」，让页面显示的分布比真实进度领先。
+        """
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT verdict, COUNT(*) AS n FROM attempts WHERE run_id = ?"
+                " AND " + _TERMINAL_PREDICATE + " GROUP BY verdict",
+                (run_id,),
+            ).fetchall()
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM attempts WHERE run_id = ?"
+                " AND NOT (" + _TERMINAL_PREDICATE + ")",
+                (run_id,),
+            ).fetchone()[0]
+        counts = {"pending": int(pending), "passed": 0, "failed": 0,
+                  "review_required": 0, "not_evaluated": 0}
+        for row in rows:
+            verdict = str(row["verdict"])
+            counts[verdict if verdict in counts else "not_evaluated"] += int(row["n"])
+        return counts
+
+    def list_run_attempts(
+        self,
+        run_id: str,
+        *,
+        verdict: str | None = None,
+        execution_status: str | None = None,
+        grading_status: str | None = None,
+    ) -> list[dict[str, Any]]:
+        where = ["a.run_id = :run_id"]
+        params: dict[str, Any] = {"run_id": run_id}
+        for column, value in (
+            ("verdict", verdict),
+            ("execution_status", execution_status),
+            ("grading_status", grading_status),
+        ):
+            if value is not None:
+                where.append(f"a.{column} = :{column}")
+                params[column] = value
+        with self._db.connect() as conn:
+            if conn.execute(
+                "SELECT 1 FROM runs WHERE id = ?", (run_id,)
+            ).fetchone() is None:
+                raise RecordNotFound(f"RUN_NOT_FOUND {run_id}")
+            rows = conn.execute(
+                "SELECT a.id, a.run_id, a.position, a.case_id, a.case_revision,"
+                " a.case_snapshot_json, a.execution_status, a.grading_status,"
+                " a.verdict, a.started_at, a.finished_at, a.result_json"
+                " FROM attempts a WHERE " + " AND ".join(where) +
+                " ORDER BY a.position, a.id",
+                params,
+            ).fetchall()
+        listed = []
+        for row in rows:
+            attempt = {**dict(row), "result": _load(row["result_json"], None)}
+            # 用例名取自冻结快照：运行中途改名也不该让历史报告换名字。
+            snapshot = _load(attempt.pop("case_snapshot_json"), {})
+            attempt["case_name"] = str(snapshot.get("name") or "")
+            listed.append(attempt)
+        return listed
+
+    def get_artifact(self, artifact_id: str) -> dict[str, Any]:
+        """按 artifact id 取登记行；下载只认这一行给出的 attempt 归属，不解析任意 path。"""
+        with self._db.connect() as conn:
+            row = conn.execute(
+                "SELECT id, attempt_id, relative_path, media_type, size_bytes, sha256"
+                " FROM artifacts WHERE id = ?",
+                (artifact_id,),
+            ).fetchone()
+        if row is None:
+            raise RecordNotFound(f"ARTIFACT_NOT_FOUND {artifact_id}")
+        return dict(row)
+
+    def list_artifacts_for_attempt(self, attempt_id: str) -> list[dict[str, Any]]:
+        # 按 rowid 而非 id 排序：artifact id 是 uuid，字典序与登记顺序无关。
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT id, attempt_id, relative_path, media_type, size_bytes, sha256"
+                " FROM artifacts WHERE attempt_id = ? ORDER BY rowid",
+                (attempt_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def gold_revision(self) -> int:
+        """契约 §3.1：确认或修订标签都会推高该版本，使旧校准结果失效。"""
+        with self._db.connect() as conn:
+            row = conn.execute("SELECT revision FROM gold_state WHERE id = 1").fetchone()
+        return 0 if row is None else int(row["revision"])
+
+    def list_open_attempts(self) -> list[dict[str, Any]]:
+        """重启恢复用：所有执行或评分仍在进行的 attempt，附带 PID 与启动身份。"""
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT id, run_id, execution_status, grading_status, pid,"
+                " process_nonce FROM attempts"
+                " WHERE execution_status IN ('queued', 'running')"
+                "    OR grading_status IN ('pending', 'running')"
+                " ORDER BY run_id, position",
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def open_runs(self) -> list[dict[str, Any]]:
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT id, status FROM runs WHERE is_deleted = 0"
+                " AND status IN ('queued', 'running', 'cancelling')"
+                " ORDER BY created_at",
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def mark_interrupted(self, run_id: str) -> dict[str, Any]:
+        """重启后收口残留运行：连同待执行项一并终结，不自动补跑。"""
+        now = _utc_now_iso()
+        with self._db.connect(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT status FROM runs WHERE id = ?", (run_id,)
+            ).fetchone()
+            if row is None:
+                raise RecordNotFound(f"RUN_NOT_FOUND {run_id}")
+            if row["status"] in TERMINAL_RUN_STATUSES:
+                return self._run_dict(conn, run_id)
+            # 待执行的项没有进程可回收，但也不能留在 queued 让运行永远不算结束。
+            conn.execute(
+                "UPDATE attempts SET execution_status = 'interrupted',"
+                " grading_status = 'not_applicable', verdict = 'not_evaluated',"
+                " finished_at = :now"
+                " WHERE run_id = :run_id AND execution_status = 'queued'",
+                {"now": now, "run_id": run_id},
+            )
+            conn.execute(
+                "UPDATE attempts SET execution_status = 'interrupted',"
+                " grading_status = 'not_applicable', verdict = 'not_evaluated',"
+                " finished_at = :now WHERE run_id = :run_id"
+                " AND execution_status = 'running'",
+                {"now": now, "run_id": run_id},
+            )
+            conn.execute(
+                "UPDATE runs SET status = 'interrupted', finished_at = :now"
+                " WHERE id = :run_id",
+                {"now": now, "run_id": run_id},
+            )
+        return self.get_run(run_id)
+
     # ----------------------------------------------------------------- 领取与终态
 
     def claim_attempt(self) -> dict[str, Any] | None:
@@ -754,15 +964,62 @@ class EvaluationRepository:
         return self.get_run(run_id)
 
     def finish_attempt(self, attempt_id: str, *, result: Mapping[str, Any]) -> None:
-        """提交 attempt 终态；必须是已领取的 running/queued，其他状态一律拒绝。"""
+        """提交 attempt 终态；评分已终结的一律拒绝（防止重复提交覆盖先落的结果）。
+
+        允许的两种进入方式：
+
+        1. 一次性提交——执行刚结束、评分还没写库（``execution_status`` 仍 open）。
+        2. Judge 窗口——执行阶段已由 :meth:`mark_attempt_execution_done` 结束，
+           等评分回来后再补齐评分与 verdict。
+        """
         execution_status = result["execution_status"]
         grading_status = result["grading_status"]
         verdict = result["verdict"]
         now = _utc_now_iso()
         with self._db.connect(immediate=True) as conn:
             row = conn.execute(
-                "SELECT run_id, execution_status FROM attempts WHERE id = ?",
+                "SELECT run_id, execution_status, grading_status FROM attempts"
+                " WHERE id = ?",
                 (attempt_id,),
+            ).fetchone()
+            if row is None:
+                raise RecordNotFound(f"ATTEMPT_NOT_FOUND {attempt_id}")
+            # 先看已落库的状态：重复提交必须先被拒，不能让本次 payload 覆盖先落的结果。
+            if row["grading_status"] in TERMINAL_GRADING_STATUSES:
+                raise StateConflict(
+                    f"ATTEMPT_NOT_FINISHABLE status={row['grading_status']}"
+                )
+            if grading_status not in TERMINAL_GRADING_STATUSES:
+                raise StateConflict(f"ATTEMPT_GRADING_NOT_FINISHED status={grading_status}")
+            if execution_status not in TERMINAL_EXECUTION_STATUSES:
+                raise StateConflict(
+                    f"ATTEMPT_EXECUTION_NOT_FINISHED status={execution_status}"
+                )
+            conn.execute(
+                "UPDATE attempts SET execution_status = ?, grading_status = ?,"
+                " verdict = ?, result_json = ?, finished_at = ?"
+                " WHERE id = ? AND grading_status NOT IN"
+                " ('completed', 'judge_error', 'not_applicable')",
+                (execution_status, grading_status, verdict,
+                 _dump(dict(result.get("result", {}))), now, attempt_id),
+            )
+            self._settle_run_if_done(conn, row["run_id"], now)
+
+    def mark_attempt_execution_done(
+        self, attempt_id: str, *, execution_status: str
+    ) -> None:
+        """记录执行阶段结束但评分仍在进行。
+
+        契约 §4 明确存在「Agent finished 而 Judge pending」这一状态：它既不算终态，
+        也不能让 run 收口。没有这一步，评分窗口期在库里的表现会和「已排队」混同，
+        重启恢复也无法区分「还没开始跑」与「跑完了在等 Judge」。
+        """
+        if execution_status not in TERMINAL_EXECUTION_STATUSES:
+            raise StateConflict(f"ATTEMPT_EXECUTION_NOT_FINISHED status={execution_status}")
+        now = _utc_now_iso()
+        with self._db.connect(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT execution_status FROM attempts WHERE id = ?", (attempt_id,)
             ).fetchone()
             if row is None:
                 raise RecordNotFound(f"ATTEMPT_NOT_FOUND {attempt_id}")
@@ -771,22 +1028,36 @@ class EvaluationRepository:
                     f"ATTEMPT_NOT_FINISHABLE status={row['execution_status']}"
                 )
             conn.execute(
-                "UPDATE attempts SET execution_status = ?, grading_status = ?,"
-                " verdict = ?, result_json = ?, finished_at = ?"
-                " WHERE id = ? AND execution_status = ?",
-                (execution_status, grading_status, verdict,
-                 _dump(dict(result.get("result", {}))), now, attempt_id,
-                 row["execution_status"]),
+                "UPDATE attempts SET execution_status = ?, finished_at = ?"
+                " WHERE id = ?",
+                (execution_status, now, attempt_id),
             )
-            self._settle_run_if_done(conn, row["run_id"], now)
+
+    def mark_attempt_grading_running(self, attempt_id: str) -> None:
+        """评分开始：让「等 Judge」与「还没排到评分」在库里可区分。"""
+        with self._db.connect(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT grading_status FROM attempts WHERE id = ?", (attempt_id,)
+            ).fetchone()
+            if row is None:
+                raise RecordNotFound(f"ATTEMPT_NOT_FOUND {attempt_id}")
+            conn.execute(
+                "UPDATE attempts SET grading_status = 'running' WHERE id = ?"
+                " AND grading_status = 'pending'",
+                (attempt_id,),
+            )
 
     def _settle_run_if_done(
         self, conn: sqlite3.Connection, run_id: str, now: str
     ) -> None:
-        """只有全部 attempt 都终结才把 run 收成 completed；评分未回也要等。"""
+        """只有全部 attempt 的执行与评分都终结才把 run 收成 completed。
+
+        契约 §4：Agent finished 而 Judge pending 不算整体完成。只看
+        execution_status 会在评分窗口期提前收口，指标也会少算未判分的项。
+        """
         pending = conn.execute(
             "SELECT COUNT(*) FROM attempts WHERE run_id = ?"
-            " AND execution_status IN ('queued', 'running')",
+            " AND NOT (" + _TERMINAL_PREDICATE + ")",
             (run_id,),
         ).fetchone()[0]
         if pending:
@@ -1009,6 +1280,128 @@ class EvaluationRepository:
             "created_at": row["created_at"], "started_at": row["started_at"],
             "finished_at": row["finished_at"],
         }
+
+    def claim_calibration_item(self) -> dict[str, Any] | None:
+        """校准项的原子领取；校准任务与普通运行共享同一并发预算与取消语义。"""
+        now = _utc_now_iso()
+        with self._db.connect(immediate=True) as conn:
+            row = conn.execute(
+                "UPDATE calibration_items SET status = 'running', pid = NULL"
+                " WHERE id = ("
+                "   SELECT i.id FROM calibration_items i"
+                "   JOIN calibration_jobs j ON j.id = i.job_id"
+                "   WHERE i.status = 'queued' AND j.status IN ('queued', 'running')"
+                "   ORDER BY j.created_at, i.position LIMIT 1"
+                " ) AND status = 'queued'"
+                " RETURNING id, job_id, position",
+            ).fetchone()
+            if row is None:
+                return None
+            conn.execute(
+                "UPDATE calibration_jobs SET status = 'running',"
+                " started_at = COALESCE(started_at, :now)"
+                " WHERE id = :job_id AND status = 'queued'",
+                {"now": now, "job_id": row["job_id"]},
+            )
+        claimed = dict(row)
+        job = self.get_calibration(claimed["job_id"])
+        claimed["snapshot"] = job["snapshot"]
+        return claimed
+
+    def finish_calibration_item(
+        self, item_id: str, *, status: str, result: Mapping[str, Any] | None = None
+    ) -> None:
+        """提交校准项终态；``matched`` 为 bool，决定 agreement 的分子。"""
+        if status not in ("completed", "failed", "cancelled"):
+            raise StateConflict(f"CALIBRATION_ITEM_NOT_FINISHABLE status={status}")
+        with self._db.connect(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT job_id, status FROM calibration_items WHERE id = ?", (item_id,)
+            ).fetchone()
+            if row is None:
+                raise RecordNotFound(f"CALIBRATION_ITEM_NOT_FOUND {item_id}")
+            if row["status"] not in ("queued", "running"):
+                raise StateConflict(
+                    f"CALIBRATION_ITEM_NOT_FINISHABLE status={row['status']}"
+                )
+            conn.execute(
+                "UPDATE calibration_items SET status = ?, result_json = ? WHERE id = ?",
+                (status, _dump(dict(result or {})), item_id),
+            )
+            self._settle_calibration_if_done(conn, row["job_id"])
+
+    def _settle_calibration_if_done(
+        self, conn: sqlite3.Connection, job_id: str
+    ) -> None:
+        """全部校准项终结才收口作业；agreement 由 completed 项的 matched 汇总。"""
+        pending = conn.execute(
+            "SELECT COUNT(*) FROM calibration_items WHERE job_id = ?"
+            " AND status IN ('queued', 'running')",
+            (job_id,),
+        ).fetchone()[0]
+        if pending:
+            return
+        rows = conn.execute(
+            "SELECT status, result_json FROM calibration_items"
+            " WHERE job_id = ? AND status = 'completed'",
+            (job_id,),
+        ).fetchall()
+        total = len(rows)
+        matched = sum(
+            1 for row in rows if _load(row["result_json"], {}).get("matched") is True
+        )
+        # 未全部成功就不写 passed/agreement：契约 §3.1 要求这种情况保持 null，
+        # 用 0 冒充会让人以为「跑完了但一致率是零」。
+        complete = len(
+            conn.execute(
+                "SELECT 1 FROM calibration_items WHERE job_id = ?"
+                " AND status != 'completed'",
+                (job_id,),
+            ).fetchall()
+        ) == 0
+        agreement = (matched / total) if total and complete else None
+        status = "completed" if complete else "cancelled"
+        conn.execute(
+            "UPDATE calibration_jobs SET status = ?, result_json = ?, finished_at = ?"
+            " WHERE id = ?",
+            (
+                status,
+                _dump({"total": total, "matched": matched, "agreement": agreement,
+                       "passed": None if agreement is None else agreement >= 0.8}),
+                _utc_now_iso(),
+                job_id,
+            ),
+        )
+
+    def open_calibrations(self) -> list[dict[str, Any]]:
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT id, status FROM calibration_jobs"
+                " WHERE status IN ('queued', 'running') ORDER BY created_at",
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def mark_calibration_interrupted(self, job_id: str) -> dict[str, Any]:
+        """重启恢复：残留校准作业连同待执行项一并终结，不自动补跑。"""
+        with self._db.connect(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT status FROM calibration_jobs WHERE id = ?", (job_id,)
+            ).fetchone()
+            if row is None:
+                raise RecordNotFound(f"CALIBRATION_NOT_FOUND {job_id}")
+            if row["status"] in TERMINAL_RUN_STATUSES | {"cancelled"}:
+                return self._get_calibration_in(conn, job_id)
+            conn.execute(
+                "UPDATE calibration_items SET status = 'cancelled'"
+                " WHERE job_id = ? AND status IN ('queued', 'running')",
+                (job_id,),
+            )
+            conn.execute(
+                "UPDATE calibration_jobs SET status = 'interrupted', finished_at = ?"
+                " WHERE id = ?",
+                (_utc_now_iso(), job_id),
+            )
+        return self.get_calibration(job_id)
 
     def record_calibration_result(
         self,
