@@ -195,3 +195,94 @@ def test_ops_runner_preset_ships_the_shell_tool() -> None:
     assert ops.tools.mode == "include"
     assert "exec" in ops.tools.entries
     assert "execute_command" not in ops.tools.entries
+
+
+# -- 写作出厂档案 ---------------------------------------------------------------
+#
+# 「创作团队」的五个角色是内置资产投影（契约 §7）的认领依据：投影层按 logical_id
+# 去找 physical id，id 或 skill 名写错一个字都不会报错，只会静默地永远认领不到。
+# 所以这把清单逐字钉成断言，而不是靠「看起来差不多」。
+
+WRITING_PROFILE_IDS: tuple[str, ...] = (
+    "writing-editor",
+    "writing-researcher",
+    "writing-architect",
+    "writing-author",
+    "writing-reviewer",
+)
+
+# 契约 §7 Skill→角色 配套表，条目与顺序都照抄。
+WRITING_SKILLS_BY_PROFILE: dict[str, list[str]] = {
+    "writing-editor": ["article-brief", "article-review"],
+    "writing-researcher": ["article-research"],
+    "writing-architect": ["article-outline"],
+    "writing-author": ["article-draft", "article-rewrite", "article-expand"],
+    "writing-reviewer": ["article-review"],
+}
+
+# 写作角色一律只读：写文件、跑命令、发布、安装、碰凭据的工具一个都不许进白名单。
+_FORBIDDEN_WRITING_TOOLS: frozenset[str] = frozenset({
+    "write_file", "edit_file", "apply_patch", "exec", "exec_session",
+    "run_cli_app", "spawn", "cron", "generate_image",
+})
+
+_WEB_TOOLS: frozenset[str] = frozenset({"web_search", "web_fetch"})
+
+
+def test_writing_profiles_registered() -> None:
+    for agent_id in WRITING_PROFILE_IDS:
+        factory = factory_for(agent_id)
+        assert factory is not None, f"{agent_id} 未注册为出厂档案"
+        assert factory.id == agent_id
+
+
+def test_writing_profiles_are_system_category_writing() -> None:
+    for agent_id in WRITING_PROFILE_IDS:
+        profile = factory_for(agent_id)
+        assert profile is not None
+        assert profile.type == "system"
+        assert profile.category_id == "writing"
+        assert profile.name.strip()
+        assert profile.description.strip()
+        assert profile.prompt.strip(), f"{agent_id} 的 prompt 不能为空"
+        assert len(profile.prompt) >= 80, (
+            f"{agent_id} 的 prompt 只有 {len(profile.prompt)} 字，不足 80"
+        )
+        profile.validate()
+
+
+def test_writing_profiles_skills_whitelist() -> None:
+    for agent_id, expected in WRITING_SKILLS_BY_PROFILE.items():
+        profile = factory_for(agent_id)
+        assert profile is not None
+        assert profile.skills.mode == "include"
+        assert profile.skills.entries == expected, agent_id
+
+
+def test_writing_profiles_tools_whitelist() -> None:
+    real = _real_tool_names()
+    for agent_id in WRITING_PROFILE_IDS:
+        profile = factory_for(agent_id)
+        assert profile is not None
+        assert profile.tools.mode == "include"
+        entries = set(profile.tools.entries)
+        assert entries, f"{agent_id} 的工具白名单不能为空"
+        forbidden = entries & _FORBIDDEN_WRITING_TOOLS
+        assert not forbidden, f"{agent_id} 白名单混入越权工具：{sorted(forbidden)}"
+        assert entries <= real, f"{agent_id} 含非真实工具名：{sorted(entries - real)}"
+        if agent_id == "writing-researcher":
+            assert entries >= _WEB_TOOLS
+        else:
+            # 检索归研究员：其余角色只读作者已给的素材，不自己上网。
+            assert not (entries & _WEB_TOOLS), f"{agent_id} 不该直接检索外部来源"
+
+
+def test_writing_profiles_ids_unique() -> None:
+    ids = [p.id for p in FACTORY_PROFILES]
+    assert len(ids) == len(set(ids))
+    assert len(WRITING_PROFILE_IDS) == len(set(WRITING_PROFILE_IDS))
+    existing_ids = {"general-assistant", "code-reviewer", "researcher", "ops-runner"}
+    assert set(WRITING_PROFILE_IDS) <= set(ids)
+    assert not (set(WRITING_PROFILE_IDS) & existing_ids), "写作档案 id 与既有档案冲突"
+    writing_ids = {p.id for p in FACTORY_PROFILES if p.category_id == "writing"}
+    assert set(WRITING_PROFILE_IDS) <= writing_ids
