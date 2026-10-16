@@ -154,8 +154,7 @@ export default function PreviewApp() {
         ) : route.view === "settings" ? (
           <PreviewSettings key={route.settingsSection ?? "overview"} initialSection={
             route.settingsSection === "apps" || route.settingsSection === "agents"
-              || route.settingsSection === "skills" || route.settingsSection === "automations"
-              || route.settingsSection === "teams"
+              || route.settingsSection === "skills" || route.settingsSection === "automations" || route.settingsSection === "teams"
               ? "overview" : route.settingsSection
           } onSectionChange={(settingsSection) => navigate({ view: "settings", settingsSection })} />
         ) : route.view === "apps" ||
