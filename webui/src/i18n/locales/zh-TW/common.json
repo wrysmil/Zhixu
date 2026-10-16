@@ -242,7 +242,9 @@
       "automations": "自動任務",
       "skills": "技能",
       "memory": "記憶",
-      "identity": "身分"
+      "identity": "身分",
+      "teams": "團隊",
+      "teams": "團隊"
     },
     "sections": {
       "interface": "介面",
@@ -1312,6 +1314,56 @@
       "noPersona": "不使用",
       "personaSwitchFailed": "切換人格失敗"
     },
+    "teams": {
+      "name": "團隊名稱",
+      "namePlaceholder": "例如：內容團隊",
+      "description": "團隊說明",
+      "descriptionPlaceholder": "一句話說明這支團隊做什麼。",
+      "instructions": "協作約定",
+      "instructionsPlaceholder": "誰先做什麼、交付標準是什麼。",
+      "leader": "Leader",
+      "leaderPlaceholder": "選擇一個 Agent 檔案",
+      "leaderLine": "Leader：{{name}}",
+      "members": "成員",
+      "pickMember": "選擇 {{name}} 為成員",
+      "rolePlaceholder": "本團隊職責",
+      "roleAria": "{{name}} 在本團隊的職責",
+      "removeMember": "移除 {{name}}",
+      "noAgents": "還沒有可用的 Agent 檔案",
+      "maxConcurrency": "最多並行",
+      "concurrencyHint": "同時執行的成員數上限（最多 {{max}}）",
+      "concurrency": "最多並行 {{count}} 項",
+      "errorName": "請填寫團隊名稱",
+      "errorNameLength": "團隊名稱不能超過 {{max}} 字",
+      "errorLeader": "請選擇 Leader",
+      "errorMembers": "至少選擇 1 個成員",
+      "errorMembersMax": "成員最多 {{max}} 個",
+      "errorDuplicate": "成員不能重複",
+      "errorLeaderIsMember": "Leader 不能同時作為成員",
+      "errorLeaderExcludes": "Leader 檔案不允許委派：{{ids}}",
+      "errorRole": "每位成員都要填寫本團隊職責",
+      "errorConcurrency": "最多並行需在 {{min}}–{{max}} 之間",
+      "title": "團隊",
+      "create": "建立團隊",
+      "search": "搜尋團隊",
+      "saved": "已儲存",
+      "noMatch": "沒有符合的團隊，換個關鍵字試試。",
+      "emptyHint": "先建立 Agent 檔案，再從中組建團隊。",
+      "edit": "編輯",
+      "duplicate": "複製",
+      "copySuffix": "副本",
+      "archive": "封存",
+      "archiveTitle": "封存團隊",
+      "archiveBody": "封存後不能再發起新的團隊執行，既有聊天會繼續使用它綁定的修訂，歷史執行仍可查看。",
+      "archived": "已封存",
+      "conflict": "團隊已被其他改動更新，請重新載入後再儲存（你的草稿已保留）。",
+      "createTitle": "建立團隊",
+      "editTitle": "編輯團隊",
+      "editorSubtitle": "從既有的 Agent 檔案裡選一位 Leader 和至多 8 位成員。",
+      "save": "儲存",
+      "cancel": "取消",
+      "revisionNote": "目前修訂 v{{revision}}；儲存後產生 v{{next}}"
+    },
     "agents": {
       "basics": {
         "appearance": "圖示與顏色",
@@ -1736,6 +1788,46 @@
         "none": "沒有下次執行"
       }
     },
+    "teamProgress": {
+      "title": "團隊進度",
+      "leader": "Leader",
+      "leaderAction": {
+        "planning": "規劃中",
+        "waiting": "等待成員",
+        "reviewing": "審閱中",
+        "summarizing": "彙整中",
+        "idle": "待命"
+      },
+      "status": {
+        "running": "進行中",
+        "cancelling": "正在停止…",
+        "completed": "已完成",
+        "partial": "部分完成",
+        "failed": "失敗",
+        "cancelled": "已停止",
+        "interrupted": "已中斷"
+      },
+      "taskStatus": {
+        "pending": "待派單",
+        "queued": "排隊中",
+        "running": "執行中",
+        "cancelling": "正在停止…",
+        "succeeded": "已完成",
+        "failed": "失敗",
+        "cancelled": "已停止",
+        "blocked": "被阻塞",
+        "interrupted": "已中斷"
+      },
+      "stop": "停止團隊",
+      "stopping": "正在停止…",
+      "retry": "重試失敗任務",
+      "retryHint": "重試會重新執行失敗的任務，可能重複既有副作用。",
+      "cancelTask": "停止此任務",
+      "noTasks": "本輪由 Leader 直接處理。",
+      "resyncing": "正在同步團隊狀態…",
+      "artifacts": "產出：{{names}}",
+      "memberFallback": "成員 {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "新增",
@@ -1979,6 +2071,15 @@
         "defaultShort": "預設",
         "full": "完整存取權",
         "fullShort": "完整"
+      },
+      "team": {
+        "aria": "團隊選擇",
+        "select": "選擇團隊",
+        "none": "不使用團隊",
+        "empty": "還沒有可用的團隊",
+        "bound": "已綁定 {{name}}（修訂 {{revision}}）",
+        "chip": "團隊：{{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "捲動到底部",
@@ -2177,6 +2278,14 @@
     "workspaceScopeRejected": {
       "title": "工作區未變更",
       "body": "閘道拒絕了此專案或存取模式。請選擇現有專案或其他存取模式，然後再試一次。"
+    },
+    "teamBindingExpired": {
+      "title": "團隊未生效",
+      "body": "這個空對話的團隊選擇已過期。請重新選擇團隊後再送出第一則訊息。"
+    },
+    "teamUnavailable": {
+      "title": "團隊不可用",
+      "body": "該團隊已歸檔，或其引用的 Agent 設定檔已遭移除。請換一個團隊，或改為普通對話送出。"
     },
     "turnRejected": {
       "title": "訊息未傳送",

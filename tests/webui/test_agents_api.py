@@ -370,3 +370,29 @@ def test_catalog_mcp_servers_are_not_persisted_into_profiles(tmp_path: Path) -> 
 
     assert "mcpServers" not in saved
     assert "mcpServers" not in json.dumps(saved, ensure_ascii=False)
+
+
+def test_delete_rejects_agent_referenced_by_an_active_team(tmp_path: Path) -> None:
+    """契约 §3：被未归档团队引用的档案不能删，错误里要给出团队 id。"""
+    from nanobot.webui.agents_api import agents_save
+
+    agents_save(tmp_path, dict(PROFILE_WIRE, id="writer", name="写作"))
+    with pytest.raises(WebUISettingsError) as excinfo:
+        agents_api.agents_delete(
+            tmp_path, "writer", team_reference_lookup=lambda _id: ["content-team"]
+        )
+    assert excinfo.value.status == 409
+    assert excinfo.value.message.startswith("AGENT_IN_USE_BY_TEAM")
+    assert "content-team" in excinfo.value.message
+
+
+def test_delete_still_works_without_any_team_data(tmp_path: Path) -> None:
+    """没注入引用查询、或注入了但查不到：现有删除行为必须保持一致（契约 §3）。"""
+    from nanobot.webui.agents_api import agents_save
+
+    agents_save(tmp_path, dict(PROFILE_WIRE, id="writer", name="写作"))
+    assert agents_api.agents_delete(tmp_path, "writer") == {"id": "writer"}
+    agents_save(tmp_path, dict(PROFILE_WIRE, id="writer2", name="写作2"))
+    assert agents_api.agents_delete(
+        tmp_path, "writer2", team_reference_lookup=lambda _id: []
+    ) == {"id": "writer2"}

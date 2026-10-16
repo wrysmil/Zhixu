@@ -242,7 +242,58 @@
       "automations": "自动任务",
       "skills": "技能",
       "memory": "记忆",
-      "identity": "身份"
+      "identity": "身份",
+      "teams": "团队"
+    },
+    "teams": {
+      "name": "团队名称",
+      "namePlaceholder": "例如：内容团队",
+      "description": "团队说明",
+      "descriptionPlaceholder": "一句话说明这支团队做什么。",
+      "instructions": "协作约定",
+      "instructionsPlaceholder": "谁先做什么、交付标准是什么。",
+      "leader": "Leader",
+      "leaderPlaceholder": "选择一个 Agent 档案",
+      "leaderLine": "Leader：{{name}}",
+      "members": "成员",
+      "pickMember": "选择 {{name}} 为成员",
+      "rolePlaceholder": "本团队职责",
+      "roleAria": "{{name}} 在本团队的职责",
+      "removeMember": "移除 {{name}}",
+      "noAgents": "还没有可用的 Agent 档案",
+      "maxConcurrency": "最多并行",
+      "concurrencyHint": "同时运行的成员数上限（最多 {{max}}）",
+      "concurrency": "最多并行 {{count}} 项",
+      "errorName": "请填写团队名称",
+      "errorNameLength": "团队名称不能超过 {{max}} 字",
+      "errorLeader": "请选择 Leader",
+      "errorMembers": "至少选择 1 个成员",
+      "errorMembersMax": "成员最多 {{max}} 个",
+      "errorDuplicate": "成员不能重复",
+      "errorLeaderIsMember": "Leader 不能同时作为成员",
+      "errorLeaderExcludes": "Leader 档案不允许委派：{{ids}}",
+      "errorRole": "每位成员都要填写本团队职责",
+      "errorConcurrency": "最多并行需在 {{min}}–{{max}} 之间",
+      "title": "团队",
+      "create": "创建团队",
+      "search": "搜索团队",
+      "saved": "已保存",
+      "noMatch": "没有匹配的团队，换个关键词试试。",
+      "emptyHint": "先创建 Agent 档案，再从中组建团队。",
+      "edit": "编辑",
+      "duplicate": "复制",
+      "copySuffix": "副本",
+      "archive": "归档",
+      "archiveTitle": "归档团队",
+      "archiveBody": "归档后不能再发起新的团队运行，已有聊天会继续使用它绑定的修订，历史运行仍可查看。",
+      "archived": "已归档",
+      "conflict": "团队已被其他改动更新，请重新加载后再保存（你的草稿已保留）。",
+      "createTitle": "创建团队",
+      "editTitle": "编辑团队",
+      "editorSubtitle": "从已有的 Agent 档案里选一位 Leader 和至多 8 位成员。",
+      "save": "保存",
+      "cancel": "取消",
+      "revisionNote": "当前修订 v{{revision}}；保存后生成 v{{next}}"
     },
     "agents": {
       "create": "新建 Agent",
@@ -1792,6 +1843,46 @@
         "none": "没有下次运行"
       }
     },
+    "teamProgress": {
+      "title": "团队进度",
+      "leader": "Leader",
+      "leaderAction": {
+        "planning": "规划中",
+        "waiting": "等待成员",
+        "reviewing": "审阅中",
+        "summarizing": "汇总中",
+        "idle": "待命"
+      },
+      "status": {
+        "running": "进行中",
+        "cancelling": "正在停止…",
+        "completed": "已完成",
+        "partial": "部分完成",
+        "failed": "失败",
+        "cancelled": "已停止",
+        "interrupted": "已中断"
+      },
+      "taskStatus": {
+        "pending": "待派单",
+        "queued": "排队中",
+        "running": "执行中",
+        "cancelling": "正在停止…",
+        "succeeded": "已完成",
+        "failed": "失败",
+        "cancelled": "已停止",
+        "blocked": "被阻塞",
+        "interrupted": "已中断"
+      },
+      "stop": "停止团队",
+      "stopping": "正在停止…",
+      "retry": "重试失败任务",
+      "retryHint": "重试会重新执行失败的任务，可能重复已有副作用。",
+      "cancelTask": "停止该任务",
+      "noTasks": "本轮由 Leader 直接处理。",
+      "resyncing": "正在同步团队状态…",
+      "artifacts": "产物：{{names}}",
+      "memberFallback": "成员 {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "添加",
@@ -2035,6 +2126,15 @@
         "defaultShort": "默认",
         "full": "完全访问权限",
         "fullShort": "完全"
+      },
+      "team": {
+        "aria": "团队选择",
+        "select": "选择团队",
+        "none": "不使用团队",
+        "empty": "还没有可用的团队",
+        "bound": "已绑定 {{name}}（修订 {{revision}}）",
+        "chip": "团队：{{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "滚动到底部",
@@ -2177,6 +2277,14 @@
     "workspaceScopeRejected": {
       "title": "工作区未更改",
       "body": "网关拒绝了此项目或访问权限。请选择已存在的项目或其他访问权限，然后重试。"
+    },
+    "teamBindingExpired": {
+      "title": "团队未生效",
+      "body": "这个空聊天的团队选择已过期。请重新选择团队后再发送第一条消息。"
+    },
+    "teamUnavailable": {
+      "title": "团队不可用",
+      "body": "该团队已归档，或它引用的 Agent 档案已被删除。请换一个团队，或按普通聊天发送。"
     },
     "turnRejected": {
       "title": "消息未发送",

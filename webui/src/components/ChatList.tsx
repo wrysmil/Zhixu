@@ -31,6 +31,7 @@ import {
   Trash2,
   Ungroup,
   Unplug,
+  Users,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -1023,6 +1024,9 @@ export const ChatList = memo(function ChatList({
                                       {title}
                                     </span>
                                     {isPinned ? <PinnedChatIndicator /> : null}
+                                    {s.teamBinding ? (
+                                      <TeamChatIndicator teamName={s.teamBinding.teamName} />
+                                    ) : null}
                                     {timestamp ? (
                                       <span className="shrink-0 text-[11.5px] font-medium text-muted-foreground/58">
                                         {timestamp}
@@ -1912,6 +1916,20 @@ function PinnedChatIndicator() {
       className="inline-flex shrink-0 items-center text-muted-foreground/65"
     >
       <Pin className="h-3.5 w-3.5" aria-hidden="true" />
+    </span>
+  );
+}
+
+/** Sidebar marker for a chat bound to a team (server-confirmed, never inferred here). */
+function TeamChatIndicator({ teamName }: { teamName: string }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      data-sidebar-team-indicator
+      title={t("thread.composer.team.chip", { name: teamName })}
+      className="inline-flex shrink-0 items-center text-muted-foreground/65"
+    >
+      <Users className="h-3.5 w-3.5" aria-hidden="true" />
     </span>
   );
 }

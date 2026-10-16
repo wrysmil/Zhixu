@@ -242,7 +242,8 @@
       "automations": "Tự động hóa",
       "skills": "Kỹ năng",
       "memory": "Bộ nhớ",
-      "identity": "Danh tính"
+      "identity": "Danh tính",
+      "teams": "Nhóm"
     },
     "sections": {
       "interface": "Giao diện",
@@ -1312,6 +1313,56 @@
       "noPersona": "Không dùng",
       "personaSwitchFailed": "Không thể đổi nhân vật"
     },
+    "teams": {
+      "name": "Tên nhóm",
+      "namePlaceholder": "VD: Nhóm nội dung",
+      "description": "Mô tả nhóm",
+      "descriptionPlaceholder": "Một câu cho biết nhóm này làm gì.",
+      "instructions": "Quy ước phối hợp",
+      "instructionsPlaceholder": "Ai làm gì trước, tiêu bàn giao ra sao.",
+      "leader": "Leader",
+      "leaderPlaceholder": "Chọn một hồ sơ Agent",
+      "leaderLine": "Leader: {{name}}",
+      "members": "Thành viên",
+      "pickMember": "Thêm {{name}} làm thành viên",
+      "rolePlaceholder": "Vai trò trong nhóm",
+      "roleAria": "Vai trò của {{name}} trong nhóm này",
+      "removeMember": "Bỏ {{name}}",
+      "noAgents": "Chưa có hồ sơ Agent nào để chọn",
+      "maxConcurrency": "Số chạy song song",
+      "concurrencyHint": "Số thành viên chạy cùng lúc (tối đa {{max}})",
+      "concurrency": "Tối đa {{count}} tác vụ song song",
+      "errorName": "Hãy nhập tên nhóm",
+      "errorNameLength": "Tên nhóm không được quá {{max}} ký tự",
+      "errorLeader": "Hãy chọn Leader",
+      "errorMembers": "Chọn ít nhất 1 thành viên",
+      "errorMembersMax": "Nhóm có tối đa {{max}} thành viên",
+      "errorDuplicate": "Thành viên không được trùng nhau",
+      "errorLeaderIsMember": "Leader không thể đồng thời là thành viên",
+      "errorLeaderExcludes": "Hồ sơ Leader không cho phép ủy quyền cho: {{ids}}",
+      "errorRole": "Mỗi thành viên cần một vai trò trong nhóm",
+      "errorConcurrency": "Số chạy song song phải từ {{min}} đến {{max}}",
+      "title": "Nhóm",
+      "create": "Tạo nhóm",
+      "search": "Tìm nhóm",
+      "saved": "Đã lưu",
+      "noMatch": "Không có nhóm nào khớp, thử từ khóa khác.",
+      "emptyHint": "Hãy tạo hồ sơ Agent trước, rồi lập nhóm từ đó.",
+      "edit": "Sửa",
+      "duplicate": "Nhân bản",
+      "copySuffix": "Bản sao",
+      "archive": "Lưu trữ",
+      "archiveTitle": "Lưu trữ nhóm",
+      "archiveBody": "Sau khi lưu trữ, nhóm không thể bắt đầu chạy mới. Chat đã có vẫn dùng bản ràng buộc và lịch sử chạy vẫn xem được.",
+      "archived": "Đã lưu trữ",
+      "conflict": "Nhóm đã bị thay đổi ở nơi khác. Hãy tải lại trước khi lưu; bản nháp của bạn vẫn được giữ.",
+      "createTitle": "Tạo nhóm",
+      "editTitle": "Sửa nhóm",
+      "editorSubtitle": "Chọn một Leader và tối đa 8 thành viên từ hồ sơ Agent có sẵn.",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "revisionNote": "Bản hiện tại v{{revision}}; lưu sẽ tạo v{{next}}"
+    },
     "agents": {
       "basics": {
         "appearance": "Biểu tượng và màu sắc",
@@ -1736,6 +1787,46 @@
         "none": "Không có lần chạy tiếp theo"
       }
     },
+    "teamProgress": {
+      "title": "Tiến độ nhóm",
+      "leader": "Trưởng nhóm",
+      "leaderAction": {
+        "planning": "đang lên kế hoạch",
+        "waiting": "đang chờ thành viên",
+        "reviewing": "đang duyệt",
+        "summarizing": "đang tổng hợp",
+        "idle": "đang chờ"
+      },
+      "status": {
+        "running": "Đang chạy",
+        "cancelling": "Đang dừng…",
+        "completed": "Đã hoàn thành",
+        "partial": "Hoàn thành một phần",
+        "failed": "Thất bại",
+        "cancelled": "Đã dừng",
+        "interrupted": "Bị gián đoạn"
+      },
+      "taskStatus": {
+        "pending": "Chưa giao",
+        "queued": "Trong hàng đợi",
+        "running": "Đang chạy",
+        "cancelling": "Đang dừng…",
+        "succeeded": "Xong",
+        "failed": "Thất bại",
+        "cancelled": "Đã dừng",
+        "blocked": "Bị chặn",
+        "interrupted": "Bị gián đoạn"
+      },
+      "stop": "Dừng nhóm",
+      "stopping": "Đang dừng…",
+      "retry": "Chạy lại tác vụ thất bại",
+      "retryHint": "Chạy lại sẽ thực thi lại các tác vụ thất bại và có thể lặp lại tác dụng phụ đã xảy ra.",
+      "cancelTask": "Dừng tác vụ này",
+      "noTasks": "Trưởng nhóm đã trực tiếp xử lý lượt này.",
+      "resyncing": "Đang đồng bộ trạng thái nhóm…",
+      "artifacts": "Sản phẩm: {{names}}",
+      "memberFallback": "Thành viên {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "Thêm",
@@ -1979,6 +2070,15 @@
         "defaultShort": "Mặc định",
         "full": "Toàn quyền truy cập",
         "fullShort": "Toàn quyền"
+      },
+      "team": {
+        "aria": "Chọn nhóm",
+        "select": "Chọn nhóm",
+        "none": "Không dùng nhóm",
+        "empty": "Chưa có nhóm nào khả dụng",
+        "bound": "Đã gắn với {{name}} (bản sửa đổi {{revision}})",
+        "chip": "Nhóm: {{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "Cuộn xuống cuối",
@@ -2177,6 +2277,14 @@
     "workspaceScopeRejected": {
       "title": "Không gian làm việc không thay đổi",
       "body": "Gateway đã từ chối dự án hoặc chế độ truy cập này. Chọn dự án hiện có hoặc chế độ truy cập khác rồi thử lại."
+    },
+    "teamBindingExpired": {
+      "title": "Chưa gắn nhóm nào",
+      "body": "Lựa chọn nhóm cho cuộc trò chuyện trống này đã hết hạn. Hãy chọn lại nhóm trước khi gửi tin nhắn đầu tiên."
+    },
+    "teamUnavailable": {
+      "title": "Nhóm không khả dụng",
+      "body": "Nhóm này đã được lưu trữ, hoặc hồ sơ agent mà nó tham chiếu đã bị xóa. Hãy chọn nhóm khác, hoặc gửi tin nhắn dưới dạng cuộc trò chuyện thường."
     },
     "turnRejected": {
       "title": "Tin nhắn chưa được gửi",

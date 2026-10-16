@@ -2,6 +2,7 @@ import { decodeNotification } from "../../../packages/client-events/notification
 import type {
   ConnectionStatus,
   InboundEvent,
+  NewChatTeam,
   Outbound,
   OutboundCliAppMention,
   OutboundMcpPresetMention,
@@ -9,6 +10,7 @@ import type {
   SessionMention,
   SidebarStatePayload,
   GoalStateWsPayload,
+  TeamBinding,
   TerminalEvent,
   WorkspaceScopePayload,
 } from "./types";
@@ -250,6 +252,8 @@ export class NanobotClient {
   private static readonly COMPLETED_TURN_FENCE_MAX = 256;
   /** Latest ``goal_state`` snapshot per ``chat_id`` (multi-session isolation). */
   private goalStateByChatId = new Map<string, GoalStateWsPayload>();
+  /** Server-confirmed team binding per ``chat_id``; the client never invents one. */
+  private teamBindingByChatId = new Map<string, TeamBinding | null>();
   private pendingNewChat: PendingChatRequest | null = null;
   private pendingTranscriptions = new Map<string, PendingRequest<string>>();
   private pendingSystemCommands = new Map<string, PendingRequest<void>>();
@@ -853,8 +857,16 @@ export class NanobotClient {
     this.forgetTemporaryChat(chatId);
   }
 
-  /** Ask the server to provision a new chat_id; resolves with the assigned id. */
-  newChat(timeoutMs: number = 5_000, workspaceScope?: WorkspaceScopePayload | null): Promise<string> {
+  /** Ask the server to provision a new chat_id; resolves with the assigned id.
+   *
+   * ``team`` only states the local choice for a brand-new chat; the confirmed
+   * binding is whatever the server sends back as ``team_binding``.
+   */
+  newChat(
+    timeoutMs: number = 5_000,
+    workspaceScope?: WorkspaceScopePayload | null,
+    team?: NewChatTeam | null,
+  ): Promise<string> {
     if (this.pendingNewChat) {
       return Promise.reject(new Error("newChat already in flight"));
     }
@@ -867,8 +879,19 @@ export class NanobotClient {
       this.queueSend({
         type: "new_chat",
         ...(workspaceScope ? { workspace_scope: workspaceScope } : {}),
+        ...(team
+          ? {
+              team_id: team.teamId,
+              ...(team.teamRevision ? { team_revision: team.teamRevision } : {}),
+            }
+          : {}),
       });
     });
+  }
+
+  /** Server-confirmed team binding for a chat; null means an ordinary chat. */
+  teamBindingFor(chatId: string): TeamBinding | null {
+    return this.teamBindingByChatId.get(chatId) ?? null;
   }
 
   /** Ask the WebUI gateway to create a connection-owned non-persistent chat. */
@@ -1301,6 +1324,9 @@ export class NanobotClient {
       } else {
         this.knownChats.add(parsed.chat_id);
       }
+      if (parsed.team_binding !== undefined) {
+        this.teamBindingByChatId.set(parsed.chat_id, parsed.team_binding ?? null);
+      }
       if (
         this.pendingNewChat
         && this.pendingNewChat.temporary === (parsed.temporary === true)
@@ -1329,6 +1355,9 @@ export class NanobotClient {
     }
 
     if (parsed.event === "session_updated") {
+      if (parsed.team_binding !== undefined) {
+        this.teamBindingByChatId.set(parsed.chat_id, parsed.team_binding ?? null);
+      }
       this.emitSessionUpdate(
         parsed.chat_id,
         parsed.scope,

@@ -110,6 +110,7 @@ class ChannelManager:
         webui_recovery_action: (
             Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]] | None
         ) = None,
+        webui_team_host: Any | None = None,
         config_path: Path | None = None,
     ):
         if config_path is None:
@@ -133,6 +134,10 @@ class ChannelManager:
         self._webui_mcp_reload = webui_mcp_reload
         self._webui_skill_state_action = webui_skill_state_action
         self._webui_recovery_action = webui_recovery_action
+        self._webui_team_host = webui_team_host
+        # 内嵌 WebUI 的 gateway 在 _init_channels 里构造；团队栈要在这里回捞一次，
+        # 因为装配运行时需要 agent，而 agent 是 gateway_runtime 的局部变量。
+        self._webui_gateway: Any | None = None
         self.channels: dict[str, BaseChannel] = {}
         self._channel_owners: dict[str, str] = {}
         self._channel_runtime_specs: dict[str, tuple[str, str]] = {}
@@ -148,6 +153,11 @@ class ChannelManager:
         self._origin_reply_fingerprints: OrderedDict[tuple[str, str, str], str] = OrderedDict()
 
         self._init_channels()
+
+    @property
+    def webui_gateway(self) -> Any | None:
+        """已装配的内嵌 WebUI gateway（未启用 websocket 通道时为 ``None``）。"""
+        return self._webui_gateway
 
     def _channel_section(
         self,
@@ -210,8 +220,10 @@ class ChannelManager:
                 mcp_reload=self._webui_mcp_reload,
                 skill_state_action=self._webui_skill_state_action,
                 recovery_action=self._webui_recovery_action,
+                team_host=self._webui_team_host,
                 logger=logger,
             )
+            self._webui_gateway = gateway
             kwargs["gateway"] = gateway
         channel = cls(section, self.bus, **kwargs)
         if runtime_name and runtime_name != channel.name:

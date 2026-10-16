@@ -45,6 +45,7 @@ import type {
   SkillsTrendingPayload,
   SlashCommand,
   SlashCommandLifecycle,
+  TeamBinding,
   TranscriptionSettingsUpdate,
   WebSearchSettingsUpdate,
   WorkspacesPayload,
@@ -203,6 +204,7 @@ export async function listSessions(
     recovery_state?: RecoveryState | null;
     workspace_scope?: WorkspaceScopePayload | null;
     handle?: SessionHandle | null;
+    team_binding?: TeamBinding | null;
   };
   const body = await request<{ sessions: Row[] }>(
     `${base}/api/sessions`,
@@ -224,6 +226,8 @@ export async function listSessions(
       recoveryState: s.recovery_state ?? null,
       workspaceScope: s.workspace_scope ?? null,
       handle,
+      // 服务端确认的绑定才是真值；列表不带这个键时按普通聊天解释（契约 §4）。
+      teamBinding: s.team_binding ?? null,
     };
   });
 }

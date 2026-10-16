@@ -13,6 +13,7 @@ import { hasPendingAgentActivity } from "@/lib/activity-timeline";
 import { deriveTitle } from "@/lib/format";
 import type {
   ChatSummary,
+  NewChatTeam,
   SessionAutomationJob,
   SessionDeleteResult,
   UIMessage,
@@ -130,6 +131,7 @@ export function useSessions(): {
   createChat: (
     workspaceScope?: WorkspaceScopePayload | null,
     modelPreset?: string | null,
+    team?: NewChatTeam | null,
   ) => Promise<string>;
   forkChat: (sourceChatId: string, beforeUserIndex: number, title?: string) => Promise<string>;
   deleteChat: (
@@ -210,8 +212,9 @@ export function useSessions(): {
   const createChat = useCallback(async (
     workspaceScope?: WorkspaceScopePayload | null,
     modelPreset?: string | null,
+    team?: NewChatTeam | null,
   ): Promise<string> => {
-    const chatId = await client.newChat(CHAT_CREATE_TIMEOUT_MS, workspaceScope);
+    const chatId = await client.newChat(CHAT_CREATE_TIMEOUT_MS, workspaceScope, team);
     const key = `websocket:${chatId}`;
     optimisticKeysRef.current.add(key);
     // Optimistic insert; a subsequent refresh will replace it with the
@@ -227,6 +230,8 @@ export function useSessions(): {
         preview: "",
         modelPreset: modelPreset ?? null,
         workspaceScope: workspaceScope ?? null,
+        // 只回读服务端确认的绑定：本地选择还没生效。
+        teamBinding: client.teamBindingFor(chatId),
       },
       ...prev.filter((s) => s.key !== key),
     ]);

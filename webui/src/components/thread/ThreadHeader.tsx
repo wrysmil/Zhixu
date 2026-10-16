@@ -1,4 +1,4 @@
-import { Menu, MessageCircleDashed, Moon, Sun } from "lucide-react";
+import { Menu, MessageCircleDashed, Moon, Sun, Users } from "lucide-react";
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { SessionHandle } from "@/lib/types";
+import type { SessionHandle, TeamBinding } from "@/lib/types";
 
 interface ThreadHeaderProps {
   title: string;
@@ -28,6 +28,8 @@ interface ThreadHeaderProps {
   minimal?: boolean;
   promptNavigatorAction?: ReactNode;
   sessionInfoAction?: ReactNode;
+  /** Server-confirmed team binding, shown read-only next to the title. */
+  teamInfo?: TeamBinding | null;
   temporaryChatEnabled?: boolean;
   temporaryChatDisabled?: boolean;
   onTemporaryChatEnabledChange?: (enabled: boolean) => void;
@@ -48,6 +50,7 @@ export function ThreadHeader({
   minimal = false,
   promptNavigatorAction,
   sessionInfoAction,
+  teamInfo = null,
   temporaryChatEnabled = false,
   temporaryChatDisabled = false,
   onTemporaryChatEnabledChange,
@@ -89,6 +92,21 @@ export function ThreadHeader({
             <SessionHandleLabel id={handle.id}>
               @{handle.name}
             </SessionHandleLabel>
+          </span>
+        ) : null}
+        {teamInfo ? (
+          <span
+            data-testid="thread-header-team"
+            title={t("thread.composer.team.bound", {
+              name: teamInfo.teamName,
+              revision: teamInfo.teamRevision,
+            })}
+            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[12px] font-medium text-primary/90"
+          >
+            <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="max-w-[12rem] truncate">
+              {t("thread.composer.team.chip", { name: teamInfo.teamName })}
+            </span>
           </span>
         ) : null}
       </div>

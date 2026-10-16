@@ -242,7 +242,8 @@
       "automations": "Automações",
       "skills": "Habilidades",
       "memory": "Memória",
-      "identity": "Identidade"
+      "identity": "Identidade",
+      "teams": "Equipes"
     },
     "sections": {
       "interface": "Interface do usuário",
@@ -1312,6 +1313,56 @@
       "noPersona": "Nenhuma",
       "personaSwitchFailed": "Falha ao trocar a persona"
     },
+    "teams": {
+      "name": "Nome da equipe",
+      "namePlaceholder": "ex.: Equipe de conteúdo",
+      "description": "Descrição da equipe",
+      "descriptionPlaceholder": "Uma linha sobre o que esta equipe faz.",
+      "instructions": "Regras de colaboração",
+      "instructionsPlaceholder": "Quem faz o quê primeiro e o que conta como concluído.",
+      "leader": "Leader",
+      "leaderPlaceholder": "Escolha um perfil de Agent",
+      "leaderLine": "Leader: {{name}}",
+      "members": "Membros",
+      "pickMember": "Adicionar {{name}} como membro",
+      "rolePlaceholder": "Função nesta equipe",
+      "roleAria": "Função de {{name}} nesta equipe",
+      "removeMember": "Remover {{name}}",
+      "noAgents": "Ainda não há perfis de Agent disponíveis",
+      "maxConcurrency": "Membros em paralelo",
+      "concurrencyHint": "Quantos membros rodam ao mesmo tempo (máx. {{max}})",
+      "concurrency": "Até {{count}} em paralelo",
+      "errorName": "Informe o nome da equipe",
+      "errorNameLength": "O nome da equipe não pode passar de {{max}} caracteres",
+      "errorLeader": "Escolha um Leader",
+      "errorMembers": "Escolha pelo menos 1 membro",
+      "errorMembersMax": "Uma equipe tem no máximo {{max}} membros",
+      "errorDuplicate": "O mesmo membro não pode se repetir",
+      "errorLeaderIsMember": "O Leader não pode ser também membro",
+      "errorLeaderExcludes": "O perfil do Leader não permite delegar para: {{ids}}",
+      "errorRole": "Cada membro precisa de uma função nesta equipe",
+      "errorConcurrency": "Membros em paralelo deve estar entre {{min}} e {{max}}",
+      "title": "Equipes",
+      "create": "Nova equipe",
+      "search": "Buscar equipes",
+      "saved": "Salvo",
+      "noMatch": "Nenhuma equipe correspondente. Tente outra palavra.",
+      "emptyHint": "Crie primeiro um perfil de Agent e então monte a equipe.",
+      "edit": "Editar",
+      "duplicate": "Duplicar",
+      "copySuffix": "Cópia",
+      "archive": "Arquivar",
+      "archiveTitle": "Arquivar equipe",
+      "archiveBody": "Depois de arquivar não é possível iniciar novas execuções da equipe. Os chats existentes continuam usando a revisão à qual estão vinculados e o histórico permanece visível.",
+      "archived": "Arquivada",
+      "conflict": "A equipe foi alterada em outro lugar. Recarregue antes de salvar; seu rascunho é mantido.",
+      "createTitle": "Criar equipe",
+      "editTitle": "Editar equipe",
+      "editorSubtitle": "Escolha um Leader e até 8 membros entre os perfis de Agent existentes.",
+      "save": "Salvar",
+      "cancel": "Cancelar",
+      "revisionNote": "Revisão atual v{{revision}}; salvar criará v{{next}}"
+    },
     "agents": {
       "basics": {
         "appearance": "Ícone e cor",
@@ -1736,6 +1787,46 @@
         "none": "Sem próxima execução"
       }
     },
+    "teamProgress": {
+      "title": "Progresso da equipe",
+      "leader": "Líder",
+      "leaderAction": {
+        "planning": "planejando",
+        "waiting": "aguardando membros",
+        "reviewing": "revisando",
+        "summarizing": "resumindo",
+        "idle": "ocioso"
+      },
+      "status": {
+        "running": "Em andamento",
+        "cancelling": "Parando…",
+        "completed": "Concluída",
+        "partial": "Parcialmente concluída",
+        "failed": "Falhou",
+        "cancelled": "Parada",
+        "interrupted": "Interrompida"
+      },
+      "taskStatus": {
+        "pending": "Não atribuída",
+        "queued": "Na fila",
+        "running": "Em andamento",
+        "cancelling": "Parando…",
+        "succeeded": "Concluída",
+        "failed": "Falhou",
+        "cancelled": "Parada",
+        "blocked": "Bloqueada",
+        "interrupted": "Interrompida"
+      },
+      "stop": "Parar equipe",
+      "stopping": "Parando…",
+      "retry": "Tentar novamente as tarefas com falha",
+      "retryHint": "A nova tentativa executa de novo as tarefas com falha e pode repetir efeitos já causados.",
+      "cancelTask": "Parar esta tarefa",
+      "noTasks": "O Líder respondeu diretamente neste turno.",
+      "resyncing": "Sincronizando o estado da equipe…",
+      "artifacts": "Artefatos: {{names}}",
+      "memberFallback": "Membro {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "Adicionar",
@@ -1979,6 +2070,15 @@
         "defaultShort": "Padrão",
         "full": "Acesso total",
         "fullShort": "Total"
+      },
+      "team": {
+        "aria": "Escolher equipe",
+        "select": "Selecionar equipe",
+        "none": "Sem equipe",
+        "empty": "Ainda não há equipes disponíveis",
+        "bound": "Vinculada a {{name}} (revisão {{revision}})",
+        "chip": "Equipe: {{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "Rolar para o final",
@@ -2177,6 +2277,14 @@
     "workspaceScopeRejected": {
       "title": "O espaço de trabalho não foi alterado",
       "body": "O gateway rejeitou este projeto ou modo de acesso. Escolha um projeto existente ou outro modo de acesso e tente novamente."
+    },
+    "teamBindingExpired": {
+      "title": "Nenhuma equipe foi vinculada",
+      "body": "A escolha de equipe para este chat vazio expirou. Escolha a equipe novamente antes de enviar a primeira mensagem."
+    },
+    "teamUnavailable": {
+      "title": "A equipe não está disponível",
+      "body": "Esta equipe foi arquivada ou um perfil de agente referenciado por ela foi removido. Escolha outra equipe ou envie a mensagem como um chat comum."
     },
     "turnRejected": {
       "title": "A mensagem não foi enviada",

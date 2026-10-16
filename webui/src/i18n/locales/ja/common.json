@@ -242,7 +242,8 @@
       "automations": "自動タスク",
       "skills": "スキル",
       "memory": "記憶",
-      "identity": "アイデンティティ"
+      "identity": "アイデンティティ",
+      "teams": "チーム"
     },
     "sections": {
       "interface": "インターフェース",
@@ -1312,6 +1313,56 @@
       "noPersona": "なし",
       "personaSwitchFailed": "ペルソナの変更に失敗しました"
     },
+    "teams": {
+      "name": "チーム名",
+      "namePlaceholder": "例：コンテンツチーム",
+      "description": "チームの説明",
+      "descriptionPlaceholder": "このチームが何をするかを一行で。",
+      "instructions": "協業ルール",
+      "instructionsPlaceholder": "誰が何を先にやるか、完了の基準は何か。",
+      "leader": "リーダー",
+      "leaderPlaceholder": "Agent プロファイルを選択",
+      "leaderLine": "リーダー：{{name}}",
+      "members": "メンバー",
+      "pickMember": "{{name}} をメンバーに追加",
+      "rolePlaceholder": "このチームでの役割",
+      "roleAria": "{{name}} のこのチームでの役割",
+      "removeMember": "{{name}} を外す",
+      "noAgents": "利用可能な Agent プロファイルがありません",
+      "maxConcurrency": "同時実行数",
+      "concurrencyHint": "同時に走るメンバー数の上限（最大 {{max}}）",
+      "concurrency": "最大 {{count}} 並列",
+      "errorName": "チーム名を入力してください",
+      "errorNameLength": "チーム名は {{max}} 文字以内です",
+      "errorLeader": "リーダーを選択してください",
+      "errorMembers": "メンバーを少なくとも 1 人選択してください",
+      "errorMembersMax": "メンバーは最大 {{max}} 人です",
+      "errorDuplicate": "同じメンバーを重複して選べません",
+      "errorLeaderIsMember": "リーダーを同時にメンバーにすることはできません",
+      "errorLeaderExcludes": "リーダーのプロファイルが委譲を許可していません：{{ids}}",
+      "errorRole": "各メンバーの役割を入力してください",
+      "errorConcurrency": "同時実行数は {{min}}〜{{max}} の整数です",
+      "title": "チーム",
+      "create": "チームを作成",
+      "search": "チームを検索",
+      "saved": "保存しました",
+      "noMatch": "該当するチームがありません。別のキーワードをお試しください。",
+      "emptyHint": "まず Agent プロファイルを作成し、それからチームを組みましょう。",
+      "edit": "編集",
+      "duplicate": "複製",
+      "copySuffix": "コピー",
+      "archive": "アーカイブ",
+      "archiveTitle": "チームをアーカイブ",
+      "archiveBody": "アーカイブすると新しいチーム実行は始められません。既存のチャットはバインド済みのリビジョンを引き続き使い、過去の実行は閲覧できます。",
+      "archived": "アーカイブ済み",
+      "conflict": "チームが他所で変更されました。再読み込みしてから保存してください（下書きは保持されます）。",
+      "createTitle": "チームを作成",
+      "editTitle": "チームを編集",
+      "editorSubtitle": "既存の Agent プロファイルからリーダー 1 人と最大 8 人のメンバーを選びます。",
+      "save": "保存",
+      "cancel": "キャンセル",
+      "revisionNote": "現在のリビジョン v{{revision}}、保存すると v{{next}} が作成されます"
+    },
     "agents": {
       "basics": {
         "appearance": "アイコンと色",
@@ -1736,6 +1787,46 @@
         "none": "次回実行なし"
       }
     },
+    "teamProgress": {
+      "title": "チームの進捗",
+      "leader": "リーダー",
+      "leaderAction": {
+        "planning": "計画中",
+        "waiting": "メンバーを待機中",
+        "reviewing": "レビュー中",
+        "summarizing": "集計中",
+        "idle": "待機中"
+      },
+      "status": {
+        "running": "実行中",
+        "cancelling": "停止しています…",
+        "completed": "完了",
+        "partial": "一部完了",
+        "failed": "失敗",
+        "cancelled": "停止済み",
+        "interrupted": "中断"
+      },
+      "taskStatus": {
+        "pending": "未割り当て",
+        "queued": "待機中",
+        "running": "実行中",
+        "cancelling": "停止しています…",
+        "succeeded": "完了",
+        "failed": "失敗",
+        "cancelled": "停止済み",
+        "blocked": "ブロック",
+        "interrupted": "中断"
+      },
+      "stop": "チームを停止",
+      "stopping": "停止しています…",
+      "retry": "失敗したタスクを再実行",
+      "retryHint": "再実行は失敗したタスクをもう一度実行し、既存の副作用が重複する可能性があります。",
+      "cancelTask": "このタスクを停止",
+      "noTasks": "このターンはリーダーが直接対応しました。",
+      "resyncing": "チーム状態を同期しています…",
+      "artifacts": "成果物: {{names}}",
+      "memberFallback": "メンバー {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "追加",
@@ -1979,6 +2070,15 @@
         "defaultShort": "既定",
         "full": "フルアクセス",
         "fullShort": "フル"
+      },
+      "team": {
+        "aria": "チームを選択",
+        "select": "チームを選ぶ",
+        "none": "チームなし",
+        "empty": "利用可能なチームはまだありません",
+        "bound": "{{name}}（リビジョン {{revision}}）にバインド済み",
+        "chip": "チーム：{{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "一番下へスクロール",
@@ -2177,6 +2277,14 @@
     "workspaceScopeRejected": {
       "title": "ワークスペースは変更されませんでした",
       "body": "このプロジェクトまたはアクセスモードはゲートウェイに拒否されました。既存のプロジェクトまたは別のアクセスモードを選択して、もう一度お試しください。"
+    },
+    "teamBindingExpired": {
+      "title": "チームは設定されませんでした",
+      "body": "この空のチャットのチーム選択は有効期限切れです。最初のメッセージを送る前にチームを選び直してください。"
+    },
+    "teamUnavailable": {
+      "title": "チームを利用できません",
+      "body": "このチームはアーカイブされたか、参照しているエージェント設定ファイルが削除されました。別のチームを選ぶか、通常のチャットとして送信してください。"
     },
     "turnRejected": {
       "title": "メッセージは送信されませんでした",

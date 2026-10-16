@@ -242,7 +242,8 @@
       "automations": "Automatizaciones",
       "skills": "Habilidades",
       "memory": "Memoria",
-      "identity": "Identidad"
+      "identity": "Identidad",
+      "teams": "Equipos"
     },
     "sections": {
       "interface": "Interfaz",
@@ -1312,6 +1313,56 @@
       "noPersona": "Ninguna",
       "personaSwitchFailed": "No se pudo cambiar la persona"
     },
+    "teams": {
+      "name": "Nombre del equipo",
+      "namePlaceholder": "p. ej. Equipo de contenido",
+      "description": "Descripción del equipo",
+      "descriptionPlaceholder": "Una línea sobre qué hace este equipo.",
+      "instructions": "Reglas de colaboración",
+      "instructionsPlaceholder": "Quién hace qué primero y qué cuenta como terminado.",
+      "leader": "Leader",
+      "leaderPlaceholder": "Elige un perfil de Agent",
+      "leaderLine": "Leader: {{name}}",
+      "members": "Miembros",
+      "pickMember": "Añadir a {{name}} como miembro",
+      "rolePlaceholder": "Rol en este equipo",
+      "roleAria": "Rol de {{name}} en este equipo",
+      "removeMember": "Quitar a {{name}}",
+      "noAgents": "Todavía no hay perfiles de Agent disponibles",
+      "maxConcurrency": "Miembros en paralelo",
+      "concurrencyHint": "Miembros que se ejecutan a la vez (máx. {{max}})",
+      "concurrency": "Hasta {{count}} en paralelo",
+      "errorName": "Escribe un nombre de equipo",
+      "errorNameLength": "El nombre del equipo no puede superar {{max}} caracteres",
+      "errorLeader": "Elige un Leader",
+      "errorMembers": "Elige al menos 1 miembro",
+      "errorMembersMax": "Un equipo tiene como máximo {{max}} miembros",
+      "errorDuplicate": "Un miembro no puede repetirse",
+      "errorLeaderIsMember": "El Leader no puede ser también miembro",
+      "errorLeaderExcludes": "El perfil del Leader no permite delegar en: {{ids}}",
+      "errorRole": "Cada miembro necesita un rol en este equipo",
+      "errorConcurrency": "Los miembros en paralelo deben estar entre {{min}} y {{max}}",
+      "title": "Equipos",
+      "create": "Nuevo equipo",
+      "search": "Buscar equipos",
+      "saved": "Guardado",
+      "noMatch": "Ningún equipo coincide. Prueba con otra palabra.",
+      "emptyHint": "Crea primero un perfil de Agent y luego forma el equipo.",
+      "edit": "Editar",
+      "duplicate": "Duplicar",
+      "copySuffix": "Copia",
+      "archive": "Archivar",
+      "archiveTitle": "Archivar equipo",
+      "archiveBody": "Al archivar ya no se pueden lanzar nuevas ejecuciones del equipo. Los chats existentes siguen usando la revisión a la que están vinculados y el historial se puede consultar.",
+      "archived": "Archivado",
+      "conflict": "El equipo cambió en otro lugar. Recarga antes de guardar; tu borrador se conserva.",
+      "createTitle": "Crear equipo",
+      "editTitle": "Editar equipo",
+      "editorSubtitle": "Elige un Leader y hasta 8 miembros entre tus perfiles de Agent.",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "revisionNote": "Revisión actual v{{revision}}; al guardar se creará v{{next}}"
+    },
     "agents": {
       "basics": {
         "appearance": "Icono y color",
@@ -1736,6 +1787,46 @@
         "none": "Sin próxima ejecución"
       }
     },
+    "teamProgress": {
+      "title": "Progreso del equipo",
+      "leader": "Líder",
+      "leaderAction": {
+        "planning": "planificando",
+        "waiting": "esperando a los miembros",
+        "reviewing": "revisando",
+        "summarizing": "resumiendo",
+        "idle": "inactivo"
+      },
+      "status": {
+        "running": "En curso",
+        "cancelling": "Deteniendo…",
+        "completed": "Completado",
+        "partial": "Completado parcialmente",
+        "failed": "Falló",
+        "cancelled": "Detenido",
+        "interrupted": "Interrumpido"
+      },
+      "taskStatus": {
+        "pending": "Sin asignar",
+        "queued": "En cola",
+        "running": "En curso",
+        "cancelling": "Deteniendo…",
+        "succeeded": "Hecho",
+        "failed": "Falló",
+        "cancelled": "Detenido",
+        "blocked": "Bloqueado",
+        "interrupted": "Interrumpido"
+      },
+      "stop": "Detener equipo",
+      "stopping": "Deteniendo…",
+      "retry": "Reintentar tareas fallidas",
+      "retryHint": "Reintentar vuelve a ejecutar las tareas fallidas y puede repetir efectos ya producidos.",
+      "cancelTask": "Detener esta tarea",
+      "noTasks": "El Líder respondió directamente en este turno.",
+      "resyncing": "Sincronizando el estado del equipo…",
+      "artifacts": "Artefactos: {{names}}",
+      "memberFallback": "Miembro {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "Añadir",
@@ -1979,6 +2070,15 @@
         "defaultShort": "Predeterm.",
         "full": "Acceso completo",
         "fullShort": "Completo"
+      },
+      "team": {
+        "aria": "Elegir equipo",
+        "select": "Seleccionar equipo",
+        "none": "Sin equipo",
+        "empty": "Todavía no hay equipos disponibles",
+        "bound": "Vinculado a {{name}} (revisión {{revision}})",
+        "chip": "Equipo: {{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "Desplazarse al final",
@@ -2177,6 +2277,14 @@
     "workspaceScopeRejected": {
       "title": "El espacio de trabajo no cambió",
       "body": "El gateway rechazó este proyecto o modo de acceso. Elige un proyecto existente u otro modo de acceso e inténtalo de nuevo."
+    },
+    "teamBindingExpired": {
+      "title": "No se vinculó ningún equipo",
+      "body": "La elección de equipo para este chat vacío expiró. Vuelve a elegir el equipo antes de enviar el primer mensaje."
+    },
+    "teamUnavailable": {
+      "title": "El equipo no está disponible",
+      "body": "Este equipo fue archivado o se eliminó un perfil de agente que referencia. Elige otro equipo o envía el mensaje como chat ordinario."
     },
     "turnRejected": {
       "title": "El mensaje no se envió",

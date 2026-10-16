@@ -33,6 +33,7 @@ from nanobot.session.recovery import RecoveryActionError
 from nanobot.session.session_handles import (
     SessionHandleResolver,
 )
+from nanobot.teams.binding import TeamBindingStore
 from nanobot.triggers.local_types import LocalTrigger
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.file_preview import (
@@ -130,6 +131,7 @@ from nanobot.webui.skills_marketplace import (
     search_marketplace_skills,
     trending_marketplace_skills,
 )
+from nanobot.webui.teams_routes import TeamSettingsOperations
 from nanobot.webui.thread_disk import delete_webui_thread
 from nanobot.webui.transcript import (
     WEBUI_TRANSCRIPT_SCHEMA_VERSION,
@@ -145,6 +147,8 @@ from nanobot.webui.writing_routes import WritingSettingsOperations
 _SLOW_WEBUI_HTTP_LOG_MS = 1_000
 _WEBUI_MUTATION_PAYLOAD_ATTR = "_nanobot_webui_mutation_payload"
 _WEBUI_MUTATION_REQUEST_ATTR = "_nanobot_webui_mutation_request"
+# 发起这次 mutation 的连接当前挂在哪些聊天上：由服务端从连接推导，payload 覆盖不了。
+_WEBUI_MUTATION_CALLER_ATTR = "_nanobot_webui_mutation_caller_chats"
 _NO_STORE_HEADERS = [("Cache-Control", "no-store")]
 
 _WEBUI_MUTATION_PATHS = {
@@ -212,6 +216,15 @@ _WEBUI_MUTATION_PATHS = {
     "agents.delete": "/api/settings/agents/delete",
     "agents.reset": "/api/settings/agents/reset",
     "agents.visibility": "/api/settings/agents/visibility",
+    # Agent Team（契约 §3）：三个写动作只能走已认证 WS 的 requestMutation。
+    "teams.save": "/api/settings/teams/save",
+    "teams.archive": "/api/settings/teams/archive",
+    "teams.clone": "/api/settings/teams/clone",
+    # 契约 §5：运行级控制的动作名逐字照抄（teamRuns./teamTasks. 是 camelCase 段），
+    # 所以 WS 动作名校验要允许大写——见 nanobot/webui/inbound_commands.py。
+    "teamRuns.cancel": "/api/team-runs/cancel",
+    "teamRuns.retry": "/api/team-runs/retry",
+    "teamTasks.cancel": "/api/team-tasks/cancel",
     # 契约 §5：写作域四条写动作只能走已认证 WS 的 webui_request；动作名与领域
     # 动作名同名取点号（契约 §4），不再有 WS/领域双口径映射。
     "article.create": "/api/writing/articles/create",
@@ -364,6 +377,8 @@ class GatewayHTTPHandler:
         identity_operations: IdentitySettingsOperations | None = None,
         agents_operations: AgentSettingsOperations | None = None,
         writing_operations: WritingSettingsOperations | None = None,
+        team_operations: TeamSettingsOperations | None = None,
+        team_bindings: TeamBindingStore | None = None,
         log: Any = logger,
     ) -> None:
         self.config = config
@@ -381,6 +396,9 @@ class GatewayHTTPHandler:
         self.identity_operations = identity_operations
         self.agents_operations = agents_operations
         self.writing_operations = writing_operations
+        self.team_operations = team_operations
+        # 空聊天的团队绑定暂存；没装配团队服务时为 None，new_chat 会明确拒绝带 team_id 的请求。
+        self.team_bindings = team_bindings
         self.disabled_skills: set[str] = (
             disabled_skills if disabled_skills is not None else set()
         )
@@ -418,6 +436,7 @@ class GatewayHTTPHandler:
             identity_operations=self.identity_operations,
             agents_operations=self.agents_operations,
             writing_operations=self.writing_operations,
+            team_operations=self.team_operations,
         )
 
     def workspace_controls_available(self, connection: Any) -> bool:
@@ -470,6 +489,8 @@ class GatewayHTTPHandler:
         connection: Any,
         action: str,
         payload: dict[str, Any],
+        *,
+        caller_chats: tuple[str, ...] = (),
     ) -> Response:
         """Run one explicitly allowlisted mutation for an authenticated WebUI socket."""
         path = self._webui_mutation_path(action, payload)
@@ -492,6 +513,7 @@ class GatewayHTTPHandler:
         setattr(request, "_nanobot_trusted_proxy_authenticated", True)
         setattr(request, _WEBUI_MUTATION_REQUEST_ATTR, True)
         setattr(request, _WEBUI_MUTATION_PAYLOAD_ATTR, dict(payload))
+        setattr(request, _WEBUI_MUTATION_CALLER_ATTR, tuple(caller_chats))
         response = await self._dispatch_resolved(connection, request, path)
         if isinstance(response, Response):
             return response
@@ -832,6 +854,10 @@ class GatewayHTTPHandler:
             # older clients and compact list responses stay unchanged.
             if row.get("recovery_state") is None:
                 row.pop("recovery_state", None)
+            # 团队绑定同理：契约 §4 说「列表里没有这个字段就按普通聊天解释」，
+            # 所以普通聊天不带键，只有绑了团队的会话才多这一项。
+            if row.get("team_binding") is None:
+                row.pop("team_binding", None)
             chat_id = key.split(":", 1)[1]
             started_at = websocket_turn_wall_started_at(chat_id)
             if started_at is not None:

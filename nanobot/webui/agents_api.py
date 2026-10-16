@@ -91,8 +91,20 @@ def agents_save(workspace: Path, raw: Any) -> dict[str, Any]:
         raise WebUISettingsError(str(exc), status=400) from exc
 
 
-def agents_delete(workspace: Path, agent_id: Any) -> dict[str, Any]:
+def agents_delete(
+    workspace: Path,
+    agent_id: Any,
+    *,
+    team_reference_lookup: Callable[[str], list[str]] | None = None,
+) -> dict[str, Any]:
     normalized = _require_id(agent_id)
+    if team_reference_lookup is not None:
+        # 契约 §3：未归档团队引用中的档案不能删。归档团队与历史快照不绑住删除。
+        referencing = sorted(team_reference_lookup(normalized))
+        if referencing:
+            raise WebUISettingsError(
+                "AGENT_IN_USE_BY_TEAM " + ",".join(referencing), status=409
+            )
     try:
         _store(workspace).delete_profile(normalized)
     except AgentStoreError as exc:

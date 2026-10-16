@@ -489,6 +489,7 @@ class TestSubagentCancellation:
                 final_content="done",
                 error=None,
                 tool_events=[],
+                usage=None,
             )
 
         mgr.runner.run = AsyncMock(side_effect=fake_run)
@@ -688,6 +689,7 @@ class TestSubagentAnnounceSessionKey:
                 final_content="done",
                 error=None,
                 tool_events=[],
+                usage=None,
             )
 
         mgr.runner.run = AsyncMock(side_effect=fake_run)

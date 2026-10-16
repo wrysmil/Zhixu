@@ -230,10 +230,21 @@ class ContextBuilder:
         include_memory: bool = True,
         retrieved_memory_section: str | None = None,
         working_memory_section: str | None = None,
+        role_section: str | None = None,
+        skill_exclude: set[str] | None = None,
     ) -> str:
-        """Build the system prompt from identity, bootstrap files, memory, and skills."""
+        """Build the system prompt from identity, bootstrap files, memory, and skills.
+
+        ``role_section`` / ``skill_exclude`` 是**纯参数**：Team Leader 用它们注入角色与
+        裁剪技能，不改 ``self.skills`` —— 那个加载器是所有会话共享的，写回去等于让
+        一个团队回合影响普通聊天。
+        """
         root = workspace or self.workspace
         parts = [self._get_identity(channel=channel, workspace=root)]
+        if role_section:
+            # 角色排在身份之后、bootstrap 之前：它框定的是「这一回合我以什么身份行事」，
+            # 放在规则文件之后会让下面的通用规则读起来像被角色覆盖。
+            parts.append(role_section)
 
         bootstrap = self._load_bootstrap_files(root)
         if bootstrap:
@@ -265,14 +276,17 @@ class ContextBuilder:
             if memory and not self._is_template_content(memory, "memory/MEMORY.md"):
                 parts.append(f"# Memory\n\n## Long-term Memory\n{memory}")
 
-        active_skills = self.skills.get_always_skills()
+        excluded_skills = skill_exclude or set()
+        active_skills = [
+            name for name in self.skills.get_always_skills() if name not in excluded_skills
+        ]
         if active_skills:
             active_content = self.skills.load_skills_for_context(active_skills)
             if active_content:
                 parts.append(f"# Active Skills\n\n{active_content}")
 
         skills_summary = self.skills.build_skills_summary(
-            exclude=set(active_skills),
+            exclude=set(active_skills) | excluded_skills,
             workspace=root,
         )
         if skills_summary:
@@ -521,6 +535,8 @@ class ContextBuilder:
         include_memory: bool = True,
         retrieved_memory_section: str | None = None,
         working_memory_section: str | None = None,
+        role_section: str | None = None,
+        skill_exclude: set[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Build a model transcript while preserving the fresh-turn boundary."""
         root = workspace or self.workspace
@@ -534,6 +550,8 @@ class ContextBuilder:
                     include_memory=include_memory,
                     retrieved_memory_section=retrieved_memory_section,
                     working_memory_section=working_memory_section,
+                    role_section=role_section,
+                    skill_exclude=skill_exclude,
                 ),
             },
             *transcript.history,

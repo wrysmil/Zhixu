@@ -5,6 +5,7 @@ import pytest
 from nanobot.providers.base import LLMUsage
 from nanobot.session.model_selection import SESSION_MODEL_PRESET_METADATA_KEY
 from nanobot.session.recovery import RECOVERY_METADATA_KEY
+from nanobot.teams.binding import SESSION_TEAM_BINDING_KEY
 from nanobot.webui.session_projection import WebUISessionProjection
 
 
@@ -28,6 +29,7 @@ def test_attach_fields_restore_session_runtime_metadata() -> None:
     assert projection.attach_fields("websocket:chat-1") == {
         "model_preset": "Deep Research",
         "reasoning_effort": None,
+        "team_binding": None,
         "recovery_state": {
             "status": "recovered",
             "recovery_id": "recovery-1",
@@ -36,6 +38,24 @@ def test_attach_fields_restore_session_runtime_metadata() -> None:
         "usage": usage.to_turn_dict(),
     }
     sessions.read_session_metadata.assert_called_once_with("websocket:chat-1")
+
+
+def test_attach_fields_carry_the_persisted_team_binding() -> None:
+    """绑定落在 session.metadata 后，重连的 attach 就能直接恢复团队会话身份（契约 §4）。"""
+    sessions = MagicMock()
+    sessions.read_session_metadata.return_value = {
+        "metadata": {
+            SESSION_TEAM_BINDING_KEY: {
+                "teamId": "content-team",
+                "teamRevision": 3,
+                "teamName": "内容团队",
+            }
+        }
+    }
+
+    assert WebUISessionProjection(sessions).attach_fields("websocket:chat-1")[
+        "team_binding"
+    ] == {"teamId": "content-team", "teamRevision": 3, "teamName": "内容团队"}
 
 
 def test_attach_fields_tolerate_missing_or_invalid_session_metadata() -> None:
@@ -49,6 +69,7 @@ def test_attach_fields_tolerate_missing_or_invalid_session_metadata() -> None:
     assert projection.attach_fields("websocket:invalid") == {
         "model_preset": None,
         "reasoning_effort": None,
+        "team_binding": None,
     }
     log.warning.assert_called_once()
     assert WebUISessionProjection(None).attach_fields("websocket:missing") == {}

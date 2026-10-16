@@ -12,6 +12,7 @@ export type SettingsSectionKey =
   | "automations"
   | "skills"
   | "agents"
+  | "teams"
   | "runtime"
   | "advanced";
 

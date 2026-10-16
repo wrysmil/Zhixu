@@ -14,6 +14,7 @@ from nanobot.session.model_selection import (
 )
 from nanobot.session.recovery import recovery_state_from_metadata
 from nanobot.session.webui_turns import websocket_turn_id, websocket_turn_wall_started_at
+from nanobot.teams.binding import binding_from_metadata
 
 
 class SessionMetadataReader(Protocol):
@@ -53,6 +54,9 @@ class WebUISessionProjection:
         except ValueError:
             self._log.warning("ignoring invalid reasoning effort metadata for session_key={}", session_key)
             fields["reasoning_effort"] = None
+        # 已有会话没有 team_binding 一律按普通聊天解释（契约 §4），所以这里可以是 null。
+        binding = binding_from_metadata(metadata)
+        fields["team_binding"] = binding.to_dict() if binding is not None else None
         if metadata is None:
             return fields
 

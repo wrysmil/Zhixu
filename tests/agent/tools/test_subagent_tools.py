@@ -38,6 +38,7 @@ async def test_run_inline_returns_result_without_announcement(tmp_path):
         final_content="review result",
         error=None,
         tool_events=[],
+        usage=None,
     ))
     manager._announce_result = AsyncMock()
 
@@ -71,6 +72,7 @@ async def test_run_inline_returns_structured_error(tmp_path):
         final_content=None,
         error="subagent failed",
         tool_events=[],
+        usage=None,
     ))
 
     result = await manager.run_inline(
@@ -113,6 +115,7 @@ async def test_subagent_exec_tool_receives_allowed_env_keys(tmp_path):
             final_content="done",
             error=None,
             tool_events=[],
+            usage=None,
         )
 
     mgr.runner.run = AsyncMock(side_effect=fake_run)
@@ -156,6 +159,7 @@ async def test_subagent_uses_configured_max_iterations(tmp_path):
             final_content="done",
             error=None,
             tool_events=[],
+            usage=None,
         )
 
     mgr.runner.run = AsyncMock(side_effect=fake_run)
@@ -198,7 +202,7 @@ async def test_spawn_forwards_temperature_to_run_spec(tmp_path):
         seen["temperature"] = spec.runtime.generation.temperature
         seen["runtime"] = spec.runtime
         return SimpleNamespace(
-            stop_reason="done", final_content="done", error=None, tool_events=[],
+            stop_reason="done", final_content="done", error=None, tool_events=[], usage=None,
         )
 
     mgr.runner.run = AsyncMock(side_effect=fake_run)
@@ -247,6 +251,7 @@ async def test_background_spawn_waits_for_concurrency_capacity(tmp_path):
             final_content="done",
             error=None,
             tool_events=[],
+            usage=None,
         )
 
     mgr.runner.run = AsyncMock(side_effect=fake_run)
@@ -345,6 +350,7 @@ async def test_inline_spawn_waits_for_concurrency_capacity(tmp_path):
             final_content="done",
             error=None,
             tool_events=[],
+            usage=None,
         )
 
     manager.runner.run = AsyncMock(side_effect=fake_run)
@@ -406,6 +412,7 @@ async def test_runner_executes_inline_spawn_batch_concurrently(tmp_path):
             final_content=spec.initial_messages[-1]["content"],
             error=None,
             tool_events=[],
+            usage=None,
         )
 
     manager.runner.run = AsyncMock(side_effect=fake_run)

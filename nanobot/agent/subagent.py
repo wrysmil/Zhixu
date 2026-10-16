@@ -41,7 +41,7 @@ from nanobot.utils.llm_runtime import LLMRuntime
 from nanobot.utils.prompt_templates import render_template
 
 
-class _SubagentOrigin(TypedDict):
+class SubagentOrigin(TypedDict):
     channel: str
     chat_id: str
     session_key: str | None
@@ -87,13 +87,40 @@ class SubagentStatus:
     error: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class SubagentExecutionResult:
+    """一次子执行的结构化结论（契约 §5）。
+
+    存在的理由是 **判定不能靠读字符串**：旧路径把 ``max_iterations`` 也当成成功，
+    只在文本里留一句兜底说明，调用方只能 ``"Error" in text`` 猜。团队执行需要真实
+    的成败、停止原因与用量，因此这里把 ``outcome`` 收紧成四值，并把兜底文案与
+    ``stop_reason`` 分开保存 —— 文本仍然给旧调用方用，语义不变。
+
+    ``execution_id`` 由调用方给定（团队的 attemptId），这样事件流、任务表和这次执行
+    能对上同一个 id，而不是内部随机短 id。
+    """
+
+    execution_id: str
+    outcome: str  # succeeded | failed | cancelled | interrupted
+    stop_reason: str
+    final_content: str
+    usage: LLMUsage | None = None
+    error_code: str | None = None
+
+
 class _SubagentHook(AgentHook):
     """Hook for subagent execution — logs tool calls and updates status."""
 
-    def __init__(self, task_id: str, status: SubagentStatus | None = None) -> None:
+    def __init__(
+        self,
+        task_id: str,
+        status: SubagentStatus | None = None,
+        on_activity: "Callable[[Mapping[str, Any]], Any] | None" = None,
+    ) -> None:
         super().__init__()
         self._task_id = task_id
         self._status = status
+        self._on_activity = on_activity
 
     async def before_execute_tools(self, context: AgentHookContext) -> None:
         for tool_call in context.tool_calls:
@@ -104,13 +131,24 @@ class _SubagentHook(AgentHook):
             )
 
     async def after_iteration(self, context: AgentHookContext) -> None:
-        if self._status is None:
+        if self._status is not None:
+            self._status.iteration = context.iteration
+            self._status.tool_events = list(context.tool_events)
+            self._status.usage = context.usage
+            if context.error:
+                self._status.error = str(context.error)
+        if self._on_activity is None:
             return
-        self._status.iteration = context.iteration
-        self._status.tool_events = list(context.tool_events)
-        self._status.usage = context.usage
-        if context.error:
-            self._status.error = str(context.error)
+        # 公开摘要只取白名单字段：参数与输出一律不外传（契约 §7）。
+        for event in context.tool_events:
+            name = event.get("name") or event.get("tool") or ""
+            if not name:
+                continue
+            await self._on_activity({
+                "toolName": name,
+                "toolStatus": event.get("status") or "",
+                "iteration": context.iteration,
+            })
 
 
 class SubagentManager:
@@ -338,6 +376,10 @@ class SubagentManager:
             restrict_to_workspace=self.restrict_to_workspace,
         )
 
+    def subagent_tool_names(self) -> list[str]:
+        """子执行真实存在的工具名（``scope="subagent"``）；团队档案求交要用活目录。"""
+        return list(self._build_tools().names())
+
     def _build_tools(
         self,
         workspace: Path | None = None,
@@ -386,7 +428,7 @@ class SubagentManager:
             runtime = runtime.with_generation_overrides(temperature=temperature)
         task_id = str(uuid.uuid4())[:8]
         display_label = label or task[:30] + ("..." if len(task) > 30 else "")
-        origin: _SubagentOrigin = {
+        origin: SubagentOrigin = {
             "channel": origin_channel,
             "chat_id": origin_chat_id,
             "session_key": session_key,
@@ -452,7 +494,7 @@ class SubagentManager:
             runtime = runtime.with_generation_overrides(temperature=temperature)
         task_id = str(uuid.uuid4())[:8]
         display_label = label or task[:30] + ("..." if len(task) > 30 else "")
-        origin: _SubagentOrigin = {
+        origin: SubagentOrigin = {
             "channel": origin_channel,
             "chat_id": origin_chat_id,
             "session_key": session_key,
@@ -501,7 +543,7 @@ class SubagentManager:
         task_id: str,
         task: str,
         label: str,
-        origin: _SubagentOrigin,
+        origin: SubagentOrigin,
         status: SubagentStatus,
         runtime: LLMRuntime,
         origin_message_id: str | None = None,
@@ -532,7 +574,7 @@ class SubagentManager:
         task_id: str,
         task: str,
         label: str,
-        origin: _SubagentOrigin,
+        origin: SubagentOrigin,
         status: SubagentStatus,
         runtime: LLMRuntime,
         origin_message_id: str | None = None,
@@ -541,12 +583,116 @@ class SubagentManager:
         *,
         announce: bool = True,
     ) -> str:
+        """旧字符串接口：内部与团队路径共用 :meth:`_execute_admitted`。"""
+        result = await self._execute_admitted(
+            task_id,
+            task,
+            label,
+            origin,
+            status,
+            runtime,
+            origin_message_id,
+            workspace_scope,
+            agent_id,
+            announce=announce,
+        )
+        return result.final_content
+
+    async def execute_frozen(
+        self,
+        task: str,
+        *,
+        execution_id: str,
+        label: str,
+        origin: SubagentOrigin,
+        agent: ResolvedAgent,
+        runtime: LLMRuntime,
+        origin_message_id: str | None = None,
+        workspace_scope: WorkspaceScope | None = None,
+        on_activity: "Callable[[Mapping[str, Any]], Any] | None" = None,
+    ) -> SubagentExecutionResult:
+        """可信冻结档案执行入口（契约 §5）：Team 成员走这里，绝不按 agentId 重读盘。
+
+        与 ``spawn`` / ``run_inline`` 共用同一个 ``_run_slots`` 配额和同一个 Runner，
+        所以不存在第二条 LLM 循环；差别只在结果形态（typed）与 ``announce=False``
+        （成员结果不再唤醒 Leader）。取消在排队阶段或执行阶段都收敛成
+        ``outcome="cancelled"``，让调度器能区分「被停掉」与「跑失败」。
+        """
+        status = SubagentStatus(
+            task_id=execution_id,
+            label=label,
+            task_description=task,
+            started_at=time.monotonic(),
+        )
+        self._task_statuses[execution_id] = status
+        try:
+            async with self._run_slots:
+                status.phase = "initializing"
+                return await self._execute_admitted(
+                    execution_id,
+                    task,
+                    label,
+                    origin,
+                    status,
+                    runtime,
+                    origin_message_id=origin_message_id,
+                    workspace_scope=workspace_scope,
+                    announce=False,
+                    frozen_agent=agent,
+                    on_activity=on_activity,
+                    require_model_preset=True,
+                )
+        except asyncio.CancelledError:
+            status.phase = "error"
+            return SubagentExecutionResult(
+                execution_id=execution_id,
+                outcome="cancelled",
+                stop_reason="cancelled",
+                final_content="",
+                usage=status.usage,
+            )
+        finally:
+            self._task_statuses.pop(execution_id, None)
+
+    async def _execute_admitted(
+        self,
+        task_id: str,
+        task: str,
+        label: str,
+        origin: SubagentOrigin,
+        status: SubagentStatus,
+        runtime: LLMRuntime,
+        origin_message_id: str | None = None,
+        workspace_scope: WorkspaceScope | None = None,
+        agent_id: str | None = None,
+        *,
+        announce: bool = True,
+        frozen_agent: ResolvedAgent | None = None,
+        on_activity: "Callable[[Mapping[str, Any]], Any] | None" = None,
+        require_model_preset: bool = False,
+    ) -> SubagentExecutionResult:
         """Execute the subagent task and announce the result."""
         logger.info("Subagent [{}] starting task: {}", task_id, label)
 
         async def _on_checkpoint(payload: dict[str, Any]) -> None:
             status.phase = payload.get("phase", status.phase)
             status.iteration = payload.get("iteration", status.iteration)
+
+        def _typed(
+            outcome: str,
+            stop_reason: str,
+            content: str,
+            usage: LLMUsage | None = None,
+            error_code: str | None = None,
+        ) -> SubagentExecutionResult:
+            return SubagentExecutionResult(
+                execution_id=task_id,
+                outcome=outcome,
+                stop_reason=stop_reason,
+                final_content=content,
+                usage=usage,
+                error_code=error_code,
+            )
 
         try:
             root = workspace_scope.project_path if workspace_scope is not None else self.workspace
@@ -557,18 +703,42 @@ class SubagentManager:
             # 一次解析，工具与提示词共用同一个档案 —— 否则两者会各说各话。
             # 解析失败必须在这里短路：再往下走一步，allowed_tools 就是 None，
             # 裁剪被跳过，子 Agent 会拿到全量工具。
-            prep = self._prepare_agent(agent_id)
-            if prep.rejected:
-                logger.info("Subagent [{}] 因档案无效被拒绝：{}", task_id, prep.error)
-                return prep.error or "Error: Agent 档案无效"
-            agent = prep.agent
+            if frozen_agent is not None:
+                # 可信路径：档案已在运行创建时冻结，这里既不改读盘也不接受 None。
+                agent = frozen_agent
+                allowed_tools = frozen_agent.tool_names
+            else:
+                prep = self._prepare_agent(agent_id)
+                if prep.rejected:
+                    logger.info("Subagent [{}] 因档案无效被拒绝：{}", task_id, prep.error)
+                    return _typed(
+                        "failed", "invalid_profile",
+                        prep.error or "Error: Agent 档案无效",
+                        error_code="invalid_profile",
+                    )
+                agent = prep.agent
+                allowed_tools = prep.allowed_tools
             # Construct from the agent workspace; the bound scope below supplies the project cwd.
             tools = self._build_tools(
                 tools_config=cfg,
-                allowed_tools=prep.allowed_tools,
+                allowed_tools=allowed_tools,
             )
             system_prompt = self._build_subagent_prompt(workspace=root, agent=agent)
-            runtime = self._apply_model_override(runtime, agent.model_id if agent else None)
+            if require_model_preset and agent is not None and agent.model_id is not None:
+                # 档案指定了 preset 却解析不出来：这必须是失败。悄悄沿用默认模型会让
+                # 「界面显示 opus、实际跑 mini」变成不可见错误（验收 A17）。
+                resolved_runtime = (
+                    self._model_resolver(agent.model_id) if self._model_resolver else None
+                )
+                if resolved_runtime is None:
+                    return _typed(
+                        "failed", "invalid_profile",
+                        f"Error: 模型 preset {agent.model_id!r} 无法解析，请重新选择可用模型。",
+                        error_code="model_preset_unavailable",
+                    )
+                runtime = resolved_runtime
+            else:
+                runtime = self._apply_model_override(runtime, agent.model_id if agent else None)
             messages: list[dict[str, Any]] = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": task},
@@ -595,7 +765,7 @@ class SubagentManager:
                     runtime=runtime,
                     max_iterations=self.max_iterations,
                     max_tool_result_chars=self.max_tool_result_chars,
-                    hook=_SubagentHook(task_id, status),
+                    hook=_SubagentHook(task_id, status, on_activity),
                     max_iterations_message="Task completed but no final response was generated.",
                     finalize_on_max_iterations=False,
                     error_message=None,
@@ -615,13 +785,32 @@ class SubagentManager:
             status.phase = "done"
             status.stop_reason = result.stop_reason
 
-            if result.stop_reason == "error":
+            stop_reason = result.stop_reason
+            if stop_reason == "error":
                 final_result = result.error or "Error: subagent execution failed."
                 final_status = "error"
+                outcome = "failed"
+                error_code: str | None = "subagent_error"
             else:
                 final_result = result.final_content or "Task completed but no final response was generated."
                 final_status = "ok"
-                logger.info("Subagent [{}] completed successfully", task_id)
+                error_code = None
+                # succeeded 只留给「runner 正常收尾且真的有最终答案」。
+                # max_iterations / empty_final_response 沿用同一句兜底文案给旧调用方，
+                # 但在结构化结果里必须是失败 —— 否则团队会把跑满轮次的半成品当成功汇总。
+                outcome = (
+                    "succeeded" if stop_reason == "completed" and result.final_content else "failed"
+                )
+                if outcome == "succeeded":
+                    logger.info("Subagent [{}] completed successfully", task_id)
+                else:
+                    logger.warning(
+                        "Subagent [{}] 未产出最终答案（stop_reason={}），按失败记",
+                        task_id, stop_reason,
+                    )
+            # 先把结果对象算完再 announce：否则构造结果时一旦抛错，except 分支会
+            # 再 announce 一次，同一份产出被回注两遍（对团队就是两个 Leader 回合）。
+            typed = _typed(outcome, stop_reason, final_result, result.usage, error_code)
             if announce:
                 await self._announce_result(
                     task_id,
@@ -632,7 +821,7 @@ class SubagentManager:
                     final_status,
                     origin_message_id,
                 )
-            return final_result
+            return typed
 
         except Exception as e:
             status.phase = "error"
@@ -649,7 +838,7 @@ class SubagentManager:
                     "error",
                     origin_message_id,
                 )
-            return final_result
+            return _typed("failed", "error", final_result, error_code="subagent_exception")
 
     async def _announce_result(
         self,
@@ -657,7 +846,7 @@ class SubagentManager:
         label: str,
         task: str,
         result: str,
-        origin: _SubagentOrigin,
+        origin: SubagentOrigin,
         status: str,
         origin_message_id: str | None = None,
     ) -> None:

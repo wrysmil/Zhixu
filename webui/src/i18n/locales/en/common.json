@@ -242,7 +242,58 @@
       "automations": "Automations",
       "skills": "Skills",
       "memory": "Memory",
-      "identity": "Identity"
+      "identity": "Identity",
+      "teams": "Teams"
+    },
+    "teams": {
+      "name": "Team name",
+      "namePlaceholder": "e.g. Content team",
+      "description": "What this team does",
+      "descriptionPlaceholder": "One line describing the team's job.",
+      "instructions": "Collaboration notes",
+      "instructionsPlaceholder": "Who does what first, and what counts as done.",
+      "leader": "Leader",
+      "leaderPlaceholder": "Pick an Agent profile",
+      "leaderLine": "Leader: {{name}}",
+      "members": "Members",
+      "pickMember": "Add {{name}} as a member",
+      "rolePlaceholder": "Role in this team",
+      "roleAria": "{{name}}'s role in this team",
+      "removeMember": "Remove {{name}}",
+      "noAgents": "No Agent profiles to pick from yet",
+      "maxConcurrency": "Max parallel members",
+      "concurrencyHint": "How many members may run at once (max {{max}})",
+      "concurrency": "Up to {{count}} in parallel",
+      "errorName": "Enter a team name",
+      "errorNameLength": "Team name must be at most {{max}} characters",
+      "errorLeader": "Pick a Leader",
+      "errorMembers": "Pick at least 1 member",
+      "errorMembersMax": "A team can have at most {{max}} members",
+      "errorDuplicate": "The same member cannot be added twice",
+      "errorLeaderIsMember": "The Leader cannot also be a member",
+      "errorLeaderExcludes": "The Leader profile does not allow delegating to: {{ids}}",
+      "errorRole": "Every member needs a role in this team",
+      "errorConcurrency": "Max parallel members must be between {{min}} and {{max}}",
+      "title": "Teams",
+      "create": "New team",
+      "search": "Search teams",
+      "saved": "Saved",
+      "noMatch": "No matching teams. Try another keyword.",
+      "emptyHint": "Create an Agent profile first, then build a team from it.",
+      "edit": "Edit",
+      "duplicate": "Duplicate",
+      "copySuffix": "Copy",
+      "archive": "Archive",
+      "archiveTitle": "Archive this team?",
+      "archiveBody": "Archiving stops new team runs. Existing chats keep using the revision they are bound to, and past runs stay readable.",
+      "archived": "Archived",
+      "conflict": "This team was changed elsewhere. Reload before saving — your draft is kept.",
+      "createTitle": "Create team",
+      "editTitle": "Edit team",
+      "editorSubtitle": "Pick one Leader and up to 8 members from your Agent profiles.",
+      "save": "Save",
+      "cancel": "Cancel",
+      "revisionNote": "Current revision v{{revision}}; saving creates v{{next}}"
     },
     "agents": {
       "create": "New agent",
@@ -1792,6 +1843,46 @@
         "none": "No next run"
       }
     },
+    "teamProgress": {
+      "title": "Team progress",
+      "leader": "Leader",
+      "leaderAction": {
+        "planning": "planning",
+        "waiting": "waiting for members",
+        "reviewing": "reviewing",
+        "summarizing": "summarizing",
+        "idle": "idle"
+      },
+      "status": {
+        "running": "Running",
+        "cancelling": "Stopping…",
+        "completed": "Completed",
+        "partial": "Partially completed",
+        "failed": "Failed",
+        "cancelled": "Stopped",
+        "interrupted": "Interrupted"
+      },
+      "taskStatus": {
+        "pending": "Not dispatched",
+        "queued": "Queued",
+        "running": "Running",
+        "cancelling": "Stopping…",
+        "succeeded": "Done",
+        "failed": "Failed",
+        "cancelled": "Stopped",
+        "blocked": "Blocked",
+        "interrupted": "Interrupted"
+      },
+      "stop": "Stop team",
+      "stopping": "Stopping…",
+      "retry": "Retry failed tasks",
+      "retryHint": "Retry re-runs the failed tasks and may repeat existing side effects.",
+      "cancelTask": "Stop this task",
+      "noTasks": "The Leader handled this turn directly.",
+      "resyncing": "Syncing team state…",
+      "artifacts": "Artifacts: {{names}}",
+      "memberFallback": "Member {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "Add",
@@ -2035,6 +2126,15 @@
         "defaultShort": "Default",
         "full": "Full Access",
         "fullShort": "Full"
+      },
+      "team": {
+        "aria": "Choose team",
+        "select": "Select team",
+        "none": "No team",
+        "empty": "No teams available yet",
+        "bound": "Bound to {{name}} (revision {{revision}})",
+        "chip": "Team: {{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "Scroll to bottom",
@@ -2177,6 +2277,14 @@
     "workspaceScopeRejected": {
       "title": "Workspace was not changed",
       "body": "The gateway rejected this project or access mode. Choose an existing project or a different access mode, then try again."
+    },
+    "teamBindingExpired": {
+      "title": "Team was not attached",
+      "body": "The team choice for this empty chat expired. Pick the team again before sending the first message."
+    },
+    "teamUnavailable": {
+      "title": "Team is not available",
+      "body": "This team was archived, or an agent profile it references was removed. Choose another team, or send the message as an ordinary chat."
     },
     "turnRejected": {
       "title": "Message was not sent",

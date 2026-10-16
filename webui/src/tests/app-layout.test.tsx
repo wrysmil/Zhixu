@@ -261,6 +261,7 @@ vi.mock("@/lib/nanobot-client", async (importOriginal) => {
     getRunStartedAt = () => null;
     getRunTurnId = () => null;
     getGoalState = () => undefined;
+    teamBindingFor = () => null;
     // StartDock（Task 9）在首页挂载即探活/订阅终端事件；dock 标签在此测试不会被点开。
     terminalStart = vi.fn();
     terminalWrite = vi.fn();

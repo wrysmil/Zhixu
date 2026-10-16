@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import inspect
 import os
 import time
 import weakref
@@ -106,6 +107,8 @@ from nanobot.session.summary import (
     SessionSummary,
     SessionSummaryCheckpoint,
 )
+from nanobot.teams.binding import persist_message_binding
+from nanobot.teams.leader import LeaderTurnContext, build_leader_registry, resolve_leader_runtime
 from nanobot.triggers.local_turns import LocalTriggerTurnCoordinator
 from nanobot.utils.cancellation import task_is_cancelling
 from nanobot.utils.document import reference_non_image_attachments
@@ -130,6 +133,13 @@ if TYPE_CHECKING:
 
 _T = TypeVar("_T")
 _SUBAGENT_PROVIDER_TASK_META = "subagent_provider_task_id"
+# 会话上「实际执行过的团队」（``团队 id @ 修订``）。只在 Team 回合写入；与选定绑定分开，
+# 见 ``AgentLoop._stamp_team_revision``。
+_TEAM_REVISION_METADATA_KEY = "teamAppliedSignature"
+
+
+def _team_signature(team: LeaderTurnContext) -> str:
+    return f"{team.team_id}@{team.team_revision}"
 _SUBAGENT_TERMINAL_WAIT_SECONDS = 300.0
 # Workspace label for the SQLite memory store, matching the WebUI gateway
 # (``nanobot/webui/gateway_services.py`` uses the same literal).
@@ -197,6 +207,9 @@ class TurnContext:
     hook_factories: list[AgentTurnHookFactory] = field(default_factory=list)
     turn_scopes: list[AbstractContextManager[Any]] = field(default_factory=list)
     tools: ToolRegistry | None = None
+    # Team Leader 回合的不可变装配输入；普通聊天恒为 None。由 ``_restore_turn`` 从
+    # ``team_context_provider`` 取一次，之后本回合只读。
+    team: LeaderTurnContext | None = None
 
     turn_wall_started_at: float = field(default_factory=time.time)
     visible_run_started_at: float | None = None
@@ -391,6 +404,16 @@ class AgentLoop:
             self._image_generation_provider_configs["openrouter"] = image_generation_provider_config
         self.cron_service = cron_service
         self.local_trigger_store = local_trigger_store
+        # Team Leader 每回合装配的注入点（WU-06 在 gateway 装配时接 TeamService + 调度器）。
+        # 默认 None：没有注入时本 loop 永远跑普通聊天，团队代码路径一行都不执行。
+        # 允许返回协程：「起一个团队运行」要写 SQLite，注入点自己决定同步还是异步。
+        self.team_context_provider: (
+            Callable[
+                ..., LeaderTurnContext | None | Awaitable[LeaderTurnContext | None]
+            ] | None
+        ) = None
+        # 停止一个聊天时连带停掉它的团队运行（契约 §6）；返回被停止的运行数。
+        self.team_run_cancel_hook: Callable[[str], Awaitable[int]] | None = None
         self.restrict_to_workspace = restrict_to_workspace
         self.workspace_scopes = WorkspaceScopeResolver(
             default_workspace=workspace,
@@ -1067,6 +1090,40 @@ class AgentLoop:
             workspace=scope.project_path,
         )
 
+    async def _team_context_for_turn(
+        self, msg: InboundMessage, session: Session, turn_id: str
+    ) -> LeaderTurnContext | None:
+        """每回合向注入点取一次团队装配；没注入时恒为 None（普通聊天一行团队代码都不跑）。
+
+        ``turn_id`` 是 loop 的内部轮次 id：可见轮次 id 来自服务端确认的入站 metadata，
+        两者都要落到运行记录上（契约 §4），所以注入点必须拿到它，但不能用它替代可见 id。
+        """
+        provider = self.team_context_provider
+        if provider is None:
+            return None
+        context = provider(msg, session, turn_id)
+        if inspect.isawaitable(context):
+            return await context
+        return context
+
+    def _leader_runtime(self, session: Session, team: LeaderTurnContext) -> LLMRuntime:
+        """Leader 档案的 preset 优先；未指定时沿用本会话 runtime（普通聊天的解析路径）。"""
+        if team.model_id is None:
+            return self.runtime_for_session(session)
+        return resolve_leader_runtime(self.runtime_resolver, team)
+
+    def _team_revision_switched(self, session: Session, team: LeaderTurnContext) -> bool:
+        return session.metadata.get(_TEAM_REVISION_METADATA_KEY) != _team_signature(team)
+
+    def _stamp_team_revision(self, session: Session, team: LeaderTurnContext) -> None:
+        """记下「这一版团队配置真跑过」（``团队 id @ 修订``）。
+
+        这与 WU-05 持久化的 *选定* 绑定是两件事：选定修订可能在启动前被改，续接失效
+        只应以实际执行过的版本为准，否则一次未生效的编辑就会误删 provider 续接。
+        签名带上团队 id：换一个团队即使修订号相同，续接也是按别的 Leader 档案装配的。
+        """
+        session.metadata[_TEAM_REVISION_METADATA_KEY] = _team_signature(team)
+
     async def _resolve_runtime_context_for_turn(
         self,
         ctx: TurnContext,
@@ -1074,13 +1131,16 @@ class AgentLoop:
         assert ctx.request_context is not None
         return await self._resolve_runtime_context_for_request(
             ctx.request_context,
-            ctx.tools or self.tools,
+            self.tools if ctx.tools is None else ctx.tools,
+            skill_exclude=set(ctx.team.skill_exclude) if ctx.team is not None else None,
         )
 
     async def _resolve_runtime_context_for_request(
         self,
         request: RequestContext,
         tools: ToolRegistry,
+        *,
+        skill_exclude: set[str] | None = None,
     ) -> list[RuntimeContextBlock]:
         providers = [
             *tools.get_runtime_context_providers(),
@@ -1089,7 +1149,8 @@ class AgentLoop:
         blocks = runtime_context_blocks_from_metadata(request.metadata)
         blocks.extend(await resolve_runtime_context(providers, request))
         skill_context = self.context.skills.build_explicit_skill_runtime_context(
-            request.original_user_text or ""
+            request.original_user_text or "",
+            exclude=skill_exclude,
         )
         if skill_context is not None and skill_context not in blocks:
             blocks.append(skill_context)
@@ -1200,7 +1261,11 @@ class AgentLoop:
                 await t
         sub_cancelled = await self.subagents.cancel_by_session(key)
         exec_cancelled = await self._exec_session_manager.terminate_by_owner(key)
-        return cancelled + sub_cancelled + exec_cancelled
+        team_cancelled = 0
+        if self.team_run_cancel_hook is not None:
+            # 停聊天就是停团队（契约 §6）：调度器把该会话在场成员的取消 await 完再返回。
+            team_cancelled = await self.team_run_cancel_hook(key)
+        return cancelled + sub_cancelled + exec_cancelled + team_cancelled
 
     async def discard_session(self, key: str) -> None:
         """Stop active work for *key* and forget its cached session."""
@@ -1269,6 +1334,7 @@ class AgentLoop:
         hook_factories: list[AgentTurnHookFactory] | None = None,
         turn_scopes: list[AbstractContextManager[Any]] | None = None,
         tools: ToolRegistry | None = None,
+        team: LeaderTurnContext | None = None,
         request_context: RequestContext | None = None,
         provider_state: ProviderConversationState | None = None,
         retrieved_memory_section: str = "",
@@ -1285,6 +1351,11 @@ class AgentLoop:
         Returns the complete result produced by ``AgentRunner``.
         """
         self._sync_subagent_runtime_limits()
+
+        # Team Leader 回合的角色段与技能裁剪：三入口（always 段、概览、显式 ``$skill``）
+        # 共用同一个排除集，否则概览里藏起来的技能仍能被 ``$name`` 召唤。
+        team_role_section = team.role_prompt if team is not None else None
+        team_skill_exclude = set(team.skill_exclude) if team is not None else None
 
         async def _checkpoint(payload: dict[str, Any]) -> None:
             if session is None:
@@ -1353,6 +1424,7 @@ class AgentLoop:
                     blocks = await self._resolve_runtime_context_for_request(
                         pending_request,
                         effective_tools,
+                        skill_exclude=team_skill_exclude,
                     )
                     row["content"], runtime_marker = append_runtime_context(
                         user_content,
@@ -1445,13 +1517,17 @@ class AgentLoop:
             include_memory=session.policy.persist if session is not None else True,
             retrieved_memory_section=retrieved_memory_section,
             working_memory_section=working_memory_section,
+            role_section=team_role_section,
+            skill_exclude=team_skill_exclude,
         )
         if request_context is None:
             request_ctx = dataclasses.replace(
                 request_ctx,
                 workspace=effective_scope.project_path,
             )
-        effective_tools = tools or self.tools
+        # ``ToolRegistry.__len__`` 让空 registry 变成假值，``or`` 会把「本轮零工具」
+        # 静默扩成 loop 的全量集合，因此只按 None 判定「没传」。
+        effective_tools = self.tools if tools is None else tools
         file_state_token = bind_file_states(self._file_state_store.for_session(active_session_key))
         request_token = bind_request_context(request_ctx)
         workspace_token = bind_workspace_scope(effective_scope)
@@ -2008,15 +2084,37 @@ class AgentLoop:
 
             ctx.events = EventSink(track_output, ctx.events.accepts)
 
-        await self._run_turn_stage(ctx, "restore", self._restore_turn)
-        await self._run_turn_stage(ctx, "compact", self._compact_session)
-        if await self._run_turn_stage(ctx, "command", self._dispatch_command):
-            return ctx.outbound
-        await self._run_turn_stage(ctx, "build", self._build_turn)
-        await self._run_turn_stage(ctx, "run", self._run_turn)
-        await self._run_turn_stage(ctx, "save", self._persist_turn)
-        await self._run_turn_stage(ctx, "respond", self._prepare_outbound)
+        try:
+            await self._run_turn_stage(ctx, "restore", self._restore_turn)
+            await self._run_turn_stage(ctx, "compact", self._compact_session)
+            if await self._run_turn_stage(ctx, "command", self._dispatch_command):
+                return ctx.outbound
+            await self._run_turn_stage(ctx, "build", self._build_turn)
+            await self._run_turn_stage(ctx, "run", self._run_turn)
+            await self._run_turn_stage(ctx, "save", self._persist_turn)
+            await self._run_turn_stage(ctx, "respond", self._prepare_outbound)
+        except BaseException:
+            # 团队运行不能因为回合半路炸掉就一直挂着「running」。
+            await self._finish_team_turn(ctx, delivered=False)
+            raise
+        if not turn_continuation.internal_continuation_pending(ctx.msg.metadata):
+            # 内部续接（跑满轮次预算后排队的下一片）不收口：同一可见轮次还要接着派活。
+            await self._finish_team_turn(
+                ctx,
+                delivered=not ctx.suppress_response and bool((ctx.final_content or "").strip()),
+            )
         return ctx.outbound
+
+    async def _finish_team_turn(self, ctx: TurnContext, *, delivered: bool) -> None:
+        """回合结束时的团队收口：只有起了运行的回合才有收口动作。"""
+        team = ctx.team
+        if team is None or team.turn_finalizer is None:
+            return
+        try:
+            await team.turn_finalizer(delivered)
+        except Exception:
+            # 收口失败不能把已经完成的答案吞掉；运行会由重启恢复路径标成 interrupted。
+            logger.exception("team run {} failed to finalize", team.run_id)
 
     async def _run_turn_stage(
         self,
@@ -2098,7 +2196,9 @@ class AgentLoop:
                 ctx.session = self.sessions.get_or_create(ctx.session_key)
         session = ctx.session
         ctx.ephemeral = ctx.ephemeral or not session.policy.persist
-        tools = ctx.tools or self.tools
+        # ``ToolRegistry.__len__`` 让空集合变成假值：``or`` 会把「本轮零工具」
+        # 静默扩成 loop 的全量工具集，只有 None 才代表「没指定，用默认」。
+        tools = self.tools if ctx.tools is None else ctx.tools
         if session.policy.disabled_tools:
             restricted = ToolRegistry()
             for name in tools.tool_names:
@@ -2106,6 +2206,14 @@ class AgentLoop:
                 if name not in session.policy.disabled_tools and tool:
                     restricted.register(tool)
             tools = restricted
+        if ctx.kind is TurnKind.USER and persist_message_binding(session, msg):
+            # 绑定先落盘再装配 Leader：会话一旦知道自己是团队会话，重连、重启与后续回合
+            # 都读同一份真值，不依赖那条消息还活着。
+            self.sessions.save(session)
+        ctx.team = await self._team_context_for_turn(msg, session, ctx.turn_id)
+        if ctx.team is not None:
+            # 白名单与会话禁用取交集：团队不能把会话级禁掉的工具再捞回来。
+            tools = build_leader_registry(tools, ctx.team)
         ctx.tools = tools
 
         if ctx.kind is TurnKind.SYSTEM:
@@ -2198,7 +2306,11 @@ class AgentLoop:
         session = ctx.require_session()
         runtime = ctx.runtime
         if runtime is None:
-            runtime = self.runtime_for_session(session)
+            runtime = (
+                self._leader_runtime(session, ctx.team)
+                if ctx.team is not None
+                else self.runtime_for_session(session)
+            )
             ctx.runtime = runtime
         if ctx.session_key.startswith("dream:"):
             logger.info(
@@ -2218,6 +2330,13 @@ class AgentLoop:
 
         ctx.history = session.get_history(extend_to_user=is_subagent)
         stored_state = session.provider_state
+        if ctx.team is not None and self._team_revision_switched(session, ctx.team):
+            # 冻结修订变了：只失效 provider 续接（provider 私有状态按上一版团队装配生成），
+            # 用户 transcript 与历史一条都不动。
+            session.provider_state = None
+            stored_state = None
+        if ctx.team is not None:
+            self._stamp_team_revision(session, ctx.team)
         subagent_followup_persisted = False
         if is_subagent:
             # Keep the durable internal delivery as an assistant record, but
@@ -2363,6 +2482,7 @@ class AgentLoop:
                 hook_factories=ctx.hook_factories,
                 turn_scopes=ctx.turn_scopes,
                 tools=ctx.tools,
+                team=ctx.team,
                 request_context=ctx.request_context,
                 provider_state=ctx.provider_state,
                 retrieved_memory_section=ctx.pending_retrieved_memory_section,

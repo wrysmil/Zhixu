@@ -23,7 +23,10 @@ import { ThreadHeader } from "@/components/thread/ThreadHeader";
 import { ThreadWelcome } from "@/components/thread/ThreadWelcome";
 import { StreamErrorNotice } from "@/components/thread/StreamErrorNotice";
 import { ThreadViewport, type ThreadViewportHandle } from "@/components/thread/ThreadViewport";
+import { TeamSelector, teamPickerVisibility } from "@/components/thread/TeamSelector";
+import { TeamProgressPanel } from "@/components/thread/TeamProgressPanel";
 import { useNanobotStream, type SendAttachment, type SendOptions } from "@/hooks/useNanobotStream";
+import { useTeamProgress } from "@/hooks/useTeamProgress";
 import { useSessionHistory } from "@/hooks/useSessions";
 import {
   ApiError,
@@ -50,14 +53,17 @@ import type { CanonicalRunSnapshot, StreamError } from "@/lib/nanobot-client";
 import { inferProviderFromModelName, providerDisplayLabel } from "@/lib/provider-brand";
 import type {
   ChatSummary,
+  NewChatTeam,
   RoundUsage,
   SettingsPayload,
   SlashCommand,
   SkillSummary,
+  TeamBinding,
   UIMessage,
   WorkspaceScopePayload,
   WorkspacesPayload,
 } from "@/lib/types";
+import type { TeamOption } from "@/lib/teams/types";
 import { projectWebuiThreadMessages } from "@/lib/thread-display-compat";
 import { useClient } from "@/providers/ClientProvider";
 
@@ -401,6 +407,7 @@ interface ThreadShellProps {
     workspaceScope?: WorkspaceScopePayload | null,
     initialMessage?: string,
     modelPreset?: string | null,
+    team?: NewChatTeam | null,
   ) => Promise<string | null>;
   onForkChat?: (sourceChatId: string, beforeUserIndex: number) => Promise<string | null>;
   onTurnEnd?: () => void;
@@ -426,6 +433,11 @@ interface ThreadShellProps {
   workspaceError?: string | null;
   workspaceHostname?: string | null;
   onWorkspaceScopeChange?: (scope: WorkspaceScopePayload) => void;
+  /** Team choices for a brand-new chat; the picker is hidden without ``onTeamChange``. */
+  teamOptions?: TeamOption[];
+  teamSelection?: NewChatTeam | null;
+  teamSelectionName?: string | null;
+  onTeamChange?: (team: NewChatTeam | null, teamName: string | null) => void;
   settingsSnapshot?: SettingsPayload | null;
   onOpenModelSettings?: () => void;
   skills?: SkillSummary[];
@@ -660,6 +672,10 @@ export function ThreadShell({
   workspaceError = null,
   workspaceHostname = null,
   onWorkspaceScopeChange,
+  teamOptions = [],
+  teamSelection = null,
+  teamSelectionName = null,
+  onTeamChange,
   settingsSnapshot = null,
   onOpenModelSettings,
   skills = [],
@@ -956,6 +972,13 @@ export function ThreadShell({
     setLocalModelPreset(null);
   }, [session?.key, sessionModelPreset]);
   const [sessionReasoningEffort, setSessionReasoningEffort] = useState<string | null>(null);
+  /** Server-confirmed team binding for this chat; null means an ordinary chat. */
+  const [teamBound, setTeamBound] = useState<TeamBinding | null>(null);
+  const teamProgress = useTeamProgress(client, {
+    chatId: teamBound ? chatId : null,
+    token,
+    transport: client,
+  });
   useEffect(() => {
     setSessionReasoningEffort(null);
   }, [chatId]);
@@ -1047,13 +1070,19 @@ export function ThreadShell({
   }, [client, refreshModelSettings]);
 
   useEffect(() => {
-    if (!chatId) return;
+    if (!chatId) {
+      setTeamBound(null);
+      return;
+    }
+    setTeamBound(client.teamBindingFor(chatId));
     return client.onChat(chatId, (event) => {
       if (event.event !== "attached") return;
       const effort = typeof event.reasoning_effort === "string"
         ? event.reasoning_effort.trim()
         : "";
       setSessionReasoningEffort(effort || null);
+      // 只认服务端带回来的绑定；帧里没有这个键时保持现状（旧网关或普通回合）。
+      if (event.team_binding !== undefined) setTeamBound(event.team_binding ?? null);
     });
   }, [chatId, client]);
 
@@ -1061,8 +1090,8 @@ export function ThreadShell({
     if (!chatId) return;
     return client.onSessionUpdate((updatedChatId, scope, _scopePayload, effort) => {
       if (updatedChatId !== chatId || scope !== "metadata") return;
-      if (typeof effort !== "string") return;
-      setSessionReasoningEffort(effort.trim() || null);
+      if (typeof effort === "string") setSessionReasoningEffort(effort.trim() || null);
+      setTeamBound(client.teamBindingFor(chatId));
     });
   }, [chatId, client]);
 
@@ -1407,13 +1436,34 @@ export function ThreadShell({
     };
   }, [getToken]);
 
+  // 团队只在「还没有消息」的聊天上可选；服务端一旦确认绑定就退化成只读条（契约 §4）。
+  // 已经有 chatId 的表面（比如新建的分屏）也不能再选：那条创建路径已经走完了。
+  const teamMode = teamPickerVisibility({
+    temporary: temporary === true,
+    temporaryRequested: temporaryChatEnabled,
+    hasMessages: !showHeroComposer,
+    bound: teamBound,
+    canSelect: !!onTeamChange && !chatId,
+  });
+  const teamPickerSlot = teamMode === "hidden" ? null : (
+    <TeamSelector
+      options={teamOptions}
+      value={teamMode === "select" ? teamSelection : null}
+      valueName={teamMode === "select" ? teamSelectionName : null}
+      bound={teamMode === "bound" ? teamBound : null}
+      onChange={(team, name) => onTeamChange?.(team, name)}
+      isHero={composerVariant === "hero"}
+      disabled={booting}
+    />
+  );
+
   const handleWelcomeSend = useCallback(
     async (content: string, images?: SendAttachment[], options?: SendOptions) => {
       if (booting) return false;
       setBooting(true);
       pendingFirstRef.current = { content, images, options: withWorkspaceScope(options) };
       setPendingFirstTargetChatId(null);
-      const newId = await onCreateChat?.(workspaceScope, content, localModelPreset);
+      const newId = await onCreateChat?.(workspaceScope, content, localModelPreset, teamSelection);
       if (!newId) {
         pendingFirstRef.current = null;
         setPendingFirstTargetChatId(null);
@@ -1426,7 +1476,15 @@ export function ThreadShell({
       setPendingFirstTargetChatId(newId);
       return true;
     },
-    [booting, client, localModelPreset, onCreateChat, withWorkspaceScope, workspaceScope],
+    [
+      booting,
+      client,
+      localModelPreset,
+      onCreateChat,
+      teamSelection,
+      withWorkspaceScope,
+      workspaceScope,
+    ],
   );
 
   const handleThreadSend = useCallback(
@@ -1553,6 +1611,26 @@ export function ThreadShell({
 
   const composer = (
     <>
+      {teamProgress.activeRun ? (
+        <div className="px-3 pt-2">
+          <TeamProgressPanel
+            run={teamProgress.activeRun}
+            memberNames={teamProgress.memberNames}
+            canControl={!temporary}
+            onCancelRun={(runId) => {
+              void teamProgress.cancelRun(runId).catch(() => {
+                // 控制失败不打断聊天：下一次事件会带出服务端的真实状态。
+              });
+            }}
+            onCancelTask={(runId, taskId) => {
+              void teamProgress.cancelTask(runId, taskId).catch(() => {});
+            }}
+            onRetryRun={(runId) => {
+              void teamProgress.retryRun(runId).catch(() => {});
+            }}
+          />
+        </div>
+      ) : null}
       {pendingQuestions.length > 0 ? (
         <AskQuestionCard question={pendingQuestions[0]} onAnswer={answerQuestion} />
       ) : null}
@@ -1616,6 +1694,7 @@ export function ThreadShell({
             workspaceControls?.can_pick_folder ? pickWorkspaceFolder : undefined
           }
           onWorkspaceScopeChange={onWorkspaceScopeChange}
+          teamPickerSlot={teamPickerSlot}
           runtimeHostname={workspaceHostname}
           pendingQueueKey={temporary ? null : chatId}
           transcriptionProvider={settingsSnapshot?.transcription?.provider}
@@ -1673,6 +1752,7 @@ export function ThreadShell({
             workspaceControls?.can_pick_folder ? pickWorkspaceFolder : undefined
           }
           onWorkspaceScopeChange={onWorkspaceScopeChange}
+          teamPickerSlot={teamPickerSlot}
           runtimeHostname={workspaceHostname}
           transcriptionProvider={settingsSnapshot?.transcription?.provider}
           ingressLimits={ingressLimits}
@@ -1730,6 +1810,7 @@ export function ThreadShell({
     <ThreadHeader
       title={title}
       handle={temporary || (hideHeaderTitle && inlineHandle) ? null : session?.handle}
+      teamInfo={teamBound}
       onToggleSidebar={onToggleSidebar}
       theme={theme}
       onToggleTheme={onToggleTheme}

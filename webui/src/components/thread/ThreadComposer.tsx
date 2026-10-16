@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
   type Ref,
 } from "react";
 
@@ -236,6 +237,8 @@ interface ThreadComposerProps {
   workspaceError?: string | null;
   onPickWorkspaceFolder?: () => Promise<string | null>;
   onWorkspaceScopeChange?: (scope: WorkspaceScopePayload) => void;
+  /** Team chip rendered next to the project picker; the caller decides when it applies. */
+  teamPickerSlot?: ReactNode;
   pendingQueueKey?: string | null;
   transcriptionProvider?: string | null;
   ingressLimits?: WebUIIngressLimits | null;
@@ -944,6 +947,7 @@ export function ThreadComposer({
   workspaceError = null,
   onPickWorkspaceFolder,
   onWorkspaceScopeChange,
+  teamPickerSlot = null,
   pendingQueueKey = null,
   transcriptionProvider = null,
   ingressLimits = null,
@@ -999,7 +1003,8 @@ export function ThreadComposer({
     && !!onWorkspaceScopeChange
     && workspaceControls?.can_change_project !== false;
   const showProjectPicker = projectPickerAvailable && !workspaceControlsHidden;
-  const showContextTabs = showProjectPicker || !!runtimeHostname;
+  const showTeamPicker = !!teamPickerSlot;
+  const showContextTabs = showProjectPicker || showTeamPicker || !!runtimeHostname;
 
   useEffect(() => {
     secondEnterPromptIdRef.current = null;
@@ -2371,6 +2376,7 @@ export function ThreadComposer({
               onChange={onWorkspaceScopeChange}
             />
           ) : null}
+          {teamPickerSlot}
           {runtimeHostname ? (
             <RuntimeEnvChip hostname={runtimeHostname} scope={workspaceScope} />
           ) : null}

@@ -242,7 +242,8 @@
       "automations": "Otomasi",
       "skills": "Keterampilan",
       "memory": "Memori",
-      "identity": "Identitas"
+      "identity": "Identitas",
+      "teams": "Tim"
     },
     "sections": {
       "interface": "Antarmuka",
@@ -1312,6 +1313,56 @@
       "noPersona": "Tidak ada",
       "personaSwitchFailed": "Gagal mengganti persona"
     },
+    "teams": {
+      "name": "Nama tim",
+      "namePlaceholder": "mis. Tim Konten",
+      "description": "Deskripsi tim",
+      "descriptionPlaceholder": "Satu baris tentang apa yang dilakukan tim ini.",
+      "instructions": "Kesepakatan kolaborasi",
+      "instructionsPlaceholder": "Siapa mengerjakan apa lebih dulu, dan apa yang dianggap selesai.",
+      "leader": "Leader",
+      "leaderPlaceholder": "Pilih profil Agent",
+      "leaderLine": "Leader: {{name}}",
+      "members": "Anggota",
+      "pickMember": "Tambahkan {{name}} sebagai anggota",
+      "rolePlaceholder": "Peran di tim ini",
+      "roleAria": "Peran {{name}} di tim ini",
+      "removeMember": "Hapus {{name}}",
+      "noAgents": "Belum ada profil Agent yang bisa dipilih",
+      "maxConcurrency": "Anggota paralel",
+      "concurrencyHint": "Jumlah anggota yang berjalan bersamaan (maks {{max}})",
+      "concurrency": "Hingga {{count}} paralel",
+      "errorName": "Isi nama tim",
+      "errorNameLength": "Nama tim maksimal {{max}} karakter",
+      "errorLeader": "Pilih Leader",
+      "errorMembers": "Pilih minimal 1 anggota",
+      "errorMembersMax": "Tim paling banyak {{max}} anggota",
+      "errorDuplicate": "Anggota tidak boleh ganda",
+      "errorLeaderIsMember": "Leader tidak boleh sekaligus menjadi anggota",
+      "errorLeaderExcludes": "Profil Leader tidak mengizinkan delegasi ke: {{ids}}",
+      "errorRole": "Setiap anggota perlu peran di tim ini",
+      "errorConcurrency": "Jumlah paralel harus antara {{min}} dan {{max}}",
+      "title": "Tim",
+      "create": "Tim baru",
+      "search": "Cari tim",
+      "saved": "Tersimpan",
+      "noMatch": "Tidak ada tim yang cocok. Coba kata lain.",
+      "emptyHint": "Buat profil Agent lebih dulu, lalu susun tim darinya.",
+      "edit": "Ubah",
+      "duplicate": "Duplikat",
+      "copySuffix": "Salinan",
+      "archive": "Arsipkan",
+      "archiveTitle": "Arsipkan tim",
+      "archiveBody": "Setelah diarsipkan, tim tidak bisa memulai jalannya baru. Chat yang ada tetap memakai revisi yang terikat, dan riwayat tetap dapat dilihat.",
+      "archived": "Diarsipkan",
+      "conflict": "Tim diubah di tempat lain. Muat ulang sebelum menyimpan; draf Anda tetap dijaga.",
+      "createTitle": "Buat tim",
+      "editTitle": "Ubah tim",
+      "editorSubtitle": "Pilih satu Leader dan hingga 8 anggota dari profil Agent yang sudah ada.",
+      "save": "Simpan",
+      "cancel": "Batal",
+      "revisionNote": "Revisi saat ini v{{revision}}; menyimpan akan membuat v{{next}}"
+    },
     "agents": {
       "basics": {
         "appearance": "Ikon dan warna",
@@ -1736,6 +1787,46 @@
         "none": "Tidak ada jadwal berikutnya"
       }
     },
+    "teamProgress": {
+      "title": "Kemajuan tim",
+      "leader": "Pemimpin",
+      "leaderAction": {
+        "planning": "menyusun rencana",
+        "waiting": "menunggu anggota",
+        "reviewing": "meninjau",
+        "summarizing": "merangkum",
+        "idle": "siap"
+      },
+      "status": {
+        "running": "Berjalan",
+        "cancelling": "Menghentikan…",
+        "completed": "Selesai",
+        "partial": "Selesai sebagian",
+        "failed": "Gagal",
+        "cancelled": "Dihentikan",
+        "interrupted": "Terhenti"
+      },
+      "taskStatus": {
+        "pending": "Belum ditugaskan",
+        "queued": "Antre",
+        "running": "Berjalan",
+        "cancelling": "Menghentikan…",
+        "succeeded": "Selesai",
+        "failed": "Gagal",
+        "cancelled": "Dihentikan",
+        "blocked": "Terblokir",
+        "interrupted": "Terhenti"
+      },
+      "stop": "Hentikan tim",
+      "stopping": "Menghentikan…",
+      "retry": "Ulangi tugas yang gagal",
+      "retryHint": "Mengulang menjalankan kembali tugas yang gagal dan dapat mengulangi efek samping yang sudah terjadi.",
+      "cancelTask": "Hentikan tugas ini",
+      "noTasks": "Pemimpin menjawab langsung pada giliran ini.",
+      "resyncing": "Menyinkronkan status tim…",
+      "artifacts": "Keluaran: {{names}}",
+      "memberFallback": "Anggota {{memberId}}"
+    },
     "composer": {
       "menu": {
         "aria": "Tambah",
@@ -1979,6 +2070,15 @@
         "defaultShort": "Bawaan",
         "full": "Akses penuh",
         "fullShort": "Penuh"
+      },
+      "team": {
+        "aria": "Pilih tim",
+        "select": "Pilih tim",
+        "none": "Tanpa tim",
+        "empty": "Belum ada tim yang tersedia",
+        "bound": "Terikat pada {{name}} (revisi {{revision}})",
+        "chip": "Tim: {{name}}",
+        "revision": "v{{revision}}"
       }
     },
     "scrollToBottom": "Gulir ke bawah",
@@ -2177,6 +2277,14 @@
     "workspaceScopeRejected": {
       "title": "Ruang kerja tidak berubah",
       "body": "Gateway menolak proyek atau mode akses ini. Pilih proyek yang sudah ada atau mode akses lain, lalu coba lagi."
+    },
+    "teamBindingExpired": {
+      "title": "Tim belum dipasang",
+      "body": "Pilihan tim untuk chat kosong ini sudah kedaluwarsa. Pilih tim lagi sebelum mengirim pesan pertama."
+    },
+    "teamUnavailable": {
+      "title": "Tim tidak tersedia",
+      "body": "Tim ini telah diarsipkan, atau profil agen yang direferensikannya dihapus. Pilih tim lain, atau kirim pesan sebagai chat biasa."
     },
     "turnRejected": {
       "title": "Pesan tidak terkirim",

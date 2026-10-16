@@ -64,6 +64,18 @@ def get_writing_dir(workspace: str | Path | None = None) -> Path:
     return get_workspace_path(workspace) / "writing"
 
 
+def get_teams_dir(workspace: str | Path | None = None) -> Path:
+    """Agent Team 域的数据目录（``<agent-workspace>/teams``）。
+
+    与 ``get_writing_dir`` 同样的读取口径：**不在此处建目录**——目录与 ``state.db``
+    由 Team 存储层（WU-02）在真正要写时创建，因此只读调用（列表、读历史、配置校验）
+    不会在只读工作空间里留下空的 ``teams/``。同理这里不调用 ``get_workspace_path``
+    （它会 ``ensure_dir``），默认工作空间只按同一路径推导并 ``resolve``。
+    """
+    base = Path(workspace).expanduser() if workspace else Path.home() / ".nanobot" / "workspace"
+    return base.resolve(strict=False) / "teams"
+
+
 def is_default_workspace(workspace: str | Path | None) -> bool:
     """Return whether a workspace resolves to nanobot's default workspace path."""
     current = Path(workspace).expanduser() if workspace is not None else Path.home() / ".nanobot" / "workspace"
