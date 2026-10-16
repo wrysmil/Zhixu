@@ -638,7 +638,8 @@ async def test_artifacts_and_frames_never_carry_the_api_key(
 
     assert API_KEY in str(runtime.bot.calls)  # 执行侧确实见过它
     assert API_KEY not in b"".join(written).decode("utf-8")
-    assert channel.sent[-1]["final_answer"] == REDACTED
+    assert channel.last_frame is not None and channel.last_frame["final_answer"] == REDACTED
+    assert channel.frame_count == len(written)
     events = read_trace(runtime.paths.trace_dir).events
     tool_event = next(event for event in events if event.type == "tool.completed")
     assert tool_event.payload["result"] == REDACTED

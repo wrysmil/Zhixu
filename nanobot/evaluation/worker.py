@@ -77,6 +77,7 @@ WORKER_IPC_WRITE_FAILED = "WORKER_IPC_WRITE_FAILED"
 WORKER_OBSERVER_UNAVAILABLE = "WORKER_OBSERVER_UNAVAILABLE"
 JUDGE_BOOT_EVIDENCE_INVALID = "JUDGE_BOOT_EVIDENCE_INVALID"
 REDACTED = "***"
+_HASH_CHUNK_BYTES = 1024 * 1024
 ARTIFACT_INDEX_NAME = "manifest.json"
 
 FrameSink = Callable[[bytes], None]
@@ -148,7 +149,9 @@ class WorkerChannel:
     def __init__(self, *, attempt_id: str, sink: FrameSink) -> None:
         self.attempt_id = attempt_id
         self._sink = sink
-        self.sent: list[dict[str, Any]] = []
+        # 只留最后一帧：Trace 预算 20 MiB，把发过的每帧都攒在内存里等于再复制一份 Trace。
+        self.frame_count = 0
+        self.last_frame: dict[str, Any] | None = None
         self.failures: list[str] = []
         self._secrets: tuple[str, ...] = ()
 
@@ -171,7 +174,8 @@ class WorkerChannel:
         except Exception as exc:  # noqa: BLE001 - 管道坏了也必须继续清理
             self.failures.append(f"{getattr(exc, 'code', type(exc).__name__)}: {exc}")
             return False
-        self.sent.append(payload)
+        self.frame_count += 1
+        self.last_frame = payload
         return True
 
     def ready(self) -> bool:
@@ -443,12 +447,18 @@ def media_type_of(path: Path) -> str:
 
 
 def _index_file(root: Path, path: Path, *, kind: str) -> dict[str, Any]:
-    data = path.read_bytes()
+    """流式哈希：产物可以是任意大小，不能为了算 sha256 把整个文件读进内存。"""
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as handle:
+        while chunk := handle.read(_HASH_CHUNK_BYTES):
+            digest.update(chunk)
+            size += len(chunk)
     return {
         "relative_path": path.relative_to(root).as_posix(),
         "media_type": media_type_of(path),
-        "size_bytes": len(data),
-        "sha256": hashlib.sha256(data).hexdigest(),
+        "size_bytes": size,
+        "sha256": digest.hexdigest(),
         "kind": kind,
     }
 
