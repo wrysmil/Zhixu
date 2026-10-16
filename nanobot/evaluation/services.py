@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -129,6 +130,14 @@ class EvaluationService:
     @property
     def data_dir(self) -> Path:
         return self._data_dir
+
+    def import_sample(self, sample_id: str) -> dict[str, Any]:
+        """内置样本随包发布：JSON 只读，导入幂等由仓储的 sample_imports 表负责。"""
+        path = Path(__file__).parent / "samples" / f"{sample_id}.json"
+        if not path.is_file():
+            raise ServiceError("SAMPLE_NOT_FOUND", sample_id)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return self._repository.import_sample(sample_id, payload)
 
     def list_gold_samples(self) -> dict[str, Any]:
         return self._repository.list_gold_samples()
@@ -674,7 +683,7 @@ class EvaluationService:
             "status_counts": counts,
         }
 
-    def export_run(self, run_id: str, *, fmt: str) -> tuple[bytes, str, str]:
+    def export_run(self, run_id: str, *, fmt: str) -> tuple[str, str, str]:
         # 先确认运行存在：导出不能给不存在的运行编一个空文件。
         detail = self._repository.get_run(run_id)
         attempts = self._repository.list_run_attempts(run_id)

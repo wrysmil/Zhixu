@@ -440,6 +440,27 @@ class EvaluationRepository:
             )
         return result
 
+    def list_suites(self) -> list[dict[str, Any]]:
+        """软删的用例集不出现在列表里，但它的历史运行仍可读。"""
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT s.id, s.name, s.description, s.tags_json, s.revision,"
+                " s.created_at, s.updated_at,"
+                " (SELECT COUNT(*) FROM cases c"
+                "   WHERE c.suite_id = s.id AND c.is_deleted = 0) AS case_count"
+                " FROM suites s WHERE s.is_deleted = 0 ORDER BY s.created_at, s.id"
+            ).fetchall()
+        return [
+            {
+                "id": row["id"], "name": row["name"],
+                "description": row["description"],
+                "tags": json.loads(row["tags_json"] or "[]"),
+                "revision": row["revision"], "created_at": row["created_at"],
+                "updated_at": row["updated_at"], "case_count": row["case_count"],
+            }
+            for row in rows
+        ]
+
     def list_cases(self, suite_id: str) -> list[dict[str, Any]]:
         """固定排序（契约 §1）：用例按 created_at, id 降序。"""
         with self._db.connect() as conn:
