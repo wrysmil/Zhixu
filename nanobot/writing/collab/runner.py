@@ -163,6 +163,9 @@ class FrozenPreparer(Protocol):
         article_snapshot: Mapping[str, Any],
         material_ids: Sequence[str],
         collaboration_id: str,
+        workspace_key: str,
+        article_id: str,
+        batch_id: str,
     ) -> Any: ...
 
 
@@ -286,8 +289,10 @@ def frozen_preparer(
         article_snapshot: Mapping[str, Any] | None = None,
         material_ids: Sequence[str] = (),
         collaboration_id: str = "",
+        workspace_key: str = "",
+        article_id: str = "",
+        batch_id: str = "",
     ) -> Any:
-        del collaboration_id  # 身份由运行器补齐；冻结准备只负责技能/模型/来源范围
         try:
             from nanobot.writing.collab.preparation import prepare_frozen
         except ImportError as error:
@@ -303,6 +308,13 @@ def frozen_preparer(
             article_snapshot=dict(article_snapshot or {}),
             material_ids=list(material_ids or ()),
             model_id=str(resolved),
+            # 四个身份都是 ``prepare_frozen`` 的必填 kw-only（契约 §1 的 frozen 形状）。
+            # 批次的 ``batch_id`` 在冻结时尚未生成，落库那一份由 ``_with_identity`` 补，
+            # 这里按空串传入即可（``FrozenContext`` 只持有、不校验非空）。
+            workspace_key=str(workspace_key or ""),
+            article_id=str(article_id or ""),
+            collaboration_id=str(collaboration_id or ""),
+            batch_id=str(batch_id or ""),
         )
 
     return cast("FrozenPreparer", prepare)
@@ -1033,6 +1045,8 @@ class CollabRunner:
         article: Mapping[str, Any],
         material_ids: Sequence[str],
         collaboration_id: str,
+        article_id: str = "",
+        batch_id: str = "",
     ) -> Any:
         if self._preparer is None:
             raise CollabServiceNotConfigured("frozen preparation is not configured")
@@ -1041,6 +1055,9 @@ class CollabRunner:
             article_snapshot=article,
             material_ids=tuple(material_ids or ()),
             collaboration_id=collaboration_id,
+            workspace_key=self._workspace_key,
+            article_id=article_id,
+            batch_id=batch_id,
         )
         if frozen is None:
             raise CollabServiceNotConfigured("frozen preparation returned nothing")

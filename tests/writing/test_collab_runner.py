@@ -40,7 +40,10 @@ from nanobot.writing.collab.runner import (
     CollabRunner,
     CollabSelectionRequired,
     StartCollabRequest,
+    frozen_preparer,
 )
+from nanobot.agent.skills import SkillsLoader
+from nanobot.writing.collab.recipe import RECIPES
 from nanobot.writing.database import WritingDatabase
 from nanobot.writing.models import snapshot_digest
 from nanobot.writing.repository import ArticleRepository
@@ -121,6 +124,9 @@ class _FakePreparer:
         article_snapshot: Any,
         material_ids: Any,
         collaboration_id: str,
+        workspace_key: str = "",
+        article_id: str = "",
+        batch_id: str = "",
     ) -> dict[str, Any]:
         snapshot = dict(article_snapshot)
         self.calls.append(
@@ -129,11 +135,20 @@ class _FakePreparer:
                 "article_snapshot": snapshot,
                 "material_ids": tuple(material_ids),
                 "collaboration_id": collaboration_id,
+                "workspace_key": workspace_key,
+                "article_id": article_id,
+                "batch_id": batch_id,
             }
         )
         return {
             "skills": (
-                {"name": "article-outline", "path": "skills/article-outline.md", "sha256": "a" * 8},
+                {
+                    "name": "article-outline",
+                    "path": "skills/article-outline.md",
+                    "sha256": "a" * 8,
+                    # 技能正文只进运行期上下文，**不许**进 batch.frozen（契约 §1）。
+                    "body": "技能正文-机密",
+                },
             ),
             "model_id": "model-x",
             "source_scope": {"article_id": snapshot.get("id", "")},
@@ -269,6 +284,7 @@ def _build_runner(
     clock: _FakeClock | None = None,
     logs: _LogRecorder | None = None,
     converge: bool = True,
+    recipes: Any = None,
 ) -> CollabRunner:
     return CollabRunner(
         repository=repo,
@@ -276,7 +292,7 @@ def _build_runner(
         articles=articles,
         team=team if team is not None else _FakeTeam(),
         artifacts=artifacts if artifacts is not None else _FakeArtifacts(),
-        recipes=_RECIPES,
+        recipes=_RECIPES if recipes is None else recipes,
         preparer=preparer if preparer is not None else _FakePreparer(),
         publisher=publisher if publisher is not None else _FakePublisher(),
         sleep=(clock or _FakeClock()).sleep,
@@ -616,6 +632,19 @@ async def test_batch_transition_logs_structured_fields_without_article_body(
     assert secret not in dumped
     assert "改得更克制" not in dumped
 
+    # 契约 §1：batch.frozen 只留 name/path/sha256，技能正文既不进库也不进日志。
+    frozen = h.repo.get_batch(handle.batch_id).frozen
+    assert frozen["skills"] == [
+        {"name": "article-outline", "path": "skills/article-outline.md", "sha256": "a" * 8}
+    ]
+    assert set(frozen) == {
+        "skills", "model_id", "source_scope", "workspace_key", "article_id",
+        "collaboration_id", "batch_id",
+    }
+    assert "技能正文-机密" not in json.dumps(frozen, ensure_ascii=False)
+    # 运行期交给 Team 的冻结上下文才带正文（TeamPort 收到的是完整技能）。
+    assert h.team.started[0]["frozen"]["skills"][0]["body"] == "技能正文-机密"
+
 
 def test_teams_enabled_flag_respected(tmp_path: Path) -> None:
     disabled = _gateway(tmp_path / "ws-disabled", _config_file(tmp_path, enabled=False))
@@ -623,6 +652,53 @@ def test_teams_enabled_flag_respected(tmp_path: Path) -> None:
 
     assert disabled.team_service.enabled is False
     assert enabled.team_service.enabled is True
+
+
+async def test_default_preparer_runs_real_prepare_frozen(tmp_path: Path) -> None:
+    """回归（审查 blocker 1）：默认 ``frozen_preparer`` 必须传满四个身份参数。
+
+    缺陷版本漏传 ``workspace_key/article_id/collaboration_id/batch_id``，真实
+    ``prepare_frozen`` 直接 ``TypeError`` —— 默认冻结准备 100% 失败、``writing.start``
+    永远起不来；且当时 runner 单测全部注入假准备器，所以无一条用例能发现。此处刻意
+    不注入假准备器：走真实 ``prepare_frozen`` + 真实 ``SkillsLoader``。
+    """
+    h = _harness(tmp_path)
+    h.runner = _build_runner(
+        h.db, h.repo, h.articles, team=h.team, artifacts=h.artifacts,
+        publisher=h.publisher, clock=h.clock, logs=h.logs,
+        preparer=frozen_preparer(
+            loader=SkillsLoader(tmp_path / "ws"), model_id="openai/gpt-test",
+        ),
+        recipes=RECIPES,
+    )
+    article = _create_article(h.articles)
+
+    handle = await h.runner.start(h.request(article=article))
+
+    batch = h.repo.get_batch(handle.batch_id)
+    frozen = batch.frozen
+    # 批次起跑后停在 queued（成员事件才推进批次行），协作必须已进 running。
+    assert batch.status == BatchStatus.QUEUED
+    assert (
+        h.repo.get_collaboration(handle.collaboration_id).status
+        == CollaborationStatus.RUNNING
+    )
+    assert frozen["workspace_key"] == h.db.workspace_key
+    assert frozen["article_id"] == article["id"]
+    assert frozen["collaboration_id"] == handle.collaboration_id
+    # 技能正文进运行期上下文（TeamPort），落库只留身份与哈希。
+    assert frozen["skills"], "真实加载器必须冻结到至少一个写作 Skill"
+    assert all(set(skill) == {"name", "path", "sha256"} for skill in frozen["skills"])
+    assert frozen["model_id"] == "openai/gpt-test"
+    # 批次的 batch_id 在冻结之后才生成：落库那份留空，运行期那份必须补齐。
+    assert frozen["batch_id"] == ""
+    # 真实准备器返回 ``FrozenContext`` 数据类（假准备器返回 dict），身份由
+    # ``_with_identity`` 在运行期补齐。
+    runtime_frozen = h.team.started[0]["frozen"]
+    assert runtime_frozen.batch_id == handle.batch_id
+    assert runtime_frozen.workspace_key == h.db.workspace_key
+    assert runtime_frozen.collaboration_id == handle.collaboration_id
+    assert runtime_frozen.skills[0].body, "运行期冻结上下文必须带技能正文"
 
 
 def _config_file(tmp_path: Path, *, enabled: bool) -> Path:
