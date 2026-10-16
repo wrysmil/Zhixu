@@ -20,8 +20,8 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import Any, Protocol
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, Any, Protocol
 
 from nanobot.agents.models import AgentSelection
 from nanobot.agents.runtime import resolve_selection
@@ -36,6 +36,43 @@ from nanobot.teams.models import (
     TeamValidationError,
 )
 from nanobot.teams.repository import DEFAULT_EVENT_LIMIT, TeamRepository, new_id, utc_now_iso
+
+if TYPE_CHECKING:  # pragma: no cover - 只在类型检查期解析
+    from nanobot.writing.builtin import BuiltinAssetRegistry
+
+# 内置资产类别；与契约 §7 的清单口径一致。
+_BUILTIN_TEAM_KIND = "team"
+
+
+def _builtin_team_logical_ids() -> tuple[str, ...]:
+    """内置 Team 的逻辑 ID 清单（数据源只有 ``nanobot.writing.builtin``，惰引入）。
+
+    口径与 ``nanobot/agents/store.py`` 的 ``_builtin_asset_registry`` 一致：本模块
+    **不得**在导入期 import ``nanobot.writing``。那条链
+    （``nanobot.writing.database`` → ``nanobot.config.paths`` → ``nanobot.config`` →
+    ``nanobot.config.loader`` → ``nanobot.config.schema`` 的
+    ``_resolve_tool_config_refs()`` → ``nanobot.agent.tools.*``）会把 ``nanobot.config``
+    拖进环里，``nanobot.agent`` 的初始化在环中抛 ImportError 且被 schema 的
+    ``except ImportError`` 吞掉，于是 ``nanobot.agent`` 从 ``sys.modules`` 消失、只留
+    子模块 —— 之后 ``mock.patch("nanobot.agent.tools.mcp.connect_mcp_servers")``
+    这类按名 patch 会直接 ``AttributeError``。
+    """
+    from nanobot.writing.builtin import WRITING_BUILTIN_ASSETS
+
+    return tuple(
+        asset.logical_id
+        for asset in WRITING_BUILTIN_ASSETS
+        if asset.kind == _BUILTIN_TEAM_KIND and asset.protected
+    )
+
+
+def _content_key(definition: TeamDefinition) -> dict[str, Any]:
+    """内容指纹：排除服务端盖章字段与物理 ID，用于判断内置记录是否要迁移。"""
+    return {
+        key: value
+        for key, value in definition.to_dict().items()
+        if key not in SERVER_OWNED_DEFINITION_FIELDS and key != "id"
+    }
 
 
 class TeamDisabled(RuntimeError):  # noqa: N818  # 映射 503 TEAMS_DISABLED
@@ -102,7 +139,13 @@ def _snapshot_of(record: ProfileRecord) -> AgentProfileSnapshot:
 
 
 class TeamService:
-    """一个 workspace 一个实例；由 gateway 注入，不通过模块全局读取 Loop。"""
+    """一个 workspace 一个实例；由 gateway 注入，不通过模块全局读取 Loop。
+
+    ``builtin_registry`` 是创作空间内置资产的权威登记处（``nanobot.writing.builtin``）。
+    **生产装配路径必须注入它**（``nanobot.webui.teams_api.build_service``）：未注入时
+    :meth:`_require_team_writable` 无从判定内置身份，契约 §4 的 409
+    ``BUILTIN_RESOURCE_PROTECTED`` 不会产生。未注入只应出现在测试替身里。
+    """
 
     def __init__(
         self,
@@ -111,11 +154,125 @@ class TeamService:
         *,
         enabled: bool = True,
         writer_owned: bool = True,
+        builtin_registry: BuiltinAssetRegistry | None = None,
     ) -> None:
         self.repository = repository
         self.profiles = profiles
         self.enabled = enabled
         self.writer_owned = writer_owned
+        self.builtin_registry = builtin_registry
+
+    # ------------------------------------------------------------------ 内置保护
+
+    def _require_team_writable(self, team_id: str) -> None:
+        """内置团队（``asset_kind="team"``）受保护：覆盖 / 归档一律拒绝。
+
+        抛 :class:`~nanobot.writing.builtin.BuiltinResourceProtected`（业务码
+        ``BUILTIN_RESOURCE_PROTECTED``、HTTP 409、message 见契约 §4）。
+
+        判据是**逻辑 ID 与已登记的物理 ID 双查**：内置记录按 allocator 协议退让到
+        ``<logical_id>-builtin`` 时（逻辑 ID 被用户团队占着），只查逻辑 ID 会漏掉
+        真正的内置记录，等于给攻击者留了后门。两处命中都按逻辑 ID 报错，message
+        因此始终是 ``team/<logical_id>``。
+        """
+        registry = self.builtin_registry
+        if registry is None:
+            return
+        for logical_id in _builtin_team_logical_ids():
+            if team_id == logical_id or (
+                registry.physical_id(_BUILTIN_TEAM_KIND, logical_id) == team_id
+            ):
+                registry.ensure_writable(_BUILTIN_TEAM_KIND, logical_id)
+
+    # ------------------------------------------------------- 内置记录播种 / 迁移
+
+    def ensure_builtin_team(
+        self,
+        template: TeamDefinition,
+        *,
+        request_id: str,
+    ) -> str | None:
+        """播种 / 刷新内置团队，返回它的物理 ID；未接登记处时返回 ``None``。
+
+        **不受保护的内部写路径**：内置记录自己就在受保护清单里，若走公开的
+        :meth:`save_team` 会被自己的守卫挡住（自锁），因此播种与迁移只能走这里。
+
+        ``template.id`` 是**逻辑 ID**（产品身份）；物理 ID 由
+        :meth:`~nanobot.writing.builtin.BuiltinAssetRegistry.prepare` 的 allocator
+        协议决定（契约 §7）：逻辑 ID 被用户对象占用时 allocator 交出空串，registry
+        追加 ``-builtin`` 后缀重试，**绝不覆盖用户资产**。重复调用幂等。
+        """
+        registry = self.builtin_registry
+        if registry is None:
+            return None
+        logical_id = template.id
+        registered = registry.physical_id(_BUILTIN_TEAM_KIND, logical_id)
+        if registered is not None:
+            # 已登记：内容变了就按内部路径推进一版（迁移），否则原样返回。
+            self._refresh_builtin_team(template, team_id=registered, request_id=request_id)
+            return registered
+
+        def allocator(candidate: str) -> str:
+            """空串 = 候选物理 ID 已被用户对象占用，交给 registry 重试后缀。"""
+            if self._team_exists(candidate):
+                return ""
+            self._write_builtin_team(template, team_id=candidate, request_id=request_id)
+            return candidate
+
+        return registry.prepare(_BUILTIN_TEAM_KIND, logical_id, allocator=allocator)
+
+    def _team_exists(self, team_id: str) -> bool:
+        from nanobot.teams.repository import TeamNotFound
+
+        try:
+            self.repository.get_team(team_id)
+        except TeamNotFound:
+            return False
+        return True
+
+    def _write_builtin_team(
+        self, template: TeamDefinition, *, team_id: str, request_id: str
+    ) -> dict[str, Any]:
+        """内部路径创建内置记录（``expected_revision=None`` ⇒ 必须盖章 revision=1）。"""
+        now = utc_now_iso()
+        definition = replace(
+            template, id=team_id, revision=1, created_at=now, updated_at=now
+        )
+        return self.repository.save_team(
+            definition=definition,
+            snapshot=self.freeze(definition),
+            expected_revision=None,
+            request_id=f"{request_id}:{team_id}",
+        )
+
+    def _refresh_builtin_team(
+        self, template: TeamDefinition, *, team_id: str, request_id: str
+    ) -> None:
+        """内容迁移：只在可写字段真的变了时推进一版，避免每次启动都刷修订号。"""
+        from nanobot.teams.repository import TeamNotFound
+
+        try:
+            current = self.repository.get_team(team_id)
+        except TeamNotFound:
+            # 登记表里有、团队表里没有（被外部删掉）：按内部路径重建。
+            self._write_builtin_team(template, team_id=team_id, request_id=request_id)
+            return
+        if _content_key(current) == _content_key(template):
+            return
+        # 内容取自模板（成员/上限要保留 dataclass 形状），服务端字段沿用当前记录。
+        definition = replace(
+            template,
+            id=team_id,
+            revision=current.revision + 1,
+            created_at=current.created_at,
+            updated_at=utc_now_iso(),
+        )
+        self.repository.save_team(
+            definition=definition,
+            snapshot=self.freeze(definition),
+            expected_revision=current.revision,
+            request_id=f"{request_id}:{team_id}",
+        )
 
     # ------------------------------------------------------------------ 写入
 
@@ -132,6 +289,7 @@ class TeamService:
             # 创建路径原样交给 from_create_payload：客户端伪造服务端字段要报错，
             # 不是悄悄丢掉，否则前端拼错的载荷会被当成合法请求。
             definition = TeamDefinition.from_create_payload(data, now=utc_now_iso())
+            self._require_team_writable(definition.id)
         else:
             editable = {
                 key: value
@@ -141,6 +299,7 @@ class TeamService:
             team_id = editable.get("id")
             if not isinstance(team_id, str) or not team_id:
                 raise TeamValidationError("team update requires an id")
+            self._require_team_writable(team_id)
             previous = self.repository.get_team(team_id)
             # 归档团队只留一条可写路径：显式把 archived 置回 false（取消归档）。其余编辑仍
             # 被挡在门外，让「已归档」保持内容冻结；契约 §4 的硬不变量是禁止新运行，那条
@@ -164,11 +323,13 @@ class TeamService:
         )
 
     def archive_team(self, team_id: str, *, expected_revision: int, request_id: str) -> dict[str, Any]:
+        self._require_team_writable(team_id)
         return self.repository.set_archived(
             team_id, expected_revision=expected_revision, request_id=request_id
         )
 
     def clone_team(self, team_id: str, *, name: str, request_id: str) -> dict[str, Any]:
+        """内置团队**可以**复制为自定义：只读源定义，新 id 由服务端分配。"""
         source = self.repository.get_team(team_id)
         snapshot = self.freeze(source)
         return self.repository.clone_team(

@@ -11,7 +11,12 @@ from typing import Any, Callable, cast
 
 from nanobot.agents.catalog import DEFAULT_TOOL_CATEGORY, TOOL_CATEGORIES, TOOL_RISK_OVERRIDES
 from nanobot.agents.models import AgentProfile, AgentProfileError
-from nanobot.agents.store import AgentStore, AgentStoreError
+from nanobot.agents.store import (
+    AgentStore,
+    AgentStoreError,
+    agent_builtin_projection,
+    coded_error_message,
+)
 from nanobot.config.schema import Config, ToolsConfig
 from nanobot.webui.settings_contracts import WebUISettingsError
 
@@ -46,7 +51,16 @@ _MIN_LOCKED_TOOL_NAMES = frozenset({"read_file", "list_dir"})
 
 
 def _translate(exc: AgentStoreError) -> WebUISettingsError:
-    return WebUISettingsError(exc.message, status=exc.status)
+    """存储层错误 → 设置域错误。
+
+    F4：``AgentStoreError.code`` 不能被丢掉——内置资产拒绝必须把业务码
+    （``BUILTIN_RESOURCE_PROTECTED``）带进客户端能读到的错误体，口径与
+    ``teams_routes.translate`` 一致（``<CODE> <原文>``）。普通错误 ``code is None``，
+    原文一字不动。
+    """
+    return WebUISettingsError(
+        coded_error_message(exc.code, exc.message), status=exc.status
+    )
 
 
 def _store(workspace: Path) -> AgentStore:
@@ -66,12 +80,23 @@ def _truncate(text: str, limit: int = _DESCRIPTION_LIMIT) -> str:
     return text[: limit - 1] + "…"
 
 
+def _project(profile: AgentProfile) -> dict[str, Any]:
+    """档案投影 + 创作内置归属字段（契约 §7）。
+
+    非内置档案拿到的是与 ``to_dict()`` 逐字相同的字典——普通用户资源不得多出
+    任何内置字段，前端也无从把用户档案误判成受保护资产。
+    """
+    payload = profile.to_dict()
+    payload.update(agent_builtin_projection(profile.id))
+    return payload
+
+
 # -- 档案 CRUD --------------------------------------------------------------
 
 
 def agents_list(workspace: Path) -> dict[str, Any]:
     try:
-        return {"agents": [p.to_dict() for p in _store(workspace).list_profiles()]}
+        return {"agents": [_project(p) for p in _store(workspace).list_profiles()]}
     except AgentStoreError as exc:
         raise _translate(exc) from exc
 
@@ -82,7 +107,7 @@ def agents_save(workspace: Path, raw: Any) -> dict[str, Any]:
         raise WebUISettingsError("agent must be an object", status=400)
     try:
         profile = AgentProfile.from_dict(raw)
-        return {"agent": _store(workspace).save_profile(profile).to_dict()}
+        return {"agent": _project(_store(workspace).save_profile(profile))}
     except (AgentStoreError, AgentProfileError) as exc:
         # 两类都带 message/status；后者覆盖 422（空名、超长 prompt）这类字段级失败。
         raise WebUISettingsError(exc.message, status=exc.status) from exc
@@ -115,7 +140,7 @@ def agents_delete(
 def agents_reset(workspace: Path, agent_id: Any) -> dict[str, Any]:
     normalized = _require_id(agent_id)
     try:
-        return {"agent": _store(workspace).reset_profile(normalized).to_dict()}
+        return {"agent": _project(_store(workspace).reset_profile(normalized))}
     except AgentStoreError as exc:
         raise _translate(exc) from exc
 
@@ -125,7 +150,7 @@ def agents_visibility(workspace: Path, agent_id: Any, hidden: Any) -> dict[str, 
     if not isinstance(hidden, bool):
         raise WebUISettingsError("hidden must be a boolean", status=400)
     try:
-        return {"agent": _store(workspace).set_visibility(normalized, hidden).to_dict()}
+        return {"agent": _project(_store(workspace).set_visibility(normalized, hidden))}
     except AgentStoreError as exc:
         raise _translate(exc) from exc
 

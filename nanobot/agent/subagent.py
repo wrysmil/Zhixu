@@ -5,7 +5,9 @@ import json
 import time
 import uuid
 import warnings
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, NotRequired, TypedDict
@@ -46,6 +48,51 @@ class SubagentOrigin(TypedDict):
     chat_id: str
     session_key: str | None
     llm_usage_source: NotRequired[LLMUsageSource]
+
+
+#: 宿主（写作协作批次）在派发期间提供的**已冻结 Skill 正文**：(name, body) 对。
+#: 正文只活在这段运行期上下文里：既不进 ``TeamExecutionRequest``，也不落任何库。
+#: 用 ContextVar 而不是参数，是为了不改 ``execute_frozen`` 的冻结签名与成员执行适配层
+#: （``TeamExecutionRequest`` 属 Team 域，写作域不扩它的字段）。
+_FROZEN_SKILLS: ContextVar[tuple[tuple[str, str], ...]] = ContextVar(
+    "nanobot_frozen_skills", default=()
+)
+
+
+def current_frozen_skills() -> tuple[tuple[str, str], ...]:
+    """当前作用域里的冻结 Skill 正文；没有则为空元组。"""
+    return _FROZEN_SKILLS.get()
+
+
+@contextmanager
+def frozen_skills_context(skills: Iterable[tuple[str, str]]) -> Iterator[None]:
+    """把已冻结的 Skill 正文挂到当前（及派生）任务上；退出即还原。
+
+    ``asyncio.create_task`` 会复制当前上下文，因此宿主在 ``await`` 派发之前挂上、
+    在派发返回之后摘掉，就能保证「批内同一个 Skill 不会在后台被换掉」。
+    """
+    token = _FROZEN_SKILLS.set(tuple((str(name), str(body)) for name, body in skills))
+    try:
+        yield
+    finally:
+        _FROZEN_SKILLS.reset(token)
+
+
+def render_frozen_skills_section(skills: Iterable[tuple[str, str]] | None = None) -> str:
+    """把冻结正文渲染成成员提示词里的一段只读附注；没有正文时返回空串。"""
+    entries = list(_FROZEN_SKILLS.get() if skills is None else skills)
+    if not entries:
+        return ""
+    blocks = [
+        f"### {name}\n\n{body.strip()}\n" for name, body in entries if body.strip()
+    ]
+    if not blocks:
+        return ""
+    return (
+        "## 本批次冻结的技能正文（只读）\n\n"
+        "以下是本次任务被冻结的技能正文，逐字使用；不要改写到工作区，也不要在回复里复述它。\n\n"
+        + "\n".join(blocks)
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -916,6 +963,9 @@ class SubagentManager:
             history_log=history_log,
             skills_summary=skills_summary or "",
         )
+        frozen = render_frozen_skills_section()
+        if frozen:
+            base = f"{base}\n\n{frozen}"
         if agent is None or not agent.prompt:
             return base
         identity = (

@@ -15,7 +15,27 @@ from nanobot.session.manager import Session
 from nanobot.session.summary import SUMMARY_CONTINUATION_TEXT
 
 
-def _make_loop(tmp_path: Path, context_window_tokens: int = 200_000) -> AgentLoop:
+#: 创作空间内置写作 Skill（2026-10-17 批次新增）。它们会进系统提示的技能清单，
+#: 让本文件里按「紧预算」构造的用例多出约 170 token。本文件断言的是 replay 边界与
+#: 消息形状，不是技能目录大小，所以统一在装置里关掉这几个技能，把提示大小固定回
+#: 与基线一致的水平。
+WRITING_SKILLS = [
+    "article-brief",
+    "article-draft",
+    "article-expand",
+    "article-outline",
+    "article-research",
+    "article-review",
+    "article-rewrite",
+]
+
+
+def _make_loop(
+    tmp_path: Path,
+    context_window_tokens: int = 200_000,
+    *,
+    disabled_skills: list[str] | None = None,
+) -> AgentLoop:
     provider = MagicMock()
     provider.get_default_model.return_value = "test-model"
     provider.generation.max_tokens = 4096
@@ -25,6 +45,7 @@ def _make_loop(tmp_path: Path, context_window_tokens: int = 200_000) -> AgentLoo
         workspace=tmp_path,
         model="test-model",
         context_window_tokens=context_window_tokens,
+        disabled_skills=WRITING_SKILLS if disabled_skills is None else disabled_skills,
     )
 
 

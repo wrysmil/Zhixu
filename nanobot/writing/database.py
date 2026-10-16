@@ -11,7 +11,7 @@ from pathlib import Path
 
 from nanobot.config.paths import get_writing_dir
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 _SCHEMA_STATEMENTS: tuple[str, ...] = (
     """
@@ -46,6 +46,17 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
       response      TEXT NOT NULL,
       created_at    TEXT NOT NULL,
       PRIMARY KEY (workspace_key, request_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS writing_builtin_assets (
+      workspace_key   TEXT NOT NULL,
+      asset_kind      TEXT NOT NULL,
+      logical_id      TEXT NOT NULL,
+      builtin_version TEXT NOT NULL,
+      physical_id     TEXT NOT NULL,
+      created_at      TEXT NOT NULL,
+      PRIMARY KEY (workspace_key, asset_kind, logical_id, builtin_version)
     )
     """,
     "CREATE TABLE IF NOT EXISTS _schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)",

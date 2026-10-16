@@ -27,6 +27,7 @@ from nanobot.webui import settings_contracts as contracts
 from nanobot.webui import settings_models as model_domain
 from nanobot.webui import settings_system as system_domain
 from nanobot.webui import teams_routes as teams_domain
+from nanobot.webui import writing_collab_routes as writing_collab_domain
 from nanobot.webui import writing_routes as writing_domain
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.cli_apps_api import cli_apps_action, cli_apps_payload
@@ -75,6 +76,7 @@ from nanobot.webui.settings_contracts import (
 from nanobot.webui.settings_services import WebUISettingsServices
 from nanobot.webui.teams_routes import TeamSettingsOperations
 from nanobot.webui.version_check import check_for_update
+from nanobot.webui.writing_collab_routes import WritingCollabSettingsOperations
 from nanobot.webui.writing_routes import WritingSettingsOperations
 
 _WEBUI_MUTATION_PAYLOAD_ATTR = "_nanobot_webui_mutation_payload"
@@ -208,6 +210,9 @@ _SYSTEM_ROUTES = {
     "/api/writing/articles/save": "article.save",
     "/api/writing/articles/duplicate": "article.duplicate",
     "/api/writing/articles/delete": "article.delete",
+    # 协作域（契约 §3）：两个读走认证 HTTP GET，七个写走 WS 白名单；九个动作名
+    # 同样取点号并逐字登记，漏一条即 404。
+    **writing_collab_domain.WRITING_COLLAB_ROUTE_PATHS,
     **{
         path: f"mcp-{action}"
         for path, action in _MCP_PRESET_ACTIONS_BY_PATH.items()
@@ -258,6 +263,10 @@ _WRITING_MUTATION_PATHS = frozenset({
     "/api/writing/articles/delete",
 })
 
+# 契约 §3：协作域七条写路径同样 WS-only；两个读路径不在其中。path→action 的唯一
+# 真相源是 writing_collab_routes，这里只做别名，防止两处手抄漂移。
+_WRITING_COLLAB_MUTATION_PATHS = writing_collab_domain.WRITING_COLLAB_MUTATION_PATHS
+
 _SETTINGS_MUTATION_PATHS = frozenset({
     "/api/settings/update",
     "/api/settings/model-configurations/create",
@@ -295,6 +304,7 @@ _SETTINGS_MUTATION_PATHS = frozenset({
     *_AGENTS_MUTATION_PATHS,
     *_TEAMS_MUTATION_PATHS,
     *_WRITING_MUTATION_PATHS,
+    *_WRITING_COLLAB_MUTATION_PATHS,
 })
 
 
@@ -415,6 +425,33 @@ def _null_writing_operations() -> WritingSettingsOperations:
     )
 
 
+def _null_writing_collab_operations() -> WritingCollabSettingsOperations:
+    """协作域未装配时的兜底：可读的 503（契约 §4 ``writing collaboration service
+    is not configured``），而不是 dispatch 深处的一次 AttributeError。"""
+
+    def _unavailable(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise WebUISettingsError(
+            "writing collaboration service is not configured", status=503,
+        )
+
+    async def _async_unavailable(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise WebUISettingsError(
+            "writing collaboration service is not configured", status=503,
+        )
+
+    return WritingCollabSettingsOperations(
+        get_collaboration=_unavailable,
+        get_artifact=_unavailable,
+        start=_async_unavailable,
+        reply=_async_unavailable,
+        confirm=_unavailable,
+        cancel=_async_unavailable,
+        retry=_async_unavailable,
+        apply=_unavailable,
+        undo=_unavailable,
+    )
+
+
 def _null_team_operations() -> TeamSettingsOperations:
     """gateway 还没注入 TeamService 时的兜底：响亮的 503，而不是 dispatch 深处的一次 AttributeError。"""
 
@@ -465,6 +502,7 @@ class WebUISettingsRouter:
         agents_operations: AgentSettingsOperations | None = None,
         team_operations: TeamSettingsOperations | None = None,
         writing_operations: WritingSettingsOperations | None = None,
+        writing_collab_operations: WritingCollabSettingsOperations | None = None,
     ) -> None:
         self.settings = settings
         self.bus = bus
@@ -505,6 +543,11 @@ class WebUISettingsRouter:
             writing_operations
             if writing_operations is not None
             else _null_writing_operations()
+        )
+        self._writing_collab = writing_collab_domain.WritingCollabSettingsHandler(
+            writing_collab_operations
+            if writing_collab_operations is not None
+            else _null_writing_collab_operations()
         )
         self._teams = teams_domain.TeamSettingsHandler(
             team_operations if team_operations is not None else _null_team_operations()
@@ -588,10 +631,19 @@ class WebUISettingsRouter:
             result = await asyncio.to_thread(
                 lambda: self._agents.handle(action, domain_request),
             )
+        elif action in writing_collab_domain.WRITING_COLLAB_CONTROL_ACTION_NAMES:
+            # 协作控制动作要在事件循环上叫停/叫醒在场批次句柄，包进 to_thread 就永远
+            # 叫不醒（与 teams 控制动作同构，契约 §3）。
+            result = await self._writing_collab.handle_control(action, domain_request)
         elif action in writing_domain.WRITING_ACTION_NAMES:
             # 写作域同样是 stdlib sqlite3 + threading.Lock（阻塞），不能跑在事件循环里。
             result = await asyncio.to_thread(
                 lambda: self._writing.handle(action, domain_request),
+            )
+        elif action in writing_collab_domain.WRITING_COLLAB_ACTION_NAMES:
+            # 协作域的其余动作是阻塞 SQLite 短事务，走 to_thread（契约 §2）。
+            result = await asyncio.to_thread(
+                lambda: self._writing_collab.handle(action, domain_request),
             )
         elif action in teams_domain.TEAMS_CONTROL_ACTION_NAMES:
             # 取消/重试要在事件循环上叫醒在场的 TeamRunHandle，包进 to_thread 就永远

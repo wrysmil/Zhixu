@@ -1,5 +1,120 @@
 {
   "creative": {
+    "partner": {
+      "ui": {
+        "after": "修改後",
+        "angles": "切入角度",
+        "before": "修改前",
+        "busy": "處理中…",
+        "copyRewrite": "複製改寫",
+        "dismissMaterial": "從本次選取中移除",
+        "empty": "還沒有回傳結果。",
+        "errorUnknown": "寫作夥伴無法處理這個要求，請再試一次。",
+        "failed": "此項目失敗，請再試一次。",
+        "handoffUnknown": "等待你的決定",
+        "inputLabel": "傳訊息給編輯",
+        "insertIntoArticle": "插入正文",
+        "insertSection": "插入本節",
+        "issues": "待處理問題",
+        "materials": "素材",
+        "nextStep": "下一步",
+        "nextStepUnknown": "開啟協作過程查看下一步",
+        "noProgress": "這篇文章目前沒有執行中的任務。",
+        "outlineConfirm": "儲存大綱並繼續",
+        "outlinePoint": "大綱要點",
+        "pending": "等待你的決定",
+        "plan": "計畫",
+        "quickTasks": "快速任務",
+        "rejectRewrite": "拒絕",
+        "replaceArticle": "取代空白草稿",
+        "retry": "重試",
+        "retryRewrite": "換一種改寫",
+        "sections": "小節",
+        "send": "傳送給團隊",
+        "showFewerIssues": "收合",
+        "showMoreIssues": "再顯示 {{count}} 則",
+        "stop": "停止",
+        "stopping": "正在停止…",
+        "untitled": "未命名文章",
+        "viewAndInsert": "查看並插入",
+        "viewMaterials": "查看素材",
+        "viewOutline": "查看大綱",
+        "toggle": "創作搭檔"
+      },
+      "title": "寫作夥伴",
+      "builtinBadge": "內建",
+      "process": {
+        "toggle": "查看協作過程"
+      },
+      "input": {
+        "placeholder": "保留我的語氣；把第 2 節寫得更具體…"
+      },
+      "requirements": {
+        "toggle": "本文的要求"
+      },
+      "stage": {
+        "idle": "閒置",
+        "queued": "排隊中",
+        "running": "進行中",
+        "waiting_author": "等待你確認",
+        "completed": "已完成",
+        "failed": "失敗",
+        "cancelled": "已取消",
+        "interrupted": "已中斷"
+      },
+      "action": {
+        "start_full": "啟動完整流程",
+        "ideate": "尋找選題角度",
+        "research": "調研",
+        "outline": "產生大綱",
+        "draft": "撰寫初稿",
+        "rewrite_selection": "改寫選取內容",
+        "review_all": "全文審閱",
+        "reply": "回覆"
+      },
+      "artifact": {
+        "brief": "選題簡報",
+        "material_list": "素材清單",
+        "outline": "大綱",
+        "draft": "初稿",
+        "rewrite": "改寫",
+        "review": "審閱"
+      },
+      "artifactAction": {
+        "useAngle": "採用這個角度",
+        "addMaterial": "加入素材",
+        "writeFromOutline": "依大綱撰寫",
+        "insertDraft": "插入初稿",
+        "applyRewrite": "套用改寫",
+        "viewIssues": "查看問題"
+      },
+      "handoff": {
+        "outline_confirm": "大綱已就緒，確認後繼續",
+        "materials_request": "還需要更多素材",
+        "final_accept": "終稿已就緒，確認後結束"
+      },
+      "progress": {
+        "researching": "調研中",
+        "outlining": "整理大綱",
+        "drafting": "撰寫初稿中",
+        "reviewing": "審閱中",
+        "waitingAuthor": "等待你確認",
+        "stopped": "已停止"
+      },
+      "error": {
+        "selectionRequired": "請先選取一段文字",
+        "versionConflict": "文章已變更，請重新載入後再試。",
+        "notPending": "此項目已不再等待你處理。",
+        "serviceUnavailable": "寫作服務暫時無法使用，請稍後再試。",
+        "requestTooLarge": "要求內容過大，請精簡後再試。"
+      },
+      "next": {
+        "writeFromOutline": "依此大綱撰寫",
+        "insertToArticle": "插入正文",
+        "viewChanges": "查看變更",
+        "addMaterials": "補充素材"
+      }
+    },
     "headline": "今天，想寫點什麼？",
     "hero_description": "一段程式碼、一次實作、一個新理解，都可以是一篇文章的開始。",
     "topic_label": "文章主題",
@@ -1343,6 +1458,8 @@
       "memberMinimum": "至少加入 1 位成員。職責只在本團隊生效，不會改動 Agent 原始設定檔。",
       "advancedSettings": "協作約定與工作方式",
       "rosterCount": "1 位隊長 · {{count}} 位成員",
+      "rosterCount_one": "1 位隊長 · {{count}} 位成員",
+      "rosterCount_other": "1 位隊長 · {{count}} 位成員",
       "rosterPrompt": "從一個目標開始，組成你的 Agent 團隊。",
       "errorRoleLength": "成員職責不能超過 {{max}} 字",
       "errorInstructionsLength": "協作約定不能超過 {{max}} 字",
@@ -1416,6 +1533,37 @@
       "revisionNote": "目前修訂 v{{revision}}；儲存後產生 v{{next}}"
     },
     "agents": {
+      "workspace": {
+        "identity": "職責與身分",
+        "capabilities": "工具與技能",
+        "more": "模型與更多",
+        "subtitle": "先寫清職責，再為它選擇合適的能力。",
+        "identityHint": "給它一個明確的角色，以及做事的方法。",
+        "capabilitiesHint": "依需求選擇可執行的操作和可參考的做事方法。",
+        "moreHint": "選擇模型，整理設定檔的分類與外觀。",
+        "toolsHint": "允許它執行的操作，例如讀取檔案、搜尋網頁。",
+        "skillsHint": "完成某類任務時可參考的做事方法。",
+        "profileDetails": "設定檔資訊",
+        "summary": "設定摘要",
+        "summaryToggle": "查看設定摘要",
+        "unnamed": "尚未填寫名稱",
+        "noDescription": "用一句話說明它負責什麼。",
+        "noSkills": "未新增技能",
+        "noTools": "未選擇工具",
+        "selectedCount": "已啟用 {{count}} 項",
+        "remaining": "等 {{count}} 項",
+        "unavailableModel": "原模型目前無法使用",
+        "globalModel": "跟隨全域模型",
+        "promptHint": "寫清它負責什麼、如何完成任務，以及結果怎麼交付。",
+        "promptLimit": "工作指令不能超過 {{count}} 字。",
+        "nameRequired": "請先填寫名稱。",
+        "idRequired": "Agent 識別碼不能為空。",
+        "description": "一句話說明",
+        "modelMissing": "原模型目前無法使用",
+        "modelMissingHint": "保留原模型設定。你可以選擇其他模型，或改為跟隨全域。",
+        "selectionIncludeHint": "只啟用勾選項目。切換選擇方式會清空目前選擇。",
+        "selectionExcludeHint": "勾選表示啟用，取消勾選表示排除。切換選擇方式會清空目前選擇。"
+      },
       "basics": {
         "appearance": "圖示與顏色",
         "category": "分類",
@@ -1508,6 +1656,9 @@
         "include": "僅所選"
       },
       "model": {
+        "label": "模型",
+        "auto": "跟隨全域模型",
+        "autoHint": "此 Agent 跟隨全域模型設定。",
         "context": "上下文",
         "toolUse": "支援工具呼叫",
         "vision": "支援視覺"

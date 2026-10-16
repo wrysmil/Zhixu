@@ -71,6 +71,8 @@ ACTIVITY_RETENTION_DAYS = 30
 TASK_TERMINAL_STATUSES: tuple[str, ...] = (
     "succeeded", "failed", "cancelled", "interrupted", "blocked",
 )
+#: ``cancelling`` 之后**不允许**再落地的「成功类」终态：取消是不可回退的（契约 §6）。
+_LATE_SUCCESS_STATUSES: tuple[str, ...] = ("succeeded", "completed")
 RUN_TERMINAL_STATUSES: tuple[str, ...] = (
     "completed", "partial", "failed", "cancelled", "interrupted",
 )
@@ -818,6 +820,27 @@ class TeamRepository:
         except DatabaseAbsent:
             raise TaskNotFound(task_id) from None
 
+    def get_task_full_result(self, task_id: str) -> str | None:
+        """读回成员**完整产出**（``result.fullResult``），供写作域取长稿全文。
+
+        团队任务行的 ``result`` 列是 ``{"result": …, "fullResult": …}``：``result.summary``
+        按契约封顶 8000 字符，超过的部分只在 ``fullResult`` 里。通用下游摘要协议仍只读
+        ``summary``（``TeamTaskSnapshot`` 的线格式没有这个字段），因此这里单开一个
+        只读入口而不是往领域快照上加字段。
+        """
+        rows = self._read(
+            "SELECT result FROM team_tasks WHERE task_id = ? AND workspace_key = ?",
+            [task_id, self.workspace_key],
+        )
+        if not rows:
+            raise TaskNotFound(task_id)
+        raw = rows[0]["result"]
+        if not raw:
+            return None
+        stored = self._loads(str(raw), "task result payload")
+        full = stored.get("fullResult")
+        return str(full) if isinstance(full, str) and full else None
+
     def update_task_status(
         self, task_id: str, status: str, *, last_action: str | None = None
     ) -> TeamTaskSnapshot:
@@ -936,6 +959,12 @@ class TeamRepository:
                 raise TaskNotFound(task_id)
             if row["status"] in TASK_TERMINAL_STATUSES:
                 raise IllegalTaskTransition(f"task {task_id} already terminal: {row['status']}")
+            if row["status"] == "cancelling" and status in _LATE_SUCCESS_STATUSES:
+                # 契约 §6：取消链已经落过 ``cancelling``，晚到的成功结果一律拒绝——
+                # 否则「作者已停止的任务」会在 UI 上翻回成功，取消代数也拦不住它。
+                raise IllegalTaskTransition(
+                    f"task {task_id} is cancelling; late {status!r} result refused"
+                )
             run_id = str(row["run_id"])
             attempt_id = str(row["attempt_id"]) if row["attempt_id"] else new_id("att")
             if row["attempt_id"] is None:

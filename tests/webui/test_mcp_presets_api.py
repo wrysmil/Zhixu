@@ -749,3 +749,52 @@ def test_normalize_mcp_mentions_uses_explicit_gateway_config(
     )
 
     assert payload == [{"name": "gateway-docs", "display_name": "Gateway docs"}]
+
+
+# ------------------------------------------- 内置保护业务码（F4：不丢 code）
+
+
+def test_builtin_mcp_guard_error_carries_business_code(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """内置 MCP 预设拒绝必须让异常带码，并把码放进错误体（F4）。
+
+    首批清单没有 ``kind="mcp"`` 条目，因此这里按清单注入一个假内置项：守卫集合与
+    ``BuiltinAssetRegistry.get_asset`` 查的是同一张表，注入后两侧同时可见。
+    """
+    from nanobot.agents.store import protected_write_message
+    from nanobot.writing import builtin as writing_builtin
+
+    fake = writing_builtin.BuiltinAsset("mcp", "writing-fake", "假内置 MCP")
+    monkeypatch.setattr(
+        writing_builtin,
+        "_ASSETS_BY_KEY",
+        {**writing_builtin._ASSETS_BY_KEY, ("mcp", fake.logical_id): fake},
+    )
+    _use_config(tmp_path, monkeypatch)
+    config_path = tmp_path / "config.json"
+
+    with pytest.raises(McpPresetError) as excinfo:
+        mcp_presets_action("remove", {"name": [fake.logical_id]}, config_path=config_path)
+
+    # 异常对象真的携带业务码（不是用例硬编码的断言）。
+    assert excinfo.value.code == writing_builtin.BUILTIN_RESOURCE_PROTECTED
+    assert excinfo.value.status == 409
+    assert excinfo.value.message == (
+        f"{writing_builtin.BUILTIN_RESOURCE_PROTECTED} "
+        f"{protected_write_message('mcp', fake.logical_id)}"
+    )
+
+
+def test_ordinary_mcp_errors_have_no_business_code(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """普通错误保持既有形状：不带码，也不加前缀。"""
+    _use_config(tmp_path, monkeypatch)
+    with pytest.raises(McpPresetError) as excinfo:
+        mcp_presets_action("enable", {"name": ["totally-unknown"]})
+    assert excinfo.value.status == 404
+    assert excinfo.value.code is None
+

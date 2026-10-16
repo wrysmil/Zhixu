@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Download, Save } from "lucide-react";
+import { ArrowLeft, Download, Save, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +58,8 @@ interface Props {
   onLeaveRetry?: () => void;
   onLeaveStay?: () => void;
   onLeaveForce?: () => void;
+  /** 创作搭档侧栏（WU-13 集成）：由 `CreativeWorkspace` 构造并注入，编辑器不自己取数。 */
+  partnerPanel?: ReactNode;
 }
 
 export function ArticleEditor({
@@ -76,6 +78,7 @@ export function ArticleEditor({
   onLeaveRetry,
   onLeaveStay,
   onLeaveForce,
+  partnerPanel,
 }: Props) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<EditorMode>("edit");
@@ -85,6 +88,12 @@ export function ArticleEditor({
   const [latest, setLatest] = useState<Article | null>(null);
   const [latestLoading, setLatestLoading] = useState(false);
   const [exportHint, setExportHint] = useState<null | "empty" | "failed" | "dirty" | "saved">(null);
+  // 宽屏默认展开；窄屏（<1024px）默认收起，面板在窄屏是浮层，不挤压正文。
+  const [partnerOpen, setPartnerOpen] = useState(() => (
+    typeof window === "undefined" || typeof window.matchMedia !== "function"
+      ? true
+      : window.matchMedia("(min-width: 1024px)").matches
+  ));
 
   const conflict = saveState.conflict;
   const inConflict = saveState.phase === "conflict";
@@ -246,6 +255,19 @@ export function ArticleEditor({
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {partnerPanel ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPartnerOpen((open) => !open)}
+              aria-expanded={partnerOpen}
+              aria-controls="creative-partner-column"
+              data-testid="partner-toggle"
+            >
+              <Users className="mr-1 h-3.5 w-3.5" />
+              {t("creative.partner.ui.toggle", { defaultValue: "创作搭档" })}
+            </Button>
+          ) : null}
           <Button variant="outline" size="sm" onClick={() => void onSaveNow()}
             disabled={saveState.phase === "saving" || !dirty}>
             <Save className="mr-1 h-3.5 w-3.5" />
@@ -323,7 +345,7 @@ export function ArticleEditor({
       ) : null}
 
       {/* Three-column body */}
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         {/* Left panel: materials/outline */}
         <div className="w-[220px] shrink-0 overflow-y-auto border-r border-border bg-settings-surface/60 p-3">
           <div className="mb-3 flex gap-1">
@@ -410,7 +432,21 @@ export function ArticleEditor({
           </div>
         </div>
 
-        {/* Right panel: 阶段 A 建议为只读空态，阶段 B 才接入建议流 */}
+        {/* Right panel: 注入面板优先；没有注入面板时保留阶段 A 的只读占位 */}
+        {partnerPanel && partnerOpen ? (
+          <div
+            id="creative-partner-column"
+            data-testid="creative-partner-column"
+            className={cn(
+              "shrink-0 overflow-y-auto border-l border-border bg-settings-surface/60",
+              // 窄屏浮层：390/768 下不挤压正文，开关仍然可用。
+              "max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-20 max-lg:w-[320px]",
+              "max-lg:shadow-xl lg:w-[340px]",
+            )}
+          >
+            {partnerPanel}
+          </div>
+        ) : partnerPanel ? null : (
         <div className="w-[260px] shrink-0 overflow-y-auto border-l border-border bg-settings-surface/60 p-3">
           <p className="mb-3 text-[12px] font-medium text-foreground">
             {t("creative.suggestions_title", { defaultValue: "AI 建议" })}
@@ -424,6 +460,7 @@ export function ArticleEditor({
             })}
           </p>
         </div>
+        )}
       </div>
 
       {/* Status bar */}

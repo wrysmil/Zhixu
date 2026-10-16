@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
@@ -18,7 +19,14 @@ from nanobot.teams.binding import TeamBindingStore
 from nanobot.teams.runs import TeamRunController
 from nanobot.teams.service import TeamService
 from nanobot.teams.turn import TeamLeaderTurns, build_team_turns
-from nanobot.webui import agents_api, identity_api, memory_api, teams_api, writing_api
+from nanobot.webui import (
+    agents_api,
+    identity_api,
+    memory_api,
+    teams_api,
+    writing_api,
+    writing_collab_api,
+)
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.gateway_endpoint import WebUIGatewayEndpoint
 from nanobot.webui.gateway_tokens import GatewayTokenStore
@@ -33,9 +41,12 @@ from nanobot.webui.teams_routes import TeamSettingsOperations
 from nanobot.webui.temporary_chats import WebUITemporaryChats
 from nanobot.webui.transcript import WebUITranscriptRecorder
 from nanobot.webui.workspaces import WebUIWorkspaceController
+from nanobot.webui.writing_collab_api import WritingCollabServices
+from nanobot.webui.writing_collab_routes import WritingCollabSettingsOperations
 from nanobot.webui.writing_routes import WritingSettingsOperations
 from nanobot.webui.writing_services import WritingServices
 from nanobot.webui.ws_http import GatewayHTTPHandler
+from nanobot.writing.database import WritingDatabase
 
 if TYPE_CHECKING:
     from nanobot.bus.queue import MessageBus
@@ -122,6 +133,144 @@ def build_writing_operations(
         duplicate_article=partial(writing_api.duplicate_article, services),
         delete_article=partial(writing_api.delete_article, services),
     )
+
+
+def build_writing_collab_operations(
+    *,
+    workspace_id: str,
+    workspace_path: Path,
+    runner: Any | None = None,
+) -> WritingCollabSettingsOperations:
+    """Wire the collaboration payload layer to a workspace-scoped writing store.
+
+    与 ``build_writing_operations`` 同签名同风格：协作库就是写作库
+    （``<workspace>/writing/state.db``，协作表由 ``CollabRepository`` 幂等补建）。
+
+    ``runner`` 是执行栈（``nanobot.writing.collab.runner.CollabRunner``，WU-08）：
+    它只以 Protocol 依赖注入，本模块**不 import** runner，因此 runner 未落地时
+    装配仍然可用（读动作、``apply`` / ``undo`` 不需要执行栈；控制动作回 503
+    ``writing collaboration service is not configured``）。
+    """
+    database = WritingDatabase(Path(workspace_path))
+    services = WritingCollabServices.for_workspace(workspace_id, database, runner)
+    return WritingCollabSettingsOperations(
+        get_collaboration=partial(writing_collab_api.fetch_collaboration, services),
+        get_artifact=partial(writing_collab_api.fetch_artifact, services),
+        start=partial(writing_collab_api.start_collaboration, services),
+        reply=partial(writing_collab_api.reply_collaboration, services),
+        confirm=partial(writing_collab_api.confirm_handoff, services),
+        cancel=partial(writing_collab_api.cancel_collaboration, services),
+        retry=partial(writing_collab_api.retry_collaboration, services),
+        apply=partial(writing_collab_api.apply_suggestion, services),
+        undo=partial(writing_collab_api.undo, services),
+    )
+
+
+def build_writing_collab_runner(
+    *,
+    workspace_path: Path,
+    team_service: TeamService,
+    team_turns: TeamLeaderTurns,
+    bus: MessageBus,
+    model_id: Callable[[], str | None] | None = None,
+    session_manager: Any | None = None,
+    channel_name: str = "websocket",
+    logger: Any = default_logger,
+) -> Any:
+    """装配协作执行栈：``TeamWritingPort`` + envelope 出口 + ``CollabRunner``。
+
+    只在这个 gateway 确实有团队执行栈时调用（``team_turns is not None``）：没有执行栈
+    时 ``build_writing_collab_operations(runner=None)`` 保持契约 §4 的 503
+    ``writing collaboration service is not configured``，读动作与 ``apply``/``undo``
+    照常可用 —— 绝不假装能起跑。
+
+    **导入纪律**：本函数内部的一切 import 都是延迟的。``nanobot.writing.builtin`` 与
+    ``nanobot.writing.collab.team_port`` 都会在导入期拉进 ``nanobot.config.paths``，
+    让 ``mock.patch("nanobot.agent.tools.mcp.connect_mcp_servers")`` 这类按名 patch
+    不可达（已有一个 WU 踩过，见 ``nanobot/agents/store.py`` 的注释）。
+
+    ``publish`` 把领域事件翻成契约 §5 的三类帧：帧的 ``chat_id`` 只能从协作行取
+    （事件体里没有归属字段，客户端也不得影响归属），因此这里读一次协作行再把
+    ``OutboundMessage`` 投进总线，交给既有的 WebUI 投影出口扇出。
+    """
+    from nanobot.agent.skills import SkillsLoader
+    from nanobot.bus.outbound_events import (
+        WritingArtifactEvent,
+        WritingCollabEvent,
+        WritingHandoffEvent,
+        outbound_message_for_event,
+    )
+    from nanobot.writing.builtin import BuiltinAssetRegistry
+    from nanobot.writing.collab.envelope import EnvelopeArtifactSink
+    from nanobot.writing.collab.repository import CollabRepository
+    from nanobot.writing.collab.runner import CollabRunner, frozen_preparer
+    from nanobot.writing.collab.team_port import TeamWritingPort
+    from nanobot.writing.repository import ArticleRepository
+
+    database = WritingDatabase(Path(workspace_path))
+    repository = CollabRepository(database)
+    articles = ArticleRepository(database)
+    event_types: dict[str, Any] = {
+        "writing_collab": WritingCollabEvent,
+        "writing_artifact": WritingArtifactEvent,
+        "writing_handoff": WritingHandoffEvent,
+    }
+
+    def _log_publish_failure(task: asyncio.Task[Any]) -> None:
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is not None:
+            logger.bind(event="writing_collab_frame_publish_failed").warning(
+                f"writing collaboration frame publish failed: {error}"
+            )
+
+    def publish(name: str, body: Mapping[str, Any]) -> None:
+        event_type = event_types.get(name)
+        collaboration_id = str(body.get("collaboration_id") or "")
+        if event_type is None or not collaboration_id:
+            return
+        collaboration = repository.get_collaboration(collaboration_id)
+        message = outbound_message_for_event(
+            channel=channel_name,
+            chat_id=collaboration.chat_id,
+            event=event_type(body=dict(body)),
+        )
+        task = asyncio.get_running_loop().create_task(bus.publish_outbound(message))
+        task.add_done_callback(_log_publish_failure)
+
+    port = TeamWritingPort(
+        service=team_service,
+        workspace=Path(workspace_path),
+        turns=team_turns,
+        articles=articles,
+        registry=BuiltinAssetRegistry(database),
+        session_store=session_manager,
+        runtime_provider=getattr(team_turns, "runtime_provider", None),
+        logger=logger,
+    )
+    runner = CollabRunner(
+        repository=repository,
+        workspace_key=database.workspace_key,
+        articles=articles,
+        team=port,
+        artifacts=EnvelopeArtifactSink(
+            repository=repository,
+            teams=team_service.repository,
+            articles=articles,
+            workspace_key=database.workspace_key,
+            logger=logger,
+        ),
+        preparer=frozen_preparer(
+            loader=SkillsLoader(Path(workspace_path)),
+            model_id=model_id,
+        ),
+        publisher=publish,
+        logger=logger,
+    )
+    # 团队事件 → 收口：端口构造时已 subscribe 调度器，sink 允许后置绑定。
+    port.set_event_sink(runner.on_team_event)
+    return runner
 
 
 def build_identity_operations(
@@ -281,7 +430,9 @@ def build_gateway_services(
     # 团队栈要在 agents operations 之前装配：删除档案要问「还有未归档团队引用它吗」。
     team_service, team_operations, team_bindings = build_team_stack(
         workspace_path=workspace_path,
-        enabled=bool(settings.config.load().agents.teams),
+        # 回滚开关必须读字段本身：``bool(pydantic 模型实例)`` 恒真，会让
+        # ``agents.teams.enabled=false`` 完全失效（契约 §4 的 503 TEAMS_DISABLED）。
+        enabled=bool(settings.config.load().agents.teams.enabled),
     )
     # 团队执行栈要有宿主（子执行器/工具目录/默认运行时）才能装配；CLI 或测试构造的
     # gateway 没有 host 时留 None，普通聊天路径完全不受影响。
@@ -303,6 +454,20 @@ def build_gateway_services(
                 workspace=workspace_path,
             ),
         )
+    # 协作执行栈：与团队栈同生共死。没有执行栈时 runner=None → 控制动作 503（契约 §4），
+    # 读动作与 apply/undo 仍然可用（它们本来就不需要执行栈）。
+    collab_runner = (
+        build_writing_collab_runner(
+            workspace_path=workspace_path,
+            team_service=team_service,
+            team_turns=team_turns,
+            bus=bus,
+            model_id=runtime_model_name,
+            session_manager=session_manager,
+        )
+        if team_turns is not None
+        else None
+    )
     http = GatewayHTTPHandler(
         config=config,
         session_manager=session_manager,
@@ -335,6 +500,11 @@ def build_gateway_services(
         writing_operations=build_writing_operations(
             workspace_id="default",
             workspace_path=workspace_path,
+        ),
+        writing_collab_operations=build_writing_collab_operations(
+            workspace_id="default",
+            workspace_path=workspace_path,
+            runner=collab_runner,
         ),
         team_operations=team_operations,
         team_bindings=team_bindings,
