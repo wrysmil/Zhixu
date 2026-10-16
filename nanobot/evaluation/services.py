@@ -51,6 +51,7 @@ from nanobot.evaluation.schemas import (
     RunLimits,
 )
 from nanobot.evaluation.trace import read_trace
+from nanobot.evaluation.worker import ARTIFACT_INDEX_NAME
 
 WORKER_MODULE = "nanobot.evaluation.worker"
 
@@ -133,11 +134,32 @@ class EvaluationService:
 
     def import_sample(self, sample_id: str) -> dict[str, Any]:
         """内置样本随包发布：JSON 只读，导入幂等由仓储的 sample_imports 表负责。"""
-        path = Path(__file__).parent / "samples" / f"{sample_id}.json"
+        path = self._sample_path(sample_id)
         if not path.is_file():
             raise ServiceError("SAMPLE_NOT_FOUND", sample_id)
         payload = json.loads(path.read_text(encoding="utf-8"))
         return self._repository.import_sample(sample_id, payload)
+
+    def seed_builtin_gold_samples(self) -> int:
+        """首启把内置 gold 写成 ``proposed`` 建议标签；已有数据时绝不覆盖。
+
+        ``seed_gold_samples`` 是 ``INSERT OR REPLACE``：重复执行会把手动确认过的
+        ``confirmed`` 打回 ``proposed``，所以这里以「空表」为唯一执行条件，重启不重置标签。
+        """
+        if self._repository.list_gold_samples()["data"]:
+            return 0
+        payload = json.loads(self._sample_path("calibration-v1").read_text(encoding="utf-8"))
+        samples = payload.get("samples")
+        if payload.get("schema_version") != 1 or not isinstance(samples, list) or not samples:
+            raise ServiceError("SAMPLE_INVALID", "calibration-v1")
+        return self._repository.seed_gold_samples(
+            [dict(item) for item in samples],
+            gold_revision=int(payload.get("gold_revision", 1)),
+        )
+
+    @staticmethod
+    def _sample_path(sample_id: str) -> Path:
+        return Path(__file__).parent / "samples" / f"{sample_id}.json"
 
     def list_gold_samples(self) -> dict[str, Any]:
         return self._repository.list_gold_samples()
@@ -244,11 +266,7 @@ class EvaluationService:
         attempt_id = str(attempt["id"])
         case = CaseWrite.model_validate(attempt["case_snapshot"])
         limits = _limits_of(run.get("snapshot"))
-        paths = attempt_paths(
-            attempt_id=attempt_id,
-            runtime_root=str(self.runtime_root),
-            workspace=str(self.runtime_root / attempt_id / "workspace"),
-        )
+        paths = self._attempt_paths(attempt_id)
         paths.create()
         errors: list[AttemptError] = []
         boot = self._agent_boot(attempt_id, case, run, paths)
@@ -355,7 +373,7 @@ class EvaluationService:
             artifacts=self._artifacts(attempt_id, paths),
             final_answer=_text(result, "final_answer"),
             stop_reason=_text(result, "stop_reason"),
-            iterations=int(_number(result, "iterations")),
+            iterations=_iterations_of(result),
             trace_complete=trace.trace_complete,
             execution_status="succeeded",
         )
@@ -367,8 +385,7 @@ class EvaluationService:
         calibration: Mapping[str, Any] | None = None
         if rubric is not None:
             judge_result, calibration = await self.judge(
-                attempt_id=attempt_id, rubric=rubric, evidence=evidence,
-                run=run, paths=paths,
+                attempt_id=attempt_id, rubric=rubric, evidence=evidence, run=run,
             )
 
         state = judge_state_of(rubric, judge_result, calibration)
@@ -398,22 +415,37 @@ class EvaluationService:
         )
 
     def _artifacts(self, attempt_id: str, paths: Any) -> tuple[EvidenceArtifact, ...]:
-        """登记并索引产物；越界路径在这里被 resolve_inside 挡住。"""
-        found: list[EvidenceArtifact] = []
-        root = Path(paths.artifact_dir)
-        if not root.is_dir():
+        """登记并索引**已声明**产物：唯一来源是 Worker 密封的产物索引。
+
+        不能扫目录找文件：``artifact_dir`` 里只有索引本身，而扫 workspace 全量会把
+        未声明的中间文件也当成产物证据。索引条目先过 ``resolve_inside`` 再做工作区
+        包含判定——索引文件本身被篡改时也不会登记到工作区之外的文件。
+        """
+        index_path = Path(paths.artifact_dir) / ARTIFACT_INDEX_NAME
+        if not index_path.is_file():
             return ()
-        for path in sorted(root.rglob("*")):
-            if not path.is_file():
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return ()
+        entries = index.get("artifacts") if isinstance(index, Mapping) else None
+        if not isinstance(entries, list):
+            return ()
+        workspace = Path(paths.workspace)
+        found: list[EvidenceArtifact] = []
+        for entry in entries:
+            if not isinstance(entry, Mapping) or entry.get("kind") != "workspace":
                 continue
-            relative = path.relative_to(Path(paths.workspace)).as_posix() \
-                if _inside(Path(paths.workspace), path) else path.name
+            raw = entry.get("relative_path")
+            if not isinstance(raw, str) or not raw:
+                continue
             try:
-                target = _resolve(Path(paths.workspace), relative)
+                target = _resolve(Path(paths.root), raw)
             except ValueError:
                 continue
-            if not target.is_file():
+            if not _inside(workspace, target) or not target.is_file():
                 continue
+            relative = target.relative_to(workspace.resolve()).as_posix()
             digest, size = _digest(target)
             registered = self._repository.append_artifact(
                 attempt_id=attempt_id,
@@ -442,19 +474,22 @@ class EvaluationService:
         rubric: Rubric,
         evidence: AttemptEvidence,
         run: Mapping[str, Any],
-        paths: Any,
     ) -> tuple[JudgeResult, Mapping[str, Any] | None]:
         """按需评分。Judge 阶段**重新申请**进程槽位，不嵌套持有 Agent 的槽位。"""
         snapshot = run.get("snapshot") or {}
         profile = dict(snapshot.get("judge_profile") or {})
         fingerprint = _fingerprint(profile, rubric)
         calibration = self._find_calibration(fingerprint, rubric)
+        # 评分子进程必须有自己的 runtime/trace 目录：共用 agent 的 trace 目录会让
+        # 评分事件追加到已密封的段上，既污染被测证据，又让 judge 自己 seal 失败。
+        judge_paths = self._judge_paths(attempt_id)
+        judge_paths.create()
         boot = JudgeWorkerBoot(
             type="boot",
             protocol_version=1,
             attempt_id=attempt_id,
-            runtime_root=str(paths.runtime_root),
-            workspace=str(paths.workspace),
+            runtime_root=str(judge_paths.runtime_root),
+            workspace=str(judge_paths.workspace),
             profile_bundle=_judge_bundle(profile),
             role="judge",
             rubric=rubric,
@@ -464,7 +499,7 @@ class EvaluationService:
             owner = WorkerProcess(
                 attempt_id=attempt_id,
                 command=[sys.executable, "-m", WORKER_MODULE, attempt_id],
-                log_path=paths.log_path,
+                log_path=judge_paths.log_path,
             )
             try:
                 await owner.start(boot.model_dump(mode="json"))
@@ -508,10 +543,12 @@ class EvaluationService:
         from nanobot.evaluation.graders.calibration import rubric_version
 
         with contextlib.suppress(Exception):
+            # gold 版本必须带上：旧版本的校准结论在新标签下不成立。
             return lookup_calibration(
                 self._repository,
                 judge_fingerprint=fingerprint,
                 rubric_version=rubric_version(rubric),
+                gold_revision=self._repository.gold_revision(),
             )
         return None
 
@@ -656,13 +693,29 @@ class EvaluationService:
 
     def _paths_for(self, attempt_id: str) -> Any | None:
         try:
-            return attempt_paths(
-                attempt_id=attempt_id,
-                runtime_root=str(self.runtime_root),
-                workspace=str(self.runtime_root / attempt_id / "workspace"),
-            )
+            return self._attempt_paths(attempt_id)
         except ValueError:
             return None
+
+    def _attempt_paths(self, attempt_id: str) -> Any:
+        """每个 attempt 独占 ``runtime/``、``workspace/``、``trace/``、``artifacts/``。
+
+        共享 trace/artifact 目录会让并发 attempt 的密封索引与日志段互相覆盖：
+        证据串台之后判分结论就不可信了，所以布局必须是 attempt 私有。
+        """
+        base = self.runtime_root / attempt_id
+        return self._layout(attempt_id, base)
+
+    def _judge_paths(self, attempt_id: str) -> Any:
+        """评分阶段同样独占一套目录；attempt_id 仍是被测 attempt 的 id。"""
+        return self._layout(attempt_id, self.runtime_root / f"{attempt_id}-judge")
+
+    def _layout(self, attempt_id: str, base: Path) -> Any:
+        return attempt_paths(
+            attempt_id=attempt_id,
+            runtime_root=str(base / "runtime"),
+            workspace=str(base / "workspace"),
+        )
 
     def overview(self) -> dict[str, Any]:
         recent = self._repository.list_runs(limit=10)
@@ -825,10 +878,12 @@ def _text(result: Mapping[str, Any] | None, key: str) -> str | None:
     return None if value is None else str(value)
 
 
-def _number(result: Mapping[str, Any] | None, key: str) -> int:
+def _iterations_of(result: Mapping[str, Any] | None) -> int:
+    """iterations 在 worker 结果帧的 ``usage`` 下，不在顶层；读错位置会让 iteration_limit 恒过。"""
     if result is None:
         return 0
-    value = result.get(key)
+    usage = result.get("usage")
+    value = usage.get("iterations") if isinstance(usage, Mapping) else None
     return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
@@ -884,6 +939,9 @@ def _evidence_payload(evidence: AttemptEvidence) -> dict[str, Any]:
         ],
         "trace_complete": evidence.trace_complete,
         "execution_status": evidence.execution_status,
+        # 证据属于被测 attempt：Judge 引用校验必须用它自己的工作区，
+        # 评分 scratch 目录只负责进程隔离，不承载证据。
+        "workspace": str(evidence.workspace),
     }
 
 

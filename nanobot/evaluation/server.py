@@ -553,7 +553,9 @@ def create_app(
     app.router.add_route("*", "/{tail:.*}", _fallback_handler(routes))
 
     async def _lifecycle(app: web.Application) -> AsyncIterator[None]:
-        # 进入时先起调度器（它持服务独占锁），退出时 aiohttp 自动逆序回收。
+        # 进入时先写内置 gold 建议标签（仅空表，重启不覆盖用户确认结果），再起调度器
+        # （它持服务独占锁），退出时 aiohttp 自动逆序回收。
+        service.seed_builtin_gold_samples()
         await scheduler.start()
         try:
             yield

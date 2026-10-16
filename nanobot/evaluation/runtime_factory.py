@@ -35,6 +35,7 @@ from nanobot.evaluation.fixtures import (
 )
 from nanobot.evaluation.schemas import AgentWorkerBoot, CaseWrite, JudgeWorkerBoot, ToolFixture
 from nanobot.nanobot import Nanobot
+from nanobot.session.manager import SessionManager
 
 ATTEMPT_SESSION_PREFIX = "eval:"
 CONFIG_FILE_NAME = "config.json"
@@ -74,14 +75,21 @@ _MCP_PREFIX = "mcp_"
 
 @dataclass(frozen=True)
 class AttemptPaths:
-    """一个 attempt 专属的目录布局（全部落在服务端下发的 runtime root 之下）。"""
+    """一个 attempt 专属的目录布局（全部落在服务端下发的 runtime root 之下）。
+
+    会话存储是唯一的外插：放在 attempt 目录里会变成
+    ``<attempt>/runtime/sessions/<workspace-id>/<base64 会话键>.jsonl.<随机>.tmp``，
+    在 Windows 上直接顶穿 260 字符路径上限（实测 pytest 临时目录 + attempt 目录
+    就已经到 281）。会话内容靠会话键前缀与按工作区哈希的命名空间隔离，不与
+    attempt 目录同住也不会串。
+    """
 
     attempt_id: str
     root: Path
     runtime_root: Path
     workspace: Path
     config_path: Path
-    sessions_dir: Path
+    sessions_root: Path
     trace_dir: Path
     artifact_dir: Path
     log_path: Path
@@ -134,16 +142,17 @@ def attempt_paths(*, attempt_id: str, runtime_root: str, workspace: str) -> Atte
         )
     runtime = root.resolve()
     resolved_workspace = Path(workspace).resolve()
+    attempt_dir = runtime.parent
     return AttemptPaths(
         attempt_id=attempt_id,
-        root=runtime.parent,
+        root=attempt_dir,
         runtime_root=runtime,
         workspace=resolved_workspace,
         config_path=runtime / CONFIG_FILE_NAME,
-        sessions_dir=runtime / "sessions",
-        trace_dir=runtime.parent / "trace",
-        artifact_dir=runtime.parent / "artifacts",
-        log_path=runtime.parent / "worker.log",
+        sessions_root=attempt_dir.parent / "sessions",
+        trace_dir=attempt_dir / "trace",
+        artifact_dir=attempt_dir / "artifacts",
+        log_path=attempt_dir / "worker.log",
     )
 
 
@@ -289,11 +298,17 @@ async def create_attempt(
 
     registry = ToolRegistry()
     # 不构造 MCPProvider：首版 Worker 没有自动连接外部 MCP 的入口。
+    # 会话根显式注入：不能靠 config 路径推导（那会把会话逼进 attempt 深目录，
+    # Windows 260 上限撑不住），见 AttemptPaths 的说明。
+    session_manager = SessionManager(
+        config.workspace_path, sessions_root=paths.sessions_root
+    )
     loop = AgentLoop.from_config(
         config,
         tool_registry=registry,
         hook_factories=[create_file_edit_activity_hook],
         provider=provider,
+        session_manager=session_manager,
     )
     table = FixtureTable.from_fixtures(
         _tool_fixtures(case if isinstance(case, CaseWrite) else None), clock=clock

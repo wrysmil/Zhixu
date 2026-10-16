@@ -364,12 +364,15 @@ async def test_two_attempts_isolate_workspace_session_and_memory(tmp_path: Path)
 
     assert first.session_key == f"{ATTEMPT_SESSION_PREFIX}{first_id}"
     assert first.session_key != second.session_key
-    # 会话必须落在各自 attempt 的 runtime root 下（只换 workspace 是不够的）。
-    assert first.paths.sessions_dir == (first_root / "runtime" / "sessions").resolve()
-    for runtime, root in ((first, first_root), (second, second_root)):
-        loop_dir = runtime.bot._loop.sessions.sessions_dir.resolve()  # pyright: ignore[reportPrivateUsage]
-        assert loop_dir.is_relative_to((root / "runtime").resolve())
-    assert first.bot._loop.sessions.sessions_dir != second.bot._loop.sessions.sessions_dir
+    # 会话根与 attempt 目录同级（避 Windows 260 上限）；共享 sessions root 的两个
+    # attempt 靠「会话键前缀 + 按工作区哈希的命名空间」隔离，因此命名空间目录必须各归各家。
+    assert first.paths.sessions_root == (first_root.parent / "sessions").resolve()
+    assert second.paths.sessions_root == (second_root.parent / "sessions").resolve()
+    first_dir = first.bot._loop.sessions.sessions_dir.resolve()  # pyright: ignore[reportPrivateUsage]
+    second_dir = second.bot._loop.sessions.sessions_dir.resolve()  # pyright: ignore[reportPrivateUsage]
+    assert first_dir.is_relative_to(first.paths.sessions_root)
+    assert second_dir.is_relative_to(second.paths.sessions_root)
+    assert first_dir != second_dir
 
     await first.aclose()
     await second.aclose()

@@ -218,7 +218,7 @@ def stub_runtime(
         runtime_root=root / "runtime",
         workspace=root / "workspace",
         config_path=root / "runtime" / "config.json",
-        sessions_dir=root / "runtime" / "sessions",
+        sessions_root=root.parent / "sessions",
         trace_dir=root / "trace",
         artifact_dir=root / "artifacts",
         log_path=root / "worker.log",
