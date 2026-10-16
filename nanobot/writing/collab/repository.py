@@ -518,6 +518,17 @@ class CollabRepository:
                     self._workspace_key, batch_id,
                 ),
             )
+            if cancel_generation is not None:
+                # 协作级丢弃代数必须跟着落库：`writing.cancel` 的响应读的就是协作行
+                # 这一列（此前只有批次行被写，响应因此恒为 0 —— 契约 §10 #8）。
+                # 取 max 是为了容忍进程内计数器在重启后从头计数：代数只增不减，
+                # 晚到的旧 run 结果仍然拦得住。
+                conn.execute(
+                    "UPDATE writing_collaborations SET cancel_generation ="
+                    " MAX(cancel_generation, ?), updated_at = ?"
+                    " WHERE workspace_key = ? AND id = ?",
+                    (generation, now, self._workspace_key, batch.collaboration_id),
+                )
             conn.execute(
                 "UPDATE writing_collaborations SET"
                 " active_batch_id = CASE WHEN active_batch_id = ? THEN NULL"
