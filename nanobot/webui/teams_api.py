@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from nanobot.agents.models import AgentProfile
 from nanobot.agents.store import AgentStore, AgentStoreError
@@ -20,6 +20,9 @@ from nanobot.teams.runs import TeamRunController
 from nanobot.teams.service import CrossSessionForbidden, ProfileRecord, TeamService
 from nanobot.webui.settings_contracts import WebUISettingsError
 from nanobot.webui.teams_routes import TeamSettingsOperations
+
+if TYPE_CHECKING:  # pragma: no cover - 只在类型检查期解析（导入纪律见 _builtin_registry）
+    from nanobot.writing.builtin import BuiltinAssetRegistry
 
 
 def require_caller_session(chat_id: str, caller_chats: tuple[str, ...]) -> None:
@@ -76,13 +79,34 @@ def build_service(workspace: Path, *, enabled: bool = True) -> TeamService:
 
     库路径只由 workspace 推导（契约 §2）：调用方不能指定 DB 路径，否则上游一个
     透传参数的 bug 就能读到别的工作空间的数据。
+
+    **内置保护必须在这里接线**（安全审查 F1）：不注入 ``builtin_registry`` 时
+    ``TeamService._require_team_writable`` 恒为 no-op，任意已认证客户端都能覆盖 /
+    归档内置团队的逻辑 id。内置团队记录的**播种与迁移**另有不受保护的内部路径
+    （:meth:`TeamService.ensure_builtin_team`，allocator 协议），不会被本守卫自锁。
     """
     repository = TeamRepository(TeamDatabase(Path(workspace)))
     return TeamService(
         repository,
         AgentProfileDirectory(AgentStore(Path(workspace))),
         enabled=enabled,
+        builtin_registry=_builtin_registry(Path(workspace)),
     )
+
+
+def _builtin_registry(workspace: Path) -> BuiltinAssetRegistry:
+    """构造内置资产登记处（惰引入：见 ``nanobot/agents/store.py`` 的导入纪律说明）。
+
+    ``writing_builtin_assets`` 属于写作 schema（契约 §7），写入口要按「逻辑 id →
+    物理 id」的登记表判断内置记录是否落在后缀物理 id 上，因此这里幂等补一次
+    schema——与 ``nanobot/webui/writing_services.py`` 对同一个库做的是同一件事。
+    """
+    from nanobot.writing.builtin import BuiltinAssetRegistry
+    from nanobot.writing.database import WritingDatabase
+
+    database = WritingDatabase(Path(workspace))
+    database.ensure_schema()
+    return BuiltinAssetRegistry(database)
 
 
 def claim_team_writer(service: TeamService) -> dict[str, list[str]]:

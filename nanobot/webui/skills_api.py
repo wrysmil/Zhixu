@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any, cast
 
 from nanobot.agent.skills import SkillsLoader
-from nanobot.agents.store import protected_write_error, protected_write_message
+from nanobot.agents.store import (
+    coded_error_message,
+    protected_write_error,
+    protected_write_message,
+)
 from nanobot.config.loader import load_config, save_config
 from nanobot.security.workspace_policy import WorkspaceBoundaryError, require_path_within
 from nanobot.writing.builtin import (
@@ -21,12 +25,17 @@ from nanobot.writing.builtin import (
 
 
 class SkillManagementError(Exception):
-    """A safe skill-management error for the WebUI."""
+    """A safe skill-management error for the WebUI.
 
-    def __init__(self, message: str, *, status: int = 400) -> None:
+    ``code`` 只在需要业务码的拒绝路径上给（内置资产受保护即 ``BUILTIN_RESOURCE_PROTECTED``）；
+    其余错误保持 ``None``，错误体照旧只有原文（F4）。
+    """
+
+    def __init__(self, message: str, *, status: int = 400, code: str | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.status = status
+        self.code = code
 
 
 # 内置资产类别；与契约 §7 的清单口径一致。
@@ -40,8 +49,13 @@ def is_builtin_skill(name: str) -> bool:
 
 
 def _raise_builtin_protected(name: str) -> None:
+    """内置 Skill 拒绝：异常携带业务码，错误体按统一口径带码前缀（F4）。"""
     error = protected_write_error(_ASSET_KIND_SKILL, name)
-    raise SkillManagementError(error.message, status=error.status)
+    raise SkillManagementError(
+        coded_error_message(error.code, error.message),
+        status=error.status,
+        code=error.code,
+    )
 
 
 def _protection_fields(source: str, name: str) -> dict[str, Any]:

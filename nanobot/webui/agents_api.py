@@ -11,7 +11,12 @@ from typing import Any, Callable, cast
 
 from nanobot.agents.catalog import DEFAULT_TOOL_CATEGORY, TOOL_CATEGORIES, TOOL_RISK_OVERRIDES
 from nanobot.agents.models import AgentProfile, AgentProfileError
-from nanobot.agents.store import AgentStore, AgentStoreError, agent_builtin_projection
+from nanobot.agents.store import (
+    AgentStore,
+    AgentStoreError,
+    agent_builtin_projection,
+    coded_error_message,
+)
 from nanobot.config.schema import Config, ToolsConfig
 from nanobot.webui.settings_contracts import WebUISettingsError
 
@@ -46,7 +51,16 @@ _MIN_LOCKED_TOOL_NAMES = frozenset({"read_file", "list_dir"})
 
 
 def _translate(exc: AgentStoreError) -> WebUISettingsError:
-    return WebUISettingsError(exc.message, status=exc.status)
+    """存储层错误 → 设置域错误。
+
+    F4：``AgentStoreError.code`` 不能被丢掉——内置资产拒绝必须把业务码
+    （``BUILTIN_RESOURCE_PROTECTED``）带进客户端能读到的错误体，口径与
+    ``teams_routes.translate`` 一致（``<CODE> <原文>``）。普通错误 ``code is None``，
+    原文一字不动。
+    """
+    return WebUISettingsError(
+        coded_error_message(exc.code, exc.message), status=exc.status
+    )
 
 
 def _store(workspace: Path) -> AgentStore:

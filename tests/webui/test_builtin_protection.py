@@ -35,7 +35,8 @@ from nanobot.teams.models import (
 )
 from nanobot.teams.repository import TeamRepository
 from nanobot.teams.service import ProfileRecord, TeamService
-from nanobot.webui import agents_api, skills_api
+from nanobot.webui import agents_api, skills_api, teams_api
+from nanobot.webui.gateway_services import build_team_stack
 from nanobot.webui.mcp_presets_api import custom_mcp_action, mcp_presets_action
 from nanobot.webui.skills_api import SkillManagementError
 from nanobot.webui.skills_marketplace import SkillsMarketplaceError, install_marketplace_skill
@@ -68,6 +69,15 @@ _UNIFORM_FIELDS = ("ownerModule", "origin", "builtinVersion", "deletable", "prot
 
 def _builtin_message(kind: str, logical_id: str) -> str:
     return f"builtin resource is protected: {kind}/{logical_id}"
+
+
+def _coded_builtin_message(kind: str, logical_id: str) -> str:
+    """传输层错误体口径：业务码前置 + 契约 §4 原文（与 ``teams_routes.translate`` 同口径）。
+
+    F4 的统一口径是「失败码放固定前缀」（agent-team 契约 §3）：三个非 teams 入口
+    （agents / skills / mcp）的错误体必须与 teams 一样带上 ``BUILTIN_RESOURCE_PROTECTED``。
+    """
+    return f"{BUILTIN_RESOURCE_PROTECTED} {_builtin_message(kind, logical_id)}"
 
 
 def _assert_shielded(payload: dict[str, Any], kind: str, logical_id: str) -> None:
@@ -112,7 +122,7 @@ def test_delete_builtin_agent_rejected_409(tmp_path: Path) -> None:
     with pytest.raises(Exception) as api_error:
         agents_api.agents_delete(tmp_path, "writing-editor")
     assert api_error.value.status == 409
-    assert api_error.value.message == _builtin_message("agent", "writing-editor")
+    assert api_error.value.message == _coded_builtin_message("agent", "writing-editor")
 
 
 def test_reset_builtin_agent_rejected(tmp_path: Path) -> None:
@@ -124,6 +134,7 @@ def test_reset_builtin_agent_rejected(tmp_path: Path) -> None:
     with pytest.raises(Exception) as api_error:
         agents_api.agents_reset(tmp_path, "writing-architect")
     assert api_error.value.status == 409
+    assert api_error.value.message == _coded_builtin_message("agent", "writing-architect")
 
 
 def test_builtin_agent_cannot_be_saved_as_custom(tmp_path: Path) -> None:
@@ -196,29 +207,37 @@ def _builtin_team_payload(team_id: str = WRITING_TEAM_LOGICAL_ID) -> dict[str, A
     return _team_payload(team_id, leader="writing-editor", member="writing-author")
 
 
+def _builtin_team_definition(team_id: str = WRITING_TEAM_LOGICAL_ID) -> TeamDefinition:
+    """内置团队的**内容模板**：物理 id 由 registry 的 allocator 决定，模板 id 只是逻辑身份。"""
+    return TeamDefinition.from_dict(
+        {
+            **_builtin_team_payload(team_id),
+            "revision": 1,
+            "createdAt": "2026-10-17T00:00:00Z",
+            "updatedAt": "2026-10-17T00:00:00Z",
+        }
+    )
+
+
 def _team_service(tmp_path: Path) -> TeamService:
     """接上真实内置注册表（``nanobot.writing.builtin`` 是唯一真相源）。"""
     db = TeamDatabase(tmp_path / "team-ws")
     db.init_schema()
+    writing_db = WritingDatabase(tmp_path)
+    # 写入口要读「逻辑 id → 物理 id」登记表，登记表由写作 schema 拥有（契约 §7）。
+    writing_db.ensure_schema()
     return TeamService(
         TeamRepository(db),
         _DictDirectory(),
-        builtin_registry=BuiltinAssetRegistry(WritingDatabase(tmp_path)),
+        builtin_registry=BuiltinAssetRegistry(writing_db),
     )
 
 
-def _seed_builtin_team(service: TeamService) -> None:
-    """内置团队的落地由 registry allocator 完成（WU-06），这里直接播下那一行。"""
-    definition = TeamDefinition.from_dict(
-        {**_builtin_team_payload(), "revision": 1,
-         "createdAt": "2026-10-17T00:00:00Z", "updatedAt": "2026-10-17T00:00:00Z"}
-    )
-    service.repository.save_team(
-        definition=definition,
-        snapshot=service.freeze(definition),
-        expected_revision=None,
-        request_id="seed-builtin",
-    )
+def _seed_builtin_team(service: TeamService) -> str:
+    """内置团队的落地走不受保护的内部路径 + registry allocator（WU-06 协议）。"""
+    seeded = service.ensure_builtin_team(_builtin_team_definition(), request_id="seed-builtin")
+    assert seeded == WRITING_TEAM_LOGICAL_ID
+    return seeded
 
 
 def test_team_archive_save_guarded_and_clone_allowed(tmp_path: Path) -> None:
@@ -268,18 +287,153 @@ def test_builtin_team_cannot_be_created_by_a_client(tmp_path: Path) -> None:
     assert create.value.message == _builtin_message("team", WRITING_TEAM_LOGICAL_ID)
 
 
-def test_team_service_without_registry_keeps_legacy_behaviour(tmp_path: Path) -> None:
-    """没装配内置注册表的 TeamService（测试替身 / 未接线）行为不变。"""
-    db = TeamDatabase(tmp_path / "legacy-ws")
+def test_production_wiring_always_injects_the_builtin_registry(tmp_path: Path) -> None:
+    """生产装配路径必须自带内置登记处。
+
+    这是 F1 的根因断言：`build_service` 不注入 registry 时 `_require_team_writable`
+    恒为 no-op，契约 §4 的 409 永不产生。两条真实装配入口都必须注入。
+    """
+    service = teams_api.build_service(tmp_path)
+    assert service.builtin_registry is not None
+
+    wired, _operations, _bindings = build_team_stack(workspace_path=tmp_path, enabled=True)
+    assert wired.builtin_registry is not None
+
+
+def test_builtin_team_rejected_through_the_production_wiring(tmp_path: Path) -> None:
+    """生产装配（``teams_api.build_service``）下，内置团队逻辑 id 不可被客户端抢占/覆盖/归档。"""
+    service = teams_api.build_service(tmp_path)
+
+    # 创建路径：客户端不得抢占内置逻辑 id（避免伪造出「未登记的内置团队」）。
+    with pytest.raises(BuiltinResourceProtected) as create:
+        service.save_team(
+            _builtin_team_payload(), expected_revision=None, request_id="po-create"
+        )
+    assert create.value.status == 409
+    assert create.value.code == BUILTIN_RESOURCE_PROTECTED
+    assert create.value.message == _builtin_message("team", WRITING_TEAM_LOGICAL_ID)
+    assert service.repository.list_teams()["teams"] == []
+
+    # 播种内置记录（内部路径）后再试覆盖与归档：同样拒绝，且记录保持原样。
+    _seed_builtin_team(service)
+    with pytest.raises(BuiltinResourceProtected) as overwrite:
+        service.save_team(
+            {"id": WRITING_TEAM_LOGICAL_ID, "name": "ATTACKER-OWNED"},
+            expected_revision=1,
+            request_id="po-overwrite",
+        )
+    assert overwrite.value.status == 409
+    assert overwrite.value.message == _builtin_message("team", WRITING_TEAM_LOGICAL_ID)
+
+    with pytest.raises(BuiltinResourceProtected) as archive:
+        service.archive_team(
+            WRITING_TEAM_LOGICAL_ID, expected_revision=1, request_id="po-archive"
+        )
+    assert archive.value.status == 409
+    assert archive.value.message == _builtin_message("team", WRITING_TEAM_LOGICAL_ID)
+
+    definition = service.repository.get_team(WRITING_TEAM_LOGICAL_ID)
+    assert definition.name == "创作团队"
+    assert definition.archived is False
+
+    # 复制为自定义放行：内置身份不得被带进副本，副本照常可归档。
+    cloned = service.clone_team(
+        WRITING_TEAM_LOGICAL_ID, name="我的创作团队", request_id="po-clone"
+    )
+    clone_id = cloned["team"]["id"]
+    assert clone_id != WRITING_TEAM_LOGICAL_ID
+    service.save_team(
+        {**_team_payload(clone_id, leader="writing-editor", member="writing-author"),
+         "name": "改名"}, expected_revision=1, request_id="po-clone-save",
+    )
+    service.archive_team(clone_id, expected_revision=2, request_id="po-clone-archive")
+
+
+def test_builtin_team_seeding_never_overwrites_a_user_asset(tmp_path: Path) -> None:
+    """allocator 协议：逻辑 id 已存在团队记录时，内置记录退让到 ``-builtin`` 后缀。
+
+    契约 §7：``allocator(candidate)`` 返回空串表示「候选物理 id 已被用户对象占用」，
+    registry 追加后缀重试，**始终保留用户对象原样**。播种本身不能走受保护的公开入口
+    （会自锁），只能走 :meth:`TeamService.ensure_builtin_team`。
+
+    冲突场景只可能来自「守卫生效之前就存在的团队记录」（老库/外部写入）：守卫接上之后
+    公开路径再也造不出逻辑 id 上的用户团队。这里按仓储层直接播下那条老记录。
+    """
+    service = _team_service(tmp_path)
+    legacy = TeamDefinition.from_dict(
+        {
+            **_team_payload(
+                WRITING_TEAM_LOGICAL_ID, leader="user-lead", member="user-member"
+            ),
+            "name": "老库里的用户团队",
+            "revision": 1,
+            "createdAt": "2020-01-01T00:00:00Z",
+            "updatedAt": "2020-01-01T00:00:00Z",
+        }
+    )
+    service.repository.save_team(
+        definition=legacy,
+        snapshot=service.freeze(legacy),
+        expected_revision=None,
+        request_id="legacy-user-team",
+    )
+
+    seeded = service.ensure_builtin_team(_builtin_team_definition(), request_id="seed")
+
+    assert seeded == f"{WRITING_TEAM_LOGICAL_ID}-builtin"
+    # 用户对象原样保留：名字、修订号都没被播种改动。
+    user_team = service.repository.get_team(WRITING_TEAM_LOGICAL_ID)
+    assert user_team.name == "老库里的用户团队" and user_team.revision == 1
+    assert service.repository.get_team(seeded).name == "创作团队"
+    # 播种幂等：重复调用不再创建第二条记录，也不再触发 allocator。
+    assert service.ensure_builtin_team(_builtin_team_definition(), request_id="seed-2") == seeded
+    assert len(service.repository.list_teams()["teams"]) == 2
+
+    # 两处都受保护：逻辑 id 与内置记录的后缀物理 id；message 统一用逻辑 id。
+    for target in (WRITING_TEAM_LOGICAL_ID, seeded):
+        with pytest.raises(BuiltinResourceProtected) as overwrite:
+            service.save_team(
+                {"id": target, "name": "ATTACKER-OWNED"}, expected_revision=1, request_id="po"
+            )
+        assert overwrite.value.status == 409
+        assert overwrite.value.code == BUILTIN_RESOURCE_PROTECTED
+        assert overwrite.value.message == _builtin_message("team", WRITING_TEAM_LOGICAL_ID)
+        with pytest.raises(BuiltinResourceProtected):
+            service.archive_team(target, expected_revision=1, request_id="po-archive")
+
+    # 用户对象依旧是那一行：内容与修订号都没被任何一次拒绝路径改写。
+    assert service.repository.get_team(WRITING_TEAM_LOGICAL_ID).name == "老库里的用户团队"
+
+
+def test_builtin_team_seeding_is_idempotent_and_migrates_content(tmp_path: Path) -> None:
+    """播种幂等；内容变了的迁移只推进一版，且走的是不受保护的内部路径。"""
+    service = _team_service(tmp_path)
+    assert service.ensure_builtin_team(_builtin_team_definition(), request_id="seed") == (
+        WRITING_TEAM_LOGICAL_ID
+    )
+    before = service.repository.get_team(WRITING_TEAM_LOGICAL_ID)
+    assert service.ensure_builtin_team(_builtin_team_definition(), request_id="seed-2")
+    assert service.repository.get_team(WRITING_TEAM_LOGICAL_ID).revision == before.revision
+
+    migrated = TeamDefinition.from_dict(
+        {**_builtin_team_definition().to_dict(), "name": "创作团队 v2"}
+    )
+    assert service.ensure_builtin_team(migrated, request_id="seed-3") == (
+        WRITING_TEAM_LOGICAL_ID
+    )
+    after = service.repository.get_team(WRITING_TEAM_LOGICAL_ID)
+    assert after.name == "创作团队 v2"
+    assert after.revision == before.revision + 1
+    assert after.created_at == before.created_at
+
+
+def test_builtin_team_seeding_requires_a_registry(tmp_path: Path) -> None:
+    """没有登记处就没有内置身份可言：播种入口静默拒绝，不写任何记录。"""
+    db = TeamDatabase(tmp_path / "team-ws")
     db.init_schema()
     service = TeamService(TeamRepository(db), _DictDirectory())
-    service.save_team(
-        _builtin_team_payload(), expected_revision=None, request_id="r1"
-    )
-    archived = service.archive_team(
-        WRITING_TEAM_LOGICAL_ID, expected_revision=1, request_id="r2"
-    )
-    assert archived["archived"] is True
+    assert service.ensure_builtin_team(_builtin_team_definition(), request_id="seed") is None
+    assert service.repository.list_teams()["teams"] == []
 
 
 # --------------------------------------------------------------- Skill 写入口
@@ -331,14 +485,14 @@ def test_skill_delete_and_update_rejected(
     with pytest.raises(SkillManagementError) as delete_error:
         skills_api.delete_webui_skill(tmp_path, logical_id, disabled_skills=set())
     assert delete_error.value.status == 409
-    assert delete_error.value.message == _builtin_message("skill", logical_id)
+    assert delete_error.value.message == _coded_builtin_message("skill", logical_id)
 
     with pytest.raises(SkillManagementError) as update_error:
         skills_api.set_webui_skill_enabled(
             tmp_path, logical_id, enabled=False, disabled_skills=set()
         )
     assert update_error.value.status == 409
-    assert update_error.value.message == _builtin_message("skill", logical_id)
+    assert update_error.value.message == _coded_builtin_message("skill", logical_id)
 
 
 def test_skill_projection_shields_every_writing_builtin(tmp_path: Path) -> None:
@@ -399,7 +553,7 @@ def test_mcp_import_and_enable_derived_from_registry(
     for action in ("remove", "enable"):
         with pytest.raises(Exception) as excinfo:
             mcp_presets_action(action, query, config_path=config_path)
-        assert excinfo.value.message == _builtin_message("mcp", "writing-fake")
+        assert excinfo.value.message == _coded_builtin_message("mcp", "writing-fake")
 
     with pytest.raises(Exception) as import_error:
         custom_mcp_action(
@@ -413,7 +567,7 @@ def test_mcp_import_and_enable_derived_from_registry(
             },
             config_path=config_path,
         )
-    assert import_error.value.message == _builtin_message("mcp", "writing-fake")
+    assert import_error.value.message == _coded_builtin_message("mcp", "writing-fake")
 
 
 # --------------------------------------------------------------- 普通资源不回归
@@ -497,28 +651,53 @@ def test_user_assets_unaffected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
 
 
 def test_protected_code_is_uniform(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """统一业务码 ``BUILTIN_RESOURCE_PROTECTED`` 与统一 message 必须覆盖全部入口。"""
+    """统一业务码 ``BUILTIN_RESOURCE_PROTECTED`` 与统一 message 必须覆盖全部入口。
+
+    业务码取自**异常对象自己携带的** ``.code``（F4）：不再由本用例硬编码，
+    因此「异常没带码」会直接让这条用例变红，而不是被断言掩盖过去。
+    """
     _disable_config(monkeypatch)
     logical_skill = _SKILL_LOGICAL_IDS[0]
 
-    observed: list[tuple[int, str, str]] = []
+    observed: list[tuple[int, str, str, str, str, bool]] = []
 
     with pytest.raises(AgentStoreError) as agent_delete:
         AgentStore(tmp_path).delete_profile(_AGENT_LOGICAL_IDS[0])
     observed.append(
-        (agent_delete.value.status, agent_delete.value.code, agent_delete.value.message)
+        (
+            agent_delete.value.status,
+            agent_delete.value.code,
+            agent_delete.value.message,
+            "agent",
+            _AGENT_LOGICAL_IDS[0],
+            False,  # 领域层异常：message 是契约 §4 原文，码只走 .code
+        )
     )
 
     with pytest.raises(AgentStoreError) as agent_reset:
         AgentStore(tmp_path).reset_profile(_AGENT_LOGICAL_IDS[0])
     observed.append(
-        (agent_reset.value.status, agent_reset.value.code, agent_reset.value.message)
+        (
+            agent_reset.value.status,
+            agent_reset.value.code,
+            agent_reset.value.message,
+            "agent",
+            _AGENT_LOGICAL_IDS[0],
+            False,
+        )
     )
 
     with pytest.raises(SkillManagementError) as skill_delete:
         skills_api.delete_webui_skill(tmp_path, logical_skill, disabled_skills=set())
     observed.append(
-        (skill_delete.value.status, BUILTIN_RESOURCE_PROTECTED, skill_delete.value.message)
+        (
+            skill_delete.value.status,
+            skill_delete.value.code,
+            skill_delete.value.message,
+            "skill",
+            logical_skill,
+            True,  # 传输层错误对象：错误体就是 message，必须带码前缀
+        )
     )
 
     service = _team_service(tmp_path)
@@ -529,23 +708,27 @@ def test_protected_code_is_uniform(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         )
     assert isinstance(team_archive.value, BuiltinResourceProtected)
     observed.append(
-        (team_archive.value.status, team_archive.value.code, team_archive.value.message)
+        (
+            team_archive.value.status,
+            team_archive.value.code,
+            team_archive.value.message,
+            "team",
+            WRITING_TEAM_LOGICAL_ID,
+            False,
+        )
     )
 
-    for status, code, message in observed:
+    for status, code, message, kind, logical_id, coded in observed:
+        # 业务码一律由异常对象自己携带（F4）：本用例不硬编码任何一个入口的码。
         assert code == BUILTIN_RESOURCE_PROTECTED
         assert status == 409
-        # message 逐字统一：只有 <asset_kind>/<logical_id> 不同。
-        assert message.startswith("builtin resource is protected: ")
+        # 契约 §4 原文在四个域逐字统一，只有 <asset_kind>/<logical_id> 不同。
+        assert protected_write_message(kind, logical_id) in message
+        if coded:
+            # 传输层口径与 teams 一致（agent-team 契约 §3「失败码放固定前缀」）。
+            assert message == _coded_builtin_message(kind, logical_id)
 
-    # 唯一 message 出口：任何入口的原文都必须能被唯一 helper 复现。
-    assert protected_write_message("agent", _AGENT_LOGICAL_IDS[0]) == observed[0][2]
-    assert protected_write_message("skill", logical_skill) == observed[2][2]
-    assert (
-        protected_write_message("team", WRITING_TEAM_LOGICAL_ID)
-        == observed[3][2]
-    )
-    assert len({message.split(": ", 1)[1] for _, _, message in observed}) == 3
+    assert len({message.split(": ", 1)[1] for _, _, message, _, _, _ in observed}) == 3
 
 
 def test_handler_translates_builtin_protection_to_409() -> None:

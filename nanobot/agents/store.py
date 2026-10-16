@@ -86,6 +86,18 @@ def protected_write_error(kind: str, logical_id: str) -> AgentStoreError:
     )
 
 
+def coded_error_message(code: str | None, message: str) -> str:
+    """把业务码透出成错误体（口径 = ``teams_routes.translate``：``<CODE> <原文>``）。
+
+    agent-team 契约 §3 冻结了「失败码放固定前缀」：全站错误信封都是 ``{error: string}``，
+    因此码只能进字符串。四个域（teams / agents / skills / mcp）共用这一个 helper，
+    避免某一域漏码或拼两遍；``code`` 为空（普通错误）时原文一字不动。
+    """
+    if not code or message.startswith(code):
+        return message
+    return f"{code} {message}"
+
+
 def _builtin_agent_asset(agent_id: str):
     """该 id 对应的内置清单条目；不是创作空间内置 Agent 则为 ``None``。"""
     return _builtin_asset_registry().get_asset(_ASSET_KIND_AGENT, agent_id)

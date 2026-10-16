@@ -26,12 +26,15 @@ from nanobot.agent.tools.mcp_oauth import (
     mcp_oauth_has_credentials,
 )
 from nanobot.agent.tools.registry import ToolRegistry
+from nanobot.agents.store import (
+    coded_error_message,
+    protected_write_error,
+)
 from nanobot.apps.protocol import app_manifest, compact_dict
 from nanobot.config.loader import load_config, resolve_config_env_vars, save_config
 from nanobot.config.paths import get_runtime_subdir
 from nanobot.config.schema import MCPServerConfig
 from nanobot.utils.helpers import ensure_dir
-from nanobot.webui.skills_api import protected_write_message
 from nanobot.writing import builtin as writing_builtin
 
 QueryParams = dict[str, list[str]]
@@ -68,12 +71,17 @@ McpRuntimeStatus = Callable[[], Mapping[str, str]]
 
 
 class McpPresetError(Exception):
-    """WebUI-facing MCP preset error."""
+    """WebUI-facing MCP preset error.
 
-    def __init__(self, message: str, status: int = 400):
+    ``code`` 只在需要业务码的拒绝路径上给（内置预设受保护即 ``BUILTIN_RESOURCE_PROTECTED``）；
+    其余错误保持 ``None``，错误体照旧只有原文（F4）。
+    """
+
+    def __init__(self, message: str, status: int = 400, code: str | None = None):
         super().__init__(message)
         self.message = message
         self.status = status
+        self.code = code
 
 
 @dataclass(frozen=True)
@@ -1478,7 +1486,13 @@ def _builtin_mcp_logical_ids() -> frozenset[str]:
 def _require_mcp_not_builtin(name: str) -> None:
     """受保护的内置 MCP 预设：覆盖 / 删除 / 导入一律拒绝（契约 §4，HTTP 409）。"""
     if name in _builtin_mcp_logical_ids():
-        raise McpPresetError(protected_write_message(_ASSET_KIND_MCP, name), status=409)
+        # F4：异常带业务码，错误体按统一口径带码前缀（与 teams_routes.translate 一致）。
+        error = protected_write_error(_ASSET_KIND_MCP, name)
+        raise McpPresetError(
+            coded_error_message(error.code, error.message),
+            status=error.status,
+            code=error.code,
+        )
 
 
 def custom_mcp_action(

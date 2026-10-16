@@ -666,3 +666,53 @@ def test_team_reference_lookup_feeds_the_agent_delete_guard(
     assert save["team"]["id"] == definition.id
     assert set(lookup("writer")) == {definition.id}
     assert lookup("nobody") == []
+
+
+# --------------------------------------------- 内置团队保护（生产装配路径，F1 回归）
+
+
+def test_builtin_team_save_is_409_with_code_through_production_wiring(tmp_path: Path) -> None:
+    """生产装配（``teams_api.build_service``）下 teams-save 必须 409 + 业务码。
+
+    安全审查 F1 的 PoC：修前 ``build_service(tmp).save_team({"id": "writing-team", ...})``
+    直接覆盖成功，契约 §4 的 ``BUILTIN_RESOURCE_PROTECTED`` 永不产生；本用例把
+    「装配路径 → handler 信封」这一段钉死。
+    """
+    from nanobot.webui import teams_api
+    from nanobot.writing.builtin import BUILTIN_RESOURCE_PROTECTED, WRITING_TEAM_LOGICAL_ID
+
+    service = teams_api.build_service(tmp_path)
+    assert service.builtin_registry is not None
+    handler = TeamSettingsHandler(teams_api.build_team_operations(service))
+
+    forged = {
+        **_create_payload(TeamDefinition.from_dict(_load_json("definition.json"))),
+        "id": WRITING_TEAM_LOGICAL_ID,
+        "name": "ATTACKER-OWNED",
+    }
+    saved = handler.handle(
+        "teams-save",
+        _request(payload={"requestId": "req-poc", "team": forged, "expectedRevision": None}),
+    )
+    assert saved.status == 409
+    assert saved.error is not None
+    assert saved.error.startswith(BUILTIN_RESOURCE_PROTECTED)
+    assert f"builtin resource is protected: team/{WRITING_TEAM_LOGICAL_ID}" in saved.error
+
+    archived = handler.handle(
+        "teams-archive",
+        _request(
+            payload={
+                "requestId": "req-poc-archive",
+                "id": WRITING_TEAM_LOGICAL_ID,
+                "expectedRevision": 1,
+            }
+        ),
+    )
+    assert archived.status == 409
+    assert archived.error is not None
+    assert archived.error.startswith(BUILTIN_RESOURCE_PROTECTED)
+
+    # 没有任何写入落下：内置逻辑 id 依旧不存在团队记录。
+    listed = handler.handle("teams-list", _request(query={"limit": "20"}))
+    assert listed.payload is not None and listed.payload["teams"] == []
