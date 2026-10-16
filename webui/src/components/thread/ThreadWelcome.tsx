@@ -43,7 +43,7 @@ export function ThreadWelcome({ greeting, onChoosePrompt }: ThreadWelcomeProps) 
         </div>
         <div className="thread-welcome-illustration" aria-hidden>
           <span className="thread-welcome-orbit" />
-          <img src="/illustrations/agent-workspace.svg" alt="" width={240} height={190} draggable={false} />
+          <img src="/illustrations/agent-workspace-generated.webp" alt="" width={240} height={190} draggable={false} />
           <span className="thread-welcome-caption">{zh ? "想法，在这里连成线" : "A little space to connect the dots"}</span>
         </div>
       </div>
