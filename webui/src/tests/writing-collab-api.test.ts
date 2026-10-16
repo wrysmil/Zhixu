@@ -2,13 +2,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyCollabSnapshot,
+  articleSnapshotValue,
   collabApi,
+  collabChatId,
+  collabSnapshotDigest,
   createCollabApi,
   createCollabReducer,
   createRequestIdFactory,
+  COLLAB_CHAT_ID_RE,
+  pythonJson,
+  sha256Hex,
   utf16RangeToCodepoints,
   type CollabSnapshot,
 } from "@/lib/writing-collab-api";
+import type { ArticleSnapshotPayload } from "@/lib/writing-api";
 import type { WebUIMutationTransport } from "@/lib/api";
 
 /** 帧字段与契约 §5 一致：snake_case 只存在于传输层。 */
@@ -24,7 +31,8 @@ function artifactFrame(artifactId: string, version: number, summary: string): Re
   return collabFrame("writing_artifact", {
     collaboration_id: "c1",
     artifact_id: artifactId,
-    // 归属批次：重连 reset 之后旧批次的迟到帧必须被丢掉。
+    // 契约 §5 的 `writing_artifact` 帧**没有** batch_id；这里保留一个多余字段，
+    // 用来固定「归属只由 collaboration_id 决定、batch_id 最多算透传」的口径。
     batch_id: "b1",
     kind: "outline",
     version,
@@ -789,6 +797,78 @@ describe("collab event merge", () => {
       .toBe(before);
   });
 
+  it("test_artifact_frames_are_scoped_by_collaboration", () => {
+    const reducer = createCollabReducer();
+    // 快照还没到手：不做无据拒绝，第一条产物帧必须收下。
+    const bootstrap = reducer.applyEvent(
+      snapshotWith(),
+      collabFrame("writing_artifact", {
+        collaboration_id: "c1",
+        artifact_id: "art0",
+        kind: "outline",
+        version: 1,
+        summary: "bootstrap",
+      }),
+    );
+    expect(bootstrap.artifacts.map((entry) => entry.id)).toEqual(["art0"]);
+
+    let state = reducer.applyEvent(
+      snapshotWith(),
+      collabFrame("writing_collab", {
+        collaboration_id: "c1",
+        status: "running",
+        stage: "outline",
+        active_batch_id: "b1",
+        version: 2,
+        seq: 2,
+      }),
+    );
+    // 契约 §5 的 writing_artifact 帧没有 batch_id：带别的 batch_id 也必须收下
+    // （旧实现用它挡旧批次，判断恒为假；归属只由 collaboration_id 决定）。
+    state = reducer.applyEvent(
+      state,
+      collabFrame("writing_artifact", {
+        collaboration_id: "c1",
+        artifact_id: "art1",
+        batch_id: "b-old",
+        kind: "outline",
+        version: 1,
+        summary: "产物",
+      }),
+    );
+    expect(state.artifacts.map((entry) => entry.id)).toEqual(["art1"]);
+
+    // 另一个协作的产物帧一律不进。
+    const foreign = reducer.applyEvent(
+      state,
+      collabFrame("writing_artifact", {
+        collaboration_id: "c2",
+        artifact_id: "art2",
+        kind: "draft",
+        version: 5,
+        summary: "别的协作",
+      }),
+    );
+    expect(foreign).toBe(state);
+    expect(foreign.artifacts.map((entry) => entry.id)).toEqual(["art1"]);
+
+    // 交接帧同样只认当前协作。
+    const foreignHandoff = reducer.applyEvent(
+      state,
+      collabFrame("writing_handoff", {
+        collaboration_id: "c2",
+        handoff_id: "h2",
+        kind: "outline_confirm",
+        artifact_id: "art2",
+        artifact_version: 1,
+        status: "pending",
+        version: 9,
+      }),
+    );
+    expect(foreignHandoff).toBe(state);
+    expect(state.handoffs).toHaveLength(0);
+  });
+
   it("ignores frames for another collaboration and merges blocked_reason deltas", () => {
     const reducer = createCollabReducer();
     let state = reducer.applyEvent(
@@ -907,11 +987,26 @@ describe("snapshot reconnect", () => {
     expect(reset.blockedReason).toBeNull();
     expect(reset.nextActions).toEqual(["review_all"]);
 
-    // reset 之后旧帧不能把状态拉回去。
-    const afterStale = reducer.applyEvent(reset, artifactFrame("art1", 1, "旧提纲"));
-    expect(afterStale.artifacts).toHaveLength(1);
-    expect(afterStale.artifacts[0].id).toBe("art2");
-    expect(afterStale).toEqual(reset);
+    // reset 之后只按**协作归属**收敛（契约 §5 的 writing_artifact 帧没有
+    // batch_id，无法按批次判旧；裁决与缺口见下一段）。
+    const afterForeign = reducer.applyEvent(
+      reset,
+      collabFrame("writing_artifact", {
+        collaboration_id: "c-other",
+        artifact_id: "art1",
+        kind: "outline",
+        version: 9,
+        summary: "别的协作",
+      }),
+    );
+    expect(afterForeign).toBe(reset);
+    expect(afterForeign.artifacts.map((entry) => entry.id)).toEqual(["art2"]);
+
+    // 已知缺口（登记，不修）：同一协作里**旧批次**的迟到产物帧没有契约字段可以
+    // 判旧，仍会补一张卡；收敛靠重连快照（它返回该协作的全部产物）与 version
+    // 单调性，而不是曾经那个恒为假的 `batch_id` 过滤。
+    const afterSameCollaboration = reducer.applyEvent(reset, artifactFrame("art1", 1, "旧提纲"));
+    expect(afterSameCollaboration.artifacts.map((entry) => entry.id)).toEqual(["art2", "art1"]);
 
     // 重连快照更旧 → 保持现状，不回退。
     expect(reducer.applySnapshot(reset, seeded())).toBe(reset);
@@ -922,5 +1017,181 @@ describe("snapshot reconnect", () => {
     const empty = snapshotWith();
     const incoming = seeded();
     expect(applyCollabSnapshot(empty, incoming)).toEqual(incoming);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 跨端 snapshot_digest（契约 A §5.3）与协作 chat_id（契约 §3）
+//
+// 期望值由服务端真实实现生成，命令：
+//   /Users/mima0000/Documents/学习-001/do-project/zhixu/.venv/bin/python \
+//     -c "from nanobot.writing.models import normalize_article_fields, snapshot_digest; ..."
+// （脚本见 /tmp/wu13_digest_fixture.py，逐 fixture 打印 canonical 与 digest）
+// ---------------------------------------------------------------------------
+
+describe("snapshot digest agrees with the Python implementation", () => {
+  it("test_sha256_matches_known_vectors", () => {
+    expect(sha256Hex("")).toBe(
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    );
+    expect(sha256Hex("abc")).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
+    // 跨过 55/56/64 字节的 padding 边界。
+    expect(sha256Hex("a".repeat(55))).toBe(
+      "9f4390f8d30c2dd92ec9f095b65e2b9ae9b0a925a5258e241c9f1e910f734318",
+    );
+    expect(sha256Hex("a".repeat(56))).toBe(
+      "b35439a4ac6f0948b6d6f9e3c6af0f5f590ce20f1bde7090ef7970686ec6738a",
+    );
+    expect(sha256Hex("a".repeat(64))).toBe(
+      "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb",
+    );
+  });
+
+  it("test_snapshot_digest_matches_python", () => {
+    const empty: ArticleSnapshotPayload = {
+      title: "空白文章",
+      writing_type: "",
+      status: "idea",
+      summary: "",
+      brief: {},
+      body: "",
+      outline: [],
+      materials: [],
+      tags: [],
+    };
+    expect(pythonJson(articleSnapshotValue(empty))).toBe(
+      '{"body":"","brief":{},"materials":[],"outline":[],"status":"idea","summary":"",'
+      + '"tags":[],"template_id":"","title":"空白文章","writing_type":""}',
+    );
+    expect(collabSnapshotDigest(empty)).toBe(
+      "9a1bca6271c6700f808aa844e5f16a8c5a0e6c5fb063d9bb5fbe666312a8a0d8",
+    );
+
+    const rich: ArticleSnapshotPayload = {
+      title: "记忆系统：一次取舍 😀",
+      writing_type: "长文",
+      template_id: "practice-retro",
+      status: "draft",
+      summary: "整理这次实现过程中的取舍",
+      brief: { goal: "讲清楚为什么", audience: "作者", style: "克制" },
+      body: "第一段\n\n第二段 😀",
+      outline: [
+        { id: "o1", text: "开场", order: 0 },
+        { id: "o2", text: "一个例子", order: 1 },
+      ],
+      materials: [
+        {
+          id: "m1",
+          type: "link",
+          title: "参考",
+          content: "",
+          url: "https://example.com/a?b=1&c=2",
+          source: "web",
+          note: "要看",
+          language: "zh",
+          included: true,
+          order: 0,
+          createdAt: "2026-10-17T08:00:00+00:00",
+          updatedAt: "2026-10-17T08:00:00+00:00",
+        },
+        {
+          id: "m2",
+          type: "note",
+          title: "笔记",
+          content: "内容",
+          included: false,
+          order: 1,
+          createdAt: "2026-10-17T08:01:00+00:00",
+          updatedAt: "2026-10-17T08:01:00+00:00",
+        },
+      ],
+      tags: ["记忆", "agent"],
+    };
+    expect(pythonJson(articleSnapshotValue(rich))).toBe(
+      '{"body":"第一段\\n\\n第二段 😀","brief":{"audience":"作者","goal":"讲清楚为什么",'
+      + '"style":"克制"},"materials":[{"content":"","created_at":"2026-10-17T08:00:00+00:00",'
+      + '"id":"m1","included":true,"language":"zh","note":"要看","order":0,"source":"web",'
+      + '"title":"参考","type":"link","updated_at":"2026-10-17T08:00:00+00:00",'
+      + '"url":"https://example.com/a?b=1&c=2"},{"content":"内容",'
+      + '"created_at":"2026-10-17T08:01:00+00:00","id":"m2","included":false,"language":"",'
+      + '"note":"","order":1,"source":"","title":"笔记","type":"note",'
+      + '"updated_at":"2026-10-17T08:01:00+00:00","url":""}],'
+      + '"outline":[{"id":"o1","order":0,"text":"开场"},{"id":"o2","order":1,"text":"一个例子"}],'
+      + '"status":"draft","summary":"整理这次实现过程中的取舍","tags":["记忆","agent"],'
+      + '"template_id":"practice-retro","title":"记忆系统：一次取舍 😀","writing_type":"长文"}',
+    );
+    expect(collabSnapshotDigest(rich)).toBe(
+      "26659f6252c91a792030fa770960add0763ae361641245a9059cda4cf06b170f",
+    );
+
+    const whitespace: ArticleSnapshotPayload = {
+      title: "  四周空白  ",
+      writing_type: "  类型  ",
+      status: "review",
+      summary: "  摘要  ",
+      brief: { goal: "  目标  ", audience: "", style: undefined },
+      body: "  正文前后的空格保留  ",
+      outline: [
+        { id: "o1", text: "  开场  ", order: 0 },
+        { id: "o2", text: "   ", order: 1 },
+        { id: "o3", text: "第二节", order: 2 },
+      ],
+      materials: [
+        {
+          id: "m1",
+          type: "note",
+          title: " 笔记 ",
+          content: " 内容 ",
+          url: "https://example.com",
+          source: " s ",
+          note: " n ",
+          language: " zh ",
+          included: true,
+          order: 0,
+          createdAt: "2026-10-17T09:00:00+00:00",
+          updatedAt: "2026-10-17T09:00:00+00:00",
+        },
+      ],
+      tags: ["  记忆  ", "", "   "],
+    };
+    expect(pythonJson(articleSnapshotValue(whitespace))).toBe(
+      '{"body":"  正文前后的空格保留  ","brief":{"goal":"目标"},'
+      + '"materials":[{"content":" 内容 ","created_at":"2026-10-17T09:00:00+00:00","id":"m1",'
+      + '"included":true,"language":" zh ","note":" n ","order":0,"source":" s ",'
+      + '"title":" 笔记 ","type":"note","updated_at":"2026-10-17T09:00:00+00:00","url":""}],'
+      + '"outline":[{"id":"o1","order":0,"text":"开场"},{"id":"o3","order":2,"text":"第二节"}],'
+      + '"status":"review","summary":"摘要","tags":["记忆"],"template_id":"","title":"四周空白",'
+      + '"writing_type":"类型"}',
+    );
+    expect(collabSnapshotDigest(whitespace)).toBe(
+      "bcb541325ae2d1a186599dee6cbaf2b604bbd1561dc8d9fc5a43ca6749609adb",
+    );
+
+    // 同一个草稿反复算：稳定，且正文改动一定换 digest。
+    expect(collabSnapshotDigest(rich)).toBe(collabSnapshotDigest({ ...rich }));
+    expect(collabSnapshotDigest({ ...rich, body: "改了" }))
+      .not.toBe(collabSnapshotDigest(rich));
+  });
+
+  it("test_collab_chat_id_matches_contract_regex", () => {
+    // 服务端 chat_id 正则：^[A-Za-z0-9_:-]{1,64}$
+    expect(collabChatId("8f14e45fceea167a5a36dedd4bea2543")).toBe(
+      "writing:8f14e45fceea167a5a36dedd4bea2543",
+    );
+    expect(collabChatId("a".repeat(200))).toHaveLength(64);
+    for (const id of [
+      "8f14e45fceea167a5a36dedd4bea2543",
+      "demo-4",
+      "a".repeat(200),
+      "带中文的 id / with spaces",
+      "",
+    ]) {
+      const chatId = collabChatId(id);
+      expect(chatId).toMatch(COLLAB_CHAT_ID_RE);
+      expect(chatId.length).toBeLessThanOrEqual(64);
+      expect(chatId.startsWith("writing:")).toBe(true);
+    }
   });
 });

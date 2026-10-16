@@ -105,6 +105,15 @@ export function hasArtifactContent(
   return "content" in artifact;
 }
 
+/**
+ * 幂等键：`client_request_id` 必须带**文章身份**。旧实现只按 `start:${action}`
+ * 记键，切文章后同一个键会复用同一个 id，被服务端判 RequestReplayConflict
+ * （security review F5/F6）。同一个键在飞行期间仍然只发一个 id。
+ */
+function writeRequestKey(articleId: string, kind: string, suffix = ""): string {
+  return suffix ? `${kind}:${articleId}:${suffix}` : `${kind}:${articleId}`;
+}
+
 export function useWritingCollab(options: UseWritingCollabOptions): WritingCollabController {
   const {
     articleId,
@@ -202,7 +211,12 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
   }, [articleBody, selection]);
 
   const run = useCallback(
-    async (action: CollabAction, task: () => Promise<unknown>): Promise<boolean> => {
+    async (
+      action: CollabAction,
+      task: () => Promise<unknown>,
+      /** 本次写动作的幂等键；成功或失败都要释放（security review F5/F6）。 */
+      releaseKey?: string,
+    ): Promise<boolean> => {
       setBusy(true);
       setBusyAction(action);
       try {
@@ -214,11 +228,14 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
         setError(errorLabelKey(reason));
         return false;
       } finally {
+        // 失败也要释放：否则「失败后改过载荷再试」会复用同一 client_request_id，
+        // 被服务端按 RequestReplayConflict 挡掉；成功后再发本来就是新的逻辑动作。
+        if (releaseKey) requestIds.release(releaseKey);
         setBusy(false);
         setBusyAction(null);
       }
     },
-    [],
+    [requestIds],
   );
 
   const start = useCallback(
@@ -238,9 +255,10 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
         };
       }
       const baseRevision = Math.max(articleRevision, appliedRevision);
+      const releaseKey = writeRequestKey(articleId, "start", action);
       await run(action, async () => {
         const result = await collab.start({
-          clientRequestId: requestIds.for(`start:${action}`),
+          clientRequestId: requestIds.for(releaseKey),
           articleId,
           chatId,
           action,
@@ -260,8 +278,7 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
               }
             : current.collaboration,
         }));
-        requestIds.release(`start:${action}`);
-      });
+      }, releaseKey);
     },
     [
       appliedRevision,
@@ -283,26 +300,27 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
       if (!collaboration) return;
       const feedback = text.trim();
       if (!feedback) return;
+      const releaseKey = writeRequestKey(articleId, "reply", key);
       await run("reply", async () => {
         await collab.reply({
-          clientRequestId: requestIds.for(`reply:${key}`),
+          clientRequestId: requestIds.for(releaseKey),
           collaborationId: collaboration.id,
           feedback,
           expectVersion: Math.max(collaboration.version, snapshot.lastVersion),
         });
-        requestIds.release(`reply:${key}`);
-      });
+      }, releaseKey);
     },
-    [collab, requestIds, run, snapshot.collaboration, snapshot.lastVersion],
+    [articleId, collab, requestIds, run, snapshot.collaboration, snapshot.lastVersion],
   );
 
   const confirm = useCallback(
     async (input: ConfirmOutlineInput) => {
       const collaboration = snapshot.collaboration;
       if (!collaboration) return;
+      const releaseKey = writeRequestKey(articleId, "confirm", input.handoffId);
       await run("outline", async () => {
         const result = await collab.confirm({
-          clientRequestId: requestIds.for(`confirm:${input.handoffId}`),
+          clientRequestId: requestIds.for(releaseKey),
           collaborationId: collaboration.id,
           handoffId: input.handoffId,
           expectedHandoffVersion: handoffVersion(snapshot, input.handoffId),
@@ -311,11 +329,11 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
           outline: input.outline,
         });
         setAppliedRevision(result.articleRevision);
-        requestIds.release(`confirm:${input.handoffId}`);
-      });
+      }, releaseKey);
     },
     [
       appliedRevision,
+      articleId,
       articleRevision,
       collab,
       requestIds,
@@ -328,10 +346,11 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
   const cancel = useCallback(async () => {
     const collaboration = snapshot.collaboration;
     if (!collaboration?.activeBatchId) return;
+    const releaseKey = writeRequestKey(articleId, "cancel", collaboration.activeBatchId);
     // 停止作用于当前自动批次；服务端回什么状态就显示什么（不假装已停干净）。
     await run("start_full", async () => {
       const result = await collab.cancel({
-        clientRequestId: requestIds.for(`cancel:${collaboration.activeBatchId}`),
+        clientRequestId: requestIds.for(releaseKey),
         collaborationId: collaboration.id,
         activeBatchId: collaboration.activeBatchId!,
       });
@@ -341,9 +360,8 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
           ? { ...current.collaboration, status: result.status }
           : current.collaboration,
       }));
-      requestIds.release(`cancel:${collaboration.activeBatchId}`);
-    });
-  }, [collab, requestIds, run, snapshot.collaboration]);
+    }, releaseKey);
+  }, [articleId, collab, requestIds, run, snapshot.collaboration]);
 
   const failedBatch = useMemo(
     () =>
@@ -356,16 +374,16 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
   const retry = useCallback(async () => {
     const collaboration = snapshot.collaboration;
     if (!collaboration || !failedBatch) return;
+    const releaseKey = writeRequestKey(articleId, "retry", failedBatch.id);
     await run("start_full", async () => {
       await collab.retry({
-        clientRequestId: requestIds.for(`retry:${failedBatch.id}`),
+        clientRequestId: requestIds.for(releaseKey),
         collaborationId: collaboration.id,
         batchId: failedBatch.id,
         expectVersion: Math.max(collaboration.version, snapshot.lastVersion),
       });
-      requestIds.release(`retry:${failedBatch.id}`);
-    });
-  }, [collab, failedBatch, requestIds, run, snapshot.collaboration, snapshot.lastVersion]);
+    }, releaseKey);
+  }, [articleId, collab, failedBatch, requestIds, run, snapshot.collaboration, snapshot.lastVersion]);
 
   const apply = useCallback(
     async (suggestionId: string) => {
@@ -374,9 +392,10 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
       const applied: { value: { revision: number; digest: string; undoId: string } | null } = {
         value: null,
       };
+      const releaseKey = writeRequestKey(articleId, "apply", suggestionId);
       await run("start_full", async () => {
         const result = await collab.apply({
-          clientRequestId: requestIds.for(`apply:${suggestionId}`),
+          clientRequestId: requestIds.for(releaseKey),
           suggestionId,
           articleId,
           baseRevision: Math.max(articleRevision, appliedRevision),
@@ -392,9 +411,8 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
                 : entry,
           ),
         }));
-        requestIds.release(`apply:${suggestionId}`);
         applied.value = { revision: result.revision, digest: result.digest, undoId: result.undoId };
-      });
+      }, releaseKey);
       return applied.value;
     },
     [appliedRevision, articleId, articleRevision, collab, requestIds, run, snapshot.suggestions],
@@ -402,17 +420,17 @@ export function useWritingCollab(options: UseWritingCollabOptions): WritingColla
 
   const undo = useCallback(
     async (undoId: string) => {
+      const releaseKey = writeRequestKey(articleId, "undo", undoId);
       await run("start_full", async () => {
         const result = await collab.undo({
-          clientRequestId: requestIds.for(`undo:${undoId}`),
+          clientRequestId: requestIds.for(releaseKey),
           undoId,
           baseRevision: Math.max(articleRevision, appliedRevision),
         });
         setAppliedRevision(result.revision);
-        requestIds.release(`undo:${undoId}`);
-      });
+      }, releaseKey);
     },
-    [appliedRevision, articleRevision, collab, requestIds, run],
+    [appliedRevision, articleId, articleRevision, collab, requestIds, run],
   );
 
   const pendingHandoff = useMemo(
@@ -465,9 +483,14 @@ function normalizeSnapshot(snapshot: CollabSnapshot): CollabSnapshot {
   };
 }
 
+/**
+ * `writing.confirm` 的 `expected_handoff_version`（契约 §10 裁决 3 冻结口径）：
+ * 交接自身的整数 `artifact_version` **直接透传**。绝不混入协作版本
+ * （`lastVersion` = `collaboration.version` 必然远大于产物版本，混入会让服务端
+ * 的交接 CAS 稳定 409，提纲确认→续写主链路直接断）。
+ * 交接不在快照里时没有可透传的版本：返回 1，让服务端按既有规则判 409。
+ */
 function handoffVersion(snapshot: CollabSnapshot, handoffId: string): number {
   const handoff = snapshot.handoffs.find((entry) => entry.id === handoffId);
-  // 交接自身没有版本列；用协作版本 + 产物版本作为 CAS 依据（契约 §3）。
-  if (!handoff) return Math.max(snapshot.lastVersion, 1);
-  return Math.max(snapshot.lastVersion, handoff.artifactVersion, 1);
+  return handoff?.artifactVersion ?? 1;
 }

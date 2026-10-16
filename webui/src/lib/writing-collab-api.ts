@@ -7,6 +7,7 @@
 // 边界：**snake_case 只存在于传输层**。帧与 HTTP 报文在这里一次性映射成 camelCase，
 // 上层（面板 / reducer / 编辑器集成）只看见 camelCase 类型。
 import { mutation, request, type WebUIMutationTransport } from "@/lib/api";
+import type { ArticleSnapshotPayload } from "@/lib/writing-api";
 
 const COLLAB_BASE = "/api/writing/collab";
 const COLLAB_READ_TIMEOUT_MS = 20_000;
@@ -728,6 +729,22 @@ function isNewerFrame(state: CollabSnapshot, name: CollabEventName, cursor: Coll
   return cursor.version === seen.version && cursor.seq > seen.seq;
 }
 
+/**
+ * 帧是否属于当前协作（契约 §5 里产物/交接帧唯一可用的归属字段）。
+ * 帧没带 `collaboration_id`、或客户端还没读到协作快照时不做无据拒绝：
+ * 拒绝的代价（吃掉第一条真实帧）比误收一帧更大，收敛交给快照与版本单调性。
+ */
+function belongsToCurrentCollaboration(
+  state: CollabSnapshot,
+  body: Record<string, unknown>,
+): boolean {
+  const collaborationId = asString(body.collaboration_id);
+  if (!collaborationId) return true;
+  const current = state.collaboration?.id;
+  if (!current) return true;
+  return collaborationId === current;
+}
+
 /** 游标只进不退：低版本帧即使被接受也不能把各通道游标拉回去。 */
 function advanceCursor(
   state: CollabSnapshot,
@@ -795,16 +812,24 @@ function applyCollabFrame(
     const id = asString(body.artifact_id);
     if (!id) return state;
     if (cursor.version < 0) return state;
-    // 重连快照之后，属于旧批次的迟到产物帧不得再插卡（协作已经进到别的批次）。
-    const batchId = asString(body.batch_id);
-    const activeBatchId = state.collaboration?.activeBatchId ?? "";
-    if (batchId && batchId !== activeBatchId) return state;
+    // 归属收敛（契约 §5）：只接受**当前协作**的产物帧。
+    //
+    // 旧实现用 `body.batch_id` 挡旧批次的迟到帧，但契约 §5 的 `writing_artifact`
+    // body 只有 `{collaboration_id, artifact_id, kind, version, summary}` —— 没有
+    // `batch_id`，那个判断恒为假（过滤恒空）。可用的真实归属字段只有
+    // `collaboration_id`：已知当前协作且不一致 → 丢弃；当前协作未知（快照还没到手）
+    // → 不做无据拒绝，否则第一条产物帧会被吃掉。
+    //
+    // 残余缺口（已登记）：同一协作里**旧批次**的迟到帧没有契约字段可以判旧，
+    // 客户端只能靠 `version` 单调性与重连快照收敛。
+    if (!belongsToCurrentCollaboration(state, body)) return state;
     // 产物帧只跟产物帧比：旧版本的产物帧被忽略，重复帧不重复插卡。
     if (!isNewerFrame(state, name, cursor)) return state;
     const summary: CollabArtifactSummary = {
       id,
       collaborationId: asString(body.collaboration_id),
-      batchId,
+      // 契约 §5 没有这个字段，正常收帧时恒为空串；服务端真加了这个字段才用得上。
+      batchId: asString(body.batch_id),
       kind: toArtifactKind(body.kind),
       version: cursor.version,
       summary: asString(body.summary),
@@ -817,6 +842,8 @@ function applyCollabFrame(
     };
   }
 
+  // 交接帧同样只认当前协作。
+  if (!belongsToCurrentCollaboration(state, body)) return state;
   const handoffId = asString(body.handoff_id);
   if (!handoffId) return state;
   if (!isNewerFrame(state, name, cursor)) return state;
@@ -908,6 +935,238 @@ export function createCollabReducer(): CollabReducer {
     applySnapshot: applyCollabSnapshot,
     empty: createEmptyCollabSnapshot,
   };
+}
+
+// ---------------------------------------------------------------------------
+// 跨端内容摘要（契约 A §5.3 的 snapshot_digest）
+// ---------------------------------------------------------------------------
+
+/**
+ * 契约 A §5.3 冻结的持久化内容键（服务端 `nanobot/writing/models.py::_SNAPSHOT_KEYS`）。
+ * 顺序只为可读：序列化时按键排序。
+ */
+const SNAPSHOT_KEYS = [
+  "status",
+  "writing_type",
+  "template_id",
+  "title",
+  "summary",
+  "brief",
+  "tags",
+  "outline",
+  "materials",
+  "body",
+] as const;
+
+/**
+ * 与 Python `json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))`
+ * 等价的序列化：对象键**递归**排序、无空白、非 ASCII 原样输出。
+ * （键名都是 ASCII，所以 JS 的 UTF-16 排序与 Python 的码点排序结果一致。）
+ */
+export function pythonJson(value: unknown): string {
+  if (value === null || value === undefined) return "null";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") return Number.isFinite(value) ? JSON.stringify(value) : "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(pythonJson).join(",")}]`;
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).sort();
+    const body = keys
+      .map((key) => `${JSON.stringify(key)}:${pythonJson(record[key])}`)
+      .join(",");
+    return `{${body}}`;
+  }
+  return "null";
+}
+
+function snapshotText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+/** `_brief`：只留 goal / audience / style 里非空的字符串，逐项 strip。 */
+function normalizedBrief(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  const out: Record<string, string> = {};
+  for (const key of ["goal", "audience", "style"] as const) {
+    const text = snapshotText(value[key]).trim();
+    if (text) out[key] = text;
+  }
+  return out;
+}
+
+/** `_tags`：字符串标签逐项 strip，空串丢弃。 */
+function normalizedTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((tag): tag is string => typeof tag === "string")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
+}
+
+/** `_outline`：跳过空文本条目，`order` 取**原始下标**（服务端用 enumerate）。 */
+function normalizedOutline(value: unknown): Array<Record<string, unknown>> {
+  const entries = Array.isArray(value) ? value : [];
+  const items: Array<Record<string, unknown>> = [];
+  entries.forEach((raw, index) => {
+    const item = isRecord(raw) ? raw : {};
+    const text = snapshotText(item.text).trim();
+    if (!text) return;
+    items.push({ id: snapshotText(item.id), text, order: index });
+  });
+  return items;
+}
+
+/**
+ * `_materials`：所有字段固定成套（缺的补空串），`url` 只对 link 生效，
+ * `order` 取**原始下标**。服务端在 `id` / 时间戳缺失时会新生成，
+ * 客户端无从复现——那种草稿本来也还没存过盘（`writing.start` 会按版本冲突拒绝）。
+ */
+function normalizedMaterials(value: unknown): Array<Record<string, unknown>> {
+  const entries = Array.isArray(value) ? value : [];
+  return entries.map((raw, index) => {
+    const item = isRecord(raw) ? raw : {};
+    const kind = snapshotText(item.type) || "note";
+    const url = snapshotText(item.url);
+    return {
+      id: snapshotText(item.id),
+      type: kind,
+      title: snapshotText(item.title),
+      content: snapshotText(item.content),
+      url: kind === "link" ? url : "",
+      source: snapshotText(item.source),
+      note: snapshotText(item.note),
+      language: snapshotText(item.language),
+      included: item.included !== false,
+      order: index,
+      created_at: snapshotText(item.createdAt),
+      updated_at: snapshotText(item.updatedAt),
+    };
+  });
+}
+
+/**
+ * 服务端 `normalize_snapshot(normalize_article_fields(payload))` 的等价投影：
+ * 客户端本地草稿 → 服务端存盘后会得到的那份内容。
+ */
+export function articleSnapshotValue(
+  snapshot: ArticleSnapshotPayload,
+): Record<string, unknown> {
+  const fields = snapshot as unknown as Record<string, unknown>;
+  const projected: Record<string, unknown> = {
+    status: snapshotText(fields.status) || "idea",
+    writing_type: snapshotText(fields.writing_type).trim(),
+    template_id: snapshotText(fields.template_id).trim(),
+    title: snapshotText(fields.title).trim(),
+    summary: snapshotText(fields.summary).trim(),
+    brief: normalizedBrief(fields.brief),
+    tags: normalizedTags(fields.tags),
+    outline: normalizedOutline(fields.outline),
+    materials: normalizedMaterials(fields.materials),
+    body: snapshotText(fields.body),
+  };
+  const ordered: Record<string, unknown> = {};
+  for (const key of SNAPSHOT_KEYS) ordered[key] = projected[key];
+  return ordered;
+}
+
+/**
+ * `writing.start` / `writing.confirm` 的 `snapshot_digest`（契约 A §5.3）：
+ * 与服务端 `snapshot_digest()` **逐字节同口径**，跨端用 Python 侧生成的 fixture 校验
+ * （见 `tests/writing-collab-api.test.ts` 的 `test_snapshot_digest_matches_python`）。
+ */
+export function collabSnapshotDigest(snapshot: ArticleSnapshotPayload): string {
+  return sha256Hex(pythonJson(articleSnapshotValue(snapshot)));
+}
+
+/** SHA-256（FIPS 180-4）。浏览器与测试环境都没有同步 crypto，故自带实现，零依赖。 */
+const SHA256_K = new Uint32Array([
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+  0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+  0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+  0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+  0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+  0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+  0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+  0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+  0xc67178f2,
+]);
+
+function rotr(value: number, shift: number): number {
+  return ((value >>> shift) | (value << (32 - shift))) >>> 0;
+}
+
+export function sha256Hex(message: string): string {
+  const bytes = new TextEncoder().encode(message);
+  const bitLength = bytes.length * 8;
+  // padding：0x80 + 若干 0 + 64 位大端长度，补到 64 字节整数倍。
+  const padded = new Uint8Array((((bytes.length + 8) >> 6) << 6) + 64);
+  padded.set(bytes);
+  padded[bytes.length] = 0x80;
+  const view = new DataView(padded.buffer);
+  view.setUint32(padded.length - 8, Math.floor(bitLength / 4294967296));
+  view.setUint32(padded.length - 4, bitLength >>> 0);
+
+  const state = new Uint32Array([
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+  ]);
+  const w = new Uint32Array(64);
+  for (let offset = 0; offset < padded.length; offset += 64) {
+    for (let index = 0; index < 16; index += 1) {
+      w[index] = view.getUint32(offset + index * 4);
+    }
+    for (let index = 16; index < 64; index += 1) {
+      const s0 = rotr(w[index - 15], 7) ^ rotr(w[index - 15], 18) ^ (w[index - 15] >>> 3);
+      const s1 = rotr(w[index - 2], 17) ^ rotr(w[index - 2], 19) ^ (w[index - 2] >>> 10);
+      w[index] = (w[index - 16] + s0 + w[index - 7] + s1) >>> 0;
+    }
+    let a = state[0];
+    let b = state[1];
+    let c = state[2];
+    let d = state[3];
+    let e = state[4];
+    let f = state[5];
+    let g = state[6];
+    let h = state[7];
+    for (let index = 0; index < 64; index += 1) {
+      const s1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const temp1 = (h + s1 + ch + SHA256_K[index] + w[index]) >>> 0;
+      const s0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const temp2 = (s0 + maj) >>> 0;
+      h = g;
+      g = f;
+      f = e;
+      e = (d + temp1) >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = (temp1 + temp2) >>> 0;
+    }
+    state[0] = (state[0] + a) >>> 0;
+    state[1] = (state[1] + b) >>> 0;
+    state[2] = (state[2] + c) >>> 0;
+    state[3] = (state[3] + d) >>> 0;
+    state[4] = (state[4] + e) >>> 0;
+    state[5] = (state[5] + f) >>> 0;
+    state[6] = (state[6] + g) >>> 0;
+    state[7] = (state[7] + h) >>> 0;
+  }
+  return Array.from(state, (word) => word.toString(16).padStart(8, "0")).join("");
+}
+
+/** 契约 §3：`chat_id` 必须匹配 `^[A-Za-z0-9_:-]{1,64}$`（会话键 ≤74 字符）。 */
+export const COLLAB_CHAT_ID_RE = /^[A-Za-z0-9_:-]{1,64}$/;
+
+/** 文章的协作会话 chatId：非法字符折成 `-`，并把总长压在 64 以内。 */
+export function collabChatId(articleId: string, prefix = "writing"): string {
+  const safe = (articleId || "")
+    .replace(/[^A-Za-z0-9_:-]/g, "-")
+    .slice(0, 64 - prefix.length - 1);
+  return `${prefix}:${safe || "article"}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WritingPartnerPanel } from "@/components/creative/WritingPartnerPanel";
+import { errorKindForError, errorLabelKey } from "@/components/creative/collab-labels";
 import type { WebUIMutationTransport } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import {
@@ -98,6 +99,7 @@ function snapshot(overrides: Partial<CollabSnapshot> = {}): CollabSnapshot {
       {
         id: OUTLINE_ARTIFACT_ID,
         collaborationId: COLLABORATION_ID,
+        batchId: "b1",
         kind: "outline",
         version: 2,
         summary: "Three sections",
@@ -166,7 +168,8 @@ function setupPanel(
   } = {},
 ) {
   const client = new FakeClient();
-  vi.mocked(collabApi.getSnapshot).mockResolvedValue(options.snapshot ?? snapshot());
+  const fixture = options.snapshot ?? snapshot();
+  vi.mocked(collabApi.getSnapshot).mockResolvedValue(fixture);
   vi.mocked(collabApi.getArtifact).mockResolvedValue(outlineArtifact());
   const startResult: Awaited<ReturnType<typeof collabApi.start>> = {
     collaborationId: COLLABORATION_ID,
@@ -182,22 +185,22 @@ function setupPanel(
       : () => Promise.resolve(startResult),
   );
   const onSelectionChange = vi.fn();
-  const view = render(
+  const tree = (articleId: string = ARTICLE_ID) => (
     <WritingPartnerPanel
-      articleId={ARTICLE_ID}
+      articleId={articleId}
       articleTitle="记忆系统"
       articleBody={ARTICLE_BODY}
       articleRevision={3}
       snapshotDigest="digest-1"
       chatId={CHAT_ID}
       client={client}
-      token="t"
       api={collabApi}
       selection={options.selection ?? null}
       onSelectionChange={onSelectionChange}
-    />,
+    />
   );
-  return { ...view, client, onSelectionChange };
+  const view = render(tree());
+  return { ...view, client, onSelectionChange, fixture, tree };
 }
 
 beforeEach(() => {
@@ -269,11 +272,34 @@ describe("WritingPartnerPanel artifacts and progress", () => {
     expect(vi.mocked(collabApi.confirm).mock.calls[0][0]).toMatchObject({
       collaborationId: COLLABORATION_ID,
       handoffId: "h1",
+      // 契约 §10 裁决 3：`expected_handoff_version` 是交接自身的整数 artifact_version，
+      // 直接透传；fixture 里它（2）与协作版本（5）刻意不同。
+      expectedHandoffVersion: 2,
       outline: [
         { id: "o1", text: "Why memory is hard", order: 0 },
         { id: "o2", text: "One concrete example", order: 1 },
       ],
     });
+  });
+
+  it("test_confirm_sends_the_handoff_artifact_version", async () => {
+    const user = userEvent.setup();
+    const panel = setupPanel();
+    await screen.findAllByRole("textbox", { name: "Outline point" });
+
+    // 冻结口径：整数 artifact_version 直接透传（不用协作 lastVersion / status）。
+    const handoff = panel.fixture.handoffs[0];
+    expect(handoff.artifactVersion).toBe(2);
+    expect(panel.fixture.lastVersion).toBe(5);
+    expect(panel.fixture.collaboration?.version).toBe(5);
+
+    await user.click(screen.getByRole("button", { name: "Save outline and continue" }));
+
+    await waitFor(() => expect(collabApi.confirm).toHaveBeenCalledTimes(1));
+    const request = vi.mocked(collabApi.confirm).mock.calls[0][0];
+    expect(request.expectedHandoffVersion).toBe(handoff.artifactVersion);
+    // 回归护栏：绝不能把协作版本混进交接 CAS（那会稳定 409）。
+    expect(request.expectedHandoffVersion).not.toBe(panel.fixture.lastVersion);
   });
 
   it("test_task_progress_states", async () => {
@@ -384,6 +410,59 @@ describe("WritingPartnerPanel author input", () => {
     });
   });
 
+  // security review F5/F6：`client_request_id` 必须带文章身份，且失败后必须释放，
+  // 否则「失败 → 改载荷/切文章 → 重试」会复用同一 id 被服务端判 RequestReplayConflict。
+  it("test_request_id_is_article_scoped_and_released_after_failure", async () => {
+    const user = userEvent.setup();
+    const ids = ["req-1", "req-2", "req-3", "req-4"];
+    let cursor = 0;
+    const originalRandomUUID = crypto.randomUUID;
+    Object.defineProperty(crypto, "randomUUID", {
+      value: () => ids[cursor++] ?? `req-overflow-${cursor}`,
+      configurable: true,
+    });
+    try {
+      const panel = setupPanel({
+        onStart: async () => {
+          throw new ApiError(503, "writing collaboration service is not configured");
+        },
+      });
+      await screen.findAllByRole("textbox", { name: "Outline point" });
+      // 「写初稿」在快捷任务里也有同名按钮，主操作按 data 属性定位。
+      const primary = () =>
+        document.querySelector("[data-partner-primary]") as HTMLButtonElement;
+
+      await user.click(primary());
+      await waitFor(() => expect(collabApi.start).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(primary()).toBeEnabled());
+      await user.click(primary());
+      await waitFor(() => expect(collabApi.start).toHaveBeenCalledTimes(2));
+
+      const first = vi.mocked(collabApi.start).mock.calls[0][0].clientRequestId;
+      const second = vi.mocked(collabApi.start).mock.calls[1][0].clientRequestId;
+      expect(first).toBe(ids[0]);
+      // 失败路径释放：同一篇文章重试必须换新 id。
+      expect(second).not.toBe(first);
+      expect(second).toBe(ids[1]);
+
+      // 切到另一篇文章后同样不得复用旧 id（键里含 articleId）。
+      panel.rerender(panel.tree("art-2"));
+      await waitFor(() => expect(collabApi.getSnapshot).toHaveBeenCalledWith("art-2"));
+      await screen.findAllByRole("textbox", { name: "Outline point" });
+      await user.click(primary());
+      await waitFor(() => expect(collabApi.start).toHaveBeenCalledTimes(3));
+      const third = vi.mocked(collabApi.start).mock.calls[2][0].clientRequestId;
+      expect(third).not.toBe(first);
+      expect(third).not.toBe(second);
+      expect(vi.mocked(collabApi.start).mock.calls[2][0].articleId).toBe("art-2");
+    } finally {
+      Object.defineProperty(crypto, "randomUUID", {
+        value: originalRandomUUID,
+        configurable: true,
+      });
+    }
+  });
+
   it("test_focus_not_stolen_by_stream", async () => {
     const user = userEvent.setup();
     const { client } = setupPanel();
@@ -468,5 +547,61 @@ describe("WritingPartnerPanel author input", () => {
       );
     });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Outlining"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 错误 → 文案（契约 §4：纯文本 message 才是判定依据；400 不是一个「错误种类」）
+// ---------------------------------------------------------------------------
+
+describe("collab error labels", () => {
+  it("test_400_field_required_is_not_selection_required", () => {
+    // 缺字段是 400，但绝不是「需要选区」。
+    for (const message of [
+      "article_id is required",
+      "client_request_id is required",
+      "chat_id is required",
+      "handoff_id is required",
+    ]) {
+      expect(errorKindForError(new ApiError(400, message))).toBe("unknown");
+      expect(errorLabelKey(new ApiError(400, message)))
+        .toBe("creative.partner.ui.errorUnknown");
+    }
+  });
+
+  it("test_400_invalid_suggestion_target_is_not_selection_required", () => {
+    for (const code of [
+      "out_of_range",
+      "expected_before_mismatch",
+      "insert_range_not_empty",
+      "outline_item_not_found",
+      "unsupported_kind",
+    ]) {
+      expect(errorKindForError(new ApiError(400, `suggestion target is invalid: ${code}`)))
+        .toBe("unknown");
+    }
+  });
+
+  it("test_400_selection_required_still_maps", () => {
+    expect(errorKindForError(new ApiError(400, "collaboration target selection is required")))
+      .toBe("selectionRequired");
+    expect(errorLabelKey(new ApiError(400, "collaboration target selection is required")))
+      .toBe("creative.partner.error.selectionRequired");
+  });
+
+  it("test_message_beats_status_and_other_400s_stay_generic", () => {
+    expect(errorKindForError(new ApiError(400, "collaboration context too large; shrink the selection or materials")))
+      .toBe("requestTooLarge");
+    expect(errorKindForError(new ApiError(400, "article material not found: m1"))).toBe("unknown");
+    // 409/413/503 的既有稳定口径不变。
+    expect(errorKindForError(new ApiError(409, "handoff version conflict expected=2 actual=3")))
+      .toBe("versionConflict");
+    expect(errorKindForError(new ApiError(409, "suggestion is not pending"))).toBe("notPending");
+    expect(errorKindForError(new ApiError(413, "collaboration context too large")))
+      .toBe("requestTooLarge");
+    expect(errorKindForError(new ApiError(503, "writing collaboration service is not configured")))
+      .toBe("serviceUnavailable");
+    expect(errorKindForError(new ApiError(404, "collaboration not found"))).toBe("unknown");
+    expect(errorKindForError(new Error("boom"))).toBe("unknown");
   });
 });

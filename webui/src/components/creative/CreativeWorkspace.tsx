@@ -24,7 +24,9 @@ import {
 import { demoArticles } from "./demo-data";
 import { ArticleList, type ArticleListState } from "./ArticleList";
 import { ArticleEditor } from "./ArticleEditor";
+import { WritingPartnerPanel } from "./WritingPartnerPanel";
 import { useArticleSaveFlow } from "./use-article-save-flow";
+import { collabSnapshotDigest } from "@/lib/writing-collab-api";
 import { ArticleRecoveryBanner } from "./ArticleRecoveryBanner";
 
 export interface CreativeWorkspaceProps {
@@ -210,6 +212,7 @@ function EditorHost({
   readLatest,
   onArticleReplaced,
   onBack,
+  partnerEnabled = true,
 }: {
   getToken: () => string;
   transport: WebUIMutationTransport;
@@ -219,6 +222,8 @@ function EditorHost({
   readLatest: (articleId: string) => Promise<Article>;
   onArticleReplaced: (article: Article) => void;
   onBack: () => void;
+  /** 预览入口不走真实协作：面板不挂载（预览里 transport 是内存替身）。 */
+  partnerEnabled?: boolean;
 }) {
   const flow = useArticleSaveFlow({ getToken, transport, article, workspacePath });
 
@@ -339,6 +344,23 @@ function EditorHost({
     });
   }, [flow.draft, onArticleReplaced, transport]);
 
+  const partnerPanel = partnerEnabled ? (
+    <WritingPartnerPanel
+      articleId={article.id}
+      articleTitle={flow.draft.title}
+      articleBody={flow.draft.body}
+      articleRevision={article.revision}
+      // 契约 A §5.3：与服务端 snapshot_digest 逐字节同口径。
+      snapshotDigest={collabSnapshotDigest(flow.draft)}
+      chatId={`${article.id}:partner`}
+      client={transport}
+      onInsertDraft={({ body, replaceWhole }) => {
+        const current = flow.draft.body ?? "";
+        flow.setField("body", replaceWhole || !current.trim() ? body : `${current}\n\n${body}`);
+      }}
+    />
+  ) : null;
+
   return (
     <ArticleEditor
       article={article}
@@ -365,6 +387,7 @@ function EditorHost({
       onLeaveRetry={handleLeaveRetry}
       onLeaveStay={handleLeaveStay}
       onLeaveForce={handleLeaveForce}
+      partnerPanel={partnerPanel}
     />
   );
 }
@@ -545,8 +568,9 @@ export default function CreativeWorkspace({
           mutationTransport,
           createDraftInput(title, templateId, t),
         );
-        if (preview) writePreview([article, ...previewRef.current]);
-        else refreshList();
+        // B01：预览列表的更新责任唯一归内存写通道（`previewTransport` 已 writePreview），
+        // 这里再 prepend 一次会得到两张同 id 的卡。真实入口仍由服务端列表刷新。
+        if (!preview) refreshList();
         setActiveArticle(article);
         setOpenError(null);
         setView("editor");
@@ -556,7 +580,7 @@ export default function CreativeWorkspace({
         return { error: failureText(reason, "creative.createFailed", "新建文章失败") };
       }
     },
-    [failureText, mutationTransport, preview, refreshList, t, writePreview],
+    [failureText, mutationTransport, preview, refreshList, t],
   );
 
   const handleDuplicate = useCallback(
@@ -568,7 +592,7 @@ export default function CreativeWorkspace({
           clientRequestId: newLocalId(),
         });
         if (preview) {
-          writePreview([copy, ...previewRef.current]);
+          // 同上：预览副本已由内存写通道插入，这里不再重复插。
           return;
         }
         // 服务端把副本整条返回了，直接插到列表头部，省一次往返。
@@ -579,7 +603,7 @@ export default function CreativeWorkspace({
         setActionError(failureText(reason, "creative.duplicateFailed", "复制文章失败"));
       }
     },
-    [failureText, mutationTransport, preview, writePreview],
+    [failureText, mutationTransport, preview],
   );
 
   const handleDelete = useCallback(
@@ -595,7 +619,7 @@ export default function CreativeWorkspace({
         clearDraft(workspacePath, row.id);
         if (activeArticle?.id === row.id) backToList();
         if (preview) {
-          writePreview(previewRef.current.filter((item) => item.id !== row.id));
+          // 内存写通道的 `article.delete` 已经把它从集合里摘掉，这里不再二次过滤。
           return;
         }
         refreshList();
@@ -611,7 +635,6 @@ export default function CreativeWorkspace({
       preview,
       refreshList,
       workspacePath,
-      writePreview,
     ],
   );
 
@@ -634,6 +657,7 @@ export default function CreativeWorkspace({
         readLatest={readLatestArticle}
         onArticleReplaced={setActiveArticle}
         onBack={backToList}
+        partnerEnabled={!preview}
       />
     );
   }

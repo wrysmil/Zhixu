@@ -113,8 +113,12 @@ export function handoffLabelKey(kind: string): string {
 }
 
 /**
- * 错误 → i18n key。优先按 HTTP 状态（契约 §4 的稳定口径），
- * 再按服务端纯文本 message 的特征串兜底，认不出的一律走通用错误。
+ * 错误 → i18n key。**message 优先**（契约 §4 的纯文本 message 才是唯一稳定口径），
+ * 认不出 message 时才退回 HTTP 状态；状态只映射那些语义唯一的码。
+ *
+ * 400 不是一个错误种类：它同时承载「需要选区」「缺字段」「素材不存在」
+ * 「suggestion target is invalid」等完全不同的意思，所以**不再整片译成
+ * selectionRequired**（security review F5：缺字段/目标非法被误报成「需要选区」）。
  */
 export type CollabErrorKind =
   | "selectionRequired"
@@ -124,21 +128,28 @@ export type CollabErrorKind =
   | "requestTooLarge"
   | "unknown";
 
+/** 状态码里语义唯一的那些；400 故意不在表内（见上）。 */
 const STATUS_ERROR_KIND: Record<number, CollabErrorKind> = {
-  400: "selectionRequired",
   409: "versionConflict",
   413: "requestTooLarge",
   503: "serviceUnavailable",
 };
 
+/** message 特征串 → 错误种类（按顺序匹配，越具体的越靠前）。 */
 const MESSAGE_ERROR_KIND: Array<[RegExp, CollabErrorKind]> = [
-  [/selection is required/i, "selectionRequired"],
+  // 契约 §4 原文是 `collaboration target selection is required`；只认「选区」这一条。
+  [/\bselection is required\b/i, "selectionRequired"],
   [/too large/i, "requestTooLarge"],
   [/version conflict/i, "versionConflict"],
-  [/context too large/i, "requestTooLarge"],
   [/not pending|no longer pending/i, "notPending"],
   [/not configured|unavailable/i, "serviceUnavailable"],
 ];
+
+/**
+ * 400 里的「缺字段 / 目标非法 / 找不到」一律走通用文案：
+ * 保证它们不会被误报成「需要选区」。
+ */
+const GENERIC_400_MESSAGE = /\bis required\b|\bis invalid\b|\bnot found\b/i;
 
 export function errorKindForError(error: unknown): CollabErrorKind {
   const status = (
@@ -151,6 +162,7 @@ export function errorKindForError(error: unknown): CollabErrorKind {
   for (const [pattern, kind] of MESSAGE_ERROR_KIND) {
     if (pattern.test(message)) return kind;
   }
+  if (status === 400 && GENERIC_400_MESSAGE.test(message)) return "unknown";
   return STATUS_ERROR_KIND[status] ?? "unknown";
 }
 

@@ -64,6 +64,27 @@ describe("CreativeWorkspace (preview entry)", () => {
     expect(screen.getByLabelText("正文编辑")).toBeInTheDocument();
   });
 
+  // B01（plan Task 13 / 2026-10-17-writing-browser-v2.md:41-51）：预览写通道已经把新文章
+  // 插进内存集合，`handleCreate` 再 prepend 一次 → 列表出现两张同 id 的卡。
+  it("test_create_once_returns_single_card", async () => {
+    renderPreview();
+    const textarea = screen.getByPlaceholderText(/想讲清楚什么问题/) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "只出现一次的文章" } });
+    fireEvent.click(screen.getByRole("button", { name: /新建/ }));
+    await waitFor(() =>
+      expect(screen.getByTestId("article-editor")).toBeInTheDocument(),
+    );
+
+    // 回到列表：新建的卡必须只有一张（列表更新责任唯一）。
+    fireEvent.click(screen.getByLabelText("Back"));
+    await waitFor(() =>
+      expect(screen.getByText("只出现一次的文章")).toBeInTheDocument(),
+    );
+    expect(screen.getAllByText("只出现一次的文章")).toHaveLength(1);
+    // 演示库 3 篇 + 新建 1 篇 = 4 张卡（重复插入时会变成 5 张）。
+    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(4);
+  });
+
   it("filters articles by status", async () => {
     renderPreview();
     expect(
@@ -294,6 +315,11 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
       if (url.includes("/articles/get")) {
         return jsonResponse({ article: wireArticle() });
       }
+      // 创作搭档面板挂载后会读一次协作快照（WU-13 起编辑器右栏真的在跑）：它不是列表
+      // 刷新，必须单独吃掉，否则会顶掉下面按次数断言的 list 语义。
+      if (url.includes("/api/writing/collab")) {
+        return jsonResponse({ collaboration: null, artifacts: [], handoffs: [], suggestions: [] });
+      }
       listCalls += 1;
       // 删除触发了一次刷新（reloadKey++），第二次以后返回空。
       return jsonResponse(listCalls > 1 ? listBody([]) : listBody([summaryRow()]));
@@ -319,17 +345,17 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
 
   it("late-arriving save after delete does not resurrect the article (A-02)", async () => {
     let resolveSave: ((value: unknown) => void) | null = null;
-    let listCalls = 0;
+    // 用「删除是否已经发生」驱动列表语义，而不是数请求次数：创作搭档面板挂载后
+    // 编辑器会多发几次读请求（WU-13），按次数计数的桩会被这些无关请求顶掉。
+    let deleted = false;
     const fetchMock = vi.fn(async (input: unknown) => {
       const url = String(input);
       if (url.includes("/articles/get")) {
         return jsonResponse({ article: wireArticle() });
       }
-      // 三次 list fetch 的语义：①挂载 ②force 离开编辑器 ③删除后刷新；
-      // 第三次才返回空列表，与「deleting the article also clears its cached
-      // recovery draft」用例的「删除触发了一次刷新（reloadKey++）」注释对齐。
-      listCalls += 1;
-      return jsonResponse(listCalls > 2 ? listBody([]) : listBody([summaryRow()]));
+      // 删除前一直返回那一行；删除触发的刷新（reloadKey++）才返回空列表，与
+      // 「deleting the article also clears its cached recovery draft」用例语义一致。
+      return jsonResponse(deleted ? listBody([]) : listBody([summaryRow()]));
     });
     vi.stubGlobal("fetch", fetchMock);
     const requestMutation = vi.fn<(action: string, payload: Record<string, unknown>) => Promise<unknown>>(async (action) => {
@@ -344,7 +370,10 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
         void pending;
         throw new ApiError(409, "article_conflict current_revision=3 article_id=srv-1");
       }
-      if (action === "article.delete") return { deleted_article_id: "srv-1", revision: 4 };
+      if (action === "article.delete") {
+        deleted = true;
+        return { deleted_article_id: "srv-1", revision: 4 };
+      }
       throw new Error(`unexpected action ${action}`);
     });
     renderWorkspace({ requestMutation } as unknown as WebUIMutationTransport);

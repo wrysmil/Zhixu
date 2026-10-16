@@ -38,7 +38,8 @@
         "untitled": "無題の記事",
         "viewAndInsert": "確認して挿入",
         "viewMaterials": "素材を表示",
-        "viewOutline": "構成を表示"
+        "viewOutline": "構成を表示",
+        "toggle": "執筆パートナー"
       },
       "title": "執筆パートナー",
       "builtinBadge": "組み込み",

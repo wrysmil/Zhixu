@@ -38,7 +38,8 @@
         "untitled": "제목 없는 글",
         "viewAndInsert": "확인 후 삽입",
         "viewMaterials": "자료 보기",
-        "viewOutline": "개요 보기"
+        "viewOutline": "개요 보기",
+        "toggle": "집필 파트너"
       },
       "title": "글쓰기 파트너",
       "builtinBadge": "내장",
