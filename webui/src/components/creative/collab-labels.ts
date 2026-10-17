@@ -14,6 +14,21 @@ export const PARTNER_PROCESS_TOGGLE_KEY = "creative.partner.process.toggle";
 export const PARTNER_INPUT_PLACEHOLDER_KEY = "creative.partner.input.placeholder";
 export const PARTNER_REQUIREMENTS_TOGGLE_KEY = "creative.partner.requirements.toggle";
 
+/**
+ * 模型 chip 的文案键（spec 2026-10-17-writing-partner-model-selection §4.3）。
+ * 当前值来自协作会话 metadata，切换走既有 `/model` 系统命令；这里的文案只负责
+ * 「当前用的是谁」「这次切换有没有生效」，不承载任何模型/团队字段。
+ */
+export const PARTNER_MODEL_SETUP_KEY = "creative.partner.ui.modelSetup";
+export const PARTNER_MODEL_FALLBACK_KEY = "creative.partner.ui.modelGlobalDefault";
+export const PARTNER_MODEL_PENDING_KEY = "creative.partner.ui.modelSwitchPending";
+export const PARTNER_MODEL_APPLIED_KEY = "creative.partner.ui.modelSwitchApplied";
+export const PARTNER_MODEL_REQUESTED_KEY = "creative.partner.ui.modelSwitchRequested";
+export const PARTNER_MODEL_FAILED_KEY = "creative.partner.ui.modelSwitchFailed";
+export const PARTNER_MODEL_STALE_KEY = "creative.partner.ui.modelSwitchNotApplied";
+export const PARTNER_MODEL_UNKNOWN_KEY = "creative.partner.ui.modelUnknownPreset";
+export const PARTNER_MODEL_UNSUPPORTED_KEY = "creative.partner.ui.modelSwitchUnsupported";
+
 /** 阶段文案：`collaboration.stage` 与 `collaboration.status` 共用 `stage.*` 表。 */
 export const STAGE_LABEL_KEY: Record<CollabStage, string> = {
   "": "creative.partner.stage.idle",
@@ -276,4 +291,16 @@ export const PARTNER_DEFAULTS: Record<string, string> = {
   "creative.partner.ui.busy": "Working…",
   "creative.partner.ui.untitled": "Untitled article",
   "creative.partner.ui.plan": "Plan",
+  [PARTNER_MODEL_SETUP_KEY]: "Choose a model",
+  [PARTNER_MODEL_FALLBACK_KEY]:
+    "Not set for this article yet — using the global default ({{preset}}).",
+  [PARTNER_MODEL_PENDING_KEY]: "Switching model…",
+  [PARTNER_MODEL_APPLIED_KEY]: "Switched to {{preset}} — only new batches will use it.",
+  [PARTNER_MODEL_REQUESTED_KEY]:
+    "Model switch submitted; it applies to batches started from now on.",
+  [PARTNER_MODEL_FAILED_KEY]: "Couldn't switch the model. Try again.",
+  [PARTNER_MODEL_STALE_KEY]:
+    "The server is still using {{preset}} — the switch did not take effect.",
+  [PARTNER_MODEL_UNKNOWN_KEY]: "That model preset is no longer available. Pick another one.",
+  [PARTNER_MODEL_UNSUPPORTED_KEY]: "This connection can't switch models.",
 };

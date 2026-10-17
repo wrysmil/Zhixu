@@ -22,6 +22,7 @@ from nanobot.teams.models import TeamRunSnapshot
 from nanobot.teams.repository import RUN_TERMINAL_STATUSES, TeamRepository
 from nanobot.teams.scheduler import TeamScheduler
 from nanobot.teams.service import CrossSessionForbidden, TeamService
+from nanobot.teams.turn import resolve_session_runtime
 
 __all__ = ["CrossSessionForbidden", "TeamRunController"]
 
@@ -34,6 +35,9 @@ class TeamRunController:
     scheduler: TeamScheduler
     # 重试要在落盘后自己接手执行，所以拿的是装配期的 runtime；换默认模型不影响重试。
     runtime_provider: Callable[[], Any] = field(default=lambda: None)
+    # 按会话解析（重试拿到的是原运行的 ``session_key``）：与批次路径同口径，否则
+    # 侧栏切过模型之后「重试」会悄悄换回全局默认。
+    session_runtime_provider: Callable[[str], Any] | None = None
     preset_resolver: Callable[[str], Any] | None = None
     workspace: Path | None = None
     _background: set[asyncio.Task[Any]] = field(default_factory=set)
@@ -119,8 +123,20 @@ class TeamRunController:
 
     async def _drive(self, run_id: str, session_key: str) -> None:
         try:
+            # 与批次路径同口径：先按会话解析，取不到才回落装配期的零参 runtime。
+            runtime, runtime_source = resolve_session_runtime(
+                session_key,
+                session_runtime_provider=self.session_runtime_provider,
+                fallback=self.runtime_provider,
+            )
+            logger.bind(
+                event="team_retry_run_starting",
+                run_id=run_id,
+                session_key=session_key,
+                runtime_source=runtime_source,
+            ).info("team retry run is starting")
             handle = await self.scheduler.adopt_run(
-                run_id, session_key=session_key, runtime=self.runtime_provider()
+                run_id, session_key=session_key, runtime=runtime
             )
             await handle.run_pending()
             await handle.finalize(delivered=True)
