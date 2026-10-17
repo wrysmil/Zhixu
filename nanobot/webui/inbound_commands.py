@@ -42,7 +42,10 @@ from nanobot.webui.cli_apps_api import normalize_cli_app_mentions
 from nanobot.webui.forking import handle_webui_fork_chat
 from nanobot.webui.gateway_services import GatewayServices
 from nanobot.webui.mcp_presets_api import normalize_mcp_preset_mentions
-from nanobot.webui.metadata import WEBSOCKET_TURN_OWNER_METADATA_KEY
+from nanobot.webui.metadata import (
+    WEBSOCKET_TURN_OWNER_METADATA_KEY,
+    WEBUI_TURN_METADATA_KEY,
+)
 from nanobot.webui.outbound_wire import (
     encode_terminal_list_result,
     encode_terminal_started,
@@ -1206,7 +1209,16 @@ class WebUICommandRouter:
         is_webui = metadata.get("webui") is True
         queued_owner = None
         if is_webui and not is_user_shell and builtin_command_starts_agent_turn(content):
-            queued_owner = register_queued_websocket_turn_if_idle(chat_id, turn_id)
+            # 登记用的 turn_id 必须和元数据里最终生效的那个一致：WebuiTurnRoutePolicy 靠
+            # 这个相等关系确认「入站层已经为这条消息登记过 owner」。客户端没带 turn_id 时
+            # 元数据里是上面补发的服务端 id，这里若仍传原始的 None，策略会另发一个**未登记**
+            # 的 owner，turn_end 清它时找不到 → owner 永久残留，会话一直显示「回答中」，
+            # 点停止只会得到 "No active task to stop."。
+            registered_turn_id = metadata.get(WEBUI_TURN_METADATA_KEY)
+            queued_owner = register_queued_websocket_turn_if_idle(
+                chat_id,
+                registered_turn_id if isinstance(registered_turn_id, str) else None,
+            )
             if queued_owner is not None:
                 metadata[WEBSOCKET_TURN_OWNER_METADATA_KEY] = queued_owner
 

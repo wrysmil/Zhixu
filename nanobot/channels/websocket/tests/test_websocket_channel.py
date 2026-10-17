@@ -832,6 +832,44 @@ async def test_webui_message_envelope_marks_inbound_metadata(bus: MagicMock) -> 
 
 
 @pytest.mark.asyncio
+async def test_webui_message_without_client_turn_id_registers_matching_turn_id(
+    bus: MagicMock,
+) -> None:
+    """无客户端 ``turn_id`` 时，turn registry 的 turn_id 必须与元数据一致。
+
+    ``WebuiTurnRoutePolicy`` 用「registry 里的 turn_id == 元数据 turn_id」判定
+    「这条入站消息自己登记过 owner」。若入站层把 ``None`` 登进 registry、却把
+    服务端补发的 turn_id 写进元数据，策略就会另发一个**未登记**的 owner；
+    turn_end 清它时找不到，owner 永久残留 → 会话一直是「回答中」而
+    ``/stop`` 只会回 "No active task to stop."。
+    """
+    channel = _ch(bus)
+    conn = MagicMock()
+    conn.remote_address = ("127.0.0.1", 50123)
+    chat_id = "chat-minted-turn"
+
+    try:
+        await channel._dispatch_envelope(
+            conn,
+            "webui-client",
+            {
+                "type": "message",
+                "chat_id": chat_id,
+                "content": "hello",
+                "webui": True,
+            },
+        )
+
+        msg = bus.publish_inbound.await_args.args[0]
+        turn_id = msg.metadata[WEBUI_TURN_METADATA_KEY]
+        owner = msg.metadata[WEBSOCKET_TURN_OWNER_METADATA_KEY]
+        assert isinstance(turn_id, str) and turn_id
+        assert wth._WEBSOCKET_ACTIVE_TURNS[chat_id][owner].turn_id == turn_id
+    finally:
+        wth.clear_websocket_turns(chat_id)
+
+
+@pytest.mark.asyncio
 async def test_trusted_webui_shell_preserves_display_text_and_hides_dispatch_command(
     bus: MagicMock,
 ) -> None:
