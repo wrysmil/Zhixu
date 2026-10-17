@@ -1,0 +1,334 @@
+<div id="zhixu-studio-demo" aria-label="知序创作空间交互演示">
+  <style>
+    #zhixu-studio-demo{--zs-bg:light-dark(#faf9f6,#1d201d);--zs-paper:light-dark(#fffefa,#222622);--zs-side:light-dark(#f6f7f2,#1c221e);--zs-ink:light-dark(#28352f,#e1e7df);--zs-soft:light-dark(#758077,#99a69b);--zs-line:light-dark(#e7e9e1,#374139);--zs-green:light-dark(#365e49,#a6cbb0);--zs-greenfill:light-dark(#e9efe5,#303f32);--zs-hover:light-dark(#eef0e9,#303930);--zs-bubble:light-dark(#eaf0e5,#344536);--zs-white:light-dark(#fffefa,#2c352d);--zs-shadow:light-dark(#213f2920,#00000050);--zs-aside:342px;color-scheme:light dark;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--zs-ink);font-size:13px;line-height:1.6;width:100%;position:relative;text-align:left}
+    #zhixu-studio-demo *{box-sizing:border-box}
+    #zhixu-studio-demo button,#zhixu-studio-demo input,#zhixu-studio-demo textarea{font:inherit;color:inherit}
+    #zhixu-studio-demo button{border:0;background:none;padding:0;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:inherit}
+    #zhixu-studio-demo button:hover{background:var(--zs-hover)}
+    #zhixu-studio-demo button:focus-visible,#zhixu-studio-demo a:focus-visible{outline:2px solid var(--zs-green);outline-offset:3px}
+    #zhixu-studio-demo [hidden]{display:none!important}
+    #zhixu-studio-demo svg{width:16px;height:16px;flex-shrink:0;stroke-width:1.6}
+    #zhixu-studio-demo .zs-shell{display:grid;grid-template-columns:62px minmax(0,1fr);background:var(--zs-bg);border:1px solid var(--zs-line);border-radius:12px;overflow:clip;min-height:745px}
+    #zhixu-studio-demo .zs-rail{display:flex;flex-direction:column;align-items:center;gap:14px;border-right:1px solid var(--zs-line);padding:22px 8px 15px;background:var(--zs-side);position:relative;z-index:8}
+    #zhixu-studio-demo .zs-brand{width:36px;height:36px;border-radius:11px;background:var(--zs-greenfill);color:var(--zs-green);display:grid;place-items:center;margin-bottom:21px}
+    #zhixu-studio-demo .zs-brand svg{width:23px;height:23px}
+    #zhixu-studio-demo .zs-nav{width:43px;min-height:53px;flex-direction:column;gap:4px;border-radius:9px;color:var(--zs-soft);font-size:10px}
+    #zhixu-studio-demo .zs-nav svg{width:19px;height:19px}
+    #zhixu-studio-demo .zs-nav.is-active{color:var(--zs-green);background:var(--zs-greenfill)}
+    #zhixu-studio-demo .zs-rail-spacer{flex:1;min-height:220px}
+    #zhixu-studio-demo .zs-workspace{min-width:0;display:flex;flex-direction:column}
+    #zhixu-studio-demo .zs-topbar{height:57px;border-bottom:1px solid var(--zs-line);padding:0 22px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    #zhixu-studio-demo .zs-crumb{display:flex;align-items:center;gap:10px;min-width:0;font-size:12px;color:var(--zs-soft)}
+    #zhixu-studio-demo .zs-crumb strong{font-weight:500;color:var(--zs-ink)}
+    #zhixu-studio-demo .zs-demo-label{font-size:10px;border:1px solid var(--zs-line);border-radius:5px;padding:1px 7px;white-space:nowrap;color:var(--zs-soft)}
+    #zhixu-studio-demo .zs-topactions{display:flex;align-items:center;gap:12px}
+    #zhixu-studio-demo .zs-saved{display:flex;gap:5px;align-items:center;color:var(--zs-soft);font-size:11px;white-space:nowrap}
+    #zhixu-studio-demo .zs-saved svg{width:13px;height:13px}
+    #zhixu-studio-demo .zs-iconbutton{width:29px;height:29px;border-radius:6px}
+    #zhixu-studio-demo .zs-button{padding:5px 9px;border-radius:6px;white-space:nowrap;font-size:11px}
+    #zhixu-studio-demo .zs-button.is-bordered{border:1px solid var(--zs-line);background:var(--zs-paper)}
+    #zhixu-studio-demo .zs-layout{display:grid;grid-template-columns:minmax(0,1fr) var(--zs-aside);flex:1;min-width:0}
+    #zhixu-studio-demo .zs-editor{position:relative;min-width:0;display:flex;flex-direction:column;background:var(--zs-paper)}
+    #zhixu-studio-demo .zs-editorbar{min-height:48px;padding:8px 19px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--zs-line)}
+    #zhixu-studio-demo .zs-modes{display:flex;gap:4px}
+    #zhixu-studio-demo .zs-mode{font-size:11px;padding:3px 8px;border-radius:5px;color:var(--zs-soft)}
+    #zhixu-studio-demo .zs-mode.is-active{background:var(--zs-greenfill);color:var(--zs-green);font-weight:500}
+    #zhixu-studio-demo .zs-resources{display:flex;gap:3px}
+    #zhixu-studio-demo .zs-count{font-size:10px;color:var(--zs-soft)}
+    #zhixu-studio-demo .zs-page{padding:35px 38px 24px;position:relative;flex:1;min-width:0}
+    #zhixu-studio-demo .zs-eyebrow{font-size:10px;letter-spacing:1.1px;color:var(--zs-soft);display:flex;align-items:center;gap:8px;margin-bottom:11px}
+    #zhixu-studio-demo .zs-eyebrow-dot{width:4px;height:4px;border-radius:50%;background:var(--zs-soft)}
+    #zhixu-studio-demo .zs-doc{font-size:13px;line-height:1.95;min-height:505px;outline-offset:10px;overflow-wrap:anywhere}
+    #zhixu-studio-demo .zs-doc:focus{outline:none}
+    #zhixu-studio-demo .zs-doc h1{font-family:"Songti SC","Noto Serif SC",Georgia,serif;font-size:27px;font-weight:500;line-height:1.55;margin:0 0 20px;letter-spacing:.5px;color:var(--zs-ink)}
+    #zhixu-studio-demo .zs-doc h2{font-size:16px;font-weight:500;line-height:1.7;margin:25px 0 10px}
+    #zhixu-studio-demo .zs-doc p{margin:0 0 16px}
+    #zhixu-studio-demo .zs-doc blockquote{margin:20px 0;padding:6px 0 6px 14px;border-left:2px solid var(--zs-green);color:var(--zs-soft);font-size:12px}
+    #zhixu-studio-demo .zs-doc strong{font-weight:500;color:var(--zs-green)}
+    #zhixu-studio-demo .zs-doc mark{background:var(--zs-greenfill);color:var(--zs-green);padding:2px 1px;border-radius:2px}
+    #zhixu-studio-demo .zs-doc.is-preview{color:var(--zs-soft)}
+    #zhixu-studio-demo .zs-editorfoot{border-top:1px solid var(--zs-line);padding:9px 20px;display:flex;justify-content:space-between;font-size:10px;color:var(--zs-soft);gap:8px}
+    #zhixu-studio-demo .zs-chat{background:var(--zs-side);border-left:1px solid var(--zs-line);min-width:0;display:flex;flex-direction:column;position:relative}
+    #zhixu-studio-demo .zs-chathead{height:59px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--zs-line)}
+    #zhixu-studio-demo .zs-chat-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500}
+    #zhixu-studio-demo .zs-built{font-weight:400;font-size:9px;border:1px solid var(--zs-line);color:var(--zs-soft);padding:0 5px;border-radius:4px}
+    #zhixu-studio-demo .zs-teamdots{display:flex;align-items:center;gap:0}
+    #zhixu-studio-demo .zs-tinyavatar{width:22px;height:22px;display:grid;place-items:center;border:2px solid var(--zs-side);border-radius:50%;font-size:9px;background:var(--zs-greenfill);color:var(--zs-green);margin-left:-5px}
+    #zhixu-studio-demo .zs-messagearea{padding:22px 20px 15px;min-height:375px;flex:1;max-height:489px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--zs-line) transparent}
+    #zhixu-studio-demo .zs-welcome-mark{height:36px;width:36px;display:grid;place-items:center;background:var(--zs-greenfill);border-radius:12px;color:var(--zs-green);margin:36px 0 14px}
+    #zhixu-studio-demo .zs-welcome-mark svg{width:20px;height:20px}
+    #zhixu-studio-demo .zs-welcome h2{font-family:"Songti SC",Georgia,serif;font-size:20px;font-weight:500;line-height:1.7;letter-spacing:.4px;margin:0 0 10px}
+    #zhixu-studio-demo .zs-welcome p{color:var(--zs-soft);font-size:12px;line-height:1.85;margin:0 0 23px}
+    #zhixu-studio-demo .zs-starters{display:grid;gap:7px}
+    #zhixu-studio-demo .zs-starter{width:100%;padding:9px 11px;gap:10px;justify-content:flex-start;text-align:left;border:1px solid var(--zs-line);border-radius:8px;background:var(--zs-paper);font-size:11px}
+    #zhixu-studio-demo .zs-starter svg{color:var(--zs-green);width:15px;height:15px}
+    #zhixu-studio-demo .zs-starter span{flex:1}
+    #zhixu-studio-demo .zs-starter .zs-starter-arrow{color:var(--zs-soft);width:12px;height:12px}
+    #zhixu-studio-demo .zs-conversation-note{display:flex;align-items:center;gap:6px;justify-content:center;margin-top:23px;color:var(--zs-soft);font-size:10px}
+    #zhixu-studio-demo .zs-conversation-note svg{width:12px;height:12px}
+    #zhixu-studio-demo .zs-msg{margin-bottom:21px;animation:zs-enter .2s ease-out;overflow-wrap:anywhere}
+    #zhixu-studio-demo .zs-msg.is-user{background:var(--zs-bubble);border-radius:10px 10px 2px 10px;padding:10px 12px;margin-left:23px;font-size:12px;white-space:pre-wrap}
+    #zhixu-studio-demo .zs-author{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--zs-soft);margin-bottom:8px}
+    #zhixu-studio-demo .zs-author-avatar{width:22px;height:22px;border-radius:7px;background:var(--zs-greenfill);color:var(--zs-green);display:grid;place-items:center;font-size:10px}
+    #zhixu-studio-demo .zs-msgtext{font-size:12px;line-height:1.9;white-space:pre-wrap;margin-bottom:10px}
+    #zhixu-studio-demo .zs-toolcard{border:1px solid var(--zs-line);background:var(--zs-paper);border-radius:9px;overflow:hidden;margin-top:10px}
+    #zhixu-studio-demo .zs-toolcard-top{padding:12px 12px 8px;display:flex;gap:9px;align-items:center;font-size:12px}
+    #zhixu-studio-demo .zs-toolcard-top svg{color:var(--zs-green)}
+    #zhixu-studio-demo .zs-toolcard-desc{font-size:11px;color:var(--zs-soft);padding:0 12px 12px}
+    #zhixu-studio-demo .zs-toolcard-actions{padding:6px 8px;display:flex;justify-content:space-between;gap:4px;border-top:1px solid var(--zs-line)}
+    #zhixu-studio-demo .zs-toolcard-actions button{color:var(--zs-green)}
+    #zhixu-studio-demo .zs-composer-wrap{padding:0 14px 15px;position:relative;flex-shrink:0}
+    #zhixu-studio-demo .zs-quote{background:var(--zs-greenfill);border:1px solid var(--zs-line);margin:0 0 8px;padding:7px 9px;border-radius:7px;display:flex;gap:8px;align-items:center;font-size:10px;min-width:0}
+    #zhixu-studio-demo .zs-quote span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #zhixu-studio-demo .zs-composer{border:1px solid var(--zs-line);border-radius:12px;background:var(--zs-paper);padding:10px 11px 8px;box-shadow:0 3px 10px var(--zs-shadow);position:relative}
+    #zhixu-studio-demo .zs-composer:focus-within{border-color:var(--zs-green)}
+    #zhixu-studio-demo .zs-recipient{display:inline-flex;align-items:center;gap:5px;color:var(--zs-green);background:var(--zs-greenfill);border-radius:5px;font-size:11px;padding:2px 6px;margin-bottom:6px}
+    #zhixu-studio-demo .zs-recipient button{width:15px;height:15px}
+    #zhixu-studio-demo .zs-recipient svg{width:11px;height:11px}
+    #zhixu-studio-demo .zs-input{border:0;box-shadow:none;background:none;width:100%;resize:none;min-height:63px;max-height:130px;outline:none;padding:2px 0;font-size:12px;line-height:1.8;color:var(--zs-ink)}
+    #zhixu-studio-demo .zs-input::placeholder{color:var(--zs-soft)}
+    #zhixu-studio-demo .zs-inputbar{display:flex;align-items:center;justify-content:space-between;gap:5px}
+    #zhixu-studio-demo .zs-inputtools{display:flex;align-items:center;gap:2px}
+    #zhixu-studio-demo .zs-inputtools .zs-iconbutton{color:var(--zs-soft);font-size:16px}
+    #zhixu-studio-demo .zs-model{font-size:10px;gap:3px;padding:4px;border-radius:4px;color:var(--zs-soft)}
+    #zhixu-studio-demo .zs-model svg{width:11px;height:11px}
+    #zhixu-studio-demo .zs-send{width:29px;height:29px;border-radius:8px;background:var(--zs-green)!important;color:var(--zs-paper);margin-left:3px}
+    #zhixu-studio-demo .zs-send:disabled{opacity:.35}
+    #zhixu-studio-demo .zs-input-right{display:flex;align-items:center}
+    #zhixu-studio-demo .zs-input-hint{text-align:center;font-size:9px;color:var(--zs-soft);margin-top:9px}
+    #zhixu-studio-demo .zs-palette{position:absolute;bottom:100%;left:0;right:0;background:var(--zs-white);border:1px solid var(--zs-line);border-radius:11px;box-shadow:0 9px 30px var(--zs-shadow);padding:6px;z-index:30;margin-bottom:8px;max-height:340px;overflow:auto}
+    #zhixu-studio-demo .zs-menu-label{color:var(--zs-soft);padding:5px 8px;font-size:10px;letter-spacing:.5px}
+    #zhixu-studio-demo .zs-menuitem{width:100%;justify-content:flex-start;gap:10px;text-align:left;padding:8px;border-radius:6px;font-size:12px}
+    #zhixu-studio-demo .zs-menuitem.is-focused{background:var(--zs-greenfill)}
+    #zhixu-studio-demo .zs-menuitem svg{color:var(--zs-green);width:15px;height:15px}
+    #zhixu-studio-demo .zs-menuitem small{display:block;color:var(--zs-soft);font-size:10px}
+    #zhixu-studio-demo .zs-menuitem .zs-menuright{margin-left:auto;font-size:10px;color:var(--zs-soft)}
+    #zhixu-studio-demo .zs-contextbar{position:absolute;display:flex;gap:1px;padding:4px;background:var(--zs-white);border:1px solid var(--zs-line);border-radius:8px;box-shadow:0 5px 18px var(--zs-shadow);z-index:22;max-width:calc(100% - 16px);flex-wrap:wrap}
+    #zhixu-studio-demo .zs-contextbar .zs-button{padding:4px 7px;font-size:11px}
+    #zhixu-studio-demo .zs-contextbar .zs-button:first-child{color:var(--zs-green)}
+    #zhixu-studio-demo .zs-drawer{position:absolute;inset:48px 0 0 auto;width:min(300px,100%);z-index:25;background:var(--zs-white);border-left:1px solid var(--zs-line);box-shadow:-8px 8px 25px var(--zs-shadow);padding:20px;overflow:auto}
+    #zhixu-studio-demo .zs-drawer-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;font-size:14px;font-weight:500}
+    #zhixu-studio-demo .zs-material{padding:15px 0;border-top:1px solid var(--zs-line)}
+    #zhixu-studio-demo .zs-material small{font-size:10px;color:var(--zs-soft);display:flex;gap:5px;align-items:center}
+    #zhixu-studio-demo .zs-material small svg{width:12px;height:12px}
+    #zhixu-studio-demo .zs-material h4{font-size:12px;font-weight:500;margin:7px 0}
+    #zhixu-studio-demo .zs-material p{font-size:11px;color:var(--zs-soft);margin:0}
+    #zhixu-studio-demo .zs-outlineitem{padding:12px 0;display:flex;gap:12px;border-top:1px solid var(--zs-line);font-size:12px;line-height:1.9}
+    #zhixu-studio-demo .zs-outlineitem span{color:var(--zs-soft);font-size:10px;padding-top:2px}
+    #zhixu-studio-demo .zs-overlay{position:absolute;inset:0;z-index:50;background:var(--zs-shadow);display:flex;align-items:center;justify-content:center;padding:20px}
+    #zhixu-studio-demo .zs-dialog{background:var(--zs-white);border:1px solid var(--zs-line);border-radius:15px;box-shadow:0 15px 65px var(--zs-shadow);padding:25px;width:480px;max-width:100%;max-height:90%;overflow:auto}
+    #zhixu-studio-demo .zs-dialog-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    #zhixu-studio-demo .zs-dialog-head h2{font-size:18px;font-weight:500;margin:0;display:flex;align-items:center;gap:8px}
+    #zhixu-studio-demo .zs-dialog p{font-size:12px;color:var(--zs-soft);margin:0 0 18px}
+    #zhixu-studio-demo .zs-member{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--zs-line);align-items:center}
+    #zhixu-studio-demo .zs-member-avatar{width:33px;height:33px;display:grid;place-items:center;border-radius:10px;background:var(--zs-greenfill);color:var(--zs-green)}
+    #zhixu-studio-demo .zs-member-info{flex:1;font-size:12px}
+    #zhixu-studio-demo .zs-member-info small{display:block;color:var(--zs-soft);font-size:10px}
+    #zhixu-studio-demo .zs-diff{white-space:pre-wrap;font-size:12px;line-height:1.9;padding:12px;border-radius:7px;background:var(--zs-hover);margin:8px 0 18px;overflow-wrap:anywhere}
+    #zhixu-studio-demo .zs-diff.is-new{background:var(--zs-greenfill);color:var(--zs-green)}
+    #zhixu-studio-demo .zs-popover{position:absolute;left:53px;top:200px;z-index:45;background:var(--zs-white);border:1px solid var(--zs-line);border-radius:10px;padding:7px;width:174px;box-shadow:0 10px 30px var(--zs-shadow)}
+    #zhixu-studio-demo .zs-toast{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);background:var(--zs-ink);color:var(--zs-paper);border-radius:9px;padding:9px 16px;z-index:70;box-shadow:0 4px 16px var(--zs-shadow);font-size:11px;white-space:nowrap;max-width:95%}
+    #zhixu-studio-demo .zs-mobiletabs{display:none}
+    @keyframes zs-enter{from{transform:translateY(5px);opacity:.5}to{transform:translateY(0);opacity:1}}
+    @media(prefers-reduced-motion:reduce){#zhixu-studio-demo .zs-msg{animation:none}}
+    @media(max-width:820px){#zhixu-studio-demo{--zs-aside:304px}#zhixu-studio-demo .zs-page{padding:27px 23px 22px}#zhixu-studio-demo .zs-doc h1{font-size:23px}#zhixu-studio-demo .zs-topbar{padding:0 16px}#zhixu-studio-demo .zs-resources .zs-button{padding:4px 5px}#zhixu-studio-demo .zs-chathead{padding:0 15px}#zhixu-studio-demo .zs-messagearea{padding:16px 15px}}
+    @media(max-width:620px){#zhixu-studio-demo .zs-shell{grid-template-columns:45px minmax(0,1fr);min-height:690px}#zhixu-studio-demo .zs-rail{padding:18px 4px;gap:10px}#zhixu-studio-demo .zs-nav{width:35px;font-size:9px}#zhixu-studio-demo .zs-brand{width:30px;height:30px}#zhixu-studio-demo .zs-topbar{height:51px;padding:0 12px}#zhixu-studio-demo .zs-crumb{gap:6px;font-size:11px}#zhixu-studio-demo .zs-demo-label{display:none}#zhixu-studio-demo .zs-topactions .zs-saved{display:none}#zhixu-studio-demo .zs-layout{grid-template-columns:minmax(0,1fr)}#zhixu-studio-demo .zs-chat{display:none;border-left:0;min-height:610px}#zhixu-studio-demo[data-mobile="chat"] .zs-chat{display:flex}#zhixu-studio-demo[data-mobile="chat"] .zs-editor{display:none}#zhixu-studio-demo .zs-mobiletabs{display:flex;gap:4px;border-bottom:1px solid var(--zs-line);padding:6px 12px}#zhixu-studio-demo .zs-mobiletabs button{font-size:11px;padding:4px 12px;border-radius:5px}#zhixu-studio-demo .zs-mobiletabs .is-active{background:var(--zs-greenfill);color:var(--zs-green)}#zhixu-studio-demo .zs-page{padding:25px 20px}#zhixu-studio-demo .zs-editorbar{padding:8px 10px;flex-wrap:wrap}#zhixu-studio-demo .zs-quickai{font-size:0;padding:4px}#zhixu-studio-demo .zs-messagearea{max-height:410px}#zhixu-studio-demo .zs-input{font-size:16px}#zhixu-studio-demo .zs-popover{left:39px}#zhixu-studio-demo .zs-dialog{padding:18px}#zhixu-studio-demo .zs-doc{min-height:430px}}
+  </style>
+  <div class="zs-shell">
+    <nav class="zs-rail" aria-label="主导航">
+      <div class="zs-brand" aria-label="知序"><i data-lucide="feather" aria-hidden="true"></i></div>
+      <button class="zs-nav cursor-interaction" data-action="assistant"><i data-lucide="messages-square" aria-hidden="true"></i><span>助手</span></button>
+      <button class="zs-nav is-active cursor-interaction" data-action="creative" aria-current="page"><i data-lucide="square-pen" aria-hidden="true"></i><span>创作</span></button>
+      <button class="zs-nav cursor-interaction" data-action="more" aria-label="更多管理入口"><i data-lucide="ellipsis" aria-hidden="true"></i><span>更多</span></button>
+      <div class="zs-rail-spacer"></div>
+      <button class="zs-nav cursor-interaction" data-action="settings"><i data-lucide="settings-2" aria-hidden="true"></i><span>设置</span></button>
+    </nav>
+    <div class="zs-workspace">
+      <header class="zs-topbar">
+        <div class="zs-crumb"><i data-lucide="chevron-left" aria-hidden="true"></i><span>创作空间</span><span>/</span><strong>Redis 的原理</strong><span class="zs-demo-label">交互演示</span></div>
+        <div class="zs-topactions"><span class="zs-saved" data-saved><i data-lucide="cloud-check" aria-hidden="true"></i>已保存</span><button class="zs-button cursor-interaction" data-action="export"><i data-lucide="download" aria-hidden="true"></i>导出</button></div>
+      </header>
+      <div class="zs-mobiletabs" aria-label="工作区视图"><button class="is-active cursor-interaction" data-action="mobile-editor">文章</button><button class="cursor-interaction" data-action="mobile-chat">团队对话</button></div>
+      <div class="zs-layout">
+        <main class="zs-editor" aria-label="文章编辑区">
+          <div class="zs-editorbar">
+            <div class="zs-modes"><button class="zs-mode is-active cursor-interaction" data-action="edit" aria-pressed="true">编辑</button><button class="zs-mode cursor-interaction" data-action="preview" aria-pressed="false">预览</button></div>
+            <div class="zs-resources"><button class="zs-button cursor-interaction" data-action="materials"><i data-lucide="paperclip" aria-hidden="true"></i>素材 <span class="zs-count" data-material-count>2</span></button><button class="zs-button cursor-interaction" data-action="outline"><i data-lucide="list-tree" aria-hidden="true"></i>提纲 <span class="zs-count" data-outline-count>5</span></button><button class="zs-button zs-quickai cursor-interaction" data-action="quick-ask"><i data-lucide="sparkles" aria-hidden="true"></i>问 AI</button></div>
+          </div>
+          <div class="zs-page">
+            <div class="zs-eyebrow"><span>技术文章</span><span class="zs-eyebrow-dot"></span><span>草稿</span></div>
+            <article class="zs-doc" contenteditable="true" spellcheck="false" role="textbox" aria-label="正文编辑，选中文字可以问 AI" aria-multiline="true" data-document>
+              <h1>Redis 为什么快？<br>从一个请求的旅程说起</h1>
+              <p>我们总听到一句话：“Redis 很快，因为它把数据放在内存里。”这没有错，但只说对了一半。</p>
+              <p>如果把一次请求想成一位来办事的客人，Redis 的速度不只来自仓库离得近，还来自接待流程足够简单、每个人各司其职。</p>
+              <h2>01 · 先从一条 GET 命令开始</h2>
+              <p>当客户端发来 <strong>GET user:1001</strong>，Redis 接收命令、定位键、取出数据，再把结果交还给客户端。这个过程看起来平常，却藏着它最重要的设计取舍。</p>
+              <blockquote>理解 Redis，可以先问两个问题：数据在哪里？请求又是怎样被处理的？</blockquote>
+              <h2>02 · 内存，让访问更直接</h2>
+              <p>Redis 把需要快速访问的数据保存在内存中，减少了请求处理过程中等待磁盘读取的时间。但内存并不是全部答案：如果组织数据和处理请求的方式不够高效，照样会慢。</p>
+              <h2>03 · 一条主线，处理许多连接</h2>
+              <p>Redis 通过事件循环管理多个连接。它并不需要为每个连接都安排一个线程，而是在连接准备好时继续处理。这让请求的处理过程更加紧凑。</p>
+            </article>
+          </div>
+          <footer class="zs-editorfoot"><span><span data-word-count>0</span> 字 · 自动保存</span><span>你的想法，慢慢成文</span></footer>
+          <div class="zs-contextbar" data-selection-menu hidden><button class="zs-button cursor-interaction" data-action="selection-ask"><i data-lucide="sparkles" aria-hidden="true"></i>问 AI</button><button class="zs-button cursor-interaction" data-action="selection-rewrite">改写</button><button class="zs-button cursor-interaction" data-action="selection-shorten">精简</button><button class="zs-button cursor-interaction" data-action="selection-expand">扩写</button></div>
+          <section class="zs-drawer" data-drawer hidden aria-label="文章资料面板"></section>
+        </main>
+        <aside class="zs-chat" aria-label="创作团队对话">
+          <header class="zs-chathead"><button class="zs-chat-title cursor-interaction" data-action="team">创作团队 <span class="zs-built">内置</span></button><div class="zs-teamdots"><button class="zs-tinyavatar cursor-interaction" data-action="team" aria-label="查看创作团队">编</button><button class="zs-tinyavatar cursor-interaction" data-action="team" aria-label="查看团队成员">研</button><button class="zs-tinyavatar cursor-interaction" data-action="team" aria-label="查看五位团队成员">+3</button><button class="zs-iconbutton cursor-interaction" data-action="chat-more" aria-label="对话选项"><i data-lucide="ellipsis" aria-hidden="true"></i></button></div></header>
+          <div class="zs-messagearea" data-messages aria-live="polite">
+            <div class="zs-welcome" data-welcome>
+              <div class="zs-welcome-mark"><i data-lucide="sprout" aria-hidden="true"></i></div>
+              <h2>好文章，从一个想法开始。</h2>
+              <p>我是你的创作主编。<br>从查资料到打磨表达，我们一起把它写好。</p>
+              <div class="zs-starters">
+                <button class="zs-starter cursor-interaction" data-prompt="帮我补充 Redis 的官方资料，整理到素材里。"><i data-lucide="search" aria-hidden="true"></i><span>补充可靠的资料和例子</span><i class="zs-starter-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i></button>
+                <button class="zs-starter cursor-interaction" data-prompt="根据当前文章，帮我创建一份更清晰的提纲。"><i data-lucide="list-tree" aria-hidden="true"></i><span>把文章结构梳理清楚</span><i class="zs-starter-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i></button>
+                <button class="zs-starter cursor-interaction" data-prompt="按当前提纲，帮我续写下一节正文。"><i data-lucide="pen-line" aria-hidden="true"></i><span>沿着当前思路继续写</span><i class="zs-starter-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i></button>
+                <button class="zs-starter cursor-interaction" data-prompt="帮我审阅草稿，检查逻辑和不够准确的表达，先给建议。"><i data-lucide="scan-text" aria-hidden="true"></i><span>读一遍，给我修改建议</span><i class="zs-starter-arrow" data-lucide="arrow-up-right" aria-hidden="true"></i></button>
+              </div>
+              <div class="zs-conversation-note"><i data-lucide="users" aria-hidden="true"></i>主编、研究员、结构编辑、写手与审校</div>
+            </div>
+          </div>
+          <div class="zs-composer-wrap">
+            <div class="zs-quote" data-quote hidden><i data-lucide="text-quote" aria-hidden="true"></i><span data-quote-text></span><button class="zs-iconbutton cursor-interaction" data-action="clear-quote" aria-label="移除引用"><i data-lucide="x" aria-hidden="true"></i></button></div>
+            <div class="zs-composer">
+              <div class="zs-recipient" data-recipient hidden><span data-recipient-label></span><button class="cursor-interaction" data-action="clear-recipient" aria-label="移除成员"><i data-lucide="x" aria-hidden="true"></i></button></div>
+              <textarea class="zs-input" data-input rows="3" aria-label="与创作团队对话" placeholder="说说你的想法，或输入 / 选任务、@ 找成员…"></textarea>
+              <div class="zs-inputbar"><div class="zs-inputtools"><button class="zs-iconbutton cursor-interaction" data-action="slash" aria-label="打开写作任务菜单">/</button><button class="zs-iconbutton cursor-interaction" data-action="mention" aria-label="选择团队成员">@</button><button class="zs-iconbutton cursor-interaction" data-action="attach" aria-label="引用文章素材"><i data-lucide="paperclip" aria-hidden="true"></i></button></div><div class="zs-input-right"><button class="zs-model cursor-interaction" data-action="model">默认模型<i data-lucide="chevron-down" aria-hidden="true"></i></button><button class="zs-send cursor-interaction" data-action="send" aria-label="发送消息" disabled><i data-lucide="arrow-up" aria-hidden="true"></i></button></div></div>
+              <div class="zs-palette" data-palette hidden></div>
+            </div>
+            <div class="zs-input-hint">Enter 发送 · Shift + Enter 换行</div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+  <div class="zs-popover" data-more hidden></div>
+  <div class="zs-overlay" data-overlay hidden><section class="zs-dialog" role="dialog" aria-modal="true" aria-label="创作空间详情" data-dialog></section></div>
+  <div class="zs-toast" data-toast role="status" hidden></div>
+  <script>
+  (() => {
+    const root = document.getElementById('zhixu-studio-demo');
+    const $ = selector => root.querySelector(selector);
+    const doc = $('[data-document]'), input = $('[data-input]'), messages = $('[data-messages]');
+    const initialHTML = doc.innerHTML;
+    const originalMaterials = [
+      {title:'Redis 官方：数据类型概览',source:'redis.io · 官方文档',content:'理解字符串、哈希、列表等数据类型，作为解释数据组织方式的参考。'},
+      {title:'文章的核心问题',source:'我的笔记',content:'面向初学者，用一次 GET 请求串起内存、事件循环和数据结构。'}
+    ];
+    const originalOutline = ['从一条 GET 命令开始','内存，让访问更直接','一条主线，处理许多连接','数据结构，为常见操作铺路','快，也有边界'];
+    const members = [
+      {name:'主编',initial:'编',icon:'sprout',description:'理解目标，协调团队，和你一起推进',skill:'选题 · 对话 · 协调'},
+      {name:'研究员',initial:'研',icon:'search',description:'找资料、核实来源，整理文章素材',skill:'资料检索 · 事实核对'},
+      {name:'结构编辑',initial:'纲',icon:'list-tree',description:'梳理逻辑，创建和调整文章提纲',skill:'提纲设计 · 结构优化'},
+      {name:'写手',initial:'写',icon:'pen-line',description:'写正文、续写，以及局部改写',skill:'初稿 · 改写 · 扩写'},
+      {name:'审校',initial:'校',icon:'scan-text',description:'检查事实、逻辑和表达，给出建议',skill:'逻辑检查 · 表达审阅'}
+    ];
+    const tasks = [
+      {name:'构思',icon:'lightbulb',description:'找选题、角度和切入点',member:'主编',prompt:'面向初学者，帮我想三个讲解 Redis 的文章角度。'},
+      {name:'素材',icon:'search',description:'查资料，整理到文章素材',member:'研究员',prompt:'帮我补充 Redis 的官方资料，整理到素材里。'},
+      {name:'提纲',icon:'list-tree',description:'创建或调整文章结构',member:'结构编辑',prompt:'根据当前文章，帮我创建一份更清晰的提纲。'},
+      {name:'写作',icon:'pen-line',description:'写初稿，或接着当前章节写',member:'写手',prompt:'按当前提纲，帮我续写下一节正文。'},
+      {name:'改写',icon:'wand-sparkles',description:'按你的要求修改选中段落',member:'写手',prompt:'帮我改写选中的文字，让表达更自然、简洁。'},
+      {name:'审校',icon:'scan-text',description:'检查事实、逻辑和重复表达',member:'审校',prompt:'帮我审阅草稿，检查逻辑和不够准确的表达，先给建议。'}
+    ];
+    let materials = originalMaterials.map(x=>({...x})), outline = [...originalOutline];
+    let quote = '', savedRange = null, recipient = '', paletteKind = '', paletteIndex = 0, paletteItems = [], busy = false, generation = 0, changes = [], toastTimer, thinkingNode = null;
+    const widget = window.openai?.widgetState || {};
+    const settings = { chatWidth:Number(widget.privateContent?.chatWidth)||342, comfortable:widget.privateContent?.comfortable!==false };
+    function persist(action){window.openai?.setWidgetState?.({modelContent:{layout:'文章编辑为主，右侧固定团队对话',lastAction:action},privateContent:settings})?.catch(()=>{});}
+    function icons(){if(globalThis.lucide) globalThis.lucide.createIcons({attrs:{width:16,height:16}});}
+    function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    function icon(name){return '<i data-lucide="'+name+'" aria-hidden="true"></i>';}
+    function toast(text){const e=$('[data-toast]');e.textContent=text;e.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.hidden=true,2400);}
+    function count(){ $('[data-word-count]').textContent=doc.textContent.replace(/\s/g,'').length; $('[data-material-count]').textContent=materials.length;$('[data-outline-count]').textContent=outline.length; }
+    function applySettings(){root.style.setProperty('--zs-aside',settings.chatWidth+'px');doc.style.lineHeight=settings.comfortable?'1.95':'1.7';}
+    function mobile(mode){root.dataset.mobile=mode;root.querySelectorAll('.zs-mobiletabs button').forEach(b=>b.classList.toggle('is-active',b.dataset.action==='mobile-'+mode));}
+    function setPrompt(text,who){input.value=text;if(who)setRecipient(who);updateInput();input.focus();mobile('chat');}
+    function setRecipient(name){recipient=name;$('[data-recipient]').hidden=!name;$('[data-recipient-label]').textContent='@'+name;}
+    function setQuote(text){quote=text;$('[data-quote]').hidden=!text;$('[data-quote-text]').textContent=text;}
+    function closePalette(){paletteKind='';$('[data-palette]').hidden=true;}
+    function openPalette(kind){paletteKind=kind;paletteIndex=0;renderPalette();}
+    function renderPalette(){
+      const menu=$('[data-palette]');let query=paletteKind==='tasks'?input.value.replace(/^\//,'').trim():input.value.match(/(?:^|\s)@([^\s]*)$/)?.[1]||'';
+      paletteItems=(paletteKind==='tasks'?tasks:members).filter(x=>(x.name+x.description).includes(query));
+      if(!paletteItems.length){menu.hidden=true;return;}
+      menu.innerHTML='<div class="zs-menu-label">'+(paletteKind==='tasks'?'写作任务':'创作团队 · 选择执行成员')+'</div>'+paletteItems.map((x,i)=>'<button class="zs-menuitem cursor-interaction '+(i===paletteIndex?'is-focused':'')+'" data-pick="'+i+'">'+icon(x.icon)+'<span>'+(paletteKind==='tasks'?'/':'@')+esc(x.name)+'<small>'+esc(x.description)+'</small></span>'+(paletteKind==='tasks'?'<span class="zs-menuright">'+esc(x.member)+'</span>':'')+'</button>').join('');
+      menu.hidden=false;icons();
+    }
+    function choose(index){const choice=paletteItems[index];if(!choice)return;if(paletteKind==='tasks'){if(choice.name==='改写'&&!quote)toast('先选中正文，或在消息中说明要修改的范围');setRecipient(choice.member);input.value=choice.prompt;}else{setRecipient(choice.name);input.value=input.value.replace(/(?:^|\s)@[^\s]*$/,'').trimStart();}closePalette();updateInput();input.focus();}
+    function updateInput(){const send=$('[data-action="send"]');send.disabled=!busy&&!input.value.trim();send.setAttribute('aria-label',busy?'停止生成':'发送消息');if(input.value.startsWith('/')&&!/\s/.test(input.value.slice(1)))openPalette('tasks');else if(/(?:^|\s)@[^\s]*$/.test(input.value))openPalette('members');else closePalette();}
+    function hideWelcome(){const welcome=$('[data-welcome]');if(welcome)welcome.hidden=true;}
+    function scroll(){messages.scrollTop=messages.scrollHeight;}
+    function addUser(text,member,context){hideWelcome();const e=document.createElement('div');e.className='zs-msg is-user';e.textContent=(member?'@'+member+'\n':'')+(context?'“'+context.slice(0,85)+'”\n\n':'')+text;messages.append(e);scroll();}
+    function addAssistant(name,text){const m=members.find(x=>x.name===name)||members[0];const e=document.createElement('div');e.className='zs-msg';e.innerHTML='<div class="zs-author"><span class="zs-author-avatar">'+m.initial+'</span><span>'+esc(name)+'</span></div><div class="zs-msgtext"></div>';e.querySelector('.zs-msgtext').textContent=text;messages.append(e);scroll();return e;}
+    function addCard(message,title,description,type,changeId){const card=document.createElement('div');card.className='zs-toolcard';card.innerHTML='<div class="zs-toolcard-top">'+icon('circle-check')+'<span>'+esc(title)+'</span></div><div class="zs-toolcard-desc">'+esc(description)+'</div><div class="zs-toolcard-actions"><button class="zs-button cursor-interaction" data-action="'+(type==='article'?'diff':type)+'" '+(changeId!==undefined?'data-change="'+changeId+'"':'')+'>'+ (type==='article'?'查看修改':type==='materials'?'查看素材':'查看提纲')+icon('arrow-up-right')+'</button>'+(changeId!==undefined?'<button class="zs-button cursor-interaction" data-action="undo" data-change="'+changeId+'">'+icon('undo-2')+'撤销</button>':'')+'</div>';message.append(card);icons();scroll();}
+    function snapshot(kind){const change={kind,beforeHTML:doc.innerHTML,beforeText:doc.innerText,beforeMaterials:materials.map(x=>({...x})),beforeOutline:[...outline],undone:false};changes.push(change);return changes.length-1;}
+    function finishChange(id){const c=changes[id];c.afterHTML=doc.innerHTML;c.afterText=doc.innerText;c.afterMaterials=JSON.stringify(materials);c.afterOutline=JSON.stringify(outline);count();persist(c.kind);}
+    function openDrawer(kind){const drawer=$('[data-drawer]');drawer.dataset.kind=kind;drawer.innerHTML='<div class="zs-drawer-head"><span>'+(kind==='materials'?'文章素材':'文章提纲')+'</span><button class="zs-iconbutton cursor-interaction" data-action="close-drawer" aria-label="关闭面板">'+icon('x')+'</button></div>'+(kind==='materials'?materials.map(m=>'<div class="zs-material"><small>'+icon('link')+esc(m.source)+'</small><h4>'+esc(m.title)+'</h4><p>'+esc(m.content)+'</p></div>').join(''):outline.map((text,i)=>'<div class="zs-outlineitem"><span>'+String(i+1).padStart(2,'0')+'</span><div>'+esc(text)+'</div></div>').join(''));drawer.hidden=false;mobile('editor');icons();}
+    function openDialog(title,html){$('[data-dialog]').innerHTML='<div class="zs-dialog-head"><h2>'+title+'</h2><button class="zs-iconbutton cursor-interaction" data-action="close-dialog" aria-label="关闭">'+icon('x')+'</button></div>'+html;$('[data-overlay]').hidden=false;icons();$('[data-dialog] button')?.focus();}
+    function showTeam(){openDialog('创作团队 <span class="zs-built">内置</span>','<p>默认服务于创作空间。你只需说需求，主编会协调合适的成员。</p>'+members.map(m=>'<div class="zs-member"><span class="zs-member-avatar">'+icon(m.icon)+'</span><div class="zs-member-info">'+esc(m.name)+'<small>'+esc(m.description)+'</small></div><span class="zs-built">内置</span></div>').join('')+'<p style="margin:17px 0 0">团队专属能力：创建素材、创建提纲、更新文章。内置模板只读，写作时无需配置流程。</p>');}
+    function showDiff(id){const c=changes[id];if(!c)return;openDialog('文章修改','<div class="zs-menu-label">修改前</div><div class="zs-diff">'+esc(c.beforeSelection||c.beforeText.slice(-350))+'</div><div class="zs-menu-label">修改后</div><div class="zs-diff is-new">'+esc(c.afterSelection||c.afterText.slice(-450))+'</div><button class="zs-button is-bordered cursor-interaction" data-action="undo" data-change="'+id+'">'+icon('undo-2')+'撤销这次修改</button>');}
+    function undo(id){const c=changes[id];if(!c||c.undone){toast('这次修改已经撤销');return;}const current=c.kind==='article'?doc.innerHTML:c.kind==='materials'?JSON.stringify(materials):JSON.stringify(outline);const expected=c.kind==='article'?c.afterHTML:c.kind==='materials'?c.afterMaterials:c.afterOutline;if(current!==expected){toast('内容已有新修改，保留当前内容');return;}if(c.kind==='article')doc.innerHTML=c.beforeHTML;else if(c.kind==='materials')materials=c.beforeMaterials.map(x=>({...x}));else outline=[...c.beforeOutline];c.undone=true;count();if(!$('[data-drawer]').hidden)openDrawer($('[data-drawer]').dataset.kind);$('[data-overlay]').hidden=true;toast('已撤销，原内容已恢复');persist('撤销修改');}
+    async function send(){
+      if(busy){generation++;busy=false;thinkingNode?.remove();thinkingNode=null;$('[data-action="send"]').innerHTML=icon('arrow-up');addAssistant('主编','已停止。已经保存的内容会保留，你可以随时撤销。');icons();updateInput();return;}
+      const text=input.value.trim();if(!text)return;const selected=quote,range=savedRange?.cloneRange(),who=recipient;const startHTML=doc.innerHTML;addUser(text,who,selected);input.value='';setQuote('');setRecipient('');closePalette();busy=true;const token=++generation;$('[data-action="send"]').innerHTML=icon('square');$('[data-action="send"]').disabled=false;icons();
+      const thinking=addAssistant(who||'主编','正在结合这篇文章整理思路…');thinkingNode=thinking;updateInput();
+      await new Promise(resolve=>setTimeout(resolve,650));if(token!==generation)return;thinking.remove();thinkingNode=null;let message;
+      if(/素材|资料|来源|查证/.test(text)&&!/审阅|审校|检查/.test(text)){
+        const id=snapshot('materials');if(!materials.some(m=>m.title==='Redis 官方：事件处理与 I/O'))materials.push({title:'Redis 官方：事件处理与 I/O',source:'redis.io · 官方文档 · 示例素材',content:'可用于第三节：区分命令执行与网络 I/O，避免把“单线程”理解为 Redis 的所有工作都只用一个线程。'});finishChange(id);message=addAssistant(who||'研究员','我补充了一条关于事件处理的参考素材。写第三节时，建议把“命令执行”和“网络 I/O”分开解释，会更准确。');addCard(message,'已整理 '+materials.length+' 条文章素材','来源和笔记已放进这篇文章的素材中。','materials',id);
+      }else if(/提纲|结构/.test(text)&&!/续写|初稿|正文|审阅|审校/.test(text)){
+        const id=snapshot('outline');outline=['开场：为什么“放在内存里”只说对一半','跟着一条 GET 请求走一遍','内存与数据结构：先把路铺好','事件循环：让连接在准备好时被处理','澄清误区：单线程究竟指什么','总结：速度来自一组协同的设计'];finishChange(id);message=addAssistant(who||'结构编辑','可以用“一条请求的旅程”贯穿全文。我把核心解释放在前面，最后单独澄清“单线程”的常见误解。');addCard(message,'已更新文章提纲','6 个章节，保留当前的叙述方向。','outline',id);
+      }else if(/精简|改写|扩写|替换|润色/.test(text)){
+        if(!selected){message=addAssistant(who||'写手','可以。先在左侧选中要修改的段落，再点“精简”或“改写”，我就能只处理那一段。');}
+        else if(doc.innerHTML!==startHTML||!range||!doc.contains(range.commonAncestorContainer)){message=addAssistant('主编','你刚刚继续修改了文章，我先保留当前版本。请重新选择段落后再发给我。');}
+        else{const id=snapshot('article');let replacement=/扩写/.test(text)?selected+' 换句话说，关键在于把等待和实际处理区分开：准备就绪的连接先被处理，其余连接继续等待自己的时机。':/精简|简洁/.test(text)?'Redis 通过事件循环管理多个连接，在连接就绪时处理请求，减少线程切换带来的开销。':'Redis 使用事件循环协调多个连接：谁准备好了，就先处理谁。这样无需为每个连接单独创建线程，也能让请求有序推进。';changes[id].beforeSelection=selected;changes[id].afterSelection=replacement;range.deleteContents();const mark=document.createElement('mark');mark.textContent=replacement;range.insertNode(mark);finishChange(id);message=addAssistant(who||'写手','已按你的要求调整选中段落，其他内容保持原样。你可以查看前后对比，也可以撤销。');addCard(message,'已更新选中段落','修改已同步到左侧正文。','article',id);}
+      }else if(/续写|初稿|写入|写一节|正文/.test(text)){
+        const id=snapshot('article');const h=document.createElement('h2');h.textContent='04 · 数据结构，为常见操作铺路';const p=document.createElement('p');p.textContent='速度也来自如何组织数据。面对不同的访问方式，Redis 提供了不同的数据类型。选择合适的类型，就像为常走的路线铺好路：读取一个值、更新一个字段、维护一个有序集合，都有各自适合的方式。';doc.append(h,p);finishChange(id);message=addAssistant(who||'写手','我顺着“一条请求的旅程”补写了下一节，用“铺路”的比喻衔接数据结构，延续前文的表达。');addCard(message,'已续写下一节正文','添加在文章末尾，可以继续编辑。','article',id);
+      }else if(/审阅|审校|检查|准确/.test(text)){
+        message=addAssistant(who||'审校','建议先看这三处：\n\n1. “单线程”最好限定到具体工作，避免让读者理解成 Redis 没有任何后台线程。\n\n2. 第二节之后可以补一个具体例子，解释为什么数据结构也会影响访问效率。\n\n3. 结尾回到开头的问题，概括内存、事件循环和数据组织之间的关系。\n\n目前只提供建议，还没有修改正文。');
+      }else if(selected){message=addAssistant(who||'主编','这段主要在解释“事件驱动”：多个连接可以同时等待，但不必为每个连接都安排一个线程。连接准备好之后，事件循环再推进对应的处理。\n\n如果想让初学者更容易理解，可以补一句：“像一个按叫号顺序服务的窗口，谁的材料准备好了，就继续办谁的事。”\n\n这里只做解释，没有修改原文。');}
+      else if(/角度|构思|选题/.test(text)){message=addAssistant(who||'主编','这篇文章可以从三个角度切入：\n\n① 一条 GET 请求的旅程：用完整过程串起原理。\n② “内存快”为什么不够：逐层解释设计取舍。\n③ 破解三个常见误解：内存、单线程和持久化。\n\n当前草稿已经用了第一种。我建议沿着它继续写，读者会更容易建立整体印象。');}
+      else{message=addAssistant(who||'主编','可以，我们围绕这篇文章继续。你可以让我补充素材、创建提纲、续写正文；也可以选中左侧的一段文字，再问我如何解释或改写。\n\n输入 / 可以选择任务，输入 @ 可以直接找到对应成员。');}
+      busy=false;$('[data-action="send"]').innerHTML=icon('arrow-up');icons();updateInput();scroll();persist(text.slice(0,80));
+    }
+    function captureSelection(){const selection=window.getSelection();if(!selection||selection.isCollapsed||!selection.rangeCount)return;const range=selection.getRangeAt(0);if(!doc.contains(range.commonAncestorContainer))return;savedRange=range.cloneRange();const selected=selection.toString().trim();if(!selected)return;const menu=$('[data-selection-menu]');menu.dataset.text=selected;const bounds=range.getBoundingClientRect(),editor=$('.zs-editor').getBoundingClientRect();menu.style.top=Math.max(55,bounds.top-editor.top-43)+'px';menu.style.left=Math.max(8,Math.min(bounds.left-editor.left,editor.width-245))+'px';menu.hidden=false;}
+    doc.addEventListener('mouseup',captureSelection);doc.addEventListener('keyup',captureSelection);doc.addEventListener('touchend',()=>setTimeout(captureSelection,0));
+    doc.addEventListener('input',()=>{count();const e=$('[data-saved]');e.textContent='已在演示中保存';});
+    $('[data-selection-menu]').addEventListener('mousedown',e=>e.preventDefault());
+    input.addEventListener('input',updateInput);
+    input.addEventListener('keydown',e=>{if(e.isComposing)return;if(e.key==='Escape'){closePalette();return;}if(!$('[data-palette]').hidden&&['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();paletteIndex=(paletteIndex+(e.key==='ArrowDown'?1:-1)+paletteItems.length)%paletteItems.length;renderPalette();return;}if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(!$('[data-palette]').hidden)choose(paletteIndex);else send();}});
+    root.addEventListener('keydown',e=>{if(e.key==='Escape'){$('[data-overlay]').hidden=true;$('[data-more]').hidden=true;$('[data-selection-menu]').hidden=true;closePalette();}if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='i'&&doc.contains(document.activeElement)){e.preventDefault();captureSelection();if(savedRange){setQuote(savedRange.toString());setPrompt('这段可以怎样解释得更清楚？');}}});
+    root.addEventListener('click',e=>{
+      const pick=e.target.closest('[data-pick]');if(pick){choose(Number(pick.dataset.pick));return;}
+      const starter=e.target.closest('[data-prompt]');if(starter){setPrompt(starter.dataset.prompt);return;}
+      const button=e.target.closest('[data-action]');if(!button){if(e.target===$('[data-overlay]'))$('[data-overlay]').hidden=true;return;}
+      const action=button.dataset.action;
+      if(!['more','chat-more'].includes(action))$('[data-more]').hidden=true;
+      if(action==='send'){send();return;}
+      if(action==='slash'||action==='mention'){if(action==='slash')input.value='/';else input.value=input.value.replace(/\s*@\S*$/,'')+(input.value?' ':'')+'@';openPalette(action==='slash'?'tasks':'members');input.focus();return;}
+      if(action==='clear-quote'){setQuote('');return;}if(action==='clear-recipient'){setRecipient('');return;}
+      if(action.startsWith('selection-')){const text=$('[data-selection-menu]').dataset.text;if(text)setQuote(text);$('[data-selection-menu]').hidden=true;const kind=action.slice(10);setPrompt(kind==='ask'?'这段可以怎样解释得更清楚？':kind==='shorten'?'把选中这段精简一下，保留核心意思。':kind==='expand'?'给选中这段补充解释和一个简单的例子。':'帮我改写选中这段，让表达更自然。',kind==='ask'?'主编':'写手');return;}
+      if(action==='quick-ask'){if(savedRange&&doc.contains(savedRange.commonAncestorContainer))setQuote(savedRange.toString());else setQuote('全文 · Redis 的原理');setPrompt('');return;}
+      if(action==='materials'||action==='outline'){openDrawer(action);return;}if(action==='attach'){openDrawer('materials');toast('素材会作为当前文章的上下文');return;}
+      if(action==='close-drawer'){$('[data-drawer]').hidden=true;return;}if(action==='team'){showTeam();return;}
+      if(action==='close-dialog'){$('[data-overlay]').hidden=true;return;}
+      if(action==='diff'){showDiff(Number(button.dataset.change));return;}if(action==='undo'){undo(Number(button.dataset.change));return;}
+      if(action==='edit'||action==='preview'){doc.contentEditable=action==='edit'?'true':'false';doc.classList.toggle('is-preview',action==='preview');root.querySelectorAll('.zs-mode').forEach(b=>{b.classList.toggle('is-active',b.dataset.action===action);b.setAttribute('aria-pressed',String(b.dataset.action===action));});toast(action==='preview'?'预览模式':'现在可以直接编辑正文');return;}
+      if(action==='mobile-editor'||action==='mobile-chat'){mobile(action.slice(7));return;}
+      if(action==='more'||action==='chat-more'){const pop=$('[data-more]');pop.style.left=action==='more'?'53px':'auto';pop.style.right=action==='more'?'auto':'15px';pop.style.top=action==='more'?'200px':'108px';pop.innerHTML='<div class="zs-menu-label">'+(action==='more'?'更多':'对话')+'</div><button class="zs-menuitem cursor-interaction" data-action="team">'+icon('users')+'团队管理</button>'+(action==='more'?'<button class="zs-menuitem cursor-interaction" data-action="capability">'+icon('bot')+'智能体与技能</button><button class="zs-menuitem cursor-interaction" data-action="capability">'+icon('plug')+'应用与扩展</button><button class="zs-menuitem cursor-interaction" data-action="capability">'+icon('book-open')+'记忆与身份</button>':'<button class="zs-menuitem cursor-interaction" data-action="reset">'+icon('rotate-ccw')+'重置演示</button>');pop.hidden=!pop.hidden;icons();return;}
+      if(action==='model'){openDialog('模型设置','<p>正式接入时，这里沿用当前会话的模型设置，团队成员默认继承。</p><div class="zs-material"><h4>当前：默认模型</h4><p>此处仅演示交互，不发送真实模型请求。</p></div>');return;}
+      if(action==='export'){const text=doc.innerText;const blob=new Blob([text],{type:'text/markdown;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='Redis 的原理.md';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('已导出当前文章');return;}
+      if(action==='settings'){openDialog('创作偏好','<p>专注文章，让团队在一旁协作。</p><div class="zs-member"><span class="zs-member-info">团队协作模式<small>主编对话，按需调用成员和文章工具</small></span><span class="zs-built">默认</span></div><div class="zs-member"><span class="zs-member-info">修改文章<small>明确要求后修改，提供对比与撤销</small></span><span class="zs-built">已开启</span></div>');return;}
+      if(action==='assistant'||action==='capability'){toast('此演示聚焦创作空间，其他功能沿用现有页面');return;}
+      if(action==='creative'){mobile('editor');return;}
+      if(action==='reset'){generation++;busy=false;doc.innerHTML=initialHTML;materials=originalMaterials.map(x=>({...x}));outline=[...originalOutline];changes=[];messages.querySelectorAll('.zs-msg').forEach(e=>e.remove());$('[data-welcome]').hidden=false;input.value='';setQuote('');setRecipient('');$('[data-drawer]').hidden=true;$('[data-action="send"]').innerHTML=icon('arrow-up');count();updateInput();icons();toast('已恢复初始演示');return;}
+    });
+    document.addEventListener('mousedown',e=>{if(!root.contains(e.target))return;if(!e.target.closest('.zs-contextbar')&&!doc.contains(e.target))$('[data-selection-menu]').hidden=true;if(!e.target.closest('.zs-composer'))closePalette();});
+    applySettings();count();icons();
+    if(globalThis.Tweak){const tweak=new Tweak({container:root,onChange:()=>{applySettings();persist('调整创作空间布局');}});tweak.addSlider(settings,'chatWidth',{label:'对话栏宽度',min:304,max:400,step:8,unit:'px'});tweak.addToggle(settings,'comfortable',{label:'舒展阅读行距'});}
+    window.addEventListener('openai:set_globals',e=>{const stored=e.detail?.globals?.widgetState?.privateContent;if(stored){if(Number(stored.chatWidth))settings.chatWidth=Number(stored.chatWidth);if(typeof stored.comfortable==='boolean')settings.comfortable=stored.comfortable;applySettings();}});
+  })();
+  </script>
+</div>
