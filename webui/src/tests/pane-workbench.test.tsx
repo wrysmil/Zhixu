@@ -418,9 +418,42 @@ describe("PaneWorkbench", () => {
 
     rerender(view("19rem"));
     expect(host.style.marginRight).toBe("19rem");
+    // 右边距只在宽度不是 100% 时才参与盒宽计算：w-full 会让它变成过约束并被 CSS 丢弃，
+    // 19rem 的让位就失效、rail 压到输入区上（2026-10-17 实测的根因）。
+    expect(host.className).not.toMatch(/\bw-full\b/);
 
     rerender(view());
     expect(host.style.marginRight).toBe("");
+  });
+
+  it("drops the rail inset while the rail is hidden on narrow viewports", () => {
+    // rail 本身是 `hidden md:flex`：<768px 时它不存在，输入区就不该被 19rem 白让位。
+    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
+      matches: query.includes("max-width: 767px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+
+    render(
+      <PaneWorkbench
+        panes={[{ key: "alpha", title: "Alpha" }]}
+        activePaneKey="alpha"
+        layout="columns"
+        showLayoutControl={false}
+        composerRailInset="19rem"
+        onActivatePane={vi.fn()}
+        onLayoutChange={vi.fn()}
+        onPaneOrderChange={vi.fn()}
+        renderPane={() => null}
+      />,
+    );
+
+    expect(screen.getByTestId("workbench-composer-host").style.marginRight).toBe("");
   });
 
   it("fills the workbench through alternating binary splits", () => {

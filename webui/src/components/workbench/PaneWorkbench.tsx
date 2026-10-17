@@ -795,8 +795,16 @@ export function PaneWorkbench({
             <div
               ref={setComposerPortalTarget}
               data-testid="workbench-composer-host"
-              className="mx-auto w-full max-w-[58rem]"
-              style={composerRailInset ? { marginRight: composerRailInset } : undefined}
+              // 这里刻意不写 `w-full`：宽度一旦钉成 100%，`margin-right` 就是过约束，
+              // CSS 会把 auto 边距压成 0、丢掉右外边距，19rem 的让位随之失效 →
+              // 常驻工作台 rail 会盖到输入区上。宽度交给 width:auto（可用宽 − 边距）推。
+              // rail 在 <768px 是 `hidden md:flex`，那时不该白让位。
+              className="mx-auto max-w-[58rem]"
+              style={
+                composerRailInset && !compact
+                  ? { marginRight: composerRailInset }
+                  : undefined
+              }
             />
           </footer>
         ) : null}
