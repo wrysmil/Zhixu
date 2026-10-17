@@ -83,6 +83,40 @@ def _is_recovery_continuation(msg: Any) -> bool:
     return bool(cast("Mapping[str, Any]", metadata).get("_webui_recovery_id"))
 
 
+def resolve_session_runtime(
+    session_key: str,
+    *,
+    session_runtime_provider: Callable[[str], Any] | None,
+    fallback: Callable[[], Any] | None,
+) -> tuple[Any, str]:
+    """按会话解析 runtime；没有会话能力（或解析不出来）就回落装配期的默认 runtime。
+
+    ``session_runtime_provider`` 是装配层给的「按 ``session_key`` 解析」能力（协作会话里
+    就是 ``AgentLoop.runtime_for_session`` 配上会话存储）。返回值第二项 ``source`` 取
+    ``"session" | "default" | "none"``，供调用方写结构化日志。
+
+    **解析失败为什么不抛出**：会话 preset 是作者偏好，失效时 ``runtime_for_session`` 自己
+    就回落默认（spec §4.4）；这里再兜一层，免得一条坏掉的会话 metadata 让整批写作或整个
+    回合失败。失败会以 ``team_session_runtime_unavailable`` 事件留痕（只记错误类型，
+    不记 metadata 内容）。
+    """
+    if session_runtime_provider is not None and session_key:
+        try:
+            runtime = session_runtime_provider(session_key)
+        except Exception as error:  # noqa: BLE001 - 会话 runtime 是偏好，不能拖垮调用方
+            logger.bind(
+                event="team_session_runtime_unavailable",
+                session_key=session_key,
+                error_type=type(error).__name__,
+            ).warning("session runtime resolution failed; falling back to the default runtime")
+        else:
+            if runtime is not None:
+                return runtime, "session"
+    if fallback is not None:
+        return fallback(), "default"
+    return None, "none"
+
+
 @dataclass
 class TeamLeaderTurns:
     """loop 注入点本体：``await turns(msg, session, turn_id)`` 得到本回合的团队装配。"""
@@ -94,8 +128,19 @@ class TeamLeaderTurns:
     skill_names: Callable[[], Sequence[str]] = field(default=lambda: ())
     # 每次开新运行取「当回合的默认执行配置」；装配时抓一份会在换模型后过期。
     runtime_provider: Callable[[], Any] | None = None
+    # 按会话解析（协作会话键 ``websocket:<chat_id>``）；取到就用它，取不到回落上面那份。
+    session_runtime_provider: Callable[[str], Any] | None = None
     # 重试前的 preset 可用性检查要用；按名字解析且不改默认选择（契约 §5）。
     preset_resolver: Callable[[str], Any] | None = None
+
+    def runtime_for(self, session_key: str) -> Any:
+        """这次运行该用的 runtime：会话解析优先，其次装配期的默认执行配置。"""
+        runtime, _source = resolve_session_runtime(
+            session_key,
+            session_runtime_provider=self.session_runtime_provider,
+            fallback=self.runtime_provider,
+        )
+        return runtime
 
     async def __call__(self, msg: Any, session: Any, turn_id: str) -> LeaderTurnContext | None:
         if _is_recovery_continuation(msg):
@@ -127,7 +172,7 @@ class TeamLeaderTurns:
                 workspace=self.workspace,
                 origin_message_id=_metadata_value(getattr(msg, "metadata", None), "message_id"),
                 snapshot=snapshot,
-                runtime=self.runtime_provider() if self.runtime_provider is not None else None,
+                runtime=self.runtime_for(session_key),
             )
         return self._context_for(handle)
 
@@ -237,6 +282,26 @@ def build_team_turns(
     def current_runtime() -> Any:
         return host.runtime_resolver.runtime
 
+    # ``host`` 是鸭子类型（生产是 ``AgentLoop``，测试宿主可能什么团队表面都没有）：
+    # 能力用 ``getattr`` 探测，缺任一项就当作不支持，绝不假设具体类型。
+    resolve_for_session: Callable[[Any], Any] | None = getattr(host, "runtime_for_session", None)
+    session_store: Any = getattr(host, "sessions", None)
+    get_or_create: Callable[[str], Any] | None = getattr(session_store, "get_or_create", None)
+    session_runtime_available = callable(resolve_for_session) and callable(get_or_create)
+
+    def session_runtime(session_key: str) -> Any | None:
+        """按会话取该会话解析出的 runtime；host 不支持时 ``None``（回落 ``current_runtime``）。
+
+        会话查找每次现取（``get_or_create(session_key)``）：会话 preset 会被 ``/model``
+        改，装配期抓一份就会在切换后过期。
+        """
+        if resolve_for_session is None or get_or_create is None:
+            return None
+        session = get_or_create(session_key)
+        if session is None:
+            return None
+        return resolve_for_session(session)
+
     def resolve_preset(name: str) -> Any:
         resolver = getattr(host.runtime_resolver, "resolve_preset", None)
         if resolver is None:
@@ -258,5 +323,6 @@ def build_team_turns(
         tool_names=leader_tools,
         skill_names=skill_names,
         runtime_provider=current_runtime,
+        session_runtime_provider=session_runtime if session_runtime_available else None,
         preset_resolver=resolve_preset,
     )

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Awaitable, Mapping
-from dataclasses import dataclass
+from collections.abc import Awaitable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -18,7 +18,7 @@ from nanobot.memory.lifecycle import MemoryLifecycle
 from nanobot.teams.binding import TeamBindingStore
 from nanobot.teams.runs import TeamRunController
 from nanobot.teams.service import TeamService
-from nanobot.teams.turn import TeamLeaderTurns, build_team_turns
+from nanobot.teams.turn import TeamLeaderTurns, build_team_turns, resolve_session_runtime
 from nanobot.webui import (
     agents_api,
     identity_api,
@@ -192,6 +192,10 @@ def build_writing_collab_runner(
     ``publish`` 把领域事件翻成契约 §5 的三类帧：帧的 ``chat_id`` 只能从协作行取
     （事件体里没有归属字段，客户端也不得影响归属），因此这里读一次协作行再把
     ``OutboundMessage`` 投进总线，交给既有的 WebUI 投影出口扇出。
+
+    ``model_id`` 仍是「本批冻结的模型标识」的来源，只是**取值口径变了**：优先按协作会话
+    （``websocket:<chat_id>``）解析出的 runtime，该会话没有 preset 或跑不起解析时才回落到
+    这个零参回调（装配期的全局模型名）。批次 runtime 与冻结记录因此是同一份解析结果。
     """
     from nanobot.agent.skills import SkillsLoader
     from nanobot.bus.outbound_events import (
@@ -215,6 +219,48 @@ def build_writing_collab_runner(
         "writing_artifact": WritingArtifactEvent,
         "writing_handoff": WritingHandoffEvent,
     }
+    # 协作会话的模型 preset 是**唯一**的模型真相源（挂在会话 metadata 上）。装配层
+    # 只负责把「按会话键解析」的能力递给批次端口与冻结准备，绝不新增任何模型字段。
+    session_runtime_provider = getattr(team_turns, "session_runtime_provider", None)
+
+    def _log_frozen_model_fallback(collaboration_id: str, error: Exception) -> None:
+        logger.bind(
+            event="writing_collab_frozen_session_model_failed",
+            collaboration_id=collaboration_id,
+            error_type=type(error).__name__,
+        ).warning("frozen model resolution by collaboration session failed; using the default")
+
+    def session_model_id(collaboration_id: str) -> str | None:
+        """本批冻结的模型标识 = 该**协作会话**解析出的模型；取不到回 ``None``（回落全局）。
+
+        会话键优先取协作行上的 ``session_key``（``CollabRunner`` 建行时写入、并且原样交给
+        ``TeamWritingPort.start_batch``，所以冻结与实际起跑必然是同一个键）；老行缺该列时
+        才按 ``<channel>:<chat_id>`` 拼。``chat_id`` 只能从协作行取（客户端不得影响归属）。
+        会话 preset 失效时 ``runtime_for_session`` 自己回落默认（spec §4.4），这里只兜
+        「会话层整个不可用」这类错误。
+        """
+        if session_runtime_provider is None or not collaboration_id:
+            return None
+        try:
+            collaboration = repository.get_collaboration(collaboration_id)
+        except Exception as error:  # noqa: BLE001 - 读不到协作行就回落全局模型名
+            _log_frozen_model_fallback(collaboration_id, error)
+            return None
+        session_key = str(getattr(collaboration, "session_key", "") or "")
+        if not session_key:
+            chat_id = str(getattr(collaboration, "chat_id", "") or "")
+            session_key = f"{channel_name}:{chat_id}" if chat_id else ""
+        if not session_key:
+            return None
+        runtime, _source = resolve_session_runtime(
+            session_key,
+            session_runtime_provider=session_runtime_provider,
+            fallback=None,
+        )
+        model = getattr(runtime, "model", None)
+        if isinstance(model, str) and model.strip():
+            return model.strip()
+        return None
 
     def _log_publish_failure(task: asyncio.Task[Any]) -> None:
         if task.cancelled():
@@ -239,6 +285,39 @@ def build_writing_collab_runner(
         task = asyncio.get_running_loop().create_task(bus.publish_outbound(message))
         task.add_done_callback(_log_publish_failure)
 
+    # 冻结准备端口：``model_id`` 语义不变（仍是「本批冻结的模型标识」），只是来源从全局
+    # 改成协作会话解析结果。``frozen_preparer`` 的 ``model_id`` 是零参回调（``_prepare_frozen``
+    # 调用时不给 session_key），所以这里包一层：先照旧冻结，再按协作会话改写到同一份
+    # ``FrozenContext``（``FrozenContext`` 是 frozen dataclass，用 ``replace`` 只换一个字段）。
+    base_preparer = frozen_preparer(
+        loader=SkillsLoader(Path(workspace_path)),
+        model_id=model_id,
+    )
+
+    def session_frozen_preparer(
+        *,
+        recipe: Any = None,
+        article_snapshot: Mapping[str, Any] | None = None,
+        material_ids: Sequence[str] = (),
+        collaboration_id: str = "",
+        workspace_key: str = "",
+        article_id: str = "",
+        batch_id: str = "",
+    ) -> Any:
+        frozen = base_preparer(
+            recipe=recipe,
+            article_snapshot=dict(article_snapshot or {}),
+            material_ids=tuple(material_ids or ()),
+            collaboration_id=collaboration_id,
+            workspace_key=workspace_key,
+            article_id=article_id,
+            batch_id=batch_id,
+        )
+        resolved = session_model_id(collaboration_id)
+        if resolved and resolved != str(getattr(frozen, "model_id", "") or ""):
+            frozen = replace(frozen, model_id=resolved)
+        return frozen
+
     port = TeamWritingPort(
         service=team_service,
         workspace=Path(workspace_path),
@@ -247,6 +326,7 @@ def build_writing_collab_runner(
         registry=BuiltinAssetRegistry(database),
         session_store=session_manager,
         runtime_provider=getattr(team_turns, "runtime_provider", None),
+        session_runtime_provider=session_runtime_provider,
         logger=logger,
     )
     runner = CollabRunner(
@@ -261,10 +341,7 @@ def build_writing_collab_runner(
             workspace_key=database.workspace_key,
             logger=logger,
         ),
-        preparer=frozen_preparer(
-            loader=SkillsLoader(Path(workspace_path)),
-            model_id=model_id,
-        ),
+        preparer=session_frozen_preparer,
         publisher=publish,
         logger=logger,
     )
@@ -450,6 +527,7 @@ def build_gateway_services(
                 service=team_service,
                 scheduler=team_turns.scheduler,
                 runtime_provider=team_turns.runtime_provider or (lambda: None),
+                session_runtime_provider=team_turns.session_runtime_provider,
                 preset_resolver=team_turns.preset_resolver,
                 workspace=workspace_path,
             ),

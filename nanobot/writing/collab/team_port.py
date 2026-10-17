@@ -51,7 +51,12 @@ from nanobot.teams.models import (
 from nanobot.teams.repository import TeamNotFound, utc_now_iso
 from nanobot.teams.scheduler import WRITING_UPSTREAM_BUDGET, TeamScheduler
 from nanobot.teams.service import TeamService
-from nanobot.teams.turn import TeamLeaderTurns, bind_team_turns, build_team_turns
+from nanobot.teams.turn import (
+    TeamLeaderTurns,
+    bind_team_turns,
+    build_team_turns,
+    resolve_session_runtime,
+)
 from nanobot.writing.builtin import WRITING_TEAM_LOGICAL_ID
 from nanobot.writing.collab.envelope import (
     ROLE_ARTIFACT_KINDS,
@@ -205,12 +210,17 @@ class TeamWritingPort:
         session_store: Any | None = None,
         binding_sink: Callable[[str, TeamBinding], None] | None = None,
         runtime_provider: Callable[[], Any] | None = None,
+        session_runtime_provider: Callable[[str], Any] | None = None,
         logger: Any = default_logger,
     ) -> None:
         """``turns`` 与 ``host`` 二选一：给了 ``turns`` 就复用既有团队执行栈。
 
         ``agent`` 是 ``AgentLoop``（``AgentLike``）：给了就调 ``bind_team_turns``，让写作
         会话里由主编推进的回合也走同一套团队栈；给 ``None``（CLI/测试）只装批次路径。
+
+        ``runtime_provider`` 是**零参**的装配期默认执行配置（CLI/TUI/测试一直在用）；
+        ``session_runtime_provider`` 是「按协作会话键解析 runtime」。两个都给时按会话优先，
+        会话解析不出结果才回落零参那份 —— 否则侧栏切换的 preset 只是装饰。
         """
         if turns is None:
             if host is None:
@@ -225,6 +235,7 @@ class TeamWritingPort:
         self._session_store = session_store
         self._binding_sink = binding_sink
         self._runtime_provider = runtime_provider
+        self._session_runtime_provider = session_runtime_provider
         self._logger = logger
         self._event_sink: Callable[[Any], None] | None = None
         self._pending: dict[str, asyncio.Task[Any]] = {}
@@ -501,6 +512,28 @@ class TeamWritingPort:
             team_name=definition.name,
         )
         snapshot = await asyncio.to_thread(self._service.prepare_new_run, definition.id)
+        # 按**这个协作会话**解析 runtime（侧栏切换的模型 preset 落在这里）；没有会话能力
+        # 的装配（CLI/TUI/旧测试）回落零参 runtime_provider，行为与改动前一致。
+        runtime, runtime_source = resolve_session_runtime(
+            session_key,
+            session_runtime_provider=self._session_runtime_provider,
+            fallback=self._runtime_provider,
+        )
+        # 复用的冻结上下文（``writing.retry`` 不重新冻结技能/模型）会带着上一版的
+        # ``model_id``。侧栏这时若已经切过模型，实际起跑的 runtime 会与冻结记录不一致 ——
+        # 行为按 spec §4.4 只影响新批次（这里不动模型），但偏差必须留痕可查。
+        frozen_model_id = str(payload.get("model_id") or "")
+        runtime_model_id = str(getattr(runtime, "model", "") or "")
+        if frozen_model_id and runtime_model_id and frozen_model_id != runtime_model_id:
+            self._log(
+                "warning",
+                event="writing_collab_frozen_model_mismatch",
+                collaboration_id=collaboration_id,
+                batch_id=batch_id,
+                attempt=attempt,
+                frozen_model_id=frozen_model_id,
+                runtime_model_id=runtime_model_id,
+            )
         handle = await self._scheduler.start_run(
             binding=binding,
             chat_id=chat_id,
@@ -510,7 +543,7 @@ class TeamWritingPort:
             internal_turn_id=f"writing:{batch_id}:{attempt}",
             workspace=self._workspace,
             snapshot=snapshot,
-            runtime=self._runtime_provider() if self._runtime_provider is not None else None,
+            runtime=runtime,
             upstream_expander=self._expand_upstream,
             upstream_budget=WRITING_UPSTREAM_BUDGET,
         )
@@ -526,6 +559,7 @@ class TeamWritingPort:
             run_id=handle.run_id,
             action=action,
             member_tasks=len(planned),
+            runtime_source=runtime_source,
         )
         task = asyncio.create_task(
             self._drive(
