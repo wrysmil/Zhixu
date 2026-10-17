@@ -12,7 +12,6 @@ import {
   Eye,
   EyeOff,
   Moon,
-  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   ShieldCheck,
@@ -2963,18 +2962,12 @@ function Shell({
               </div>
             </div>
             {(view === "creative" || view === "article") ? (
-              <div className="absolute inset-0 overflow-y-auto bg-background">
-                <header className={cn("flex h-14 items-center gap-3 border-b border-border px-5 sm:px-8", showHostChrome && "mt-10")}>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden"
-                    aria-label={t("thread.header.toggleSidebar")} onClick={toggleSidebar}>
-                    <PanelLeftOpen className="h-4 w-4" aria-hidden />
-                  </Button>
-                  <span className="text-xs text-muted-foreground">{t("workspace.home.creativeTitle")}</span>
-                  <Button variant="ghost" size="icon" className="ml-auto h-8 w-8"
-                    aria-label={t("thread.header.toggleTheme")} onClick={toggle}>
-                    {theme === "dark" ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />}
-                  </Button>
-                </header>
+              <div
+                className={cn(
+                  "absolute inset-0 overflow-y-auto bg-background",
+                  showHostChrome && "pt-10",
+                )}
+              >
                 <Suspense fallback={null}>
                   <CreativeWorkspace
                     getToken={getToken}
