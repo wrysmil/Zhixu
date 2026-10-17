@@ -242,7 +242,7 @@ class TeamService:
             definition=definition,
             snapshot=self.freeze(definition),
             expected_revision=None,
-            request_id=f"{request_id}:{team_id}",
+            request_id=f"{request_id}:{team_id}:r1",
         )
 
     def _refresh_builtin_team(
@@ -271,7 +271,7 @@ class TeamService:
             definition=definition,
             snapshot=self.freeze(definition),
             expected_revision=current.revision,
-            request_id=f"{request_id}:{team_id}",
+            request_id=f"{request_id}:{team_id}:r{current.revision + 1}",
         )
 
     # ------------------------------------------------------------------ 写入

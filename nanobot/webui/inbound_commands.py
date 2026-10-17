@@ -65,12 +65,21 @@ from nanobot.webui.sidebar_state import write_webui_sidebar_state
 from nanobot.webui.teams_routes import translate
 from nanobot.webui.temporary_chats import TemporaryChatError
 from nanobot.webui.transcription_ws import webui_transcription_event
+from nanobot.writing.repository import ArticleNotFound
+from nanobot.writing.run_extension import WRITING_CONTEXT_KEY
 
 _WEBUI_REQUEST_CACHE_TTL_S = 5 * 60.0
 _WEBUI_REQUEST_CACHE_MAX = 256
 _TERMINAL_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _MAX_TERMINAL_WRITE_CHARS = 64_000
 _MAX_TEAM_ID_CHARS = 128
+_MAX_ARTICLE_ID_CHARS = 128
+# 选区只作为本轮提示上下文，不参与写入区间；仍然要限长，避免把整篇正文塞进 metadata。
+_MAX_SELECTION_CHARS = 20_000
+_MAX_SELECTION_CONTEXT_CHARS = 2_000
+_WRITING_TASKS = frozenset({
+    "ask", "rewrite", "expand", "condense", "outline", "material", "draft",
+})
 
 # 动作名只是白名单表的键，未登记一律 404；所以这里放行 camelCase 段（契约 §5 的
 # teamRuns.cancel / teamTasks.cancel），不放宽别的：仍不许空格、斜杠或超过 128 字符。
@@ -477,6 +486,9 @@ class WebUICommandRouter:
             return
         if command_type == "fork_chat":
             await handle_webui_fork_chat(self, connection, envelope)
+            return
+        if command_type == "bind_writing_session":
+            await self._handle_bind_writing_session(connection, envelope)
             return
         if command_type == "discard_temporary_chat":
             chat_id = envelope.get("chat_id")
@@ -931,6 +943,81 @@ class WebUICommandRouter:
             **{key: value for key, value in payload.items() if key != "event"},
         )
 
+    async def _handle_bind_writing_session(
+        self,
+        connection: ServerConnection,
+        envelope: dict[str, Any],
+    ) -> None:
+        """文章 → 服务端会话绑定（契约 §1.2）：客户端只说文章 id。
+
+        幂等：同一篇文章重复绑定返回同一 ``chat_id``；已存在会话时补齐 metadata。
+        绑定会话的团队身份由服务端写入，首条消息到达前就已确定。
+        """
+        if connection not in self._webui_connections:
+            await self._transport.webui_send_event(connection, "error", detail="access_denied")
+            return
+        article_id = envelope.get("article_id")
+        if (
+            not isinstance(article_id, str)
+            or not article_id.strip()
+            or len(article_id.strip()) > _MAX_ARTICLE_ID_CHARS
+        ):
+            await self._transport.webui_send_event(
+                connection, "error", detail="invalid article_id"
+            )
+            return
+        binder = self.gateway.writing_sessions
+        if binder is None:
+            await self._transport.webui_send_event(
+                connection, "error", detail="writing_session_unavailable"
+            )
+            return
+        try:
+            bound = await asyncio.to_thread(binder.bind, article_id.strip())
+        except ArticleNotFound:
+            await self._transport.webui_send_event(
+                connection, "error", detail="article not found"
+            )
+            return
+        except Exception:  # noqa: BLE001 - 内部细节只进日志，客户端拿到稳定错误码
+            logger.exception("writing session bind failed for article {}", article_id)
+            await self._transport.webui_send_event(
+                connection, "error", detail="writing_session_unavailable"
+            )
+            return
+        try:
+            scope = self._workspaces.scope_for_session_key(bound.session_key)
+        except WorkspaceScopeError as exc:
+            await self._transport.webui_send_event(
+                connection,
+                "error",
+                detail="workspace_scope_rejected",
+                reason=exc.message,
+            )
+            return
+        self._transport.webui_attach(connection, bound.chat_id)
+        await self._transport.webui_send_event(
+            connection,
+            "writing_session",
+            **bound.to_dict(),
+        )
+        fields = self._session_projection.attach_fields(bound.session_key)
+        await self._transport.webui_send_event(
+            connection,
+            "attached",
+            chat_id=bound.chat_id,
+            **fields,
+        )
+        await self._transport.webui_send_event(
+            connection,
+            "session_updated",
+            chat_id=bound.chat_id,
+            scope="metadata",
+            workspace_scope=scope.payload(),
+            team_binding=fields.get("team_binding"),
+        )
+        await self._transport.webui_hydrate(bound.chat_id)
+
     async def _handle_question_answer(
         self,
         connection: ServerConnection,
@@ -1022,6 +1109,140 @@ class WebUICommandRouter:
         except KeyError:
             preset = config.resolve_preset(None)
         return reasoning_effort_values_for(preset.provider, preset.model)
+
+    async def _validate_writing_context(
+        self,
+        chat_id: str,
+        raw: Any,
+        *,
+        trusted: bool,
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """校验发送帧里的 ``writing``：绑定、版本、团队成员与选区形状。
+
+        返回 ``(metadata, error)``；任何一项不满足都拒绝整条消息。``revision``/``digest``
+        用的是作者发请求前刷新的文章版本，库已经前进时按契约 §6 报版本冲突，绝不
+        用旧版本覆盖新内容。
+        """
+        if not trusted:
+            return None, "writing_article_unbound"
+        binder = self.gateway.writing_sessions
+        service = self.gateway.team_service
+        if binder is None or service is None or not isinstance(raw, dict):
+            return None, "writing_article_unbound"
+        payload = cast(dict[str, Any], raw)
+        article_id = payload.get("article_id")
+        revision = payload.get("revision")
+        digest = payload.get("digest")
+        if not isinstance(article_id, str) or not article_id.strip():
+            return None, "invalid_writing_context"
+        if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+            return None, "invalid_writing_context"
+        if not isinstance(digest, str) or not digest.strip():
+            return None, "invalid_writing_context"
+        try:
+            bound = await asyncio.to_thread(binder.resolve, article_id.strip())
+        except ArticleNotFound:
+            return None, "article not found"
+        except Exception:  # noqa: BLE001 - 读不到绑定就当作未绑定
+            logger.exception("writing session lookup failed for article {}", article_id)
+            return None, "writing_article_unbound"
+        if bound is None or bound.session_key != webui_session_key(chat_id):
+            return None, "writing_article_unbound"
+        if bound.article_revision != revision or bound.article_digest != digest:
+            return None, (
+                f"article_conflict current_revision={bound.article_revision}"
+                f" article_id={bound.article_id}"
+            )
+
+        member_id = payload.get("member_id")
+        if member_id not in (None, ""):
+            if not isinstance(member_id, str):
+                return None, "invalid_writing_context"
+            try:
+                detail = await asyncio.to_thread(
+                    service.get_team_detail,
+                    bound.team_id,
+                    revision=bound.team_revision,
+                )
+            except Exception:  # noqa: BLE001 - 团队修订不可读 → 无法确认点名
+                logger.exception(
+                    "writing team roster lookup failed for team {} revision {}",
+                    bound.team_id,
+                    bound.team_revision,
+                )
+                return None, "writing_permission_denied"
+            snapshot_raw = detail.get("snapshot")
+            snapshot = (
+                cast(dict[str, Any], snapshot_raw)
+                if isinstance(snapshot_raw, dict)
+                else {}
+            )
+            leader_raw = snapshot.get("leader")
+            leader = (
+                cast(dict[str, Any], leader_raw) if isinstance(leader_raw, dict) else {}
+            )
+            roster = {str(leader.get("id") or "")}
+            members_raw = snapshot.get("members")
+            for raw_entry in cast(list[Any], members_raw) if isinstance(members_raw, list) else []:
+                entry = cast(dict[str, Any], raw_entry) if isinstance(raw_entry, dict) else None
+                member_raw = entry.get("member") if entry is not None else None
+                member = (
+                    cast(dict[str, Any], member_raw)
+                    if isinstance(member_raw, dict)
+                    else None
+                )
+                if member is not None and isinstance(member.get("memberId"), str):
+                    roster.add(member["memberId"])
+            if member_id not in roster:
+                return None, "writing_permission_denied"
+
+        task = payload.get("task")
+        if task not in (None, ""):
+            if not isinstance(task, str) or task not in _WRITING_TASKS:
+                return None, "invalid_writing_context"
+
+        selection = payload.get("selection")
+        normalized_selection: dict[str, Any] | None = None
+        if selection is not None:
+            if not isinstance(selection, dict):
+                return None, "invalid_writing_context"
+            selection_map = cast(dict[str, Any], selection)
+            text = selection_map.get("text")
+            start = selection_map.get("start")
+            end = selection_map.get("end")
+            if not isinstance(text, str) or not text:
+                return None, "invalid_writing_context"
+            if len(text) > _MAX_SELECTION_CHARS:
+                return None, "invalid_writing_context"
+            if (
+                isinstance(start, bool)
+                or not isinstance(start, int)
+                or isinstance(end, bool)
+                or not isinstance(end, int)
+                or start < 0
+                or end <= start
+            ):
+                return None, "invalid_writing_context"
+            normalized_selection = {"text": text, "start": start, "end": end}
+            for key in ("prefix", "suffix"):
+                value = selection_map.get(key)
+                if isinstance(value, str) and value:
+                    if len(value) > _MAX_SELECTION_CONTEXT_CHARS:
+                        return None, "invalid_writing_context"
+                    normalized_selection[key] = value
+
+        context: dict[str, Any] = {
+            "article_id": bound.article_id,
+            "revision": revision,
+            "digest": digest,
+        }
+        if isinstance(member_id, str) and member_id:
+            context["member_id"] = member_id
+        if isinstance(task, str) and task:
+            context["task"] = task
+        if normalized_selection is not None:
+            context["selection"] = normalized_selection
+        return context, None
 
     async def _dispatch_message(
         self,
@@ -1160,6 +1381,20 @@ class WebUICommandRouter:
             metadata["webui"] = True
             metadata.update(self._transcripts.client_turn_metadata(envelope.get("turn_id")))
         trusted_webui = metadata.get("webui") is True and connection in self._webui_connections
+        raw_writing = envelope.get("writing")
+        if raw_writing is not None:
+            writing_context, rejection = await self._validate_writing_context(
+                chat_id, raw_writing, trusted=trusted_webui
+            )
+            if rejection is not None:
+                await self._transport.webui_send_event(
+                    connection,
+                    "error",
+                    detail=rejection,
+                    **rejection_fields,
+                )
+                return
+            metadata[WRITING_CONTEXT_KEY] = writing_context
         is_user_shell = (
             trusted_webui
             and envelope.get("user_shell") is True

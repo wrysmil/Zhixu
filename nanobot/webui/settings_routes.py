@@ -210,6 +210,7 @@ _SYSTEM_ROUTES = {
     "/api/writing/articles/save": "article.save",
     "/api/writing/articles/duplicate": "article.duplicate",
     "/api/writing/articles/delete": "article.delete",
+    "/api/writing/articles/undo": "writing.undo_change",
     # 协作域（契约 §3）：两个读走认证 HTTP GET，七个写走 WS 白名单；九个动作名
     # 同样取点号并逐字登记，漏一条即 404。
     **writing_collab_domain.WRITING_COLLAB_ROUTE_PATHS,
@@ -261,6 +262,7 @@ _WRITING_MUTATION_PATHS = frozenset({
     "/api/writing/articles/save",
     "/api/writing/articles/duplicate",
     "/api/writing/articles/delete",
+    "/api/writing/articles/undo",
 })
 
 # 契约 §3：协作域七条写路径同样 WS-only；两个读路径不在其中。path→action 的唯一
@@ -422,6 +424,7 @@ def _null_writing_operations() -> WritingSettingsOperations:
         save_article=_unavailable,
         duplicate_article=_unavailable,
         delete_article=_unavailable,
+        undo_change=_unavailable,
     )
 
 

@@ -1507,6 +1507,8 @@ export type InboundEvent =
       reasoning_effort?: string | null;
       team_binding?: TeamBinding | null;
     }
+  | ({ event: "writing_session" } & WritingSessionInfo)
+  | WritingChangedEvent
   | {
       event: "sidebar_state_updated";
       state: SidebarStatePayload;
@@ -1549,6 +1551,60 @@ export type InboundEvent =
 export interface OutboundMedia {
   data_url: string;
   name?: string;
+}
+
+/** 服务端为「文章 ↔ 创作团队会话」发放的稳定身份（契约 §1.2）。 */
+export interface WritingSessionInfo {
+  article_id: string;
+  chat_id: string;
+  session_key: string;
+  team_id: string;
+  team_revision: number;
+  team_name: string;
+  revision: number;
+  digest: string;
+}
+
+export interface WritingSelectionContext {
+  text: string;
+  /** Python 码点区间；前端 UTF-16 坐标必须先换算（A-T09）。 */
+  start: number;
+  end: number;
+  prefix?: string;
+  suffix?: string;
+}
+
+export type WritingTask =
+  | "ask"
+  | "rewrite"
+  | "expand"
+  | "condense"
+  | "outline"
+  | "material"
+  | "draft";
+
+/** 每条消息携带的写作上下文；服务端据此绑定团队、校验成员并注入工具。 */
+export interface WritingSendContext {
+  article_id: string;
+  revision: number;
+  digest: string;
+  member_id?: string;
+  task?: WritingTask;
+  selection?: WritingSelectionContext;
+}
+
+/** 写作工具提交后的旁路推送；客户端只用它同步文章，不当作 turn 事件。 */
+export interface WritingChangedEvent {
+  event: "writing_changed";
+  chat_id: string;
+  article_id: string;
+  revision: number;
+  digest: string;
+  change_id: string;
+  kind: string;
+  actor?: string | null;
+  /** 服务端按团队成员档案解析的显示名；缺省时前端回退到 actor id。 */
+  actor_name?: string | null;
 }
 
 export interface OutboundCliAppMention {
@@ -1686,6 +1742,7 @@ export type Outbound =
       payload: Record<string, unknown>;
     }
   | { type: "fork_chat"; source_chat_id: string; before_user_index: number; title?: string }
+  | { type: "bind_writing_session"; article_id: string }
   | { type: "attach"; chat_id: string }
   | { type: "set_sidebar_state"; state: SidebarStatePayload }
   | { type: "discard_temporary_chat"; chat_id: string }
@@ -1709,6 +1766,7 @@ export type Outbound =
       quoted_context?: string;
       workspace_scope?: WorkspaceScopePayload;
       turn_id?: string;
+      writing?: WritingSendContext;
       /** Marks messages sent by the embedded WebUI, without changing the
        * generic websocket protocol for other clients. */
       webui?: true;

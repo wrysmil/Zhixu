@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 from loguru import logger as default_logger
 
@@ -35,6 +35,7 @@ from nanobot.webui.ingress_policy import DEFAULT_WEBUI_INGRESS_POLICY, WebUIIngr
 from nanobot.webui.media_gateway import WebUIMediaGateway
 from nanobot.webui.memory_routes import MemorySettingsOperations
 from nanobot.webui.memory_services import MemoryServices
+from nanobot.webui.session_identity import webui_session_key
 from nanobot.webui.session_projection import WebUISessionProjection
 from nanobot.webui.settings_services import WebUISettingsServices
 from nanobot.webui.teams_routes import TeamSettingsOperations
@@ -47,6 +48,9 @@ from nanobot.webui.writing_routes import WritingSettingsOperations
 from nanobot.webui.writing_services import WritingServices
 from nanobot.webui.ws_http import GatewayHTTPHandler
 from nanobot.writing.database import WritingDatabase
+from nanobot.writing.run_extension import WritingRunExtension, publish_writing_changed
+from nanobot.writing.session_binding import SessionStoreLike, WritingSessionBinder
+from nanobot.writing.team_seed import writing_team_seed_request_id, writing_team_template
 
 if TYPE_CHECKING:
     from nanobot.bus.queue import MessageBus
@@ -80,6 +84,9 @@ class GatewayServices:
     team_operations: TeamSettingsOperations | None = None
     team_bindings: TeamBindingStore | None = None
     team_turns: TeamLeaderTurns | None = None
+    # 文章 ↔ 会话绑定（``bind_writing_session``）；未接团队栈时仍可绑定（只是没有运行）。
+    writing_sessions: WritingSessionBinder | None = None
+    writing_team_id: str | None = None
 
 
 def build_memory_operations(
@@ -117,14 +124,17 @@ def build_writing_operations(
     *,
     workspace_id: str,
     workspace_path: Path,
+    database: WritingDatabase | None = None,
 ) -> WritingSettingsOperations:
     """Wire the real ``writing_api`` actions to a workspace-scoped article store.
 
     与 ``build_memory_operations`` 同签名同风格：一个 gateway 进程绑定一个
-    ``workspace_path``，文章库落在 ``<workspace>/writing/state.db``。六个入口
+    ``workspace_path``，文章库落在 ``<workspace>/writing/state.db``。七个入口
     全部预绑定 services，handler 只传业务参数（契约 §4/§5 的字段）。
     """
-    services = WritingServices.for_workspace(workspace_id, workspace_path)
+    services = WritingServices.for_workspace(
+        workspace_id, workspace_path, database=database
+    )
     return WritingSettingsOperations(
         list_articles=partial(writing_api.list_articles, services),
         fetch_article=partial(writing_api.fetch_article, services),
@@ -132,6 +142,7 @@ def build_writing_operations(
         save_article=partial(writing_api.save_article, services),
         duplicate_article=partial(writing_api.duplicate_article, services),
         delete_article=partial(writing_api.delete_article, services),
+        undo_change=partial(writing_api.undo_change, services),
     )
 
 
@@ -140,6 +151,7 @@ def build_writing_collab_operations(
     workspace_id: str,
     workspace_path: Path,
     runner: Any | None = None,
+    database: WritingDatabase | None = None,
 ) -> WritingCollabSettingsOperations:
     """Wire the collaboration payload layer to a workspace-scoped writing store.
 
@@ -151,8 +163,8 @@ def build_writing_collab_operations(
     装配仍然可用（读动作、``apply`` / ``undo`` 不需要执行栈；控制动作回 503
     ``writing collaboration service is not configured``）。
     """
-    database = WritingDatabase(Path(workspace_path))
-    services = WritingCollabServices.for_workspace(workspace_id, database, runner)
+    shared = database if database is not None else WritingDatabase(Path(workspace_path))
+    services = WritingCollabServices.for_workspace(workspace_id, shared, runner)
     return WritingCollabSettingsOperations(
         get_collaboration=partial(writing_collab_api.fetch_collaboration, services),
         get_artifact=partial(writing_collab_api.fetch_artifact, services),
@@ -175,6 +187,7 @@ def build_writing_collab_runner(
     model_id: Callable[[], str | None] | None = None,
     session_manager: Any | None = None,
     channel_name: str = "websocket",
+    database: WritingDatabase | None = None,
     logger: Any = default_logger,
 ) -> Any:
     """装配协作执行栈：``TeamWritingPort`` + envelope 出口 + ``CollabRunner``。
@@ -211,9 +224,9 @@ def build_writing_collab_runner(
     from nanobot.writing.collab.team_port import TeamWritingPort
     from nanobot.writing.repository import ArticleRepository
 
-    database = WritingDatabase(Path(workspace_path))
-    repository = CollabRepository(database)
-    articles = ArticleRepository(database)
+    shared = database if database is not None else WritingDatabase(Path(workspace_path))
+    repository = CollabRepository(shared)
+    articles = ArticleRepository(shared)
     event_types: dict[str, Any] = {
         "writing_collab": WritingCollabEvent,
         "writing_artifact": WritingArtifactEvent,
@@ -323,7 +336,7 @@ def build_writing_collab_runner(
         workspace=Path(workspace_path),
         turns=team_turns,
         articles=articles,
-        registry=BuiltinAssetRegistry(database),
+        registry=BuiltinAssetRegistry(shared),
         session_store=session_manager,
         runtime_provider=getattr(team_turns, "runtime_provider", None),
         session_runtime_provider=session_runtime_provider,
@@ -331,14 +344,14 @@ def build_writing_collab_runner(
     )
     runner = CollabRunner(
         repository=repository,
-        workspace_key=database.workspace_key,
+        workspace_key=shared.workspace_key,
         articles=articles,
         team=port,
         artifacts=EnvelopeArtifactSink(
             repository=repository,
             teams=team_service.repository,
             articles=articles,
-            workspace_key=database.workspace_key,
+            workspace_key=shared.workspace_key,
             logger=logger,
         ),
         preparer=session_frozen_preparer,
@@ -410,6 +423,32 @@ def build_agents_operations(
             load_config=load_config or _load_config,
         ),
     )
+
+
+def seed_writing_team(
+    team_service: TeamService,
+    *,
+    logger: Any = default_logger,
+) -> str | None:
+    """幂等播种内置创作团队；失败只留日志，不影响普通聊天与团队管理。
+
+    返回内置团队的**物理 ID**。用户同名团队由 allocator 协议避让，绝不被覆盖。
+    """
+    try:
+        team_id = team_service.ensure_builtin_team(
+            writing_team_template(),
+            request_id=writing_team_seed_request_id(),
+        )
+    except Exception as error:  # noqa: BLE001 - 播种失败降级为「无写作团队」
+        logger.bind(event="writing_team_seed_failed").warning(
+            f"writing team seed failed: {error}"
+        )
+        return None
+    if team_id is None:
+        logger.bind(event="writing_team_seed_skipped").warning(
+            "writing team seed skipped: builtin asset registry is not wired"
+        )
+    return team_id
 
 
 def build_team_stack(
@@ -511,10 +550,56 @@ def build_gateway_services(
         # ``agents.teams.enabled=false`` 完全失效（契约 §4 的 503 TEAMS_DISABLED）。
         enabled=bool(settings.config.load().agents.teams.enabled),
     )
+    # 写作域与团队栈共享同一个 SQLite 入口（进程内一把写锁），并先播种内置创作团队：
+    # 团队管理里看到的「创作团队」就是下面绑定会话用的同一个物理记录。
+    writing_database = WritingDatabase(Path(workspace_path))
+    writing_database.ensure_schema()
+    writing_team_id = seed_writing_team(team_service, logger=logger)
+
+    def resolve_writing_team() -> dict[str, Any]:
+        if writing_team_id is None:
+            raise RuntimeError("writing team is not seeded")
+        definition = team_service.repository.get_team(writing_team_id)
+        return {
+            "team_id": definition.id,
+            "team_revision": definition.revision,
+            "team_name": definition.name,
+        }
+
+    writing_sessions = WritingSessionBinder(
+        writing_database,
+        # SessionManager 的 save() 收具体 Session，与结构协议参数类型窄一档；
+        # 运行时鸭子类型成立，会话绑定只用到 get_or_create/save/metadata。
+        cast(SessionStoreLike | None, session_manager),
+        team_resolver=resolve_writing_team if writing_team_id is not None else None,
+        session_key_for=webui_session_key,
+    )
+    # 写作扩展只认已播种的物理团队 ID；克隆团队因此拿不到写作工具（契约 §3）。
+    writing_extension = (
+        WritingRunExtension(
+            db=writing_database,
+            binder=writing_sessions,
+            team_ids=lambda: {writing_team_id} if writing_team_id else set(),
+            publish_change=lambda chat_id, body: publish_writing_changed(
+                bus=bus,
+                channel_name="websocket",
+                chat_id=chat_id,
+                body=body,
+            ),
+            logger_=logger,
+        )
+        if writing_team_id is not None
+        else None
+    )
     # 团队执行栈要有宿主（子执行器/工具目录/默认运行时）才能装配；CLI 或测试构造的
     # gateway 没有 host 时留 None，普通聊天路径完全不受影响。
     team_turns = (
-        build_team_turns(service=team_service, host=team_host, workspace=workspace_path)
+        build_team_turns(
+            service=team_service,
+            host=team_host,
+            workspace=workspace_path,
+            run_extension=writing_extension,
+        )
         if team_host is not None
         else None
     )
@@ -542,6 +627,7 @@ def build_gateway_services(
             bus=bus,
             model_id=runtime_model_name,
             session_manager=session_manager,
+            database=writing_database,
         )
         if team_turns is not None
         else None
@@ -578,11 +664,13 @@ def build_gateway_services(
         writing_operations=build_writing_operations(
             workspace_id="default",
             workspace_path=workspace_path,
+            database=writing_database,
         ),
         writing_collab_operations=build_writing_collab_operations(
             workspace_id="default",
             workspace_path=workspace_path,
             runner=collab_runner,
+            database=writing_database,
         ),
         team_operations=team_operations,
         team_bindings=team_bindings,
@@ -619,4 +707,6 @@ def build_gateway_services(
         team_operations=team_operations,
         team_bindings=team_bindings,
         team_turns=team_turns,
+        writing_sessions=writing_sessions,
+        writing_team_id=writing_team_id,
     )

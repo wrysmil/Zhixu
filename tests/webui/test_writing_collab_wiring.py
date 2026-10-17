@@ -135,7 +135,7 @@ def test_registered_actions_all_belong_to_the_domain() -> None:
 def test_collab_paths_do_not_shadow_article_paths() -> None:
     """``/api/writing/collab`` 不能吃掉 ``/api/writing/articles`` 的登记。"""
     article_paths = {path for path in _SYSTEM_ROUTES if path.startswith("/api/writing/articles")}
-    assert len(article_paths) == 6
+    assert len(article_paths) == 7
     assert not (article_paths & set(EXPECTED_SYSTEM_ROUTES))
 
 
@@ -182,9 +182,11 @@ def test_collab_ws_action_maps_to_http_path(action: str, path: str) -> None:
 
 
 def test_ws_action_names_match_the_frontend_contract() -> None:
-    assert {a for a in _WEBUI_MUTATION_PATHS if a.startswith("writing.")} == set(
-        EXPECTED_WS_ACTIONS
-    )
+    # ``writing.undo_change`` 属于文章域（团队写入撤销），不在协作域的七个动作里。
+    assert {
+        a for a in _WEBUI_MUTATION_PATHS
+        if a.startswith("writing.") and a != "writing.undo_change"
+    } == set(EXPECTED_WS_ACTIONS)
 
 
 def test_ws_mutation_actions_are_exactly_the_seven_writes() -> None:

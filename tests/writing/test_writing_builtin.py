@@ -223,8 +223,8 @@ def test_ensure_schema_upgrades_v1_db(tmp_path: Path) -> None:
         ).fetchone()["value"]
 
     assert "writing_builtin_assets" in names
-    assert SCHEMA_VERSION == "2"
-    assert version == "2"
+    assert SCHEMA_VERSION == "3"
+    assert version == "3"
     assert tuple(article) == ("legacy-1", "旧稿", "digest", "t1", "t2")
     assert compute_workspace_key(tmp_path) == db.workspace_key
 

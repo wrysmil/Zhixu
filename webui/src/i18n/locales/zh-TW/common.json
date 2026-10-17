@@ -2537,7 +2537,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "助手",
-      "creative": "創作"
+      "creative": "創作",
+      "more": "更多",
+      "groups": {
+        "workspace": "工作區",
+        "ai": "AI 設定",
+        "personal": "個人"
+      }
     },
     "preview": {
       "badge": "介面預覽 · 範例內容"

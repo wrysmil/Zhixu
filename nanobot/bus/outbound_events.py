@@ -154,6 +154,13 @@ class WritingHandoffEvent(WritingEvent):
     event_name: ClassVar[str] = "writing_handoff"
 
 
+@dataclass(frozen=True)
+class WritingChangedEvent(WritingEvent):
+    """团队写作工具已提交字段变更：``{article_id, revision, digest, change_id, kind, actor}``。"""
+
+    event_name: ClassVar[str] = "writing_changed"
+
+
 def outbound_message_for_event(
     *,
     channel: str,

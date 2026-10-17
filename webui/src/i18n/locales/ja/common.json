@@ -2537,7 +2537,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "アシスタント",
-      "creative": "クリエイティブ"
+      "creative": "クリエイティブ",
+      "more": "その他",
+      "groups": {
+        "workspace": "ワークスペース",
+        "ai": "AI 設定",
+        "personal": "個人"
+      }
     },
     "preview": {
       "badge": "インターフェースプレビュー · サンプルコンテンツ"

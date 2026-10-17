@@ -44,12 +44,14 @@ _CLIENT_REQUEST_ID_RE = re.compile(r"[A-Za-z0-9._:-]{1,128}")
 WRITING_ACTION_NAMES = frozenset({
     "article.list", "article.get", "article.create",
     "article.save", "article.duplicate", "article.delete",
+    "writing.undo_change",
 })
 
 # 写入动作都要求 client_request_id；缺失即 400，让 handler 而不是 repository
 # 负责协议级校验（与 memory_routes 里 "content is required" 同层）。
 WRITING_MUTATION_ACTION_NAMES = frozenset({
     "article.create", "article.save", "article.duplicate", "article.delete",
+    "writing.undo_change",
 })
 
 # 快照允许透传给仓储的字段（契约 §5）；其余键忽略，未知类型由 models 层报
@@ -76,6 +78,7 @@ class WritingSettingsOperations:
     save_article: Callable[..., dict[str, Any]]
     duplicate_article: Callable[..., dict[str, Any]]
     delete_article: Callable[..., dict[str, Any]]
+    undo_change: Callable[..., dict[str, Any]] | None = None
 
 
 class WritingSettingsHandler:
@@ -157,6 +160,15 @@ def dispatch(
             base_revision=_base_revision(payload),
         )
 
+    if action == "writing.undo_change":
+        if operations.undo_change is None:
+            raise WebUISettingsError("writing service is not configured", status=503)
+        return operations.undo_change(
+            client_request_id=_client_request_id(payload),
+            change_id=_change_id(payload),
+            base_revision=_base_revision(payload),
+        )
+
     # Unreachable for known actions; kept as a guard against future additions.
     raise WebUISettingsError(f"unsupported writing action: {action}")
 
@@ -182,6 +194,13 @@ def _article_id(query: dict[str, list[str]], payload: dict[str, Any]) -> str:
 
 def _mutation_article_id(payload: dict[str, Any]) -> str:
     return _checked_article_id(payload.get("article_id"))
+
+
+def _change_id(payload: dict[str, Any]) -> str:
+    raw = payload.get("change_id")
+    if not isinstance(raw, str) or not raw.strip():
+        raise WebUISettingsError("change_id is required")
+    return raw.strip()
 
 
 def _checked_article_id(raw: Any) -> str:

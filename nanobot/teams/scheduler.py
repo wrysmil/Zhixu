@@ -69,6 +69,9 @@ WRITING_UPSTREAM_BUDGET = 24_000
 #: 与总线发布并行，互不影响：出口缺失不改变任务怎么跑。
 EventObserver = Callable[[Sequence[Any]], Awaitable[None]]
 
+#: 按 ``(handle, memberId)`` 给出可信注入工具（写作会话）；返回空序列即无扩展。
+ExtraToolsProvider = Callable[["TeamRunHandle", str], Sequence[Any]]
+
 # 子执行结论 → 任务终态。``interrupted`` 只能由恢复路径写，调度器这里拿不到。
 _OUTCOME_TO_STATUS = {"succeeded": "succeeded", "failed": "failed", "cancelled": "cancelled"}
 
@@ -183,6 +186,7 @@ class TeamRunHandle:
         upstream_expander: UpstreamExpander | None = None,
         upstream_budget: int = UPSTREAM_CONTEXT_BUDGET,
         observers: list[EventObserver] | None = None,
+        extra_tools_provider: ExtraToolsProvider | None = None,
     ) -> None:
         self._repository = repository
         self._executor = executor
@@ -199,6 +203,7 @@ class TeamRunHandle:
         self._task_timeout_override = task_timeout_seconds
         self._upstream_expander = upstream_expander
         self._upstream_budget = int(upstream_budget)
+        self._extra_tools_provider = extra_tools_provider
         # 与调度器共享同一个列表对象：运行起跑后再 ``observe()`` 也立刻生效。
         self._observers: list[EventObserver] = observers if observers is not None else []
         self.run_id = run.run_id
@@ -238,6 +243,15 @@ class TeamRunHandle:
     @property
     def is_closed(self) -> bool:
         return self._closed
+
+    @property
+    def accepts_writes(self) -> bool:
+        """晚到的工具写入是否还能落库：取消或收口之后一律拒绝。
+
+        写作工具在每次调用前读这个属性。模型可能在上一次工具返回后继续生成，
+        停止请求到达时后台模型循环未必立刻结束；没有这道闸，取消后仍会覆盖正文。
+        """
+        return not self._closed and not self._cancel_requested.is_set()
 
     def run(self) -> TeamRunSnapshot:
         return self._repository.get_run(self.run_id)
@@ -527,6 +541,18 @@ class TeamRunHandle:
 
     async def _invoke(self, planned: _PlannedTask) -> TeamTaskResult:
         started = await self._mutate(self._repository.start_task, planned.task_id)
+        extra_tools: tuple[Any, ...] = ()
+        if self._extra_tools_provider is not None:
+            try:
+                extra_tools = tuple(
+                    self._extra_tools_provider(self, planned.member.member.member_id)
+                )
+            except Exception as error:  # noqa: BLE001 - 扩展失败退回不带写工具执行
+                default_logger.bind(
+                    event="team_extra_tools_failed",
+                    run_id=self.run_id,
+                    member_id=planned.member.member.member_id,
+                ).warning(f"team extra tools provider failed: {error}")
         request = TeamExecutionRequest(
             run_id=self.run_id,
             task_id=planned.task_id,
@@ -541,6 +567,7 @@ class TeamRunHandle:
             workspace_scope=self._workspace_scope,
             origin_message_id=self._origin_message_id,
             session_key=self._session_key,
+            extra_tools=extra_tools,
         )
         try:
             executed = await asyncio.wait_for(
@@ -899,6 +926,7 @@ class TeamScheduler:
         runtime: Any = None,
         upstream_expander: UpstreamExpander | None = None,
         upstream_budget: int | None = None,
+        extra_tools_provider: ExtraToolsProvider | None = None,
     ) -> TeamRunHandle:
         """``runtime`` 让调用方按回合注入当前默认执行配置；不传则用装配时的调度器默认。
 
@@ -932,6 +960,7 @@ class TeamScheduler:
             runtime=runtime if runtime is not None else self._runtime,
             upstream_expander=upstream_expander,
             upstream_budget=upstream_budget,
+            extra_tools_provider=extra_tools_provider,
         )
         self._handles[run.run_id] = handle
         return handle
@@ -982,6 +1011,7 @@ class TeamScheduler:
         runtime: Any,
         upstream_expander: UpstreamExpander | None = None,
         upstream_budget: int | None = None,
+        extra_tools_provider: ExtraToolsProvider | None = None,
     ) -> TeamRunHandle:
         return TeamRunHandle(
             repository=self._repository,
@@ -1006,6 +1036,7 @@ class TeamScheduler:
                 UPSTREAM_CONTEXT_BUDGET if upstream_budget is None else int(upstream_budget)
             ),
             observers=self._observers,
+            extra_tools_provider=extra_tools_provider,
         )
 
     async def cancel_run(self, run_id: str) -> TeamRunSnapshot | None:

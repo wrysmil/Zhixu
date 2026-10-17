@@ -54,6 +54,8 @@ class SubagentOrigin(TypedDict):
 #: 正文只活在这段运行期上下文里：既不进 ``TeamExecutionRequest``，也不落任何库。
 #: 用 ContextVar 而不是参数，是为了不改 ``execute_frozen`` 的冻结签名与成员执行适配层
 #: （``TeamExecutionRequest`` 属 Team 域，写作域不扩它的字段）。
+#: 预构建的写作工具则不同：它们无法靠名字从 ToolLoader 得到，必须随成员执行显式传入
+#: ``extra_tools``，在档案白名单裁剪之后注册。
 _FROZEN_SKILLS: ContextVar[tuple[tuple[str, str], ...]] = ContextVar(
     "nanobot_frozen_skills", default=()
 )
@@ -432,6 +434,7 @@ class SubagentManager:
         workspace: Path | None = None,
         tools_config: ToolsConfig | None = None,
         allowed_tools: frozenset[str] | None = None,
+        extra_tools: tuple[Any, ...] = (),
     ) -> ToolRegistry:
         """Build an isolated subagent tool registry via ToolLoader."""
         root = self.workspace if workspace is None else workspace
@@ -452,6 +455,10 @@ class SubagentManager:
             for name in registry.names():
                 if name not in allowed_tools:
                     registry.unregister(name)
+        # 裁剪之后注册：写作工具来自可信运行上下文，不走档案白名单；
+        # 放在裁剪后是为了避免被同一批 unregister 误删。
+        for tool in extra_tools:
+            registry.register(tool)
         return registry
 
     async def spawn(
@@ -657,6 +664,7 @@ class SubagentManager:
         origin_message_id: str | None = None,
         workspace_scope: WorkspaceScope | None = None,
         on_activity: "Callable[[Mapping[str, Any]], Any] | None" = None,
+        extra_tools: tuple[Any, ...] = (),
     ) -> SubagentExecutionResult:
         """可信冻结档案执行入口（契约 §5）：Team 成员走这里，绝不按 agentId 重读盘。
 
@@ -688,6 +696,7 @@ class SubagentManager:
                     frozen_agent=agent,
                     on_activity=on_activity,
                     require_model_preset=True,
+                    extra_tools=extra_tools,
                 )
         except asyncio.CancelledError:
             status.phase = "error"
@@ -717,6 +726,7 @@ class SubagentManager:
         frozen_agent: ResolvedAgent | None = None,
         on_activity: "Callable[[Mapping[str, Any]], Any] | None" = None,
         require_model_preset: bool = False,
+        extra_tools: tuple[Any, ...] = (),
     ) -> SubagentExecutionResult:
         """Execute the subagent task and announce the result."""
         logger.info("Subagent [{}] starting task: {}", task_id, label)
@@ -769,6 +779,7 @@ class SubagentManager:
             tools = self._build_tools(
                 tools_config=cfg,
                 allowed_tools=allowed_tools,
+                extra_tools=extra_tools,
             )
             system_prompt = self._build_subagent_prompt(workspace=root, agent=agent)
             if require_model_preset and agent is not None and agent.model_id is not None:

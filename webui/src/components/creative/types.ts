@@ -51,6 +51,8 @@ export interface Article {
   materials: Material[];
   tags: string[];
   revision: number;
+  /** 服务端内容摘要；写作消息必须带上它才能通过版本校验。 */
+  contentDigest?: string;
   createdAt: string;
   updatedAt: string;
 }

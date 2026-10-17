@@ -43,6 +43,41 @@ function setNavigatorPlatform(platform: string): void {
   });
 }
 
+/**
+ * 全局导航收敛后，能力页（Apps/Skills/Automations/Agents/Teams/Memory/Identity）
+ * 都在「更多」分组菜单里，入口要先展开再点。这里统一封装，避免每个用例重复两步。
+ */
+function openMoreSection(
+  navName = "Sidebar navigation",
+  moreName = "More",
+): HTMLElement {
+  const sidebar = screen.getByRole("navigation", { name: navName });
+  fireEvent.click(within(sidebar).getByRole("button", { name: moreName }));
+  return screen.getByRole("dialog");
+}
+
+function moreEntry(
+  label: string | RegExp,
+  navName = "Sidebar navigation",
+  moreName = "More",
+): HTMLElement {
+  return within(openMoreSection(navName, moreName)).getByRole("button", { name: label });
+}
+
+function navigateFromMore(
+  label: string,
+  navName = "Sidebar navigation",
+  moreName = "More",
+): void {
+  fireEvent.click(moreEntry(label, navName, moreName));
+}
+
+function expectMoreEntryCurrent(label: string): void {
+  const entry = moreEntry(label);
+  expect(entry).toHaveAttribute("aria-current", "page");
+  fireEvent.keyDown(entry, { key: "Escape" });
+}
+
 function jsonResponse(body: unknown): Response {
   return {
     ok: true,
@@ -507,8 +542,7 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Memory" }));
+    navigateFromMore("Memory");
 
     await waitFor(() => expect(window.location.hash).toBe("#/memory"));
     expect(await screen.findByTestId("memory-master-toggle")).toBeInTheDocument();
@@ -525,8 +559,7 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Identity" }));
+    navigateFromMore("Identity");
 
     await waitFor(() => expect(window.location.hash).toBe("#/identity"));
     expect(await screen.findByRole("heading", { level: 1 })).toBeInTheDocument();
@@ -541,8 +574,7 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Teams" }));
+    navigateFromMore("Teams");
 
     await waitFor(() => expect(window.location.hash).toBe("#/teams"));
     expect(await screen.findByLabelText("Search teams")).toBeInTheDocument();
@@ -589,9 +621,16 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    const appsButton = within(sidebar).getByRole("button", { name: "Apps" });
-    const skillsButton = within(sidebar).getByRole("button", { name: "Skills" });
-    const automationsButton = within(sidebar).getByRole("button", { name: "Automations" });
+    // 一级只剩助手/创作/更多，能力页收进「更多」。
+    expect(within(sidebar).getByRole("button", { name: "Assistant" })).toBeInTheDocument();
+    expect(within(sidebar).getByRole("button", { name: "Creative" })).toBeInTheDocument();
+    expect(within(sidebar).getByRole("button", { name: "More" })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("button", { name: "Apps" })).not.toBeInTheDocument();
+
+    const menu = openMoreSection();
+    const appsButton = within(menu).getByRole("button", { name: "Apps" });
+    const skillsButton = within(menu).getByRole("button", { name: "Skills" });
+    const automationsButton = within(menu).getByRole("button", { name: "Automations" });
 
     expect(appsButton.compareDocumentPosition(skillsButton) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
@@ -1145,10 +1184,7 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    const skillsButton = within(sidebar).getByRole("button", { name: "Skills" });
-
-    fireEvent.click(skillsButton);
+    navigateFromMore("Skills");
 
     expect(await screen.findByRole("heading", { name: "Skills" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Search installed skills" })).toBeInTheDocument();
@@ -1162,16 +1198,13 @@ describe("App layout", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Sidebar navigation" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "Settings sections" })).not.toBeInTheDocument();
-    expect(within(sidebar).getByRole("button", { name: "Skills" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expectMoreEntryCurrent("Skills");
     expect(document.title).toBe("Skills · 知序");
 
     fireEvent.click(screen.getByRole("button", { name: "Back to chat" }));
     expect(await screen.findByText(HERO_GREETING_PATTERN)).toBeInTheDocument();
 
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Skills" }));
+    navigateFromMore("Skills");
     expect(await screen.findByRole("heading", { name: "Skills" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Open details for github" }));
@@ -1248,8 +1281,7 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Skills" }));
+    navigateFromMore("Skills");
     fireEvent.click(
       await screen.findByRole("button", { name: "Open details for custom-skill" }),
     );
@@ -1380,8 +1412,7 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Skills" }));
+    navigateFromMore("Skills");
     const discoverTab = await screen.findByRole("tab", { name: "Discover" });
     expect(discoverTab.querySelector("svg")).toBeNull();
     fireEvent.click(discoverTab);
@@ -1522,12 +1553,7 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    const automationsButton = within(sidebar).getByRole("button", {
-      name: "Automations",
-    });
-
-    fireEvent.click(automationsButton);
+    navigateFromMore("Automations");
 
     const heading = await screen.findByRole("heading", { name: "Automations" });
     expect(heading).toBeInTheDocument();
@@ -1542,10 +1568,7 @@ describe("App layout", () => {
     expect(screen.queryByText("weixin:wx-chat")).not.toBeInTheDocument();
     expect(screen.queryByText("memory with dream state")).not.toBeInTheDocument();
     expect(screen.getByText("heartbeat")).toBeInTheDocument();
-    expect(within(sidebar).getByRole("button", { name: "Automations" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expectMoreEntryCurrent("Automations");
     expect(document.title).toBe("Automations · 知序");
 
     const searchInput = within(automationsMain as HTMLElement).getByPlaceholderText(
@@ -1600,8 +1623,7 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Automations" }));
+    navigateFromMore("Automations");
 
     expect((await screen.findAllByText("Past one-shot")).length).toBeGreaterThanOrEqual(1);
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
@@ -1687,8 +1709,7 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Automations" }));
+    navigateFromMore("Automations");
 
     const detailHeading = await screen.findByRole("heading", { name: "Long detail automation" });
     const detailPanel = detailHeading.closest("article") as HTMLElement;
@@ -1754,8 +1775,7 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    const sidebar = screen.getByRole("navigation", { name: "侧边栏导航" });
-    fireEvent.click(within(sidebar).getByRole("button", { name: "自动任务" }));
+    navigateFromMore("自动任务", "侧边栏导航", "更多");
 
     const heading = await screen.findByRole("heading", { name: "自动任务" });
     expect(heading).toBeInTheDocument();
@@ -2704,9 +2724,13 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
+    const moreButton = within(sidebar).getByRole("button", { name: "More" });
     const searchButton = within(sidebar).getByRole("button", { name: "Search" });
-    const appsButton = within(sidebar).getByRole("button", { name: "Apps" });
-    expect(appsButton.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(moreButton.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(sidebar).queryByRole("button", { name: "Apps" })).not.toBeInTheDocument();
+    const appsEntry = moreEntry("Apps");
+    expect(appsEntry).toBeInTheDocument();
+    fireEvent.keyDown(appsEntry, { key: "Escape" });
     await user.click(within(sidebar).getByRole("button", { name: "Settings" }));
 
     expect(
@@ -3007,18 +3031,13 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    const appsButton = within(sidebar).getByRole("button", { name: "Apps" });
-
-    fireEvent.click(appsButton);
+    navigateFromMore("Apps");
 
     expect(await screen.findByRole("heading", { name: "Apps" })).toBeInTheDocument();
     expect(screen.queryByText("Add tools to 知序, then @ them in chat.")).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Sidebar navigation" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "Settings sections" })).not.toBeInTheDocument();
-    expect(within(sidebar).getByRole("button", { name: "Apps" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expectMoreEntryCurrent("Apps");
     expect(within(sidebar).getByTestId("actions-selection-highlight")).toHaveAttribute(
       "data-active-id",
       "utility:apps",
@@ -3037,7 +3056,7 @@ describe("App layout", () => {
     );
     expect(document.title).toBe("Apps · 知序");
 
-    fireEvent.click(within(sidebar).getByRole("button", { name: "Skills" }));
+    navigateFromMore("Skills");
 
     expect(await screen.findByRole("heading", { name: "Skills" })).toBeInTheDocument();
     await waitFor(() => {
@@ -3047,10 +3066,7 @@ describe("App layout", () => {
       );
     });
     expect(screen.getByRole("navigation", { name: "Sidebar navigation" })).toBeInTheDocument();
-    expect(within(sidebar).getByRole("button", { name: "Skills" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expectMoreEntryCurrent("Skills");
     expect(within(sidebar).getByTestId("actions-selection-highlight")).toHaveAttribute(
       "data-active-id",
       "utility:skills",
@@ -3930,7 +3946,9 @@ describe("App layout", () => {
     expect(screen.queryByRole("button", { name: "Start a new topic" })).not.toBeInTheDocument();
     const rail = screen.getByRole("navigation", { name: "Sidebar navigation" });
     expect(within(rail).getByRole("button", { name: "Toggle sidebar" })).toBeInTheDocument();
-    expect(within(rail).getByRole("button", { name: "Skills" })).toBeInTheDocument();
+    expect(within(rail).queryByRole("button", { name: "Skills" })).not.toBeInTheDocument();
+    // 能力页收进「更多」，折叠态下聚合入口本身仍保持可访问。
+    expect(within(rail).getByRole("button", { name: "More" })).toBeInTheDocument();
     expect(within(rail).queryByRole("button", { name: "New chat" })).not.toBeInTheDocument();
     expect(within(rail).queryByRole("button", { name: "View" })).not.toBeInTheDocument();
     expect(within(rail).queryByText("Existing chat")).not.toBeInTheDocument();

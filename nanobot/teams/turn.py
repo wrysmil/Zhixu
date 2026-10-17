@@ -132,6 +132,8 @@ class TeamLeaderTurns:
     session_runtime_provider: Callable[[str], Any] | None = None
     # 重试前的 preset 可用性检查要用；按名字解析且不改默认选择（契约 §5）。
     preset_resolver: Callable[[str], Any] | None = None
+    # 写作会话扩展（``WritingRunExtension``）：普通团队不注入，行为一字不改。
+    run_extension: Any | None = None
 
     def runtime_for(self, session_key: str) -> Any:
         """这次运行该用的 runtime：会话解析优先，其次装配期的默认执行配置。"""
@@ -173,14 +175,17 @@ class TeamLeaderTurns:
                 origin_message_id=_metadata_value(getattr(msg, "metadata", None), "message_id"),
                 snapshot=snapshot,
                 runtime=self.runtime_for(session_key),
+                extra_tools_provider=self._member_extra_tools,
             )
-        return self._context_for(handle)
+        return self._context_for(handle, msg, session)
 
     async def cancel_runs(self, session_key: str) -> int:
         """停止桥接：聊天被停掉时，该会话在场的团队运行必须一起停（契约 §6）。"""
         return await self.scheduler.cancel_session(session_key)
 
-    def _context_for(self, handle: TeamRunHandle) -> LeaderTurnContext:
+    def _context_for(
+        self, handle: TeamRunHandle, msg: Any = None, session: Any = None
+    ) -> LeaderTurnContext:
         revision = handle.revision
         definition = revision.definition
         catalog = SnapshotMemberCatalog(
@@ -188,31 +193,71 @@ class TeamLeaderTurns:
             known_skills=list(self.skill_names()),
         )
         leader = catalog.resolve(revision.leader, workspace=self.workspace)
+        role_prompt = render_role_prompt(
+            team_name=definition.name,
+            team_revision=definition.revision,
+            instructions=definition.instructions,
+            leader_prompt=leader.prompt,
+            members=[(item.profile.name, item.member.role) for item in revision.members],
+        )
+        extra_tools, writing_prompt = self._leader_extension(handle, msg, session)
+        if writing_prompt:
+            role_prompt = f"{role_prompt}\n\n{writing_prompt}"
         return LeaderTurnContext(
             team_id=definition.id,
             team_revision=definition.revision,
             team_name=definition.name,
             run_id=handle.run_id,
             turn_id=handle.turn_id,
-            role_prompt=render_role_prompt(
-                team_name=definition.name,
-                team_revision=definition.revision,
-                instructions=definition.instructions,
-                leader_prompt=leader.prompt,
-                members=[(item.profile.name, item.member.role) for item in revision.members],
-            ),
+            role_prompt=role_prompt,
             tool_allow=leader.tool_names or frozenset(),
             skill_exclude=leader.skill_exclude,
             model_id=leader.model_id,
             dispatch_tool=TeamDispatchTool(  # pyright: ignore[reportAbstractUsage]
                 handle
             ),
+            extra_tools=extra_tools,
             turn_finalizer=lambda delivered: self._finalize(handle, delivered),
         )
+
+    def _leader_extension(
+        self, handle: TeamRunHandle, msg: Any, session: Any
+    ) -> tuple[tuple[Any, ...], str]:
+        extension = self.run_extension
+        if extension is None or msg is None or session is None:
+            return (), ""
+        try:
+            tools, prompt = extension.leader_context(msg, session, handle)
+        except Exception as error:  # noqa: BLE001 - 扩展故障不能改变团队回合本身
+            logger.bind(
+                event="writing_extension_failed", run_id=handle.run_id
+            ).warning(f"writing extension failed: {error}")
+            return (), ""
+        return tuple(tools), str(prompt or "")
+
+    def _member_extra_tools(self, handle: TeamRunHandle, member_id: str) -> tuple[Any, ...]:
+        extension = self.run_extension
+        if extension is None:
+            return ()
+        try:
+            return tuple(extension.member_tools(handle, member_id))
+        except Exception as error:  # noqa: BLE001 - 成员退回不带写作工具执行
+            logger.bind(
+                event="writing_extension_failed",
+                run_id=handle.run_id,
+                member_id=member_id,
+            ).warning(f"writing member tools failed: {error}")
+            return ()
 
     async def _finalize(self, handle: TeamRunHandle, delivered: bool) -> None:
         await handle.finalize(delivered=delivered)
         self.scheduler.forget(handle.run_id)
+        extension = self.run_extension
+        if extension is not None:
+            try:
+                extension.forget(handle.run_id)
+            except Exception as error:  # noqa: BLE001 - 清理失败只留日志
+                logger.warning(f"writing extension cleanup failed: {error}")
 
 
 def bind_team_turns(agent: AgentLike, turns: TeamLeaderTurns | None) -> None:
@@ -252,7 +297,11 @@ def _publisher_factory(host: TeamHost) -> TeamPublisherFactory | None:
 
 
 def build_team_turns(
-    *, service: _StackService, host: TeamHost, workspace: Path | str
+    *,
+    service: _StackService,
+    host: TeamHost,
+    workspace: Path | str,
+    run_extension: Any | None = None,
 ) -> TeamLeaderTurns:
     """把一个 workspace 的团队执行栈装成 loop 注入点；只由 gateway 组装层调用。
 
@@ -325,4 +374,5 @@ def build_team_turns(
         runtime_provider=current_runtime,
         session_runtime_provider=session_runtime if session_runtime_available else None,
         preset_resolver=resolve_preset,
+        run_extension=run_extension,
     )

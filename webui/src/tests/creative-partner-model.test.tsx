@@ -9,26 +9,19 @@
 // 3. 切换走既有系统命令 `/model <preset>`，并按服务端读回值确认；失败 / 未生效都必须可见；
 // 4. 没有可用 preset / 未配置时走 `ModelPresetBadge` 既有 needsSetup 行为，点进模型设置；
 // 5. 只影响之后新建的批次（切换后的文案说明这一点）。
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import CreativeWorkspace, {
-  type CreativeWorkspaceProps,
-} from "@/components/creative/CreativeWorkspace";
 import {
   WritingPartnerPanel,
   type WritingPartnerPanelProps,
 } from "@/components/creative/WritingPartnerPanel";
 import type { CollabFrameClient } from "@/components/creative/use-writing-collab";
 import type { ModelPresetOption } from "@/components/thread/ModelPresetBadge";
-import { preloadMarkdownText } from "@/components/MarkdownText";
-import type { WebUIMutationTransport } from "@/lib/api";
-import type { SettingsPayload } from "@/lib/types";
 import { createEmptyCollabSnapshot, type CollabApi } from "@/lib/writing-collab-api";
 
 const ARTICLE_ID = "srv-1";
 const CHAT_ID = `${ARTICLE_ID}:partner`;
-const SESSION_KEY = `websocket:${CHAT_ID}`;
 
 const PRESET_OPTIONS: ModelPresetOption[] = [
   {
@@ -218,207 +211,5 @@ describe("WritingPartnerPanel 模型 chip（WU-02）", () => {
     fireEvent.click(chip);
 
     expect(onManageModels).toHaveBeenCalledTimes(1);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 集成层：CreativeWorkspace 把 settings.model_presets 与会话 preset 注入面板
-// ---------------------------------------------------------------------------
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    text: async () => JSON.stringify(body),
-    json: async () => body,
-    headers: { get: () => "application/json" },
-  } as unknown as Response;
-}
-
-function listBody(rows: Record<string, unknown>[] = []) {
-  return { articles: rows, total: rows.length, limit: 50, offset: 0 };
-}
-
-function summaryRow(overrides: Record<string, unknown> = {}) {
-  return {
-    id: ARTICLE_ID,
-    title: "文章标题",
-    summary: "",
-    status: "draft",
-    writing_type: "",
-    tags: [],
-    revision: 3,
-    created_at: "2026-01-01T00:00:00+00:00",
-    updated_at: "2026-01-02T00:00:00+00:00",
-    ...overrides,
-  };
-}
-
-function wireArticle(overrides: Record<string, unknown> = {}) {
-  return {
-    id: ARTICLE_ID,
-    title: "文章标题",
-    writing_type: "",
-    template_id: "",
-    status: "draft",
-    summary: "",
-    brief: {},
-    body: "正文",
-    outline: [],
-    materials: [],
-    tags: [],
-    revision: 3,
-    created_at: "2026-01-01T00:00:00+00:00",
-    updated_at: "2026-01-02T00:00:00+00:00",
-    ...overrides,
-  };
-}
-
-function presetRow(name: string, model: string, provider: string, isDefault = false) {
-  return {
-    name,
-    label: name,
-    active: isDefault,
-    is_default: isDefault,
-    model,
-    provider,
-    max_tokens: 4096,
-    context_window_tokens: 65_536,
-    temperature: 0.7,
-    reasoning_effort: null,
-  };
-}
-
-function partnerSettings(
-  modelPresets: ReturnType<typeof presetRow>[],
-  globalPreset: string | null = "default",
-): SettingsPayload {
-  return {
-    agent: {
-      model: "deepseek-v4-pro",
-      provider: "deepseek",
-      resolved_provider: "deepseek",
-      has_api_key: true,
-      model_preset: globalPreset,
-      max_tokens: 4096,
-      context_window_tokens: 65_536,
-      temperature: 0.7,
-      reasoning_effort: null,
-      timezone: "UTC",
-      tool_hint_max_length: 40,
-    },
-    model_presets: modelPresets,
-    model_call_order: [],
-    model_call_order_editable: false,
-    providers: [
-      { name: "deepseek", label: "DeepSeek", configured: true },
-      { name: "openai_codex", label: "OpenAI Codex", configured: true },
-    ],
-  } as unknown as SettingsPayload;
-}
-
-/** `/api/sessions` 是 snake_case 线格式（api.ts `listSessions` 负责映射）。 */
-function sessionRow(modelPreset: string | null): Record<string, unknown> {
-  return { key: SESSION_KEY, model_preset: modelPreset };
-}
-
-function stubFetch(options: {
-  settings: SettingsPayload;
-  sessions: Record<string, unknown>[];
-}): ReturnType<typeof vi.fn> {
-  const fetchMock = vi.fn(async (input: unknown) => {
-    const url = String(input);
-    if (url.includes("/api/settings")) return jsonResponse(options.settings);
-    if (url.includes("/api/sessions")) return jsonResponse({ sessions: options.sessions });
-    if (url.includes("/api/writing/collab")) {
-      return jsonResponse({
-        collaboration: null,
-        artifacts: [],
-        handoffs: [],
-        suggestions: [],
-      });
-    }
-    if (url.includes(ARTICLE_ID)) return jsonResponse({ article: wireArticle() });
-    return jsonResponse(listBody([summaryRow()]));
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock as unknown as ReturnType<typeof vi.fn>;
-}
-
-function workspaceProps(sendSystemCommand: ReturnType<typeof vi.fn>): CreativeWorkspaceProps {
-  const transport = {
-    requestMutation: vi.fn(async () => ({})),
-    sendSystemCommand,
-    onSessionUpdate: vi.fn(() => () => {}),
-  } as unknown as WebUIMutationTransport;
-  return { getToken: () => "t", transport, workspacePath: "/workspace" };
-}
-
-async function openArticle(): Promise<void> {
-  fireEvent.click(await screen.findByText("文章标题"));
-  await screen.findByTestId("creative-partner-column");
-}
-
-describe("CreativeWorkspace 注入协作会话模型（WU-02）", () => {
-  beforeEach(async () => {
-    await preloadMarkdownText();
-    localStorage.clear();
-    window.history.replaceState(null, "", "/");
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("显示协作会话的 model_preset，切换发送 /model 系统命令", async () => {
-    stubFetch({
-      settings: partnerSettings([
-        presetRow("default", "deepseek-v4-pro", "deepseek", true),
-        presetRow("fast", "openai-codex/gpt-5.5", "openai_codex"),
-        presetRow("slow", "deepseek/deepseek-v4-pro", "deepseek"),
-      ]),
-      sessions: [sessionRow("fast")],
-    });
-    const sendSystemCommand = vi.fn(async () => {});
-
-    render(<CreativeWorkspace {...workspaceProps(sendSystemCommand)} />);
-    await openArticle();
-
-    const chip = await screen.findByRole("button", { name: "fast" });
-    expect(screen.getByTitle(/gpt-5\.5/)).toBeInTheDocument();
-
-    fireEvent.click(chip);
-    fireEvent.click(await screen.findByRole("option", { name: "slow" }));
-
-    await waitFor(() =>
-      expect(sendSystemCommand).toHaveBeenCalledWith(CHAT_ID, "/model slow"),
-    );
-  });
-
-  it("协作会话不存在时显示全局默认 preset，并标注还没为本篇选过模型", async () => {
-    stubFetch({
-      settings: partnerSettings([
-        presetRow("default", "deepseek-v4-pro", "deepseek", true),
-        presetRow("fast", "openai-codex/gpt-5.5", "openai_codex"),
-      ]),
-      sessions: [],
-    });
-
-    render(<CreativeWorkspace {...workspaceProps(vi.fn(async () => {}))} />);
-    await openArticle();
-
-    expect(await screen.findByRole("button", { name: "default" })).toBeInTheDocument();
-    expect(document.querySelector("[data-partner-model-fallback]")).not.toBeNull();
-  });
-
-  it("没有可用 preset 时点击 chip 跳到模型设置（复用既有路由，不造新跳转）", async () => {
-    stubFetch({ settings: partnerSettings([]), sessions: [] });
-
-    render(<CreativeWorkspace {...workspaceProps(vi.fn(async () => {}))} />);
-    await openArticle();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Choose a model" }));
-
-    expect(window.location.hash).toBe("#/settings?section=models");
   });
 });

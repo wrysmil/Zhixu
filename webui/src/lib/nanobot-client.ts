@@ -13,6 +13,9 @@ import type {
   TeamBinding,
   TerminalEvent,
   WorkspaceScopePayload,
+  WritingChangedEvent,
+  WritingSendContext,
+  WritingSessionInfo,
 } from "./types";
 import { createHostWebSocket } from "./runtime";
 
@@ -258,6 +261,11 @@ export class NanobotClient {
   private pendingTranscriptions = new Map<string, PendingRequest<string>>();
   private pendingSystemCommands = new Map<string, PendingRequest<void>>();
   private pendingWebUIRequests = new Map<string, PendingWebUIRequest>();
+  /** Article ids this connection has bound; re-bound after every reconnect. */
+  private writingArticles = new Set<string>();
+  private pendingWritingBindings = new Map<string, PendingRequest<WritingSessionInfo>>();
+  private writingBindingPromises = new Map<string, Promise<WritingSessionInfo>>();
+  private writingChangedHandlers = new Set<(ev: WritingChangedEvent) => void>();
   // Frames queued while the socket is not yet OPEN
   private sendQueue: Outbound[] = [];
   private reconnectAttempts = 0;
@@ -1017,6 +1025,57 @@ export class NanobotClient {
     });
   }
 
+  /**
+   * Bind this connection to an article's creative-team session. The server owns
+   * the chat id and team identity; repeated calls are idempotent and the
+   * binding is re-established automatically after a reconnect.
+   */
+  bindWritingSession(articleId: string, timeoutMs: number = 10_000): Promise<WritingSessionInfo> {
+    const inFlight = this.writingBindingPromises.get(articleId);
+    if (inFlight) return inFlight;
+    this.writingArticles.add(articleId);
+    const promise = new Promise<WritingSessionInfo>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingWritingBindings.delete(articleId);
+        this.writingBindingPromises.delete(articleId);
+        reject(new Error("bindWritingSession timed out"));
+      }, timeoutMs);
+      this.pendingWritingBindings.set(articleId, {
+        resolve: (value) => {
+          this.writingBindingPromises.delete(articleId);
+          resolve(value);
+        },
+        reject: (error) => {
+          this.writingBindingPromises.delete(articleId);
+          reject(error);
+        },
+        timer,
+      });
+      this.queueSend({ type: "bind_writing_session", article_id: articleId });
+    });
+    this.writingBindingPromises.set(articleId, promise);
+    return promise;
+  }
+
+  /** Stop re-binding an article (e.g. its editor unmounted). */
+  unbindWritingSession(articleId: string): void {
+    this.writingArticles.delete(articleId);
+    const pending = this.pendingWritingBindings.get(articleId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingWritingBindings.delete(articleId);
+    this.writingBindingPromises.delete(articleId);
+    pending.reject(new Error("bindWritingSession cancelled"));
+  }
+
+  /** Article-scoped changes committed by writing tools (not chat stream events). */
+  onWritingChanged(handler: (ev: WritingChangedEvent) => void): Unsubscribe {
+    this.writingChangedHandlers.add(handler);
+    return () => {
+      this.writingChangedHandlers.delete(handler);
+    };
+  }
+
   attach(chatId: string): void {
     if (this.temporaryChatIds.has(chatId)) return;
     this.knownChats.add(chatId);
@@ -1036,6 +1095,7 @@ export class NanobotClient {
       quotedContext?: string;
       workspaceScope?: WorkspaceScopePayload | null;
       turnId?: string;
+      writing?: WritingSendContext;
       /** False for side-channel or injected messages that do not own a lifecycle. */
       startsNewRun?: boolean;
     },
@@ -1055,6 +1115,7 @@ export class NanobotClient {
       ...(options?.quotedContext?.trim() ? { quoted_context: options.quotedContext.trim() } : {}),
       ...(options?.workspaceScope ? { workspace_scope: options.workspaceScope } : {}),
       ...(options?.turnId ? { turn_id: options.turnId } : {}),
+      ...(options?.writing ? { writing: options.writing } : {}),
       webui: true,
     };
     if (!this.frameFitsTransport(frame)) {
@@ -1196,6 +1257,11 @@ export class NanobotClient {
     for (const chatId of this.knownChats) {
       this.rawSend({ type: "attach", chat_id: chatId });
     }
+    // The article binding is connection-scoped on the server; restore it before
+    // any queued message with writing metadata is flushed.
+    for (const articleId of this.writingArticles) {
+      this.rawSend({ type: "bind_writing_session", article_id: articleId });
+    }
     for (const pending of this.pendingWebUIRequests.values()) {
       this.rawSendSerialized(pending.serializedFrame);
     }
@@ -1234,6 +1300,20 @@ export class NanobotClient {
       return;
     }
 
+    if (parsed.event === "writing_session") {
+      const pending = this.pendingWritingBindings.get(parsed.article_id);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      this.pendingWritingBindings.delete(parsed.article_id);
+      pending.resolve(parsed);
+      return;
+    }
+
+    if (parsed.event === "writing_changed") {
+      for (const handler of [...this.writingChangedHandlers]) handler(parsed);
+      return;
+    }
+
     if (parsed.event === "webui_response") {
       const pending = this.pendingWebUIRequests.get(parsed.request_id);
       if (!pending) return;
@@ -1260,6 +1340,24 @@ export class NanobotClient {
           turn_id: fallback.turnId,
         };
       }
+    }
+    // A bind failure is the only uncorrelated error frame that can arrive while
+    // a writing session request is pending.
+    if (
+      parsed.event === "error"
+      && !parsed.chat_id
+      && !parsed.turn_id
+      && this.pendingWritingBindings.size > 0
+    ) {
+      const detail = parsed.detail || "writing_session_unavailable";
+      const reason = parsed.reason ? `:${parsed.reason}` : "";
+      for (const pending of this.pendingWritingBindings.values()) {
+        clearTimeout(pending.timer);
+        pending.reject(new Error(`${detail}${reason}`));
+      }
+      this.pendingWritingBindings.clear();
+      this.writingBindingPromises.clear();
+      return;
     }
     if (
       (parsed.event === "goal_status" || parsed.event === "turn_end")
@@ -1472,6 +1570,12 @@ export class NanobotClient {
         );
       }
       this.pendingWebUIRequests.clear();
+      for (const pending of this.pendingWritingBindings.values()) {
+        clearTimeout(pending.timer);
+        pending.reject(new Error("Socket closed before writing session bind"));
+      }
+      this.pendingWritingBindings.clear();
+      this.writingBindingPromises.clear();
     }
     for (const pending of this.pendingSystemCommands.values()) {
       clearTimeout(pending.timer);

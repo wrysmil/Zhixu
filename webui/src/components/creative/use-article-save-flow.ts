@@ -44,6 +44,8 @@ export interface SaveFlowState {
   phase: SavePhase;
   /** Revision confirmed by the server; every send uses this as `base_revision`. */
   baseRevision: number;
+  /** Content digest confirmed by the server; writing messages quote it. */
+  baseDigest: string | null;
   /** Local edit counter (spec A-06 dual counting); never minted server-side. */
   localEditSeq: number;
   lastSavedAt: string | null;
@@ -64,6 +66,19 @@ export interface ArticleSaveFlow {
   storageHealthy: boolean;
   setField: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
   saveNow: () => Promise<void>;
+  /**
+   * Flush pending edits and return the exact server version a writing message
+   * must quote. Returns `null` when the article cannot be safely frozen
+   * (conflict, offline, failed save, or a response that raced a newer edit).
+   */
+  flushForWriting: () => Promise<{ revision: number; digest: string } | null>;
+  /** Adopt a server view produced by the creative team (never while dirty). */
+  applyRemote: (
+    snapshot: ArticleSnapshotPayload,
+    revision: number,
+    digest: string | null,
+    updatedAt: string | null,
+  ) => void;
   acknowledgeConflict: (resolution: "reload" | "savedCopy" | "discardLocal") => Promise<void>;
   /** Replace the editor working copy with a draft recovered from local cache. */
   applyRecovery: (snapshot: ArticleSnapshotPayload) => void;
@@ -171,6 +186,7 @@ export function useArticleSaveFlow({
   const [state, setState] = useState<SaveFlowState>(() => ({
     phase: "saved",
     baseRevision: article.revision,
+    baseDigest: article.contentDigest ?? null,
     localEditSeq: 0,
     lastSavedAt: article.updatedAt,
     lastError: null,
@@ -284,6 +300,7 @@ export function useArticleSaveFlow({
         applyState({
           phase: "dirty",
           baseRevision: result.no_change ? attempt.baseRevision : result.revision,
+          baseDigest: result.digest,
           lastSavedAt: result.updated_at,
           lastError: null,
           conflict: null,
@@ -297,6 +314,7 @@ export function useArticleSaveFlow({
       applyState({
         phase: "saved",
         baseRevision: result.revision,
+        baseDigest: result.digest,
         lastSavedAt: result.updated_at,
         lastError: null,
         conflict: null,
@@ -324,6 +342,30 @@ export function useArticleSaveFlow({
   }, [applyState, cancelScheduled, runAttempt]);
 
   const saveNow = useCallback(() => flush(), [flush]);
+
+  /**
+   * Freeze the article before handing it to the creative team. Always performs
+   * one round-trip: the `article.save` response carries the digest even for a
+   * `no_change` reply, so the next message quotes a version the server just
+   * confirmed. Any conflict/offline outcome returns `null` instead of sending a
+   * stale revision to the team.
+   */
+  const flushForWriting = useCallback(async (): Promise<
+    { revision: number; digest: string } | null
+  > => {
+    if (abandonedRef.current) return null;
+    cancelScheduled();
+    if (isBrowserOffline()) {
+      cacheDraft();
+      applyState({ phase: "offline", lastError: null });
+      return null;
+    }
+    if (stateRef.current.phase === "conflict") return null;
+    await flush();
+    const current = stateRef.current;
+    if (current.phase !== "saved" || dirtyRef.current || !current.baseDigest) return null;
+    return { revision: current.baseRevision, digest: current.baseDigest };
+  }, [applyState, cacheDraft, cancelScheduled, flush]);
 
   const schedule = useCallback((delay: number) => {
     cancelScheduled();
@@ -378,7 +420,39 @@ export function useArticleSaveFlow({
       applyState({
         phase: "saved",
         baseRevision: latest.revision,
+        baseDigest: latest.contentDigest ?? null,
         lastSavedAt: latest.updatedAt,
+        lastError: null,
+        conflict: null,
+      });
+    },
+    [applyState, article.id, cancelScheduled, markDirty, workspacePath],
+  );
+
+  /**
+   * Adopt a version written by the creative team. The caller must only invoke
+   * this when the editor has no unsaved local work; overwriting a dirty draft
+   * would violate the author-owned-content rule (spec §5/A-08).
+   */
+  const applyRemote = useCallback(
+    (
+      snapshot: ArticleSnapshotPayload,
+      revision: number,
+      digest: string | null,
+      updatedAt: string | null,
+    ) => {
+      cancelScheduled();
+      draftRef.current = snapshot;
+      setDraft(snapshot);
+      requestIdRef.current = { draft: snapshot, id: newClientRequestId() };
+      markDirty(false);
+      clearDraft(workspacePath, article.id);
+      applyState({
+        phase: "saved",
+        baseRevision: revision,
+        baseDigest: digest,
+        localEditSeq: nextLocalEditSeq(stateRef.current.localEditSeq),
+        lastSavedAt: updatedAt,
         lastError: null,
         conflict: null,
       });
@@ -471,7 +545,11 @@ export function useArticleSaveFlow({
         try {
           const latest = await fetchArticle(getTokenRef.current(), article.id);
           if (latest.revision === stateRef.current.baseRevision) {
-            applyState({ phase: dirtyRef.current ? "dirty" : "saved", conflict: null });
+            applyState({
+              phase: dirtyRef.current ? "dirty" : "saved",
+              baseDigest: latest.contentDigest ?? stateRef.current.baseDigest,
+              conflict: null,
+            });
             scheduleRef.current(AUTOSAVE_DEBOUNCE_MS);
             return;
           }
@@ -520,6 +598,8 @@ export function useArticleSaveFlow({
     storageHealthy,
     setField,
     saveNow,
+    flushForWriting,
+    applyRemote,
     acknowledgeConflict,
     applyRecovery,
     discardRecovery,

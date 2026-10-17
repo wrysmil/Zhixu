@@ -100,6 +100,7 @@ class FakeSubagentManager:
         origin_message_id: str | None = None,
         workspace_scope: Any = None,
         on_activity: Any = None,
+        extra_tools: Any = (),
     ) -> SubagentExecutionResult:
         title = self._title(instruction)
         self.started.append(title)

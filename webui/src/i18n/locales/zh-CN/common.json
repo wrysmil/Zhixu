@@ -2537,7 +2537,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "助手",
-      "creative": "创作"
+      "creative": "创作",
+      "more": "更多",
+      "groups": {
+        "workspace": "工作区",
+        "ai": "AI 配置",
+        "personal": "个人"
+      }
     },
     "preview": {
       "badge": "界面预览 · 示例内容"

@@ -22,6 +22,8 @@ from nanobot.webui.writing_routes import (
     WritingSettingsOperations,
 )
 from nanobot.webui.writing_services import WritingServices
+from nanobot.writing import apply as writing_apply
+from nanobot.writing.apply import WritingActor
 
 
 @pytest.fixture
@@ -38,6 +40,7 @@ def operations(services: WritingServices) -> WritingSettingsOperations:
         save_article=partial(writing_api.save_article, services),
         duplicate_article=partial(writing_api.duplicate_article, services),
         delete_article=partial(writing_api.delete_article, services),
+        undo_change=partial(writing_api.undo_change, services),
     )
 
 
@@ -65,11 +68,12 @@ def _article(handler: WritingSettingsHandler, title: str = "标题") -> dict[str
 # ---- 动作名单 ---------------------------------------------------------------
 
 
-def test_action_names_are_dotted_and_exactly_six() -> None:
-    """契约 §4：两套动作名统一取点号，连字符会被 WS 传输层 400 拒掉。"""
+def test_action_names_are_dotted_and_exactly_seven() -> None:
+    """契约 §4/§5：动作名统一取点号（连字符会被 WS 传输层 400 拒掉）。"""
     assert WRITING_ACTION_NAMES == frozenset({
         "article.list", "article.get", "article.create",
         "article.save", "article.duplicate", "article.delete",
+        "writing.undo_change",
     })
     assert all("-" not in action for action in WRITING_ACTION_NAMES)
 
@@ -77,7 +81,7 @@ def test_action_names_are_dotted_and_exactly_six() -> None:
 # ---- 六个动作的正常路径 ----------------------------------------------------
 
 
-def test_handler_dispatches_all_six_actions(handler: WritingSettingsHandler) -> None:
+def test_handler_dispatches_all_article_actions(handler: WritingSettingsHandler) -> None:
     created = handler.handle(
         "article.create", _request({"client_request_id": "r-1", "title": "标题"}),
     )
@@ -105,6 +109,63 @@ def test_handler_dispatches_all_six_actions(handler: WritingSettingsHandler) -> 
         "client_request_id": "r-4", "article_id": article_id, "base_revision": 2,
     }))
     assert deleted.payload["deleted_article_id"] == article_id
+
+
+def test_undo_change_restores_team_write(
+    handler: WritingSettingsHandler, services: WritingServices
+) -> None:
+    """契约 §5：撤销只回滚该次写入，并产生 revision+1；客户端拿 change_id 即可。"""
+    created = handler.handle("article.create", _request({
+        "client_request_id": "r-1", "title": "原文", "body": "原文正文",
+    }))
+    article = dict(created.payload["article"])
+    assert services.database is not None
+    applied = writing_apply.apply_change(
+        services.database,
+        article_id=article["id"],
+        base_revision=1,
+        base_digest=article["digest"],
+        change={"kind": "body", "mode": "replace_body", "content": "团队改写"},
+        actor=WritingActor(member_id="writing-author"),
+        request_fingerprint="fp-1",
+        client_request_id="apply-1",
+    )
+    assert applied["revision"] == 2
+
+    undone = handler.handle("writing.undo_change", _request({
+        "client_request_id": "undo-1",
+        "change_id": applied["change_id"],
+        "base_revision": 2,
+    }))
+    assert undone.status == 200, undone.error
+    assert undone.payload["revision"] == 3
+    fetched = handler.handle("article.get", _request({}, query={"id": [article["id"]]}))
+    assert fetched.payload["article"]["body"] == "原文正文"
+
+    revived = handler.handle("writing.undo_change", _request({
+        "client_request_id": "undo-2",
+        "change_id": applied["change_id"],
+        "base_revision": 3,
+    }))
+    assert revived.status == 409
+    assert revived.error == "writing change already reverted"
+
+
+def test_undo_requires_wired_database() -> None:
+    """未注入撤销操作时回 503，而不是 AttributeError。"""
+    handler = WritingSettingsHandler(WritingSettingsOperations(
+        list_articles=lambda **_kwargs: {},
+        fetch_article=lambda _article_id: {},
+        create_article=lambda **_kwargs: {},
+        save_article=lambda **_kwargs: {},
+        duplicate_article=lambda **_kwargs: {},
+        delete_article=lambda **_kwargs: {},
+    ))
+    result = handler.handle("writing.undo_change", _request({
+        "client_request_id": "undo-1", "change_id": "c-1", "base_revision": 1,
+    }))
+    assert result.status == 503
+    assert result.error == "writing service is not configured"
 
 
 def test_reads_accept_query_filters(handler: WritingSettingsHandler) -> None:

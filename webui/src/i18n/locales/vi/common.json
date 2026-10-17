@@ -2537,7 +2537,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "Trợ lý",
-      "creative": "Sáng tạo"
+      "creative": "Sáng tạo",
+      "more": "Thêm",
+      "groups": {
+        "workspace": "Không gian làm việc",
+        "ai": "Cấu hình AI",
+        "personal": "Cá nhân"
+      }
     },
     "preview": {
       "badge": "Xem trước giao diện · nội dung mẫu"

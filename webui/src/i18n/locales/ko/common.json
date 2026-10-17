@@ -2537,7 +2537,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "어시스턴트",
-      "creative": "크리에이티브"
+      "creative": "크리에이티브",
+      "more": "더 보기",
+      "groups": {
+        "workspace": "워크스페이스",
+        "ai": "AI 설정",
+        "personal": "개인"
+      }
     },
     "preview": {
       "badge": "인터페이스 미리보기 · 샘플 콘텐츠"

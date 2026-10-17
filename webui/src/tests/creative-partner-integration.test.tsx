@@ -9,12 +9,10 @@ import type { WebUIMutationTransport } from "@/lib/api";
 import { preloadMarkdownText } from "@/components/MarkdownText";
 
 /**
- * WU-13 集成验收：创作搭档侧栏必须真的出现在编辑器里。
- *
- * 此前 `WritingPartnerPanel` 只有单测引用、生产零挂载 —— 功能对用户完全不可见，
- * 尾盘代码审查把它列为独立发现。这里从两个方向锁死：
- * 1. 编辑器右栏渲染注入的面板，并且开关能收起/展开（窄屏默认收起由 matchMedia 决定）；
- * 2. 没有注入面板时保留阶段 A 的只读占位，预览入口不挂真面板。
+ * 创作团队侧栏挂载：
+ * 1. 编辑器右栏渲染注入的团队会话，开关能收起/展开；
+ * 2. 没有注入会话时既不显示右栏，也不显示开关；
+ * 3. 真实工作区打开文章时挂上 WritingChatPanel（非预览入口）。
  */
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -81,7 +79,7 @@ function editorDraft() {
   };
 }
 
-function renderEditor(partnerPanel?: React.ReactNode) {
+function renderEditor(writingChat?: React.ReactNode) {
   return render(
     <ArticleEditor
       article={wireArticle() as never}
@@ -94,79 +92,41 @@ function renderEditor(partnerPanel?: React.ReactNode) {
       onFetchLatest={async () => wireArticle() as never}
       onSaveCopy={async () => {}}
       onBack={() => {}}
-      partnerPanel={partnerPanel}
+      writingChat={writingChat}
     />,
   );
 }
 
-describe("创作搭档侧栏挂载（WU-13）", () => {
+describe("创作团队侧栏挂载", () => {
   beforeEach(async () => {
     await preloadMarkdownText();
     localStorage.clear();
   });
 
-  it("右栏渲染注入的面板，开关可收起再展开", () => {
-    renderEditor(<div data-testid="fake-partner">搭档内容</div>);
+  it("右栏渲染注入的会话，开关可收起再展开", () => {
+    renderEditor(<div data-testid="fake-chat">团队内容</div>);
 
     expect(screen.getByTestId("creative-partner-column")).toBeInTheDocument();
-    expect(screen.getByTestId("fake-partner")).toBeInTheDocument();
+    expect(screen.getByTestId("fake-chat")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("partner-toggle"));
     expect(screen.queryByTestId("creative-partner-column")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("fake-partner")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("fake-chat")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("partner-toggle"));
     expect(screen.getByTestId("creative-partner-column")).toBeInTheDocument();
   });
 
-  it("没有注入面板时保留阶段 A 的只读占位，也不显示开关", () => {
+  it("没有注入会话时不显示右栏和开关", () => {
     renderEditor();
 
     expect(screen.queryByTestId("creative-partner-column")).not.toBeInTheDocument();
     expect(screen.queryByTestId("partner-toggle")).not.toBeInTheDocument();
-    expect(screen.getByTestId("suggestions-placeholder")).toBeInTheDocument();
   });
 
-  it("协作读请求带上 Authorization（否则面板一进来就整屏报错）", async () => {
-    // 回归：集成层一度没有注入 { token, transport }，`collabApi` 的默认实例从
-    // globalThis 取到空配置 → 读快照带 `Bearer ` → 401 → 面板显示「写作搭档无法
-    // 处理该请求」。这里直接断言线上那条读请求的鉴权头。
-    const seen: Array<{ url: string; auth: string }> = [];
-    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
-      const url = String(input);
-      const headers = (init?.headers ?? {}) as Record<string, string>;
-      seen.push({ url, auth: String(headers.Authorization ?? "") });
-      if (url.includes("srv-1")) return jsonResponse({ article: wireArticle() });
-      if (url.includes("/api/writing/collab")) {
-        return jsonResponse({
-          collaboration: null, artifacts: [], handoffs: [], suggestions: [],
-        });
-      }
-      return jsonResponse(listBody([summaryRow()]));
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const props: CreativeWorkspaceProps = {
-      getToken: () => "t",
-      transport: {
-        requestMutation: vi.fn(async () => ({})),
-      } as unknown as WebUIMutationTransport,
-      workspacePath: "/workspace",
-    };
-
-    render(<CreativeWorkspace {...props} />);
-    fireEvent.click(await screen.findByText("文章标题"));
-    await screen.findByTestId("creative-partner-column");
-
-    const collabRead = seen.find((entry) => entry.url.includes("/api/writing/collab"));
-    expect(collabRead).toBeTruthy();
-    expect(collabRead?.auth).toBe("Bearer t");
-    vi.unstubAllGlobals();
-  });
-
-  it("真实工作区打开文章时挂上真面板（非预览入口）", async () => {
+  it("真实工作区打开文章时挂上真团队会话面板（非预览入口）", async () => {
     const fetchMock = vi.fn(async (input: unknown) => {
       const url = String(input);
-      // 列表与详情都走 /api/writing/...，只能按文章 id 判别，别按 "article" 子串。
       if (url.includes("srv-1")) return jsonResponse({ article: wireArticle() });
       return jsonResponse(listBody([summaryRow()]));
     });
@@ -184,7 +144,7 @@ describe("创作搭档侧栏挂载（WU-13）", () => {
 
     expect(await screen.findByTestId("creative-partner-column")).toBeInTheDocument();
     // 真面板（不是替身节点）：根节点由面板自己打标。
-    expect(document.querySelector("[data-writing-partner]")).not.toBeNull();
+    expect(await screen.findByTestId("writing-chat-panel")).toBeInTheDocument();
     vi.unstubAllGlobals();
   });
 });

@@ -172,6 +172,8 @@ export function toArticle(raw: Record<string, unknown>): Article {
   };
   const templateId = text(raw.template_id);
   if (templateId) article.templateId = templateId;
+  const digest = text(raw.digest);
+  if (digest) article.contentDigest = digest;
   return article;
 }
 
@@ -344,4 +346,43 @@ export async function deleteArticle(
     },
   );
   return { deletedArticleId: body.deleted_article_id, revision: body.revision };
+}
+
+export interface UndoArticleChangeRequest {
+  clientRequestId: string;
+  changeId: string;
+  baseRevision: number;
+}
+
+export interface UndoArticleChangeResult {
+  articleId: string;
+  changeId: string;
+  revision: number;
+  digest: string;
+  noChange: boolean;
+}
+
+/** 撤销一次团队写入；服务端只在该字段仍是这次写入结果时允许。 */
+export async function undoArticleChange(
+  transport: WebUIMutationTransport,
+  req: UndoArticleChangeRequest,
+): Promise<UndoArticleChangeResult> {
+  const body = await mutation<{
+    article_id: string;
+    change_id: string;
+    revision: number;
+    digest: string;
+    no_change: boolean;
+  }>(transport, "writing.undo_change", {
+    client_request_id: req.clientRequestId,
+    change_id: req.changeId,
+    base_revision: req.baseRevision,
+  });
+  return {
+    articleId: body.article_id,
+    changeId: body.change_id,
+    revision: body.revision,
+    digest: body.digest,
+    noChange: body.no_change,
+  };
 }

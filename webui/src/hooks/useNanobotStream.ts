@@ -46,6 +46,7 @@ import type {
   UIMediaAttachment,
   UIMessage,
   WorkspaceScopePayload,
+  WritingSendContext,
 } from "@/lib/types";
 
 const NO_QUESTIONS: AskQuestionRequest[] = [];
@@ -185,6 +186,8 @@ export interface SendOptions {
   finalizeActiveTurn?: boolean;
   /** Append guidance to the running turn without detaching its active answer segment. */
   continueActiveTurn?: boolean;
+  /** Article/team context validated by the gateway before the turn starts. */
+  writing?: WritingSendContext;
 }
 
 export interface SubmittedTurn {

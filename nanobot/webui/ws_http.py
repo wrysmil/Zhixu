@@ -227,12 +227,13 @@ _WEBUI_MUTATION_PATHS = {
     "teamRuns.cancel": "/api/team-runs/cancel",
     "teamRuns.retry": "/api/team-runs/retry",
     "teamTasks.cancel": "/api/team-tasks/cancel",
-    # 契约 §5：写作域四条写动作只能走已认证 WS 的 webui_request；动作名与领域
+    # 契约 §5：写作域五条写动作只能走已认证 WS 的 webui_request；动作名与领域
     # 动作名同名取点号（契约 §4），不再有 WS/领域双口径映射。
     "article.create": "/api/writing/articles/create",
     "article.save": "/api/writing/articles/save",
     "article.duplicate": "/api/writing/articles/duplicate",
     "article.delete": "/api/writing/articles/delete",
+    "writing.undo_change": "/api/writing/articles/undo",
     # 契约 §3：协作域七个写动作同样只能走已认证 WS；两个读动作走认证 HTTP GET，
     # 因此**不**在这张表里（放进来的话 HTTP GET 会被 405 弹回）。path→action 的
     # 唯一真相源是 writing_collab_routes，这里按写动作名单派生。

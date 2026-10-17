@@ -52,6 +52,7 @@ EXPECTED_WRITE_ROUTES = {
     "/api/writing/articles/save": "article.save",
     "/api/writing/articles/duplicate": "article.duplicate",
     "/api/writing/articles/delete": "article.delete",
+    "/api/writing/articles/undo": "writing.undo_change",
 }
 
 EXPECTED_SYSTEM_ROUTES = {**EXPECTED_READ_ROUTES, **EXPECTED_WRITE_ROUTES}
@@ -64,6 +65,7 @@ EXPECTED_WS_ACTIONS = {
     "article.save": "/api/writing/articles/save",
     "article.duplicate": "/api/writing/articles/duplicate",
     "article.delete": "/api/writing/articles/delete",
+    "writing.undo_change": "/api/writing/articles/undo",
 }
 
 
@@ -77,7 +79,7 @@ def test_routes_are_registered(path: str, action: str) -> None:
 
 
 def test_system_routes_has_exactly_the_expected_writing_entries() -> None:
-    """写作域六条路径逐字锁定；``/api/writing/collab*`` 属于协作域（另一套动作名）。"""
+    """写作域七条路径逐字锁定；``/api/writing/collab*`` 属于协作域（另一套动作名）。"""
     article_paths = {
         path for path in _SYSTEM_ROUTES if path.startswith("/api/writing/articles")
     }
@@ -135,9 +137,9 @@ def test_ws_action_maps_to_http_path(action: str, path: str) -> None:
 
 
 def test_ws_action_names_match_frontend_contract() -> None:
-    assert {a for a in _WEBUI_MUTATION_PATHS if a.startswith("article.")} == set(
-        EXPECTED_WS_ACTIONS
-    )
+    assert {a for a in _WEBUI_MUTATION_PATHS if a.startswith("article.")} == {
+        action for action in EXPECTED_WS_ACTIONS if action.startswith("article.")
+    }
 
 
 def test_unregistered_ws_action_is_404() -> None:
@@ -147,7 +149,7 @@ def test_unregistered_ws_action_is_404() -> None:
 
 
 def test_ws_mutation_actions_are_exactly_the_write_actions() -> None:
-    """契约 §5：只有四个写动作有 WS 翻译，读动作不进入 mutation 通道。
+    """契约 §5：只有写动作有 WS 翻译，读动作不进入 mutation 通道。
 
     ``WRITING_MUTATION_ACTION_NAMES``（handler 侧）与 ``_WEBUI_MUTATION_PATHS``
     （传输侧）必须同一口径，否则前端能提交一个 handler 不认的动作名。
@@ -479,3 +481,35 @@ async def test_router_serves_collab_reads_and_blocks_collab_writes(tmp_path: Pat
         blocked = await router.dispatch(None, _get(path), path)
         assert blocked is not None, path
         assert blocked.status_code == 405, path
+
+
+def test_gateway_seeds_builtin_writing_team(tmp_path: Path, monkeypatch) -> None:
+    """网关装配即播种内置创作团队；再次播种幂等，不会生成第二个同名团队。"""
+    from unittest.mock import MagicMock
+
+    from nanobot.channels.websocket.runtime import WebSocketConfig
+    from nanobot.webui.gateway_services import seed_writing_team
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    services = build_gateway_services(
+        config=WebSocketConfig(),
+        bus=MagicMock(),
+        session_manager=None,
+        static_dist_path=None,
+        workspace_path=tmp_path,
+        default_restrict_to_workspace=False,
+        config_path=tmp_path / "config.json",
+        runtime_model_name=None,
+        runtime_surface="browser",
+        runtime_capabilities_overrides=None,
+    )
+    team_id = services.writing_team_id
+    assert team_id
+    assert services.writing_sessions is not None
+    definition = services.team_service.repository.get_team(team_id)
+    assert definition.name == "创作团队"
+    assert definition.leader_agent_id == "writing-editor"
+
+    assert seed_writing_team(services.team_service) == team_id
+    teams = services.team_service.repository.list_teams()["teams"]
+    assert [item["id"] for item in teams if item["name"] == "创作团队"] == [team_id]

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from nanobot.config.paths import get_writing_dir
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 
 _SCHEMA_STATEMENTS: tuple[str, ...] = (
     """
@@ -59,6 +59,42 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
       PRIMARY KEY (workspace_key, asset_kind, logical_id, builtin_version)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS article_sessions (
+      workspace_key TEXT NOT NULL,
+      article_id    TEXT NOT NULL,
+      chat_id       TEXT NOT NULL,
+      session_key   TEXT NOT NULL,
+      team_id       TEXT NOT NULL,
+      team_revision INTEGER NOT NULL,
+      created_at    TEXT NOT NULL,
+      updated_at    TEXT NOT NULL,
+      PRIMARY KEY (workspace_key, article_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS writing_article_changes (
+      id                 TEXT NOT NULL,
+      workspace_key      TEXT NOT NULL,
+      article_id         TEXT NOT NULL,
+      kind               TEXT NOT NULL,
+      before_json        TEXT NOT NULL,
+      after_json         TEXT NOT NULL,
+      actor_member       TEXT NOT NULL,
+      source_run_id      TEXT NOT NULL DEFAULT '',
+      source_turn_id     TEXT NOT NULL DEFAULT '',
+      source_message_id  TEXT NOT NULL DEFAULT '',
+      request_fingerprint TEXT NOT NULL,
+      result_revision    INTEGER NOT NULL,
+      result_digest      TEXT NOT NULL,
+      reverted           INTEGER NOT NULL DEFAULT 0,
+      created_at         TEXT NOT NULL,
+      reverted_at        TEXT,
+      PRIMARY KEY (workspace_key, id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS writing_article_changes_article_idx"
+    " ON writing_article_changes (workspace_key, article_id, created_at DESC)",
     "CREATE TABLE IF NOT EXISTS _schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
 )
 

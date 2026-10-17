@@ -250,6 +250,7 @@ class ArticleRecord:
     created_at: str
     updated_at: str
     fields: dict[str, Any]
+    content_digest: str = ""
 
     @classmethod
     def from_row(cls, row: Mapping[str, Any]) -> ArticleRecord:
@@ -270,6 +271,7 @@ class ArticleRecord:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             fields=fields,
+            content_digest=str(row["content_digest"]),
         )
 
     @classmethod
@@ -297,6 +299,8 @@ class ArticleRecord:
             "workspace_key": self.workspace_key,
             **self.fields,
             "revision": self.revision,
+            # 创作会话的发送/写入都以 revision+digest 做 CAS，读接口必须一并给出。
+            "digest": self.content_digest,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }

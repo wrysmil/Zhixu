@@ -53,6 +53,8 @@ class LeaderTurnContext:
     skill_exclude: frozenset[str] = frozenset()
     model_id: str | None = None
     dispatch_tool: Tool | None = None
+    # 写作会话扩展注入的工具：来自可信运行上下文，不受档案白名单裁剪（契约 §5）。
+    extra_tools: tuple[Tool, ...] = ()
     # 回合结束时的收口动作（由 WU-06 的回合装配挂上）：参数是「本回合有没有交付答案」。
     # 没有它，Leader 不回话/报错时运行会一直停在 running，UI 上是一个永远转圈的任务。
     turn_finalizer: Callable[[bool], Awaitable[None]] | None = None
@@ -106,6 +108,8 @@ def build_leader_registry(base: ToolRegistry, context: LeaderTurnContext) -> Too
         registry.register(tool)
     if context.dispatch_tool is not None:
         registry.register(context.dispatch_tool)
+    for tool in context.extra_tools:
+        registry.register(tool)
     return registry
 
 

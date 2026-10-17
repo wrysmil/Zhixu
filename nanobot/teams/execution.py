@@ -61,6 +61,8 @@ class TeamExecutionRequest:
     workspace_scope: WorkspaceScope | None = None
     origin_message_id: str | None = None
     session_key: str | None = None
+    # 可信运行上下文注入的工具（写作会话）；不是模型可控值，也不受档案白名单裁剪。
+    extra_tools: tuple[Any, ...] = ()
 
 
 class TeamMemberExecutor:
@@ -100,5 +102,6 @@ class TeamMemberExecutor:
             runtime=request.runtime,
             origin_message_id=request.origin_message_id,
             workspace_scope=request.workspace_scope,
+            extra_tools=request.extra_tools,
             on_activity=_on_activity,
         )

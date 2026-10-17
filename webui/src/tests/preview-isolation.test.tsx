@@ -58,7 +58,10 @@ describe("PreviewApp isolation", () => {
     render(<PreviewApp />);
     fireEvent.click(screen.getByRole("button", { name: "Switch to dark theme" }));
     expect(document.documentElement).toHaveClass("dark");
-    fireEvent.click(screen.getByRole("button", { name: "Memory" }));
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Memory" }),
+    );
     expect(document.documentElement).toHaveClass("dark");
     fireEvent.click(screen.getByRole("button", { name: "Switch to light theme" }));
     expect(document.documentElement).not.toHaveClass("dark");

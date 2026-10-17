@@ -55,3 +55,8 @@ export function useClient(): ClientContextValue {
   }
   return ctx;
 }
+
+/** For surfaces (creative preview, standalone editor tests) that may render without a gateway. */
+export function useOptionalClient(): ClientContextValue | null {
+  return useContext(ClientContext);
+}

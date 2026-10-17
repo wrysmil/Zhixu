@@ -1,6 +1,21 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Download, Save, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  Download,
+  ListTree,
+  MessagesSquare,
+  Save,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,10 +39,43 @@ import { countBodyChars } from "./article-model";
 import { ConflictDialog } from "./ConflictDialog";
 import { MaterialPanel } from "./MaterialPanel";
 import { OutlinePanel } from "./OutlinePanel";
+import { utf16RangeToCodepoints } from "@/lib/writing-collab-api";
+import type { WritingSelectionContext } from "@/lib/types";
 
 /** 正文视图模式：A-03 要求三种模式之间切换都不丢内容。 */
 export type EditorMode = "edit" | "preview" | "split";
 type LeftTab = "materials" | "outline";
+
+export type WritingSelectionAction =
+  | "ask"
+  | "rewrite"
+  | "expand"
+  | "condense"
+  | "explain"
+  | "verify"
+  | "tone";
+
+type TextSelection = { start: number; end: number; text: string };
+
+const CHAT_WIDTH_KEY = "zhixu.creative.chat-width";
+const CHAT_WIDTH_MIN = 340;
+const CHAT_WIDTH_MAX = 480;
+const CHAT_WIDTH_DEFAULT = 380;
+
+function clampChatWidth(value: number): number {
+  return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, Math.round(value)));
+}
+
+function readChatWidth(): number {
+  if (typeof window === "undefined") return CHAT_WIDTH_DEFAULT;
+  try {
+    const raw = window.localStorage.getItem(CHAT_WIDTH_KEY);
+    const parsed = raw ? Number(raw) : NaN;
+    return Number.isFinite(parsed) ? clampChatWidth(parsed) : CHAT_WIDTH_DEFAULT;
+  } catch {
+    return CHAT_WIDTH_DEFAULT;
+  }
+}
 
 const MODE_TABS: Array<{ mode: EditorMode; key: string; fallback: string }> = [
   { mode: "edit", key: "creative.tab_edit", fallback: "编辑" },
@@ -58,8 +106,12 @@ interface Props {
   onLeaveRetry?: () => void;
   onLeaveStay?: () => void;
   onLeaveForce?: () => void;
-  /** 创作搭档侧栏（WU-13 集成）：由 `CreativeWorkspace` 构造并注入，编辑器不自己取数。 */
-  partnerPanel?: ReactNode;
+  /** 右侧真实团队会话：由 `CreativeWorkspace` 构造并注入，编辑器不自己取数。 */
+  writingChat?: ReactNode;
+  /** 划词操作条；只有真实创作入口注入，预览入口不产生写请求。 */
+  onSelectionAction?: (selection: WritingSelectionContext, action: WritingSelectionAction) => void;
+  /** 团队写入后的对比/撤销条，由容器按文章版本构造。 */
+  remoteBanner?: ReactNode;
 }
 
 export function ArticleEditor({
@@ -78,18 +130,24 @@ export function ArticleEditor({
   onLeaveRetry,
   onLeaveStay,
   onLeaveForce,
-  partnerPanel,
+  writingChat,
+  onSelectionAction,
+  remoteBanner,
 }: Props) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<EditorMode>("edit");
-  const [leftTab, setLeftTab] = useState<LeftTab>("materials");
+  const [drawer, setDrawer] = useState<LeftTab | null>(null);
+  const [chatWidth, setChatWidth] = useState(readChatWidth);
+  const [selection, setSelection] = useState<TextSelection | null>(null);
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const [bodyMergeHint, setBodyMergeHint] = useState(false);
   const [conflictOpen, setConflictOpen] = useState(false);
   const [latest, setLatest] = useState<Article | null>(null);
   const [latestLoading, setLatestLoading] = useState(false);
   const [exportHint, setExportHint] = useState<null | "empty" | "failed" | "dirty" | "saved">(null);
   // 宽屏默认展开；窄屏（<1024px）默认收起，面板在窄屏是浮层，不挤压正文。
-  const [partnerOpen, setPartnerOpen] = useState(() => (
+  const [chatOpen, setChatOpen] = useState(() => (
     typeof window === "undefined" || typeof window.matchMedia !== "function"
       ? true
       : window.matchMedia("(min-width: 1024px)").matches
@@ -178,6 +236,58 @@ export function ArticleEditor({
     commitBody(merged);
   };
 
+  const syncSelection = () => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    if (end <= start || composingRef.current) {
+      setSelection(null);
+      setMoreActionsOpen(false);
+      return;
+    }
+    const text = el.value.slice(start, end);
+    setSelection((prev) => (
+      prev && prev.start === start && prev.end === end && prev.text === text
+        ? prev
+        : { start, end, text }
+    ));
+  };
+
+  useEffect(() => {
+    if (mode === "preview") {
+      setSelection(null);
+      setMoreActionsOpen(false);
+    }
+  }, [mode]);
+
+  const buildSelectionContext = (current: TextSelection): WritingSelectionContext | null => {
+    const range = utf16RangeToCodepoints(draft.body, current.start, current.end);
+    if (range.end <= range.start) return null;
+    const chars = Array.from(draft.body);
+    const prefix = chars.slice(Math.max(0, range.start - 40), range.start).join("");
+    const suffix = chars.slice(range.end, range.end + 40).join("");
+    return {
+      text: current.text,
+      start: range.start,
+      end: range.end,
+      ...(prefix ? { prefix } : {}),
+      ...(suffix ? { suffix } : {}),
+    };
+  };
+
+  const dispatchSelectionAction = (
+    action: WritingSelectionAction,
+    current: TextSelection | null = selection,
+  ) => {
+    if (!current || !onSelectionAction) return;
+    const context = buildSelectionContext(current);
+    if (!context) return;
+    setMoreActionsOpen(false);
+    setChatOpen(true);
+    onSelectionAction(context, action);
+  };
+
   const handleExport = () => {
     // A-09 / 计划 A3.7：导出的是当前草稿，不是仅服务端版本。
     const outcome = exportArticleMarkdown(draft);
@@ -227,6 +337,23 @@ export function ArticleEditor({
         composingRef.current = true;
       }}
       onCompositionEnd={handleCompositionEnd}
+      onSelect={syncSelection}
+      onKeyUp={(event) => {
+        if (event.key.startsWith("Arrow") || event.key === "Shift") syncSelection();
+        if (
+          (event.metaKey || event.ctrlKey)
+          && event.key.toLowerCase() === "i"
+        ) {
+          const el = bodyRef.current;
+          if (!el) return;
+          const start = el.selectionStart ?? 0;
+          const end = el.selectionEnd ?? 0;
+          if (end <= start) return;
+          event.preventDefault();
+          const current = { start, end, text: el.value.slice(start, end) };
+          dispatchSelectionAction("ask", current);
+        }
+      }}
       className="min-h-[300px] h-full w-full resize-none border-none bg-transparent text-[15px] leading-relaxed text-foreground outline-none"
       placeholder={t("creative.body_placeholder", { defaultValue: "开始写作…" })}
       aria-label="正文编辑"
@@ -255,17 +382,41 @@ export function ArticleEditor({
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {partnerPanel ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDrawer((open) => (open === "materials" ? null : "materials"))}
+            aria-expanded={drawer === "materials"}
+            aria-controls="creative-side-drawer"
+            data-testid="materials-toggle"
+          >
+            <BookOpen className="mr-1 h-3.5 w-3.5" />
+            {t("creative.tab_materials", { defaultValue: "素材" })}
+            {draft.materials.length > 0 ? ` ${draft.materials.length}` : ""}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDrawer((open) => (open === "outline" ? null : "outline"))}
+            aria-expanded={drawer === "outline"}
+            aria-controls="creative-side-drawer"
+            data-testid="outline-toggle"
+          >
+            <ListTree className="mr-1 h-3.5 w-3.5" />
+            {t("creative.tab_outline", { defaultValue: "提纲" })}
+            {draft.outline.length > 0 ? ` ${draft.outline.length}` : ""}
+          </Button>
+          {writingChat ? (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setPartnerOpen((open) => !open)}
-              aria-expanded={partnerOpen}
+              onClick={() => setChatOpen((open) => !open)}
+              aria-expanded={chatOpen}
               aria-controls="creative-partner-column"
               data-testid="partner-toggle"
             >
-              <Users className="mr-1 h-3.5 w-3.5" />
-              {t("creative.partner.ui.toggle", { defaultValue: "创作搭档" })}
+              <MessagesSquare className="mr-1 h-3.5 w-3.5" />
+              {t("creative.chat.title", { defaultValue: "创作团队" })}
             </Button>
           ) : null}
           <Button variant="outline" size="sm" onClick={() => void onSaveNow()}
@@ -344,51 +495,68 @@ export function ArticleEditor({
         </div>
       ) : null}
 
-      {/* Three-column body */}
       <div className="relative flex min-h-0 flex-1">
-        {/* Left panel: materials/outline */}
-        <div className="w-[220px] shrink-0 overflow-y-auto border-r border-border bg-settings-surface/60 p-3">
-          <div className="mb-3 flex gap-1">
-            <button
-              type="button"
-              className={cn(
-                "rounded-control px-2.5 py-1 text-[12px] cursor-pointer",
-                leftTab === "materials"
-                  ? "bg-primary/10 font-medium text-primary"
-                  : "text-muted-foreground",
+        {drawer ? (
+          <div
+            id="creative-side-drawer"
+            data-testid="creative-side-drawer"
+            className="absolute inset-y-0 left-0 z-20 flex w-[300px] flex-col border-r border-border bg-background shadow-xl"
+          >
+            <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border px-3">
+              <button
+                type="button"
+                className={cn(
+                  "rounded-control px-2 py-0.5 text-[12px] cursor-pointer",
+                  drawer === "materials"
+                    ? "bg-primary/10 font-medium text-primary"
+                    : "text-muted-foreground",
+                )}
+                onClick={() => setDrawer("materials")}
+              >
+                {t("creative.tab_materials", { defaultValue: "素材" })}
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "rounded-control px-2 py-0.5 text-[12px] cursor-pointer",
+                  drawer === "outline"
+                    ? "bg-primary/10 font-medium text-primary"
+                    : "text-muted-foreground",
+                )}
+                onClick={() => setDrawer("outline")}
+              >
+                {t("creative.tab_outline", { defaultValue: "提纲" })}
+              </button>
+              <span className="flex-1" />
+              <button
+                type="button"
+                onClick={() => setDrawer(null)}
+                aria-label={t("creative.drawer.close", { defaultValue: "关闭面板" })}
+                className="flex h-6 w-6 items-center justify-center rounded-control text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {drawer === "materials" ? (
+                <MaterialPanel
+                  materials={draft.materials}
+                  onChange={(materials) => setField("materials", materials)}
+                />
+              ) : (
+                <OutlinePanel
+                  outline={draft.outline}
+                  onChange={(outline) => setField("outline", outline)}
+                />
               )}
-              onClick={() => setLeftTab("materials")}
-            >
-              {t("creative.tab_materials", { defaultValue: "素材" })}
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "rounded-control px-2.5 py-1 text-[12px] cursor-pointer",
-                leftTab === "outline"
-                  ? "bg-primary/10 font-medium text-primary"
-                  : "text-muted-foreground",
-              )}
-              onClick={() => setLeftTab("outline")}
-            >
-              {t("creative.tab_outline", { defaultValue: "提纲" })}
-            </button>
+            </div>
           </div>
-          {leftTab === "materials" ? (
-            <MaterialPanel
-              materials={draft.materials}
-              onChange={(materials) => setField("materials", materials)}
-            />
-          ) : (
-            <OutlinePanel
-              outline={draft.outline}
-              onChange={(outline) => setField("outline", outline)}
-            />
-          )}
-        </div>
+        ) : null}
 
         {/* Center: editor/preview/split */}
-        <div className="flex min-w-0 flex-1 flex-col bg-background">
+        <div className="relative flex min-w-0 flex-1 flex-col bg-background">
+          {remoteBanner}
+
           <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/60 px-4">
             {MODE_TABS.map((tab) => (
               <button
@@ -430,37 +598,120 @@ export function ArticleEditor({
               {showPreview ? <div className="min-h-0 overflow-y-auto p-6">{previewPane}</div> : null}
             </div>
           </div>
+
+          {showEditor && selection && onSelectionAction ? (
+            <div
+              data-testid="selection-toolbar"
+              role="toolbar"
+              aria-label={t("creative.selection.toolbar", { defaultValue: "选区操作" })}
+              className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-popover px-1 py-1 shadow-lg"
+            >
+              {([
+                { action: "ask", label: "问 AI" },
+                { action: "rewrite", label: "改写" },
+                { action: "expand", label: "扩写" },
+                { action: "condense", label: "精简" },
+              ] as const).map((item) => (
+                <button
+                  key={item.action}
+                  type="button"
+                  data-testid={`selection-action-${item.action}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => dispatchSelectionAction(item.action)}
+                  className="rounded-full px-2.5 py-1 text-[11.5px] text-foreground hover:bg-accent"
+                >
+                  {item.label}
+                </button>
+              ))}
+              <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-expanded={moreActionsOpen}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setMoreActionsOpen((open) => !open)}
+                  className="rounded-full px-2 py-1 text-[11.5px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  {t("creative.selection.more", { defaultValue: "更多" })}
+                </button>
+                {moreActionsOpen ? (
+                  <div className="absolute bottom-full right-0 mb-1.5 w-32 rounded-panel border border-border bg-popover p-1 shadow-xl">
+                    {([
+                      { action: "explain", label: "解释这段" },
+                      { action: "verify", label: "核实说法" },
+                      { action: "tone", label: "换语气" },
+                    ] as const).map((item) => (
+                      <button
+                        key={item.action}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => dispatchSelectionAction(item.action)}
+                        className="flex w-full rounded-control px-2 py-1.5 text-left text-[11.5px] hover:bg-accent"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </div>
 
-        {/* Right panel: 注入面板优先；没有注入面板时保留阶段 A 的只读占位 */}
-        {partnerPanel && partnerOpen ? (
+        {writingChat && chatOpen ? (
           <div
             id="creative-partner-column"
             data-testid="creative-partner-column"
+            aria-label={t("creative.chat.title", { defaultValue: "创作团队" })}
+            style={{ "--writing-chat-width": `${chatWidth}px` } as CSSProperties}
             className={cn(
-              "shrink-0 overflow-y-auto border-l border-border bg-settings-surface/60",
-              // 窄屏浮层：390/768 下不挤压正文，开关仍然可用。
-              "max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-20 max-lg:w-[320px]",
-              "max-lg:shadow-xl lg:w-[340px]",
+              "relative flex min-h-0 shrink-0 flex-col border-l border-border bg-background",
+              // 窄屏浮层：不挤压正文，开关仍然可用。
+              "max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:z-20 max-lg:w-[min(420px,100vw)]",
+              "max-lg:shadow-xl lg:w-[var(--writing-chat-width)]",
             )}
           >
-            {partnerPanel}
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={t("creative.chat.resize", { defaultValue: "调整创作团队宽度" })}
+              data-testid="writing-chat-resize"
+              onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
+                if (event.button !== 0) return;
+                resizeRef.current = { startX: event.clientX, startWidth: chatWidth };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event: ReactPointerEvent<HTMLDivElement>) => {
+                const state = resizeRef.current;
+                if (!state) return;
+                const next = clampChatWidth(
+                  state.startWidth - (event.clientX - state.startX),
+                );
+                setChatWidth(next);
+              }}
+              onPointerUp={(event: ReactPointerEvent<HTMLDivElement>) => {
+                const state = resizeRef.current;
+                if (!state) return;
+                resizeRef.current = null;
+                const next = clampChatWidth(
+                  state.startWidth - (event.clientX - state.startX),
+                );
+                setChatWidth(next);
+                try {
+                  window.localStorage.setItem(CHAT_WIDTH_KEY, String(next));
+                } catch {
+                  // 本地存储不可用只影响记忆宽度，不影响会话。
+                }
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }}
+              onPointerCancel={() => {
+                resizeRef.current = null;
+              }}
+              className="absolute inset-y-0 -left-1 hidden w-2 cursor-col-resize lg:block"
+            />
+            <div className="min-h-0 flex-1 overflow-hidden">{writingChat}</div>
           </div>
-        ) : partnerPanel ? null : (
-        <div className="w-[260px] shrink-0 overflow-y-auto border-l border-border bg-settings-surface/60 p-3">
-          <p className="mb-3 text-[12px] font-medium text-foreground">
-            {t("creative.suggestions_title", { defaultValue: "AI 建议" })}
-          </p>
-          <p
-            data-testid="suggestions-placeholder"
-            className="rounded-control border border-dashed border-border px-2.5 py-3 text-[11px] leading-relaxed text-muted-foreground"
-          >
-            {t("creative.suggestions_pending", {
-              defaultValue: "建议功能将在阶段 B 接入，现在写作不受影响。",
-            })}
-          </p>
-        </div>
-        )}
+        ) : null}
       </div>
 
       {/* Status bar */}

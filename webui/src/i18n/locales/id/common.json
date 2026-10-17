@@ -2537,7 +2537,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "Asisten",
-      "creative": "Kreatif"
+      "creative": "Kreatif",
+      "more": "Lainnya",
+      "groups": {
+        "workspace": "Ruang kerja",
+        "ai": "Konfigurasi AI",
+        "personal": "Pribadi"
+      }
     },
     "preview": {
       "badge": "Pratinjau antarmuka · konten contoh"
