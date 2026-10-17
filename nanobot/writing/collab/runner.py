@@ -187,6 +187,42 @@ class StartCollabRequest:
     material_ids: tuple[str, ...] = ()
 
 
+#: ``writing.start`` 的字段名单（契约 §3）。payload 层
+#: （``writing_collab_api._start_request``）逐字使用同一份名字组装普通 dict。
+_START_REQUEST_FIELDS: tuple[str, ...] = (
+    "client_request_id",
+    "article_id",
+    "chat_id",
+    "action",
+    "base_revision",
+    "snapshot_digest",
+    "instruction",
+    "selection",
+    "material_ids",
+)
+
+
+def coerce_start_request(request: Any) -> StartCollabRequest:
+    """把 ``StartCollabRequest`` 或等价映射归一成领域输入（契约 §3）。
+
+    payload 层刻意不 import runner 的领域类型（见该模块 docstring），只送普通
+    ``dict``；执行栈这边按同一份字段名展开，缺字段或字段名漂移都会立刻
+    ``TypeError``，而不是等到运行期才变成 ``AttributeError``（未登记异常会被
+    路由层折成 500 通用文案，排查只能靠日志）。
+    """
+    if isinstance(request, StartCollabRequest):
+        return request
+    if isinstance(request, Mapping):
+        payload = cast("Mapping[str, Any]", request)
+        unknown = sorted(set(payload) - set(_START_REQUEST_FIELDS))
+        if unknown:
+            raise TypeError(f"unknown writing.start field(s): {', '.join(unknown)}")
+        known = {name: payload[name] for name in _START_REQUEST_FIELDS if name in payload}
+        return StartCollabRequest(**known)
+    # 具名对象（鸭子类型）保持原样：下游按属性访问，形状不符照样炸在调用点。
+    return cast("StartCollabRequest", request)
+
+
 @dataclass(frozen=True, slots=True)
 class BatchHandle:
     """``writing.start`` 的成功结果（契约 §3）。"""
@@ -408,7 +444,12 @@ class CollabRunner:
     # ---- 写入口 -------------------------------------------------------------
 
     async def start(self, request: StartCollabRequest) -> BatchHandle:
-        """解析配方 → 冻结准备 → 建批次 → 启 Team run → 协作置 ``running``。"""
+        """解析配方 → 冻结准备 → 建批次 → 启 Team run → 协作置 ``running``。
+
+        ``request`` 允许是 ``StartCollabRequest`` 或 payload 层组装的等价映射
+        （见 :func:`coerce_start_request`）。
+        """
+        request = coerce_start_request(request)
         action = normalize_enum("action", request.action, ACTIONS)
         if action in _SELECTION_REQUIRED_ACTIONS and not _has_selection(request.selection):
             raise CollabSelectionRequired()

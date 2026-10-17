@@ -811,6 +811,44 @@ async def test_default_preparer_runs_real_prepare_frozen(tmp_path: Path) -> None
     assert runtime_frozen.skills[0].body, "运行期冻结上下文必须带技能正文"
 
 
+async def test_start_accepts_transport_payload_mapping(tmp_path: Path) -> None:
+    """回归（冒烟）：payload 层送**普通 dict**，真执行栈必须按同一份字段名展开。
+
+    ``nanobot/webui/writing_collab_api.py::_start_request`` 刻意不 import runner 的
+    领域类型，组装出来的是 dict；缺陷版本 ``CollabRunner.start`` 只做属性访问
+    （``request.action``），于是生产 ``writing.start`` 恒抛
+    ``AttributeError: 'dict' object has no attribute 'action'``：异常未登记进
+    ``translate_error``，被 handler 折成 500 ``writing collaboration request failed``，
+    前端再映射成「写作搭档无法处理该请求，请重试。」。失败发生在建协作之前，
+    库里不留任何一行 —— 与线上现象（三张协作表全空、state.db mtime 不动）一致。
+
+    当时的盲区：runner 单测一律构造 ``StartCollabRequest``，webui 单测又用同时接受
+    映射与对象的宽松假 runner，因此没有一条用例跨过这个接缝。
+    """
+    from nanobot.webui import writing_collab_api
+
+    h = _harness(tmp_path)
+    article = _create_article(h.articles)
+    services = writing_collab_api.WritingCollabServices.for_workspace(
+        "default", h.db, h.runner,
+    )
+
+    result = await writing_collab_api.start_collaboration(
+        services,
+        client_request_id="req-transport-1",
+        article_id=str(article["id"]),
+        chat_id="chat-1",
+        action=Action.START_FULL,
+        base_revision=int(article["revision"]),
+        snapshot_digest=_digest(article),
+    )
+
+    assert result["collaboration_id"]
+    assert result["batch_id"]
+    assert result["status"] == CollaborationStatus.RUNNING
+    assert h.team.started, "接缝通过后必须真的把批次交给 TeamPort"
+
+
 def _config_file(tmp_path: Path, *, enabled: bool) -> Path:
     config = Config()
     config.agents.teams.enabled = enabled
