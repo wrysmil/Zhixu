@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import os
 import re
 import socket
+from collections.abc import MutableMapping
 from contextlib import contextmanager, suppress
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -209,6 +211,52 @@ def _no_proxy_mount_pattern(hostname: str) -> str | None:
     if hostname.lower() == "localhost":
         return "all://localhost"
     return f"all://*{hostname}"
+
+
+_NO_PROXY_ENV_KEYS = ("NO_PROXY", "no_proxy")
+_BRACKETED_NO_PROXY_ENTRY_RE = re.compile(r"^\[(?P<host>[^\[\]]+)\](?::\d+)?$")
+
+
+def _unbracket_no_proxy_entry(entry: str) -> str:
+    """Turn a bracketed IPv6 ``NO_PROXY`` entry into its unbracketed form.
+
+    ``httpx`` builds one ``URLPattern`` per ``NO_PROXY`` entry, so ``[::1]``
+    becomes ``all://*[::1]`` — an unparsable URL that raises
+    ``InvalidURL: Invalid port: ':1]'`` for *every* ``httpx.Client()`` the
+    process creates. Unbracketed IPv6 (``::1``) parses correctly.
+    """
+    match = _BRACKETED_NO_PROXY_ENTRY_RE.match(entry)
+    if match is None:
+        return entry
+    return match.group("host")
+
+
+def sanitize_no_proxy_env(environ: MutableMapping[str, str] | None = None) -> bool:
+    """Normalize ``NO_PROXY``/``no_proxy`` so httpx can parse every entry.
+
+    Rewrites bracketed IPv6 entries (``[::1]``, ``[::1]:8080``) to unbracketed
+    hosts and drops the resulting duplicates. Returns ``True`` when any value
+    changed; idempotent, so it is safe to call on every startup path.
+    """
+    target: MutableMapping[str, str] = os.environ if environ is None else environ
+    changed = False
+    for key in _NO_PROXY_ENV_KEYS:
+        raw = target.get(key)
+        if not raw:
+            continue
+        entries: list[str] = []
+        for chunk in raw.split(","):
+            entry = chunk.strip()
+            if not entry:
+                continue
+            sanitized = _unbracket_no_proxy_entry(entry)
+            if sanitized not in entries:
+                entries.append(sanitized)
+        normalized = ",".join(entries)
+        if normalized != raw:
+            target[key] = normalized
+            changed = True
+    return changed
 
 
 @contextmanager

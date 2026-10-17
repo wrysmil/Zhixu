@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 import socket
 from unittest.mock import patch
 
@@ -16,6 +17,7 @@ from nanobot.security.network import (
     is_loopback_host,
     pin_resolved_url_dns,
     resolve_url_target,
+    sanitize_no_proxy_env,
     validate_url_target,
 )
 
@@ -362,3 +364,67 @@ def test_whitelist_allows_ipv6_mapped_cgnat():
             assert ok, f"Whitelisted IPv6-mapped CGNAT should be allowed, got: {err}"
     finally:
         configure_ssrf_whitelist([])
+
+
+# ---------------------------------------------------------------------------
+# sanitize_no_proxy_env — bracketed IPv6 entries break httpx proxy mounts
+# ---------------------------------------------------------------------------
+
+
+def test_bracketed_naive_no_proxy_entry_breaks_httpx_client():
+    """Guard the regression: '[::1]' in NO_PROXY makes httpx.Client() raise."""
+    import httpx
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("HTTP_PROXY", "http://proxy.example:8080")
+        mp.setenv("NO_PROXY", "localhost,[::1]")
+        with pytest.raises(httpx.InvalidURL):
+            httpx.Client(timeout=1).close()
+
+
+def test_sanitize_no_proxy_env_unbrackets_ipv6_entries(monkeypatch):
+    monkeypatch.setenv("NO_PROXY", "localhost,127.0.0.1,::1,[::1]")
+    monkeypatch.setenv("no_proxy", "localhost,[::1]:8080")
+
+    assert sanitize_no_proxy_env() is True
+
+    assert os.environ["NO_PROXY"] == "localhost,127.0.0.1,::1"
+    assert os.environ["no_proxy"] == "localhost,::1"
+
+
+def test_sanitize_no_proxy_env_makes_httpx_client_constructible(monkeypatch):
+    """The whole point: provider clients must stop dying on NO_PROXY parsing."""
+    import httpx
+
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example:8080")
+    monkeypatch.setenv("NO_PROXY", "localhost,127.0.0.1,::1,[::1],[fe80::1]")
+
+    sanitize_no_proxy_env()
+
+    client = httpx.Client(timeout=1)
+    client.close()
+
+
+def test_sanitize_no_proxy_env_is_noop_without_brackets(monkeypatch):
+    monkeypatch.setenv("NO_PROXY", "localhost,127.0.0.1,::1")
+    monkeypatch.delenv("no_proxy", raising=False)
+
+    assert sanitize_no_proxy_env() is False
+    assert os.environ["NO_PROXY"] == "localhost,127.0.0.1,::1"
+
+
+def test_sanitize_no_proxy_env_is_idempotent(monkeypatch):
+    monkeypatch.setenv("NO_PROXY", "localhost,[::1]")
+
+    assert sanitize_no_proxy_env() is True
+    assert sanitize_no_proxy_env() is False
+    assert os.environ["NO_PROXY"] == "localhost,::1"
+
+
+def test_sanitize_no_proxy_env_keeps_irrelevant_entries(monkeypatch):
+    monkeypatch.setenv("NO_PROXY", "*,example.com,.corp.internal,[::1]")
+    monkeypatch.delenv("no_proxy", raising=False)
+
+    sanitize_no_proxy_env()
+
+    assert os.environ["NO_PROXY"] == "*,example.com,.corp.internal,::1"

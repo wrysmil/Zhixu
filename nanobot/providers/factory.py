@@ -9,6 +9,7 @@ from nanobot.config.schema import Config, InlineFallbackConfig, ModelPresetConfi
 from nanobot.providers.base import GenerationSettings, LLMProvider
 from nanobot.providers.fallback_provider import FallbackProvider
 from nanobot.providers.registry import ProviderSpec, create_dynamic_spec, find_by_name
+from nanobot.security.network import sanitize_no_proxy_env
 
 
 @dataclass(frozen=True)
@@ -282,6 +283,9 @@ def make_provider(
     When *model* is given, it overrides the resolved/preset model — used by
     the failover path to create providers for fallback models.
     """
+    # Bracketed IPv6 NO_PROXY entries break httpx proxy mounts at client
+    # construction time (SDK and embedded callers bypass the CLI entrypoint).
+    sanitize_no_proxy_env()
     resolved = _resolve_model_preset(config, preset_name=preset_name, preset=preset)
     provider = _make_provider_core(config, preset=resolved, model=model)
     fallback_presets = _resolve_fallback_presets(config, resolved)
