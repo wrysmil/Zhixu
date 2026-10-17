@@ -1,16 +1,16 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, Plus, Search, Copy, Trash2, ArrowRight, Sparkles, Lightbulb, Code2, Feather, BookOpen, Check } from "lucide-react";
+import { FileText, Plus, Search, Copy, Trash2, ArrowRight, Sparkles, Lightbulb, Code2, Feather, BookOpen, Check, Loader2 } from "lucide-react";
 
-import writingIllustration from "@/assets/zhixu-writing-illustration.webp";
+import writingIllustration from "@/assets/creative-writing-desk.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { fmtDateTime, relativeTime } from "@/lib/format";
 import type { ArticleStatus, ArticleSummaryView } from "./types";
 import { ARTICLE_STATUSES, ARTICLE_STATUS_LABEL_KEY } from "./types";
 import { WRITING_TEMPLATES, findTemplate } from "./templates";
@@ -39,6 +39,7 @@ interface Props {
 }
 
 const TEMPLATE_ICONS = [Lightbulb, Code2, Feather, BookOpen];
+const FOCUS_STYLE = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 function filteredOutOfServer(query: string, statusFilter: ArticleStatus | "all"): boolean {
   return query.trim().length > 0 || statusFilter !== "all";
@@ -49,28 +50,40 @@ export function ArticleList({
   draftIds, onQueryChange, onStatusFilterChange, onOpen, onCreate, onDuplicate, onDelete,
   onRetry, onDismissActionError,
 }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [newTitle, setNewTitle] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>();
   const [createError, setCreateError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ArticleSummaryView | null>(null);
-  const titleRef = useRef<HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
+  const composingRef = useRef(false);
+  const hasFilters = filteredOutOfServer(query, statusFilter);
 
   const handleCreate = async () => {
-    if (submitting) return;
+    // 同一渲染批次也可能收到两次 submit，状态更新前先同步锁住。
+    if (submittingRef.current || composingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
-    const { error } = await onCreate(newTitle, selectedTemplate);
-    setSubmitting(false);
-    if (error) {
-      // A-01：失败要留着已填标题与模板选择，用户不必重写。
-      setCreateError(error);
-      titleRef.current?.focus();
-      return;
-    }
-    setNewTitle("");
-    setSelectedTemplate(undefined);
     setCreateError(null);
+    try {
+      const { error } = await onCreate(newTitle, selectedTemplate);
+      if (error) {
+        // A-01：失败要留着已填标题与模板选择，用户不必重写。
+        setCreateError(error);
+        titleRef.current?.focus();
+        return;
+      }
+      setNewTitle("");
+      setSelectedTemplate(undefined);
+    } catch {
+      setCreateError(t("creative.createFailed"));
+      titleRef.current?.focus();
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   };
 
   const templateLabel = (templateId?: string) => {
@@ -87,118 +100,148 @@ export function ArticleList({
     )}>{t(ARTICLE_STATUS_LABEL_KEY[status])}</span>
   );
 
+  const clearFilters = () => {
+    onQueryChange("");
+    onStatusFilterChange("all");
+  };
+
   return (
-    <section className="mx-auto w-full max-w-[1120px] px-5 pb-10 pt-8 sm:px-8 lg:px-12 lg:pt-10">
-      <div className="relative mb-6 flex min-h-[124px] items-center justify-between gap-6">
-        <div className="relative z-10 min-w-0 flex-1">
-          <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-            <span className="h-1.5 w-1.5 rounded-sm bg-accent-foreground" aria-hidden />
-            {t("creative.title", { defaultValue: "创作空间" })}
+    <section className="mx-auto w-full min-w-0 max-w-[1120px] px-4 pb-10 pt-6 sm:px-8 lg:px-10 lg:pt-8">
+      <header className="relative mb-5 flex items-center justify-between gap-5 sm:mb-6">
+        <div className="min-w-0 flex-1 py-2">
+          <p className="mb-2.5 flex items-center gap-2 text-[11px] font-medium tracking-wide text-accent-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent-foreground" aria-hidden />
+            {t("creative.title")}
             {preview ? (
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                 {t("creative.sample_label")}
               </span>
             ) : null}
           </p>
-          <h1 className="text-[28px] font-semibold leading-[1.4] tracking-tight text-foreground sm:text-[32px]">
-            {t("creative.headline", { defaultValue: "今天，想写点什么？" })}
+          <h1 className="font-serif text-[28px] font-medium leading-[1.3] tracking-tight text-foreground sm:text-[34px]">
+            {t("creative.headline")}
           </h1>
-          <p className="mt-3 max-w-[560px] text-[13px] leading-7 text-muted-foreground">
-            {t("creative.hero_description", { defaultValue: "一段代码、一次实践、一个新理解，都可以是一篇文章的开始。" })}
+          <p className="mt-2.5 max-w-[590px] text-xs leading-6 text-muted-foreground sm:text-[13px]">
+            {t("creative.hero_description")}
           </p>
         </div>
-        <img src={writingIllustration} alt="" aria-hidden="true" width={640} height={640}
-          decoding="async" className="hidden h-[160px] w-[190px] shrink-0 object-contain sm:block dark:brightness-90" />
-      </div>
+        <img src={writingIllustration} alt="" aria-hidden="true" width={690} height={460}
+          decoding="async" className="hidden h-[132px] w-[184px] shrink-0 object-contain sm:block lg:w-[208px] dark:brightness-90" />
+      </header>
 
-      <form onSubmit={(event) => { event.preventDefault(); void handleCreate(); }}
-        className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_2px_4px_hsl(var(--foreground)/0.02),0_8px_28px_hsl(var(--foreground)/0.025)] transition-colors focus-within:border-accent-foreground/50">
-        <Textarea ref={titleRef} value={newTitle}
-          onChange={(event) => { setNewTitle(event.target.value); setCreateError(null); }}
-          aria-label={t("creative.topic_label")}
-          aria-invalid={!!createError} aria-describedby={createError ? "create-article-error" : undefined}
-          placeholder={t("creative.new_placeholder", { defaultValue: "想讲清楚什么问题？" })}
-          className="min-h-[104px] resize-none rounded-none border-0 bg-transparent px-5 py-5 text-[14px] leading-7 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:px-6" />
-        {createError ? <p id="create-article-error" data-testid="create-error" role="alert" className="px-6 pb-3 text-xs font-medium text-destructive">{createError}</p> : null}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 px-4 py-3 sm:px-6">
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Sparkles className="h-3.5 w-3.5 text-accent-foreground" aria-hidden />
-            {selectedTemplate
-              ? templateLabel(selectedTemplate)
-              : t("creative.input_hint", { defaultValue: "以你的素材与观点为起点" })}
-          </p>
-          <Button type="submit" size="sm" disabled={submitting}
-            className="h-9 cursor-pointer gap-3 rounded-control px-4 text-xs">
-            {t("creative.create_btn", { defaultValue: "新建" })}
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Button>
+      <form data-testid="create-article-form" aria-busy={submitting}
+        onSubmit={(event) => { event.preventDefault(); void handleCreate(); }}
+        className="rounded-xl border border-border bg-card shadow-[0_2px_4px_hsl(var(--foreground)/0.02),0_8px_28px_hsl(var(--foreground)/0.025)]">
+        <div className="p-4 sm:p-5">
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <label htmlFor="new-article-title" className="text-xs font-semibold text-foreground">
+              {t("creative.topic_label")}
+            </label>
+            <span id="new-article-title-hint" className="text-[11px] text-muted-foreground">
+              {t("creative.title_hint")}
+            </span>
+          </div>
+          <div className="flex flex-col gap-2.5 sm:flex-row">
+            <Input id="new-article-title" ref={titleRef} value={newTitle} readOnly={submitting}
+              onChange={(event) => { setNewTitle(event.target.value); setCreateError(null); }}
+              onCompositionStart={() => { composingRef.current = true; }}
+              onCompositionEnd={() => { composingRef.current = false; }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (composingRef.current || event.nativeEvent.isComposing || event.keyCode === 229)) {
+                  event.preventDefault();
+                }
+              }}
+              aria-invalid={!!createError}
+              aria-describedby={cn("new-article-title-hint", createError && "create-article-error")}
+              placeholder={t("creative.new_placeholder")}
+              className="h-11 min-w-0 flex-1 bg-background/50 px-3.5 text-[13px] placeholder:text-muted-foreground/75" />
+            <Button type="submit" disabled={submitting}
+              className="h-11 shrink-0 cursor-pointer gap-3 rounded-control px-5 text-xs">
+              {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> : null}
+              {t(submitting ? "creative.creating_btn" : "creative.create_btn")}
+              {!submitting ? <ArrowRight className="h-3.5 w-3.5" aria-hidden /> : null}
+            </Button>
+          </div>
+          {createError ? <p id="create-article-error" data-testid="create-error" role="alert" className="mt-2 text-xs font-medium text-destructive">{createError}</p> : null}
+          <p className="mt-2.5 text-[11px] leading-5 text-muted-foreground">{t("creative.input_hint")}</p>
         </div>
+        <section aria-labelledby="creative-templates-heading" className="rounded-b-xl border-t border-border/70 bg-background/35 px-4 pb-4 pt-3.5 sm:px-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+            <h2 id="creative-templates-heading" className="text-[11px] font-medium text-muted-foreground">
+              {t("creative.template_heading")}
+            </h2>
+            <p aria-live="polite" className="flex min-w-0 items-center gap-1.5 text-[11px] text-accent-foreground">
+              <Sparkles className="h-3 w-3 shrink-0" aria-hidden />
+              {selectedTemplate
+                ? t("creative.selected_template", { name: templateLabel(selectedTemplate) })
+                : t("creative.empty_template")}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            {WRITING_TEMPLATES.map((template, index) => {
+              const Icon = TEMPLATE_ICONS[index];
+              const selected = selectedTemplate === template.id;
+              return (
+                <button key={template.id} type="button" data-testid={`template-${template.id}`}
+                  aria-pressed={selected} disabled={submitting}
+                  onClick={() => { setSelectedTemplate(selected ? undefined : template.id); titleRef.current?.focus(); }}
+                  className={cn(
+                    "group flex min-w-0 cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-left transition-colors duration-150 motion-reduce:transition-none disabled:cursor-wait disabled:opacity-60",
+                    FOCUS_STYLE,
+                    selected ? "border-accent-foreground/45 bg-accent/65" : "border-border/75 bg-card/70 hover:border-accent-foreground/35 hover:bg-card",
+                  )}>
+                  <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md", selected ? "bg-card/75" : "bg-accent/55")}>
+                    {selected ? <Check className="h-3.5 w-3.5 text-accent-foreground" aria-hidden /> : <Icon className="h-4 w-4 text-accent-foreground" strokeWidth={1.6} aria-hidden />}
+                  </span>
+                  <span className="min-w-0 pt-0.5">
+                    <span className="block text-[11px] font-semibold leading-5 text-foreground sm:text-xs">{t(template.nameKey)}</span>
+                    <span className="mt-0.5 block text-[10px] leading-[1.6] text-muted-foreground">{t(template.descKey)}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2.5 text-[10px] leading-5 text-muted-foreground">{t("creative.template_hint")}</p>
+        </section>
       </form>
 
-      <section className="mt-8 sm:mt-9" aria-labelledby="creative-templates-heading">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 id="creative-templates-heading" className="text-[14px] font-semibold">
-            {t("creative.template_heading", { defaultValue: "从熟悉的方式开始" })}
-          </h2>
-          <span className="hidden text-[11px] text-muted-foreground sm:inline">
-            {t("creative.template_hint", { defaultValue: "模板只是起点" })}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {WRITING_TEMPLATES.map((template, index) => {
-            const Icon = TEMPLATE_ICONS[index];
-            const selected = selectedTemplate === template.id;
-            return (
-              <button key={template.id} type="button" data-testid={`template-${template.id}`}
-                aria-pressed={selected}
-                onClick={() => { setSelectedTemplate(selected ? undefined : template.id); titleRef.current?.focus(); }}
-                className={cn(
-                  "group relative min-w-0 cursor-pointer rounded-panel border bg-card p-4 text-left transition-colors duration-150 motion-reduce:transition-none sm:p-5",
-                  selected ? "border-accent-foreground/50 bg-accent/50" : "border-border hover:border-accent-foreground/40",
-                )}>
-                <Icon className="mb-5 h-5 w-5 text-accent-foreground" strokeWidth={1.6} aria-hidden />
-                {selected ? <Check className="absolute right-4 top-4 h-3.5 w-3.5 text-accent-foreground" aria-hidden /> : null}
-                <span className="block text-[13px] font-semibold text-foreground">{t(template.nameKey)}</span>
-                <span className="mt-2 block text-[11px] leading-6 text-muted-foreground">{t(template.descKey)}</span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="mt-9 sm:mt-10" aria-labelledby="creative-library-heading">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <h2 id="creative-library-heading" className="text-[15px] font-semibold">
-              {t("creative.library_heading", { defaultValue: "我的文章" })}
-            </h2>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{totalCount}</span>
+      <section className="mt-7 sm:mt-8" aria-labelledby="creative-library-heading">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 id="creative-library-heading" className="text-[15px] font-semibold">
+                {t("creative.library_heading")}
+              </h2>
+              <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{totalCount}</span>
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">{t("creative.library_hint")}</p>
           </div>
           <button type="button" onClick={() => titleRef.current?.focus()}
-            className="flex cursor-pointer items-center gap-1.5 rounded-control px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            className={cn("flex cursor-pointer items-center gap-1.5 rounded-control px-2 py-2 text-[11px] text-accent-foreground transition-colors hover:bg-accent/60", FOCUS_STYLE)}>
             <Plus className="h-3.5 w-3.5" aria-hidden />
-            {t("creative.new_article", { defaultValue: "写一篇新文章" })}
+            {t("creative.new_article")}
           </button>
         </div>
 
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1" role="group"
-            aria-label={t("creative.status_filter", { defaultValue: "状态筛选" })}>
+            aria-label={t("creative.status_filter")}>
             {(["all", ...ARTICLE_STATUSES] as (ArticleStatus | "all")[]).map((status) => (
               <button key={status} type="button" data-testid={`status-filter-${status}`}
                 aria-pressed={statusFilter === status}
                 className={cn(
-                  "cursor-pointer rounded-control px-3 py-2 text-xs transition-colors",
+                  "cursor-pointer rounded-control px-2.5 py-2 text-[11px] transition-colors",
+                  FOCUS_STYLE,
                   statusFilter === status ? "bg-accent font-medium text-accent-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )} onClick={() => onStatusFilterChange(status)}>{status === "all" ? t("creative.filter_all", { defaultValue: "全部" }) : t(ARTICLE_STATUS_LABEL_KEY[status])}</button>
+                )} onClick={() => onStatusFilterChange(status)}>{status === "all" ? t("creative.filter_all") : t(ARTICLE_STATUS_LABEL_KEY[status])}</button>
             ))}
           </div>
           <div className="relative w-full sm:w-[220px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input value={query} onChange={(event) => onQueryChange(event.target.value)}
-              aria-label={t("creative.search_placeholder", { defaultValue: "搜索标题或摘要" })}
-              placeholder={t("creative.search_placeholder", { defaultValue: "搜索标题或摘要" })}
+              aria-label={t("creative.search_placeholder")}
+              placeholder={t("creative.search_placeholder")}
               className="h-9 bg-card pl-9 text-xs" />
           </div>
         </div>
@@ -208,97 +251,98 @@ export function ArticleList({
             className="mb-4 flex items-center justify-between gap-3 rounded-control border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
             <span>{actionError}</span>
             <button type="button" onClick={onDismissActionError}
-              className="cursor-pointer text-muted-foreground hover:text-foreground">
-              {t("creative.dismiss", { defaultValue: "知道了" })}
+              className={cn("shrink-0 cursor-pointer rounded px-1 py-1 text-muted-foreground hover:text-foreground", FOCUS_STYLE)}>
+              {t("creative.dismiss")}
             </button>
           </div>
         ) : null}
 
         {listState === "loading" ? (
           <div data-testid="article-list-loading" aria-busy="true"
-            role="status" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            role="status" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {[0, 1, 2].map((index) => (
-              <div key={index} className="h-[168px] animate-pulse rounded-panel border border-border bg-card" />
+              <div key={index} className="h-[200px] animate-pulse rounded-xl border border-border bg-card motion-reduce:animate-none" />
             ))}
           </div>
         ) : null}
 
         {listState === "error" ? (
           <div data-testid="article-list-error" role="alert"
-            className="rounded-panel border border-dashed border-border bg-card py-12 text-center">
+            className="rounded-xl border border-dashed border-border bg-card px-5 py-10 text-center">
             <FileText className="mx-auto mb-4 h-6 w-6 text-muted-foreground" aria-hidden />
             <p className="text-[13px] text-muted-foreground">
-              {t("creative.loadFailed", { defaultValue: "文章列表加载失败" })}
+              {t("creative.loadFailed")}
             </p>
             <Button variant="outline" size="sm" className="mt-3 cursor-pointer" onClick={onRetry}>
-              {t("creative.retry", { defaultValue: "重试" })}
+              {t("creative.retry")}
             </Button>
           </div>
         ) : null}
 
         {listState === "empty" ? (
           <div data-testid="article-list-empty"
-            className="rounded-panel border border-dashed border-border bg-card py-14 text-center text-[13px] text-muted-foreground">
-            <FileText className="mx-auto mb-4 h-6 w-6" aria-hidden />
+            className="rounded-xl border border-dashed border-border bg-card/65 px-5 py-9 text-center text-xs text-muted-foreground">
+            <span className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-accent/60 text-accent-foreground">
+              <FileText className="h-5 w-5" strokeWidth={1.5} aria-hidden />
+            </span>
             <p>
-              {filteredOutOfServer(query, statusFilter)
-                ? t("creative.no_match", { defaultValue: "没有符合条件的文章" })
-                : t("creative.empty", { defaultValue: "还没有文章" })}
+              {hasFilters ? t("creative.no_match") : t("creative.empty")}
             </p>
+            <Button type="button" variant="outline" size="sm" className="mt-4 cursor-pointer text-xs"
+              onClick={hasFilters ? clearFilters : () => titleRef.current?.focus()}>
+              {hasFilters ? t("creative.clear_filters") : t("creative.empty_action")}
+            </Button>
           </div>
         ) : null}
 
         {listState === "ready" ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {articles.map((article) => (
               <article key={article.id}
-                className="group flex min-w-0 flex-col rounded-panel border border-border bg-card p-5 transition-colors hover:border-accent-foreground/35">
+                className="group flex min-w-0 flex-col rounded-xl border border-border bg-card p-4 transition-colors hover:border-accent-foreground/35">
                 <button type="button" data-testid={`open-article-${article.id}`}
                   onClick={() => onOpen(article.id)}
-                  className="min-w-0 flex-1 cursor-pointer text-left">
-                  <div className="mb-5 flex items-center justify-between gap-3">
+                  className={cn("min-w-0 flex-1 cursor-pointer rounded-sm text-left", FOCUS_STYLE)}>
+                  <div className="mb-3 flex items-center justify-between gap-2">
                     {statusTag(article.status)}
-                    {preview ? (
-                      <span className="text-[10px] text-muted-foreground">
-                        {t("creative.sample_label")}
-                      </span>
-                    ) : null}
+                    <time dateTime={article.updatedAt}
+                      title={fmtDateTime(article.updatedAt, i18n.resolvedLanguage) || article.updatedAt}
+                      className="min-w-0 truncate text-[10px] text-muted-foreground">
+                      {relativeTime(article.updatedAt, i18n.resolvedLanguage) || article.updatedAt}
+                    </time>
                   </div>
-                  <h3 className="mb-3 min-h-[48px] break-words text-[15px] font-semibold leading-6 text-foreground">
+                  <h3 className="mb-2 line-clamp-2 break-words text-[14px] font-semibold leading-6 text-foreground transition-colors group-hover:text-accent-foreground">
                     {article.title}
                   </h3>
-                  <p className="line-clamp-2 min-h-[44px] text-xs leading-[22px] text-muted-foreground">
-                    {article.summary || t("creative.no_summary", { defaultValue: "暂无摘要" })}
+                  <p className="line-clamp-2 text-[11px] leading-5 text-muted-foreground">
+                    {article.summary || t("creative.no_summary")}
                   </p>
                 </button>
-                <div className="mt-5 flex items-center justify-between gap-2 border-t border-border/70 pt-3 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <BookOpen className="h-3 w-3" aria-hidden />
-                    {t("creative.revision_label", { defaultValue: "版本 {{revision}}", revision: article.revision })}
-                  </span>
-                  <span>{article.updatedAt}</span>
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <div className="flex items-center gap-1">
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-border/70 pt-2.5">
+                  <div className="flex min-w-0 items-center gap-0.5">
                     <button type="button" data-testid={`duplicate-article-${article.id}`}
-                      aria-label={t("creative.duplicate", { defaultValue: "复制" })}
-                      title={t("creative.duplicate", { defaultValue: "复制" })}
+                      aria-label={t("creative.duplicate")}
+                      title={t("creative.duplicate")}
                       onClick={() => onDuplicate(article)}
-                      className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground">
+                      className={cn("flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground", FOCUS_STYLE)}>
                       <Copy className="h-3.5 w-3.5" aria-hidden />
                     </button>
                     <button type="button" data-testid={`delete-article-${article.id}`}
-                      aria-label={t("creative.delete", { defaultValue: "删除" })}
-                      title={t("creative.delete", { defaultValue: "删除" })}
+                      aria-label={t("creative.delete")}
+                      title={t("creative.delete")}
                       onClick={() => setDeleteTarget(article)}
-                      className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                      className={cn("flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-muted-foreground hover:bg-destructive/10 hover:text-destructive", FOCUS_STYLE)}>
                       <Trash2 className="h-3.5 w-3.5" aria-hidden />
                     </button>
+                    <span className="ml-1 text-[10px] text-muted-foreground">
+                      {t("creative.revision_label", { revision: article.revision })}
+                    </span>
+                    {preview ? <span className="ml-1 text-[10px] text-muted-foreground">{t("creative.sample_label")}</span> : null}
                   </div>
-                  <button type="button" aria-label={t("creative.edit_article", { defaultValue: "编辑文章" })}
+                  <button type="button" aria-label={t("creative.edit_article")}
                     onClick={() => onOpen(article.id)}
-                    className="flex cursor-pointer items-center gap-2 rounded-control px-2 py-1.5 text-[11px] font-medium text-foreground hover:bg-muted">
-                    {t("creative.continue_writing", { defaultValue: "继续写作" })}
+                    className={cn("flex cursor-pointer items-center gap-1.5 rounded-control px-2 py-2 text-[11px] font-medium text-accent-foreground hover:bg-accent/60", FOCUS_STYLE)}>
+                    {t("creative.continue_writing")}
                     <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                   </button>
                 </div>
@@ -311,28 +355,26 @@ export function ArticleList({
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("creative.confirm_delete", { defaultValue: "确认删除？" })}</AlertDialogTitle>
+            <AlertDialogTitle>{t("creative.confirm_delete")}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget
-                ? t("creative.confirm_delete_body", { defaultValue: "「{{title}}」将被移除，此操作无法撤销。", title: deleteTarget.title })
+                ? t("creative.confirm_delete_body", { title: deleteTarget.title })
                 : ""}
               {deleteTarget && draftIds?.has(deleteTarget.id) ? (
                 <span
                   data-testid="delete-dirty-warning"
                   className="mt-2 block rounded-control border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200"
                 >
-                  {t("creative.confirm_delete_dirty", {
-                    defaultValue: "这篇文章还有未保存的修改，删除后本地恢复稿也会被清掉。",
-                  })}
+                  {t("creative.confirm_delete_dirty")}
                 </span>
               ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("creative.cancel", { defaultValue: "取消" })}</AlertDialogCancel>
+            <AlertDialogCancel>{t("creative.cancel")}</AlertDialogCancel>
             <AlertDialogAction data-testid="confirm-delete-article"
               onClick={() => { if (deleteTarget) onDelete(deleteTarget); setDeleteTarget(null); }}>
-              {t("creative.delete", { defaultValue: "删除" })}
+              {t("creative.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -340,7 +382,7 @@ export function ArticleList({
 
       {preview ? (
         <p className="mt-6 text-[11px] leading-6 text-muted-foreground">
-          {t("creative.note_storage", { defaultValue: "当前内容仅在本次访问内保留，刷新前请导出草稿。" })}
+          {t("creative.note_storage")}
         </p>
       ) : null}
     </section>

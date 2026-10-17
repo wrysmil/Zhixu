@@ -45,18 +45,18 @@ describe("CreativeWorkspace (preview entry)", () => {
 
   it("rejects blank title on new article", async () => {
     renderPreview();
-    const btn = screen.getByRole("button", { name: /新建/ });
+    const btn = screen.getByRole("button", { name: "Create draft" });
     fireEvent.click(btn);
     await waitFor(() =>
-      expect(screen.getByText("请输入文章主题")).toBeInTheDocument(),
+      expect(screen.getByText("Enter an article title")).toBeInTheDocument(),
     );
   });
 
   it("creates a new article and enters editor", async () => {
     renderPreview();
-    const textarea = screen.getByPlaceholderText(/想讲清楚什么问题/) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "我的新文章" } });
-    fireEvent.click(screen.getByRole("button", { name: /新建/ }));
+    const titleInput = screen.getByRole("textbox", { name: "Article title" });
+    fireEvent.change(titleInput, { target: { value: "我的新文章" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
     await waitFor(() =>
       expect(screen.getByTestId("article-editor")).toBeInTheDocument(),
     );
@@ -68,9 +68,9 @@ describe("CreativeWorkspace (preview entry)", () => {
   // 插进内存集合，`handleCreate` 再 prepend 一次 → 列表出现两张同 id 的卡。
   it("test_create_once_returns_single_card", async () => {
     renderPreview();
-    const textarea = screen.getByPlaceholderText(/想讲清楚什么问题/) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "只出现一次的文章" } });
-    fireEvent.click(screen.getByRole("button", { name: /新建/ }));
+    const titleInput = screen.getByRole("textbox", { name: "Article title" });
+    fireEvent.change(titleInput, { target: { value: "只出现一次的文章" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
     await waitFor(() =>
       expect(screen.getByTestId("article-editor")).toBeInTheDocument(),
     );
@@ -103,12 +103,12 @@ describe("CreativeWorkspace (preview entry)", () => {
 
   it("searches and shows empty result", async () => {
     renderPreview();
-    const search = screen.getByLabelText(/搜索标题或摘要/);
+    const search = screen.getByLabelText("Search titles or summaries");
     fireEvent.change(search, { target: { value: "不存在的文章" } });
     await waitFor(() =>
       expect(screen.getByTestId("article-list-empty")).toBeInTheDocument(),
     );
-    expect(screen.getByText("没有符合条件的文章")).toBeInTheDocument();
+    expect(screen.getByText("No articles match your filters")).toBeInTheDocument();
   });
 
   it("keeps the saved body when navigating back to list and reopening", async () => {
@@ -262,7 +262,7 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
     await waitFor(() => expect(screen.getByText("文章标题")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("delete-article-srv-1"));
     expect(screen.getByTestId("delete-dirty-warning")).toBeInTheDocument();
-    expect(screen.getByTestId("delete-dirty-warning").textContent).toContain("未保存");
+    expect(screen.getByTestId("delete-dirty-warning").textContent).toContain("unsaved changes");
     vi.unstubAllGlobals();
   });
 
