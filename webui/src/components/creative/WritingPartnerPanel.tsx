@@ -3,12 +3,15 @@
 // 结构：顶部「创作搭档 · 内置团队」+ 本篇阶段；中部当前产物与主操作；底部固定输入框；
 // 快捷任务可折叠；成员活动收进「查看协作过程」。
 // **不出现**团队选择器、节点编辑、工作流配置——团队/角色/Skill 一律服务端解析（契约 §3）。
+// （模型 preset chip 不是团队选择器：它只切这个协作会话的模型，走既有 `/model` 系统命令，
+//   团队/角色/Skill 仍然完全由服务端解析。）
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, Loader2, Send, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ModelPresetBadge, type ModelPresetOption } from "@/components/thread/ModelPresetBadge";
 import type {
   CollabAction,
   CollabApi,
@@ -22,6 +25,15 @@ import {
   PARTNER_BUILTIN_BADGE_KEY,
   PARTNER_DEFAULTS,
   PARTNER_INPUT_PLACEHOLDER_KEY,
+  PARTNER_MODEL_APPLIED_KEY,
+  PARTNER_MODEL_FAILED_KEY,
+  PARTNER_MODEL_FALLBACK_KEY,
+  PARTNER_MODEL_PENDING_KEY,
+  PARTNER_MODEL_REQUESTED_KEY,
+  PARTNER_MODEL_SETUP_KEY,
+  PARTNER_MODEL_STALE_KEY,
+  PARTNER_MODEL_UNKNOWN_KEY,
+  PARTNER_MODEL_UNSUPPORTED_KEY,
   PARTNER_PROCESS_TOGGLE_KEY,
   PARTNER_TITLE_KEY,
   actionLabelKey,
@@ -54,6 +66,26 @@ export interface WritingPartnerPanelProps {
   onInsertDraft?(payload: { body: string; replaceWhole: boolean }): void;
   onApplyRewrite?(suggestion: CollabSuggestion): void;
   onUseAngle?(angle: { title: string; rationale?: string }): void;
+  /**
+   * 模型 chip（spec 2026-10-17-writing-partner-model-selection §4.3）。
+   * 选项与会话当前值都由集成层注入：面板不读 settings、不读会话列表，
+   * 只负责展示 + 发既有系统命令 `/model <preset>`。
+   */
+  modelPresets?: ModelPresetOption[];
+  /** 协作会话 metadata 的真值；会话还没建立时是全局默认 preset。 */
+  modelPreset?: string | null;
+  /** 当前 preset 的模型名（会话列表查不到 preset 时的兜底展示）。 */
+  modelDetail?: string | null;
+  modelProvider?: string | null;
+  modelProviderLabel?: string | null;
+  /** 当前值只是全局默认（会话尚未建立）：如实说明，不假装已选会话 preset。 */
+  modelPresetFromFallback?: boolean;
+  /** 没有可用 preset / 未配置：走 `ModelPresetBadge` 既有 needsSetup 行为。 */
+  modelNeedsSetup?: boolean;
+  /** needsSetup 时的既有入口（跳模型设置）。 */
+  onManageModels?(): void;
+  /** 切换后读回服务端真值；返回读回的 preset 名，读不到时返回 null。 */
+  onModelRefresh?(): Promise<string | null>;
 }
 
 /** 主操作随状态推进：空闲「帮我完成这篇文章」，完成「继续写下一节」。 */
@@ -105,6 +137,15 @@ export function WritingPartnerPanel({
   onInsertDraft,
   onApplyRewrite,
   onUseAngle,
+  modelPresets = [],
+  modelPreset = null,
+  modelDetail = null,
+  modelProvider = null,
+  modelProviderLabel = null,
+  modelPresetFromFallback = false,
+  modelNeedsSetup = false,
+  onManageModels,
+  onModelRefresh,
 }: WritingPartnerPanelProps) {
   const { t } = useTranslation();
   const collab = useWritingCollab({
@@ -123,6 +164,15 @@ export function WritingPartnerPanel({
   // 快捷任务默认展开：作者最常用的入口不该藏在一次点击后面（面板仍是可折叠的）。
   const [quickOpen, setQuickOpen] = useState(true);
   const [busyArtifactId, setBusyArtifactId] = useState<string | null>(null);
+  /**
+   * 模型 chip 的本地状态：`modelSelection` 是「已经提交/读回确认的目标 preset」，
+   * 用来在集成层把真值读回来之前不至于闪回旧值；集成层的真值一到就把它丢掉。
+   */
+  const [modelSelection, setModelSelection] = useState<string | null>(null);
+  const [modelInFlight, setModelInFlight] = useState(false);
+  const [modelNotice, setModelNotice] = useState<
+    { key: string; tone: "ok" | "error"; preset?: string } | null
+  >(null);
 
   const { snapshot, status, stage, busy, busyAction, nextActions, blockedReason, error } = collab;
   const collaboration = snapshot.collaboration;
@@ -288,6 +338,81 @@ export function WritingPartnerPanel({
 
   const artifacts: Array<CollabArtifact | CollabArtifactSummary> = collab.artifacts;
 
+  // —— 模型 chip（spec 2026-10-17-writing-partner-model-selection §4.3/§4.4）——
+  // 显示值是集成层注入的会话真值；`modelSelection` 只在「已提交/已确认、父级真值还没到」
+  // 这段窗口里顶一下，绝不长期覆盖服务端真值。
+  const effectiveChatId = chatId ?? `${articleId}:partner`;
+  const sessionPresetName = modelPreset?.trim() ?? "";
+  const activeModelPreset = modelSelection ?? sessionPresetName;
+  const modelChipNeedsSetup = modelNeedsSetup || !activeModelPreset;
+
+  useEffect(() => {
+    if (modelSelection && sessionPresetName === modelSelection) setModelSelection(null);
+  }, [modelSelection, sessionPresetName]);
+
+  const modelPresetNames = useMemo(
+    () => new Set(modelPresets.map((preset) => preset.name)),
+    [modelPresets],
+  );
+
+  const handleModelPresetChange = useCallback(
+    async (name: string) => {
+      const next = name.trim();
+      // preset 名虽然来自 settings，仍然做非空 + 白名单校验：不信任任何外部字符串。
+      if (!next || next === activeModelPreset) return;
+      if (!modelPresetNames.has(next)) {
+        setModelNotice({ key: PARTNER_MODEL_UNKNOWN_KEY, tone: "error" });
+        return;
+      }
+      const sendSystemCommand = client.sendSystemCommand?.bind(client);
+      if (!sendSystemCommand) {
+        setModelNotice({ key: PARTNER_MODEL_UNSUPPORTED_KEY, tone: "error" });
+        return;
+      }
+      setModelSelection(next);
+      setModelInFlight(true);
+      setModelNotice(null);
+      try {
+        await sendSystemCommand(effectiveChatId, `/model ${next}`);
+        const confirmed = (await onModelRefresh?.()) ?? null;
+        if (confirmed === null) {
+          // 没有读回通道时只说「已提交」，绝不宣称已生效。
+          setModelNotice({ key: PARTNER_MODEL_REQUESTED_KEY, tone: "ok" });
+        } else if (confirmed === next) {
+          setModelNotice({ key: PARTNER_MODEL_APPLIED_KEY, tone: "ok", preset: next });
+        } else {
+          setModelSelection(null);
+          setModelNotice({ key: PARTNER_MODEL_STALE_KEY, tone: "error", preset: confirmed });
+        }
+      } catch {
+        setModelSelection(null);
+        setModelNotice({ key: PARTNER_MODEL_FAILED_KEY, tone: "error" });
+      } finally {
+        setModelInFlight(false);
+      }
+    },
+    [
+      activeModelPreset,
+      client,
+      effectiveChatId,
+      modelPresetNames,
+      onModelRefresh,
+    ],
+  );
+
+  const modelChipLabel = modelChipNeedsSetup
+    ? t(PARTNER_MODEL_SETUP_KEY, { defaultValue: PARTNER_DEFAULTS[PARTNER_MODEL_SETUP_KEY] })
+    : activeModelPreset;
+
+  // 稳定的回调身份：ModelPresetBadge 内部会把它挂在按钮上，没必要每次渲染换一个。
+  const handlePresetChange = useCallback(
+    (name: string) => {
+      void handleModelPresetChange(name);
+    },
+    [handleModelPresetChange],
+  );
+  const modelNoticeIsError = !modelInFlight && modelNotice?.tone === "error";
+
   return (
     <aside
       data-writing-partner
@@ -295,10 +420,30 @@ export function WritingPartnerPanel({
       className="flex h-full min-h-0 w-full flex-col border-l border-border bg-background"
     >
       <header className="shrink-0 border-b border-border px-3 py-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="truncate text-[13px] font-semibold text-foreground">
+        <div className="flex items-center gap-2">
+          <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
             {t(PARTNER_TITLE_KEY, { defaultValue: PARTNER_DEFAULTS[PARTNER_TITLE_KEY] })}
           </h2>
+          {/* 模型 chip：只切本篇协作会话的模型，团队/角色/Skill 仍由服务端解析。 */}
+          <div
+            className="flex min-w-0 max-w-[11rem] shrink-0 justify-end"
+            data-partner-model-chip
+            aria-busy={modelInFlight || undefined}
+          >
+            <ModelPresetBadge
+              isHero={false}
+              label={modelChipLabel}
+              modelDetail={modelChipNeedsSetup ? null : modelDetail}
+              modelPreset={modelChipNeedsSetup ? "" : activeModelPreset}
+              modelPresets={modelPresets}
+              provider={modelProvider}
+              providerLabel={modelProviderLabel}
+              needsSetup={modelChipNeedsSetup}
+              onPresetChange={handlePresetChange}
+              onClick={modelChipNeedsSetup ? onManageModels : undefined}
+              onManageModels={onManageModels}
+            />
+          </div>
           <span
             data-partner-builtin
             className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground"
@@ -308,6 +453,37 @@ export function WritingPartnerPanel({
             })}
           </span>
         </div>
+        {modelPresetFromFallback && !modelChipNeedsSetup ? (
+          <p data-partner-model-fallback className="mt-1 text-[10.5px] text-muted-foreground">
+            {t(PARTNER_MODEL_FALLBACK_KEY, {
+              defaultValue: PARTNER_DEFAULTS[PARTNER_MODEL_FALLBACK_KEY],
+              preset: activeModelPreset,
+            })}
+          </p>
+        ) : null}
+        {modelInFlight || modelNotice ? (
+          <p
+            data-partner-model-notice={modelInFlight ? "pending" : modelNotice?.tone}
+            role={modelNoticeIsError ? "alert" : undefined}
+            aria-live={modelNoticeIsError ? "assertive" : "polite"}
+            className={
+              modelNoticeIsError
+                ? "mt-1 text-[10.5px] text-destructive"
+                : "mt-1 text-[10.5px] text-muted-foreground"
+            }
+          >
+            {modelInFlight
+              ? t(PARTNER_MODEL_PENDING_KEY, {
+                defaultValue: PARTNER_DEFAULTS[PARTNER_MODEL_PENDING_KEY],
+              })
+              : t(modelNotice?.key ?? PARTNER_MODEL_REQUESTED_KEY, {
+                defaultValue: modelNotice
+                  ? PARTNER_DEFAULTS[modelNotice.key] ?? modelNotice.key
+                  : PARTNER_DEFAULTS[PARTNER_MODEL_REQUESTED_KEY],
+                preset: modelNotice?.preset ?? "",
+              })}
+          </p>
+        ) : null}
         <p className="mt-1 truncate text-[11.5px] text-muted-foreground" data-partner-article>
           {articleTitle || t("creative.partner.ui.untitled", {
             defaultValue: PARTNER_DEFAULTS["creative.partner.ui.untitled"],

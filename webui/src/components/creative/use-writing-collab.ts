@@ -34,6 +34,18 @@ import { errorLabelKey } from "./collab-labels";
 /** 只依赖每聊天的帧订阅，便于测试注入假 transport。 */
 export interface CollabFrameClient extends WebUIMutationTransport {
   onChat?(chatId: string, handler: (event: unknown) => void): () => void;
+  /**
+   * 既有系统命令通道（`/model <preset>` 等）。集成层传入真实 `NanobotClient`；
+   * 能力保持可选，单测替身与预览 transport 不必实现它（面板会如实报「不支持」）。
+   * Source: webui/src/lib/nanobot-client.ts:1079（`sendSystemCommand`）。
+   */
+  sendSystemCommand?(chatId: string, command: string, timeoutMs?: number): Promise<void>;
+  /**
+   * 既有会话更新订阅。`/model` 命令的 turn end 会广播 `session_updated(scope="metadata")`，
+   * 模型 chip 靠它把「会话当前 preset」读回真值，而不是乐观改 UI。
+   * Source: nanobot/webui/outbound_projection.py:279-293（TurnEndEvent → scope metadata）。
+   */
+  onSessionUpdate?(handler: (chatId: string, scope?: string) => void): () => void;
 }
 
 export interface UseWritingCollabOptions {

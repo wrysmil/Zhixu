@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ApiError, type WebUIMutationTransport } from "@/lib/api";
+import { ApiError, fetchSettings, listSessions, type WebUIMutationTransport } from "@/lib/api";
+import type { SettingsPayload } from "@/lib/types";
+import { providerDisplayLabel } from "@/lib/provider-brand";
+import { workspaceRouteHash } from "@/workspace/routes";
+import type { ModelPresetOption } from "@/components/thread/ModelPresetBadge";
 import {
   createArticle,
   deleteArticle,
@@ -25,6 +29,7 @@ import { demoArticles } from "./demo-data";
 import { ArticleList, type ArticleListState } from "./ArticleList";
 import { ArticleEditor } from "./ArticleEditor";
 import { WritingPartnerPanel } from "./WritingPartnerPanel";
+import type { CollabFrameClient } from "./use-writing-collab";
 import { useArticleSaveFlow } from "./use-article-save-flow";
 import { collabSnapshotDigest, createCollabApi } from "@/lib/writing-collab-api";
 import { ArticleRecoveryBanner } from "./ArticleRecoveryBanner";
@@ -82,6 +87,93 @@ function contentFields(article: Article) {
     materials: article.materials,
     tags: article.tags,
   };
+}
+
+// —— 创作搭档模型 chip 的数据来源（spec 2026-10-17-writing-partner-model-selection §4.3）——
+//
+// `settings.model_presets` 与会话 `model_preset` 都在这一层映射成面板 props：面板本身
+// 不读 settings、不读会话列表。选项口径与 `ThreadShell.modelPresetOptionsFromSettings`
+// 逐条对齐（同名过滤 `is_default`、按 `model_call_order` 排序）；它是那个模块的私有函数，
+// 不能 import，故在此保持同口径实现而不是改动画像侧代码。
+
+/** 宽松但明确的结构校验：拿不到 settings 就不要假装有可切换的 preset。 */
+function isSettingsPayload(value: unknown): value is SettingsPayload {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as { model_presets?: unknown; agent?: unknown };
+  return Array.isArray(candidate.model_presets)
+    && Boolean(candidate.agent)
+    && typeof candidate.agent === "object";
+}
+
+function partnerModelPresetOptions(settings: SettingsPayload | null): ModelPresetOption[] {
+  if (!settings) return [];
+  const order = new Map(
+    (settings.model_call_order ?? []).map((name, index) => [name.trim(), index]),
+  );
+  return settings.model_presets
+    .filter((preset) => !preset.is_default && preset.name.trim())
+    .sort((a, b) => (
+      (order.get(a.name.trim()) ?? Number.POSITIVE_INFINITY)
+      - (order.get(b.name.trim()) ?? Number.POSITIVE_INFINITY)
+    ))
+    .map((preset) => {
+      const name = preset.name.trim();
+      return {
+        name,
+        model: preset.model,
+        provider: preset.resolved_provider || preset.provider,
+        reasoningEffort: preset.reasoning_effort ?? null,
+      };
+    });
+}
+
+/** 当前 preset 对应的模型与供应商（与 `ThreadShell.toModelBadgeInfo` 同口径）。 */
+function partnerModelDisplay(
+  settings: SettingsPayload | null,
+  currentPreset: string,
+): { model: string | null; provider: string | null; providerLabel: string | null } {
+  const preset = settings?.model_presets.find((entry) => entry.name === currentPreset) ?? null;
+  const model = (preset?.model || settings?.agent.model || "").trim() || null;
+  const rawProvider = preset?.resolved_provider
+    || preset?.provider
+    || settings?.agent.resolved_provider
+    || settings?.agent.provider
+    || null;
+  const provider = rawProvider === "auto"
+    ? preset?.resolved_provider || settings?.agent.resolved_provider || null
+    : rawProvider;
+  const providerLabel = provider
+    ? providerDisplayLabel(settings?.providers ?? [], provider)
+    : null;
+  return { model, provider, providerLabel };
+}
+
+/** 没有可用 preset 或当前 preset 没配好 → 走 `ModelPresetBadge` 既有 needsSetup 行为。 */
+function partnerModelNeedsSetup(
+  settings: SettingsPayload | null,
+  currentPreset: string,
+): boolean {
+  if (!settings) return true;
+  const preset = settings.model_presets.find((entry) => entry.name === currentPreset) ?? null;
+  const model = (preset?.model || settings.agent.model || "").trim();
+  const provider = preset?.resolved_provider
+    || preset?.provider
+    || settings.agent.resolved_provider
+    || settings.agent.provider
+    || null;
+  const providerRow = provider
+    ? settings.providers.find((item) => item.name === provider) ?? null
+    : null;
+  return Boolean(!model || !provider || !providerRow || !providerRow.configured);
+}
+
+/**
+ * needsSetup 时的既有入口：写既有 settings 路由（App 与 PreviewApp 都监听 `hashchange`），
+ * 不新增导航机制、不自己造跳转。
+ */
+function openModelSettings(): void {
+  if (typeof window === "undefined") return;
+  window.location.hash = workspaceRouteHash({ view: "settings", settingsSection: "models" });
 }
 
 /** 预览响应用契约 §5 的 snake_case 线格式，方便 `toArticle()` 原样解析。 */
@@ -213,6 +305,8 @@ function EditorHost({
   onArticleReplaced,
   onBack,
   partnerEnabled = true,
+  settings = null,
+  settingsResolved = false,
 }: {
   getToken: () => string;
   transport: WebUIMutationTransport;
@@ -224,6 +318,10 @@ function EditorHost({
   onBack: () => void;
   /** 预览入口不走真实协作：面板不挂载（预览里 transport 是内存替身）。 */
   partnerEnabled?: boolean;
+  /** 容器读到的 settings（模型 chip 的选项来源）；预览入口为 null。 */
+  settings?: SettingsPayload | null;
+  /** settings 是否已经有结果（成功或失败）：加载中不谎报「未配置」。 */
+  settingsResolved?: boolean;
 }) {
   const flow = useArticleSaveFlow({ getToken, transport, article, workspacePath });
 
@@ -351,6 +449,57 @@ function EditorHost({
     [transport, getToken],
   );
 
+  // —— 模型 chip：会话 preset 的真值来自会话列表，不是本地乐观值 ——
+  const partnerChatId = `${article.id}:partner`;
+  const partnerSessionKey = `websocket:${partnerChatId}`;
+  const [partnerSessionPreset, setPartnerSessionPreset] = useState<string | null>(null);
+  const globalDefaultPreset = settings?.agent.model_preset?.trim() || "default";
+  const globalDefaultPresetRef = useRef(globalDefaultPreset);
+  globalDefaultPresetRef.current = globalDefaultPreset;
+  const partnerModelOptions = useMemo(() => partnerModelPresetOptions(settings), [settings]);
+
+  /** 读回该协作会话的 `model_preset`；读不到（请求失败）返回 null，绝不假装成功。 */
+  const readPartnerSessionPreset = useCallback(async (): Promise<string | null> => {
+    try {
+      const rows = await listSessions(getToken());
+      const row = rows.find((entry) => entry.key === partnerSessionKey) ?? null;
+      const value = row?.modelPreset?.trim() || null;
+      setPartnerSessionPreset(value);
+      return value ?? globalDefaultPresetRef.current;
+    } catch {
+      return null;
+    }
+  }, [getToken, partnerSessionKey]);
+
+  useEffect(() => {
+    if (!partnerEnabled) return undefined;
+    void readPartnerSessionPreset();
+    return undefined;
+  }, [partnerEnabled, readPartnerSessionPreset]);
+
+  /**
+   * 会话帧对齐：`/model` 的 turn end 广播 `session_updated(scope="metadata")`
+   * （nanobot/webui/outbound_projection.py:279-293），据此把真值读回来。
+   * 只订阅本会话的 metadata 帧：普通运行的 `thread` 帧不触发一次会话列表拉取。
+   */
+  useEffect(() => {
+    if (!partnerEnabled) return undefined;
+    const client: CollabFrameClient = transport;
+    const subscribe = client.onSessionUpdate?.bind(client);
+    if (!subscribe) return undefined;
+    return subscribe((updatedChatId, scope) => {
+      if (updatedChatId !== partnerChatId) return;
+      if (scope && scope !== "metadata") return;
+      void readPartnerSessionPreset();
+    });
+  }, [partnerChatId, partnerEnabled, readPartnerSessionPreset, transport]);
+
+  const partnerPreset = partnerSessionPreset ?? globalDefaultPreset;
+  const partnerDisplay = partnerModelDisplay(settings, partnerPreset);
+  const partnerNeedsSetup = settingsResolved
+    && (partnerModelOptions.length === 0
+      || partnerModelNeedsSetup(settings, partnerPreset));
+
   const partnerPanel = partnerEnabled ? (
     <WritingPartnerPanel
       articleId={article.id}
@@ -359,9 +508,19 @@ function EditorHost({
       articleRevision={article.revision}
       // 契约 A §5.3：与服务端 snapshot_digest 逐字节同口径。
       snapshotDigest={collabSnapshotDigest(flow.draft)}
-      chatId={`${article.id}:partner`}
+      chatId={partnerChatId}
       client={transport}
       api={partnerApi}
+      modelPresets={partnerModelOptions}
+      modelPreset={partnerPreset}
+      modelDetail={partnerDisplay.model}
+      modelProvider={partnerDisplay.provider}
+      modelProviderLabel={partnerDisplay.providerLabel}
+      // 会话还没有自己的 preset 时，chip 如实显示全局默认，不假装已选会话 preset。
+      modelPresetFromFallback={!partnerSessionPreset}
+      modelNeedsSetup={partnerNeedsSetup}
+      onManageModels={openModelSettings}
+      onModelRefresh={readPartnerSessionPreset}
       onInsertDraft={({ body, replaceWhole }) => {
         const current = flow.draft.body ?? "";
         flow.setField("body", replaceWhole || !current.trim() ? body : `${current}\n\n${body}`);
@@ -423,6 +582,12 @@ export default function CreativeWorkspace({
   const [previewArticles, setPreviewArticles] = useState<Article[]>(() =>
     preview ? demoArticles() : [],
   );
+  /**
+   * 模型 chip 的选项来源。容器不再渲染 settings 页，但模型 preset 只能从 settings 取：
+   * 这里读一次（每次进入创作视图一次），把 `model_presets` 映射后注入面板。
+   */
+  const [settings, setSettings] = useState<SettingsPayload | null>(null);
+  const [settingsResolved, setSettingsResolved] = useState(preview);
 
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
@@ -488,6 +653,27 @@ export default function CreativeWorkspace({
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [preview, query]);
+
+  useEffect(() => {
+    if (preview) return undefined;
+    let cancelled = false;
+    setSettingsResolved(false);
+    fetchSettings(getTokenRef.current())
+      .then((payload) => {
+        if (cancelled) return;
+        // 载荷形状不对就当没有 settings：chip 走 needsSetup 跳设置，而不是崩掉。
+        setSettings(isSettingsPayload(payload) ? payload : null);
+        setSettingsResolved(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSettings(null);
+        setSettingsResolved(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [preview]);
 
   const localRows = useMemo(
     () => searchArticles(filterByStatus(previewArticles, statusFilter), query).map(toSummaryRow),
@@ -666,6 +852,8 @@ export default function CreativeWorkspace({
         onArticleReplaced={setActiveArticle}
         onBack={backToList}
         partnerEnabled={!preview}
+        settings={settings}
+        settingsResolved={settingsResolved}
       />
     );
   }
