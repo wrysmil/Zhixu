@@ -65,11 +65,11 @@ const AGENTS_ITEM: NavItem = {
   view: "agents", labelKey: "sidebar.agents", labelDefault: "Agents", icon: Bot,
 };
 const MEMORY_ITEM: NavItem = {
-  view: "memory", labelKey: "sidebar.memory.title", labelDefault: "Memory",
+  view: "memory", labelKey: "settings.nav.memory", labelDefault: "Memory",
   icon: BookOpen,
 };
 const IDENTITY_ITEM: NavItem = {
-  view: "identity", labelKey: "sidebar.identity.title", labelDefault: "Identity",
+  view: "identity", labelKey: "settings.nav.identity", labelDefault: "Identity",
   icon: UserRound,
 };
 const TEAM_ITEM: NavItem = {
@@ -198,11 +198,7 @@ export function WorkspaceNavigation({
         <Icon className={cn("h-[19px] w-[19px] shrink-0", active && "text-accent-foreground")} strokeWidth={item.view === "teams" ? undefined : 1.65} aria-hidden />
         <span className="workspace-nav-label" aria-hidden>{item.view === "automations"
           ? (i18n.resolvedLanguage?.startsWith("zh") ? "定时" : "Tasks")
-          : item.view === "memory"
-            ? (i18n.resolvedLanguage?.startsWith("zh") ? "记忆" : "Memory")
-            : item.view === "identity"
-              ? (i18n.resolvedLanguage?.startsWith("zh") ? "身份" : "Identity")
-              : label}</span>
+          : label}</span>
       </button>
       </TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>

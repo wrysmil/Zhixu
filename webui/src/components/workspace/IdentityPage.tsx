@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   AlertTriangle,
   Check,
@@ -114,17 +115,58 @@ const PERSONA_CARDS: PersonaCardSpec[] = [
   },
 ];
 
-const TONE_OPTIONS: Array<{ value: ToneKey; label: string; description: string; icon: LucideIcon }> = [
-  { value: "friendly", label: "友好", description: "亲切、鼓励、共情", icon: Heart },
-  { value: "professional", label: "专业", description: "正式、克制、有理有据", icon: ShieldCheck },
-  { value: "concise", label: "简短", description: "先给结论再展开", icon: Sparkles },
-  { value: "detailed", label: "详细", description: "完整推理过程与边界", icon: Lightbulb },
+const TONE_OPTIONS: Array<{
+  value: ToneKey;
+  labelKey: string;
+  descriptionKey: string;
+  icon: LucideIcon;
+}> = [
+  {
+    value: "friendly",
+    labelKey: "settings.identity.page.tone.friendly.label",
+    descriptionKey: "settings.identity.page.tone.friendly.description",
+    icon: Heart,
+  },
+  {
+    value: "professional",
+    labelKey: "settings.identity.page.tone.professional.label",
+    descriptionKey: "settings.identity.page.tone.professional.description",
+    icon: ShieldCheck,
+  },
+  {
+    value: "concise",
+    labelKey: "settings.identity.page.tone.concise.label",
+    descriptionKey: "settings.identity.page.tone.concise.description",
+    icon: Sparkles,
+  },
+  {
+    value: "detailed",
+    labelKey: "settings.identity.page.tone.detailed.label",
+    descriptionKey: "settings.identity.page.tone.detailed.description",
+    icon: Lightbulb,
+  },
 ];
 
-const LANGUAGE_OPTIONS: Array<{ value: LanguageKey; label: string; description: string }> = [
-  { value: "auto", label: "跟随你", description: "用你提问的语言回答" },
-  { value: "zh", label: "中文", description: "所有回复都使用中文" },
-  { value: "en", label: "English", description: "All replies in English" },
+const LANGUAGE_OPTIONS: Array<{
+  value: LanguageKey;
+  labelKey: string;
+  descriptionKey: string;
+}> = [
+  {
+    value: "auto",
+    labelKey: "settings.identity.page.replyLang.auto.label",
+    descriptionKey: "settings.identity.page.replyLang.auto.description",
+  },
+  {
+    value: "zh",
+    labelKey: "settings.identity.page.replyLang.zh.label",
+    descriptionKey: "settings.identity.page.replyLang.zh.description",
+  },
+  {
+    value: "en",
+    labelKey: "settings.identity.page.replyLang.en.label",
+    descriptionKey: "settings.identity.page.replyLang.en.description",
+  },
 ];
 
 // -----------------------------------------------------------------------------
@@ -142,27 +184,27 @@ interface IdentityStep {
  * fits the desktop viewport, so picking a vibe and filling the form never
  * pushes the save actions below the fold.
  */
-function identitySteps(zh: boolean): IdentityStep[] {
+function identitySteps(t: TFunction): IdentityStep[] {
   return [
     {
       key: "vibe",
-      label: zh ? "性格卡片" : "Vibe",
-      hint: zh ? "选中后会自动填好后面的表单" : "Selecting one fills the form for you",
+      label: t("settings.identity.page.step.vibe.label"),
+      hint: t("settings.identity.page.step.vibe.hint"),
     },
     {
       key: "voice",
-      label: zh ? "称呼与语气" : "Name & tone",
-      hint: zh ? "空白处会自动跳过" : "Empty entries are skipped",
+      label: t("settings.identity.page.step.voice.label"),
+      hint: t("settings.identity.page.step.voice.hint"),
     },
     {
       key: "rules",
-      label: zh ? "底线与备注" : "Rules & notes",
-      hint: zh ? "告诉它什么不能做" : "What it must not do",
+      label: t("settings.identity.page.step.rules.label"),
+      hint: t("settings.identity.page.step.rules.hint"),
     },
     {
       key: "advanced",
-      label: zh ? "高级 Markdown" : "Advanced",
-      hint: zh ? "直接编辑身份文件" : "Edit the identity file directly",
+      label: t("settings.identity.page.step.advanced.label"),
+      hint: t("settings.identity.page.step.advanced.hint"),
     },
   ];
 }
@@ -184,8 +226,7 @@ function PersonaGallery({
   busyKey: string | null;
   onSelect: (preset: IdentityPreset) => void;
 }) {
-  const { t, i18n } = useTranslation();
-  const zh = i18n.resolvedLanguage?.startsWith("zh");
+  const { t } = useTranslation();
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -196,7 +237,7 @@ function PersonaGallery({
         const preset = presets.find((row) => row.name === spec.presetKey);
         const label = preset
           ? t(preset.labelKey, { defaultValue: spec.fallbackLabel })
-          : (zh ? spec.fallbackLabel : spec.fallbackLabel);
+          : spec.fallbackLabel;
         const tagline = preset
           ? t(preset.descriptionKey, { defaultValue: spec.fallbackTagline })
           : spec.fallbackTagline;
@@ -239,7 +280,7 @@ function PersonaGallery({
               {isActive ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10.5px] font-medium text-primary">
                   <Check className="h-3 w-3" aria-hidden />
-                  {zh ? "已选用" : "Active"}
+                  {t("settings.identity.page.gallery.active")}
                 </span>
               ) : null}
             </span>
@@ -264,8 +305,8 @@ function PersonaGallery({
                 <Wand2 className="h-3.5 w-3.5" aria-hidden />
               )}
               {isActive
-                ? (zh ? "重新载入" : "Reload preset")
-                : (zh ? "使用这个性格" : "Use this vibe")}
+                ? t("settings.identity.page.gallery.reload")
+                : t("settings.identity.page.gallery.use")}
             </span>
           </button>
         );
@@ -281,6 +322,7 @@ function TonePicker({
   value: ToneKey;
   onChange: (next: ToneKey) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-2 gap-2">
       {TONE_OPTIONS.map((option) => {
@@ -302,10 +344,10 @@ function TonePicker({
           >
             <span className="flex items-center gap-1.5 text-[13px] font-semibold">
               <Icon className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
-              {option.label}
+              {t(option.labelKey)}
             </span>
             <span className="text-[11.5px] leading-relaxed text-muted-foreground">
-              {option.description}
+              {t(option.descriptionKey)}
             </span>
           </button>
         );
@@ -321,8 +363,9 @@ function LanguagePicker({
   value: LanguageKey;
   onChange: (next: LanguageKey) => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <div role="radiogroup" aria-label="回复语言" className="flex flex-wrap gap-2">
+    <div role="radiogroup" aria-label={t("settings.identity.page.replyLang.groupAria")} className="flex flex-wrap gap-2">
       {LANGUAGE_OPTIONS.map((option) => {
         const active = option.value === value;
         return (
@@ -342,9 +385,9 @@ function LanguagePicker({
           >
             <Languages className="mt-0.5 h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
             <span className="flex flex-col">
-              <span className="text-[12.5px] font-semibold leading-tight">{option.label}</span>
+              <span className="text-[12.5px] font-semibold leading-tight">{t(option.labelKey)}</span>
               <span className={cn("text-[11px] leading-tight", active ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                {option.description}
+                {t(option.descriptionKey)}
               </span>
             </span>
           </button>
@@ -382,14 +425,14 @@ function LivePreview({
   personaLabel: string;
 }) {
   const { t, i18n } = useTranslation();
-  const zh = i18n.resolvedLanguage?.startsWith("zh");
-  const lang = chooseLanguage(state, zh ? "zh" : "en");
+  const uiLanguage: LanguageKey = i18n.resolvedLanguage?.startsWith("zh") ? "zh" : "en";
+  const lang = chooseLanguage(state, uiLanguage);
   const toneMeta = TONE_OPTIONS.find((option) => option.value === state.tone);
   const langMeta = LANGUAGE_OPTIONS.find((option) => option.value === state.language);
   const card = PERSONA_CARDS.find((card) => card.fallbackLabel === personaLabel) ?? PERSONA_CARDS[0];
   const Icon = card.icon;
 
-  const name = state.name.trim() || (zh ? "你的助手" : "Your Agent");
+  const name = state.name.trim() || t("settings.identity.page.preview.yourAgent");
   const greeting = lang === "zh"
     ? `你好，我是${name}。${state.role.trim() ? `我会${state.role.trim().replace(/[。.!?]+$/, "")}。` : ""}有什么我能帮上的？`
     : `Hi, I'm ${name}.${state.role.trim() ? ` I help with ${state.role.trim().replace(/[.!?]+$/, "")}.` : ""} What can I do for you today?`;
@@ -421,19 +464,19 @@ function LivePreview({
           <div className="min-w-0">
             <p className="truncate text-[14px] font-semibold text-foreground">{name}</p>
             <p className="truncate text-[12px] text-muted-foreground">
-              {personaLabel} · {toneMeta?.label} · {langMeta?.label}
+              {personaLabel} · {toneMeta ? t(toneMeta.labelKey) : null} · {langMeta ? t(langMeta.labelKey) : null}
             </p>
           </div>
         </div>
         <span className="hidden items-center gap-1 rounded-full border border-primary/30 bg-primary/[0.08] px-2 py-0.5 text-[11px] font-medium text-primary sm:inline-flex">
           <MicVocal className="h-3 w-3" aria-hidden />
-          {zh ? "实时预览" : "Live preview"}
+          {t("settings.identity.page.preview.live")}
         </span>
       </div>
       <div className="mt-5 space-y-3">
         <div className="flex justify-end">
           <div className="max-w-[80%] rounded-2xl rounded-br-md bg-foreground/[0.06] px-3 py-2 text-[13px] leading-relaxed text-foreground/90">
-            {zh ? "帮我把这个月的工作周报写成三段。" : "Draft my monthly recap as three short sections."}
+            {t("settings.identity.page.preview.samplePrompt")}
           </div>
         </div>
         <div className="flex items-start gap-2">
@@ -448,17 +491,13 @@ function LivePreview({
         {state.rules.trim() ? (
           <p className="rounded-xl border border-dashed border-amber-300/70 bg-amber-50/60 px-3 py-2 text-[11.5px] text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/20 dark:text-amber-100">
             <AlertTriangle className="mr-1 inline h-3 w-3 align-[-2px]" aria-hidden />
-            {zh ? "已应用规则：" : "Active rule: "}
+            {t("settings.identity.page.preview.activeRule")}
             <span className="font-medium">{state.rules.split("\n")[0]}</span>
           </p>
         ) : null}
       </div>
       <p className="mt-4 text-[11px] leading-relaxed text-muted-foreground/85">
-        {t("identity.previewHint", {
-          defaultValue: zh
-            ? "以上是当前设定下 Agent 的开场白预览，保存后立即生效。"
-            : "How the agent opens after your changes. Saving makes it live.",
-        })}
+        {t("settings.identity.page.preview.hint")}
       </p>
     </div>
   );
@@ -475,8 +514,7 @@ function AdvancedPanel({
   onReload: () => void;
   reloading: boolean;
 }) {
-  const { i18n } = useTranslation();
-  const zh = i18n.resolvedLanguage?.startsWith("zh");
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   return (
@@ -489,7 +527,7 @@ function AdvancedPanel({
       >
         <span className="flex items-center gap-2">
           <PencilLine className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.75} aria-hidden />
-          {zh ? "高级模式：直接编辑原始 Markdown" : "Advanced: edit raw Markdown"}
+          {t("settings.identity.page.advanced.toggle")}
         </span>
         <ChevronDown
           className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200 ease-out", open && "rotate-180")}
@@ -499,9 +537,7 @@ function AdvancedPanel({
       {open ? (
         <div className="space-y-3 border-t border-border/60 px-4 pb-4 pt-3">
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-            {zh
-              ? "只有当预设和表单都不够用时才需要来这里。手动修改会立即生效，但被表单再次保存时会按上面的结构重写。"
-              : "Only reach for this when the presets and form cannot express what you want. Edits here apply immediately but the form view will rewrite the file on next save."}
+            {t("settings.identity.page.advanced.note")}
           </p>
           <textarea
             value={draft}
@@ -512,7 +548,7 @@ function AdvancedPanel({
               "block w-full resize-y rounded-xl border border-border bg-background px-3 py-2 font-mono text-[12.5px] leading-relaxed text-foreground",
               formControlFocusClassName,
             )}
-            aria-label={zh ? "原始 Markdown" : "Raw Markdown"}
+            aria-label={t("settings.identity.page.advanced.rawAria")}
           />
           <div className="flex items-center justify-end gap-2">
             <Button
@@ -528,7 +564,7 @@ function AdvancedPanel({
               ) : (
                 <Sprout className="h-3.5 w-3.5" aria-hidden />
               )}
-              {zh ? "从磁盘重载" : "Reload from disk"}
+              {t("settings.identity.page.advanced.reload")}
             </Button>
           </div>
         </div>
@@ -542,8 +578,8 @@ function AdvancedPanel({
 // -----------------------------------------------------------------------------
 
 export function IdentityPage() {
-  const { i18n } = useTranslation();
-  const zh = i18n.resolvedLanguage?.startsWith("zh") ?? false;
+  const { t, i18n } = useTranslation();
+  const uiLanguage: LanguageKey = i18n.resolvedLanguage?.startsWith("zh") ? "zh" : "en";
   const { client, token } = useClient();
 
   const [form, setForm] = useState<IdentityFormState>(DEFAULT_FORM_STATE);
@@ -562,7 +598,7 @@ export function IdentityPage() {
   const [initial, setInitial] = useState<IdentityFormState>(DEFAULT_FORM_STATE);
   const initialRef = useRef<IdentityFormState>(DEFAULT_FORM_STATE);
   const [step, setStep] = useState(0);
-  const steps = useMemo(() => identitySteps(zh), [zh]);
+  const steps = useMemo(() => identitySteps(t), [t]);
 
   // Load presets, persona options, and SOUL.md once on mount.
   useEffect(() => {
@@ -619,9 +655,9 @@ export function IdentityPage() {
   }, [form, initial]);
 
   const activePersonaLabel = useMemo(() => {
-    if (!activePersona) return zh ? "未启用预设" : "Default";
+    if (!activePersona) return t("settings.identity.page.persona.default");
     return personaLabelMap[activePersona] ?? activePersona;
-  }, [activePersona, personaLabelMap, zh]);
+  }, [activePersona, personaLabelMap, t]);
 
   const updateField = useCallback(<K extends keyof IdentityFormState>(key: K, value: IdentityFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -655,7 +691,7 @@ export function IdentityPage() {
     setSaveState("saving");
     setSaveError(null);
     try {
-      const lang = chooseLanguage(form, zh ? "zh" : "en");
+      const lang = chooseLanguage(form, uiLanguage);
       const composed = composeForm(form, { language: lang });
       await saveIdentityFile(client, { name: "SOUL.md", content: composed });
       // If the user wrote raw Markdown in the advanced panel, honour it on save.
@@ -673,17 +709,17 @@ export function IdentityPage() {
       initialRef.current = form;
       setSaveState("saved");
       notify({
-        message: zh ? "身份设定已保存，已立即生效" : "Identity saved — live now",
+        message: t("settings.identity.page.toast.saved"),
         durationMs: 2600,
       });
       window.setTimeout(() => setSaveState("idle"), 2600);
     } catch (reason) {
       setSaveState("idle");
       setSaveError(
-        `${zh ? "保存失败" : "Save failed"}: ${reason instanceof Error ? reason.message : String(reason)}`,
+        `${t("settings.identity.page.error.saveFailed")}: ${reason instanceof Error ? reason.message : String(reason)}`,
       );
     }
-  }, [client, form, rawDirty, rawDraft, zh]);
+  }, [client, form, rawDirty, rawDraft, uiLanguage, t]);
 
   const handleReload = useCallback(async () => {
     setReloading(true);
@@ -709,15 +745,13 @@ export function IdentityPage() {
       <header className="grid grid-cols-1 items-end gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="space-y-2">
           <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-primary/85">
-            {zh ? "身份 · Identity" : "Identity"}
+            {t("settings.identity.page.hero.eyebrow")}
           </p>
           <h1 className="text-[28px] font-semibold leading-tight text-foreground sm:text-[32px]">
-            {zh ? "让 Agent 用你想要的方式说话" : "Make the agent sound like you want"}
+            {t("settings.identity.page.hero.title")}
           </h1>
           <p className="max-w-[720px] text-[13.5px] leading-relaxed text-muted-foreground">
-            {zh
-              ? "从一张性格卡片开始，再用几个简单问题补充细节。下面看到的就是 Agent 之后会怎么开口。"
-              : "Pick a vibe, answer a few quick questions, and see exactly how the agent will greet you next time."}
+            {t("settings.identity.page.hero.subtitle")}
           </p>
         </div>
         <div className="hidden justify-self-end lg:block">
@@ -738,7 +772,7 @@ export function IdentityPage() {
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden />
           <div className="min-w-0">
-            <p className="font-medium">{zh ? "部分内容没能加载" : "Some content could not load"}</p>
+            <p className="font-medium">{t("settings.identity.page.error.loadFailed")}</p>
             <p className="mt-0.5 break-words opacity-90">{loadError}</p>
           </div>
         </div>
@@ -749,7 +783,7 @@ export function IdentityPage() {
         <div className="min-w-0 space-y-3">
           <div
             role="tablist"
-            aria-label={zh ? "身份设定步骤" : "Identity setup steps"}
+            aria-label={t("settings.identity.page.stepsAria")}
             className="flex flex-wrap items-center gap-2"
           >
             {steps.map((entry, index) => {
@@ -810,14 +844,14 @@ export function IdentityPage() {
               <label className="flex flex-col gap-1.5 md:col-span-2">
                 <FieldLabel
                   icon={UserRound}
-                  title={zh ? "Agent 怎么称呼你" : "How should the agent call you?"}
+                  title={t("settings.identity.page.form.nameLabel")}
                 />
                 <input
                   type="text"
                   value={form.name}
                   onChange={(event) => updateField("name", event.target.value)}
                   maxLength={48}
-                  placeholder={zh ? "例如：小明、运营组" : "e.g. Marketing team, Alex"}
+                  placeholder={t("settings.identity.page.form.namePlaceholder")}
                   className={cn(
                     "h-10 w-full rounded-xl border border-input bg-background px-3 text-[14px] text-foreground placeholder:text-muted-foreground/70",
                     formControlFocusClassName,
@@ -828,16 +862,14 @@ export function IdentityPage() {
               <label className="flex flex-col gap-1.5 md:col-span-2">
                 <FieldLabel
                   icon={Sparkles}
-                  title={zh ? "Agent 主要帮你做什么" : "What does the agent mainly help you with?"}
+                  title={t("settings.identity.page.form.roleLabel")}
                 />
                 <textarea
                   value={form.role}
                   onChange={(event) => updateField("role", event.target.value)}
                   rows={2}
                   maxLength={240}
-                  placeholder={zh
-                    ? "例如：把一周的会议整理成可读周报；梳理客户反馈里的高频问题"
-                    : "e.g. turn weekly meetings into a readable recap; group customer feedback into themes"}
+                  placeholder={t("settings.identity.page.form.rolePlaceholder")}
                   className={cn(
                     "block w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground/70",
                     formControlFocusClassName,
@@ -848,8 +880,8 @@ export function IdentityPage() {
               <div className="flex flex-col gap-1.5">
                 <FieldLabel
                   icon={MicVocal}
-                  title={zh ? "说话的调子" : "Tone of voice"}
-                  hint={zh ? "选最贴近的那个" : "Pick the closest"}
+                  title={t("settings.identity.page.form.toneLabel")}
+                  hint={t("settings.identity.page.form.toneHint")}
                 />
                 <TonePicker value={form.tone} onChange={(next) => updateField("tone", next)} />
               </div>
@@ -857,7 +889,7 @@ export function IdentityPage() {
               <div className="flex flex-col gap-1.5">
                 <FieldLabel
                   icon={Languages}
-                  title={zh ? "默认用什么语言回复" : "Default reply language"}
+                  title={t("settings.identity.page.form.langLabel")}
                 />
                 <LanguagePicker value={form.language} onChange={(next) => updateField("language", next)} />
               </div>
@@ -869,17 +901,15 @@ export function IdentityPage() {
               <label className="flex flex-col gap-1.5 md:col-span-2">
                 <FieldLabel
                   icon={ShieldCheck}
-                  title={zh ? "希望它遵守的底线" : "Lines the agent should not cross"}
-                  hint={zh ? "一行一条，最多 6 条" : "One per line, up to 6"}
+                  title={t("settings.identity.page.form.rulesLabel")}
+                  hint={t("settings.identity.page.form.rulesHint")}
                 />
                 <textarea
                   value={form.rules}
                   onChange={(event) => updateField("rules", event.target.value)}
                   rows={3}
                   maxLength={400}
-                  placeholder={zh
-                    ? "不在合同里直接生成金额\n不向未登录的用户提及后台路径\n没把握就明说 '我不确定'，不装懂"
-                    : "Never invent contract numbers\nDon't quote internal paths to anonymous users\nSay 'I don't know' rather than guess"}
+                  placeholder={t("settings.identity.page.form.rulesPlaceholder")}
                   className={cn(
                     "block w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground/70",
                     formControlFocusClassName,
@@ -890,16 +920,14 @@ export function IdentityPage() {
               <label className="flex flex-col gap-1.5 md:col-span-2">
                 <FieldLabel
                   icon={Lightbulb}
-                  title={zh ? "还想告诉它的事（可选）" : "Anything else worth remembering?"}
+                  title={t("settings.identity.page.form.notesLabel")}
                 />
                 <textarea
                   value={form.notes}
                   onChange={(event) => updateField("notes", event.target.value)}
                   rows={2}
                   maxLength={240}
-                  placeholder={zh
-                    ? "公司名、行话缩写、忌讳词等都可以写在这里"
-                    : "Company name, jargon, words to avoid…"}
+                  placeholder={t("settings.identity.page.form.notesPlaceholder")}
                   className={cn(
                     "block w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground/70",
                     formControlFocusClassName,
@@ -911,7 +939,7 @@ export function IdentityPage() {
 
             {step === 3 ? (
               <AdvancedPanel
-                draft={rawDirty ? rawDraft : composeForm(form, { language: chooseLanguage(form, zh ? "zh" : "en") })}
+                draft={rawDirty ? rawDraft : composeForm(form, { language: chooseLanguage(form, uiLanguage) })}
                 onDraftChange={(next) => {
                   setRawDraft(next);
                   setRawDirty(true);
@@ -934,7 +962,7 @@ export function IdentityPage() {
                 className="h-9 gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium"
               >
                 <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
-                {zh ? "上一步" : "Back"}
+                {t("settings.identity.page.footer.back")}
               </Button>
               <Button
                 type="button"
@@ -943,7 +971,7 @@ export function IdentityPage() {
                 disabled={step === steps.length - 1}
                 className="h-9 gap-1.5 rounded-full px-3.5 text-[12.5px] font-medium"
               >
-                {zh ? "下一步" : "Next"}
+                {t("settings.identity.page.footer.next")}
                 <ChevronRight className="h-3.5 w-3.5" aria-hidden />
               </Button>
             </div>
@@ -955,11 +983,11 @@ export function IdentityPage() {
                     {saveError}
                   </span>
                 ) : dirty ? (
-                  <span>{zh ? "有未保存的改动" : "Unsaved changes"}</span>
+                  <span>{t("settings.identity.page.footer.unsaved")}</span>
                 ) : (
                   <span className="inline-flex items-center gap-1">
                     <Check className="h-3.5 w-3.5 text-primary" aria-hidden />
-                    {zh ? "已是最新" : "Up to date"}
+                    {t("settings.identity.page.footer.upToDate")}
                   </span>
                 )}
               </div>
@@ -970,13 +998,13 @@ export function IdentityPage() {
                   setForm(initial);
                   setRawDirty(false);
                   setRawDraft(
-                    composeForm(initial, { language: chooseLanguage(initial, zh ? "zh" : "en") }),
+                    composeForm(initial, { language: chooseLanguage(initial, uiLanguage) }),
                   );
                 }}
                 disabled={!dirty || saveState === "saving"}
                 className="h-9 rounded-full px-3.5 text-[12.5px] font-medium"
               >
-                {zh ? "撤销改动" : "Discard"}
+                {t("settings.identity.page.footer.discard")}
               </Button>
               <Button
                 type="button"
@@ -995,8 +1023,8 @@ export function IdentityPage() {
                   <Save className="h-3.5 w-3.5" aria-hidden />
                 )}
                 {saveState === "saved"
-                  ? (zh ? "已保存" : "Saved")
-                  : (zh ? "保存设定" : "Save")}
+                  ? t("settings.identity.page.footer.saved")
+                  : t("settings.identity.page.footer.save")}
               </Button>
             </div>
           </footer>
@@ -1008,15 +1036,13 @@ export function IdentityPage() {
           {personaOptions.length > 0 ? (
             <div className="rounded-2xl border border-border/60 bg-background/55 p-4">
               <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                {zh ? "Agent 在用的预设" : "Active persona"}
+                {t("settings.identity.page.persona.cardTitle")}
               </p>
               <p className="mt-2 text-[13px] text-foreground">
-                {activePersona || (zh ? "未启用，保留默认 SOUL" : "Default SOUL, no preset enabled")}
+                {activePersona || t("settings.identity.page.persona.cardNone")}
               </p>
               <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
-                {zh
-                  ? "点击上方任意性格卡片都会同步切换到这个预设。"
-                  : "Clicking a vibe card above also switches this preset."}
+                {t("settings.identity.page.persona.cardHint")}
               </p>
             </div>
           ) : null}
