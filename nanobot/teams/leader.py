@@ -60,28 +60,68 @@ class LeaderTurnContext:
     turn_finalizer: Callable[[bool], Awaitable[None]] | None = None
 
 
+# 委派纪律：固定文本，因为它是「主管」的定义而不是某个团队的可编辑内容。
+# 团队想改口径写在 ``instructions`` 里，这一段负责兜住最坏的失败模式。
+_DELEGATION_DISCIPLINE = """## 主管的做事方式
+1. 先判断这件事要不要成员：一句话能说清的问答、讨论、方案解释、简单计算 → 自己回答；
+   需要专业分工、并行取证或成批产出 → 用 team_dispatch 派活。
+2. 一次只交一件边界清楚的事给一个成员，写清目标、需要的产出形态、以及怎样算完成。
+3. 给成员的说明要像给一个刚进门的同事做简报：他**没参与过这次对话**，不知道你问过什么、
+   查过什么、排除了什么。把背景、已知事实和范围一并写进派活说明。
+4. 不委派理解：不要写「按你的调查结果处理」「看着改一下」。派活说明里要给出具体内容与
+   位置，先证明你自己弄懂了这件事。
+5. 不要预测成员的结果：派出去之后简短告诉用户派了什么，然后等真实回执；成员没回来之前
+   不得宣称已完成、编造产出或替它填数字。失败时带上完整错误上下文重试同一件事，
+   多次失败再换思路或如实说明。
+6. 成员的交付由你核对后再对用户说：是否回答了本次请求、缺口在哪、下一步是什么。
+   未经核对不转述，不把成员的原话当成你的结论。"""
+
+
 def render_role_prompt(
     *,
     team_name: str,
     team_revision: int,
     instructions: str,
+    leader_name: str = "",
     leader_prompt: str,
     members: Sequence[tuple[str, str]],
 ) -> str:
-    """渲染 Leader 看得见的团队段：团队身份、共同指令、成员与角色。
+    """渲染 Leader 看得见的团队段：主管交接、角色、委派纪律、团队指令与成员。
 
     ``members`` 是 ``(成员名, 角色)`` 序列。空白的段落整块省略，避免拼出只有标题的空壳；
     修订号必须出现，因为「运行期间团队配置冻结」是用户可感知的承诺。
+
+    主管交接行是这个函数存在的理由：档案的 ``leader_prompt`` 早就注入了，但没有一处
+    告诉模型「这一轮由谁主管、默认人格让到什么程度」，读起来就还是默认助手顺带带了段
+    说明。人格仍然保留（用户在全局调的偏好是他自己的），让位的只是**决策权**。
+
+    委派纪律参照 openakita 的「协作优先原则」（调研
+    ``.ai-runtime-artifacts/research/2026-09-30-openakita-subagent-integration-research.md``
+    §6.2）：主管感来自「怎么写委派说明」，不是来自一句「别自己干」的禁令。缺这几条时
+    Leader 会自己做完再转述，成员席位数就成了装饰。
     """
+    trimmed_leader = leader_name.strip()
     parts = [
         "# Team Mode",
         f"当前团队：{team_name}（修订 {team_revision}）。"
         "团队配置在本次运行期间冻结，之后修改档案不影响本次运行。",
     ]
-    if instructions.strip():
-        parts.append(f"## 团队指令\n{instructions.strip()}")
+    if trimmed_leader:
+        parts.append(
+            f"本回合由「{trimmed_leader}」主管：谁来回答、派给谁、算不算交付完成，"
+            "都按这个团队的规则走。你的全局人格与长期偏好只决定**表达风格**，"
+            "不决定这一轮的决策与分工。"
+        )
+    else:
+        parts.append(
+            "本回合由团队 Leader 主管：谁来回答、派给谁、算不算交付完成，"
+            "都按这个团队的规则走；全局人格只决定表达风格，不决定决策与分工。"
+        )
     if leader_prompt.strip():
         parts.append(f"## 你的角色\n{leader_prompt.strip()}")
+    parts.append(_DELEGATION_DISCIPLINE)
+    if instructions.strip():
+        parts.append(f"## 团队指令\n{instructions.strip()}")
     if members:
         lines = "\n".join(
             f"- {name}：{role}" if role.strip() else f"- {name}"
@@ -89,7 +129,7 @@ def render_role_prompt(
             if name.strip()
         )
         if lines:
-            parts.append(f"## 团队成员\n{lines}\n用 team_dispatch 派活；不要试图自己完成成员的工作。")
+            parts.append(f"## 团队成员\n{lines}\n派活用 team_dispatch；成员那部分工作不替他们做完。")
     return "\n\n".join(parts)
 
 

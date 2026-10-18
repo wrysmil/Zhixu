@@ -214,6 +214,7 @@ def test_role_prompt_carries_team_identity_and_members() -> None:
         team_name="内容团队",
         team_revision=3,
         instructions="先查证再成稿。",
+        leader_name="主编",
         leader_prompt="你是主笔。",
         members=[("研究员", "查资料并给出来源"), ("写作", "成稿")],
     )
@@ -223,6 +224,63 @@ def test_role_prompt_carries_team_identity_and_members() -> None:
     assert "先查证再成稿。" in prompt
     assert "你是主笔。" in prompt
     assert "研究员" in prompt and "查资料并给出来源" in prompt
+
+
+def test_role_prompt_hands_over_leadership_to_the_team_leader() -> None:
+    """选团队 = 主管换人：段里必须点名团队 Leader，并说明全局人格只管表达风格。
+
+    这条钉的是「默认聊天 leader 还在管」那个体感缺陷——档案的 prompt 早就注入了，
+    但没有任何一处告诉模型「这一轮由谁主管」，读起来像默认助手顺带带了段说明。
+    """
+    prompt = render_role_prompt(
+        team_name="内容团队",
+        team_revision=3,
+        instructions="",
+        leader_name="创作团队主编",
+        leader_prompt="你是创作团队的主编。",
+        members=[],
+    )
+
+    assert "创作团队主编" in prompt
+    assert "主管" in prompt
+    assert "风格" in prompt
+
+
+def test_role_prompt_teaches_delegation_discipline_not_just_a_ban() -> None:
+    """主管感来自委派纪律，不是「不要自己干」那一句禁令（对标 openakita 协作原则）。
+
+    缺任何一条都会退化成「Leader 亲自做完一切再转述」：判定顺序、简报式交接、
+    永不委派理解、绝不预测成员结果、交付后由 Leader 核对。
+    """
+    prompt = render_role_prompt(
+        team_name="内容团队",
+        team_revision=3,
+        instructions="",
+        leader_name="主编",
+        leader_prompt="你是主编。",
+        members=[("研究员", "查资料")],
+    )
+
+    assert "team_dispatch" in prompt
+    assert "简报" in prompt
+    assert "never" not in prompt  # 中文口径，不混英文残句
+    for cue in ("没参与过这次对话", "不要预测", "核对"):
+        assert cue in prompt
+
+
+def test_role_prompt_omits_the_leader_line_without_a_name() -> None:
+    """缺 leader 名字时不拼出「由『』主管」这种空壳，段落整体退化。"""
+    prompt = render_role_prompt(
+        team_name="内容团队",
+        team_revision=1,
+        instructions="",
+        leader_name="   ",
+        leader_prompt="你是主编。",
+        members=[("研究员", "查资料")],
+    )
+
+    assert "「」" not in prompt
+    assert "内容团队" in prompt
 
 
 def test_resolve_leader_runtime_keeps_default_without_model_id() -> None:

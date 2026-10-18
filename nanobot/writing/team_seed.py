@@ -14,7 +14,7 @@ from nanobot.writing.models import utc_now_iso
 
 # 模板内容版本：参与播种 request_id。修改下面任何可写字段时必须同时改这里，
 # 否则同一 request_id 携带不同载荷会被仓储的幂等守卫拒绝。
-WRITING_TEAM_TEMPLATE_VERSION = "2026-10-17-1"
+WRITING_TEAM_TEMPLATE_VERSION = "2026-10-18-1"
 
 EDITOR_AGENT_ID = "writing-editor"
 MEMBER_AGENT_IDS: tuple[str, ...] = (
@@ -24,11 +24,13 @@ MEMBER_AGENT_IDS: tuple[str, ...] = (
     "writing-reviewer",
 )
 
+# 只写职责，不写名字：Leader 的名册按「- 档案名：role」渲染，这里再带一次名字就读成
+# 「资料研究员：研究员：按请求检索…」。身份来自 AgentProfileSnapshot.name。
 _MEMBER_ROLES = {
-    "writing-researcher": "研究员：按请求检索、核对资料并记录疑点。",
-    "writing-architect": "结构编辑：调整主张、论据与提纲结构。",
-    "writing-author": "写手：按作者确认的范围起草、续写与局部改写。",
-    "writing-reviewer": "审校：独立检查事实、结构与可读性并给出修改建议。",
+    "writing-researcher": "按请求检索、核对资料并记录疑点。",
+    "writing-architect": "调整主张、论据与提纲结构。",
+    "writing-author": "按作者确认的范围起草、续写与局部改写。",
+    "writing-reviewer": "独立检查事实、结构与可读性并给出修改建议。",
 }
 
 

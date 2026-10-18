@@ -275,3 +275,25 @@ def test_project_fields_uniform(tmp_path: Path) -> None:
         assert projection["protectionReason"] == (
             f"builtin resource is protected: {asset.kind}/{asset.logical_id}"
         )
+
+
+def test_builtin_team_member_roles_do_not_repeat_their_own_name() -> None:
+    """名册渲染成「- 名字：角色」，``role`` 再带一遍名字就读成「资料研究员：研究员：…」。
+
+    这条是真实渲染里抓到的：主管层把成员列给 Leader 看，重复前缀让名册一眼像是没配好。
+    ``role`` 只写职责，身份由 ``profile.name`` 提供。
+    """
+    from nanobot.agents.catalog import FACTORY_PROFILES
+    from nanobot.writing.team_seed import writing_team_template
+
+    names = {profile.id: profile.name for profile in FACTORY_PROFILES}
+    team = writing_team_template()
+    assert team.members
+    for member in team.members:
+        assert member.role.strip(), f"{member.agent_id} 的成员角色不能为空"
+        assert not member.role.startswith(f"{names[member.agent_id]}："), (
+            f"{member.agent_id} 的 role 重复了档案名：{member.role}"
+        )
+        assert not member.role.startswith(f"{names[member.agent_id]}:"), (
+            f"{member.agent_id} 的 role 重复了档案名：{member.role}"
+        )

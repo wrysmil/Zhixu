@@ -167,6 +167,11 @@ async def test_team_turn_creates_one_run_and_binds_dispatch_tool(
     assert context.skill_exclude == frozenset()
     assert "内容团队" in context.role_prompt
     assert "研究员" in context.role_prompt and "撰稿人" in context.role_prompt
+    # 主管交接：回合装配必须把**冻结快照里的 Leader 名字**带进角色段，
+    # 否则团队会话读起来仍是默认助手顺带带了段说明（spec：主管层）。
+    assert "本回合由「主编」主管" in context.role_prompt
+    assert "查阅资料，输出可核对的来源清单" in context.role_prompt
+    assert "不委派理解" in context.role_prompt
     repository = turns.scheduler.repository
     runs = repository.list_runs("chat-1")["runs"]
     assert [run.run_id for run in runs] == [context.run_id]

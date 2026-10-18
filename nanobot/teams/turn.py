@@ -197,6 +197,7 @@ class TeamLeaderTurns:
             team_name=definition.name,
             team_revision=definition.revision,
             instructions=definition.instructions,
+            leader_name=leader.name,
             leader_prompt=leader.prompt,
             members=[(item.profile.name, item.member.role) for item in revision.members],
         )
