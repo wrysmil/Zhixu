@@ -268,9 +268,9 @@ class _SubagentHook(AgentHook):
         observation = self._observation
         if observation is not None:
             self._observed_tool_calls.add(tool_call.id)
+            # 不传 label：账本回退到工具名，时间线每行才区分得开（契约 §4 时间线）。
             await observation.update(lambda: observation.ledger.start_activity(
                 observation.invocation_id, tool_call.name, activity_id=tool_call.id,
-                label="正在使用工具",
             ))
 
     async def _finish_tool(self, tool_call: Any, status: str) -> None:

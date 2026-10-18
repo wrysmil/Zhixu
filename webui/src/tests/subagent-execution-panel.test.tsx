@@ -107,8 +107,8 @@ describe("SubagentExecutionPanel", () => {
 
     expect(screen.getByText("调研助手")).toBeInTheDocument();
     expect(screen.getAllByText("查询近期金价").length).toBeGreaterThan(0);
-    expect(screen.getByText("查询公开报价资料，并保留日期、单位和来源。")).toBeInTheDocument();
-    expect(screen.getByText(/搜索网页/)).toBeInTheDocument();
+    expect(screen.getByText(/查询公开报价资料，并保留日期、单位和来源。/)).toBeInTheDocument();
+    expect(screen.getByText("web_search")).toBeInTheDocument();
     expect(screen.getByTestId("subagent-execution-status-live")).toHaveTextContent(
       i18n.t("thread.subagentExecution.status.running"),
     );
@@ -248,6 +248,48 @@ describe("SubagentExecutionPanel", () => {
     expect(within(tinyRow).getByText(ms(2))).toBeInTheDocument();
     expect(fastRow.textContent).not.toMatch(/0\s*(sec|s|秒)/);
     expect(tinyRow.textContent).not.toMatch(/0\s*(sec|s|秒)/);
+  });
+
+  it("工具活动行以工具名作标题，不重复通用动作文案", () => {
+    // 真机发现：后端对每次工具调用都传同一个 label「正在使用工具」，
+    // 时间线每行标题都一模一样，看不出究竟调用了什么工具。
+    const current = state({
+      activities: [
+        activity({
+          activityId: "act-tool",
+          toolName: "read_file",
+          label: "正在使用工具",
+          status: "succeeded",
+          finishedAt: "2026-10-18T08:00:07Z",
+        }),
+        activity({
+          activityId: "act-progress",
+          kind: "progress",
+          toolName: null,
+          label: "正在整理结果",
+          status: "running",
+        }),
+      ],
+    });
+
+    render(
+      <SubagentExecutionPanel
+        executions={[current]}
+        selectedInvocationId={current.snapshot.invocationId}
+        onSelect={() => {}}
+        onReload={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    const toolRow = screen.getByTestId("subagent-execution-activity-act-tool");
+    expect(toolRow).toHaveTextContent("read_file");
+    expect(toolRow.textContent?.match(/read_file/g)).toHaveLength(1);
+    expect(toolRow).not.toHaveTextContent("正在使用工具");
+
+    // 无工具名的进度活动仍用服务端文案兜底。
+    const progressRow = screen.getByTestId("subagent-execution-activity-act-progress");
+    expect(progressRow).toHaveTextContent("正在整理结果");
   });
 
   it("uses a focus-managed dialog on narrow surfaces and restores the trigger", async () => {

@@ -196,10 +196,11 @@ export function SubagentExecutionActivity({
         <Icon className={cn("h-3.5 w-3.5", active && "animate-spin")} />
       </span>
       <span className="min-w-0">
-        <span className="block truncate font-medium text-foreground/85">{activity.label}</span>
+        <span className="block truncate font-medium text-foreground/85">
+          {activity.toolName || activity.label}
+        </span>
         <span className="block text-[11px] text-muted-foreground/70">
           {activityStatusLabel(activity.status, t)}
-          {activity.toolName ? ` · ${activity.toolName}` : ""}
         </span>
       </span>
       {duration ? (
