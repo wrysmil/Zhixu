@@ -410,6 +410,47 @@ describe("AgentActivityCluster", () => {
     await waitFor(() => expect(marker).toHaveClass("animate-in"));
   });
 
+  it("expands the full reasoning text while thinking and collapses it once done", () => {
+    const liveReasoning: UIMessage = {
+      id: "r-expand",
+      role: "assistant",
+      content: "",
+      reasoning: "step one\nstep two\nstep three",
+      reasoningStreaming: true,
+      isStreaming: true,
+      createdAt: 1,
+    };
+    const { rerender } = render(
+      <AgentActivityCluster
+        messages={[liveReasoning]}
+        isTurnStreaming
+        hasBodyBelow
+      />,
+    );
+
+    const toggle = screen.getByTestId("activity-step-details-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("activity-step-detail")).toHaveTextContent("step two");
+
+    rerender(
+      <AgentActivityCluster
+        messages={[{
+          ...liveReasoning,
+          reasoningStreaming: false,
+          isStreaming: false,
+        }]}
+        isTurnStreaming={false}
+        hasBodyBelow
+      />,
+    );
+
+    expect(screen.getByTestId("activity-step-details-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByTestId("activity-step-detail")).not.toBeInTheDocument();
+  });
+
   it("briefly shows completed activity, then auto-collapses before the answer", () => {
     vi.useFakeTimers();
     const liveReasoning: UIMessage = {

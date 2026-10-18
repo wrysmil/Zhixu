@@ -27,6 +27,7 @@ import {
 } from "@/components/thread/promptNavigation";
 import { cn } from "@/lib/utils";
 import type { CliAppInfo, McpPresetInfo, RetryStatus, SlashCommand, UIMessage } from "@/lib/types";
+import type { AgentProfile } from "@/lib/agents/types";
 
 export interface ThreadViewportHandle {
   jumpToUserPrompt: (promptId: string) => void;
@@ -50,6 +51,7 @@ interface ThreadViewportProps {
   showScrollToBottomButton?: boolean;
   cliApps?: CliAppInfo[];
   mcpPresets?: McpPresetInfo[];
+  agents?: AgentProfile[];
   slashCommands?: SlashCommand[];
   forkBoundaryMessageCount?: number | null;
   hasMoreBefore?: boolean;
@@ -233,6 +235,7 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
   showScrollToBottomButton = true,
   cliApps = [],
   mcpPresets = [],
+  agents = [],
   slashCommands = [],
   forkBoundaryMessageCount = null,
   hasMoreBefore = false,
@@ -884,6 +887,7 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
                   hiddenUserMessageCount={hiddenUserMessageCount}
                   cliApps={cliApps}
                   mcpPresets={mcpPresets}
+                  agents={agents}
                   slashCommands={slashCommands}
                   forkBoundaryMessageCount={visibleForkBoundaryMessageCount}
                   onOpenFilePreview={onOpenFilePreview}

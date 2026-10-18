@@ -1092,6 +1092,8 @@ export class NanobotClient {
       cliApps?: OutboundCliAppMention[];
       mcpPresets?: OutboundMcpPresetMention[];
       sessionMentions?: SessionMention[];
+      /** Agent profile id that takes over this turn (``@agent``). */
+      agentId?: string;
       quotedContext?: string;
       workspaceScope?: WorkspaceScopePayload | null;
       turnId?: string;
@@ -1112,6 +1114,7 @@ export class NanobotClient {
       ...(options?.sessionMentions?.length
         ? { session_mentions: options.sessionMentions }
         : {}),
+      ...(options?.agentId ? { agent: options.agentId } : {}),
       ...(options?.quotedContext?.trim() ? { quoted_context: options.quotedContext.trim() } : {}),
       ...(options?.workspaceScope ? { workspace_scope: options.workspaceScope } : {}),
       ...(options?.turnId ? { turn_id: options.turnId } : {}),

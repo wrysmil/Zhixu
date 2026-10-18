@@ -2001,6 +2001,7 @@ export function ThreadShell({
             showScrollToBottomButton={!!session}
             cliApps={cliApps}
             mcpPresets={mcpPresets}
+            agents={composerAgents}
             slashCommands={availableSlashCommands}
             forkBoundaryMessageCount={forkBoundaryMessageCount}
             hasMoreBefore={hasMoreBefore}

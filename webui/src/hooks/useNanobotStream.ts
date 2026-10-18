@@ -180,6 +180,8 @@ export interface SendOptions {
   cliApps?: OutboundCliAppMention[];
   mcpPresets?: OutboundMcpPresetMention[];
   sessionMentions?: SessionMention[];
+  /** Agent profile id that takes over this turn (``@agent``). */
+  agentId?: string;
   quotedContext?: string;
   workspaceScope?: WorkspaceScopePayload | null;
   sideChannel?: boolean;

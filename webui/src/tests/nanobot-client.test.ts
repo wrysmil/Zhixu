@@ -2118,6 +2118,28 @@ describe("NanobotClient", () => {
     );
   });
 
+  it("includes the selected agent in outbound messages", () => {
+    const client = new NanobotClient({
+      url: "ws://test",
+      reconnect: false,
+      socketFactory: (url) => new FakeSocket(url) as unknown as WebSocket,
+    });
+    client.connect();
+    lastSocket().fakeOpen();
+
+    client.sendMessage("chat-agent", "@code-helper 修一下这个 bug", undefined, {
+      agentId: "code-helper",
+    });
+
+    expect(lastSocket().sent).toContain(JSON.stringify({
+      type: "message",
+      chat_id: "chat-agent",
+      content: "@code-helper 修一下这个 bug",
+      agent: "code-helper",
+      webui: true,
+    }));
+  });
+
   it("includes session mentions in outbound messages", () => {
     const client = new NanobotClient({
       url: "ws://test",

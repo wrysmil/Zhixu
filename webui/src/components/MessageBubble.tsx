@@ -55,6 +55,7 @@ import type {
   MessageDeliveryErrorKind,
   MessageDeliveryStatus,
 } from "@/lib/types";
+import type { AgentProfile } from "@/lib/agents/types";
 
 interface MessageBubbleProps {
   message: UIMessage;
@@ -66,6 +67,7 @@ interface MessageBubbleProps {
   showCopyAction?: boolean;
   cliApps?: CliAppInfo[];
   mcpPresets?: McpPresetInfo[];
+  agents?: AgentProfile[];
   slashCommands?: SlashCommand[];
   onOpenFilePreview?: (path: string) => void;
   onForkFromHere?: () => void;
@@ -330,6 +332,7 @@ export function MessageBubble({
   showCopyAction = true,
   cliApps = [],
   mcpPresets = [],
+  agents = [],
   slashCommands = [],
   onOpenFilePreview,
   onForkFromHere,
@@ -385,6 +388,7 @@ export function MessageBubble({
           cliApps={mentionCliApps}
           mcpPresets={mentionMcpPresets}
           sessionMentions={message.sessionMentions}
+          agents={agents}
         />
       </>
     ) : (
@@ -393,6 +397,7 @@ export function MessageBubble({
         cliApps={mentionCliApps}
         mcpPresets={mentionMcpPresets}
         sessionMentions={message.sessionMentions}
+        agents={agents}
       />
     );
     return (

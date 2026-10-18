@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ThreadComposer } from "@/components/thread/ThreadComposer";
+import type { AgentProfile } from "@/lib/agents/types";
 import { SESSION_DRAG_TYPE } from "@/lib/session-drag";
 import type { ChatSummary, CliAppInfo, McpPresetInfo, SlashCommand } from "@/lib/types";
 
@@ -125,6 +126,37 @@ const MCP_PRESETS: McpPresetInfo[] = [
     required_fields: [],
     connection_summary: "",
   },
+];
+
+function agent(
+  id: string,
+  name: string,
+  overrides: Partial<AgentProfile> = {},
+): AgentProfile {
+  return {
+    id,
+    name,
+    description: `${name} 的职责说明`,
+    type: id === "commander" ? "system" : "custom",
+    customized: false,
+    categoryId: "general",
+    icon: "lucide:compass",
+    color: "#D97706",
+    prompt: "",
+    modelId: null,
+    tools: { mode: "all", entries: [] },
+    skills: { mode: "all", entries: [] },
+    subAgents: { mode: "all", entries: [] },
+    hidden: false,
+    updatedAt: "2026-10-18T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+const AGENTS: AgentProfile[] = [
+  agent("commander", "指挥官"),
+  agent("code-helper", "代码助手", { icon: "🛠", color: "#2563EB" }),
+  agent("secret-helper", "隐藏助手", { hidden: true }),
 ];
 
 function session(chatId: string, title: string, preview = ""): ChatSummary {
@@ -1743,6 +1775,96 @@ describe("ThreadComposer", () => {
     });
   });
 
+  it("opens the agent mention palette and sends the selected agent id", () => {
+    const onSend = vi.fn();
+    render(
+      <ThreadComposer
+        onSend={onSend}
+        placeholder="Type your message..."
+        agents={AGENTS}
+      />,
+    );
+
+    const input = screen.getByLabelText("Message input");
+    fireEvent.change(input, { target: { value: "@", selectionStart: 1 } });
+
+    const palette = screen.getByRole("listbox", { name: "Mentions" });
+    expect(palette).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /@commander/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.queryByRole("option", { name: /@secret-helper/i })).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "@code", selectionStart: 5 } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(input).toHaveValue("@code-helper ");
+    expect(screen.getByTestId("composer-agent-mention-code-helper"))
+      .toHaveTextContent("@code-helper");
+    expect(
+      screen.queryByTestId("composer-agent-mention-glyph-code-helper"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("listbox", { name: "Mentions" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(onSend).toHaveBeenCalledWith("@code-helper", undefined, {
+      agentId: "code-helper",
+    });
+  });
+
+  it("lists every visible agent in the mention palette", () => {
+    const manyAgents = Array.from({ length: 10 }, (_, index) =>
+      agent(
+        index === 0 ? "commander" : `agent-${index}`,
+        index === 0 ? "指挥官" : `助手 ${index}`,
+      ));
+    render(
+      <ThreadComposer
+        onSend={vi.fn()}
+        placeholder="Type your message..."
+        agents={manyAgents}
+      />,
+    );
+
+    const input = screen.getByLabelText("Message input");
+    fireEvent.change(input, { target: { value: "@", selectionStart: 1 } });
+
+    const options = within(screen.getByRole("listbox", { name: "Mentions" }))
+      .getAllByRole("option");
+    expect(options).toHaveLength(10);
+    expect(options[0]).toHaveAccessibleName(/@commander/i);
+    expect(options[0]).toHaveAccessibleName(/default agent/i);
+    expect(options[options.length - 1]).toHaveAccessibleName(/@agent-9/i);
+  });
+
+  it("lets the last agent mention take over the turn", () => {
+    const onSend = vi.fn();
+    render(
+      <ThreadComposer
+        onSend={onSend}
+        placeholder="Type your message..."
+        agents={AGENTS}
+      />,
+    );
+
+    const input = screen.getByLabelText("Message input");
+    fireEvent.change(input, {
+      target: { value: "@commander 先看下这个问题 @code", selectionStart: 24 },
+    });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(input).toHaveValue("@commander 先看下这个问题 @code-helper ");
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(onSend).toHaveBeenCalledWith(
+      "@commander 先看下这个问题 @code-helper",
+      undefined,
+      { agentId: "code-helper" },
+    );
+  });
+
   it("keeps keyboard-selected mention options visible while navigating", () => {
     const scrollIntoView = vi.fn();
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
@@ -2240,15 +2362,42 @@ describe("ThreadComposer", () => {
     expect(token).toHaveClass("font-normal");
     expect(token).not.toHaveClass("font-[550]");
     expect(token.className).not.toContain("zoom-in");
-    expect(token.className).not.toContain("px-");
-    expect(token.className).not.toContain("mx-");
+    expect(token.className).toContain("rounded-full");
+    // 底色靠 padding，但必须被等值负 margin 抵消，否则净宽度变化会让光标漂移。
+    expect(token.className).toContain("px-[0.32em]");
+    expect(token.className).toContain("-mx-[0.32em]");
     expect(token.getAttribute("style")).toContain("color: #5C5543");
     expect(token.getAttribute("style")).not.toContain("text-shadow");
     expect(screen.queryByTestId("composer-cli-app-tray")).not.toBeInTheDocument();
-    const logo = screen.getByTestId("composer-cli-mention-logo-gimp");
-    expect(logo.className).toContain("top-1/2");
-    expect(logo.className).toContain("left-1/2");
-    expect(logo.className).not.toContain("-top-");
+    // 输入框里不渲染身份图标：任何行内宽度都会把原生光标挤离可见文字。
+    expect(screen.queryByTestId("composer-cli-mention-logo-gimp")).not.toBeInTheDocument();
+  });
+
+  it("keeps the composer agent mention width-identical to the textarea text", () => {
+    render(
+      <ThreadComposer
+        onSend={vi.fn()}
+        placeholder="Type your message..."
+        agents={AGENTS}
+      />,
+    );
+
+    const input = screen.getByLabelText("Message input");
+    fireEvent.change(input, {
+      target: { value: "hand off to @commander", selectionStart: 21 },
+    });
+
+    expect(input).toHaveValue("hand off to @commander");
+    const token = screen.getByTestId("composer-agent-mention-commander");
+    expect(token).toHaveTextContent("@commander");
+    expect(token).toHaveClass("font-normal");
+    expect(token).toHaveClass("rounded-full");
+    expect(token).toHaveClass("px-[0.32em]");
+    expect(token).toHaveClass("-mx-[0.32em]");
+    expect(token.querySelector(".text-transparent")).toBeNull();
+    expect(
+      screen.queryByTestId("composer-agent-mention-glyph-commander"),
+    ).not.toBeInTheDocument();
   });
 
   it("uses the shared accent when an installed CLI app has no brand metadata", () => {

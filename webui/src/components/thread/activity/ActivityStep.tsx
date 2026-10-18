@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronRight, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -15,6 +15,11 @@ export interface ActivityStepProps {
   active?: boolean;
   tone?: ActivityStepTone;
   detail?: ReactNode;
+  /** Provide to drive the disclosure from outside (e.g. auto-expand while streaming). */
+  detailExpanded?: boolean;
+  onDetailExpandedChange?: (expanded: boolean) => void;
+  /** Keep the detail box pinned to its newest content while streaming. */
+  detailFollowBottom?: boolean;
   className?: string;
   contentClassName?: string;
   labelClassName?: string;
@@ -30,6 +35,9 @@ export function ActivityStep({
   active = false,
   tone = active ? "active" : "neutral",
   detail,
+  detailExpanded,
+  onDetailExpandedChange,
+  detailFollowBottom = false,
   className,
   contentClassName,
   labelClassName,
@@ -37,7 +45,19 @@ export function ActivityStep({
   style,
 }: ActivityStepProps) {
   const { t } = useTranslation();
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [internalDetailOpen, setInternalDetailOpen] = useState(false);
+  const detailOpen = detailExpanded ?? internalDetailOpen;
+  const setDetailOpen = (open: boolean) => {
+    setInternalDetailOpen(open);
+    onDetailExpandedChange?.(open);
+  };
+  const detailBoxRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const box = detailBoxRef.current;
+    if (detailFollowBottom && detailOpen && box) {
+      box.scrollTop = box.scrollHeight;
+    }
+  }, [detailFollowBottom, detailOpen, detail, label]);
   return (
     <div
       data-testid="activity-step"
@@ -102,7 +122,7 @@ export function ActivityStep({
               type="button"
               aria-expanded={detailOpen}
               data-testid="activity-step-details-toggle"
-              onClick={() => setDetailOpen((open) => !open)}
+              onClick={() => setDetailOpen(!detailOpen)}
               className={cn(
                 "ml-auto inline-flex shrink-0 cursor-pointer items-center gap-0.5 appearance-none border-0 bg-transparent p-0 text-[12px] font-normal",
                 "text-muted-foreground/65 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
@@ -121,6 +141,7 @@ export function ActivityStep({
         {detail && detailOpen ? (
           <div
             data-testid="activity-step-detail"
+            ref={detailBoxRef}
             className={cn(
               "mt-1 max-h-64 min-w-0 overflow-y-auto whitespace-pre-wrap break-words rounded-control",
               "border border-border/50 bg-muted/35 px-3 py-2 text-[12.5px] leading-5 text-muted-foreground",

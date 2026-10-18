@@ -1763,6 +1763,8 @@ export type Outbound =
       cli_apps?: OutboundCliAppMention[];
       mcp_presets?: OutboundMcpPresetMention[];
       session_mentions?: SessionMention[];
+      /** Agent profile id requested via ``@agent``; only trusted WebUI clients may set it. */
+      agent?: string;
       quoted_context?: string;
       workspace_scope?: WorkspaceScopePayload;
       turn_id?: string;
