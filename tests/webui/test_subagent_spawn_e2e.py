@@ -132,12 +132,14 @@ async def test_spawned_subagent_receives_profile_prompt(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_factory_profile_has_no_prompt_so_template_comes_first(tmp_path: Path) -> None:
-    """出厂档案 prompt 为空，行为必须与一期完全一致（不拼身份行）。"""
+async def test_factory_profile_prompt_is_injected_before_the_template(tmp_path: Path) -> None:
+    """出厂档案自带提示词：身份行在最前，档案正文排在出厂模板之前。"""
     manager, probe = _manager(tmp_path)
     await manager.run_inline(task="t", agent_id="code-reviewer", runtime=_runtime())
     system = probe.last["system"]
-    assert system.startswith("# Subagent"), f"空 prompt 时不应拼身份行，实际：{system[:60]!r}"
+    assert system.startswith("你是代码评审"), f"身份行应在最前，实际：{system[:60]!r}"
+    assert "# 回报格式" in system, "出厂提示词正文应完整注入"
+    assert "# Subagent" in system, "出厂模板仍应保留在后面"
 
 
 @pytest.mark.asyncio

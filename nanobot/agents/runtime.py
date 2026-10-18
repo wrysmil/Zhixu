@@ -107,6 +107,23 @@ def render_profile_prompt(
     return rendered.strip()
 
 
+def profile_identity_line(agent: ResolvedAgent) -> str:
+    """档案的身份行。
+
+    子 Agent 的 system prompt 与主回合的 role_section 共用这一个构造器：两处各写
+    一句的话，同一份档案在两条路径上会被念成两个名字。
+    """
+    return f"你是{agent.name}，{agent.description}。" if agent.description else f"你是{agent.name}。"
+
+
+def profile_role_section(agent: ResolvedAgent) -> str:
+    """主回合注入 ``context.py`` 的角色段：档案文本优先，没写就退回身份行。
+
+    返回 ``None`` 会让整段不注入，那时「选了档案」和「没选档案」在模型侧没有区别。
+    """
+    return agent.prompt or profile_identity_line(agent)
+
+
 class AgentProfileRuntime:
     """按 id 解析档案，供 ``SubagentManager`` 在每次 spawn 时查询。
 

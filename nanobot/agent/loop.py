@@ -54,6 +54,7 @@ from nanobot.agents.runtime import (
     AGENT_PROFILE_METADATA_KEY,
     AgentProfileRuntime,
     ResolvedAgent,
+    profile_role_section,
 )
 from nanobot.bus.events import INBOUND_META_USER_SHELL, InboundMessage, OutboundMessage
 from nanobot.bus.outbound_events import (
@@ -522,9 +523,10 @@ class AgentLoop:
             max_concurrent_subagents=max_concurrent_subagents,
             llm_wall_timeout_for_session=lambda sk: runner_wall_llm_timeout_s(self.sessions, sk),
             # 二期：让 spawn 能按 Agent 档案裁剪工具/技能并注入提示词。
-            # 只接 agent_profiles，不接 model_resolver —— modelId 在宿主注入
-            # resolver 之前是惰性的，解析 provider 凭据不是 subagent 的职责。
             agent_profiles=AgentProfileRuntime(workspace),
+            # 档案点了模型就得真跑那个模型。解析失败收敛成 None 交给子 Agent 判失败，
+            # 不能在这里抛，也不能退化成「沿用父 runtime」。
+            model_resolver=self._subagent_model_resolver,
             execution_ledger=execution_ledger,
             execution_event_sink=(
                 self._publish_subagent_execution_event
@@ -1202,6 +1204,18 @@ class AgentLoop:
             )
             return self.runtime_for_session(session)
 
+    def _subagent_model_resolver(self, model_id: str) -> "LLMRuntime | None":
+        """给 ``SubagentManager`` 用的模型解析器：解析不出来就返回 ``None``。
+
+        这里不能抛异常：子 Agent 跑在后台任务里，异常只会变成一条没人认领的日志，
+        而「档案点了模型、实际跑父会话的模型」在结果上完全看不出来。返回 ``None``
+        让调用方把这次执行判成失败。
+        """
+        try:
+            return self.runtime_resolver.resolve_preset(model_id)
+        except (KeyError, ValueError):
+            return None
+
     def _resolve_turn_agent(
         self,
         msg: InboundMessage,
@@ -1511,7 +1525,7 @@ class AgentLoop:
             turn_role_section = team.role_prompt
             turn_skill_exclude = set(team.skill_exclude)
         elif agent is not None:
-            turn_role_section = agent.prompt or None
+            turn_role_section = profile_role_section(agent)
             turn_skill_exclude = set(agent.skill_exclude)
         else:
             turn_role_section = None

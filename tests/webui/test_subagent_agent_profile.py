@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from nanobot.agent.runner import AgentRunResult
 from nanobot.agent.subagent import SubagentManager, SubagentStatus
 from nanobot.agents.models import AgentProfile, AgentSelection
-from nanobot.agents.runtime import AgentProfileRuntime
+from nanobot.agents.runtime import AgentProfileRuntime, ResolvedAgent
 from nanobot.agents.store import AgentStore
 from nanobot.bus.queue import MessageBus
 from nanobot.providers.base import GenerationSettings, LLMProvider
@@ -98,13 +99,20 @@ def test_build_prompt_without_description_omits_empty_clause(tmp_path: Path) -> 
     ).startswith("你是沉默。")
 
 
-def test_build_prompt_skips_identity_when_prompt_empty(tmp_path: Path) -> None:
-    """出厂档案 prompt 为空，此时行为必须与一期完全一致（不拼身份行）。"""
+def test_build_prompt_adds_identity_when_prompt_empty(tmp_path: Path) -> None:
+    """提示词为空也要拼身份行。
+
+    不拼的话，选中这个档案与不传 agent 参数之间，模型侧只剩几个工具的差别——
+    档案名和描述只活在 UI 上，等于白配。
+    """
+    AgentStore(tmp_path).save_profile(
+        AgentProfile(id="blank", name="空白档案", description="没写提示词的自建档案")
+    )
     manager = _manager(tmp_path, agent_profiles=AgentProfileRuntime(tmp_path))
-    resolved = manager._resolve_agent("general-assistant")
+    resolved = manager._resolve_agent("blank")
     prompt = manager._build_subagent_prompt(workspace=tmp_path, agent=resolved)
-    assert prompt.startswith("# Subagent")
-    assert "你是通用助理" not in prompt
+    assert prompt.startswith("你是空白档案，没写提示词的自建档案。")
+    assert "# Subagent" in prompt
 
 
 def test_prompt_excludes_skills_not_enabled(tmp_path: Path) -> None:
@@ -118,27 +126,78 @@ def test_prompt_excludes_skills_not_enabled(tmp_path: Path) -> None:
     assert "Built-in skills" not in prompt
 
 
-def test_model_resolver_not_injected_keeps_runtime(tmp_path: Path) -> None:
-    sentinel = object()
-    manager = _manager(tmp_path, agent_profiles=AgentProfileRuntime(tmp_path))
-    assert manager._apply_model_override(sentinel, None) is sentinel  # type: ignore[arg-type]
-
-
-def test_model_resolver_returning_none_keeps_runtime(tmp_path: Path) -> None:
-    manager = _manager(tmp_path, agent_profiles=AgentProfileRuntime(tmp_path))
-    sentinel = object()
-    assert manager._apply_model_override(sentinel, "default") is sentinel  # type: ignore[arg-type]
-
-
-def test_model_resolver_result_is_used(tmp_path: Path) -> None:
-    sentinel = object()
-    replacement = object()
+@pytest.mark.asyncio
+async def test_profile_model_replaces_the_runtime_before_the_runner(tmp_path: Path) -> None:
+    """档案指定的 preset 必须真的成为这次执行用的 runtime。"""
+    AgentStore(tmp_path).save_profile(
+        AgentProfile(id="preset-user", name="带模型档案", model_id="preset-a", prompt="做事。")
+    )
+    replacement = _runtime("resolved-model")
     manager = _manager(
         tmp_path,
         agent_profiles=AgentProfileRuntime(tmp_path),
-        model_resolver=lambda model_id: replacement if model_id == "default" else None,
+        model_resolver=lambda model_id: replacement if model_id == "preset-a" else None,
     )
-    assert manager._apply_model_override(sentinel, "default") is replacement  # type: ignore[arg-type]
+    manager.runner.run = AsyncMock(  # type: ignore[method-assign]
+        return_value=AgentRunResult(final_content="done", messages=[], stop_reason="completed")
+    )
+
+    await manager.run_inline(task="t", agent_id="preset-user", runtime=_runtime("parent-model"))
+
+    spec = manager.runner.run.await_args.args[0]
+    assert spec.runtime.model == "resolved-model"
+    assert spec.runtime.provider is replacement.provider
+
+
+@pytest.mark.asyncio
+async def test_unresolvable_profile_model_fails_without_calling_the_runner(tmp_path: Path) -> None:
+    """preset 已被删除时当场失败，不悄悄换成父会话的模型，也不白烧一次推理。"""
+    AgentStore(tmp_path).save_profile(
+        AgentProfile(id="ghost", name="幽灵模型档案", model_id="gone", prompt="做事。")
+    )
+    manager = _manager(
+        tmp_path,
+        agent_profiles=AgentProfileRuntime(tmp_path),
+        model_resolver=lambda _model_id: None,
+    )
+    manager.runner.run = AsyncMock(  # type: ignore[method-assign]
+        return_value=AgentRunResult(final_content="done", messages=[], stop_reason="completed")
+    )
+
+    result = await manager.run_inline(task="t", agent_id="ghost", runtime=_runtime("parent-model"))
+
+    assert "无法解析" in result
+    manager.runner.run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_frozen_profile_model_fails_the_same_way(tmp_path: Path) -> None:
+    """团队路径与普通 spawn 路径同一个口径：两条都不许静默降级。"""
+    origin = {"channel": "team", "chat_id": "run-1", "session_key": None}
+    manager = _manager(
+        tmp_path,
+        agent_profiles=AgentProfileRuntime(tmp_path),
+        model_resolver=lambda _model_id: None,
+    )
+    manager.runner.run = AsyncMock(  # type: ignore[method-assign]
+        return_value=AgentRunResult(final_content="done", messages=[], stop_reason="completed")
+    )
+
+    result = await manager.execute_frozen(
+        "t",
+        execution_id="att-1",
+        label="lbl",
+        origin=origin,  # type: ignore[arg-type]
+        agent=ResolvedAgent(
+            id="ghost", name="幽灵", description="", model_id="gone", prompt="做事。",
+            tool_names=frozenset({"read_file"}),
+        ),
+        runtime=_runtime("parent-model"),
+    )
+
+    assert result.outcome == "failed"
+    assert result.error_code == "model_preset_unavailable"
+    manager.runner.run.assert_not_awaited()
 
 
 @pytest.mark.asyncio

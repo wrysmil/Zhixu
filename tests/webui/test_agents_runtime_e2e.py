@@ -77,5 +77,7 @@ def test_agent_loop_wires_profile_runtime(tmp_path: Path) -> None:
     kwargs = mock_mgr.call_args.kwargs
     assert "agent_profiles" in kwargs, "AgentLoop 未把 AgentProfileRuntime 接到 SubagentManager"
     assert isinstance(kwargs["agent_profiles"], AgentProfileRuntime)
-    # model_resolver 本期不接：modelId 在宿主注入前是惰性的。
-    assert "model_resolver" not in kwargs or kwargs["model_resolver"] is None
+    # model_resolver 必须接上：漏接时档案的 modelId 在子 Agent 侧是惰性的——
+    # 界面显示选了模型、实际跑父会话的模型，而且没有任何信号。
+    # 解析失败如何收敛成 None 由 tests/agent/test_turn_agent_profile.py 的装配锁负责。
+    assert kwargs.get("model_resolver") is not None, "AgentLoop 漏接 model_resolver"

@@ -111,6 +111,26 @@ async def test_mentioned_agent_applies_prompt_tools_and_model(tmp_path: Path) ->
     assert provider.last_model == "fast-model"
 
 
+def test_loop_wires_the_subagent_model_resolver(tmp_path: Path) -> None:
+    """装配锁：``AgentLoop`` 必须把 ``model_resolver`` 接给子 Agent 管理器。
+
+    全仓只有这一处构造 ``SubagentManager``。漏接时档案的 ``modelId`` 在子 Agent 侧
+    是惰性的——界面显示选了模型、实际跑父会话的模型，且没有任何信号。
+    """
+    provider = _RecordingProvider()
+    loop = _make_loop(tmp_path, provider)
+    loop.runtime_resolver._model_presets["fast"] = ModelPresetConfig.model_validate(
+        {"model": "fast-model"}
+    )
+
+    resolver = loop.subagents._model_resolver
+    assert resolver is not None, "AgentLoop 漏接 model_resolver，档案的 modelId 会静默失效"
+    assert resolver("fast") is not None
+    assert resolver("fast").model == "fast-model"
+    # 不可解析必须收敛成 None 交给调用方判失败，而不是把 KeyError 抛进子 Agent 循环。
+    assert resolver("no-such-preset") is None
+
+
 @pytest.mark.asyncio
 async def test_team_assembly_wins_over_the_mentioned_agent(tmp_path: Path) -> None:
     _save_agent(
