@@ -6,16 +6,22 @@ import time
 from collections.abc import Mapping
 from typing import Any, cast
 
+from nanobot.subagent_executions.activity_detail import (
+    ACTIVITY_TEXT_MAX_CHARS,
+    redact_activity_text,
+    truncate_activity_text,
+)
 from nanobot.subagent_executions.models import ExecutionEvent
 
-ACTIVITY_MAX_DATA_BYTES = 4096
+ACTIVITY_MAX_DATA_BYTES = 8192
 ACTIVITY_MIN_INTERVAL_SECONDS = 0.25
 EXECUTION_FIELDS = (
     'invocationId', 'chatId', 'parentTurnId', 'parentToolCallId', 'agentId', 'agentName',
     'title', 'mode', 'status', 'phase', 'createdAt', 'startedAt', 'finishedAt',
     'queueDurationMs', 'durationMs', 'lastAction', 'completedToolCount', 'lastSeq',
 )
-ACTIVITY_FIELDS = ('activityId', 'kind', 'toolName', 'status', 'label', 'startedAt', 'finishedAt')
+ACTIVITY_FIELDS = ('activityId', 'kind', 'toolName', 'status', 'label', 'startedAt',
+                   'finishedAt', 'detail', 'output')
 ENVELOPE_FIELDS = ('schemaVersion', 'invocationId', 'chatId', 'parentTurnId',
                    'parentToolCallId', 'seq', 'occurredAt', 'createdAt', 'type')
 EVENT_TYPES = frozenset({'execution.created', 'execution.started', 'execution.phase_changed',
@@ -49,10 +55,18 @@ def project_execution_event(event: ExecutionEvent | Mapping[str, Any]) -> dict[s
         for section in data.values():
             if isinstance(section.get(key), str):
                 section[key] = section[key][:limit]
+    # 参数/输出摘要在账本里已经是投影结果；出口再脱敏一次并补上长度上限，
+    # 这样即使读到旧库或被改写过的行，原始文本也不会直接上帧。
+    for key in ('detail', 'output'):
+        for section in data.values():
+            if isinstance(section.get(key), str):
+                section[key] = truncate_activity_text(
+                    redact_activity_text(section[key]), ACTIVITY_TEXT_MAX_CHARS,
+                )
     if len(json.dumps(wire, ensure_ascii=False).encode()) <= ACTIVITY_MAX_DATA_BYTES:
         return wire
     for section in data.values():
-        for key in ('agentName', 'title', 'lastAction', 'label', 'toolName'):
+        for key in ('agentName', 'title', 'lastAction', 'label', 'toolName', 'detail', 'output'):
             section.pop(key, None)
     if len(json.dumps(wire, ensure_ascii=False).encode()) <= ACTIVITY_MAX_DATA_BYTES:
         return wire

@@ -1602,6 +1602,119 @@
       "languageAuto": "Auto"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "Identity",
+          "title": "Make the agent sound like you want",
+          "subtitle": "Pick a vibe, answer a few quick questions, and see exactly how the agent will greet you next time."
+        },
+        "stepsAria": "Identity setup steps",
+        "step": {
+          "vibe": {
+            "label": "Vibe",
+            "hint": "Selecting one fills the form for you"
+          },
+          "voice": {
+            "label": "Name & tone",
+            "hint": "Empty entries are skipped"
+          },
+          "rules": {
+            "label": "Rules & notes",
+            "hint": "What it must not do"
+          },
+          "advanced": {
+            "label": "Advanced",
+            "hint": "Edit the identity file directly"
+          }
+        },
+        "gallery": {
+          "active": "Active",
+          "reload": "Reload preset",
+          "use": "Use this vibe"
+        },
+        "preview": {
+          "yourAgent": "Your Agent",
+          "live": "Live preview",
+          "samplePrompt": "Draft my monthly recap as three short sections.",
+          "activeRule": "Active rule: ",
+          "hint": "How the agent opens after your changes. Saving makes it live."
+        },
+        "advanced": {
+          "toggle": "Advanced: edit raw Markdown",
+          "note": "Only reach for this when the presets and form cannot express what you want. Edits here apply immediately but the form view will rewrite the file on next save.",
+          "rawAria": "Raw Markdown",
+          "reload": "Reload from disk"
+        },
+        "form": {
+          "nameLabel": "How should the agent call you?",
+          "namePlaceholder": "e.g. Marketing team, Alex",
+          "roleLabel": "What does the agent mainly help you with?",
+          "rolePlaceholder": "e.g. turn weekly meetings into a readable recap; group customer feedback into themes",
+          "toneLabel": "Tone of voice",
+          "toneHint": "Pick the closest",
+          "langLabel": "Default reply language",
+          "rulesLabel": "Lines the agent should not cross",
+          "rulesHint": "One per line, up to 6",
+          "rulesPlaceholder": "Never invent contract numbers\nDon't quote internal paths to anonymous users\nSay 'I don't know' rather than guess",
+          "notesLabel": "Anything else worth remembering?",
+          "notesPlaceholder": "Company name, jargon, words to avoid…"
+        },
+        "tone": {
+          "friendly": {
+            "label": "Friendly",
+            "description": "Warm, encouraging, empathetic"
+          },
+          "professional": {
+            "label": "Professional",
+            "description": "Formal, measured, well-reasoned"
+          },
+          "concise": {
+            "label": "Concise",
+            "description": "Answer first, then expand"
+          },
+          "detailed": {
+            "label": "Detailed",
+            "description": "Full reasoning and edge cases"
+          }
+        },
+        "replyLang": {
+          "groupAria": "Reply language",
+          "auto": {
+            "label": "Follow you",
+            "description": "Reply in the language you ask in"
+          },
+          "zh": {
+            "label": "Chinese",
+            "description": "Always reply in Chinese"
+          },
+          "en": {
+            "label": "English",
+            "description": "All replies in English"
+          }
+        },
+        "footer": {
+          "back": "Back",
+          "next": "Next",
+          "unsaved": "Unsaved changes",
+          "upToDate": "Up to date",
+          "discard": "Discard",
+          "saved": "Saved",
+          "save": "Save"
+        },
+        "error": {
+          "loadFailed": "Some content could not load",
+          "saveFailed": "Save failed"
+        },
+        "toast": {
+          "saved": "Identity saved — live now"
+        },
+        "persona": {
+          "default": "Default",
+          "cardTitle": "Active persona",
+          "cardNone": "Default SOUL, no preset enabled",
+          "cardHint": "Clicking a vibe card above also switches this preset."
+        }
+      },
       "groupCore": "Core files",
       "groupPersonas": "Personas",
       "warningBanner": "Identity files define your Agent's core personality and behavior. Improper edits may cause the agent to misbehave, lose capabilities, or produce unexpected replies. If unsure, back up the original first.",
@@ -1666,6 +1779,8 @@
       "personaSwitchFailed": "Failed to switch persona"
     },
     "memory": {
+      "pageEyebrow": "Memory center",
+      "pageSubtitle": "Long-term facts and conversation excerpts the agent keeps across sessions. Toggle automatic extraction here, or just browse and curate what's already there.",
       "tabSemantic": "Semantic memory",
       "tabEpisode": "Episodes",
       "tabsLabel": "Memory sections",
@@ -2009,6 +2124,9 @@
         "cancelled": "Stopped",
         "interrupted": "Interrupted"
       },
+      "parameters": "Parameters",
+      "toolOutput": "Output",
+      "detailToggle": "Show parameters and output",
       "phase": {
         "preparing": "Preparing",
         "model": "Generating",

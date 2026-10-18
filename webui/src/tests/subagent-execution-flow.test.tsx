@@ -227,6 +227,8 @@ describe("useSubagentExecutions 恢复与竞态", () => {
         label: "搜索网页",
         startedAt: "2026-10-18T08:00:02Z",
         finishedAt: "2026-10-18T08:00:03Z",
+        detail: "query=金价",
+        output: "hits=5",
       }],
     });
     const { result } = renderHook(() => useSubagentExecutions(client, {
@@ -239,6 +241,11 @@ describe("useSubagentExecutions 恢复与竞态", () => {
       client.emit(CHAT_A, snapshotFrame([recovered]));
     });
     expect(result.current.byInvocationId[INVOCATION_ID].activities).toHaveLength(1);
+    // 断线重连靠快照恢复时间线，投影摘要不能在这一路丢掉。
+    expect(result.current.byInvocationId[INVOCATION_ID].activities[0]).toMatchObject({
+      detail: "query=金价",
+      output: "hits=5",
+    });
 
     act(() => client.emitStatus("reconnecting"));
     expect(result.current.connectionStale).toBe(true);

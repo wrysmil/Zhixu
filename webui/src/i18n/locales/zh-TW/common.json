@@ -1302,6 +1302,8 @@
       "languageAuto": "自動"
     },
     "memory": {
+      "pageEyebrow": "記憶中心",
+      "pageSubtitle": "智慧助理在對話中整理的長期資訊與對話片段。開啟總開關後會自動抽取；關閉後仍可檢視與管理。",
       "tabSemantic": "語意記憶",
       "tabEpisode": "情節",
       "tabsLabel": "記憶分類",
@@ -1407,6 +1409,119 @@
       "masterToggleOff": "已關閉"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "身分 · Identity",
+          "title": "讓 Agent 用你想要的方式說話",
+          "subtitle": "從一張個性卡片開始，再用幾個簡單問題補充細節。下面看到的就是 Agent 之後會怎麼開口。"
+        },
+        "stepsAria": "身分設定步驟",
+        "step": {
+          "vibe": {
+            "label": "個性卡片",
+            "hint": "選取後會自動填好後面的表單"
+          },
+          "voice": {
+            "label": "稱呼與語氣",
+            "hint": "空白處會自動跳過"
+          },
+          "rules": {
+            "label": "底線與備註",
+            "hint": "告訴它什麼不能做"
+          },
+          "advanced": {
+            "label": "進階 Markdown",
+            "hint": "直接編輯身分檔案"
+          }
+        },
+        "gallery": {
+          "active": "已選用",
+          "reload": "重新載入",
+          "use": "使用這個個性"
+        },
+        "preview": {
+          "yourAgent": "你的助理",
+          "live": "即時預覽",
+          "samplePrompt": "幫我把這個月的工作週報寫成三段。",
+          "activeRule": "已套用規則：",
+          "hint": "以上是目前設定下 Agent 的開場白預覽，儲存後立即生效。"
+        },
+        "advanced": {
+          "toggle": "進階模式：直接編輯原始 Markdown",
+          "note": "只有當預設與表單都不夠用時才需要來這裡。手動修改會立即生效，但表單再次儲存時會依上面的結構重寫。",
+          "rawAria": "原始 Markdown",
+          "reload": "從磁碟重新載入"
+        },
+        "form": {
+          "nameLabel": "Agent 該怎麼稱呼你",
+          "namePlaceholder": "例如：小明、營運組",
+          "roleLabel": "Agent 主要幫你做什麼",
+          "rolePlaceholder": "例如：把一週的會議整理成可讀週報；歸納客戶回饋裡的高頻問題",
+          "toneLabel": "說話的調子",
+          "toneHint": "選最貼近的那個",
+          "langLabel": "預設用什麼語言回覆",
+          "rulesLabel": "希望它遵守的底線",
+          "rulesHint": "一行一條，最多 6 條",
+          "rulesPlaceholder": "不在合約裡直接產生金額\n不向未登入的使用者提及後台路徑\n沒把握就明說 '我不確定'，不裝懂",
+          "notesLabel": "還想告訴它的事（可選）",
+          "notesPlaceholder": "公司名、行話縮寫、忌諱詞等都可以寫在這裡"
+        },
+        "tone": {
+          "friendly": {
+            "label": "友善",
+            "description": "親切、鼓勵、共情"
+          },
+          "professional": {
+            "label": "專業",
+            "description": "正式、克制、有理有據"
+          },
+          "concise": {
+            "label": "簡短",
+            "description": "先給結論再展開"
+          },
+          "detailed": {
+            "label": "詳細",
+            "description": "完整推理過程與邊界"
+          }
+        },
+        "replyLang": {
+          "groupAria": "回覆語言",
+          "auto": {
+            "label": "跟隨你",
+            "description": "用你提問的語言回覆"
+          },
+          "zh": {
+            "label": "中文",
+            "description": "所有回覆都使用中文"
+          },
+          "en": {
+            "label": "English",
+            "description": "所有回覆都使用英文"
+          }
+        },
+        "footer": {
+          "back": "上一步",
+          "next": "下一步",
+          "unsaved": "有未儲存的修改",
+          "upToDate": "已是最新",
+          "discard": "還原修改",
+          "saved": "已儲存",
+          "save": "儲存設定"
+        },
+        "error": {
+          "loadFailed": "部分內容無法載入",
+          "saveFailed": "儲存失敗"
+        },
+        "toast": {
+          "saved": "身分設定已儲存，已立即生效"
+        },
+        "persona": {
+          "default": "未啟用預設",
+          "cardTitle": "Agent 在使用的預設",
+          "cardNone": "未啟用，保留預設 SOUL",
+          "cardHint": "點選上方任一個性卡片都會同步切換到這個預設。"
+        }
+      },
       "groupCore": "核心檔案",
       "groupPersonas": "人格範本",
       "warningBanner": "身分檔案是 Agent 的核心人格與行為基礎。不當修改可能導致 Agent 行為異常、喪失關鍵能力或產生不可預期的回復。如果你不確定某項修改的影響，建議先備份原檔案。",
@@ -1953,6 +2068,9 @@
         "cancelled": "已停止",
         "interrupted": "已中斷"
       },
+      "parameters": "執行參數",
+      "toolOutput": "輸出摘要",
+      "detailToggle": "檢視參數與輸出摘要",
       "phase": {
         "preparing": "準備中",
         "model": "產生回覆",

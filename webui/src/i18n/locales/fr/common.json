@@ -1302,6 +1302,8 @@
       "languageAuto": "Automatique"
     },
     "memory": {
+      "pageEyebrow": "Centre mémoire",
+      "pageSubtitle": "Les faits durables et les extraits de conversation que l'agent conserve d'une session à l'autre. Activez ici l'extraction automatique, ou parcourez et rangez ce qui existe déjà.",
       "tabSemantic": "Mémoire sémantique",
       "tabEpisode": "Épisodes",
       "tabsLabel": "Sections de mémoire",
@@ -1407,6 +1409,119 @@
       "masterToggleOff": "Désactivé"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "Identité",
+          "title": "Faites parler l'agent comme vous le voulez",
+          "subtitle": "Choisissez une ambiance, répondez à quelques questions rapides et voyez exactement comment l'agent vous saluera la prochaine fois."
+        },
+        "stepsAria": "Étapes de configuration de l'identité",
+        "step": {
+          "vibe": {
+            "label": "Ambiance",
+            "hint": "En choisir une remplit le formulaire pour vous"
+          },
+          "voice": {
+            "label": "Nom et ton",
+            "hint": "Les champs vides sont ignorés"
+          },
+          "rules": {
+            "label": "Limites et notes",
+            "hint": "Ce qu'il ne doit pas faire"
+          },
+          "advanced": {
+            "label": "Avancé",
+            "hint": "Modifier directement le fichier d'identité"
+          }
+        },
+        "gallery": {
+          "active": "Active",
+          "reload": "Recharger le préréglage",
+          "use": "Utiliser cette ambiance"
+        },
+        "preview": {
+          "yourAgent": "Votre agent",
+          "live": "Aperçu en direct",
+          "samplePrompt": "Rédige mon bilan mensuel en trois courts paragraphes.",
+          "activeRule": "Règle active : ",
+          "hint": "Voici comment l'agent ouvrira après vos modifications. L'enregistrement applique aussitôt."
+        },
+        "advanced": {
+          "toggle": "Avancé : modifier le Markdown brut",
+          "note": "N'utilisez ceci que si les préréglages et le formulaire ne suffisent pas. Les modifications s'appliquent immédiatement, mais la vue formulaire réécrira le fichier au prochain enregistrement.",
+          "rawAria": "Markdown brut",
+          "reload": "Recharger depuis le disque"
+        },
+        "form": {
+          "nameLabel": "Comment l'agent doit-il vous appeler ?",
+          "namePlaceholder": "p. ex. Équipe marketing, Alex",
+          "roleLabel": "Sur quoi l'agent vous aide-t-il principalement ?",
+          "rolePlaceholder": "p. ex. transformer les réunions hebdo en compte rendu lisible ; regrouper les retours clients par thème",
+          "toneLabel": "Ton de voix",
+          "toneHint": "Choisissez le plus proche",
+          "langLabel": "Langue de réponse par défaut",
+          "rulesLabel": "Les lignes que l'agent ne doit pas franchir",
+          "rulesHint": "Une par ligne, jusqu'à 6",
+          "rulesPlaceholder": "Ne jamais inventer de montants dans un contrat\nNe pas citer de chemins internes à des utilisateurs anonymes\nDire « je ne sais pas » plutôt que deviner",
+          "notesLabel": "Autre chose à retenir ?",
+          "notesPlaceholder": "Nom de l'entreprise, jargon, mots à éviter…"
+        },
+        "tone": {
+          "friendly": {
+            "label": "Chaleureux",
+            "description": "Chaleureux, encourageant, empathique"
+          },
+          "professional": {
+            "label": "Professionnel",
+            "description": "Formel, mesuré, bien argumenté"
+          },
+          "concise": {
+            "label": "Concis",
+            "description": "La réponse d'abord, puis le détail"
+          },
+          "detailed": {
+            "label": "Détaillé",
+            "description": "Raisonnement complet et cas limites"
+          }
+        },
+        "replyLang": {
+          "groupAria": "Langue de réponse",
+          "auto": {
+            "label": "Vous suivre",
+            "description": "Répondre dans la langue de votre question"
+          },
+          "zh": {
+            "label": "Chinois",
+            "description": "Toujours répondre en chinois"
+          },
+          "en": {
+            "label": "Anglais",
+            "description": "Toutes les réponses en anglais"
+          }
+        },
+        "footer": {
+          "back": "Retour",
+          "next": "Suivant",
+          "unsaved": "Modifications non enregistrées",
+          "upToDate": "À jour",
+          "discard": "Annuler",
+          "saved": "Enregistré",
+          "save": "Enregistrer"
+        },
+        "error": {
+          "loadFailed": "Une partie du contenu n'a pas pu être chargée",
+          "saveFailed": "Échec de l'enregistrement"
+        },
+        "toast": {
+          "saved": "Identité enregistrée — elle est active"
+        },
+        "persona": {
+          "default": "Par défaut",
+          "cardTitle": "Persona active",
+          "cardNone": "SOUL par défaut, aucun préréglage actif",
+          "cardHint": "Choisir une carte d'ambiance ci-dessus bascule aussi ce préréglage."
+        }
+      },
       "groupCore": "Fichiers principaux",
       "groupPersonas": "Personas",
       "warningBanner": "Les fichiers d'identité définissent la personnalité et le comportement de l'agent. Des modifications inappropriées peuvent provoquer des comportements anormaux ou des réponses inattendues. En cas de doute, sauvegardez d'abord.",
@@ -1953,6 +2068,9 @@
         "cancelled": "Arrêté",
         "interrupted": "Interrompu"
       },
+      "parameters": "Paramètres",
+      "toolOutput": "Sortie",
+      "detailToggle": "Afficher les paramètres et la sortie",
       "phase": {
         "preparing": "Préparation",
         "model": "Génération",

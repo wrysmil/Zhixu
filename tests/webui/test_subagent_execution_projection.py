@@ -81,7 +81,7 @@ def _event_payload(**overrides: Any) -> dict[str, Any]:
                 "label": "读取文件",
                 "startedAt": "2026-10-18T00:00:00+00:00",
                 "finishedAt": None,
-                "output": "SENSITIVE_OUTPUT",
+                "raw_output": "SENSITIVE_OUTPUT",
             },
         },
     }
@@ -103,7 +103,22 @@ def test_realtime_encoder_is_allowlisted_and_carries_outer_identity() -> None:
     assert "SENSITIVE_PROMPT" not in serialized
     assert "SENSITIVE_OUTPUT" not in serialized
     assert "token" not in frame["data"]["data"]["execution"]
-    assert "output" not in frame["data"]["data"]["activity"]
+    # detail/output 是公开的投影字段；其它键（这里是原始输出）仍然一律不上帧。
+    assert "raw_output" not in frame["data"]["data"]["activity"]
+
+
+def test_activity_summary_is_redacted_and_capped_at_the_wire_boundary() -> None:
+    """账本里已经投影过；出口仍要再脱敏一次并压到 600 字，防止旧库或被改写的行直接外泄。"""
+    payload = _event_payload()
+    activity = payload["data"]["activity"]
+    activity["detail"] = "path=/Users/secretuser/private/note.txt · token=SENSITIVE_TOKEN"
+    activity["output"] = "x" * 2000
+    frame = encode_subagent_execution_event("chat-1", SubagentExecutionWireEvent(data=payload))
+    assert frame is not None
+    projected = frame["data"]["data"]["activity"]
+    assert "SENSITIVE_TOKEN" not in json.dumps(projected, ensure_ascii=False)
+    assert projected["detail"].startswith("path=~/private/note.txt")
+    assert len(projected["output"]) <= 600
 
 
 def test_unknown_schema_is_ignored_without_touching_the_main_stream() -> None:

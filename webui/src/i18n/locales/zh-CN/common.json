@@ -1602,6 +1602,119 @@
       "languageAuto": "自动"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "身份 · Identity",
+          "title": "让 Agent 用你想要的方式说话",
+          "subtitle": "从一张性格卡片开始，再用几个简单问题补充细节。下面看到的就是 Agent 之后会怎么开口。"
+        },
+        "stepsAria": "身份设定步骤",
+        "step": {
+          "vibe": {
+            "label": "性格卡片",
+            "hint": "选中后会自动填好后面的表单"
+          },
+          "voice": {
+            "label": "称呼与语气",
+            "hint": "空白处会自动跳过"
+          },
+          "rules": {
+            "label": "底线与备注",
+            "hint": "告诉它什么不能做"
+          },
+          "advanced": {
+            "label": "高级 Markdown",
+            "hint": "直接编辑身份文件"
+          }
+        },
+        "gallery": {
+          "active": "已选用",
+          "reload": "重新载入",
+          "use": "使用这个性格"
+        },
+        "preview": {
+          "yourAgent": "你的助手",
+          "live": "实时预览",
+          "samplePrompt": "帮我把这个月的工作周报写成三段。",
+          "activeRule": "已应用规则：",
+          "hint": "以上是当前设定下 Agent 的开场白预览，保存后立即生效。"
+        },
+        "advanced": {
+          "toggle": "高级模式：直接编辑原始 Markdown",
+          "note": "只有当预设和表单都不够用时才需要来这里。手动修改会立即生效，但被表单再次保存时会按上面的结构重写。",
+          "rawAria": "原始 Markdown",
+          "reload": "从磁盘重载"
+        },
+        "form": {
+          "nameLabel": "Agent 怎么称呼你",
+          "namePlaceholder": "例如：小明、运营组",
+          "roleLabel": "Agent 主要帮你做什么",
+          "rolePlaceholder": "例如：把一周的会议整理成可读周报；梳理客户反馈里的高频问题",
+          "toneLabel": "说话的调子",
+          "toneHint": "选最贴近的那个",
+          "langLabel": "默认用什么语言回复",
+          "rulesLabel": "希望它遵守的底线",
+          "rulesHint": "一行一条，最多 6 条",
+          "rulesPlaceholder": "不在合同里直接生成金额\n不向未登录的用户提及后台路径\n没把握就明说 '我不确定'，不装懂",
+          "notesLabel": "还想告诉它的事（可选）",
+          "notesPlaceholder": "公司名、行话缩写、忌讳词等都可以写在这里"
+        },
+        "tone": {
+          "friendly": {
+            "label": "友好",
+            "description": "亲切、鼓励、共情"
+          },
+          "professional": {
+            "label": "专业",
+            "description": "正式、克制、有理有据"
+          },
+          "concise": {
+            "label": "简短",
+            "description": "先给结论再展开"
+          },
+          "detailed": {
+            "label": "详细",
+            "description": "完整推理过程与边界"
+          }
+        },
+        "replyLang": {
+          "groupAria": "回复语言",
+          "auto": {
+            "label": "跟随你",
+            "description": "用你提问的语言回答"
+          },
+          "zh": {
+            "label": "中文",
+            "description": "所有回复都使用中文"
+          },
+          "en": {
+            "label": "English",
+            "description": "所有回复都使用英文"
+          }
+        },
+        "footer": {
+          "back": "上一步",
+          "next": "下一步",
+          "unsaved": "有未保存的改动",
+          "upToDate": "已是最新",
+          "discard": "撤销改动",
+          "saved": "已保存",
+          "save": "保存设定"
+        },
+        "error": {
+          "loadFailed": "部分内容没能加载",
+          "saveFailed": "保存失败"
+        },
+        "toast": {
+          "saved": "身份设定已保存，已立即生效"
+        },
+        "persona": {
+          "default": "未启用预设",
+          "cardTitle": "Agent 在用的预设",
+          "cardNone": "未启用，保留默认 SOUL",
+          "cardHint": "点击上方任意性格卡片都会同步切换到这个预设。"
+        }
+      },
       "groupCore": "核心文件",
       "groupPersonas": "人格模板",
       "warningBanner": "身份文件是 Agent 的核心人格和行为基础。不当修改可能导致 Agent 行为异常、丧失关键能力或产生不可预期的回复。如果你不确定某项修改的影响，建议先备份原文件。",
@@ -1666,6 +1779,8 @@
       "personaSwitchFailed": "切换人格失败"
     },
     "memory": {
+      "pageEyebrow": "记忆中心",
+      "pageSubtitle": "智能体在对话中整理的长期信息和对话片段。打开总开关后会自动抽取；关闭后仍可查看和管理。",
       "tabSemantic": "语义记忆",
       "tabEpisode": "情节",
       "tabsLabel": "记忆分类",
@@ -2009,6 +2124,9 @@
         "cancelled": "已停止",
         "interrupted": "已中断"
       },
+      "parameters": "执行参数",
+      "toolOutput": "输出摘要",
+      "detailToggle": "查看参数与输出摘要",
       "phase": {
         "preparing": "准备中",
         "model": "生成回复",

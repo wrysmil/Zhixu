@@ -49,6 +49,8 @@ function activity(overrides: Partial<ExecutionActivity> = {}): ExecutionActivity
     label: "搜索网页",
     startedAt: "2026-10-18T08:00:02Z",
     finishedAt: null,
+    detail: null,
+    output: null,
     ...overrides,
   };
 }

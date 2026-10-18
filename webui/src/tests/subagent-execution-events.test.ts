@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  parseExecutionActivity,
   parseExecutionEvent,
   parseExecutionFrame,
   parseExecutionSnapshot,
@@ -80,6 +81,8 @@ describe("子 Agent 执行 wire parser", () => {
         label: "搜索网页",
         startedAt: "2026-10-18T08:00:02Z",
         finishedAt: "2026-10-18T08:00:03Z",
+        detail: "query=近期金价",
+        output: "hits=5",
       }],
     }));
 
@@ -91,7 +94,7 @@ describe("子 Agent 执行 wire parser", () => {
       status: "succeeded",
       durationMs: 4000,
       result: { summary: "金价已查到", truncated: false },
-      activities: [{ activityId: ACTIVITY_ID, status: "succeeded" }],
+      activities: [{ activityId: ACTIVITY_ID, status: "succeeded", detail: "query=近期金价" }],
     });
   });
 
@@ -168,5 +171,47 @@ describe("子 Agent 执行 wire parser", () => {
       chatId: CHAT_ID,
       executions: [{ invocationId: INVOCATION_ID, lastSeq: 1 }],
     });
+  });
+});
+
+describe("子 Agent 活动的参数/输出投影", () => {
+  function rawActivity(overrides: Record<string, unknown> = {}) {
+    return {
+      activityId: ACTIVITY_ID,
+      kind: "tool",
+      toolName: "read_file",
+      status: "succeeded",
+      label: "正在使用工具",
+      startedAt: "2026-10-18T08:00:02Z",
+      finishedAt: "2026-10-18T08:00:03Z",
+      ...overrides,
+    };
+  }
+
+  it("保留服务端投影出的参数与输出摘要", () => {
+    const parsed = parseExecutionActivity(
+      rawActivity({ detail: "path=src/app.py", output: "lines=128" }),
+    );
+    expect(parsed).toMatchObject({ detail: "path=src/app.py", output: "lines=128" });
+  });
+
+  it("投影字段缺失或类型不对时归零，整条活动仍然可用", () => {
+    for (const value of [undefined, null, 42, true, {}, ["x"]]) {
+      const parsed = parseExecutionActivity(rawActivity({ detail: value, output: value }));
+      expect(parsed).not.toBeNull();
+      expect(parsed?.detail).toBeNull();
+      expect(parsed?.output).toBeNull();
+    }
+  });
+
+  it("空字符串按没有投影处理", () => {
+    const parsed = parseExecutionActivity(rawActivity({ detail: "", output: "" }));
+    expect(parsed?.detail).toBeNull();
+    expect(parsed?.output).toBeNull();
+  });
+
+  it("旧网关没有这两个字段时不影响解析", () => {
+    const parsed = parseExecutionActivity(rawActivity());
+    expect(parsed).toMatchObject({ activityId: ACTIVITY_ID, detail: null, output: null });
   });
 });

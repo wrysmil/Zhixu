@@ -1302,6 +1302,8 @@
       "languageAuto": "자동"
     },
     "memory": {
+      "pageEyebrow": "기억 센터",
+      "pageSubtitle": "에이전트가 대화에서 정리한 장기 정보와 대화 발췌입니다. 메인 토글을 켜면 자동 추출이 시작되고, 꺼도 기존 기억은 보고 관리할 수 있습니다.",
       "tabSemantic": "의미 기억",
       "tabEpisode": "에피소드",
       "tabsLabel": "기억 섹션",
@@ -1407,6 +1409,119 @@
       "masterToggleOff": "꺼짐"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "ID",
+          "title": "에이전트가 당신 말투로 말하게 하기",
+          "subtitle": "성격 카드를 고르고 간단한 질문에 답하면, 다음에 에이전트가 어떻게 말을 거는 그대로 볼 수 있습니다."
+        },
+        "stepsAria": "ID 설정 단계",
+        "step": {
+          "vibe": {
+            "label": "성격",
+            "hint": "고르면 아래 입력창이 자동으로 채워집니다"
+          },
+          "voice": {
+            "label": "호칭과 어조",
+            "hint": "빈칸은 자동으로 건너뜁니다"
+          },
+          "rules": {
+            "label": "금지선과 메모",
+            "hint": "무엇을 하면 안 되는지 알려주세요"
+          },
+          "advanced": {
+            "label": "고급",
+            "hint": "ID 파일을 직접 편집"
+          }
+        },
+        "gallery": {
+          "active": "사용 중",
+          "reload": "프리셋 다시 불러오기",
+          "use": "이 성격 사용"
+        },
+        "preview": {
+          "yourAgent": "내 에이전트",
+          "live": "실시간 미리보기",
+          "samplePrompt": "이번 달 업무 주간 보고서를 세 단락으로 정리해 줘.",
+          "activeRule": "적용된 규칙: ",
+          "hint": "변경 후 에이전트가 이렇게 말을 시작합니다. 저장하면 바로 적용됩니다."
+        },
+        "advanced": {
+          "toggle": "고급: 원본 Markdown 편집",
+          "note": "프리셋과 입력창으로 부족할 때만 사용하세요. 여기서 수정하면 바로 반영되지만, 입력창에서 저장하면 위 구조로 다시 씁니다.",
+          "rawAria": "원본 Markdown",
+          "reload": "디스크에서 다시 불러오기"
+        },
+        "form": {
+          "nameLabel": "에이전트가 뭐라고 불러야 할까요?",
+          "namePlaceholder": "예: 마케팅팀, Alex",
+          "roleLabel": "에이전트가 주로 무엇을 도와주나요?",
+          "rolePlaceholder": "예: 주간 회의를 읽기 좋은 보고서로 정리; 고객 피드백을 주제별로 묶기",
+          "toneLabel": "말투",
+          "toneHint": "가장 가까운 것을 고르세요",
+          "langLabel": "기본 답변 언어",
+          "rulesLabel": "에이전트가 넘지 말아야 선",
+          "rulesHint": "한 줄에 하나, 최대 6개",
+          "rulesPlaceholder": "계약서에 금액을 지어내지 않음\n비로그인 사용자에게 내부 경로를 말하지 않음\n모르면 '모른다'고 솔직히 말하기",
+          "notesLabel": "더 알려줄 일이 있나요?",
+          "notesPlaceholder": "회사명, 업계 용어, 피하고 싶은 표현 등"
+        },
+        "tone": {
+          "friendly": {
+            "label": "친근함",
+            "description": "따뜻하고 격려하며 공감함"
+          },
+          "professional": {
+            "label": "전문적",
+            "description": "격식 있고 절제되며 근거를 듬"
+          },
+          "concise": {
+            "label": "간결",
+            "description": "결론부터 말하고 나중에 풀이"
+          },
+          "detailed": {
+            "label": "상세",
+            "description": "전체 추론 과정과 경계 조건"
+          }
+        },
+        "replyLang": {
+          "groupAria": "답변 언어",
+          "auto": {
+            "label": "따라가기",
+            "description": "질문한 언어로 답변"
+          },
+          "zh": {
+            "label": "중국어",
+            "description": "모든 답변을 중국어로"
+          },
+          "en": {
+            "label": "영어",
+            "description": "모든 답변을 영어로"
+          }
+        },
+        "footer": {
+          "back": "이전",
+          "next": "다음",
+          "unsaved": "저장하지 않은 변경 있음",
+          "upToDate": "최신 상태",
+          "discard": "실행 취소",
+          "saved": "저장됨",
+          "save": "저장"
+        },
+        "error": {
+          "loadFailed": "일부 콘텐츠를 불러올 수 없습니다",
+          "saveFailed": "저장 실패"
+        },
+        "toast": {
+          "saved": "ID 설정이 저장되어 바로 적용됩니다"
+        },
+        "persona": {
+          "default": "기본값",
+          "cardTitle": "에이전트가 사용 중인 프리셋",
+          "cardNone": "기본 SOUL, 프리셋 미사용",
+          "cardHint": "위 성격 카드를 누르면 이 프리셋도 함께 전환됩니다."
+        }
+      },
       "groupCore": "핵심 파일",
       "groupPersonas": "페르소나",
       "warningBanner": "ID 파일은 에이전트의 핵심 인격과 행동 기반입니다. 부적절한 수정은 행동 이상, 핵심 능력 상실 또는 예상치 못한 응답을 일으킬 수 있습니다. 영향이 불확실하면 원본을 백업하세요.",
@@ -1953,6 +2068,9 @@
         "cancelled": "중지됨",
         "interrupted": "중단됨"
       },
+      "parameters": "실행 파라미터",
+      "toolOutput": "출력",
+      "detailToggle": "파라미터 및 출력 보기",
       "phase": {
         "preparing": "준비 중",
         "model": "생성 중",

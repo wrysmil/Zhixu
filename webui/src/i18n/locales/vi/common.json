@@ -1302,6 +1302,8 @@
       "languageAuto": "Tự động"
     },
     "memory": {
+      "pageEyebrow": "Trung tâm bộ nhớ",
+      "pageSubtitle": "Các thông tin dài hạn và đoạn trích hội thoại mà Agent lưu qua nhiều phiên. Bật công tắc chung để tự động trích xuất, hoặc chỉ xem và quản lý những gì đã có.",
       "tabSemantic": "Bộ nhớ ngữ nghĩa",
       "tabEpisode": "Tập",
       "tabsLabel": "Mục bộ nhớ",
@@ -1407,6 +1409,119 @@
       "masterToggleOff": "Tắt"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "Danh tính",
+          "title": "Để Agent nói theo cách bạn muốn",
+          "subtitle": "Chọn một tính cách, trả lời vài câu hỏi nhanh và xem chính xác Agent sẽ chào bạn thế nào lần tới."
+        },
+        "stepsAria": "Các bước thiết lập danh tính",
+        "step": {
+          "vibe": {
+            "label": "Tính cách",
+            "hint": "Chọn xong sẽ tự điền giúp bạn biểu mẫu phía sau"
+          },
+          "voice": {
+            "label": "Cách gọi và giọng điệu",
+            "hint": "Phần để trống sẽ được bỏ qua"
+          },
+          "rules": {
+            "label": "Giới hạn và ghi chú",
+            "hint": "Cho nó biết điều gì không được làm"
+          },
+          "advanced": {
+            "label": "Nâng cao",
+            "hint": "Sửa trực tiếp tệp danh tính"
+          }
+        },
+        "gallery": {
+          "active": "Đang dùng",
+          "reload": "Tải lại preset",
+          "use": "Dùng tính cách này"
+        },
+        "preview": {
+          "yourAgent": "Agent của bạn",
+          "live": "Xem trước trực tiếp",
+          "samplePrompt": "Viết giúp tôi báo cáo tuần tháng này thành ba đoạn.",
+          "activeRule": "Quy tắc đang áp dụng: ",
+          "hint": "Đây là cách Agent mở đầu sau khi bạn thay đổi. Lưu là có hiệu lực ngay."
+        },
+        "advanced": {
+          "toggle": "Nâng cao: sửa Markdown thô",
+          "note": "Chỉ dùng khi preset và biểu mẫu không nói lên điều bạn muốn. Sửa ở đây có hiệu lực ngay, nhưng biểu mẫu sẽ ghi lại tệp theo cấu trúc trên khi lưu.",
+          "rawAria": "Markdown thô",
+          "reload": "Tải lại từ đĩa"
+        },
+        "form": {
+          "nameLabel": "Agent nên gọi bạn là gì?",
+          "namePlaceholder": "vd: Team Marketing, Alex",
+          "roleLabel": "Agent chủ yếu giúp bạn việc gì?",
+          "rolePlaceholder": "vd: biến các cuộc họp tuần thành bản tóm tắt dễ đọc; gom phản hồi khách hàng theo chủ đề",
+          "toneLabel": "Giọng điệu",
+          "toneHint": "Chọn cái gần nhất",
+          "langLabel": "Ngôn ngữ trả lời mặc định",
+          "rulesLabel": "Những giới hạn Agent không được vượt",
+          "rulesHint": "Mỗi dòng một điều, tối đa 6",
+          "rulesPlaceholder": "Không bịa số tiền trong hợp đồng\nKhông nêu đường dẫn nội bộ cho người chưa đăng nhập\nNói 'tôi không biết' thay vì đoán",
+          "notesLabel": "Còn gì nữa đáng nhớ không?",
+          "notesPlaceholder": "Tên công ty, biệt ngữ, từ nên tránh…"
+        },
+        "tone": {
+          "friendly": {
+            "label": "Thân thiện",
+            "description": "Ấm áp, động viên, đồng cảm"
+          },
+          "professional": {
+            "label": "Chuyên nghiệp",
+            "description": "Trang trọng, chừng mực, có căn cứ"
+          },
+          "concise": {
+            "label": "Ngắn gọn",
+            "description": "Trả lời trước, giải thích sau"
+          },
+          "detailed": {
+            "label": "Chi tiết",
+            "description": "Lập luận đầy đủ và các trường hợp biên"
+          }
+        },
+        "replyLang": {
+          "groupAria": "Ngôn ngữ trả lời",
+          "auto": {
+            "label": "Theo bạn",
+            "description": "Trả lời bằng ngôn ngữ bạn hỏi"
+          },
+          "zh": {
+            "label": "Tiếng Trung",
+            "description": "Luôn trả lời bằng tiếng Trung"
+          },
+          "en": {
+            "label": "Tiếng Anh",
+            "description": "Mọi phản hồi bằng tiếng Anh"
+          }
+        },
+        "footer": {
+          "back": "Trước",
+          "next": "Tiếp",
+          "unsaved": "Có thay đổi chưa lưu",
+          "upToDate": "Đã cập nhật",
+          "discard": "Hoàn tác",
+          "saved": "Đã lưu",
+          "save": "Lưu"
+        },
+        "error": {
+          "loadFailed": "Không tải được một số nội dung",
+          "saveFailed": "Lưu thất bại"
+        },
+        "toast": {
+          "saved": "Đã lưu danh tính — có hiệu lực ngay"
+        },
+        "persona": {
+          "default": "Mặc định",
+          "cardTitle": "Preset Agent đang dùng",
+          "cardNone": "SOUL mặc định, chưa bật preset nào",
+          "cardHint": "Nhấp vào thẻ tính cách ở trên cũng chuyển preset này."
+        }
+      },
       "groupCore": "Tệp cốt lõi",
       "groupPersonas": "Nhân cách",
       "warningBanner": "Tệp danh tính định hình nhân cách và hành vi của Agent. Sửa sai có thể gây hành vi bất thường hoặc phản hồi không mong muốn. Nếu chưa chắc, hãy sao lưu trước.",
@@ -1953,6 +2068,9 @@
         "cancelled": "Đã dừng",
         "interrupted": "Bị gián đoạn"
       },
+      "parameters": "Tham số",
+      "toolOutput": "Đầu ra",
+      "detailToggle": "Xem tham số và đầu ra",
       "phase": {
         "preparing": "Đang chuẩn bị",
         "model": "Đang tạo",

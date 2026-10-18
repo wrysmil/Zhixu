@@ -248,6 +248,7 @@ class ExecutionRepository:
 
     def finish_activity(
         self, invocation_id: str, activity_id: str, status: str = 'succeeded',
+        *, detail: str | None = None, output: str | None = None,
     ) -> ExecutionActivity:
         if status not in TERMINAL_STATUSES:
             raise ValueError('invalid activity terminal status')
@@ -259,6 +260,10 @@ class ExecutionRepository:
             if activity.status != 'running' or snapshot.status in TERMINAL_STATUSES:
                 return activity
             activity.status, activity.finished_at = status, _now()
+            if detail is not None:
+                activity.detail = detail
+            if output is not None:
+                activity.output = output
             snapshot.completed_tool_count += 1
             self._save_event(snapshot, 'execution.activity', activity)
             return activity

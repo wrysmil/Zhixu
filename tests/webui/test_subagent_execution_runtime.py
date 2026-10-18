@@ -145,7 +145,9 @@ async def test_tools_are_live_sanitized_and_failure_can_recover(tmp_path):
         live = ledger.list("chat-1").items[0]
         assert live.phase == "tools"
         assert live.activities[0].status == "running"
-        await spec.hook.on_execute_tool_error(ctx, call, None, call.arguments, "SECRET_OUTPUT")
+        await spec.hook.on_execute_tool_error(
+            ctx, call, None, call.arguments, "no such file token=SENSITIVE_TOKEN",
+        )
         return AgentRunResult(final_content="recovered", messages=[], stop_reason="completed")
 
     sm.runner.run = run
@@ -157,7 +159,11 @@ async def test_tools_are_live_sanitized_and_failure_can_recover(tmp_path):
     assert record.completed_tool_count == 1
     assert record.phase == "finalizing"
     wire = json.dumps([event.to_dict() for event in events])
-    assert "SECRET_OUTPUT" not in wire and "PRIVATE_RAW_TASK" not in wire and '"secret"' not in wire
+    # 原始参数与任务正文仍然不外传；失败原因只以脱敏后的投影形式出现（契约 §5）。
+    assert "SENSITIVE_TOKEN" not in wire
+    assert "PRIVATE_RAW_TASK" not in wire
+    assert '"secret"' not in wire
+    assert "error=no such file" in wire
 
 
 @pytest.mark.asyncio

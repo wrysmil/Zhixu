@@ -55,6 +55,8 @@ function activity(overrides: Partial<ExecutionActivity> = {}): ExecutionActivity
     label: "搜索网页",
     startedAt: "2026-10-18T08:00:05Z",
     finishedAt: null,
+    detail: null,
+    output: null,
     ...overrides,
   };
 }
@@ -290,6 +292,106 @@ describe("SubagentExecutionPanel", () => {
     // 无工具名的进度活动仍用服务端文案兜底。
     const progressRow = screen.getByTestId("subagent-execution-activity-act-progress");
     expect(progressRow).toHaveTextContent("正在整理结果");
+  });
+
+  it("有参数/输出摘要的活动行默认折叠，展开后才显示", async () => {
+    const user = userEvent.setup();
+    const current = state({
+      activities: [
+        activity({
+          activityId: "act-detail",
+          toolName: "read_file",
+          status: "succeeded",
+          finishedAt: "2026-10-18T08:00:07Z",
+          detail: "path=src/app.py",
+          output: "lines=128",
+        }),
+      ],
+    });
+
+    render(
+      <SubagentExecutionPanel
+        executions={[current]}
+        selectedInvocationId={current.snapshot.invocationId}
+        onSelect={() => {}}
+        onReload={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    const row = screen.getByTestId("subagent-execution-activity-act-detail");
+    // 默认折叠：摘要不进 DOM，展开前也查不到。
+    expect(row).not.toHaveTextContent("path=src/app.py");
+    const toggle = within(row).getByRole("button", {
+      name: i18n.t("thread.subagentExecution.detailToggle"),
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(within(row).getByText(i18n.t("thread.subagentExecution.parameters"))).toBeInTheDocument();
+    expect(within(row).getByText(i18n.t("thread.subagentExecution.toolOutput"))).toBeInTheDocument();
+    expect(within(row).getByText("path=src/app.py")).toBeInTheDocument();
+    expect(within(row).getByText("lines=128")).toBeInTheDocument();
+  });
+
+  it("没有摘要的活动行不显示展开控件", () => {
+    const current = state({
+      activities: [
+        activity({
+          activityId: "act-plain",
+          status: "succeeded",
+          finishedAt: "2026-10-18T08:00:07Z",
+        }),
+      ],
+    });
+
+    render(
+      <SubagentExecutionPanel
+        executions={[current]}
+        selectedInvocationId={current.snapshot.invocationId}
+        onSelect={() => {}}
+        onReload={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    const row = screen.getByTestId("subagent-execution-activity-act-plain");
+    expect(within(row).queryByRole("button")).toBeNull();
+  });
+
+  it("摘要被服务端截断时提示内容已截断", async () => {
+    const user = userEvent.setup();
+    const current = state({
+      activities: [
+        activity({
+          activityId: "act-cut",
+          toolName: "grep",
+          status: "succeeded",
+          finishedAt: "2026-10-18T08:00:07Z",
+          detail: "pattern=很长很长很长…",
+        }),
+      ],
+    });
+
+    render(
+      <SubagentExecutionPanel
+        executions={[current]}
+        selectedInvocationId={current.snapshot.invocationId}
+        onSelect={() => {}}
+        onReload={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    await user.click(
+      within(screen.getByTestId("subagent-execution-activity-act-cut")).getByRole("button", {
+        name: i18n.t("thread.subagentExecution.detailToggle"),
+      }),
+    );
+    expect(
+      screen.getAllByText(i18n.t("thread.subagentExecution.truncated")).length,
+    ).toBeGreaterThan(0);
   });
 
   it("uses a focus-managed dialog on narrow surfaces and restores the trigger", async () => {

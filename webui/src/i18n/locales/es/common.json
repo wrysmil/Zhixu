@@ -1302,6 +1302,8 @@
       "languageAuto": "Automático"
     },
     "memory": {
+      "pageEyebrow": "Centro de memoria",
+      "pageSubtitle": "Hechos a largo plazo y extractos de conversaciones que el agente guarda entre sesiones. Activa aquí la extracción automática, o simplemente revisa y organiza lo que ya existe.",
       "tabSemantic": "Memorias semánticas",
       "tabEpisode": "Episodios",
       "tabsLabel": "Secciones de memoria",
@@ -1407,6 +1409,119 @@
       "masterToggleOff": "Desactivado"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "Identidad",
+          "title": "Haz que el agente hable como quieres",
+          "subtitle": "Elige una vibra, responde unas preguntas rápidas y mira exactamente cómo te saludará el agente la próxima vez."
+        },
+        "stepsAria": "Pasos de configuración de identidad",
+        "step": {
+          "vibe": {
+            "label": "Vibra",
+            "hint": "Al elegirla se completa el formulario por ti"
+          },
+          "voice": {
+            "label": "Nombre y tono",
+            "hint": "Los campos vacíos se omiten"
+          },
+          "rules": {
+            "label": "Límites y notas",
+            "hint": "Lo que no debe hacer"
+          },
+          "advanced": {
+            "label": "Avanzado",
+            "hint": "Edita el archivo de identidad directamente"
+          }
+        },
+        "gallery": {
+          "active": "Activa",
+          "reload": "Recargar preset",
+          "use": "Usar esta vibra"
+        },
+        "preview": {
+          "yourAgent": "Tu agente",
+          "live": "Vista previa en vivo",
+          "samplePrompt": "Redacta mi resumen mensual en tres párrafos cortos.",
+          "activeRule": "Regla activa: ",
+          "hint": "Así abrirá el agente tras tus cambios. Guardar lo aplica de inmediato."
+        },
+        "advanced": {
+          "toggle": "Avanzado: editar el Markdown sin procesar",
+          "note": "Usa esto solo cuando los presets y el formulario no expresen lo que quieres. Los cambios aquí se aplican de inmediato, pero la vista del formulario reescribirá el archivo al guardar.",
+          "rawAria": "Markdown sin procesar",
+          "reload": "Recargar del disco"
+        },
+        "form": {
+          "nameLabel": "¿Cómo debe llamarte el agente?",
+          "namePlaceholder": "p. ej. Equipo de marketing, Alex",
+          "roleLabel": "¿En qué te ayuda principalmente el agente?",
+          "rolePlaceholder": "p. ej. convertir las reuniones semanales en un resumen legible; agrupar los comentarios de clientes por temas",
+          "toneLabel": "Tono de voz",
+          "toneHint": "Elige el más cercano",
+          "langLabel": "Idioma de respuesta predeterminado",
+          "rulesLabel": "Líneas que el agente no debe cruzar",
+          "rulesHint": "Una por línea, hasta 6",
+          "rulesPlaceholder": "Nunca inventar cifras en contratos\nNo citar rutas internas a usuarios anónimos\nDecir 'no sé' antes que adivinar",
+          "notesLabel": "¿Algo más que valga la pena recordar?",
+          "notesPlaceholder": "Nombre de la empresa, jerga, palabras a evitar…"
+        },
+        "tone": {
+          "friendly": {
+            "label": "Cercano",
+            "description": "Cálido, motivador, empático"
+          },
+          "professional": {
+            "label": "Profesional",
+            "description": "Formal, medido, bien fundamentado"
+          },
+          "concise": {
+            "label": "Conciso",
+            "description": "Primero la respuesta, luego el detalle"
+          },
+          "detailed": {
+            "label": "Detallado",
+            "description": "Razonamiento completo y casos límite"
+          }
+        },
+        "replyLang": {
+          "groupAria": "Idioma de respuesta",
+          "auto": {
+            "label": "Síguete",
+            "description": "Responde en el idioma en que preguntas"
+          },
+          "zh": {
+            "label": "Chino",
+            "description": "Responder siempre en chino"
+          },
+          "en": {
+            "label": "Inglés",
+            "description": "Todas las respuestas en inglés"
+          }
+        },
+        "footer": {
+          "back": "Atrás",
+          "next": "Siguiente",
+          "unsaved": "Cambios sin guardar",
+          "upToDate": "Al día",
+          "discard": "Descartar",
+          "saved": "Guardado",
+          "save": "Guardar"
+        },
+        "error": {
+          "loadFailed": "No se pudo cargar parte del contenido",
+          "saveFailed": "Error al guardar"
+        },
+        "toast": {
+          "saved": "Identidad guardada — ya está activa"
+        },
+        "persona": {
+          "default": "Predeterminado",
+          "cardTitle": "Persona activa",
+          "cardNone": "SOUL predeterminado, sin preset activo",
+          "cardHint": "Elegir una tarjeta de vibra arriba también cambia este preset."
+        }
+      },
       "groupCore": "Archivos principales",
       "groupPersonas": "Personas",
       "warningBanner": "Los archivos de identidad definen la personalidad y el comportamiento del agente. Ediciones inapropiadas pueden provocar comportamientos anormales o respuestas inesperadas. Si dudas, haz una copia de seguridad primero.",
@@ -1953,6 +2068,9 @@
         "cancelled": "Detenido",
         "interrupted": "Interrumpido"
       },
+      "parameters": "Parámetros",
+      "toolOutput": "Salida",
+      "detailToggle": "Mostrar parámetros y salida",
       "phase": {
         "preparing": "Preparando",
         "model": "Generando",

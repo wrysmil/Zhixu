@@ -28,7 +28,7 @@ from nanobot.agent.tools.exec_session import ExecSessionManager
 from nanobot.agent.tools.file_state import FileStates
 from nanobot.agent.tools.loader import ToolLoader
 from nanobot.agent.tools.registry import ToolRegistry
-from nanobot.agents.runtime import AgentProfileRuntime, ResolvedAgent
+from nanobot.agents.runtime import AgentProfileRuntime, ResolvedAgent, profile_identity_line
 from nanobot.bus.events import InboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.config.schema import AgentDefaults, ToolsConfig
@@ -40,7 +40,11 @@ from nanobot.security.workspace_access import (
     reset_workspace_scope,
     workspace_sandbox_status,
 )
-from nanobot.subagent_executions import ExecutionEvent, ExecutionRepository
+from nanobot.subagent_executions import (
+    ExecutionEvent,
+    ExecutionRepository,
+    project_tool_activity,
+)
 from nanobot.utils.llm_runtime import LLMRuntime
 from nanobot.utils.prompt_templates import render_template
 
@@ -273,22 +277,30 @@ class _SubagentHook(AgentHook):
                 observation.invocation_id, tool_call.name, activity_id=tool_call.id,
             ))
 
-    async def _finish_tool(self, tool_call: Any, status: str) -> None:
+    async def _finish_tool(self, tool_call: Any, status: str, *,
+                           result: Any = None, error: Any = None) -> None:
         observation = self._observation
         if observation is not None:
+            # 只写白名单投影后的摘要：原始参数与原始输出不出服务端（契约 §「不外传」）。
+            detail, output = project_tool_activity(
+                tool_call.name,
+                getattr(tool_call, "arguments", None),
+                result if result is not None else error,
+                is_error=status != "succeeded",
+            )
             await observation.update(lambda: observation.ledger.finish_activity(
-                observation.invocation_id, tool_call.id, status,
+                observation.invocation_id, tool_call.id, status, detail=detail, output=output,
             ))
 
     async def after_execute_tool(
         self, context: AgentHookContext, tool_call: Any, tool: Any, params: Any, result: Any,
     ) -> None:
-        await self._finish_tool(tool_call, "succeeded")
+        await self._finish_tool(tool_call, "succeeded", result=result)
 
     async def on_execute_tool_error(
         self, context: AgentHookContext, tool_call: Any, tool: Any, params: Any, error: Any,
     ) -> None:
-        await self._finish_tool(tool_call, "failed")
+        await self._finish_tool(tool_call, "failed", error=error)
 
     async def after_iteration(self, context: AgentHookContext) -> None:
         if self._observation is not None:
@@ -308,7 +320,7 @@ class _SubagentHook(AgentHook):
                 self._status.error = str(context.error)
         if self._on_activity is None:
             return
-        # 公开摘要只取白名单字段：参数与输出一律不外传（契约 §7）。
+        # 活动观察只取白名单字段：参数与输出按投影脱敏后才外传（契约 §「不外传」）。
         for event in context.tool_events:
             name = event.get("name") or event.get("tool") or ""
             if not name:
@@ -570,16 +582,6 @@ class SubagentManager:
             # 空集：万一有调用方忽略了 rejected 标记，工具也不会被放开。
             allowed_tools=frozenset(),
         )
-
-    def _apply_model_override(self, runtime: LLMRuntime, model_id: str | None) -> LLMRuntime:
-        """按档案的 ``modelId`` 换 runtime；未注入 resolver 或解析不出则原样返回。
-
-        provider/凭据的解析不属于 subagent 的职责，宿主注入 resolver 才有覆盖。
-        """
-        if model_id is None or self._model_resolver is None:
-            return runtime
-        resolved = self._model_resolver(model_id)
-        return resolved if resolved is not None else runtime
 
     def _subagent_tools_config(self) -> ToolsConfig:
         """Build a ToolsConfig scoped for subagent use."""
@@ -888,7 +890,6 @@ class SubagentManager:
                     announce=False,
                     frozen_agent=agent,
                     on_activity=on_activity,
-                    require_model_preset=True,
                     extra_tools=extra_tools,
                 )
         except asyncio.CancelledError:
@@ -918,7 +919,6 @@ class SubagentManager:
         announce: bool = True,
         frozen_agent: ResolvedAgent | None = None,
         on_activity: "Callable[[Mapping[str, Any]], Any] | None" = None,
-        require_model_preset: bool = False,
         extra_tools: tuple[Any, ...] = (),
     ) -> SubagentExecutionResult:
         """Execute the subagent task and announce the result."""
@@ -984,9 +984,10 @@ class SubagentManager:
                 extra_tools=extra_tools,
             )
             system_prompt = self._build_subagent_prompt(workspace=root, agent=agent)
-            if require_model_preset and agent is not None and agent.model_id is not None:
-                # 档案指定了 preset 却解析不出来：这必须是失败。悄悄沿用默认模型会让
-                # 「界面显示 opus、实际跑 mini」变成不可见错误（验收 A17）。
+            # 档案指定了 preset 却解析不出来：这必须是失败。悄悄沿用父 runtime 会把
+            # 「界面显示 opus、实际跑 mini」变成不可见错误（验收 A17）。
+            # 团队与普通 spawn 走同一段口径，不再分「硬失败」与「软降级」两种。
+            if agent is not None and agent.model_id is not None:
                 resolved_runtime = (
                     self._model_resolver(agent.model_id) if self._model_resolver else None
                 )
@@ -997,8 +998,6 @@ class SubagentManager:
                         error_code="model_preset_unavailable",
                     )
                 runtime = resolved_runtime
-            else:
-                runtime = self._apply_model_override(runtime, agent.model_id if agent else None)
             messages: list[dict[str, Any]] = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": task},
@@ -1185,14 +1184,13 @@ class SubagentManager:
         frozen = render_frozen_skills_section()
         if frozen:
             base = f"{base}\n\n{frozen}"
-        if agent is None or not agent.prompt:
+        if agent is None:
             return base
-        identity = (
-            f"你是{agent.name}，{agent.description}。"
-            if agent.description
-            else f"你是{agent.name}。"
-        )
-        return f"{identity}\n\n{agent.prompt}\n\n{base}"
+        sections = [profile_identity_line(agent)]
+        if agent.prompt:
+            sections.append(agent.prompt)
+        sections.append(base)
+        return "\n\n".join(sections)
 
     async def cancel_by_session(self, session_key: str) -> int:
         """Cancel all subagents for the given session. Returns count cancelled."""

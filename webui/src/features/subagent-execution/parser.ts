@@ -67,6 +67,14 @@ function asStatus<T extends string>(value: unknown, allowed: readonly T[]): T | 
     : null;
 }
 
+/**
+ * 投影摘要字段：只有非空字符串才接受，其余（缺失、null、类型不对）一律当成没有摘要。
+ * 这里不能让脏值把整条活动判废——时间线少一行比少一行细节更糟。
+ */
+function asProjectionText(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
 function parseResult(value: unknown): ExecutionResult | null {
   if (!isRecord(value)) return null;
   const summary = asText(value.summary);
@@ -94,7 +102,17 @@ export function parseExecutionActivity(value: unknown): ExecutionActivity | null
     return null;
   }
   if (finishedAt === null && value.finishedAt !== null) return null;
-  return { activityId, kind, toolName, status, label, startedAt, finishedAt };
+  return {
+    activityId,
+    kind,
+    toolName,
+    status,
+    label,
+    startedAt,
+    finishedAt,
+    detail: asProjectionText(value.detail),
+    output: asProjectionText(value.output),
+  };
 }
 
 function parseSnapshotBase(value: unknown): ExecutionEventSnapshot | null {

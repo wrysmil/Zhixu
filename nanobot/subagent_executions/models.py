@@ -22,6 +22,9 @@ class ExecutionActivity:
     kind: str = 'tool'
     status: str = 'running'
     finished_at: str | None = None
+    # 白名单投影后的参数/输出摘要（非原始值）；无法投影时为 None。
+    detail: str | None = None
+    output: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {camel(key): value for key, value in asdict(self).items()}

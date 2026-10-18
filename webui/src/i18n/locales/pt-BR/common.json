@@ -1302,6 +1302,8 @@
       "languageAuto": "Automático"
     },
     "memory": {
+      "pageEyebrow": "Centro de memória",
+      "pageSubtitle": "Fatos de longo prazo e trechos de conversa que o agente guarda entre sessões. Ative a extração automática aqui ou apenas explore e organize o que já existe.",
       "tabSemantic": "Memórias semânticas",
       "tabEpisode": "Episódios",
       "tabsLabel": "Seções de memória",
@@ -1407,6 +1409,119 @@
       "masterToggleOff": "Desativado"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "Identidade",
+          "title": "Faça o agente falar do seu jeito",
+          "subtitle": "Escolha uma vibe, responda a algumas perguntas rápidas e veja exatamente como o agente vai te cumprimentar."
+        },
+        "stepsAria": "Etapas de configuração de identidade",
+        "step": {
+          "vibe": {
+            "label": "Vibe",
+            "hint": "Escolher uma preenche o formulário para você"
+          },
+          "voice": {
+            "label": "Nome e tom",
+            "hint": "Campos vazios são pulados"
+          },
+          "rules": {
+            "label": "Limites e notas",
+            "hint": "Diga o que ele não deve fazer"
+          },
+          "advanced": {
+            "label": "Avançado",
+            "hint": "Edite o arquivo de identidade diretamente"
+          }
+        },
+        "gallery": {
+          "active": "Ativa",
+          "reload": "Recarregar preset",
+          "use": "Usar esta vibe"
+        },
+        "preview": {
+          "yourAgent": "Seu agente",
+          "live": "Pré-visualização ao vivo",
+          "samplePrompt": "Escreva meu resumo mensal em três parágrafos curtos.",
+          "activeRule": "Regra ativa: ",
+          "hint": "É assim que o agente abre a conversa depois das suas mudanças. Salvar aplica na hora."
+        },
+        "advanced": {
+          "toggle": "Avançado: editar o Markdown bruto",
+          "note": "Use isto apenas quando os presets e o formulário não exprimem o que você quer. As edições aqui valem na hora, mas a visão do formulário reescreve o arquivo ao salvar.",
+          "rawAria": "Markdown bruto",
+          "reload": "Recarregar do disco"
+        },
+        "form": {
+          "nameLabel": "Como o agente deve te chamar?",
+          "namePlaceholder": "ex.: Equipe de marketing, Alex",
+          "roleLabel": "Em que o agente mais te ajuda?",
+          "rolePlaceholder": "ex.: transformar as reuniões da semana em um resumo legível; agrupar feedbacks de clientes por tema",
+          "toneLabel": "Tom de voz",
+          "toneHint": "Escolha o mais próximo",
+          "langLabel": "Idioma de resposta padrão",
+          "rulesLabel": "Limites que o agente não deve cruzar",
+          "rulesHint": "Um por linha, até 6",
+          "rulesPlaceholder": "Nunca inventar valores em contratos\nNão citar caminhos internos para usuários anônimos\nDizer 'não sei' em vez de chutar",
+          "notesLabel": "Algo mais que valha a pena lembrar?",
+          "notesPlaceholder": "Nome da empresa, jargões, palavras a evitar…"
+        },
+        "tone": {
+          "friendly": {
+            "label": "Amigável",
+            "description": "Caloroso, encorajador, empático"
+          },
+          "professional": {
+            "label": "Profissional",
+            "description": "Formal, contido, bem fundamentado"
+          },
+          "concise": {
+            "label": "Conciso",
+            "description": "Resposta primeiro, depois o resto"
+          },
+          "detailed": {
+            "label": "Detalhado",
+            "description": "Raciocínio completo e casos-limite"
+          }
+        },
+        "replyLang": {
+          "groupAria": "Idioma de resposta",
+          "auto": {
+            "label": "Te acompanhar",
+            "description": "Responder no idioma da sua pergunta"
+          },
+          "zh": {
+            "label": "Chinês",
+            "description": "Sempre responder em chinês"
+          },
+          "en": {
+            "label": "Inglês",
+            "description": "Todas as respostas em inglês"
+          }
+        },
+        "footer": {
+          "back": "Voltar",
+          "next": "Avançar",
+          "unsaved": "Mudanças não salvas",
+          "upToDate": "Em dia",
+          "discard": "Descartar",
+          "saved": "Salvo",
+          "save": "Salvar"
+        },
+        "error": {
+          "loadFailed": "Parte do conteúdo não pôde ser carregada",
+          "saveFailed": "Falha ao salvar"
+        },
+        "toast": {
+          "saved": "Identidade salva — já está valendo"
+        },
+        "persona": {
+          "default": "Padrão",
+          "cardTitle": "Persona ativa",
+          "cardNone": "SOUL padrão, nenhum preset ativo",
+          "cardHint": "Escolher um cartão de vibe acima também troca este preset."
+        }
+      },
       "groupCore": "Arquivos principais",
       "groupPersonas": "Personas",
       "warningBanner": "Os arquivos de identidade definem a personalidade e o comportamento do Agente. Edições inadequadas podem causar comportamentos anormais ou respostas inesperadas. Em caso de dúvida, faça backup primeiro.",
@@ -1953,6 +2068,9 @@
         "cancelled": "Interrompido",
         "interrupted": "Interrompido"
       },
+      "parameters": "Parâmetros",
+      "toolOutput": "Saída",
+      "detailToggle": "Mostrar parâmetros e saída",
       "phase": {
         "preparing": "Preparando",
         "model": "Gerando",

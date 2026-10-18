@@ -1302,6 +1302,8 @@
       "languageAuto": "Otomatis"
     },
     "memory": {
+      "pageEyebrow": "Pusat memori",
+      "pageSubtitle": "Fakta jangka panjang dan kutipan percakapan yang disimpan agen lintas sesi. Aktifkan ekstraksi otomatis di sini, atau telusuri dan kelola yang sudah ada.",
       "tabSemantic": "Memori semantik",
       "tabEpisode": "Episode",
       "tabsLabel": "Bagian memori",
@@ -1407,6 +1409,119 @@
       "masterToggleOff": "Nonaktif"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "Identitas",
+          "title": "Buat agen berbicara sesuai keinginanmu",
+          "subtitle": "Pilih karakter, jawab beberapa pertanyaan singkat, dan lihat persis bagaimana agen akan menyapamu berikutnya."
+        },
+        "stepsAria": "Langkah pengaturan identitas",
+        "step": {
+          "vibe": {
+            "label": "Karakter",
+            "hint": "Memilih satu akan mengisi formulir untukmu"
+          },
+          "voice": {
+            "label": "Nama & nada",
+            "hint": "Bagian kosong dilewati otomatis"
+          },
+          "rules": {
+            "label": "Batas & catatan",
+            "hint": "Sampaikan apa yang tidak boleh dilakukan"
+          },
+          "advanced": {
+            "label": "Lanjutan",
+            "hint": "Edit file identitas secara langsung"
+          }
+        },
+        "gallery": {
+          "active": "Aktif",
+          "reload": "Muat ulang preset",
+          "use": "Pakai karakter ini"
+        },
+        "preview": {
+          "yourAgent": "Agenmu",
+          "live": "Pratinjau langsung",
+          "samplePrompt": "Buat rekap bulananku dalam tiga bagian pendek.",
+          "activeRule": "Aturan aktif: ",
+          "hint": "Begini agen membuka percakapan setelah perubahanmu. Menyimpan langsung menerapkannya."
+        },
+        "advanced": {
+          "toggle": "Lanjutan: edit Markdown mentah",
+          "note": "Gunakan ini hanya jika preset dan formulir tidak cukup. Perubahan di sini langsung berlaku, tetapi tampilan formulir akan menulis ulang file saat disimpan.",
+          "rawAria": "Markdown mentah",
+          "reload": "Muat ulang dari disk"
+        },
+        "form": {
+          "nameLabel": "Agen sebaiknya memanggilmu apa?",
+          "namePlaceholder": "mis. Tim Pemasaran, Alex",
+          "roleLabel": "Agen terutama membantumu dalam hal apa?",
+          "rolePlaceholder": "mis. mengubah rapat mingguan jadi rekap yang enak dibaca; mengelompokkan masukan pelanggan",
+          "toneLabel": "Nada bicara",
+          "toneHint": "Pilih yang paling dekat",
+          "langLabel": "Bahasa balasan bawaan",
+          "rulesLabel": "Batas yang tidak boleh dilewati agen",
+          "rulesHint": "Satu per baris, maksimal 6",
+          "rulesPlaceholder": "Jangan mengarang angka dalam kontrak\nJangan menyebut jalur internal ke pengguna yang belum masuk\nBilang 'saya tidak tahu' daripada menebak",
+          "notesLabel": "Ada hal lain yang perlu diingat?",
+          "notesPlaceholder": "Nama perusahaan, istilah, kata yang harus dihindari…"
+        },
+        "tone": {
+          "friendly": {
+            "label": "Ramah",
+            "description": "Hangat, mendorong, empatik"
+          },
+          "professional": {
+            "label": "Profesional",
+            "description": "Formal, terukur, beralasan"
+          },
+          "concise": {
+            "label": "Ringkas",
+            "description": "Jawaban dulu, baru penjelasan"
+          },
+          "detailed": {
+            "label": "Rinci",
+            "description": "Penalaran lengkap dan kasus tepi"
+          }
+        },
+        "replyLang": {
+          "groupAria": "Bahasa balasan",
+          "auto": {
+            "label": "Ikuti kamu",
+            "description": "Menjawab dalam bahasa yang kamu pakai"
+          },
+          "zh": {
+            "label": "Mandarin",
+            "description": "Selalu menjawab dalam bahasa Mandarin"
+          },
+          "en": {
+            "label": "Inggris",
+            "description": "Semua balasan dalam bahasa Inggris"
+          }
+        },
+        "footer": {
+          "back": "Kembali",
+          "next": "Lanjut",
+          "unsaved": "Perubahan belum disimpan",
+          "upToDate": "Sudah terbaru",
+          "discard": "Buang",
+          "saved": "Tersimpan",
+          "save": "Simpan"
+        },
+        "error": {
+          "loadFailed": "Sebagian konten gagal dimuat",
+          "saveFailed": "Gagal menyimpan"
+        },
+        "toast": {
+          "saved": "Identitas tersimpan — langsung aktif"
+        },
+        "persona": {
+          "default": "Bawaan",
+          "cardTitle": "Persona aktif",
+          "cardNone": "SOUL bawaan, tidak ada preset aktif",
+          "cardHint": "Memilih kartu karakter di atas juga mengganti preset ini."
+        }
+      },
       "groupCore": "File inti",
       "groupPersonas": "Persona",
       "warningBanner": "File identitas menentukan kepribadian dan perilaku Agent. Perubahan yang tidak tepat dapat menyebabkan perilaku tidak normal atau respons tak terduga. Jika ragu, cadangkan dulu.",
@@ -1953,6 +2068,9 @@
         "cancelled": "Dihentikan",
         "interrupted": "Terputus"
       },
+      "parameters": "Parameter",
+      "toolOutput": "Keluaran",
+      "detailToggle": "Lihat parameter dan keluaran",
       "phase": {
         "preparing": "Menyiapkan",
         "model": "Menghasilkan",

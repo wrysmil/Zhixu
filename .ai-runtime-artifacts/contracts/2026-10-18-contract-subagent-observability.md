@@ -58,8 +58,12 @@ interface ExecutionActivity {
   label: string;                 // 白名单工具映射文案或公开说明，≤240 字
   startedAt: string;
   finishedAt: string | null;
+  detail: string | null;         // 服务端白名单投影后的参数摘要，≤600 字，非原始参数
+  output: string | null;         // 服务端白名单投影后的输出摘要，≤600 字，非原始输出
 }
 ```
+
+detail/output 只在服务端生成：按工具白名单挑字段（文件类给 path、检索类给 pattern/query、web 类给 query/url、写改类给 path、命令类给命令行首行），输出侧只给计数（行数／命中数／条目数）、退出码或错误首行；其余工具（含 MCP）留 null。单个字段值脱敏后 ≤200 字，整条摘要 ≤600 字；投影前先脱敏（Bearer、`key=value`、`sk-`/`ghp_`/`AKIA`/`xoxb`/JWT/私钥、URL 内 userinfo、家目录名折成 `~/`），结尾 `…` 表示被截断。文件内容、stdout/stderr 正文与原始参数不出服务端，也不落账本。
 
 status 控制终态，phase 只描述运行阶段；queued 阶段仍可保留 preparing。终态不能被旧快照或活动事件回退。父回合恢复调用时不能因 toolCallId 重复展示同一 invocation；相同工具调用的执行幂等只沿用现有 Runner 恢复边界，不在 UI 层重跑工具。
 
@@ -118,6 +122,6 @@ detail 的 seq=S 是状态边界；详情首次打开时，从0分页读取 even
 
 ## 5. 内容与兼容
 
-不传系统提示词、私有推理、原始工具参数/输出。phase 与工具状态由 runtime 事件确定，不能从 assistant 文本识别。Agent 无工具的任务仍展示 model 阶段与最终结果。
+不传系统提示词、私有推理、原始工具参数/输出。参数与输出只以 §1 的 detail/output 投影字段外传：白名单工具的字段、计数与脱敏后的失败首行；白名单之外（含 MCP）一律 null。phase 与工具状态由 runtime 事件确定，不能从 assistant 文本识别。Agent 无工具的任务仍展示 model 阶段与最终结果。
 
 旧 gateway 无能力标志：不订阅/补拉新接口，保持原工具显示。旧历史无关联：不可点击伪详情。新前端和旧后端仍能正常聊天。schemaVersion 未知帧安全忽略，必要时重新读受支持快照，不能打断主流。

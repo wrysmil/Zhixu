@@ -34,6 +34,10 @@ export interface ExecutionActivity {
   label: string;
   startedAt: string;
   finishedAt: string | null;
+  /** 服务端白名单投影后的参数摘要（path/query/命令名等），非原始参数。 */
+  detail: string | null;
+  /** 服务端白名单投影后的输出摘要（行数/命中数/退出码/错误首行）。 */
+  output: string | null;
 }
 
 export interface ExecutionSnapshot {

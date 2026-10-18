@@ -166,6 +166,7 @@ export function SubagentExecutionActivity({
   nowMs?: number;
 }) {
   const { t, i18n } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
   const Icon = activityIcon(activity);
   const totalMs = activity.finishedAt
     ? Date.parse(activity.finishedAt) - Date.parse(activity.startedAt)
@@ -175,6 +176,10 @@ export function SubagentExecutionActivity({
     i18n.resolvedLanguage ?? i18n.language,
   );
   const active = activity.status === "running";
+  // 摘要只在服务端做过白名单投影，前端原样展示即可；两者都没有时不给出可点控件。
+  const hasSummary = Boolean(activity.detail || activity.output);
+  const truncated =
+    activity.detail?.endsWith("…") === true || activity.output?.endsWith("…") === true;
 
   return (
     <li
@@ -203,12 +208,59 @@ export function SubagentExecutionActivity({
           {activityStatusLabel(activity.status, t)}
         </span>
       </span>
-      {duration ? (
-        <span className="text-[11px] tabular-nums text-muted-foreground/65" aria-hidden>
-          {duration}
+      {duration || hasSummary ? (
+        <span className="flex items-center gap-1">
+          {duration ? (
+            <span className="text-[11px] tabular-nums text-muted-foreground/65" aria-hidden>
+              {duration}
+            </span>
+          ) : null}
+          {hasSummary ? (
+            <button
+              type="button"
+              aria-expanded={expanded}
+              aria-label={t("thread.subagentExecution.detailToggle", {
+                defaultValue: "Show parameters and output",
+              })}
+              onClick={() => setExpanded((current) => !current)}
+              className="grid h-5 w-5 place-items-center rounded-control text-muted-foreground/55 transition-colors hover:bg-accent/40 hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
+            >
+              <ChevronRight
+                className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-90")}
+                aria-hidden
+              />
+            </button>
+          ) : null}
         </span>
       ) : null}
+      {expanded && hasSummary ? (
+        <div className="col-span-3 mt-1 space-y-1.5 rounded-control bg-muted/40 px-2 py-1.5">
+          <ActivitySummary
+            label={t("thread.subagentExecution.parameters", { defaultValue: "Parameters" })}
+            value={activity.detail}
+          />
+          <ActivitySummary
+            label={t("thread.subagentExecution.toolOutput", { defaultValue: "Output" })}
+            value={activity.output}
+          />
+          {truncated ? (
+            <p className="text-[10px] text-muted-foreground/60">
+              {t("thread.subagentExecution.truncated", { defaultValue: "Content truncated" })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </li>
+  );
+}
+
+function ActivitySummary({ label, value }: { label: string; value: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="min-w-0">
+      <span className="block text-[10px] text-muted-foreground/60">{label}</span>
+      <p className="break-words font-mono text-[11px] leading-4 text-foreground/75">{value}</p>
+    </div>
   );
 }
 

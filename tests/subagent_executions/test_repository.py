@@ -49,6 +49,34 @@ def test_distinct_invocations_lifecycle_and_activity():
     ]
 
 
+def test_activity_keeps_projected_detail_and_output_across_restart(tmp_path: Path):
+    repo = ExecutionRepository(tmp_path)
+    item = create(repo)
+    repo.start(item.invocation_id)
+    activity = repo.start_activity(item.invocation_id, "read_file")
+    repo.finish_activity(
+        item.invocation_id, activity.activity_id,
+        detail="path=src/app.py", output="lines=12",
+    )
+    repo.close()
+
+    recovered = ExecutionRepository(tmp_path)
+    stored = recovered.detail("chat", item.invocation_id).activities[0]
+    assert (stored.detail, stored.output) == ("path=src/app.py", "lines=12")
+    recovered.close()
+
+
+def test_activity_without_projection_stays_null():
+    repo = ExecutionRepository()
+    item = create(repo)
+    repo.start(item.invocation_id)
+    activity = repo.start_activity(item.invocation_id, "spawn")
+    repo.finish_activity(item.invocation_id, activity.activity_id)
+
+    stored = repo.detail("chat", item.invocation_id).activities[0]
+    assert stored.detail is None and stored.output is None
+
+
 def test_chat_isolation_and_active_items_do_not_consume_history_limit():
     repo = ExecutionRepository()
     active = create(repo)

@@ -1302,6 +1302,8 @@
       "languageAuto": "自動"
     },
     "memory": {
+      "pageEyebrow": "記憶センター",
+      "pageSubtitle": "エージェントが会話から整理する長期情報と会話の抜粋です。メインスイッチを入れると自動で抽出され、オフにしても既存の記憶は閲覧・管理できます。",
       "tabSemantic": "セマンティック記憶",
       "tabEpisode": "エピソード",
       "tabsLabel": "記憶セクション",
@@ -1407,6 +1409,119 @@
       "masterToggleOff": "オフ"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "アイデンティティ",
+          "title": "エージェントをあなたの話し方に合わせる",
+          "subtitle": "性格カードを選び、いくつかの質問に答えると、次回エージェントがどんなふうに声をかけるかそのまま確認できます。"
+        },
+        "stepsAria": "アイデンティティ設定の手順",
+        "step": {
+          "vibe": {
+            "label": "性格",
+            "hint": "選ぶと後のフォームが自動で入力されます"
+          },
+          "voice": {
+            "label": "呼び方とトーン",
+            "hint": "空欄は自動でスキップします"
+          },
+          "rules": {
+            "label": "制約とメモ",
+            "hint": "何をしてはいけないか伝えます"
+          },
+          "advanced": {
+            "label": "詳細",
+            "hint": "アイデンティティファイルを直接編集"
+          }
+        },
+        "gallery": {
+          "active": "選択中",
+          "reload": "プリセットを再読み込み",
+          "use": "この性格を使う"
+        },
+        "preview": {
+          "yourAgent": "あなたのエージェント",
+          "live": "ライブプレビュー",
+          "samplePrompt": "今月の業務週報を3つの段落にまとめて。",
+          "activeRule": "適用中のルール：",
+          "hint": "変更後、エージェントがこのように会話を始めます。保存すると即座に反映されます。"
+        },
+        "advanced": {
+          "toggle": "詳細設定：生のMarkdownを編集",
+          "note": "プリセットとフォームで表現しきれない場合にのみ使ってください。ここでの編集は即座に反映されますが、フォーム側で保存すると上の構造に書き戻されます。",
+          "rawAria": "生のMarkdown",
+          "reload": "ディスクから再読み込み"
+        },
+        "form": {
+          "nameLabel": "エージェントは何と呼べばいいですか？",
+          "namePlaceholder": "例：マーケティングチーム、Alex",
+          "roleLabel": "エージェントは主に何を手伝いますか？",
+          "rolePlaceholder": "例：週間の会議を読みやすい週報にまとめる；顧客フィードバックをテーマ別に整理する",
+          "toneLabel": "話しぶり",
+          "toneHint": "最も近いものを選んでください",
+          "langLabel": "既定の返信言語",
+          "rulesLabel": "エージェントが越えてはいけない線",
+          "rulesHint": "1行に1つ、最大6件",
+          "rulesPlaceholder": "契約書の金額を捏造しない\n未ログインのユーザーに内部パスを教えない\nわからないことは「わかりません」と言う",
+          "notesLabel": "他に伝えておくことはありますか？",
+          "notesPlaceholder": "会社名、業界用語、避けたい表現など"
+        },
+        "tone": {
+          "friendly": {
+            "label": "親しみやすい",
+            "description": "丁寧で励ましが中心、共感的"
+          },
+          "professional": {
+            "label": "プロフェッショナル",
+            "description": "フォーマルで抑制的、根拠重視"
+          },
+          "concise": {
+            "label": "簡潔",
+            "description": "結論から先に伝える"
+          },
+          "detailed": {
+            "label": "詳細",
+            "description": "推理の全過程と境界条件"
+          }
+        },
+        "replyLang": {
+          "groupAria": "返信言語",
+          "auto": {
+            "label": "相手に合わせる",
+            "description": "質問に使われた言語で回答"
+          },
+          "zh": {
+            "label": "中国語",
+            "description": "常に中国語で回答"
+          },
+          "en": {
+            "label": "英語",
+            "description": "すべての返信を英語にする"
+          }
+        },
+        "footer": {
+          "back": "前へ",
+          "next": "次へ",
+          "unsaved": "未保存の変更があります",
+          "upToDate": "最新です",
+          "discard": "破棄",
+          "saved": "保存済み",
+          "save": "保存"
+        },
+        "error": {
+          "loadFailed": "一部のコンテンツを読み込めませんでした",
+          "saveFailed": "保存に失敗しました"
+        },
+        "toast": {
+          "saved": "アイデンティティを保存しました。即座に有効です"
+        },
+        "persona": {
+          "default": "既定",
+          "cardTitle": "エージェント使用中のプリセット",
+          "cardNone": "既定のSOUL、プリセット無効",
+          "cardHint": "上の性格カードを選ぶと、このプリセットも切り替わります。"
+        }
+      },
       "groupCore": "コアファイル",
       "groupPersonas": "ペルソナ",
       "warningBanner": "アイデンティティファイルはエージェントの中核人格と行動基盤です。不適切な編集は動作異常や能力喪失、予期しない応答を招く可能性があります。影響が不明な場合は先にバックアップしてください。",
@@ -1953,6 +2068,9 @@
         "cancelled": "停止",
         "interrupted": "中断"
       },
+      "parameters": "実行パラメータ",
+      "toolOutput": "出力",
+      "detailToggle": "パラメータと出力を表示",
       "phase": {
         "preparing": "準備中",
         "model": "生成中",
