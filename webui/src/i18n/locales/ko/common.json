@@ -2368,6 +2368,11 @@
         "bound": "{{name}}(리비전 {{revision}})에 묶임",
         "chip": "팀: {{name}}",
         "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "현재 에이전트: {{name}}",
+        "empty": "사용 가능한 에이전트가 없습니다",
+        "defaultTag": "기본"
       }
     },
     "scrollToBottom": "맨 아래로 스크롤",

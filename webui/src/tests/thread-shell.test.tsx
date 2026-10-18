@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { StrictMode, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,8 +7,10 @@ import { preloadMarkdownText } from "@/components/MarkdownText";
 import { ThreadCameraController } from "@/components/thread/thread-camera";
 import { ThreadShell } from "@/components/thread/ThreadShell";
 import i18n from "@/i18n";
+import type { AgentProfile } from "@/lib/agents/types";
 import { CLI_APPS_CHANGED_EVENT } from "@/lib/cli-app-events";
 import type { CanonicalRunSnapshot, StreamError } from "@/lib/nanobot-client";
+import { SESSION_AGENT_STORAGE_KEY } from "@/lib/session-agent-preference";
 import { ClientProvider } from "@/providers/ClientProvider";
 import type { CliAppsPayload, ConnectionStatus, SettingsPayload, UIMessage } from "@/lib/types";
 
@@ -256,6 +259,26 @@ function session(chatId: string, modelPreset?: string | null) {
     updatedAt: null,
     preview: "",
     modelPreset,
+  };
+}
+
+function agent(id: string, name: string): AgentProfile {
+  return {
+    id,
+    name,
+    description: "",
+    type: id === "commander" ? "system" : "custom",
+    customized: false,
+    categoryId: null,
+    icon: "lucide:compass",
+    color: "#D97706",
+    prompt: "",
+    modelId: null,
+    tools: { mode: "all", entries: [] },
+    skills: { mode: "all", entries: [] },
+    subAgents: { mode: "all", entries: [] },
+    hidden: false,
+    updatedAt: "2026-10-18T00:00:00.000Z",
   };
 }
 
@@ -3378,6 +3401,11 @@ describe("ThreadShell", () => {
         ),
       );
       await waitFor(() => expect(historyCalls).toBe(1));
+      // 首次失败必须先落到 state 上（loading 转 false、欢迎态渲染出来），否则切回前台时
+      // refreshOnReturn 拿的还是旧闭包：它看不到 historyError，会直接 return 而不重试。
+      await act(async () => {
+        await screen.findByText(HERO_GREETING_PATTERN);
+      });
 
       act(() => {
         setDocumentVisibility("hidden");
@@ -4447,6 +4475,38 @@ describe("ThreadShell", () => {
       expect(
         fetchMock.mock.calls.some(([input]) => String(input).includes("/api/subagent-executions")),
       ).toBe(true);
+    });
+  });
+
+  it("会话级 Agent 选择按 chat 记在本地存储里，刷新后仍然生效", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem(
+      SESSION_AGENT_STORAGE_KEY,
+      JSON.stringify({ "agent-pick": "writer", "other-chat": "reviewer" }),
+    );
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      if (String(input).includes("/api/settings/agents")) {
+        return Promise.resolve(httpJson({
+          agents: [agent("commander", "指挥官"), agent("writer", "写手")],
+        }));
+      }
+      return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
+    }));
+
+    render(wrap(
+      makeClient(),
+      <ThreadShell session={session("agent-pick")} title="Agent pick" onToggleSidebar={() => {}} />,
+    ));
+
+    // 存过就按存过的显示，而不是回到默认主 Agent。
+    const chip = await screen.findByRole("button", { name: "Current agent: 写手" });
+    await user.click(chip);
+    await user.click(await screen.findByRole("button", { name: /指挥官/ }));
+
+    // 改选写回本地存储，且只动当前 chat 这一条。
+    expect(JSON.parse(window.localStorage.getItem(SESSION_AGENT_STORAGE_KEY) ?? "{}")).toEqual({
+      "agent-pick": "commander",
+      "other-chat": "reviewer",
     });
   });
 

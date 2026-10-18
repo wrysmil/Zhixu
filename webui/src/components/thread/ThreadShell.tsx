@@ -14,6 +14,16 @@ import { deriveSessionWorkbench } from "@/components/workbench/session-workbench
 import { RecoveryNotice } from "@/components/thread/RecoveryNotice";
 import { AskQuestionCard } from "@/components/thread/AskQuestionCard";
 import { ThreadComposer } from "@/components/thread/ThreadComposer";
+import {
+  DEFAULT_SESSION_AGENT_ID,
+  resolveSessionAgent,
+} from "@/components/thread/AgentPicker";
+import {
+  readSessionAgentSelection,
+  writeSessionAgentSelection,
+  SESSION_AGENT_DRAFT_SCOPE,
+  type SessionAgentSelection,
+} from "@/lib/session-agent-preference";
 import type {
   ComposerContextUsage,
   ComposerRoundUsage,
@@ -747,6 +757,31 @@ export function ThreadShell({
       alive = false;
     };
   }, [getToken]);
+  // 会话级 Agent 选择：默认主 Agent，按 chat 各记一份并写入本地存储（刷新后仍记得）。
+  // 还没建出 chat 时用的草稿槽同时充当兜底：新会话沿用你最近一次的选择，而不是跳回默认。
+  const [agentSelectionByScope, setAgentSelectionByScope] = useState<SessionAgentSelection>(
+    readSessionAgentSelection,
+  );
+  const initialAgentSelectionRef = useRef(agentSelectionByScope);
+  const agentScopeKey = chatId ?? SESSION_AGENT_DRAFT_SCOPE;
+  const sessionAgentId =
+    resolveSessionAgent(
+      composerAgents,
+      agentSelectionByScope[agentScopeKey]
+        ?? agentSelectionByScope[SESSION_AGENT_DRAFT_SCOPE]
+        ?? DEFAULT_SESSION_AGENT_ID,
+    )?.id ?? DEFAULT_SESSION_AGENT_ID;
+  const handleAgentSelectionChange = useCallback(
+    (agentId: string) => {
+      setAgentSelectionByScope((current) => ({ ...current, [agentScopeKey]: agentId }));
+    },
+    [agentScopeKey],
+  );
+  useEffect(() => {
+    // 只在真的改过之后回写：挂载时把刚读出来的东西再写一遍没有意义。
+    if (agentSelectionByScope === initialAgentSelectionRef.current) return;
+    writeSessionAgentSelection(agentSelectionByScope);
+  }, [agentSelectionByScope]);
   const cliApps = useInstalledSettingItems({
     getToken,
     eventName: CLI_APPS_CHANGED_EVENT,
@@ -1484,6 +1519,9 @@ export function ThreadShell({
       valueName={teamMode === "select" ? teamSelectionName : null}
       bound={teamMode === "bound" ? teamBound : null}
       onChange={(team, name) => onTeamChange?.(team, name)}
+      agents={composerAgents}
+      agentValue={sessionAgentId}
+      onAgentChange={handleAgentSelectionChange}
       isHero={composerVariant === "hero"}
       disabled={booting}
     />
@@ -1797,6 +1835,8 @@ export function ThreadShell({
           sessions={mentionSessions}
           skills={skills}
           agents={composerAgents}
+          agentSelectionId={sessionAgentId}
+          onAgentSelectionChange={handleAgentSelectionChange}
           onStop={stop}
           onTranscribeAudio={transcribeAudio}
           goalState={currentGoalState}
@@ -1855,6 +1895,8 @@ export function ThreadShell({
           sessions={mentionSessions}
           skills={skills}
           agents={composerAgents}
+          agentSelectionId={sessionAgentId}
+          onAgentSelectionChange={handleAgentSelectionChange}
           surfaceRef={composerSurfaceRef}
           onTranscribeAudio={transcribeAudio}
           goalState={currentGoalState}

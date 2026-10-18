@@ -94,6 +94,7 @@ import { useLogoFallback } from "@/hooks/useLogoFallback";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { getRuntimeHost } from "@/lib/runtime";
 import { projectNameFromPath, scopeWithAccessMode } from "@/lib/workspace";
+import { AgentChip, resolveSessionAgent } from "@/components/thread/AgentPicker";
 import { DEFAULT_MAIN_AGENT_ID, isDefaultMainAgent, type AgentProfile } from "@/lib/agents/types";
 import type { SendAttachment, SendOptions } from "@/hooks/useNanobotStream";
 import { useVoiceRecorder, type VoiceRecorderErrorKey } from "@/hooks/useVoiceRecorder";
@@ -226,6 +227,9 @@ interface ThreadComposerProps {
   sessions?: ChatSummary[];
   skills?: SkillSummary[];
   agents?: AgentProfile[];
+  /** 会话默认接管者（默认主 Agent）；草稿里的 ``@档案`` 本轮优先于它。 */
+  agentSelectionId?: string | null;
+  onAgentSelectionChange?: (agentId: string) => void;
   onStop?: () => void;
   surfaceRef?: Ref<HTMLDivElement>;
   onTranscribeAudio?: (dataUrl: string, options?: { durationMs?: number }) => Promise<string>;
@@ -949,6 +953,8 @@ export function ThreadComposer({
   sessions = [],
   skills = [],
   agents = [],
+  agentSelectionId = null,
+  onAgentSelectionChange,
   onStop,
   surfaceRef,
   onTranscribeAudio,
@@ -1465,6 +1471,35 @@ export function ThreadComposer({
     }
     return null;
   }, [mentionSegments]);
+  const sessionAgent = useMemo(
+    () => resolveSessionAgent(agents, agentSelectionId ?? DEFAULT_MAIN_AGENT_ID),
+    [agentSelectionId, agents],
+  );
+  // 胶囊显示的是「本轮实际生效的档案」：草稿里有 @ 指定时以草稿为准。
+  const effectiveAgent = activeAgent ?? sessionAgent;
+  const effectiveAgentId = effectiveAgent?.id ?? null;
+
+  const handleAgentPick = useCallback(
+    (agentId: string) => {
+      onAgentSelectionChange?.(agentId);
+      // 草稿里的 @ 指定对本轮有效；改选后必须同步改写最后一段 @，
+      // 否则胶囊显示（生效值）会和文本里的指定互相矛盾。
+      if (!activeAgent) return;
+      let offset = 0;
+      let target: { start: number; end: number } | null = null;
+      for (const segment of mentionSegments) {
+        if (segment.kind === "agent") {
+          target = { start: offset, end: offset + segment.text.length };
+        }
+        offset += segment.text.length;
+      }
+      if (!target) return;
+      const next = `${value.slice(0, target.start)}@${agentId}${value.slice(target.end)}`;
+      setValue(next);
+      setCursorPosition(next.length);
+    },
+    [activeAgent, agentSelectionId, mentionSegments, onAgentSelectionChange, value],
+  );
   const [slashPaletteLayout, setSlashPaletteLayout] = useState<SlashPaletteLayout>({
     placement: "above",
     maxHeight: SLASH_PALETTE_MAX_HEIGHT_PX,
@@ -2012,7 +2047,7 @@ export function ThreadComposer({
       secondEnterPromptIdRef.current = null;
       const text = prompt.text.trim();
       const queuedImages = queuedImagesToSendImages(prompt.images);
-      const queuedAgentId = agentMentionId(text, agents);
+      const queuedAgentId = agentMentionId(text, agents) ?? sessionAgent?.id ?? null;
       setQueuedPrompts((items) => items.filter((item) => item.id !== prompt.id));
       if (text || queuedImages?.length) {
         const options: SendOptions | undefined = (
@@ -2034,7 +2069,7 @@ export function ThreadComposer({
       }
       requestAnimationFrame(() => textareaRef.current?.focus());
     },
-    [agents, isStreaming, onSend],
+    [agents, isStreaming, onSend, sessionAgent],
   );
 
   const sendNextQueuedPrompt = useCallback(() => {
@@ -2046,7 +2081,7 @@ export function ThreadComposer({
     }
     setQueuedPrompts((items) => items.filter((item) => item.id !== nextPrompt.id));
     const queuedImages = queuedImagesToSendImages(nextPrompt.images);
-    const queuedAgentId = agentMentionId(nextPrompt.text, agents);
+    const queuedAgentId = agentMentionId(nextPrompt.text, agents) ?? sessionAgent?.id ?? null;
     const options: SendOptions | undefined = (
       nextPrompt.quotedContext
       || nextPrompt.sessionMentions?.length
@@ -2065,7 +2100,7 @@ export function ThreadComposer({
     else if (options) onSend(nextPrompt.text.trim(), undefined, options);
     else onSend(nextPrompt.text.trim());
     requestAnimationFrame(() => textareaRef.current?.focus());
-  }, [agents, onSend, queuedPrompts]);
+  }, [agents, onSend, queuedPrompts, sessionAgent]);
 
   useEffect(() => {
     const wasStreaming = wasStreamingRef.current;
@@ -2121,7 +2156,7 @@ export function ThreadComposer({
       attachedCliApps.length > 0
       || attachedMcpPresets.length > 0
       || activeSessionMentions.length > 0
-      || activeAgent
+      || effectiveAgentId
       || normalizedQuotedContext
         ? {
             ...(attachedCliApps.length > 0 ? { cliApps: attachedCliApps } : {}),
@@ -2129,7 +2164,7 @@ export function ThreadComposer({
             ...(activeSessionMentions.length > 0
               ? { sessionMentions: activeSessionMentions }
               : {}),
-            ...(activeAgent ? { agentId: activeAgent.id } : {}),
+            ...(effectiveAgentId ? { agentId: effectiveAgentId } : {}),
             ...(normalizedQuotedContext ? { quotedContext: normalizedQuotedContext } : {}),
           }
         : undefined;
@@ -2650,6 +2685,15 @@ export function ThreadComposer({
               isHero ? "gap-1.5" : "gap-2",
             )}
           >
+            {!voiceRecorder.isRecording ? (
+              <AgentChip
+                agent={effectiveAgent}
+                agents={agents}
+                onPick={handleAgentPick}
+                disabled={interactionDisabled}
+                isHero={isHero}
+              />
+            ) : null}
             {modelLabel && !voiceRecorder.isRecording ? (
               <ModelPresetBadge
                 label={modelLabel}

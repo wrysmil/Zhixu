@@ -2368,6 +2368,11 @@
         "bound": "Đã gắn với {{name}} (bản sửa đổi {{revision}})",
         "chip": "Nhóm: {{name}}",
         "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "Agent hiện tại: {{name}}",
+        "empty": "Chưa có agent nào khả dụng",
+        "defaultTag": "Mặc định"
       }
     },
     "scrollToBottom": "Cuộn xuống cuối",

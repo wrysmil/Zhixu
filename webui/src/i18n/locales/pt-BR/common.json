@@ -2368,6 +2368,11 @@
         "bound": "Vinculada a {{name}} (revisão {{revision}})",
         "chip": "Equipe: {{name}}",
         "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "Agente atual: {{name}}",
+        "empty": "Ainda não há agentes disponíveis",
+        "defaultTag": "Padrão"
       }
     },
     "scrollToBottom": "Rolar para o final",

@@ -3348,3 +3348,106 @@ describe("ThreadComposer", () => {
   });
 
 });
+
+describe("ThreadComposer agent selection", () => {
+  it("模型旁显示当前 Agent，默认是默认主 Agent，可从胶囊改选", async () => {
+    const user = userEvent.setup();
+    const onAgentSelectionChange = vi.fn();
+    render(
+      <ThreadComposer
+        onSend={vi.fn()}
+        agents={AGENTS}
+        agentSelectionId="commander"
+        onAgentSelectionChange={onAgentSelectionChange}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Current agent: 指挥官" }));
+    await user.click(await screen.findByRole("button", { name: /代码助手/ }));
+
+    expect(onAgentSelectionChange).toHaveBeenCalledWith("code-helper");
+  });
+
+  it("胶囊列表不列隐藏档案", async () => {
+    const user = userEvent.setup();
+    render(
+      <ThreadComposer
+        onSend={vi.fn()}
+        agents={AGENTS}
+        agentSelectionId="commander"
+        onAgentSelectionChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Current agent: 指挥官" }));
+
+    expect(await screen.findByRole("button", { name: /代码助手/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /隐藏助手/ })).not.toBeInTheDocument();
+  });
+
+  it("发送时带上会话选择的 agentId", () => {
+    const onSend = vi.fn();
+    render(
+      <ThreadComposer
+        onSend={onSend}
+        agents={AGENTS}
+        agentSelectionId="code-helper"
+        onAgentSelectionChange={vi.fn()}
+        placeholder="Type your message..."
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Message input"), { target: { value: "看一下" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(onSend).toHaveBeenCalledWith("看一下", undefined, expect.objectContaining({
+      agentId: "code-helper",
+    }));
+  });
+
+  it("草稿里的 @ 指定优先于会话选择", () => {
+    const onSend = vi.fn();
+    render(
+      <ThreadComposer
+        onSend={onSend}
+        agents={AGENTS}
+        agentSelectionId="commander"
+        onAgentSelectionChange={vi.fn()}
+        placeholder="Type your message..."
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Message input"), {
+      target: { value: "@code-helper 看一下", selectionStart: 12 },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(onSend).toHaveBeenCalledWith("@code-helper 看一下", undefined, expect.objectContaining({
+      agentId: "code-helper",
+    }));
+  });
+
+  it("改选胶囊时同步改写草稿里的 @ 指定，避免与胶囊互相矛盾", async () => {
+    const user = userEvent.setup();
+    const onAgentSelectionChange = vi.fn();
+    render(
+      <ThreadComposer
+        onSend={vi.fn()}
+        agents={AGENTS}
+        agentSelectionId="commander"
+        onAgentSelectionChange={onAgentSelectionChange}
+      />,
+    );
+
+    const input = screen.getByLabelText("Message input");
+    fireEvent.change(input, { target: { value: "@code-helper 看一下", selectionStart: 12 } });
+
+    // 胶囊跟着本轮生效的档案走。
+    expect(screen.getByRole("button", { name: "Current agent: 代码助手" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Current agent: 代码助手" }));
+    await user.click(await screen.findByRole("button", { name: /指挥官/ }));
+
+    expect(onAgentSelectionChange).toHaveBeenCalledWith("commander");
+    expect(input).toHaveValue("@commander 看一下");
+  });
+});

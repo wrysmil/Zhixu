@@ -2368,6 +2368,11 @@
         "bound": "{{name}}（リビジョン {{revision}}）にバインド済み",
         "chip": "チーム：{{name}}",
         "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "現在のエージェント：{{name}}",
+        "empty": "利用できるエージェントがありません",
+        "defaultTag": "既定"
       }
     },
     "scrollToBottom": "一番下へスクロール",

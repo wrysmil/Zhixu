@@ -69,11 +69,15 @@ export interface TeamBinding {
   teamName: string;
 }
 
-/** What the chat creator needs from a team: enough to label it and pin its revision. */
+/** What the chat creator needs from a team: enough to label it, pin its revision, and offer its agents. */
 export interface TeamOption {
   id: string;
   name: string;
   revision: number;
+  /** 二级 Agent 选择的默认落点：该团队的 Leader 档案 id。 */
+  leaderAgentId: string;
+  /** 二级 Agent 选择的其余候选项：团队成员档案 id，已去重且不含 Leader。 */
+  memberAgentIds: string[];
 }
 
 export interface AgentProfileSnapshot {

@@ -2424,6 +2424,11 @@
         "bound": "Bound to {{name}} (revision {{revision}})",
         "chip": "Team: {{name}}",
         "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "Current agent: {{name}}",
+        "empty": "No agents available yet",
+        "defaultTag": "Default"
       }
     },
     "scrollToBottom": "Scroll to bottom",

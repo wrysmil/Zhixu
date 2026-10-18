@@ -2368,6 +2368,11 @@
         "bound": "Terikat pada {{name}} (revisi {{revision}})",
         "chip": "Tim: {{name}}",
         "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "Agen saat ini: {{name}}",
+        "empty": "Belum ada agen yang tersedia",
+        "defaultTag": "Bawaan"
       }
     },
     "scrollToBottom": "Gulir ke bawah",

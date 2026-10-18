@@ -2424,6 +2424,11 @@
         "bound": "已绑定 {{name}}（修订 {{revision}}）",
         "chip": "团队：{{name}}",
         "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "当前 Agent：{{name}}",
+        "empty": "还没有可用的 Agent",
+        "defaultTag": "默认"
       }
     },
     "scrollToBottom": "滚动到底部",

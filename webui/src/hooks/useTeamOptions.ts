@@ -27,7 +27,19 @@ export function useTeamOptions(token: string): { options: TeamOption[]; loading:
         setOptions(
           page.teams
             .filter((team) => !team.archived)
-            .map((team) => ({ id: team.id, name: team.name, revision: team.revision })),
+            .map((team) => ({
+              id: team.id,
+              name: team.name,
+              revision: team.revision,
+              leaderAgentId: team.leaderAgentId,
+              memberAgentIds: [
+                ...new Set(
+                  team.members
+                    .map((member) => member.agentId)
+                    .filter((agentId) => agentId && agentId !== team.leaderAgentId),
+                ),
+              ],
+            })),
         );
       })
       .catch(() => {

@@ -8,12 +8,42 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TeamSelector, teamPickerVisibility } from "@/components/thread/TeamSelector";
 import { useTeamOptions } from "@/hooks/useTeamOptions";
+import type { AgentProfile } from "@/lib/agents/types";
 import * as teamsApi from "@/lib/teams/api";
-import type { TeamDefinition } from "@/lib/teams/types";
+import type { TeamDefinition, TeamOption } from "@/lib/teams/types";
 
 vi.mock("@/lib/teams/api", () => ({
   listTeams: vi.fn(),
 }));
+
+function agent(id: string, name: string, icon = "lucide:bot"): AgentProfile {
+  return {
+    id,
+    name,
+    description: "",
+    type: "custom",
+    customized: false,
+    categoryId: null,
+    icon,
+    color: "#4A90D9",
+    prompt: "",
+    modelId: null,
+    tools: { mode: "all", entries: [] },
+    skills: { mode: "all", entries: [] },
+    subAgents: { mode: "all", entries: [] },
+    hidden: false,
+    updatedAt: "2026-10-18T00:00:00+00:00",
+  };
+}
+
+function teamOption(
+  id: string,
+  name: string,
+  revision: number,
+  overrides: Partial<TeamOption> = {},
+): TeamOption {
+  return { id, name, revision, leaderAgentId: "leader", memberAgentIds: [], ...overrides };
+}
 
 function team(id: string, name: string, revision: number, archived = false): TeamDefinition {
   return {
@@ -39,7 +69,7 @@ describe("TeamSelector", () => {
   it("已绑定团队时只做只读展示，不给可点的选择器", () => {
     render(
       <TeamSelector
-        options={[team("content-team", "内容团队", 3)]}
+        options={[teamOption("content-team", "内容团队", 3)]}
         value={null}
         valueName={null}
         bound={{ teamId: "content-team", teamRevision: 3, teamName: "内容团队" }}
@@ -56,7 +86,10 @@ describe("TeamSelector", () => {
     const onChange = vi.fn();
     render(
       <TeamSelector
-        options={[team("content-team", "内容团队", 2), team("code-team", "代码团队", 7)]}
+        options={[
+          teamOption("content-team", "内容团队", 2),
+          teamOption("code-team", "代码团队", 7),
+        ]}
         value={null}
         valueName={null}
         bound={null}
@@ -75,7 +108,7 @@ describe("TeamSelector", () => {
     const onChange = vi.fn();
     render(
       <TeamSelector
-        options={[team("content-team", "内容团队", 2)]}
+        options={[teamOption("content-team", "内容团队", 2)]}
         value={{ teamId: "content-team", teamRevision: 2 }}
         valueName="内容团队"
         bound={null}
@@ -101,6 +134,88 @@ describe("TeamSelector", () => {
 
     expect(await screen.findByText("No teams available yet")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "No team" })).not.toBeInTheDocument();
+  });
+
+  it("二级选择落在团队 Leader 上，并可改写为团队成员", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onAgentChange = vi.fn();
+    const contentTeam = teamOption("content-team", "内容团队", 2, {
+      leaderAgentId: "leader",
+      memberAgentIds: ["writer"],
+    });
+
+    render(
+      <TeamSelector
+        options={[contentTeam]}
+        value={null}
+        valueName={null}
+        bound={null}
+        onChange={onChange}
+        agents={[agent("leader", "队长"), agent("writer", "写手"), agent("other", "旁人")]}
+        agentValue="leader"
+        onAgentChange={onAgentChange}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Choose team" }));
+    await user.click(await screen.findByRole("button", { name: /内容团队/ }));
+
+    // 选中团队即绑定，二级默认落在该团队 Leader 上。
+    expect(onChange).toHaveBeenCalledWith({ teamId: "content-team", teamRevision: 2 }, "内容团队");
+    expect(onAgentChange).toHaveBeenLastCalledWith("leader");
+    // 二级只列该团队的 Leader 与成员，不列无关档案。
+    expect(await screen.findByRole("button", { name: /写手/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /旁人/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /写手/ }));
+
+    expect(onAgentChange).toHaveBeenLastCalledWith("writer");
+  });
+
+  it("不使用团队时二级列出全部档案", async () => {
+    const user = userEvent.setup();
+    const onAgentChange = vi.fn();
+
+    render(
+      <TeamSelector
+        options={[teamOption("content-team", "内容团队", 2)]}
+        value={null}
+        valueName={null}
+        bound={null}
+        onChange={vi.fn()}
+        agents={[agent("leader", "队长"), agent("other", "旁人")]}
+        agentValue="other"
+        onAgentChange={onAgentChange}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Choose team" }));
+    await user.click(await screen.findByRole("button", { name: "No team" }));
+    await user.click(await screen.findByRole("button", { name: /队长/ }));
+
+    expect(onAgentChange).toHaveBeenLastCalledWith("leader");
+  });
+
+  it("拿不到档案列表时二级退化，团队行仍是单击即选", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(
+      <TeamSelector
+        options={[teamOption("content-team", "内容团队", 2)]}
+        value={null}
+        valueName={null}
+        bound={null}
+        onChange={onChange}
+        onAgentChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Choose team" }));
+    await user.click(await screen.findByRole("button", { name: /内容团队/ }));
+
+    expect(onChange).toHaveBeenCalledWith({ teamId: "content-team", teamRevision: 2 }, "内容团队");
   });
 
   it("已绑定与临时聊天各自决定选择器形态", () => {
@@ -154,8 +269,27 @@ describe("useTeamOptions", () => {
     const { result } = renderHook(() => useTeamOptions("tok"));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.options).toEqual([{ id: "live", name: "活团队", revision: 1 }]);
+    expect(result.current.options).toEqual([
+      { id: "live", name: "活团队", revision: 1, leaderAgentId: "leader", memberAgentIds: [] },
+    ]);
     expect(vi.mocked(teamsApi.listTeams)).toHaveBeenCalledWith("tok", { limit: 100 });
+  });
+
+  it("带上团队 Leader 与去重后的成员档案 id", async () => {
+    const mixed = team("live", "活团队", 1);
+    mixed.leaderAgentId = "leader";
+    mixed.members = [
+      { memberId: "m1", agentId: "writer", role: "写作" },
+      { memberId: "m2", agentId: "leader", role: "兼任" },
+      { memberId: "m3", agentId: "writer", role: "重复" },
+    ];
+    vi.mocked(teamsApi.listTeams).mockResolvedValue({ teams: [mixed], nextCursor: null });
+
+    const { result } = renderHook(() => useTeamOptions("tok"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.options[0].leaderAgentId).toBe("leader");
+    expect(result.current.options[0].memberAgentIds).toEqual(["writer"]);
   });
 
   it("读取失败时退化成空列表而不是抛错", async () => {
