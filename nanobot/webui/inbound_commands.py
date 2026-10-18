@@ -10,11 +10,14 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol, cast
 
 from loguru import logger
 from websockets.asyncio.server import ServerConnection
 
+from nanobot.agents.catalog import is_valid_agent_id
+from nanobot.agents.store import AgentStore, AgentStoreError
 from nanobot.bus.events import INBOUND_META_USER_SHELL
 from nanobot.command.builtin import USER_SHELL_COMMAND, builtin_command_starts_agent_turn
 from nanobot.runtime_context import (
@@ -43,6 +46,7 @@ from nanobot.webui.forking import handle_webui_fork_chat
 from nanobot.webui.gateway_services import GatewayServices
 from nanobot.webui.mcp_presets_api import normalize_mcp_preset_mentions
 from nanobot.webui.metadata import (
+    AGENT_PROFILE_METADATA_KEY,
     WEBSOCKET_TURN_OWNER_METADATA_KEY,
     WEBUI_TURN_METADATA_KEY,
 )
@@ -110,6 +114,28 @@ def _team_selection(envelope: dict[str, Any]) -> tuple[str | None, int | None, s
     if isinstance(raw_revision, bool) or not isinstance(raw_revision, int) or raw_revision < 1:
         return None, None, "TEAM_INVALID team_revision must be a positive integer"
     return team_id, raw_revision, None
+
+
+def normalize_agent_selection(
+    raw: object,
+    workspace: Path,
+) -> tuple[str | None, str | None]:
+    """归一化消息信封里的 ``agent``，返回 ``(agent_id, 拒绝码)``。
+
+    id 必须是合法档案名且在该工作区真实存在；客户端说了不算，避免把任意
+    字符串带进运行时的档案查找路径。拒绝码直接作为 WebUI ``error`` 事件
+    的 ``detail`` 回给前端。
+    """
+    if not isinstance(raw, str):
+        return None, "invalid_agent"
+    agent_id = raw.strip()
+    if not agent_id or not is_valid_agent_id(agent_id):
+        return None, "invalid_agent"
+    try:
+        AgentStore(workspace).get_profile(agent_id)
+    except AgentStoreError:
+        return None, "agent_not_found"
+    return agent_id, None
 
 
 @dataclass(frozen=True)
@@ -1381,6 +1407,25 @@ class WebUICommandRouter:
             metadata["webui"] = True
             metadata.update(self._transcripts.client_turn_metadata(envelope.get("turn_id")))
         trusted_webui = metadata.get("webui") is True and connection in self._webui_connections
+        # Agent 选择只对完成过 WebUI 握手的连接开放：档案能决定本回合的提示词、
+        # 工具与模型，不能由任意通道在 metadata 里随手指定。校验通过后由主循环
+        # 消费同一个 id，前端展示的与真正执行的是同一份。
+        if trusted_webui and envelope.get("agent") is not None:
+            selected_agent, rejection = await asyncio.to_thread(
+                normalize_agent_selection,
+                envelope.get("agent"),
+                scope.project_path,
+            )
+            if rejection is not None:
+                await self._transport.webui_send_event(
+                    connection,
+                    "error",
+                    detail=rejection,
+                    **rejection_fields,
+                )
+                return
+            if selected_agent is not None:
+                metadata[AGENT_PROFILE_METADATA_KEY] = selected_agent
         raw_writing = envelope.get("writing")
         if raw_writing is not None:
             writing_context, rejection = await self._validate_writing_context(

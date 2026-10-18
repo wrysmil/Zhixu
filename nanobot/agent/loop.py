@@ -49,7 +49,12 @@ from nanobot.agent.turn_delivery import (
 )
 from nanobot.agent.turn_delivery import TurnRoute as TurnRoute
 from nanobot.agent.turn_hooks import AgentTurnHookSpec, build_agent_turn_hook
-from nanobot.agents.runtime import AgentProfileRuntime
+from nanobot.agents.catalog import DEFAULT_MAIN_AGENT_ID
+from nanobot.agents.runtime import (
+    AGENT_PROFILE_METADATA_KEY,
+    AgentProfileRuntime,
+    ResolvedAgent,
+)
 from nanobot.bus.events import INBOUND_META_USER_SHELL, InboundMessage, OutboundMessage
 from nanobot.bus.outbound_events import (
     StreamDeltaEvent,
@@ -211,6 +216,9 @@ class TurnContext:
     # Team Leader 回合的不可变装配输入；普通聊天恒为 None。由 ``_restore_turn`` 从
     # ``team_context_provider`` 取一次，之后本回合只读。
     team: LeaderTurnContext | None = None
+    # 本轮接管的主 Agent（``@agent`` 或默认 commander）。团队回合优先，恒为 None。
+    # 由 ``_build_turn`` 解析一次：提示词、技能裁剪、工具白名单与模型都读这一份。
+    agent: ResolvedAgent | None = None
 
     turn_wall_started_at: float = field(default_factory=time.time)
     visible_run_started_at: float | None = None
@@ -1179,6 +1187,77 @@ class AgentLoop:
             return self.runtime_for_session(session)
         return resolve_leader_runtime(self.runtime_resolver, team)
 
+    def _agent_runtime(self, session: Session, agent: ResolvedAgent) -> LLMRuntime:
+        """档案指定的 preset 优先；预设已被删除时回落到会话 runtime，不拦住本轮。"""
+        if agent.model_id is None:
+            return self.runtime_for_session(session)
+        try:
+            return self.runtime_resolver.resolve_preset(agent.model_id)
+        except (KeyError, ValueError):
+            logger.warning(
+                "Agent '{}' references unavailable model preset '{}'; "
+                "falling back to the session runtime",
+                agent.id,
+                agent.model_id,
+            )
+            return self.runtime_for_session(session)
+
+    def _resolve_turn_agent(
+        self,
+        msg: InboundMessage,
+        session: Session,
+        kind: TurnKind,
+        tools: ToolRegistry,
+    ) -> ResolvedAgent | None:
+        """解析本轮接管的 Agent：入站显式指定优先，否则用默认指挥官。
+
+        工具清单取 ``tools`` 里**已在用**的注册表，因此 MCP 与运行时动态工具
+        一并参与求交；档案不会凭空造出 loop 没注册的入口。
+        """
+        if kind is not TurnKind.USER:
+            return None
+        metadata = msg.metadata if isinstance(msg.metadata, dict) else {}
+        raw_agent = metadata.get(AGENT_PROFILE_METADATA_KEY)
+        agent_id = (
+            raw_agent.strip()
+            if isinstance(raw_agent, str) and raw_agent.strip()
+            else DEFAULT_MAIN_AGENT_ID
+        )
+        scope = self.workspace_scopes.for_message(msg, session.metadata)
+        try:
+            return AgentProfileRuntime(scope.project_path).resolve(
+                agent_id,
+                workspace=scope.project_path,
+                known_tools=tools.tool_names,
+            )
+        except Exception:
+            # 档案目录或技能清单读失败不该让整轮聊天失败；退回框架默认提示词，
+            # 与「没指定 Agent」行为一致。
+            logger.warning(
+                "Agent '{}' could not be resolved for this turn; using default prompt",
+                agent_id,
+                exc_info=True,
+            )
+            return None
+
+    def _agent_registry(
+        self,
+        base: ToolRegistry,
+        agent: ResolvedAgent,
+    ) -> ToolRegistry:
+        """按档案白名单从 ``base`` 造新 registry；白名单为空则主动清空本回合工具。"""
+        allowed = agent.tool_names
+        if allowed is None or set(base.tool_names) == set(allowed):
+            return base
+        registry = ToolRegistry()
+        for name in base.tool_names:
+            if name not in allowed:
+                continue
+            tool = base.get(name)
+            if tool is not None:
+                registry.register(tool)
+        return registry
+
     def _team_revision_switched(self, session: Session, team: LeaderTurnContext) -> bool:
         return session.metadata.get(_TEAM_REVISION_METADATA_KEY) != _team_signature(team)
 
@@ -1196,10 +1275,15 @@ class AgentLoop:
         ctx: TurnContext,
     ) -> list[RuntimeContextBlock]:
         assert ctx.request_context is not None
+        skill_exclude: set[str] | None = None
+        if ctx.team is not None:
+            skill_exclude = set(ctx.team.skill_exclude)
+        elif ctx.agent is not None:
+            skill_exclude = set(ctx.agent.skill_exclude)
         return await self._resolve_runtime_context_for_request(
             ctx.request_context,
             self.tools if ctx.tools is None else ctx.tools,
-            skill_exclude=set(ctx.team.skill_exclude) if ctx.team is not None else None,
+            skill_exclude=skill_exclude,
         )
 
     async def _resolve_runtime_context_for_request(
@@ -1402,6 +1486,7 @@ class AgentLoop:
         turn_scopes: list[AbstractContextManager[Any]] | None = None,
         tools: ToolRegistry | None = None,
         team: LeaderTurnContext | None = None,
+        agent: ResolvedAgent | None = None,
         request_context: RequestContext | None = None,
         provider_state: ProviderConversationState | None = None,
         retrieved_memory_section: str = "",
@@ -1420,9 +1505,17 @@ class AgentLoop:
         self._sync_subagent_runtime_limits()
 
         # Team Leader 回合的角色段与技能裁剪：三入口（always 段、概览、显式 ``$skill``）
-        # 共用同一个排除集，否则概览里藏起来的技能仍能被 ``$name`` 召唤。
-        team_role_section = team.role_prompt if team is not None else None
-        team_skill_exclude = set(team.skill_exclude) if team is not None else None
+        # 共用同一个排除集，否则概览里藏起来的技能仍能被 ``$name`` 召唤。普通回合
+        # 由被 @ 的 Agent（或默认指挥官）提供同一对输入；团队优先。
+        if team is not None:
+            turn_role_section = team.role_prompt
+            turn_skill_exclude = set(team.skill_exclude)
+        elif agent is not None:
+            turn_role_section = agent.prompt or None
+            turn_skill_exclude = set(agent.skill_exclude)
+        else:
+            turn_role_section = None
+            turn_skill_exclude = None
 
         async def _checkpoint(payload: dict[str, Any]) -> None:
             if session is None:
@@ -1491,7 +1584,7 @@ class AgentLoop:
                     blocks = await self._resolve_runtime_context_for_request(
                         pending_request,
                         effective_tools,
-                        skill_exclude=team_skill_exclude,
+                        skill_exclude=turn_skill_exclude,
                     )
                     row["content"], runtime_marker = append_runtime_context(
                         user_content,
@@ -1584,8 +1677,8 @@ class AgentLoop:
             include_memory=session.policy.persist if session is not None else True,
             retrieved_memory_section=retrieved_memory_section,
             working_memory_section=working_memory_section,
-            role_section=team_role_section,
-            skill_exclude=team_skill_exclude,
+            role_section=turn_role_section,
+            skill_exclude=turn_skill_exclude,
         )
         if request_context is None:
             request_ctx = dataclasses.replace(
@@ -2372,13 +2465,24 @@ class AgentLoop:
 
     async def _build_turn(self, ctx: TurnContext) -> None:
         session = ctx.require_session()
+        if ctx.team is None and ctx.agent is None:
+            base_tools = self.tools if ctx.tools is None else ctx.tools
+            ctx.agent = self._resolve_turn_agent(
+                ctx.msg,
+                session,
+                ctx.kind,
+                base_tools,
+            )
+            if ctx.agent is not None:
+                ctx.tools = self._agent_registry(base_tools, ctx.agent)
         runtime = ctx.runtime
         if runtime is None:
-            runtime = (
-                self._leader_runtime(session, ctx.team)
-                if ctx.team is not None
-                else self.runtime_for_session(session)
-            )
+            if ctx.team is not None:
+                runtime = self._leader_runtime(session, ctx.team)
+            elif ctx.agent is not None:
+                runtime = self._agent_runtime(session, ctx.agent)
+            else:
+                runtime = self.runtime_for_session(session)
             ctx.runtime = runtime
         if ctx.session_key.startswith("dream:"):
             logger.info(
@@ -2551,6 +2655,7 @@ class AgentLoop:
                 turn_scopes=ctx.turn_scopes,
                 tools=ctx.tools,
                 team=ctx.team,
+                agent=ctx.agent,
                 request_context=ctx.request_context,
                 provider_state=ctx.provider_state,
                 retrieved_memory_section=ctx.pending_retrieved_memory_section,

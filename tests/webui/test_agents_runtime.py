@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from nanobot.agents.catalog import DEFAULT_MAIN_AGENT_ID
 from nanobot.agents.models import AgentProfile, AgentSelection
 from nanobot.agents.runtime import AgentProfileRuntime, resolve_selection
 
@@ -126,3 +127,35 @@ def test_unresolvable_variable_is_left_verbatim(runtime: AgentProfileRuntime) ->
     resolved = runtime.resolve("odd")
     assert resolved is not None
     assert "{{unknown_token}}" in resolved.prompt
+
+
+def test_default_main_agent_is_the_commander(runtime: AgentProfileRuntime) -> None:
+    assert DEFAULT_MAIN_AGENT_ID == "commander"
+    resolved = runtime.resolve(
+        "commander",
+        known_tools=["read_file", "exec"],
+        known_skills=["alpha"],
+    )
+    assert resolved is not None
+    assert resolved.name == "指挥官"
+    assert "指挥官" in resolved.prompt
+    # 全量选择：主回合拿到调用方真实注册表里的全部工具，技能不裁剪。
+    assert resolved.tool_names == frozenset({"read_file", "exec"})
+    assert resolved.skill_exclude == frozenset()
+
+
+def test_known_capabilities_skip_scope_enumeration(runtime: AgentProfileRuntime) -> None:
+    """主回合传入实时清单时，不能再走子 Agent 的静态枚举。"""
+
+    def _unexpected(_tools_config: object | None) -> list[str]:
+        raise AssertionError("known_tools 已给出时不应枚举 subagent scope")
+
+    runtime._known_tool_ids = _unexpected  # type: ignore[method-assign]
+    resolved = runtime.resolve(
+        "code-reviewer",
+        known_tools=["read_file"],
+        known_skills=["alpha"],
+    )
+    assert resolved is not None
+    assert resolved.tool_names == frozenset({"read_file"})
+    assert resolved.skill_exclude == frozenset({"alpha"})

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import cast
 
 from nanobot.agents.catalog import (
+    DEFAULT_MAIN_AGENT_ID,
     DEFAULT_TOOL_CATEGORY,
     FACTORY_AGENT_CATEGORIES,
     FACTORY_PROFILES,
@@ -286,3 +287,50 @@ def test_writing_profiles_ids_unique() -> None:
     assert not (set(WRITING_PROFILE_IDS) & existing_ids), "写作档案 id 与既有档案冲突"
     writing_ids = {p.id for p in FACTORY_PROFILES if p.category_id == "writing"}
     assert set(WRITING_PROFILE_IDS) <= writing_ids
+
+
+# --------------------------------------------------------------- 主管（Leader）纪律
+
+#: 普通聊天路径下会「派活」的出厂档案。团队路径不在此列——它的纪律由
+#: ``teams/leader.py`` 的渲染段固定提供，档案里再写一遍只会稀释主管层。
+_LEADER_PROFILE_IDS = (DEFAULT_MAIN_AGENT_ID,)
+
+
+def test_leader_factory_prompts_teach_the_handoff() -> None:
+    """默认主管档案的出厂 prompt 要教「怎么交接」，不只声明「可以派活」。
+
+    普通聊天没有团队段可注入，所以这套纪律只能写在档案里。缺了它，指挥官会把
+    子 Agent 的原话直接转给用户。
+    """
+    for agent_id in _LEADER_PROFILE_IDS:
+        profile = factory_for(agent_id)
+        assert profile is not None
+        for cue in ("简报", "没看到", "不要预测", "核对"):
+            assert cue in profile.prompt, f"{agent_id} 的出厂提示词缺少交接纪律：{cue}"
+
+
+def test_team_leader_profile_defers_discipline_to_the_team_section() -> None:
+    """团队 Leader 的档案**不**重复委派纪律：真实渲染里两遍同理会挤掉有效内容。
+
+    ``render_role_prompt`` 每个团队回合都固定注入「主管的做事方式」，档案只要写好
+    这个团队特有的职责与边界。
+    """
+    editor = factory_for("writing-editor")
+    assert editor is not None
+    for duplicated in ("简报", "不委派理解", "不要预测"):
+        assert duplicated not in editor.prompt, f"writing-editor 与主管渲染段重复：{duplicated}"
+    assert "team_dispatch" in editor.prompt, "派活入口仍要点名：Team 模式下 spawn 被隐藏"
+
+
+def test_leader_factory_prompts_name_the_right_dispatch_tool() -> None:
+    """派活入口不能写错：Team 模式下 ``spawn`` 被隐藏，默认主 Agent 那边才用它。
+
+    给指挥官写 ``team_dispatch`` 会让普通聊天喊一个不存在的工具；给主编写
+    ``spawn`` 等于教它绕过成员白名单（契约 §5）。
+    """
+    commander = factory_for("commander")
+    editor = factory_for("writing-editor")
+    assert commander is not None and editor is not None
+    assert "spawn" in commander.prompt
+    assert "team_dispatch" not in commander.prompt
+    assert "team_dispatch" in editor.prompt

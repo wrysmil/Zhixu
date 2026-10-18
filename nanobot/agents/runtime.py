@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -20,6 +21,10 @@ from nanobot.agents.store import AgentStore, AgentStoreError
 
 if TYPE_CHECKING:
     from nanobot.config.schema import ToolsConfig
+
+# 入站 metadata 里指名「本轮由哪个 Agent 接管」的键。WebUI 已在信封层校验，
+# 主循环只消费已归一化的 id。
+AGENT_PROFILE_METADATA_KEY = "agent_id"
 
 # 单趟模板替换。escaped 分支处理 Jinja 的四花括号转义写法。
 _TOKEN_RE = re.compile(r"\{\{\{\{(?P<escaped>\w+)\}\}\}\}|\{\{(?P<plain>\w+)\}\}")
@@ -215,17 +220,29 @@ class AgentProfileRuntime:
         *,
         workspace: Path | None = None,
         tools_config: object | None = None,
+        known_tools: Iterable[str] | None = None,
+        known_skills: Iterable[str] | None = None,
     ) -> ResolvedAgent | None:
-        """解析一个档案；id 非法或不存在时返回 ``None``（调用方回退到默认行为）。"""
+        """解析一个档案；id 非法或不存在时返回 ``None``（调用方回退到默认行为）。
+
+        ``known_tools`` / ``known_skills`` 让主回合直接拿 ``AgentLoop`` 里已在用的
+        真实注册表求交：主 Agent 还包含 MCP 与运行时动态工具，子 Agent 那套
+        ``scope="subagent"`` 的静态枚举在这里会少算。传空集合表示「本回合确实
+        没有工具/技能」，与 ``None``（去枚举）严格区分。
+        """
         try:
             profile = self._store().get_profile(agent_id)
         except AgentStoreError:
             return None
 
-        all_tools = self._known_tool_ids(tools_config)
+        all_tools = list(known_tools) if known_tools is not None else self._known_tool_ids(
+            tools_config
+        )
         tool_names = frozenset(resolve_selection(profile.tools, all_tools))
 
-        all_skills = self._known_skill_ids()
+        all_skills = (
+            list(known_skills) if known_skills is not None else self._known_skill_ids()
+        )
         enabled_skills = resolve_selection(profile.skills, all_skills)
         # build_skills_summary 只认 exclude，所以 include 模式在这里取补集。
         skill_exclude = frozenset(set(all_skills) - enabled_skills)

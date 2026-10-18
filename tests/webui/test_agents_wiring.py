@@ -286,6 +286,7 @@ async def test_router_serves_agents_list_over_get(tmp_path: Path) -> None:
     # 写作团队五档案（契约 §7）已并入出厂目录，列表接口如实多返回五项。
     assert sorted(a["id"] for a in body["agents"]) == [
         "code-reviewer",
+        "commander",
         "general-assistant",
         "ops-runner",
         "researcher",

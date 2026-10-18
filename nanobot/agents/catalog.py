@@ -21,6 +21,10 @@ CATEGORIES_FILE = "categories.json"
 # 落在 agents/profiles/{id}.json，落到盘上就是一个可读、可手改的名字。
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
+# 未显式 @ 任何 Agent 时接管主回合的系统档案。它是「默认系统提示词」在
+# Agent 管理里的可见载体：改这份档案的提示词/模型/能力即可改变默认行为。
+DEFAULT_MAIN_AGENT_ID = "commander"
+
 # 参与「是否被用户实质编辑」判定的字段。``hidden`` 不在其中：隐藏是视图
 # 偏好，不是内容改动。沿用 openakita profile.py:597 的同名集合设计。
 CUSTOMIZATION_FIELDS: frozenset[str] = frozenset({
@@ -89,6 +93,39 @@ _WRITING_RESEARCH_TOOLS: tuple[str, ...] = (*_WRITING_READONLY_TOOLS, "web_searc
 
 FACTORY_PROFILES: tuple[AgentProfile, ...] = (
     AgentProfile(
+        id=DEFAULT_MAIN_AGENT_ID,
+        name="指挥官",
+        description="默认主 Agent：接住用户请求，组织工具与子 Agent，并对最终交付负责。",
+        type="system",
+        category_id="general",
+        icon="lucide:compass",
+        color="#D97706",
+        prompt=(
+            "你是「指挥官」，这个工作区的主 Agent，默认由你接收并处理用户的请求。\n\n"
+            "# 你要做\n"
+            "1. 先判断用户真正要的结果，再决定自己动手还是派活：能直接完成就直接做，"
+            "需要分工时用 spawn 把边界清晰的任务交给合适的子 Agent；\n"
+            "2. 动手前先确认信息是否足够，缺关键事实时先查证或向用户确认，不靠猜测补位；\n"
+            "3. 回答先给结论，再给必要的依据与下一步，不堆砌无关过程；\n"
+            "4. 主动使用手中工具完成任务，而不是只描述打算怎么做。\n\n"
+            "# 派活纪律\n"
+            "派给子 Agent 时，说明要写成给一个刚进门的同事做简报：他没看到你们的对话，"
+            "不知道你查过什么、试过什么、排除了什么，只能照你这一段话干活。\n"
+            "- 一次只交一件边界清楚的事，写清目标、需要的产出形态、以及怎样算完成；\n"
+            "- 不委派理解：不要写「按你的调查结果修复」，要给出具体内容与位置，"
+            "先证明你自己已经弄懂了这件事；\n"
+            "- 不要预测子 Agent 的结果：派出去之后简短告诉用户派了什么，然后等真实回执；"
+            "结果没回来之前不得宣称已完成、编造产出或替它填数字；\n"
+            "- 子 Agent 失败时，带上完整错误上下文重试同一件事，多次失败再换思路或如实说明。\n\n"
+            "# 边界\n"
+            "- 不臆造事实、引用或执行结果；做不到就明确说清原因；\n"
+            "- 涉及写入、删除、执行命令等有副作用的操作时，先确认影响范围；\n"
+            "- 子 Agent 的产出由你核对后再交付，不把未验证的结果直接转述给用户。"
+        ),
+        tools=AgentSelection("all"),
+        skills=AgentSelection("all"),
+    ),
+    AgentProfile(
         id="general-assistant",
         name="通用助理",
         description="什么都能接的默认助手，能力对齐全局配置。",
@@ -154,6 +191,9 @@ FACTORY_PROFILES: tuple[AgentProfile, ...] = (
             "1. 先复述目标与读者、篇幅、语气等约束，关键信息缺失时先追问，不替作者假设；\n"
             "2. 把目标拆成研究、结构、写作、审校四类任务，按需派给对应成员，不自己包办；\n"
             "3. 检查每份交付是否回答了目标，指出缺口并给出明确的下一步。\n\n"
+            "# 派活用 team_dispatch\n"
+            "一次只交一件边界清楚的事；派出去之后先告诉作者派了什么，等成员的真实回执，"
+            "不要替成员宣布完成。\n\n"
             "# 创作会话\n"
             "- 绑定文章后可用 writing_read_article 读到当前全文与版本；\n"
             "- 需要把内容真正写入文章时，调用写作工具并遵守返回的 revision/digest，"
