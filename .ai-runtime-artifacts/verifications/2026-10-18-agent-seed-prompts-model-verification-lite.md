@@ -63,6 +63,8 @@ commits:
 | `python -c "import nanobot.agent.subagent, nanobot.agent.loop, nanobot.agents.runtime"` | import ok |
 | HEAD 干净副本 `git worktree add --detach /tmp/... HEAD` + `PYTHONPATH=<副本> python -c "import ..."` | **HEAD import ok**（修复前该副本 ImportError，见 § 事故记录） |
 | 同一干净副本跑本批 8 个测试文件 | **122 passed**（证明两笔 commit 自洽，不依赖工作区残留） |
+| `git push origin feature/desktop-app` | `4c3f88e..87aed2d`（**fast-forward，未用 force**）；`git rev-list --count origin/feature/desktop-app..HEAD` = 0 |
+| `git worktree add --detach /tmp/... origin/feature/desktop-app` + 该副本 import + 本批 7 个测试文件 | 副本 HEAD = `87aed2d`，**remote HEAD import ok**、**102 passed** —— 远端已脱离 `4c3f88e` 的 import 崩状态 |
 | `git worktree add --detach /tmp/... b9f720f` 跑 HEAD 那 26 项所属的 11 个文件 | **25 failed / 359 passed** — 与 HEAD 的失败集逐名相同 |
 
 临时副本 `/tmp/zhixu-head-ct`、`/tmp/zhixu-verify-head`、`/tmp/zhixu-base-b9f`、`/tmp/zhixu-base2` 均已
@@ -139,11 +141,11 @@ HEAD:nanobot/agents/runtime.py 中 profile_identity_line 出现次数 = 0
 
 `b064190` 补齐 `runtime.py` 与 `loop.py` 接线，使 HEAD 恢复可构建，已在该干净副本上验证
 `HEAD import ok` + `122 passed`。归属披露写进了 commit body。
+用户批准后三笔已 forward push（`4c3f88e..87aed2d`，未动历史），远端状态另在
+`origin/feature/desktop-app` 的只读副本上复验为 `import ok` + `102 passed`。
 
 ## 未验证项
 
-- **未推送**。`b064190` / `ffcc6de` 目前只在本地；`origin/feature/desktop-app` 仍是坏的红。
-  普通 forward push 属共享状态，等用户明确批准。
 - spec §4.6（快照补 `model` / `model_source` + 前端显示实际模型）**未实施**：
   `nanobot/subagent_executions/models.py` 与前端 `parser.ts` / `types.ts` / 面板组件刚被
   `093c00e` 改过入库，现在动同一批文件会与并发会话继续互相覆盖。执行面板目前仍核对不了
@@ -158,6 +160,9 @@ HEAD:nanobot/agents/runtime.py 中 profile_identity_line 出现次数 = 0
 
 ## Next
 
-- 批准推送 → 说「推」，`git push` 两笔到 `origin/feature/desktop-app`（普通 forward，不动历史）
+- 已推送：`4c3f88e..87aed2d` fast-forward，未动已推送历史
 - 要补执行面板模型可见性 → 等并发会话的 `subagent_executions` 批次落地后单独立项（spec §4.6 已写好口径）
 - 要动提示词文本 → 直接给修改意见，改 `catalog.py` 后重跑 `test_agents_catalog.py`
+- 想做真实端到端冒烟 → 启 `nanobot gateway`，给某档案选一个与全局不同的 `modelId` 后
+  `spawn agent=<id>` 观察回报模型；再把该 preset 删掉复跑，应得 `model_preset_unavailable`
+  而不是静默换成父会话模型
