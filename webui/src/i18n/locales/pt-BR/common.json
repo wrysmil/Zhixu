@@ -1618,6 +1618,7 @@
         "namePlaceholder": "ex. Redator de SEO",
         "noCategory": "Sem categoria",
         "systemPreset": "Predefinição do sistema",
+        "defaultMainAgent": "Agente padrão",
         "updatedAt": "Atualizado {{time}}"
       },
       "capability": {
@@ -2318,11 +2319,15 @@
       "mentions": {
         "ariaLabel": "Aplicativos",
         "label": "Aplicativos",
+        "agentGroup": "Agentes",
         "cliGroup": "Aplicativos CLI",
         "mcpGroup": "Serviços MCP",
         "sessionGroup": "Conversas do 知序",
+        "agentBadge": "Agente",
+        "defaultAgentBadge": "Agente padrão",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "Assume este turno via @{{name}}",
         "cliDescription": "Usar @{{name}} como aplicativo CLI local",
         "mcpDescription": "Usar @{{name}} como servidor MCP",
         "cliTitle": "Aplicativo CLI: {{name}}",

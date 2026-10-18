@@ -1618,6 +1618,7 @@
         "namePlaceholder": "ví dụ: Viết nội dung SEO",
         "noCategory": "Chưa phân loại",
         "systemPreset": "Preset hệ thống",
+        "defaultMainAgent": "Tác nhân mặc định",
         "updatedAt": "Cập nhật {{time}}"
       },
       "capability": {
@@ -2334,11 +2335,15 @@
       "mentions": {
         "ariaLabel": "Đề cập",
         "label": "Ứng dụng",
+        "agentGroup": "Tác nhân",
         "cliGroup": "Ứng dụng CLI",
         "mcpGroup": "Dịch vụ MCP",
         "sessionGroup": "Cuộc trò chuyện 知序",
+        "agentBadge": "Tác nhân",
+        "defaultAgentBadge": "Tác nhân mặc định",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "@{{name}} sẽ phụ trách lượt này",
         "cliDescription": "Dùng @{{name}} như ứng dụng CLI cục bộ",
         "mcpDescription": "Dùng @{{name}} như máy chủ MCP",
         "cliTitle": "Ứng dụng CLI: {{name}}",

@@ -101,9 +101,7 @@ describe("ComposerPlusMenu", () => {
     expect(props.onInsertToken).toHaveBeenCalledWith("@context7");
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     fireEvent.click(screen.getByRole("menuitem", { name: /Researcher/ }));
-    expect(props.onInsertToken).toHaveBeenCalledWith(
-      'Run this with the agent "Researcher": ',
-    );
+    expect(props.onInsertToken).toHaveBeenCalledWith("@researcher");
   });
 
   it("routes file picking and project work to their handlers", () => {

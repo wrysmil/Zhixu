@@ -1618,6 +1618,7 @@
         "namePlaceholder": "ex. Rédacteur SEO",
         "noCategory": "Sans catégorie",
         "systemPreset": "Préréglage système",
+        "defaultMainAgent": "Agent par défaut",
         "updatedAt": "Modifié {{time}}"
       },
       "capability": {
@@ -2334,11 +2335,15 @@
       "mentions": {
         "ariaLabel": "Applications",
         "label": "Applications",
+        "agentGroup": "Agents",
         "cliGroup": "Applications CLI",
         "mcpGroup": "Services MCP",
         "sessionGroup": "Conversations 知序",
+        "agentBadge": "Agent",
+        "defaultAgentBadge": "Agent par défaut",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "Prend le relais pour ce tour via @{{name}}",
         "cliDescription": "Utiliser @{{name}} comme application CLI locale",
         "mcpDescription": "Utiliser @{{name}} comme serveur MCP",
         "cliTitle": "Application CLI : {{name}}",

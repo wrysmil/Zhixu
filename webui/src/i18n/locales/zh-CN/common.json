@@ -569,6 +569,7 @@
         "noCategory": "未分类",
         "appearance": "图标与颜色",
         "systemPreset": "系统预设",
+        "defaultMainAgent": "默认主 Agent",
         "custom": "自定义",
         "hidden": "已隐藏",
         "updatedAt": "上次修改 {{time}}"
@@ -2373,11 +2374,15 @@
       "mentions": {
         "ariaLabel": "提及",
         "label": "应用",
+        "agentGroup": "智能体",
         "cliGroup": "CLI 应用",
         "mcpGroup": "MCP 服务",
         "sessionGroup": "知序 对话",
+        "agentBadge": "智能体",
+        "defaultAgentBadge": "默认主 Agent",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "由 @{{name}} 接管本轮",
         "cliDescription": "使用 @{{name}} 调用本地 CLI",
         "mcpDescription": "使用 @{{name}} 调用 MCP 服务",
         "cliTitle": "CLI 应用：{{name}}",

@@ -569,6 +569,7 @@
         "noCategory": "Uncategorized",
         "appearance": "Icon and colour",
         "systemPreset": "System preset",
+        "defaultMainAgent": "Default agent",
         "custom": "Custom",
         "hidden": "Hidden",
         "updatedAt": "Updated {{time}}"
@@ -2374,11 +2375,15 @@
       "mentions": {
         "ariaLabel": "Mentions",
         "label": "Apps",
+        "agentGroup": "Agents",
         "cliGroup": "CLI apps",
         "mcpGroup": "MCP services",
         "sessionGroup": "知序 conversations",
+        "agentBadge": "Agent",
+        "defaultAgentBadge": "Default agent",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "Takes over this turn via @{{name}}",
         "cliDescription": "Use @{{name}} as a local CLI app",
         "mcpDescription": "Use @{{name}} as an MCP server",
         "cliTitle": "CLI app: {{name}}",

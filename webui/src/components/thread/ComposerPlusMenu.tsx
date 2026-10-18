@@ -2,7 +2,6 @@ import { type ReactNode, useState } from "react";
 import {
   ArrowLeft,
   Blocks,
-  Bot,
   Brain,
   Check,
   FilePlus2,
@@ -20,6 +19,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
 import { FeedbackPopover } from "@/components/thread/FeedbackPopover";
 import {
   Popover,
@@ -377,21 +377,13 @@ export function ComposerPlusMenu({
                 emptyLabel={t("thread.composer.menu.noAgents")}
                 empty={agents.length === 0}
               >
-                {agents.map((agent) => (
+                {agents.filter((agent) => !agent.hidden).map((agent) => (
                   <MenuItem
                     key={`agent:${agent.id}`}
-                    icon={<Bot className="h-4 w-4" />}
+                    icon={<AgentGlyph icon={agent.icon} size={16} />}
                     title={agent.name}
                     description={agent.description || undefined}
-                    onClick={() =>
-                      run(() =>
-                        onInsertToken(
-                          t("thread.composer.menu.agentInsert", {
-                            name: agent.name,
-                            defaultValue: "Run this with the agent \"{{name}}\": ",
-                          }),
-                        ),
-                      )}
+                    onClick={() => run(() => onInsertToken(`@${agent.id}`))}
                   />
                 ))}
               </MenuSection>

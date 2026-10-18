@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AgentsView } from "@/components/settings/agents/AgentsView";
@@ -53,6 +53,17 @@ const agent: AgentProfile = {
   updatedAt: "2026-09-01T00:00:00Z",
 };
 
+const commander: AgentProfile = {
+  ...agent,
+  id: "commander",
+  name: "指挥官",
+  description: "默认主 Agent",
+  type: "system",
+  categoryId: "general",
+  icon: "lucide:compass",
+  color: "#D97706",
+};
+
 const catalog = { tools: [], skills: [], models: [], mcpServers: [], categories: [] };
 
 describe("agents 编辑提示词", () => {
@@ -61,6 +72,28 @@ describe("agents 编辑提示词", () => {
     listAgents.mockResolvedValue({ agents: [agent] });
     loadAgentCatalog.mockResolvedValue(catalog);
     saveAgent.mockImplementation(async (_t: unknown, a: AgentProfile) => ({ agent: a }));
+  });
+
+  it("pins the default agent first and marks it", async () => {
+    listAgents.mockResolvedValue({ agents: [agent, commander] });
+    render(<AgentsView />);
+
+    const rows = await screen.findAllByRole("group");
+    expect(rows[0]).toHaveTextContent("指挥官");
+    expect(within(rows[0]).getByText("Default agent")).toBeVisible();
+    expect(within(rows[1]).queryByText("Default agent")).toBeNull();
+  });
+
+  it("shows every agent in the tree view when no sub-agent hierarchy is configured", async () => {
+    const user = userEvent.setup();
+    listAgents.mockResolvedValue({ agents: [agent, commander] });
+    render(<AgentsView />);
+
+    await user.click(await screen.findByRole("button", { name: "Tree" }));
+
+    expect(await screen.findByText("指挥官")).toBeVisible();
+    expect(screen.getByText("代码审查")).toBeVisible();
+    expect(screen.queryByText("No agents to show")).toBeNull();
   });
 
   it("改完提示词保存时必须打到后端 save", async () => {

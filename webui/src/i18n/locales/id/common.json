@@ -1618,6 +1618,7 @@
         "namePlaceholder": "mis. Penulis SEO",
         "noCategory": "Tanpa kategori",
         "systemPreset": "Preset sistem",
+        "defaultMainAgent": "Agen default",
         "updatedAt": "Diperbarui {{time}}"
       },
       "capability": {
@@ -2334,11 +2335,15 @@
       "mentions": {
         "ariaLabel": "Sebutan",
         "label": "Aplikasi",
+        "agentGroup": "Agen",
         "cliGroup": "Aplikasi CLI",
         "mcpGroup": "Layanan MCP",
         "sessionGroup": "Percakapan 知序",
+        "agentBadge": "Agen",
+        "defaultAgentBadge": "Agen default",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "Mengambil alih giliran ini melalui @{{name}}",
         "cliDescription": "Gunakan @{{name}} sebagai aplikasi CLI lokal",
         "mcpDescription": "Gunakan @{{name}} sebagai server MCP",
         "cliTitle": "Aplikasi CLI: {{name}}",

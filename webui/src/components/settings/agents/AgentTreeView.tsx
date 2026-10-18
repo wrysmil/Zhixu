@@ -1,9 +1,17 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Badge } from "@/components/settings/agents/shared";
-import type { AgentProfile, ModelDescriptor, SkillDescriptor, ToolDescriptor } from "@/lib/agents/types";
-import { resolveSelection } from "@/lib/agents/types";
+import { Badge, DefaultMainAgentBadge } from "@/components/settings/agents/shared";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
+import {
+  isDefaultMainAgent,
+  resolveSelection,
+  type AgentProfile,
+  type ModelDescriptor,
+  type SkillDescriptor,
+  type ToolDescriptor,
+} from "@/lib/agents/types";
+import { cn } from "@/lib/utils";
 
 function TreeNode({
   agent,
@@ -23,15 +31,20 @@ function TreeNode({
   path: Set<string>;
 }) {
   const { t } = useTranslation();
+  const isDefault = isDefaultMainAgent(agent);
   const childIds = useMemo(() => {
-    const all = [...agentsById.keys()];
-    return [...resolveSelection(agent.subAgents, all)].filter((id) => !path.has(id));
+    // 「all / exclude」是能力范围，不是层级关系；只有显式 include 才画成子节点。
+    if (agent.subAgents.mode !== "include") return [];
+    return agent.subAgents.entries.filter((id) => agentsById.has(id) && !path.has(id));
   }, [agent.subAgents, agentsById, path]);
 
   return (
     <li>
       <div
-        className="flex items-center gap-2.5 rounded-control px-2 py-1.5 transition-colors hover:bg-muted/50"
+        className={cn(
+          "flex items-center gap-2.5 rounded-control px-2 py-1.5 transition-colors hover:bg-muted/50",
+          isDefault && "bg-amber-50/50 ring-1 ring-amber-300/50 dark:bg-amber-950/15 dark:ring-amber-700/40",
+        )}
         style={{ paddingLeft: `${depth * 1.5 + 0.5}rem` }}
       >
         {depth > 0 ? (
@@ -44,11 +57,12 @@ function TreeNode({
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[15px]"
           style={{ backgroundColor: `${agent.color}1f` }}
         >
-          {agent.icon}
+          <AgentGlyph icon={agent.icon} size={15} />
         </span>
         <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground/90">
           {agent.name}
         </span>
+        {isDefault ? <DefaultMainAgentBadge /> : null}
         {agent.type === "system" ? (
           <Badge tone="info">{t("settings.agents.basics.systemPreset", "系统预设")}</Badge>
         ) : null}
@@ -115,9 +129,11 @@ export function AgentTreeView({
     models.find((model) => model.id === agent.modelId)?.label ?? globalModelLabel;
 
   const roots = agents.filter((agent) => {
-    const isChild = agents.some((other) =>
-      other.id !== agent.id &&
-      resolveSelection(other.subAgents, [...agentsById.keys()]).has(agent.id),
+    const isChild = agents.some(
+      (other) =>
+        other.id !== agent.id &&
+        other.subAgents.mode === "include" &&
+        other.subAgents.entries.includes(agent.id),
     );
     return !isChild;
   });

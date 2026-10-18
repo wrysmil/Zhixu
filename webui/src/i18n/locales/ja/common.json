@@ -1618,6 +1618,7 @@
         "namePlaceholder": "例：SEO ライター",
         "noCategory": "未分類",
         "systemPreset": "システムプリセット",
+        "defaultMainAgent": "デフォルトエージェント",
         "updatedAt": "更新 {{time}}"
       },
       "capability": {
@@ -2334,11 +2335,15 @@
       "mentions": {
         "ariaLabel": "メンション",
         "label": "アプリ",
+        "agentGroup": "エージェント",
         "cliGroup": "CLI アプリ",
         "mcpGroup": "MCP サービス",
         "sessionGroup": "知序 の会話",
+        "agentBadge": "エージェント",
+        "defaultAgentBadge": "デフォルトエージェント",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "@{{name}} がこのターンを担当します",
         "cliDescription": "@{{name}} をローカル CLI アプリとして使用",
         "mcpDescription": "@{{name}} を MCP サーバーとして使用",
         "cliTitle": "CLI アプリ: {{name}}",

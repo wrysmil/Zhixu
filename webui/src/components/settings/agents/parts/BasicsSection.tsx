@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { EmojiPicker } from "@/components/ui/emoji-picker";
+import { AgentIconPicker } from "@/components/ui/agent-icon-picker";
 import { Badge, ColorSwatch, FieldLabel } from "@/components/settings/agents/shared";
 import type { AgentCategory, AgentProfile } from "@/lib/agents/types";
 import { categoryById } from "@/lib/agents/types";
@@ -149,7 +149,7 @@ export function BasicsSection({
         <div>
           <FieldLabel>{t("settings.agents.basics.appearance", "图标与颜色")}</FieldLabel>
           <div className="flex items-start gap-2">
-            <EmojiPicker
+            <AgentIconPicker
               value={profile.icon}
               onChange={(icon) => onChange({ icon })}
             />

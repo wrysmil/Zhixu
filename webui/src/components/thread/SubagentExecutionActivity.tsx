@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 
 import { GenericToolRun } from "@/components/thread/activity/GenericToolRun";
 import type { GenericToolRunItem } from "@/components/thread/activity/generic-tool-model";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
 import type {
   ExecutionActivity,
   ExecutionActivityStatus,
@@ -32,7 +33,7 @@ export interface SubagentExecutionEntryValue {
 }
 
 /** 内置默认 Agent 图标，与 Agent 编辑器里的兜底保持一致。 */
-export const DEFAULT_AGENT_ICON = "/icons/agent-bot.svg";
+export { DEFAULT_AGENT_ICON } from "@/lib/agents/icons";
 
 const SubagentExecutionEntryContext = createContext<SubagentExecutionEntryValue | null>(null);
 
@@ -125,17 +126,10 @@ function entryIconTone(status: ExecutionStatus): string {
 }
 
 /**
- * Agent 图标：优先用档案里配置的图标（emoji 或图片路径），没有就用内置默认图标。
+ * Agent 图标：优先用档案里配置的图标（lucide、emoji 或图片路径），没有就用内置默认图标。
  * 图标只做身份展示，状态仍由文字与配色表达。
  */
-function AgentGlyph({ icon }: { icon: string }) {
-  const value = icon.trim();
-  if (value.startsWith("/") || value.startsWith("http")) {
-    return <img src={value} alt="" className="h-3.5 w-3.5" />;
-  }
-  if (value) return <span className="text-[13px] leading-none">{value}</span>;
-  return <img src={DEFAULT_AGENT_ICON} alt="" className="h-3.5 w-3.5" />;
-}
+
 
 function activityIcon(activity: ExecutionActivity): LucideIcon {
   if (activity.kind === "progress") return CircleDot;
@@ -290,7 +284,7 @@ export function SubagentExecutionEntry({ item }: { item: GenericToolRunItem }) {
         )}
         aria-hidden
       >
-        <AgentGlyph icon={agentIcon} />
+        <AgentGlyph icon={agentIcon} size={14} />
       </span>
       <span className="min-w-0 flex-1 truncate">
         <span className="font-medium text-foreground/90">{agentLabel}</span>

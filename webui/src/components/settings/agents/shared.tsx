@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2 } from "lucide-react";
+import { Loader2, Star } from "lucide-react";
 
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { AGENT_COLOR_PRESETS, type SelectionMode } from "@/lib/agents/types";
@@ -140,6 +140,16 @@ export function Badge({ tone = "neutral", children }: { tone?: BadgeTone; childr
     >
       {children}
     </span>
+  );
+}
+
+export function DefaultMainAgentBadge() {
+  const { t } = useTranslation();
+  return (
+    <Badge tone="warn">
+      <Star className="h-3 w-3 fill-current" aria-hidden />
+      {t("settings.agents.basics.defaultMainAgent", "Default agent")}
+    </Badge>
   );
 }
 

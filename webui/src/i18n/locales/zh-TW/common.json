@@ -1618,6 +1618,7 @@
         "namePlaceholder": "例如：SEO 寫手",
         "noCategory": "未分類",
         "systemPreset": "系統預設",
+        "defaultMainAgent": "預設主 Agent",
         "updatedAt": "上次修改 {{time}}"
       },
       "capability": {
@@ -2334,11 +2335,15 @@
       "mentions": {
         "ariaLabel": "提及",
         "label": "應用程式",
+        "agentGroup": "智能體",
         "cliGroup": "CLI 應用程式",
         "mcpGroup": "MCP 伺服器",
         "sessionGroup": "知序 對話",
+        "agentBadge": "智能體",
+        "defaultAgentBadge": "預設主 Agent",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "由 @{{name}} 接管本輪",
         "cliDescription": "將 @{{name}} 作為本機 CLI 應用程式使用",
         "mcpDescription": "將 @{{name}} 作為 MCP 伺服器使用",
         "cliTitle": "CLI 應用程式：{{name}}",

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Bot, ChevronDown, CircleAlert, RotateCcw, SlidersHorizontal, Wrench, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
 import {
   Dialog,
   DialogContent,
@@ -27,9 +28,15 @@ import {
 import { ModelPicker } from "@/components/settings/agents/parts/ModelPicker";
 import { PromptSection } from "@/components/settings/agents/parts/PromptSection";
 import { AgentRailSummary } from "@/components/settings/agents/parts/AgentRailSummary";
+import { DefaultMainAgentBadge } from "@/components/settings/agents/shared";
 import type { AgentProfile } from "@/lib/agents/types";
 import type { AgentCatalog } from "@/lib/agents/catalog";
-import { PROMPT_MAX_LENGTH, TOOL_CATEGORIES, resolveSelection } from "@/lib/agents/types";
+import {
+  PROMPT_MAX_LENGTH,
+  TOOL_CATEGORIES,
+  isDefaultMainAgent,
+  resolveSelection,
+} from "@/lib/agents/types";
 import { SKILL_SOURCE_LABEL_KEY, TOOL_CATEGORY_LABEL_KEY } from "@/lib/agents/i18n";
 import { cn } from "@/lib/utils";
 import "./agent-editor.css";
@@ -144,6 +151,7 @@ export function AgentEditorDialog({
 
   if (!draft) return null;
 
+  const isDefault = isDefaultMainAgent(draft);
   const dirty = JSON.stringify(draft) !== JSON.stringify(agent);
   const validationError = !draft.name.trim()
     ? { field: "name" as const, message: t("settings.agents.workspace.nameRequired", "请先填写名称") }
@@ -199,14 +207,17 @@ export function AgentEditorDialog({
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control text-[20px]"
               style={{ backgroundColor: `${draft.color}1a` }}
             >
-              {draft.icon || <img src="/icons/agent-bot.svg" width="24" height="24" alt="" />}
+              <AgentGlyph icon={draft.icon} size={20} />
             </span>
             <div className="min-w-0 flex-1">
-              <DialogTitle className="truncate text-[19px] font-semibold tracking-tight">
-                {isNew
-                  ? t("settings.agents.editor.new", "新建 Agent")
-                  : t("settings.agents.editor.edit", "编辑 · {{name}}", { name: draft.name })}
-              </DialogTitle>
+              <div className="flex min-w-0 items-center gap-2">
+                <DialogTitle className="truncate text-[19px] font-semibold tracking-tight">
+                  {isNew
+                    ? t("settings.agents.editor.new", "新建 Agent")
+                    : t("settings.agents.editor.edit", "编辑 · {{name}}", { name: draft.name })}
+                </DialogTitle>
+                {!isNew && isDefault ? <DefaultMainAgentBadge /> : null}
+              </div>
               <DialogDescription className="mt-1 text-[12px]">
                 {t("settings.agents.workspace.subtitle", "先写清职责，再为它选择合适的能力。")}
               </DialogDescription>

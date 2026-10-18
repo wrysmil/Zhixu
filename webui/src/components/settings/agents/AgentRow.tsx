@@ -7,8 +7,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/settings/agents/shared";
-import type { AgentProfile } from "@/lib/agents/types";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
+import { Badge, DefaultMainAgentBadge } from "@/components/settings/agents/shared";
+import { isDefaultMainAgent, type AgentProfile } from "@/lib/agents/types";
 import { AGENT_CATEGORY_LABEL_KEY } from "@/lib/agents/i18n";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +84,7 @@ export function AgentRow({
 }) {
   const { t } = useTranslation();
   const categoryKey = agent.categoryId ? AGENT_CATEGORY_LABEL_KEY[agent.categoryId] : null;
+  const isDefault = isDefaultMainAgent(agent);
 
   return (
     <div
@@ -90,6 +92,7 @@ export function AgentRow({
       className={cn(
         "group flex items-center gap-3 rounded-panel border border-transparent bg-settings-surface px-3.5 py-3 transition-colors",
         "hover:border-border/70 hover:bg-muted/40",
+        isDefault && "bg-amber-50/45 ring-1 ring-amber-300/60 hover:border-amber-300/70 hover:bg-amber-50/60 dark:bg-amber-950/15 dark:ring-amber-700/40",
         dimmed && "opacity-60",
       )}
     >
@@ -103,7 +106,7 @@ export function AgentRow({
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control text-[20px]"
           style={{ backgroundColor: `${agent.color}1a` }}
         >
-          {agent.icon}
+          <AgentGlyph icon={agent.icon} size={20} />
         </span>
 
         <span className="min-w-0 flex-1">
@@ -111,6 +114,7 @@ export function AgentRow({
             <span className="truncate text-[14px] font-semibold text-foreground">
               {agent.name}
             </span>
+            {isDefault ? <DefaultMainAgentBadge /> : null}
             {agent.type === "system" ? (
               <Badge tone="info">{t("settings.agents.basics.systemPreset", "系统预设")}</Badge>
             ) : null}

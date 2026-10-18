@@ -31,6 +31,7 @@ import {
 import { createBlankAgent, slugifyAgentId, uniqueAgentId } from "@/lib/agents/catalog";
 import type { AgentCatalog } from "@/lib/agents/catalog";
 import type { AgentProfile } from "@/lib/agents/types";
+import { isDefaultMainAgent } from "@/lib/agents/types";
 import { AGENT_CATEGORY_LABEL_KEY } from "@/lib/agents/i18n";
 import { notifySaved } from "@/lib/save-feedback";
 
@@ -110,15 +111,19 @@ export function AgentsView() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return visibleAgents.filter((agent) => {
-      if (categoryFilter !== ALL && agent.categoryId !== categoryFilter) return false;
-      if (!needle) return true;
-      return (
-        agent.name.toLowerCase().includes(needle) ||
-        agent.description.toLowerCase().includes(needle) ||
-        agent.id.toLowerCase().includes(needle)
+    return visibleAgents
+      .filter((agent) => {
+        if (categoryFilter !== ALL && agent.categoryId !== categoryFilter) return false;
+        if (!needle) return true;
+        return (
+          agent.name.toLowerCase().includes(needle) ||
+          agent.description.toLowerCase().includes(needle) ||
+          agent.id.toLowerCase().includes(needle)
+        );
+      })
+      .sort(
+        (a, b) => Number(!isDefaultMainAgent(a)) - Number(!isDefaultMainAgent(b)),
       );
-    });
   }, [visibleAgents, categoryFilter, query]);
 
   const hiddenAgents = useMemo(() => agents.filter((agent) => agent.hidden), [agents]);
