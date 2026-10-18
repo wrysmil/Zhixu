@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from contextvars import ContextVar
 from typing import Any, cast
 
 from loguru import logger
@@ -17,6 +18,14 @@ from nanobot.utils.runtime import (
 )
 
 _RETRY_HINT = "\n\n[Analyze the error above and try a different approach.]"
+_CURRENT_TOOL_CALL_ID: ContextVar[str | None] = ContextVar(
+    "nanobot_current_tool_call_id", default=None,
+)
+
+
+def current_tool_call_id() -> str | None:
+    """当前工具调用身份；每个 gather 分支独立绑定，不能写入共享 RequestContext。"""
+    return _CURRENT_TOOL_CALL_ID.get()
 # SSRF is a hard security block at the tool boundary, but the agent turn
 # should recover conversationally instead of aborting the runtime.
 _SSRF_MARKERS: tuple[str, ...] = (
@@ -94,6 +103,23 @@ async def execute_tool_calls(
 
 
 async def _execute_tool_call(
+    tools: ToolRegistry,
+    tool_call: ToolCallRequest,
+    external_lookup_counts: dict[str, int],
+    workspace_violation_counts: dict[str, int],
+    hook: AgentHook,
+    context: AgentHookContext,
+) -> tuple[Any, dict[str, str]]:
+    token = _CURRENT_TOOL_CALL_ID.set(tool_call.id)
+    try:
+        return await _execute_bound_tool_call(
+            tools, tool_call, external_lookup_counts, workspace_violation_counts, hook, context,
+        )
+    finally:
+        _CURRENT_TOOL_CALL_ID.reset(token)
+
+
+async def _execute_bound_tool_call(
     tools: ToolRegistry,
     tool_call: ToolCallRequest,
     external_lookup_counts: dict[str, int],

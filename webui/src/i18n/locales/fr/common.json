@@ -1926,6 +1926,46 @@
     "back": "Retour"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "Exécution du sous-agent",
+      "genericAgent": "Agent général",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "Aucun détail d’exécution",
+      "close": "Fermer les détails d’exécution",
+      "reload": "Recharger",
+      "taskSwitcher": "Changer de tâche de sous-agent",
+      "call": "Appel {{id}}",
+      "instruction": "Tâche",
+      "process": "Exécution",
+      "result": "Résultat du sous-agent",
+      "truncated": "Contenu tronqué",
+      "noActivities": "Aucune activité publique pour le moment.",
+      "connectionStale": "Connexion perdue, synchronisation de l’état en attente",
+      "historyLimited": "Une partie des activités précédentes a expiré",
+      "activitySummary": "{{action}} · {{count}} appels d’outil terminés",
+      "activitySummaryNoAction": "{{count}} appels d’outil terminés",
+      "status": {
+        "queued": "En attente",
+        "running": "En cours",
+        "succeeded": "Terminé",
+        "failed": "Échec",
+        "cancelled": "Arrêté",
+        "interrupted": "Interrompu"
+      },
+      "phase": {
+        "preparing": "Préparation",
+        "model": "Génération",
+        "tools": "Utilisation des outils",
+        "finalizing": "Finalisation"
+      },
+      "activityStatus": {
+        "running": "En cours",
+        "succeeded": "Terminé",
+        "failed": "Échec",
+        "cancelled": "Arrêté",
+        "interrupted": "Interrompu"
+      }
+    },
     "activity": {
       "viewDetails": "Voir les détails",
       "hideDetails": "Masquer",

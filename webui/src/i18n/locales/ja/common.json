@@ -1926,6 +1926,46 @@
     "back": "戻る"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "サブエージェント実行",
+      "genericAgent": "汎用エージェント",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "実行詳細はありません",
+      "close": "実行詳細を閉じる",
+      "reload": "再読み込み",
+      "taskSwitcher": "サブエージェントのタスクを切り替え",
+      "call": "呼び出し {{id}}",
+      "instruction": "タスク",
+      "process": "実行",
+      "result": "サブエージェントの結果",
+      "truncated": "内容は切り詰められました",
+      "noActivities": "公開アクティビティはまだありません。",
+      "connectionStale": "接続が切れました。状態の同期を待っています",
+      "historyLimited": "以前のアクティビティの一部は期限切れです",
+      "activitySummary": "{{action}} · ツール呼び出し {{count}} 件完了",
+      "activitySummaryNoAction": "ツール呼び出し {{count}} 件完了",
+      "status": {
+        "queued": "待機中",
+        "running": "実行中",
+        "succeeded": "完了",
+        "failed": "失敗",
+        "cancelled": "停止",
+        "interrupted": "中断"
+      },
+      "phase": {
+        "preparing": "準備中",
+        "model": "生成中",
+        "tools": "ツール使用中",
+        "finalizing": "完了処理中"
+      },
+      "activityStatus": {
+        "running": "実行中",
+        "succeeded": "完了",
+        "failed": "失敗",
+        "cancelled": "停止",
+        "interrupted": "中断"
+      }
+    },
     "activity": {
       "viewDetails": "詳細を見る",
       "hideDetails": "隠す",

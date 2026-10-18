@@ -399,7 +399,10 @@ class WebSocketChannel(BaseChannel):
         self._webui_request_operations = self._commands.request_operations
         self._webui_request_locks = self._commands.request_locks
         self._outbound = WebUIOutboundProjector(
-            self, self._session_projection, team_hydration=self._team_run_snapshots,
+            self,
+            self._session_projection,
+            team_hydration=self._team_run_snapshots,
+            subagent_hydration=self._subagent_execution_snapshots,
         )
 
         self._stream_text_buffers: dict[tuple[str, str], list[str]] = {}
@@ -446,6 +449,34 @@ class WebSocketChannel(BaseChannel):
             for run in page["runs"]
             if getattr(run, "finished_at", None) is None
         ]
+
+    async def _subagent_execution_snapshots(self, chat_id: str) -> dict[str, Any]:
+        """Replay the same list-shaped snapshot the GET endpoint returns.
+
+        Storage failures are observational degradation only: a missing ledger or
+        a failed read yields an empty page and never interrupts the main stream.
+        """
+        operations = self.gateway.subagent_execution_operations
+        if operations is None:
+            return {
+                "executions": [],
+                "nextCursor": None,
+                "serverNow": "",
+            }
+        try:
+            return await asyncio.to_thread(
+                operations.list_executions,
+                chat_id=chat_id,
+            )
+        except Exception:
+            self.logger.exception(
+                "subagent execution snapshot unavailable for chat {}", chat_id,
+            )
+            return {
+                "executions": [],
+                "nextCursor": None,
+                "serverNow": "",
+            }
 
     async def webui_send_event(
         self,

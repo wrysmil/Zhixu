@@ -1,11 +1,12 @@
 """Subagent manager for background task execution."""
 
 import asyncio
+import inspect
 import json
 import time
 import uuid
 import warnings
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Awaitable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -39,6 +40,7 @@ from nanobot.security.workspace_access import (
     reset_workspace_scope,
     workspace_sandbox_status,
 )
+from nanobot.subagent_executions import ExecutionEvent, ExecutionRepository
 from nanobot.utils.llm_runtime import LLMRuntime
 from nanobot.utils.prompt_templates import render_template
 
@@ -157,6 +159,78 @@ class SubagentExecutionResult:
     error_code: str | None = None
 
 
+ExecutionEventSink = Callable[[ExecutionEvent], Awaitable[None] | None]
+
+
+class _ExecutionObservation:
+    """串行提交一次 invocation 的观察更新；观察失败绝不改变执行结论。"""
+
+    def __init__(
+        self, ledger: ExecutionRepository, invocation_id: str, chat_id: str,
+        sink: ExecutionEventSink | None,
+    ) -> None:
+        self.ledger = ledger
+        self.invocation_id = invocation_id
+        self.chat_id = chat_id
+        self.sink = sink
+        self.last_seq = 0
+        self.finished = False
+        self._lock = asyncio.Lock()
+
+    async def update(self, mutation: Callable[[], object]) -> None:
+        async with self._lock:
+            try:
+                mutation()
+                while True:
+                    page = self.ledger.events(
+                        self.chat_id, self.invocation_id, after_seq=self.last_seq, limit=200,
+                    )
+                    for event in page.items:
+                        self.last_seq = event.seq
+                        if self.sink is not None:
+                            try:
+                                pending = self.sink(event)
+                                if inspect.isawaitable(pending):
+                                    await pending
+                            except Exception:
+                                logger.exception("Subagent execution event sink unavailable")
+                    if not page.has_more:
+                        break
+            except Exception:
+                logger.exception("Subagent execution ledger unavailable")
+
+    async def phase(self, phase: str, action: str) -> None:
+        await self.update(lambda: self.ledger.set_phase(
+            self.invocation_id, phase, last_action=action,
+        ))
+
+    async def finish(self, result: SubagentExecutionResult) -> None:
+        # 收口可能被三条路径触发（协程内 CancelledError、inline finally、background
+        # done 回调）；只允许第一次真正写库，其余直接返回（审查 P1-2）。
+        if self.finished:
+            return
+        self.finished = True
+        # 错误只映射稳定公开文案，原始 provider 异常/堆栈不得进执行账本。
+        errors = {
+            "invalid_profile": "Agent 档案不可用，请检查所选档案。",
+            "max_iterations": "任务达到迭代上限，未生成最终答案。",
+            "empty_final_response": "任务未生成最终答案。",
+            "cancelled": "任务已取消。",
+            "timeout": "模型请求超时，请稍后重试。",
+        }
+        successful = result.outcome == "succeeded"
+        error = errors.get(result.stop_reason, "子 Agent 执行失败，请稍后重试。")
+        summary = result.final_content if successful else error
+        await self.update(lambda: self.ledger.finish(
+            self.invocation_id, result.outcome, result={
+                "summary": summary[:8000], "truncated": len(summary) > 8000,
+                "stopReason": result.stop_reason,
+                "errorCode": None if successful else (result.error_code or result.stop_reason),
+                "errorMessage": None if successful else error,
+            },
+        ))
+
+
 class _SubagentHook(AgentHook):
     """Hook for subagent execution — logs tool calls and updates status."""
 
@@ -165,13 +239,22 @@ class _SubagentHook(AgentHook):
         task_id: str,
         status: SubagentStatus | None = None,
         on_activity: "Callable[[Mapping[str, Any]], Any] | None" = None,
+        observation: _ExecutionObservation | None = None,
     ) -> None:
         super().__init__()
         self._task_id = task_id
         self._status = status
         self._on_activity = on_activity
+        self._observation = observation
+        self._observed_tool_calls: set[str] = set()
+
+    async def before_iteration(self, context: AgentHookContext) -> None:
+        if self._observation is not None:
+            await self._observation.phase("model", "正在处理任务")
 
     async def before_execute_tools(self, context: AgentHookContext) -> None:
+        if self._observation is not None:
+            await self._observation.phase("tools", "正在使用工具")
         for tool_call in context.tool_calls:
             args_str = json.dumps(tool_call.arguments, ensure_ascii=False)
             logger.debug(
@@ -179,7 +262,44 @@ class _SubagentHook(AgentHook):
                 self._task_id, tool_call.name, args_str,
             )
 
+    async def before_execute_tool(
+        self, context: AgentHookContext, tool_call: Any, tool: Any, params: Any,
+    ) -> None:
+        observation = self._observation
+        if observation is not None:
+            self._observed_tool_calls.add(tool_call.id)
+            await observation.update(lambda: observation.ledger.start_activity(
+                observation.invocation_id, tool_call.name, activity_id=tool_call.id,
+                label="正在使用工具",
+            ))
+
+    async def _finish_tool(self, tool_call: Any, status: str) -> None:
+        observation = self._observation
+        if observation is not None:
+            await observation.update(lambda: observation.ledger.finish_activity(
+                observation.invocation_id, tool_call.id, status,
+            ))
+
+    async def after_execute_tool(
+        self, context: AgentHookContext, tool_call: Any, tool: Any, params: Any, result: Any,
+    ) -> None:
+        await self._finish_tool(tool_call, "succeeded")
+
+    async def on_execute_tool_error(
+        self, context: AgentHookContext, tool_call: Any, tool: Any, params: Any, error: Any,
+    ) -> None:
+        await self._finish_tool(tool_call, "failed")
+
     async def after_iteration(self, context: AgentHookContext) -> None:
+        if self._observation is not None:
+            # 参数预检/重复访问拦截会在 execute_tool_calls 内提早返回，不触发执行
+            # hook；沿用 runner 给出的结构化结论补齐这类瞬时活动，绝不解析输出。
+            for call, event in zip(context.tool_calls, context.tool_events):
+                if call.id not in self._observed_tool_calls:
+                    await self.before_execute_tool(context, call, None, None)
+                    await self._finish_tool(
+                        call, "succeeded" if event.get("status") == "ok" else "failed",
+                    )
         if self._status is not None:
             self._status.iteration = context.iteration
             self._status.tool_events = list(context.tool_events)
@@ -193,11 +313,14 @@ class _SubagentHook(AgentHook):
             name = event.get("name") or event.get("tool") or ""
             if not name:
                 continue
-            await self._on_activity({
-                "toolName": name,
-                "toolStatus": event.get("status") or "",
-                "iteration": context.iteration,
-            })
+            try:
+                await self._on_activity({
+                    "toolName": name,
+                    "toolStatus": event.get("status") or "",
+                    "iteration": context.iteration,
+                })
+            except Exception:
+                logger.exception("Subagent activity observer unavailable")
 
 
 class SubagentManager:
@@ -218,6 +341,8 @@ class SubagentManager:
         llm_wall_timeout_for_session: Callable[[str | None], float | None] | None = None,
         agent_profiles: AgentProfileRuntime | None = None,
         model_resolver: Callable[[str], LLMRuntime | None] | None = None,
+        execution_ledger: ExecutionRepository | None = None,
+        execution_event_sink: ExecutionEventSink | None = None,
     ):
         if workspace is None:
             raise TypeError("SubagentManager.__init__() missing required argument: 'workspace'")
@@ -267,9 +392,49 @@ class SubagentManager:
         # 二期：Agent 档案。默认 None = 完全保持一期之前的子 agent 行为。
         self._agent_profiles = agent_profiles
         self._model_resolver = model_resolver
+        self.execution_ledger = execution_ledger
+        self.execution_event_sink = execution_event_sink
+        self._execution_observations: dict[str, _ExecutionObservation] = {}
         self._running_tasks: dict[str, asyncio.Task[str]] = {}
         self._task_statuses: dict[str, SubagentStatus] = {}
         self._session_tasks: dict[str, set[str]] = {}  # session_key -> {task_id, ...}
+
+    async def create_execution(
+        self, context: RequestContext, *, parent_tool_call_id: str = "",
+        label: str | None = None, agent_id: str | None = None, wait: bool = False,
+    ) -> str | None:
+        """派发前建立公开 invocation；不接收 task/prompt，避免原文误入持久层。"""
+        ledger = self.execution_ledger
+        parent_turn = context.metadata.get("webui_turn_id")
+        if (ledger is None or context.channel != "websocket"
+                or not isinstance(parent_turn, str) or not parent_turn.strip()):
+            return None
+        try:
+            agent = self._resolve_agent(agent_id)
+            snapshot = ledger.create(
+                chat_id=context.chat_id, parent_turn_id=parent_turn,
+                parent_tool_call_id=parent_tool_call_id, agent_id=agent_id,
+                name=agent.name if agent is not None else "子 Agent",
+                title=label or "子 Agent 任务",
+                instruction_summary="执行当前回合委派的任务。", mode="wait" if wait else "background",
+            )
+        except Exception:
+            logger.exception("Subagent execution creation unavailable")
+            return None
+        observation = _ExecutionObservation(
+            ledger, snapshot.invocation_id, context.chat_id, self.execution_event_sink,
+        )
+        self._execution_observations[snapshot.invocation_id] = observation
+        await observation.update(lambda: None)
+        return snapshot.invocation_id
+
+    async def reject_execution(self, invocation_id: str, *, reason: str = "invalid_profile") -> None:
+        observation = self._execution_observations.pop(invocation_id, None)
+        if observation is not None:
+            await observation.finish(SubagentExecutionResult(
+                execution_id=invocation_id, outcome="failed", stop_reason=reason,
+                final_content="", error_code=reason,
+            ))
 
     def runtime_statuses(self) -> Mapping[str, SubagentStatus]:
         """Return the observable task statuses used by runtime-control snapshots."""
@@ -474,13 +639,14 @@ class SubagentManager:
         agent_id: str | None = None,
         *,
         runtime: LLMRuntime | None = None,
+        invocation_id: str | None = None,
     ) -> str:
         """Spawn a subagent to execute a task in the background."""
         if runtime is None:
             runtime = self._compat_spawn_runtime()
         if temperature is not None:
             runtime = runtime.with_generation_overrides(temperature=temperature)
-        task_id = str(uuid.uuid4())[:8]
+        task_id = invocation_id or str(uuid.uuid4())[:8]
         display_label = label or task[:30] + ("..." if len(task) > 30 else "")
         origin: SubagentOrigin = {
             "channel": origin_channel,
@@ -514,7 +680,13 @@ class SubagentManager:
         if session_key:
             self._session_tasks.setdefault(session_key, set()).add(task_id)
 
-        def _cleanup(_: asyncio.Task[str]) -> None:
+        def _cleanup(done: asyncio.Task[str]) -> None:
+            observation = self._execution_observations.pop(task_id, None)
+            if done.cancelled() and observation is not None and not observation.finished:
+                # create_task 在首次调度前取消时，协程内的 finally 尚未进入。
+                asyncio.create_task(observation.finish(SubagentExecutionResult(
+                    task_id, "cancelled", "cancelled", "",
+                )))
             self._running_tasks.pop(task_id, None)
             self._task_statuses.pop(task_id, None)
             if session_key and (ids := self._session_tasks.get(session_key)):
@@ -540,13 +712,14 @@ class SubagentManager:
         agent_id: str | None = None,
         *,
         runtime: LLMRuntime | None = None,
+        invocation_id: str | None = None,
     ) -> str:
         """Run a subagent synchronously and return its result to the caller."""
         if runtime is None:
             runtime = self._compat_spawn_runtime()
         if temperature is not None:
             runtime = runtime.with_generation_overrides(temperature=temperature)
-        task_id = str(uuid.uuid4())[:8]
+        task_id = invocation_id or str(uuid.uuid4())[:8]
         display_label = label or task[:30] + ("..." if len(task) > 30 else "")
         origin: SubagentOrigin = {
             "channel": origin_channel,
@@ -585,6 +758,11 @@ class SubagentManager:
                 return ToolResult.error(result)
             return result
         finally:
+            observation = self._execution_observations.pop(task_id, None)
+            if inline_task.cancelled() and observation is not None and not observation.finished:
+                await observation.finish(SubagentExecutionResult(
+                    task_id, "cancelled", "cancelled", "",
+                ))
             self._running_tasks.pop(task_id, None)
             self._task_statuses.pop(task_id, None)
             if session_key and (ids := self._session_tasks.get(session_key)):
@@ -608,20 +786,31 @@ class SubagentManager:
     ) -> str:
         """Wait for capacity, then execute one subagent task."""
         status.phase = "queued"
-        async with self._run_slots:
-            status.phase = "initializing"
-            return await self._run_admitted_subagent(
-                task_id,
-                task,
-                label,
-                origin,
-                status,
-                runtime,
-                origin_message_id,
-                workspace_scope,
-                agent_id=agent_id,
-                announce=announce,
-            )
+        observation = self._execution_observations.get(task_id)
+        try:
+            async with self._run_slots:
+                status.phase = "initializing"
+                if observation is not None:
+                    await observation.update(lambda: observation.ledger.start(task_id))
+                    await observation.phase("model", "正在处理任务")
+                return await self._run_admitted_subagent(
+                    task_id,
+                    task,
+                    label,
+                    origin,
+                    status,
+                    runtime,
+                    origin_message_id,
+                    workspace_scope,
+                    agent_id=agent_id,
+                    announce=announce,
+                )
+        except asyncio.CancelledError:
+            if observation is not None:
+                await observation.finish(SubagentExecutionResult(
+                    task_id, "cancelled", "cancelled", "",
+                ))
+            raise
 
     async def _run_admitted_subagent(
         self,
@@ -650,6 +839,10 @@ class SubagentManager:
             agent_id,
             announce=announce,
         )
+        observation = self._execution_observations.get(task_id)
+        if observation is not None:
+            await observation.phase("finalizing", "正在整理结果")
+            await observation.finish(result)
         return result.final_content
 
     async def execute_frozen(
@@ -734,6 +927,15 @@ class SubagentManager:
         async def _on_checkpoint(payload: dict[str, Any]) -> None:
             status.phase = payload.get("phase", status.phase)
             status.iteration = payload.get("iteration", status.iteration)
+            observation = self._execution_observations.get(task_id)
+            if observation is not None:
+                phases = {
+                    "awaiting_tools": ("tools", "正在使用工具"),
+                    "tools_completed": ("model", "正在处理任务"),
+                    "final_response": ("finalizing", "正在整理结果"),
+                }
+                phase, action = phases.get(status.phase, ("model", "正在处理任务"))
+                await observation.phase(phase, action)
 
         def _typed(
             outcome: str,
@@ -823,7 +1025,9 @@ class SubagentManager:
                     runtime=runtime,
                     max_iterations=self.max_iterations,
                     max_tool_result_chars=self.max_tool_result_chars,
-                    hook=_SubagentHook(task_id, status, on_activity),
+                    hook=_SubagentHook(
+                        task_id, status, on_activity, self._execution_observations.get(task_id),
+                    ),
                     max_iterations_message="Task completed but no final response was generated.",
                     finalize_on_max_iterations=False,
                     error_message=None,
@@ -849,6 +1053,10 @@ class SubagentManager:
                 final_status = "error"
                 outcome = "failed"
                 error_code: str | None = "subagent_error"
+                if result.failure_error_kind == "timeout":
+                    # Runner 的旧错误字符串保持原样；公开结论使用结构化错误类型。
+                    stop_reason = "timeout"
+                    error_code = "timeout"
             else:
                 final_result = result.final_content or "Task completed but no final response was generated."
                 final_status = "ok"

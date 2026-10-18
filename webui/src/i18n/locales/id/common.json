@@ -1926,6 +1926,46 @@
     "back": "Kembali"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "Eksekusi sub-agen",
+      "genericAgent": "Agen umum",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "Tidak ada detail eksekusi",
+      "close": "Tutup detail eksekusi",
+      "reload": "Muat ulang",
+      "taskSwitcher": "Ganti tugas sub-agen",
+      "call": "Panggilan {{id}}",
+      "instruction": "Tugas",
+      "process": "Eksekusi",
+      "result": "Hasil sub-agen",
+      "truncated": "Konten dipotong",
+      "noActivities": "Belum ada aktivitas publik.",
+      "connectionStale": "Koneksi terputus, status menunggu sinkronisasi",
+      "historyLimited": "Sebagian aktivitas lama telah kedaluwarsa",
+      "activitySummary": "{{action}} · {{count}} panggilan alat selesai",
+      "activitySummaryNoAction": "{{count}} panggilan alat selesai",
+      "status": {
+        "queued": "Dalam antrean",
+        "running": "Berjalan",
+        "succeeded": "Selesai",
+        "failed": "Gagal",
+        "cancelled": "Dihentikan",
+        "interrupted": "Terputus"
+      },
+      "phase": {
+        "preparing": "Menyiapkan",
+        "model": "Menghasilkan",
+        "tools": "Menggunakan alat",
+        "finalizing": "Menyelesaikan"
+      },
+      "activityStatus": {
+        "running": "Berjalan",
+        "succeeded": "Selesai",
+        "failed": "Gagal",
+        "cancelled": "Dihentikan",
+        "interrupted": "Terputus"
+      }
+    },
     "activity": {
       "viewDetails": "Lihat detail",
       "hideDetails": "Sembunyikan",

@@ -1982,6 +1982,46 @@
     "back": "返回"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "子 Agent 执行详情",
+      "genericAgent": "通用 Agent",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "暂无执行详情",
+      "close": "关闭执行详情",
+      "reload": "重新加载",
+      "taskSwitcher": "切换子 Agent 任务",
+      "call": "调用 {{id}}",
+      "instruction": "任务说明",
+      "process": "执行过程",
+      "result": "子 Agent 结果",
+      "truncated": "内容已截断",
+      "noActivities": "暂无公开活动。",
+      "connectionStale": "连接已断开，状态待同步",
+      "historyLimited": "部分较早活动已过期",
+      "activitySummary": "{{action}} · 已完成 {{count}} 次工具调用",
+      "activitySummaryNoAction": "已完成 {{count}} 次工具调用",
+      "status": {
+        "queued": "排队中",
+        "running": "运行中",
+        "succeeded": "已完成",
+        "failed": "失败",
+        "cancelled": "已停止",
+        "interrupted": "已中断"
+      },
+      "phase": {
+        "preparing": "准备中",
+        "model": "生成回复",
+        "tools": "调用工具",
+        "finalizing": "收尾中"
+      },
+      "activityStatus": {
+        "running": "运行中",
+        "succeeded": "已完成",
+        "failed": "失败",
+        "cancelled": "已停止",
+        "interrupted": "已中断"
+      }
+    },
     "activity": {
       "viewDetails": "查看详情",
       "hideDetails": "收起",

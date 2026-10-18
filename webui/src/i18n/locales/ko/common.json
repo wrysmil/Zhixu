@@ -1926,6 +1926,46 @@
     "back": "뒤로"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "서브 에이전트 실행",
+      "genericAgent": "범용 에이전트",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "실행 세부 정보 없음",
+      "close": "실행 세부 정보 닫기",
+      "reload": "새로 고침",
+      "taskSwitcher": "서브 에이전트 작업 전환",
+      "call": "호출 {{id}}",
+      "instruction": "작업",
+      "process": "실행",
+      "result": "서브 에이전트 결과",
+      "truncated": "내용이 잘렸습니다",
+      "noActivities": "공개 활동이 아직 없습니다.",
+      "connectionStale": "연결이 끊어졌으며 상태 동기화를 기다리는 중입니다",
+      "historyLimited": "일부 이전 활동이 만료되었습니다",
+      "activitySummary": "{{action}} · 도구 호출 {{count}}회 완료",
+      "activitySummaryNoAction": "도구 호출 {{count}}회 완료",
+      "status": {
+        "queued": "대기 중",
+        "running": "실행 중",
+        "succeeded": "완료",
+        "failed": "실패",
+        "cancelled": "중지됨",
+        "interrupted": "중단됨"
+      },
+      "phase": {
+        "preparing": "준비 중",
+        "model": "생성 중",
+        "tools": "도구 사용 중",
+        "finalizing": "마무리 중"
+      },
+      "activityStatus": {
+        "running": "실행 중",
+        "succeeded": "완료",
+        "failed": "실패",
+        "cancelled": "중지됨",
+        "interrupted": "중단됨"
+      }
+    },
     "activity": {
       "viewDetails": "세부정보 보기",
       "hideDetails": "숨기기",

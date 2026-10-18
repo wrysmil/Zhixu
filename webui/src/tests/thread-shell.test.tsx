@@ -4397,4 +4397,57 @@ describe("ThreadShell", () => {
     window.localStorage.removeItem("mira.dock-tools.open");
   });
 
+  it("does not request subagent execution data when the gateway capability is absent", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = makeClient();
+
+    render(wrap(
+      client,
+      <ThreadShell
+        session={session("legacy-execution")}
+        title="Legacy execution"
+        onToggleSidebar={() => {}}
+        subagentExecutionEventsCapability={false}
+      />,
+    ));
+
+    await screen.findByLabelText("Message input");
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).includes("/api/subagent-executions")),
+    ).toBe(false);
+  });
+
+  it("requests the read-only execution list only when the gateway capability is present", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = makeClient();
+
+    render(wrap(
+      client,
+      <ThreadShell
+        session={session("new-execution")}
+        title="New execution"
+        onToggleSidebar={() => {}}
+        subagentExecutionEventsCapability
+      />,
+    ));
+
+    await screen.findByLabelText("Message input");
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input]) => String(input).includes("/api/subagent-executions")),
+      ).toBe(true);
+    });
+  });
+
 });

@@ -38,6 +38,7 @@ import {
   parseGenericToolTrace,
 } from "@/components/thread/activity/generic-tool-model";
 import { ReasoningRow } from "@/components/thread/activity/ReasoningRow";
+import { SubagentExecutionEntry } from "@/components/thread/SubagentExecutionActivity";
 import { describeMcpActivity } from "@/components/thread/activity/mcp-activity-model";
 import { ThinkingReasoningShell } from "@/components/thread/activity/ThinkingReasoningShell";
 import { WebActivityRow } from "@/components/thread/activity/WebActivityRow";
@@ -186,6 +187,10 @@ export function AgentActivityCluster({
   );
   const cliRuns = useMemo(() => collectCliRuns(activityMessages), [activityMessages]);
   const mcpRuns = useMemo(() => collectMcpRuns(activityMessages), [activityMessages]);
+  const subagentItems = useMemo(
+    () => collectSubagentItems(activityMessages),
+    [activityMessages],
+  );
   const cliAppsByName = useMemo(
     () => new Map(cliApps.map((app) => [app.name.toLowerCase(), app])),
     [cliApps],
@@ -404,6 +409,19 @@ export function AgentActivityCluster({
           onOpenFilePreview={onOpenFilePreview}
         />
       </ThinkingReasoningShell>
+      {subagentItems.length > 0 ? (
+        <div
+          data-testid="subagent-execution-entries"
+          className="mt-1.5 flex w-full max-w-[45rem] flex-col gap-1"
+        >
+          {subagentItems.map((item, index) => (
+            <SubagentExecutionEntry
+              key={item.toolCallId ?? `subagent-${index}`}
+              item={item}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -558,6 +576,34 @@ function ActivityModelMessage({
   );
 }
 
+/**
+ * 活动簇标题用的子 Agent 条目收集。
+ *
+ * 只保留能解析成 `spawn` 的 trace 行，判定口径与活动簇内的一致；状态以账本快照为准，
+ * 因此这里的兜底状态只用于占位，不参与入口展示。
+ */
+function collectSubagentItems(messages: UIMessage[]): GenericToolRunItem[] {
+  const items: GenericToolRunItem[] = [];
+  for (const message of messages) {
+    if (message.kind !== "trace") continue;
+    const lines = traceLines(message);
+    if (!lines.length) continue;
+    const stateByLine = genericToolStateByTraceLine(message);
+    lines.forEach((line) => {
+      const trace = parseGenericToolTrace(line);
+      if (!trace || trace.name !== "spawn") return;
+      const explicitState = stateByLine.get(canonicalToolTrace(line));
+      items.push({
+        trace,
+        status: explicitState?.status ?? "done",
+        error: explicitState?.error,
+        toolCallId: explicitState?.toolCallId,
+      });
+    });
+  }
+  return items;
+}
+
 function ActivityTraceList({
   lines,
   active,
@@ -591,7 +637,14 @@ function ActivityTraceList({
         trace,
         status: explicitState?.status === "running" && !active ? "done" : explicitState?.status ?? fallbackStatus,
         error: explicitState?.error,
+        toolCallId: explicitState?.toolCallId,
       };
+      if (trace.name === "spawn") {
+        flushGenericItems(String(index));
+        // 子 Agent 入口是活动簇外的独立卡片（见 collectSubagentItems）；这里只把它
+        // 从通用工具批次里剔除，避免同一调用渲染两次。
+        return;
+      }
       const previous = genericItems[genericItems.length - 1];
       if (previous && !canGroupGenericToolRuns(previous, item)) flushGenericItems(String(index));
       genericItems.push(item);
@@ -791,6 +844,7 @@ interface GenericToolState {
   status: GenericToolStatus;
   error?: string;
   result?: unknown;
+  toolCallId?: string;
 }
 
 const GENERIC_TOOL_STATUS_RANK: Record<GenericToolStatus, number> = { running: 1, done: 2, error: 3 };
@@ -810,6 +864,7 @@ function genericToolStateByTraceLine(message: UIMessage): Map<string, GenericToo
       status,
       error: status === "error" ? toolProgressError(event.error) : undefined,
       result: event.result,
+      toolCallId: typeof event.call_id === "string" && event.call_id ? event.call_id : undefined,
     };
     const previous = map.get(key);
     if (!previous || GENERIC_TOOL_STATUS_RANK[next.status] >= GENERIC_TOOL_STATUS_RANK[previous.status]) {

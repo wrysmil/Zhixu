@@ -107,6 +107,7 @@ from nanobot.session.summary import (
     SessionSummary,
     SessionSummaryCheckpoint,
 )
+from nanobot.subagent_executions import ExecutionRepository, WriterBusy
 from nanobot.teams.binding import persist_message_binding
 from nanobot.teams.leader import LeaderTurnContext, build_leader_registry, resolve_leader_runtime
 from nanobot.triggers.local_turns import LocalTriggerTurnCoordinator
@@ -254,6 +255,64 @@ class AgentLoop:
     def model(self) -> str:
         """Model selected for future turn admissions."""
         return self.runtime_resolver.runtime.model
+
+    @staticmethod
+    def _build_execution_ledger(
+        workspace: Path,
+        channels_config: object | None,
+    ) -> ExecutionRepository | None:
+        """Open the workspace execution ledger only when the WebUI channel exists."""
+        websocket_config: object | None
+        if isinstance(channels_config, Mapping):
+            websocket_config = cast(Mapping[str, Any], channels_config).get("websocket")
+        else:
+            websocket_config = getattr(channels_config, "websocket", None)
+        if websocket_config is None:
+            if channels_config is None:
+                return None
+            try:
+                from nanobot.channels.registry import channel_default_enabled
+
+                if not channel_default_enabled("websocket"):
+                    return None
+            except Exception:
+                return None
+        if isinstance(websocket_config, Mapping):
+            enabled = cast(Mapping[str, Any], websocket_config).get("enabled", True)
+            if not bool(enabled):
+                return None
+        elif not bool(getattr(websocket_config, "enabled", True)):
+            return None
+        try:
+            return ExecutionRepository(workspace)
+        except WriterBusy:
+            logger.warning(
+                "subagent execution writer is busy for workspace {}; observability disabled",
+                workspace,
+            )
+            return None
+        except Exception:
+            logger.exception("subagent execution ledger unavailable for workspace {}", workspace)
+            return None
+
+    async def _publish_subagent_execution_event(self, event: Any) -> None:
+        """Best-effort bridge from ledger events to the WebUI outbound bus."""
+        from nanobot.subagent_executions.events import project_execution_event
+        from nanobot.webui.outbound_wire import SubagentExecutionWireEvent
+
+        data = project_execution_event(event)
+        if data is None:
+            return
+        await self.bus.publish_event(
+            SubagentExecutionWireEvent(data=data),
+            channel="websocket",
+            chat_id=event.chat_id,
+        )
+
+    async def _close_execution_ledger(self) -> None:
+        ledger = getattr(self, "execution_ledger", None)
+        if ledger is not None:
+            ledger.close()
 
     @property
     def context_window_tokens(self) -> int:
@@ -442,6 +501,8 @@ class AgentLoop:
         self.tools = tool_registry if tool_registry is not None else ToolRegistry()
         self._exec_session_manager = ExecSessionManager()
         self.runner = AgentRunner()
+        execution_ledger = self._build_execution_ledger(workspace, channels_config)
+        self.execution_ledger = execution_ledger
         self.subagents = SubagentManager(
             workspace=workspace,
             bus=bus,
@@ -456,6 +517,12 @@ class AgentLoop:
             # 只接 agent_profiles，不接 model_resolver —— modelId 在宿主注入
             # resolver 之前是惰性的，解析 provider 凭据不是 subagent 的职责。
             agent_profiles=AgentProfileRuntime(workspace),
+            execution_ledger=execution_ledger,
+            execution_event_sink=(
+                self._publish_subagent_execution_event
+                if execution_ledger is not None
+                else None
+            ),
         )
         self._unified_session = unified_session
         self._running = False
@@ -1976,6 +2043,7 @@ class AgentLoop:
 
         cleanup_steps = (
             self.subagents.close,
+            self._close_execution_ledger,
             self._exec_session_manager.close_all,
         )
         for cleanup in cleanup_steps:

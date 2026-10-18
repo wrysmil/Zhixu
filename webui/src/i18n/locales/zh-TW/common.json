@@ -1926,6 +1926,46 @@
     "back": "返回"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "子 Agent 執行詳情",
+      "genericAgent": "通用 Agent",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "暫無執行詳情",
+      "close": "關閉執行詳情",
+      "reload": "重新載入",
+      "taskSwitcher": "切換子 Agent 任務",
+      "call": "呼叫 {{id}}",
+      "instruction": "任務說明",
+      "process": "執行過程",
+      "result": "子 Agent 結果",
+      "truncated": "內容已截斷",
+      "noActivities": "暫無公開活動。",
+      "connectionStale": "連線已中斷，狀態待同步",
+      "historyLimited": "部分較早活動已過期",
+      "activitySummary": "{{action}} · 已完成 {{count}} 次工具呼叫",
+      "activitySummaryNoAction": "已完成 {{count}} 次工具呼叫",
+      "status": {
+        "queued": "排隊中",
+        "running": "執行中",
+        "succeeded": "已完成",
+        "failed": "失敗",
+        "cancelled": "已停止",
+        "interrupted": "已中斷"
+      },
+      "phase": {
+        "preparing": "準備中",
+        "model": "產生回覆",
+        "tools": "呼叫工具",
+        "finalizing": "收尾中"
+      },
+      "activityStatus": {
+        "running": "執行中",
+        "succeeded": "已完成",
+        "failed": "失敗",
+        "cancelled": "已停止",
+        "interrupted": "已中斷"
+      }
+    },
     "activity": {
       "viewDetails": "檢視詳細資訊",
       "hideDetails": "隱藏",

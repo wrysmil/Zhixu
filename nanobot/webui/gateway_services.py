@@ -38,6 +38,10 @@ from nanobot.webui.memory_services import MemoryServices
 from nanobot.webui.session_identity import webui_session_key
 from nanobot.webui.session_projection import WebUISessionProjection
 from nanobot.webui.settings_services import WebUISettingsServices
+from nanobot.webui.subagent_execution_routes import (
+    SubagentExecutionSettingsOperations,
+    build_subagent_execution_operations,
+)
 from nanobot.webui.teams_routes import TeamSettingsOperations
 from nanobot.webui.temporary_chats import WebUITemporaryChats
 from nanobot.webui.transcript import WebUITranscriptRecorder
@@ -58,6 +62,7 @@ if TYPE_CHECKING:
     from nanobot.config.schema import Config
     from nanobot.cron.service import CronService
     from nanobot.session.manager import SessionManager
+    from nanobot.subagent_executions import ExecutionRepository
     from nanobot.triggers.local_store import LocalTriggerStore
 
 
@@ -82,6 +87,8 @@ class GatewayServices:
     local_trigger_pending_ids: Callable[[str], set[str]] | None
     team_service: TeamService | None = None
     team_operations: TeamSettingsOperations | None = None
+    subagent_execution_repository: ExecutionRepository | None = None
+    subagent_execution_operations: SubagentExecutionSettingsOperations | None = None
     team_bindings: TeamBindingStore | None = None
     team_turns: TeamLeaderTurns | None = None
     # 文章 ↔ 会话绑定（``bind_writing_session``）；未接团队栈时仍可绑定（只是没有运行）。
@@ -632,6 +639,13 @@ def build_gateway_services(
         if team_turns is not None
         else None
     )
+    subagent_execution_repository = getattr(
+        getattr(team_host, "subagents", None), "execution_ledger", None,
+    )
+    subagent_execution_operations = build_subagent_execution_operations(
+        subagent_execution_repository,
+    )
+
     http = GatewayHTTPHandler(
         config=config,
         session_manager=session_manager,
@@ -686,6 +700,9 @@ def build_gateway_services(
         recovery_action=recovery_action,
         log=logger,
     )
+    http.settings_routes.configure_subagent_execution_operations(
+        subagent_execution_operations,
+    )
     endpoint = WebUIGatewayEndpoint(config=config, http=http, tokens=tokens)
     return GatewayServices(
         http=http,
@@ -705,6 +722,8 @@ def build_gateway_services(
         local_trigger_pending_ids=local_trigger_pending_ids,
         team_service=team_service,
         team_operations=team_operations,
+        subagent_execution_repository=subagent_execution_repository,
+        subagent_execution_operations=subagent_execution_operations,
         team_bindings=team_bindings,
         team_turns=team_turns,
         writing_sessions=writing_sessions,

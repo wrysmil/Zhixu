@@ -1982,6 +1982,46 @@
     "back": "Back"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "Sub-agent execution",
+      "genericAgent": "General Agent",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "No execution details",
+      "close": "Close execution details",
+      "reload": "Reload",
+      "taskSwitcher": "Switch sub-agent task",
+      "call": "Call {{id}}",
+      "instruction": "Task",
+      "process": "Execution",
+      "result": "Sub-agent result",
+      "truncated": "Content truncated",
+      "noActivities": "No public activity yet.",
+      "connectionStale": "Connection lost, state is waiting to sync",
+      "historyLimited": "Some earlier activity has expired",
+      "activitySummary": "{{action}} · {{count}} tool calls completed",
+      "activitySummaryNoAction": "{{count}} tool calls completed",
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "succeeded": "Done",
+        "failed": "Failed",
+        "cancelled": "Stopped",
+        "interrupted": "Interrupted"
+      },
+      "phase": {
+        "preparing": "Preparing",
+        "model": "Generating",
+        "tools": "Using tools",
+        "finalizing": "Finalizing"
+      },
+      "activityStatus": {
+        "running": "Running",
+        "succeeded": "Done",
+        "failed": "Failed",
+        "cancelled": "Stopped",
+        "interrupted": "Interrupted"
+      }
+    },
     "activity": {
       "viewDetails": "View details",
       "hideDetails": "Hide",

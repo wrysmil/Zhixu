@@ -26,6 +26,7 @@ from nanobot.webui import settings_capabilities as capability_domain
 from nanobot.webui import settings_contracts as contracts
 from nanobot.webui import settings_models as model_domain
 from nanobot.webui import settings_system as system_domain
+from nanobot.webui import subagent_execution_routes as subagent_execution_domain
 from nanobot.webui import teams_routes as teams_domain
 from nanobot.webui import writing_collab_routes as writing_collab_domain
 from nanobot.webui import writing_routes as writing_domain
@@ -74,6 +75,7 @@ from nanobot.webui.settings_contracts import (
     WebUISettingsError,
 )
 from nanobot.webui.settings_services import WebUISettingsServices
+from nanobot.webui.subagent_execution_routes import SubagentExecutionSettingsOperations
 from nanobot.webui.teams_routes import TeamSettingsOperations
 from nanobot.webui.version_check import check_for_update
 from nanobot.webui.writing_collab_routes import WritingCollabSettingsOperations
@@ -506,6 +508,7 @@ class WebUISettingsRouter:
         team_operations: TeamSettingsOperations | None = None,
         writing_operations: WritingSettingsOperations | None = None,
         writing_collab_operations: WritingCollabSettingsOperations | None = None,
+        subagent_execution_operations: SubagentExecutionSettingsOperations | None = None,
     ) -> None:
         self.settings = settings
         self.bus = bus
@@ -555,6 +558,26 @@ class WebUISettingsRouter:
         self._teams = teams_domain.TeamSettingsHandler(
             team_operations if team_operations is not None else _null_team_operations()
         )
+        self._subagent_executions = subagent_execution_domain.SubagentExecutionSettingsHandler(
+            subagent_execution_operations
+            if subagent_execution_operations is not None
+            else subagent_execution_domain.build_subagent_execution_operations(None)
+        )
+        if subagent_execution_operations is not None:
+            self._runtime_capabilities["subagentExecutionEventsV1"] = True
+
+    def configure_subagent_execution_operations(
+        self,
+        operations: SubagentExecutionSettingsOperations | None,
+    ) -> None:
+        """Attach the workspace ledger after GatewayHTTPHandler construction."""
+        self._subagent_executions = subagent_execution_domain.SubagentExecutionSettingsHandler(
+            operations
+            if operations is not None
+            else subagent_execution_domain.build_subagent_execution_operations(None)
+        )
+        if operations is not None:
+            self._runtime_capabilities["subagentExecutionEventsV1"] = True
 
     async def dispatch(
         self,
@@ -593,6 +616,8 @@ class WebUISettingsRouter:
             return await asyncio.to_thread(self._handle_settings_usage)
 
         domain, action = route
+        if domain == "subagent" and str(getattr(request, "method", "GET")).upper() != "GET":
+            return self._error_response(405, "subagent execution queries require GET")
         domain_request = self._domain_request(
             connection,
             request,
@@ -657,6 +682,15 @@ class WebUISettingsRouter:
             result = await asyncio.to_thread(
                 lambda: self._teams.handle(action, domain_request),
             )
+        elif action in subagent_execution_domain.SUBAGENT_EXECUTION_ACTION_NAMES:
+            # 执行账本同样是阻塞 SQLite；HTTP 适配器只做只读短事务。
+            matched = subagent_execution_domain.match_route(path)
+            invocation_id = matched[1] if matched is not None else None
+            result = await asyncio.to_thread(
+                lambda: self._subagent_executions.handle(
+                    action, domain_request, invocation_id=invocation_id,
+                ),
+            )
         else:
             channel_connect = _channel_connect_route(path)
             result = await self._system.handle(
@@ -684,6 +718,8 @@ class WebUISettingsRouter:
             return "capabilities", action
         if action := _SYSTEM_ROUTES.get(path):
             return "system", action
+        if matched := subagent_execution_domain.match_route(path):
+            return "subagent", matched[0]
         if _channel_connect_route(path) is not None:
             return "system", "channel-connect"
         return None

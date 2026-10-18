@@ -1926,6 +1926,46 @@
     "back": "Quay lại"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "Thực thi tác nhân con",
+      "genericAgent": "Tác nhân tổng quát",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "Không có chi tiết thực thi",
+      "close": "Đóng chi tiết thực thi",
+      "reload": "Tải lại",
+      "taskSwitcher": "Chuyển tác vụ tác nhân con",
+      "call": "Lượt gọi {{id}}",
+      "instruction": "Tác vụ",
+      "process": "Thực thi",
+      "result": "Kết quả tác nhân con",
+      "truncated": "Nội dung đã bị cắt",
+      "noActivities": "Chưa có hoạt động công khai.",
+      "connectionStale": "Mất kết nối, trạng thái đang chờ đồng bộ",
+      "historyLimited": "Một phần hoạt động trước đã hết hạn",
+      "activitySummary": "{{action}} · Đã hoàn thành {{count}} lượt gọi công cụ",
+      "activitySummaryNoAction": "Đã hoàn thành {{count}} lượt gọi công cụ",
+      "status": {
+        "queued": "Đang chờ",
+        "running": "Đang chạy",
+        "succeeded": "Hoàn tất",
+        "failed": "Thất bại",
+        "cancelled": "Đã dừng",
+        "interrupted": "Bị gián đoạn"
+      },
+      "phase": {
+        "preparing": "Đang chuẩn bị",
+        "model": "Đang tạo",
+        "tools": "Đang dùng công cụ",
+        "finalizing": "Đang hoàn tất"
+      },
+      "activityStatus": {
+        "running": "Đang chạy",
+        "succeeded": "Hoàn tất",
+        "failed": "Thất bại",
+        "cancelled": "Đã dừng",
+        "interrupted": "Bị gián đoạn"
+      }
+    },
     "activity": {
       "viewDetails": "Xem chi tiết",
       "hideDetails": "Ẩn",

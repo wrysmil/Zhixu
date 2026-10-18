@@ -14,6 +14,7 @@ from nanobot.bus.outbound_events import (
     TurnEndEvent,
 )
 from nanobot.events import AgentEvent
+from nanobot.subagent_executions.events import project_execution_event
 from nanobot.teams.events import TeamRunUpdateEvent
 from nanobot.webui.metadata import WEBUI_TURN_METADATA_KEY
 
@@ -61,6 +62,13 @@ class ContextCompactionWirePayload(_ChatWirePayload):
     phase: Literal["started", "succeeded", "failed", "cancelled"]
 
 
+@dataclass(frozen=True)
+class SubagentExecutionWireEvent(AgentEvent):
+    """One already-recorded execution event awaiting WebUI projection."""
+
+    data: dict[str, Any]
+
+
 class TeamEventWirePayload(TypedDict):
     # 契约 §6 的运行更新帧：``data`` 是白名单投影后的 TeamEvent，``turn_id`` 用它自己的
     # turnId（一条运行的事件属于开始它的那一轮，不跟当前轮走）。
@@ -77,6 +85,21 @@ class TeamSnapshotWirePayload(TypedDict):
     type: Literal["team_snapshot"]
     chat_id: str
     turn_id: str
+    data: dict[str, Any]
+
+
+class SubagentExecutionEventWirePayload(TypedDict):
+    event: Literal["subagent_execution_event"]
+    type: Literal["subagent_execution_event"]
+    chat_id: str
+    turn_id: str
+    data: dict[str, Any]
+
+
+class SubagentExecutionSnapshotWirePayload(TypedDict):
+    event: Literal["subagent_execution_snapshot"]
+    type: Literal["subagent_execution_snapshot"]
+    chat_id: str
     data: dict[str, Any]
 
 
@@ -129,6 +152,7 @@ class TerminalListResultWirePayload(TypedDict):
 WebUIWirePayload: TypeAlias = (
     RetryStatusWirePayload | ContextCompactionWirePayload | RecoveryStateWirePayload
     | TurnEndWirePayload | TeamEventWirePayload | TeamSnapshotWirePayload
+    | SubagentExecutionEventWirePayload | SubagentExecutionSnapshotWirePayload
 )
 WebUIWirePersistence: TypeAlias = Literal[
     "transient",
@@ -190,6 +214,38 @@ def encode_team_snapshot(chat_id: str, run: Mapping[str, Any]) -> TeamSnapshotWi
         "chat_id": chat_id,
         "turn_id": str(run.get("turnId") or ""),
         "data": dict(run),
+    }
+
+
+def encode_subagent_execution_event(
+    chat_id: str,
+    event: SubagentExecutionWireEvent,
+) -> SubagentExecutionEventWirePayload | None:
+    """Project one realtime execution event, ignoring unknown schemas safely."""
+    data = project_execution_event(event.data)
+    if data is None:
+        return None
+    if data.get("chatId") != chat_id:
+        return None
+    return {
+        "event": "subagent_execution_event",
+        "type": "subagent_execution_event",
+        "chat_id": chat_id,
+        "turn_id": str(data.get("parentTurnId") or ""),
+        "data": data,
+    }
+
+
+def encode_subagent_execution_snapshot(
+    chat_id: str,
+    snapshot: Mapping[str, Any],
+) -> SubagentExecutionSnapshotWirePayload:
+    """Encode the list-shaped hydrate snapshot used before seq catch-up."""
+    return {
+        "event": "subagent_execution_snapshot",
+        "type": "subagent_execution_snapshot",
+        "chat_id": chat_id,
+        "data": dict(snapshot),
     }
 
 

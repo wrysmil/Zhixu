@@ -1926,6 +1926,46 @@
     "back": "Atrás"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "Ejecución del subagente",
+      "genericAgent": "Agente general",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "No hay detalles de ejecución",
+      "close": "Cerrar detalles de ejecución",
+      "reload": "Recargar",
+      "taskSwitcher": "Cambiar de tarea del subagente",
+      "call": "Llamada {{id}}",
+      "instruction": "Tarea",
+      "process": "Ejecución",
+      "result": "Resultado del subagente",
+      "truncated": "Contenido truncado",
+      "noActivities": "Aún no hay actividad pública.",
+      "connectionStale": "Conexión perdida; el estado espera sincronización",
+      "historyLimited": "Parte de la actividad anterior ha caducado",
+      "activitySummary": "{{action}} · {{count}} llamadas a herramientas completadas",
+      "activitySummaryNoAction": "{{count}} llamadas a herramientas completadas",
+      "status": {
+        "queued": "En cola",
+        "running": "En ejecución",
+        "succeeded": "Completado",
+        "failed": "Falló",
+        "cancelled": "Detenido",
+        "interrupted": "Interrumpido"
+      },
+      "phase": {
+        "preparing": "Preparando",
+        "model": "Generando",
+        "tools": "Usando herramientas",
+        "finalizing": "Finalizando"
+      },
+      "activityStatus": {
+        "running": "En ejecución",
+        "succeeded": "Completado",
+        "failed": "Falló",
+        "cancelled": "Detenido",
+        "interrupted": "Interrumpido"
+      }
+    },
     "activity": {
       "viewDetails": "Ver detalles",
       "hideDetails": "Ocultar",

@@ -22,10 +22,19 @@ import type { ModelPresetOption } from "@/components/thread/ModelPresetBadge";
 import { ThreadHeader } from "@/components/thread/ThreadHeader";
 import { ThreadWelcome } from "@/components/thread/ThreadWelcome";
 import { StreamErrorNotice } from "@/components/thread/StreamErrorNotice";
+import {
+  SubagentExecutionEntryProvider,
+  SubagentExecutionPanel,
+  WORKBENCH_SURFACE,
+  popRightSurface,
+  pushRightSurface,
+  type RightSurface,
+} from "@/components/thread/SubagentExecutionPanel";
 import { ThreadViewport, type ThreadViewportHandle } from "@/components/thread/ThreadViewport";
 import { TeamSelector, teamPickerVisibility } from "@/components/thread/TeamSelector";
 import { TeamProgressPanel } from "@/components/thread/TeamProgressPanel";
 import { useNanobotStream, type SendAttachment, type SendOptions } from "@/hooks/useNanobotStream";
+import { useSubagentExecutions } from "@/features/subagent-execution/useSubagentExecutions";
 import { useTeamProgress } from "@/hooks/useTeamProgress";
 import { useSessionHistory } from "@/hooks/useSessions";
 import {
@@ -443,6 +452,8 @@ interface ThreadShellProps {
   skills?: SkillSummary[];
   draftSeed?: { text: string; token: number } | null;
   onDraftSeedConsumed?: () => void;
+  /** Server-declared capability; absent gateways must not be probed. */
+  subagentExecutionEventsCapability?: boolean;
 }
 
 function toModelBadgeLabel(modelName: string | null): string | null {
@@ -681,6 +692,7 @@ export function ThreadShell({
   skills = [],
   draftSeed = null,
   onDraftSeedConsumed,
+  subagentExecutionEventsCapability = false,
 }: ThreadShellProps) {
   const { t } = useTranslation();
   const chatId = session?.chatId ?? null;
@@ -707,6 +719,11 @@ export function ThreadShell({
     forkBoundaryMessageCount,
   } = useSessionHistory(historyKey);
   const { client, getToken, ingressLimits, modelName, token } = useClient();
+  const subagentExecutions = useSubagentExecutions(client, {
+    chatId,
+    token,
+    capability: subagentExecutionEventsCapability && !temporary,
+  });
   const pickWorkspaceFolder = useCallback(async (): Promise<string | null> => {
     const response = await client.requestMutation<{ path: unknown }>(
       "workspace.pick_folder",
@@ -749,7 +766,15 @@ export function ThreadShell({
   const [welcomeDraftSeed, setWelcomeDraftSeed] = useState<{ text: string; token: number; mode: "append" } | null>(null);
   const welcomeDraftTokenRef = useRef(0);
   const [submittedViewportTurnId, setSubmittedViewportTurnId] = useState<string | null>(null);
-  const [filePreviewPath, setFilePreviewPath] = useState<string | null>(null);
+  const [rightSurfaces, setRightSurfaces] = useState<RightSurface[]>([WORKBENCH_SURFACE]);
+  const activeRightSurface = rightSurfaces[rightSurfaces.length - 1] ?? WORKBENCH_SURFACE;
+  const filePreviewPath = activeRightSurface.kind === "file" ? activeRightSurface.path : null;
+  const executionSurface = activeRightSurface.kind === "execution" ? activeRightSurface : null;
+  const [executionReturnFocus, setExecutionReturnFocus] = useState<HTMLElement | null>(null);
+  const [shellWidth, setShellWidth] = useState(() =>
+    typeof window === "undefined" ? 1024 : window.innerWidth,
+  );
+  const executionScrollTopRef = useRef<Record<string, number>>({});
   const [filePreviewClosing, setFilePreviewClosing] = useState(false);
   const [filePreviewWidth, setFilePreviewWidth] = useState(FILE_PREVIEW_DEFAULT_WIDTH);
   const [toolsOpen, setToolsOpen] = useState(() => {
@@ -759,6 +784,12 @@ export function ThreadShell({
       return false;
     }
   });
+  useEffect(() => {
+    setRightSurfaces((stack) => {
+      if (toolsOpen) return pushRightSurface(stack, { kind: "tools" });
+      return stack[stack.length - 1]?.kind === "tools" ? popRightSurface(stack) : stack;
+    });
+  }, [toolsOpen]);
   const [quotedContext, setQuotedContext] = useState<string | null>(null);
   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   const shellRef = useRef<HTMLElement | null>(null);
@@ -846,7 +877,8 @@ export function ThreadShell({
       filePreviewCloseTimerRef.current = null;
     }
     setFilePreviewClosing(false);
-    setFilePreviewPath(null);
+    setRightSurfaces(toolsOpen ? [WORKBENCH_SURFACE, { kind: "tools" }] : [WORKBENCH_SURFACE]);
+    setExecutionReturnFocus(null);
     setQuotedContext(null);
     setSubmittedViewportTurnId(null);
   }, [historyKey]);
@@ -1504,13 +1536,32 @@ export function ThreadShell({
     [chatId, send, withWorkspaceScope],
   );
 
+  useEffect(() => {
+    const shell = shellRef.current;
+    const updateWidth = () => {
+      const rectWidth = shell?.getBoundingClientRect().width ?? 0;
+      const clientWidth = shell?.clientWidth ?? 0;
+      setShellWidth(rectWidth || clientWidth || window.innerWidth);
+    };
+    updateWidth();
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(updateWidth);
+    observer?.observe(shell ?? document.documentElement);
+    window.addEventListener("resize", updateWidth);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateWidth);
+    };
+  }, [session?.key]);
+
   const handleOpenFilePreview = useCallback((path: string) => {
     if (filePreviewCloseTimerRef.current !== null) {
       window.clearTimeout(filePreviewCloseTimerRef.current);
       filePreviewCloseTimerRef.current = null;
     }
     setFilePreviewClosing(false);
-    setFilePreviewPath(path);
+    setRightSurfaces((stack) => pushRightSurface(stack, { kind: "file", path }));
   }, []);
 
   const handleCloseFilePreview = useCallback(() => {
@@ -1518,7 +1569,9 @@ export function ThreadShell({
     setFilePreviewClosing(true);
     filePreviewCloseTimerRef.current = window.setTimeout(() => {
       filePreviewCloseTimerRef.current = null;
-      setFilePreviewPath(null);
+      setRightSurfaces((stack) => (
+        stack[stack.length - 1]?.kind === "file" ? popRightSurface(stack) : stack
+      ));
       setFilePreviewClosing(false);
     }, FILE_PREVIEW_CLOSE_ANIMATION_MS);
   }, [filePreviewClosing, filePreviewPath]);
@@ -1591,6 +1644,69 @@ export function ThreadShell({
       window.removeEventListener("resize", clampToShell);
     };
   }, [filePreviewPath]);
+
+  const handleOpenExecution = useCallback((invocationId: string, trigger: HTMLElement | null) => {
+    setToolsOpen(false);
+    setExecutionReturnFocus(trigger);
+    setRightSurfaces((stack) => {
+      const base = stack[stack.length - 1]?.kind === "tools" ? popRightSurface(stack) : stack;
+      return pushRightSurface(base, { kind: "execution", invocationId });
+    });
+    void subagentExecutions.loadDetail(invocationId);
+  }, [subagentExecutions]);
+
+  const handleCloseExecution = useCallback(() => {
+    const returnFocus = executionReturnFocus;
+    setRightSurfaces((stack) => (
+      stack[stack.length - 1]?.kind === "execution" ? popRightSurface(stack) : stack
+    ));
+    setExecutionReturnFocus(null);
+    window.requestAnimationFrame(() => returnFocus?.focus());
+  }, [executionReturnFocus]);
+
+  const handleSelectExecution = useCallback((invocationId: string) => {
+    setRightSurfaces((stack) => {
+      if (stack[stack.length - 1]?.kind !== "execution") return stack;
+      const next = [...stack];
+      next[next.length - 1] = { kind: "execution", invocationId };
+      return next;
+    });
+    void subagentExecutions.loadDetail(invocationId);
+  }, [subagentExecutions]);
+
+  const handleReloadExecution = useCallback(() => {
+    subagentExecutions.reload();
+    if (executionSurface) void subagentExecutions.loadDetail(executionSurface.invocationId);
+  }, [executionSurface, subagentExecutions]);
+
+  const subagentExecutionEntryValue = useMemo(() => {
+    const invocationIdByToolCallId: Record<string, string> = {};
+    for (const state of subagentExecutions.executions) {
+      const toolCallId = state.snapshot.parentToolCallId;
+      if (toolCallId && !invocationIdByToolCallId[toolCallId]) {
+        invocationIdByToolCallId[toolCallId] = state.snapshot.invocationId;
+      }
+    }
+    const agentIconById: Record<string, string> = {};
+    for (const agent of composerAgents) {
+      const icon = (agent.icon ?? "").trim();
+      if (icon) agentIconById[agent.id] = icon;
+    }
+    return {
+      capability: subagentExecutionEventsCapability && !temporary,
+      byInvocationId: subagentExecutions.byInvocationId,
+      invocationIdByToolCallId,
+      agentIconById,
+      onOpen: handleOpenExecution,
+    };
+  }, [
+    composerAgents,
+    handleOpenExecution,
+    subagentExecutionEventsCapability,
+    subagentExecutions.byInvocationId,
+    subagentExecutions.executions,
+    temporary,
+  ]);
 
   const handleForkFromMessage = useCallback(
     async (beforeUserIndex: number) => {
@@ -1789,6 +1905,24 @@ export function ThreadShell({
     [displayMessages, workspaceScope],
   );
 
+  const closeToolsSurface = useCallback(() => {
+    setToolsOpen(false);
+    setRightSurfaces((stack) => (
+      stack[stack.length - 1]?.kind === "tools" ? popRightSurface(stack) : stack
+    ));
+  }, []);
+
+  const toggleToolsSurface = useCallback(() => {
+    setToolsOpen((open) => {
+      const nextOpen = !open;
+      setRightSurfaces((stack) => {
+        if (nextOpen) return pushRightSurface(stack, { kind: "tools" });
+        return stack[stack.length - 1]?.kind === "tools" ? popRightSurface(stack) : stack;
+      });
+      return nextOpen;
+    });
+  }, []);
+
   // 工作台本体常驻、无收起入口：这个按钮只切右侧工具坞（文件/终端/浏览器）。
   const workbenchAction = session ? (
     <Button
@@ -1797,7 +1931,7 @@ export function ThreadShell({
       type="button"
       aria-label={t("workbench.tools", { defaultValue: "Tools sidebar" })}
       aria-pressed={toolsOpen}
-      onClick={() => setToolsOpen((open) => !open)}
+      onClick={toggleToolsSurface}
       className={`host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground ${
         toolsOpen ? "bg-accent/40 text-foreground" : ""
       }`}
@@ -1847,10 +1981,11 @@ export function ThreadShell({
           </div>
         ) : null}
         {headerPortalTarget === undefined ? threadHeader : null}
-        <FilePreviewAvailabilityProvider
-          resolve={historyKey ? resolveFilePreviewAvailability : undefined}
-        >
-          <ThreadViewport
+        <SubagentExecutionEntryProvider value={subagentExecutionEntryValue}>
+          <FilePreviewAvailabilityProvider
+            resolve={historyKey ? resolveFilePreviewAvailability : undefined}
+          >
+            <ThreadViewport
             ref={viewportRef}
             messages={displayMessages}
             temporary={temporary}
@@ -1875,11 +2010,11 @@ export function ThreadShell({
             onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
             onForkFromMessage={onForkChat ? handleForkFromMessage : undefined}
             onQuoteSelection={session ? handleQuoteSelection : undefined}
-          />
-        </FilePreviewAvailabilityProvider>
+            />
+          </FilePreviewAvailabilityProvider>
+        </SubagentExecutionEntryProvider>
       </div>
       {filePreviewPath && historyKey ? (
-        // 预览排在会话工作台之前：文件树（工具侧边栏）恒在最右列，预览在它左边展开。
         <FilePreviewPanel
           sessionKey={historyKey}
           path={filePreviewPath}
@@ -1890,13 +2025,31 @@ export function ThreadShell({
           onClose={handleCloseFilePreview}
         />
       ) : null}
-      {session ? (
+      {executionSurface && historyKey ? (
+        <SubagentExecutionPanel
+          executions={subagentExecutions.executions}
+          selectedInvocationId={executionSurface.invocationId}
+          onSelect={handleSelectExecution}
+          onReload={handleReloadExecution}
+          onClose={handleCloseExecution}
+          onOpenFilePreview={handleOpenFilePreview}
+          initialScrollTop={executionScrollTopRef.current[executionSurface.invocationId] ?? 0}
+          onScrollTopChange={(scrollTop) => {
+            executionScrollTopRef.current[executionSurface.invocationId] = scrollTop;
+          }}
+          presentation={shellWidth >= 860 ? "sidebar" : "dialog"}
+          returnFocus={executionReturnFocus}
+        />
+      ) : null}
+      {session && (
+        activeRightSurface.kind === "workbench" || activeRightSurface.kind === "tools"
+      ) ? (
         <div className="relative hidden shrink-0 md:flex">
           <SessionWorkbench
             model={workbenchModel}
             onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
           />
-          {toolsOpen ? (
+          {activeRightSurface.kind === "tools" ? (
             // 工具侧边栏不占工作台版面：打开时整列盖住工作台，关掉后工作台原样露出。
             // bg-background 打底是必须的——dock 自身只有半透明 tint，否则工作台文字会透出来重影。
             <div className="absolute inset-0 z-30 flex bg-background">
@@ -1906,7 +2059,7 @@ export function ThreadShell({
                 sessionKey={historyKey ?? null}
                 getToken={getToken}
                 onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
-                onCollapse={() => setToolsOpen(false)}
+                onCollapse={closeToolsSurface}
               />
             </div>
           ) : null}

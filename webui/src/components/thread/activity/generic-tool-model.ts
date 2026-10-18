@@ -34,6 +34,8 @@ export interface GenericToolRunItem {
   trace: GenericToolTrace;
   status: GenericToolStatus;
   error?: string;
+  /** Opaque spawn tool-call id used only to join the public execution ledger. */
+  toolCallId?: string;
 }
 
 export interface GenericToolPresentation {

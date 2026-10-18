@@ -124,6 +124,7 @@ type BootState =
       tokenExpiresAt: number | null;
       modelName: string | null;
       ingressLimits: BootstrapResponse["limits"] | null;
+      runtimeCapabilities: BootstrapResponse["runtime_capabilities"] | null;
       runtimeSurface: RuntimeSurface;
     };
 
@@ -140,6 +141,7 @@ const SIDEBAR_RAIL_WIDTH = 54;
 const SIDEBAR_CHAT_WIDTH = 220;
 const MOBILE_SIDEBAR_WIDTH = `min(${SIDEBAR_WIDTH + SIDEBAR_CHAT_WIDTH}px, calc(100vw - 0.75rem))`;
 const TOKEN_REFRESH_MARGIN_MS = 30_000;
+const SUBAGENT_EXECUTION_EVENTS_CAPABILITY = "subagentExecutionEventsV1";
 const TOKEN_REFRESH_MIN_DELAY_MS = 5_000;
 const PAIRING_POLL_INTERVAL_MS = 5_000;
 const PAIRING_IDLE_POLL_INTERVAL_MS = 15_000;
@@ -770,6 +772,16 @@ function resolveRuntimeSurface(
   return surface ? toRuntimeSurface(surface) : fallback;
 }
 
+function hasSubagentExecutionEvents(
+  capabilities: BootstrapResponse["runtime_capabilities"] | null | undefined,
+): boolean {
+  return Boolean(
+    (capabilities as unknown as Record<string, unknown> | undefined)?.[
+      SUBAGENT_EXECUTION_EVENTS_CAPABILITY
+    ] === true,
+  );
+}
+
 export default function App() {
   const { t } = useTranslation();
   const [state, setState] = useState<BootState>({ status: "loading" });
@@ -798,6 +810,7 @@ export default function App() {
               tokenExpiresAt,
               modelName: boot.model_name ?? current.modelName,
               ingressLimits: boot.limits ?? current.ingressLimits,
+              runtimeCapabilities: boot.runtime_capabilities ?? current.runtimeCapabilities,
               runtimeSurface,
             }
           : current,
@@ -843,6 +856,7 @@ export default function App() {
               : null,
             modelName: boot.model_name ?? null,
             ingressLimits: boot.limits ?? null,
+            runtimeCapabilities: boot.runtime_capabilities ?? null,
             runtimeSurface,
           });
         } catch (e) {
@@ -969,6 +983,7 @@ export default function App() {
     >
       <Shell
         runtimeSurface={state.runtimeSurface}
+        subagentExecutionEventsCapability={hasSubagentExecutionEvents(state.runtimeCapabilities)}
         onModelNameChange={handleModelNameChange}
         onLogout={handleLogout}
         onNativeEngineRestart={handleNativeEngineRestart}
@@ -979,11 +994,13 @@ export default function App() {
 
 function Shell({
   runtimeSurface,
+  subagentExecutionEventsCapability,
   onModelNameChange,
   onLogout,
   onNativeEngineRestart,
 }: {
   runtimeSurface: RuntimeSurface;
+  subagentExecutionEventsCapability: boolean;
   onModelNameChange: (modelName: string | null) => void;
   onLogout: () => void;
   onNativeEngineRestart: () => Promise<string>;
@@ -2886,6 +2903,7 @@ function Shell({
                             skills={skills}
                             draftSeed={composerDraftSeed}
                             onDraftSeedConsumed={onDraftSeedConsumed}
+                            subagentExecutionEventsCapability={subagentExecutionEventsCapability}
                           />
                         );
                       }
@@ -2944,6 +2962,7 @@ function Shell({
                           settingsSnapshot={settingsSnapshot}
                           onOpenModelSettings={onOpenModelSettings}
                           skills={skills}
+                          subagentExecutionEventsCapability={subagentExecutionEventsCapability}
                         />
                       );
                     }}
