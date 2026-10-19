@@ -2472,7 +2472,7 @@ def test_optional_features_payload_preserves_legacy_flat_feishu_config(monkeypat
 
     payload = optional_features_payload()
 
-    assert payload["features"][0]["instances"][0]["display_name"] == "nanobot"
+    assert payload["features"][0]["instances"][0]["display_name"] == "知序"
     assert config_path.read_text(encoding="utf-8") == before
     saved = json.loads(config_path.read_text(encoding="utf-8"))["channels"]["feishu"]
     assert saved["appId"] == "cli_legacy"

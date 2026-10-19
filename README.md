@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./images/readme-cover-dark.svg">
-  <img alt="nanobot README cover" src="./images/readme-cover-light.svg">
+  <img alt="Zhixu README cover" src="./images/readme-cover-light.svg">
 </picture>
 
 <div align="center">
@@ -32,25 +32,25 @@
   </p>
 </div>
 
-# nanobot
+# 知序 Zhixu
 
-🐈 **nanobot** is an ultra-lightweight, open-source, self-hosted personal AI agent framework written in Python. It runs in a WebUI, terminal, or chat apps and combines tools, long-term memory, MCP integrations, model routing, multi-agent delegation, scheduled automation, and an OpenAI-compatible API in a small, readable core.
+🐈 **知序（Zhixu）** is an ultra-lightweight, open-source, self-hosted personal AI agent framework written in Python. It runs in a WebUI, terminal, or chat apps and combines tools, long-term memory, MCP integrations, model routing, multi-agent delegation, scheduled automation, and an OpenAI-compatible API in a small, readable core.
 
 ## Start Here
 
 | You want to... | Go to |
 |---|---|
-| Install nanobot with no terminal/config background | [Start Without Technical Background](./docs/start-without-technical-background.md) |
+| Install Zhixu with no terminal/config background | [Start Without Technical Background](./docs/start-without-technical-background.md) |
 | Install quickly and get one CLI reply | [Install](#-install) and [Quick Start](#-quick-start) |
 | Open the bundled browser UI | [WebUI](#-webui) |
 | Connect Telegram, Discord, WeChat, Slack, Email, Mattermost, or another chat app | [Chat Apps](./docs/chat-apps.md) |
 | Configure providers, fallback models, Langfuse, MCP, web tools, or security | [Docs](./docs/README.md) and [Configuration](./docs/configuration.md) |
 | Understand or extend the internals | [Architecture](./docs/architecture.md) and [Development](./docs/development.md) |
-| Deploy to the cloud or keep nanobot running as a service | [Deployment](./docs/deployment.md) |
+| Deploy to the cloud or keep Zhixu running as a service | [Deployment](./docs/deployment.md) |
 
-## What can nanobot do?
+## What can Zhixu do?
 
-nanobot is a self-hosted personal AI agent runtime. It can:
+Zhixu is a self-hosted personal AI agent runtime. It can:
 
 - run in a browser WebUI or terminal
 - connect to Telegram, Discord, Slack, WeChat, Email, Mattermost, and other chat apps
@@ -60,7 +60,7 @@ nanobot is a self-hosted personal AI agent runtime. It can:
 - expose a Python SDK and OpenAI-compatible API for integrations
 - deploy as a long-running local or server-side agent gateway
 
-## 💡 Why nanobot
+## 💡 Why Zhixu
 
 - **Persistent workflows**: goals, memory, tools, and chat context survive long-running work.
 - **Chat-native reach**: WebUI, API, Telegram, Feishu, Slack, Discord, Teams, email, and Mattermost.
@@ -100,7 +100,7 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/HKUDS/nanobot/main/scripts/install.ps1 | iex
 ```
 
-The default command installs or upgrades `nanobot-ai` from PyPI. On a fresh local desktop, it then starts `nanobot webui` so you can configure the first provider and model in **Settings → Models**. SSH, headless, existing-config, and older-release paths keep the terminal setup wizard. The installer avoids system-wide pip installs by using an active virtual environment, `uv`, `pipx`, or a managed venv under `~/.nanobot/venv`. It also prints the exact command it used to run nanobot; reuse that full command below if `nanobot` is not on `PATH`.
+The default command installs or upgrades `nanobot-ai` from PyPI. On a fresh local desktop, it then starts `nanobot webui` so you can configure the first provider and model in **Settings → Models**. SSH, headless, existing-config, and older-release paths keep the terminal setup wizard. The installer avoids system-wide pip installs by using an active virtual environment, `uv`, `pipx`, or a managed venv under `~/.nanobot/venv`. It also prints the exact command it used to run Zhixu; reuse that full command below if `nanobot` is not on `PATH`.
 
 To preview the plan without changing your environment, pass `--dry-run`.
 
@@ -162,7 +162,7 @@ If `nanobot` is not on `PATH`, invoke it through the method that installed it: r
 
 ## 🚀 Quick Start
 
-**Open nanobot in your browser**
+**Open Zhixu in your browser**
 
 ```bash
 nanobot webui
@@ -178,7 +178,7 @@ This is the recommended first run. The launcher creates the config and workspace
 
 Any normal reply means the provider, model, workspace, and browser gateway are working together.
 
-**Keep nanobot running after you close the terminal**
+**Keep Zhixu running after you close the terminal**
 
 ```bash
 nanobot gateway --background
@@ -214,8 +214,8 @@ This opens the native terminal client with the launch directory as its workspace
 - Type `/` to discover commands, `/sessions` to switch conversations, or `@` to mention an app, MCP server, or saved session.
 - Paste clipboard images with `Ctrl+V` or `Alt+V`, and use `$` to complete skill references.
 - Use `/diff` to inspect file changes, `/context` to inspect session context, or `/branch` to continue from a completed reply in a new session.
-- Press `Enter` to send. While nanobot is working, `Enter` sends now and `Tab` sends after the current response. Press `Shift+Enter` to add a newline (`Ctrl+J` works in terminals that cannot distinguish modified Enter keys).
-- Use `/detach` to leave the current task running, or start with `nanobot gateway --background` when nanobot should stay online after all local clients exit.
+- Press `Enter` to send. While Zhixu is working, `Enter` sends now and `Tab` sends after the current response. Press `Shift+Enter` to add a newline (`Ctrl+J` works in terminals that cannot distinguish modified Enter keys).
+- Use `/detach` to leave the current task running, or start with `nanobot gateway --background` when Zhixu should stay online after all local clients exit.
 
 Each launch starts a new session by default. Use `--session` to resume one and `--workspace` to choose another workspace. See the [CLI reference](./docs/cli-reference.md#agent-cli) for session branching, diffs, history, shortcuts, gateway lifecycle, and compatibility options.
 
@@ -229,13 +229,13 @@ The one-shot form is useful for a quick provider check, shell scripts, and local
 
 Need manual JSON, another device on your LAN, or help with provider/model matching? Continue with [Install and Quick Start](./docs/quick-start.md), [WebUI](./docs/webui.md), or [Troubleshooting](./docs/troubleshooting.md).
 
-If nanobot worked for you, a star on GitHub is the simplest way to support the project.
+If Zhixu worked for you, a star on GitHub is the simplest way to support the project.
 
 - Want a pasteable provider setup? See [Provider Cookbook](./docs/provider-cookbook.md)
 - Want to understand provider/model matching? See [Providers and Models](./docs/providers.md)
 - Want web search, MCP, security settings, or more config options? See [Configuration](./docs/configuration.md)
 - Want to run locally? See [Ollama](./docs/providers.md#ollama), [vLLM or another local OpenAI-compatible server](./docs/providers.md#vllm-or-other-local-openai-compatible-server), and the full [provider reference](./docs/configuration.md#providers).
-- Want to run nanobot in chat apps like Telegram, Discord, WeChat or Feishu? See [Chat Apps](./docs/chat-apps.md)
+- Want to run Zhixu in chat apps like Telegram, Discord, WeChat or Feishu? See [Chat Apps](./docs/chat-apps.md)
 - Want Docker or Linux service deployment? See [Deployment](./docs/deployment.md)
 
 <a id="deploy-to-render"></a>
@@ -244,7 +244,7 @@ If nanobot worked for you, a star on GitHub is the simplest way to support the p
 
 **Render — one click**
 
-Deploy nanobot's gateway and bundled WebUI from the repository's ready-to-use Blueprint:
+Deploy Zhixu's gateway and bundled WebUI from the repository's ready-to-use Blueprint:
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/HKUDS/nanobot)
 
@@ -261,8 +261,8 @@ The WebUI ships **inside the published wheel** with no separate frontend build. 
 The screenshots below use example conversations, illustrative token counts, and paused schedules.
 
 <p align="center">
-  <a href="./images/nanobot_webui-source.png">
-    <img src="./images/nanobot_webui.png" alt="nanobot WebUI preview with model, project, Apps, Skills, and Automations controls" width="900">
+  <a href="./images/zhixu_webui-source.png">
+    <img src="./images/zhixu_webui.png" alt="Zhixu WebUI preview with model, project, Apps, Skills, and Automations controls" width="900">
   </a>
 </p>
 
@@ -279,7 +279,7 @@ Use it to:
 Group up to four conversations and arrange them in columns, rows, a grid, or a main pane with supporting panes. Each topic keeps its own history. Select another topic from the `@` menu, or drag it into the composer, to let the agent read its context and coordinate work across sessions.
 
 <p align="center">
-  <img src="./images/nanobot-workbench.png" alt="Three conversations in one workbench: a release plan beside quick-start work and documentation review" width="900">
+  <img src="./images/zhixu-workbench.png" alt="Three conversations in one workbench: a release plan beside quick-start work and documentation review" width="900">
 </p>
 
 Choose a project, access mode, and model for each task. Attach documents or images, then send follow-ups immediately or queue them for the next response. [Explore topics and panes →](./docs/webui.md#conversation-groups-and-panes)
@@ -289,7 +289,7 @@ Choose a project, access mode, and model for each task. Attach documents or imag
 Expand agent activity to see reasoning, tool calls, and file changes. Switch **Settings → Appearance → File edit display** to **Diff** for inline patches. The composer's context indicator shows the current context size, input tokens by round, and cache reuse when the provider reports it.
 
 <p align="center">
-  <img src="./images/nanobot-context.png" alt="An expanded file-edit diff above the context usage chart, with input tokens and cache reuse shown across four rounds" width="900">
+  <img src="./images/zhixu-context.png" alt="An expanded file-edit diff above the context usage chart, with input tokens and cache reuse shown across four rounds" width="900">
 </p>
 
 Context compaction also appears in the conversation timeline. [Explore activity and context →](./docs/webui.md#activity-and-context-usage)
@@ -299,7 +299,7 @@ Context compaction also appears in the conversation timeline. [Explore activity 
 Use Apps to connect MCP servers, enable Agent Plugins, and manage local CLI App adapters. Add a preset or a custom server, then attach an available tool with `@`. Skills provide reusable instructions; Settings holds model, voice, image, web, and chat-channel setup.
 
 <p align="center">
-  <img src="./images/nanobot-apps.png" alt="The Apps MCP catalog with integration presets and controls to add or import a custom MCP server" width="900">
+  <img src="./images/zhixu-apps.png" alt="The Apps MCP catalog with integration presets and controls to add or import a custom MCP server" width="900">
 </p>
 
 [Explore Apps →](./docs/webui.md#apps) · [Discover Skills →](./docs/webui.md#skills) · [Connect chat apps →](./docs/chat-apps.md)
@@ -309,7 +309,7 @@ Use Apps to connect MCP servers, enable Agent Plugins, and manage local CLI App 
 Ask for an automation from the topic that should receive its results. Review the message, schedule, linked chat, and run history in Automations; pause or edit it as your needs change. Local triggers let a script start a saved task on demand.
 
 <p align="center">
-  <img src="./images/nanobot-automations.png" alt="The Automations view with example recurring tasks, a selected daily brief, its schedule, linked chat, and management controls" width="900">
+  <img src="./images/zhixu-automations.png" alt="The Automations view with example recurring tasks, a selected daily brief, its schedule, linked chat, and management controls" width="900">
 </p>
 
 Keep the gateway running for scheduled delivery. [Explore Automations →](./docs/automations.md)
@@ -321,10 +321,10 @@ See the [WebUI guide](./docs/webui.md) for LAN access, background operation, wor
 ## Architecture
 
 <p align="center">
-  <img src="images/nanobot_arch.png" alt="nanobot architecture" width="800">
+  <img src="images/zhixu_arch.png" alt="Zhixu architecture" width="800">
 </p>
 
-🐈 nanobot stays lightweight by centering everything around a small agent loop: messages come in from chat apps, the LLM decides when tools are needed, and memory or skills are pulled in only as context instead of becoming a heavy orchestration layer. That keeps the core path readable and easy to extend, while still letting you add channels, tools, memory, and deployment options without turning the system into a monolith.
+🐈 Zhixu stays lightweight by centering everything around a small agent loop: messages come in from chat apps, the LLM decides when tools are needed, and memory or skills are pulled in only as context instead of becoming a heavy orchestration layer. That keeps the core path readable and easy to extend, while still letting you add channels, tools, memory, and deployment options without turning the system into a monolith.
 
 ## Docs
 
@@ -338,17 +338,17 @@ Browse the [repo docs](./docs/README.md) for the latest features and GitHub deve
 - Choose a provider/model: [Providers and Models](./docs/providers.md)
 - Copy provider setup recipes: [Provider Cookbook](./docs/provider-cookbook.md)
 - Debug setup and runtime failures: [Troubleshooting](./docs/troubleshooting.md)
-- Talk to your nanobot with familiar chat apps: [Chat App AI Agent](./docs/guides/chat-app-ai-agent.md) · [Chat Apps](./docs/chat-apps.md)
+- Talk to your Zhixu with familiar chat apps: [Chat App AI Agent](./docs/guides/chat-app-ai-agent.md) · [Chat Apps](./docs/chat-apps.md)
 - Schedule or trigger agent work: [Automations](./docs/automations.md)
 - Configure providers, web search, MCP, and runtime behavior: [Configuration](./docs/configuration.md)
-- Integrate nanobot with local tools and automations: [OpenAI-Compatible API](./docs/openai-api.md) · [Python SDK](./docs/python-sdk.md)
-- Run nanobot with Docker or as a Linux service: [Deployment](./docs/deployment.md)
+- Integrate Zhixu with local tools and automations: [OpenAI-Compatible API](./docs/openai-api.md) · [Python SDK](./docs/python-sdk.md)
+- Run Zhixu with Docker or as a Linux service: [Deployment](./docs/deployment.md)
 
 ## Releases
 
 **Latest release: [v0.3.0 - The Agency Release](https://github.com/HKUDS/nanobot/releases/tag/v0.3.0)**
 
-The Agency Release turns nanobot from a durable workbench into an agent runtime that can coordinate helpers, switch models per session, and carry authorized work through to completion.
+The Agency Release turns Zhixu from a durable workbench into an agent runtime that can coordinate helpers, switch models per session, and carry authorized work through to completion.
 
 - Consult inline subagents without leaving the current task
 - Switch model presets per session directly from the composer
@@ -377,7 +377,7 @@ For older updates, see the [release archive](./docs/release-archive.md) or [GitH
 
 ## 🤝 Contribute
 
-Use nanobot for a real task, report what broke, and then pick a focused improvement.
+Use Zhixu for a real task, report what broke, and then pick a focused improvement.
 
 - Read [CONTRIBUTING.md](./CONTRIBUTING.md) for the development workflow.
 - Browse [open issues](https://github.com/HKUDS/nanobot/issues) for problems to investigate.
@@ -765,6 +765,6 @@ Use nanobot for a real task, report what broke, and then pick a focused improvem
 <!-- contributors:end -->
 
 <p align="center">
-  <em> Thanks for visiting ✨ nanobot!</em><br><br>
+  <em> Thanks for visiting ✨ Zhixu!</em><br><br>
   <img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.nanobot&style=for-the-badge&color=00d4ff" alt="Views">
 </p>

@@ -1,18 +1,18 @@
-# Build a Slack AI Agent with nanobot
+# Build a Slack AI Agent with Zhixu
 
-This guide connects nanobot to Slack through Socket Mode. No public webhook URL
+This guide connects Zhixu to Slack through Socket Mode. No public webhook URL
 is required for the first working setup.
 
 ## What this guide builds
 
 - a Slack app with Socket Mode
 - a bot token and app-level token
-- the `slack` channel enabled in nanobot
+- the `slack` channel enabled in Zhixu
 - a DM pairing flow and mention test from an approved Slack user
 
 ## Prerequisites
 
-- A working nanobot reply:
+- A working Zhixu reply:
 
 ```bash
 nanobot agent -m "Hello!"
@@ -20,7 +20,7 @@ nanobot agent -m "Hello!"
 
 - Permission to create a Slack app in a workspace.
 
-## Install nanobot
+## Install Zhixu
 
 ```bash
 python -m pip install nanobot-ai
@@ -96,7 +96,7 @@ Then DM the bot again, or mention it in a channel:
 
 - If Socket Mode fails, confirm the app-level token starts with `xapp-`.
 - If the bot cannot send files, add `files:write`, reinstall the app, and
-  restart nanobot.
+  restart Zhixu.
 - If a DM responds normally without pairing, check that `dm.policy` is
   `"allowlist"`.
 - If channel messages are ignored, check event subscriptions and group policy.

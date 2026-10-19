@@ -99,7 +99,7 @@ async def test_handle_activity_personal_message_publishes_and_stores_ref(make_ch
         },
         "recipient": {
             "id": "28:bot-id",
-            "name": "nanobot",
+            "name": "知序",
         },
         "channelData": {
             "tenant": {"id": "tenant-id"},
@@ -408,7 +408,7 @@ async def test_handle_activity_ignores_group_messages(make_channel):
         },
         "recipient": {
             "id": "28:bot-id",
-            "name": "nanobot",
+            "name": "知序",
         },
     }
 
@@ -438,7 +438,7 @@ async def test_handle_activity_denied_sender_does_not_store_ref(make_channel, tm
         },
         "recipient": {
             "id": "28:bot-id",
-            "name": "nanobot",
+            "name": "知序",
         },
         "channelData": {
             "tenant": {"id": "tenant-id"},
@@ -473,7 +473,7 @@ async def test_handle_activity_rejects_untrusted_service_url(make_channel, tmp_p
         },
         "recipient": {
             "id": "28:bot-id",
-            "name": "nanobot",
+            "name": "知序",
         },
     }
 
@@ -491,7 +491,7 @@ async def test_handle_activity_mention_only_uses_default_response(make_channel):
     activity = {
         "type": "message",
         "id": "activity-3",
-        "text": "<at>Nanobot</at>",
+        "text": "<at>知序</at>",
         "serviceUrl": "https://smba.trafficmanager.net/amer/",
         "conversation": {
             "id": "conv-empty",
@@ -504,7 +504,7 @@ async def test_handle_activity_mention_only_uses_default_response(make_channel):
         },
         "recipient": {
             "id": "28:bot-id",
-            "name": "nanobot",
+            "name": "知序",
         },
     }
 
@@ -522,7 +522,7 @@ async def test_handle_activity_mention_only_ignores_when_response_disabled(make_
     activity = {
         "type": "message",
         "id": "activity-4",
-        "text": "<at>Nanobot</at>",
+        "text": "<at>知序</at>",
         "serviceUrl": "https://smba.trafficmanager.net/amer/",
         "conversation": {
             "id": "conv-empty-disabled",
@@ -535,7 +535,7 @@ async def test_handle_activity_mention_only_ignores_when_response_disabled(make_
         },
         "recipient": {
             "id": "28:bot-id",
-            "name": "nanobot",
+            "name": "知序",
         },
     }
 
@@ -548,7 +548,7 @@ async def test_handle_activity_mention_only_ignores_when_response_disabled(make_
 def test_strip_possible_bot_mention_removes_generic_at_tags(make_channel):
     ch = make_channel()
 
-    assert ch._strip_possible_bot_mention("<at>Nanobot</at> hello") == "hello"
+    assert ch._strip_possible_bot_mention("<at>知序</at> hello") == "hello"
     assert ch._strip_possible_bot_mention("hi <at>Some Bot</at> there") == "hi there"
 
 
@@ -556,7 +556,7 @@ def test_sanitize_inbound_text_keeps_normal_inline_message(make_channel):
     ch = make_channel()
 
     activity = {
-        "text": "<at>Nanobot</at> normal inline message",
+        "text": "<at>知序</at> normal inline message",
         "channelData": {},
     }
 

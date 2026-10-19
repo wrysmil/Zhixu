@@ -202,7 +202,7 @@ def _resolve_instance_id(instance_id: str, mode: str) -> str:
 
 
 def _default_instance_name(instance_id: str) -> str:
-    return "nanobot" if instance_id == DEFAULT_INSTANCE_ID else f"nanobot {instance_id}"
+    return "知序" if instance_id == DEFAULT_INSTANCE_ID else f"知序 {instance_id}"
 
 
 def _start_payload(session: FeishuConnectSession) -> dict[str, Any]:

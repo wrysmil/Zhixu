@@ -1,19 +1,19 @@
-# How to Deploy a Long-Running nanobot AI Agent Gateway
+# How to Deploy a Long-Running Zhixu AI Agent Gateway
 
-The nanobot gateway is the long-running self-hosted AI agent process that keeps
+The Zhixu gateway is the long-running self-hosted AI agent process that keeps
 WebUI sessions, chat apps, automations, local triggers, heartbeat jobs, Dream,
 and WebSocket delivery online.
 
 ## What you will build
 
-- a verified nanobot config
+- a verified Zhixu config
 - a gateway process
 - a service or container deployment path with Docker, systemd, or macOS
   LaunchAgent
 
 ## When to use this
 
-Use this when nanobot should keep running after a single CLI turn. Chat apps,
+Use this when Zhixu should keep running after a single CLI turn. Chat apps,
 browser sessions, background automations, local triggers, and server-side
 integrations all depend on a live gateway.
 
@@ -71,7 +71,7 @@ Open the configured WebUI URL in a browser, or run `nanobot webui` as a foregrou
 - If Docker port publishing does not work, confirm the service is not bound only
   to container loopback.
 
-## Related nanobot docs
+## Related Zhixu docs
 
 - [Deployment](../deployment.md)
 - [Multiple Instances](../multiple-instances.md)

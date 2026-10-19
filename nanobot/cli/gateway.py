@@ -57,7 +57,7 @@ def create_gateway_app(
     prepare_webui_bundle: WebUIBundlePreparer | None = None,
 ) -> typer.Typer:
     gateway_app = typer.Typer(
-        help="Start and manage the nanobot gateway.",
+        help="Start and manage the Zhixu gateway.",
         invoke_without_command=True,
         no_args_is_help=False,
     )
@@ -159,7 +159,7 @@ def create_gateway_app(
         foreground: bool = typer.Option(False, "--foreground", help="Run in the foreground"),
         background: bool = typer.Option(False, "--background", help="Start as a background process"),
     ) -> None:
-        """Start the nanobot gateway."""
+        """Start the Zhixu gateway."""
         if ctx.invoked_subcommand is not None:
             return
         if foreground and background:

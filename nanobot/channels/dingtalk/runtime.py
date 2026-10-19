@@ -61,10 +61,10 @@ except ImportError:
 _CallbackHandlerBase = CallbackHandler
 
 
-class NanobotDingTalkHandler(_CallbackHandlerBase):
+class ZhixuDingTalkHandler(_CallbackHandlerBase):
     """
-    Standard DingTalk Stream SDK Callback Handler.
-    Parses incoming messages and forwards them to the Nanobot channel.
+    DingTalk Stream SDK 的标准回调处理器。
+    解析收到的消息并转发给知序渠道。
     """
 
     def __init__(self, channel: "DingTalkChannel"):
@@ -190,7 +190,7 @@ class NanobotDingTalkHandler(_CallbackHandlerBase):
 
             self.channel.logger.info("Received message from {} ({}): {}", sender_name, sender_id, content)
 
-            # Forward to Nanobot via _on_message (non-blocking).
+            # 通过 _on_message 非阻塞转发给知序。
             # Store reference to prevent GC before task completes.
             task = asyncio.create_task(
                 self.channel._on_message(
@@ -303,7 +303,7 @@ class DingTalkChannel(BaseChannel):
             self._client = DingTalkStreamClient(credential)
 
             # Register standard handler
-            handler = NanobotDingTalkHandler(self)
+            handler = ZhixuDingTalkHandler(self)
             self._client.register_callback_handler(ChatbotMessage.TOPIC, handler)
 
             self.logger.info("bot started with Stream Mode")
@@ -711,7 +711,7 @@ class DingTalkChannel(BaseChannel):
             token,
             chat_id,
             "sampleMarkdown",
-            {"text": content, "title": "Nanobot Reply"},
+            {"text": content, "title": "知序回复"},
         )
 
     async def _send_media_ref(self, token: str, chat_id: str, media_ref: str) -> bool:
@@ -818,7 +818,7 @@ class DingTalkChannel(BaseChannel):
         conversation_type: str | None = None,
         conversation_id: str | None = None,
     ) -> None:
-        """Handle incoming message (called by NanobotDingTalkHandler).
+        """Handle incoming message (called by ZhixuDingTalkHandler).
 
         Delegates to BaseChannel._handle_message() which enforces allow_from
         permission checks before publishing to the bus.

@@ -77,7 +77,7 @@ def get_teams_dir(workspace: str | Path | None = None) -> Path:
 
 
 def is_default_workspace(workspace: str | Path | None) -> bool:
-    """Return whether a workspace resolves to nanobot's default workspace path."""
+    """Return whether a workspace resolves to Zhixu's default workspace path."""
     current = Path(workspace).expanduser() if workspace is not None else Path.home() / ".nanobot" / "workspace"
     default = Path.home() / ".nanobot" / "workspace"
     return current.resolve(strict=False) == default.resolve(strict=False)

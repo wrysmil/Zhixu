@@ -1,6 +1,6 @@
 # Start Without Technical Background
 
-This walkthrough is for people who have not used a terminal, API key, or JSON config file before. The goal is only to get one reply in a browser. You do not need to understand nanobot's architecture or edit its config by hand.
+This walkthrough is for people who have not used a terminal, API key, or JSON config file before. The goal is only to get one reply in a browser. You do not need to understand Zhixu's architecture or edit its config by hand.
 
 ## What You Will Need
 
@@ -21,7 +21,7 @@ An API key is password-like. Do not post it in an issue, screenshot, chat, or pu
 | Model ID | The exact model name expected by that provider |
 | API key | A secret credential that lets software call the provider |
 | Wizard | A question-and-answer setup menu |
-| WebUI | The local browser page where you use nanobot |
+| WebUI | The local browser page where you use Zhixu |
 
 ## 1. Install Python
 
@@ -45,7 +45,7 @@ The result should start with `Python 3.11` or a newer number. If the command is 
 
 ## 2. Prepare Your Model Details
 
-nanobot does not create an AI provider account for you. Before setup, have these details nearby:
+Zhixu does not create an AI provider account for you. Before setup, have these details nearby:
 
 1. The provider or company endpoint name.
 2. Its API key, if it requires one.
@@ -54,7 +54,7 @@ nanobot does not create an AI provider account for you. Before setup, have these
 
 The provider, credential, endpoint, and model must belong together. For example, an API key from one provider usually cannot call a model name copied from a different provider.
 
-## 3. Install nanobot
+## 3. Install Zhixu
 
 Copy the command for your system, paste it into the terminal, and press Enter. Copy only the text inside the code block.
 
@@ -70,7 +70,7 @@ curl -fsSL https://raw.githubusercontent.com/HKUDS/nanobot/main/scripts/install.
 irm https://raw.githubusercontent.com/HKUDS/nanobot/main/scripts/install.ps1 | iex
 ```
 
-The installer downloads the stable nanobot package into an isolated Python environment. On a fresh local desktop, it then starts the WebUI and opens your browser. This can take a few minutes on the first run. Keep the terminal open. It prints the exact command used to run nanobot; if `nanobot` is not found later, reuse that whole command instead of switching to a different Python command.
+The installer downloads the stable Zhixu package into an isolated Python environment. On a fresh local desktop, it then starts the WebUI and opens your browser. This can take a few minutes on the first run. Keep the terminal open. It prints the exact command used to run nanobot; if `nanobot` is not found later, reuse that whole command instead of switching to a different Python command.
 
 If your organization blocks downloaded install scripts, use the [alternative install methods](./quick-start.md#other-install-methods) or ask your administrator to review the scripts first.
 
@@ -92,9 +92,9 @@ If the installer finishes without opening the browser and `nanobot` is available
 nanobot webui
 ```
 
-If the terminal cannot find `nanobot`, take the exact command printed by the installer and replace its final arguments with `webui`. That command may begin with `uv tool run`, `pipx run`, or the full path to nanobot's private Python environment.
+If the terminal cannot find `nanobot`, take the exact command printed by the installer and replace its final arguments with `webui`. That command may begin with `uv tool run`, `pipx run`, or the full path to Zhixu's private Python environment.
 
-On SSH, a computer without a desktop, an existing configuration, or an older nanobot release, the installer may open the terminal wizard instead. Choose **Quick Start** there and follow its prompts.
+On SSH, a computer without a desktop, an existing configuration, or an older Zhixu release, the installer may open the terminal wizard instead. Choose **Quick Start** there and follow its prompts.
 
 ## 5. Get the First Reply
 
@@ -120,12 +120,12 @@ Do not configure every feature immediately. Choose one next goal:
 | Add a provider credential | Open **Settings → Models**, then find the provider |
 | Connect Telegram, Discord, Slack, Feishu, WeChat, or another chat app | Open **Settings → Channels**, choose the platform, and follow its connection steps |
 | Add a tool integration | Open **Apps** and choose an App or MCP integration |
-| Schedule a reminder or recurring task | Ask nanobot in the target chat, then manage it in **Automations** |
+| Schedule a reminder or recurring task | Ask Zhixu in the target chat, then manage it in **Automations** |
 | Work with project files | Start a new chat, choose the project workspace, and review the access setting before sending the task |
 
 Repository docs show the current development version. If your stable package does not yet show **Settings → Channels**, use the [Chat Apps guide](./chat-apps.md) or update to a release that includes it.
 
-Some runtime changes ask you to restart nanobot. Use the restart action shown by the WebUI, or return to the terminal, press `Ctrl+C`, and run `nanobot webui` again.
+Some runtime changes ask you to restart Zhixu. Use the restart action shown by the WebUI, or return to the terminal, press `Ctrl+C`, and run `nanobot webui` again.
 
 For a chat platform's account, bot, token, or permission prerequisites, use the [Chat Apps guide](./chat-apps.md). For local models and provider-specific recipes, use the [Provider Cookbook](./provider-cookbook.md).
 

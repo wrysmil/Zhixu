@@ -76,7 +76,7 @@ Use the same Python command for install checks and module fallback. On macOS/Lin
 | `irm` is not recognized | PowerShell could not run the download helper. Use manual install: `uv tool install nanobot-ai`, `pipx install nanobot-ai`, or `py -m pip install nanobot-ai` inside an environment you control. |
 | Could not download `raw.githubusercontent.com` | Your network, proxy, or firewall blocked the installer script download. Use manual install from PyPI, or configure your proxy and rerun the command. |
 | `nanobot: command not found` | Use the module form, for example `python -m nanobot ...`, `python3 -m nanobot ...`, or `py -m nanobot ...`. Reinstall with the same Python command, or add that Python's scripts directory to `PATH`. |
-| `No module named nanobot` | You are running a different Python than the one used for installation. Run `python -m pip show nanobot-ai`, `python3 -m pip show nanobot-ai`, or `py -m pip show nanobot-ai`, matching the command that installed nanobot. |
+| `No module named nanobot` | You are running a different Python than the one used for installation. Run `python -m pip show nanobot-ai`, `python3 -m pip show nanobot-ai`, or `py -m pip show nanobot-ai`, matching the command that installed Zhixu. |
 | `pip is not available` | When the installer uses a virtual environment, it tries `python -m ensurepip --upgrade`. If that fails, install pip for that Python, or use a Python installer/distribution that includes pip. |
 | `externally-managed-environment` | Your system Python blocks global pip installs. Use the one-command installer, `uv tool install nanobot-ai`, `pipx install nanobot-ai`, or create a virtual environment; do not add `--break-system-packages` for nanobot. |
 | Installer chose the wrong Python | Set `PYTHON` before running the installer, such as `curl -fsSL https://raw.githubusercontent.com/HKUDS/nanobot/main/scripts/install.sh | PYTHON=python3 sh` or `$env:PYTHON="py"` before the PowerShell command. |
@@ -111,8 +111,8 @@ Common config mistakes:
 |---|---|
 | JSON parse error | Validate commas, braces, and quotes. Most docs examples are partial snippets to merge. |
 | Unknown or missing provider | Use provider registry names such as `openrouter`, `anthropic`, `openai`, `ollama`, `vllm`, `lm_studio`, or define a custom OpenAI-compatible provider key under `providers` and reference that exact key from the active preset. |
-| snake_case vs camelCase confusion | Both are accepted, but docs use camelCase because nanobot writes config with aliases such as `apiKey`, `modelPresets`, `intervalS`. |
-| Environment variable error | `${VAR_NAME}` references are resolved at startup. Set the variable before running nanobot. |
+| snake_case vs camelCase confusion | Both are accepted, but the docs use camelCase because Zhixu writes config with aliases such as `apiKey`, `modelPresets`, `intervalS`. |
+| Environment variable error | `${VAR_NAME}` references are resolved at startup. Set the variable before running Zhixu. |
 | Edited config but behavior did not change | Restart `nanobot gateway`; long-running processes read config at startup. |
 
 After editing config, check the shortest path to an Agent reply:
@@ -158,7 +158,7 @@ If you need a known-good snippet instead of diagnosis, use [`provider-cookbook.m
 | xAI login runs on a remote/headless machine | In the WebUI, finish sign-in in your local browser; if the loopback redirect cannot reach the server, copy the final URL from the address bar into the WebUI dialog. From the CLI, run `nanobot provider login xai-grok` interactively, open the printed URL elsewhere, and paste the final callback URL or authorization code when prompted. |
 | xAI returns 403 or subscription access denied | Confirm the signed-in account has an eligible X Premium / Grok subscription, then run `nanobot provider login xai-grok` again. This provider does not use an xAI API key or X Developer OAuth. |
 | xAI returns 400 `invalid-argument` | Read the bounded `Response body` appended to the provider error. Hosted `x_search` is sent only when xAI's model catalog advertises `supportsBackendSearch`; the model ID `grok-4.5` itself is valid. |
-| xAI model or X Search stops working after an upstream release | The integration follows Grok Build's public OAuth/proxy client contract. Update nanobot if xAI changes that contract. |
+| xAI model or X Search stops working after an upstream release | The integration follows Grok Build's public OAuth/proxy client contract. Update Zhixu if xAI changes that contract. |
 
 ## Langfuse Problems
 
@@ -166,8 +166,8 @@ Langfuse tracing is optional and controlled by environment variables.
 
 | Symptom | Check |
 |---|---|
-| `LANGFUSE_SECRET_KEY is set but langfuse is not installed` | Install `langfuse` in the same Python environment that runs nanobot, then restart the process. |
-| No traces appear | Set `LANGFUSE_SECRET_KEY`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_BASE_URL` before starting nanobot. |
+| `LANGFUSE_SECRET_KEY is set but langfuse is not installed` | Install `langfuse` in the same Python environment that runs Zhixu, then restart the process. |
+| No traces appear | Set `LANGFUSE_SECRET_KEY`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_BASE_URL` before starting Zhixu. |
 | Wrong Langfuse project or region | Check that the key pair and `LANGFUSE_BASE_URL` come from the same Langfuse project/region. |
 | Only some providers trace | Langfuse tracing applies to OpenAI-compatible provider calls; native providers may not use that client path. |
 
@@ -206,12 +206,12 @@ Before loading enabled channels, the gateway checks the dependencies declared by
 channel manifests. The CLI and WebUI normally install these dependencies when a channel is
 enabled. Installation during startup is a recovery path for an enabled config whose Python
 environment no longer has the required packages, for example after manually editing the
-config, upgrading nanobot, or recreating an isolated `uv tool`/`pipx` environment. The
+config, upgrading Zhixu, or recreating an isolated `uv tool`/`pipx` environment. The
 gateway waits for the install so an enabled channel is not silently skipped; later starts
 skip the installation once the dependencies are present.
 
 If access to PyPI is slow in your region, configure pip to use a trusted package index. The
-installer honors the standard `PIP_INDEX_URL` environment variable, including when nanobot
+installer honors the standard `PIP_INDEX_URL` environment variable, including when Zhixu
 itself was installed with `uv tool`:
 
 ```bash
@@ -319,8 +319,8 @@ See [`chat-apps.md`](./chat-apps.md) for channel-specific setup.
 |---|---|
 | Conversation context seems wrong | Confirm the active workspace and session. WebUI chats and chat app threads may use different sessions. |
 | Memory does not update immediately | Dream consolidation is periodic; recent turns still live in session history. |
-| Sessions disappear after changing `--config` | Sessions follow the config directory at `<config-dir>/sessions/<workspace-id>/`; use the original config path or copy that `sessions/` directory into the new config directory while nanobot is stopped. |
-| Sessions disappear after moving a workspace | Keep the workspace's `.nanobot/workspace-id` file with the move or backup. If it was lost, restore that marker from backup before starting nanobot. |
+| Sessions disappear after changing `--config` | Sessions follow the config directory at `<config-dir>/sessions/<workspace-id>/`; use the original config path or copy that `sessions/` directory into the new config directory while Zhixu is stopped. |
+| Sessions disappear after moving a workspace | Keep the workspace's `.nanobot/workspace-id` file with the move or backup. If it was lost, restore that marker from backup before starting Zhixu. |
 | You want one shared session across devices | Set `agents.defaults.unifiedSession` intentionally; otherwise keep separate sessions. |
 
 ## Collect Useful Evidence

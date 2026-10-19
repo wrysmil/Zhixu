@@ -29,7 +29,7 @@ These commands work inside chat channels and interactive agent sessions:
 
 ## Pairing
 
-When someone sends a DM to the bot and isn't on the allowlist — whether it's a new user or an existing user on a new channel — nanobot automatically replies with a **pairing code** (like `ABCD-EFGH`) that expires in 10 minutes. To grant them access:
+When someone sends a DM to the bot and isn't on the allowlist — whether it's a new user or an existing user on a new channel — Zhixu automatically replies with a **pairing code** (like `ABCD-EFGH`) that expires in 10 minutes. To grant them access:
 
 ```text
 /pairing approve ABCD-EFGH
@@ -47,7 +47,7 @@ Use `/model` to inspect the current runtime model:
 /model
 ```
 
-The response shows the current session's model and preset, plus the available preset names. Each key under the top-level `modelPresets` config is the preset's canonical name everywhere nanobot displays or references it. `default` is always available and represents the model settings from direct `agents.defaults.*` fields.
+The response shows the current session's model and preset, plus the available preset names. Each key under the top-level `modelPresets` config is the preset's canonical name everywhere Zhixu displays or references it. `default` is always available and represents the model settings from direct `agents.defaults.*` fields.
 
 To switch presets for future turns:
 
@@ -71,13 +71,13 @@ Create the trigger from the chat where future messages should arrive:
 /trigger PR review
 ```
 
-nanobot replies with a trigger ID and a command shaped like:
+Zhixu replies with a trigger ID and a command shaped like:
 
 ```bash
 nanobot trigger trg_8K4P2Q9X "Review PR #4502"
 ```
 
-Replace `"Review PR #4502"` with the message you want nanobot to receive. The
+Replace `"Review PR #4502"` with the message you want Zhixu to receive. The
 trigger is bound to the session where it was created, so the message goes back
 to that same chat. Keep `nanobot gateway` running so trigger messages can be
 delivered. The trigger message starts an automation turn recorded in that
@@ -99,14 +99,14 @@ For longer or generated content, omit the message argument and pipe stdin:
 printf '%s\n' "Review the latest failed CI job" | nanobot trigger trg_8K4P2Q9X
 ```
 
-If an external webhook should wake nanobot up, run your own small webhook
+If an external webhook should wake Zhixu up, run your own small webhook
 service and have it call the trigger command after it builds the final message:
 
 ```bash
 nanobot trigger <trigger-id> "<message>"
 ```
 
-If you run multiple nanobot instances, pass the same config or workspace
+If you run multiple Zhixu instances, pass the same config or workspace
 selector used by the gateway:
 
 ```bash

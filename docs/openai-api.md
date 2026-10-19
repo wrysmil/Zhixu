@@ -1,6 +1,6 @@
-# Nanobot OpenAI-Compatible API: Run a Local Agent Behind /v1/chat/completions
+# Zhixu OpenAI-Compatible API: Run a Local Agent Behind /v1/chat/completions
 
-nanobot can expose a minimal OpenAI-compatible endpoint for local integrations:
+Zhixu can expose a minimal OpenAI-compatible endpoint for local integrations:
 
 ```bash
 nanobot plugins enable api
@@ -15,7 +15,7 @@ For setup help, see [`quick-start.md`](./quick-start.md), [`providers.md`](./pro
 ## Authentication
 
 Local-only `127.0.0.1` usage does not require an API key. If you bind the API
-server to all interfaces with `api.host: "0.0.0.0"` or `"::"`, nanobot requires
+server to all interfaces with `api.host: "0.0.0.0"` or `"::"`, Zhixu requires
 `api.apiKey`; otherwise startup fails to avoid exposing an unauthenticated agent
 endpoint on the network.
 
@@ -57,7 +57,7 @@ Example tool call for cross-channel delivery from an API session:
 }
 ```
 
-If `channel` points to a channel that is not enabled in your config, nanobot will queue the outbound event but no platform delivery will occur.
+If `channel` points to a channel that is not enabled in your config, Zhixu will queue the outbound event but no platform delivery will occur.
 
 ## Endpoints
 

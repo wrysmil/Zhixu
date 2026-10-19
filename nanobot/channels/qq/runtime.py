@@ -3,7 +3,7 @@
 Inbound:
 - Parse QQ botpy messages (C2C / Group)
 - Download attachments to media dir using chunked streaming write (memory-safe)
-- Publish to Nanobot bus via BaseChannel._handle_message()
+- Publish to 知序 bus via BaseChannel._handle_message()
 - Content includes a clear, actionable "Received files:" list with local paths
 
 Outbound:

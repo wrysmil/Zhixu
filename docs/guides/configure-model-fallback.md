@@ -1,6 +1,6 @@
-# How to Configure Model Fallback in nanobot
+# How to Configure Model Fallback in Zhixu
 
-Model fallback lets nanobot try a primary model first, then fall back to one or
+Model fallback lets Zhixu try a primary model first, then fall back to one or
 more named presets when the primary provider fails or rate-limits.
 
 ## What you will build
@@ -84,7 +84,7 @@ for common providers.
 - If output is truncated after fallback, review `maxTokens` and
   `contextWindowTokens`.
 
-## Related nanobot docs
+## Related Zhixu docs
 
 - [Providers and Models](../providers.md)
 - [Provider Cookbook: Fallback Presets](../provider-cookbook.md#recipe-fallback-presets)

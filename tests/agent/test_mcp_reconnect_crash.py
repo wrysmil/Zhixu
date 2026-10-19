@@ -1,7 +1,7 @@
 """Reproduction test for HKUDS/nanobot#4302.
 
 This test starts a real FastMCP streamable-http server in a child process,
-lets its idle timeout kill the session, and then exercises nanobot's MCP
+lets its idle timeout kill the session, and then exercises Zhixu's MCP
 reconnect path.  The bug being reproduced is a gateway crash caused by
 improper cleanup of the old ``streamable_http_client`` async generator during
 reconnect / shutdown.

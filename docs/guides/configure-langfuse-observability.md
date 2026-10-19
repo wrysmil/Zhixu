@@ -1,13 +1,13 @@
-# How to Configure Langfuse Observability for nanobot
+# How to Configure Langfuse Observability for Zhixu
 
-nanobot can trace supported OpenAI-compatible provider calls through Langfuse's
+Zhixu can trace supported OpenAI-compatible provider calls through Langfuse's
 OpenAI SDK wrapper.
 
 ## What you will build
 
-- Langfuse installed in the same Python environment as nanobot
+- Langfuse installed in the same Python environment as Zhixu
 - Langfuse environment variables set before startup
-- one traced nanobot model call
+- one traced Zhixu model call
 
 ## When to use this
 
@@ -16,7 +16,7 @@ cost, or prompt behavior during development or production operation.
 
 ## Install
 
-Install nanobot and prove the agent works:
+Install Zhixu and prove the agent works:
 
 ```bash
 python -m pip install nanobot-ai
@@ -32,7 +32,7 @@ nanobot plugins enable langfuse
 
 ## Minimal working example
 
-Set credentials before starting nanobot:
+Set credentials before starting Zhixu:
 
 ```bash
 export LANGFUSE_SECRET_KEY="sk-lf-..."
@@ -72,7 +72,7 @@ nanobot agent -m "Hello!"
 - Confirm the provider path is OpenAI-compatible.
 - Run one local `nanobot agent -m "Hello!"` call before debugging service logs.
 
-## Related nanobot docs
+## Related Zhixu docs
 
 - [Configuration: Langfuse Observability](../configuration.md#langfuse-observability)
 - [Provider Cookbook: Langfuse Tracing](../provider-cookbook.md#recipe-langfuse-tracing)

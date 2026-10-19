@@ -1,21 +1,21 @@
 # Automations
 
-<!-- Meta description: Create, run, and manage nanobot scheduled automations, local triggers, and heartbeat-backed background checks. -->
+<!-- Meta description: Create, run, and manage Zhixu scheduled automations, local triggers, and heartbeat-backed background checks. -->
 
 Automations are agent turns that run later in a linked topic. Use them
-when nanobot should do work without someone actively typing: reminders,
+when Zhixu should do work without someone actively typing: reminders,
 recurring checks, nightly summaries, CI follow-ups, local script reports, or
 webhook-driven events.
 
 Create automations from the chat channel or WebUI topic where the
-result should appear. That lets nanobot keep the right session history,
+result should appear. That lets Zhixu keep the right session history,
 workspace, and reply target.
 
 ## Choose an Automation Type
 
 | Type | Starts from | Best for | Created with |
 |---|---|---|---|
-| Scheduled automation | Time, interval, or cron expression | Recurring reminders, scheduled summaries, one-time future tasks | Ask nanobot in the target topic to schedule it with the `cron` tool |
+| Scheduled automation | Time, interval, or cron expression | Recurring reminders, scheduled summaries, one-time future tasks | Ask Zhixu in the target topic to schedule it with the `cron` tool |
 | Local trigger | A local `nanobot trigger ...` command | CI jobs, webhooks, shell scripts, generated reports | `/trigger <name>` in the target topic |
 | Heartbeat | Protected system schedule | Quiet recurring checks that should only report useful results | Edit `<workspace>/HEARTBEAT.md` |
 
@@ -30,17 +30,17 @@ apps, WebUI topics, scheduled automations, local triggers, heartbeat, and
 Dream jobs.
 
 Use the same workspace and config for the gateway and any process that sends
-local trigger messages. If you run multiple nanobot instances, pass the matching
+local trigger messages. If you run multiple Zhixu instances, pass the matching
 `--config` or `--workspace` option to `nanobot trigger`.
 
 Create each automation from the target topic. An automation without a linked
-topic cannot be enabled or run from the WebUI because nanobot would not know
+topic cannot be enabled or run from the WebUI because Zhixu would not know
 where to deliver the turn.
 
 ## Scheduled Automations
 
 Scheduled automations are created by the agent's `cron` tool. In practice, ask
-nanobot from the target chat or WebUI topic:
+Zhixu from the target chat or WebUI topic:
 
 ```text
 Every weekday at 9am, check open pull requests and summarize blockers here.
@@ -54,7 +54,7 @@ Tomorrow at 4pm, remind me to send the release notes.
 
 The cron tool supports interval schedules, cron expressions, and one-time
 scheduled tasks. Cron expressions can include an IANA timezone such as
-`America/Vancouver`; otherwise nanobot uses the runtime default timezone.
+`America/Vancouver`; otherwise Zhixu uses the runtime default timezone.
 
 Scheduled automations normally deliver the result back to the session where they
 were created. Use them for work that should run on a predictable schedule and
@@ -66,7 +66,7 @@ report, use heartbeat instead of a user-created scheduled automation.
 ## Local Triggers
 
 Local triggers let a local script or external service send a message into a
-specific nanobot session later.
+specific Zhixu session later.
 
 Create the trigger from the chat or WebUI topic where future messages should
 arrive:
@@ -75,13 +75,13 @@ arrive:
 /trigger PR review
 ```
 
-nanobot replies with a trigger ID and a command shaped like:
+Zhixu replies with a trigger ID and a command shaped like:
 
 ```bash
 nanobot trigger trg_8K4P2Q9X "Review PR #4502"
 ```
 
-Replace the quoted text with the message nanobot should receive. For generated
+Replace the quoted text with the message Zhixu should receive. For generated
 or longer content, pipe stdin:
 
 ```bash
@@ -96,8 +96,8 @@ nanobot trigger --config ./bot-a/config.json trg_8K4P2Q9X "Nightly report"
 nanobot trigger --workspace ./bot-a/workspace trg_8K4P2Q9X "Nightly report"
 ```
 
-nanobot does not provide a built-in public webhook receiver for local triggers.
-If GitHub, CI, or another external system should wake nanobot, run your own
+Zhixu does not provide a built-in public webhook receiver for local triggers.
+If GitHub, CI, or another external system should wake Zhixu, run your own
 small webhook service and have it call `nanobot trigger` after it builds the
 final message.
 

@@ -232,7 +232,7 @@ class WeixinConnectStore:
             return {
                 "session_id": session_id,
                 "status": "succeeded",
-                "message": "WeChat is already connected to this nanobot instance.",
+                "message": "WeChat is already connected to this Zhixu instance.",
             }
 
         if status == "expired":

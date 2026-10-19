@@ -1,6 +1,6 @@
 # Multiple Instances
 
-Run multiple nanobot instances simultaneously with separate configs and runtime data. Use `--config` as the main entrypoint. Optionally pass `--workspace` during `onboard` when you want to initialize or update the saved workspace for a specific instance.
+Run multiple Zhixu instances simultaneously with separate configs and runtime data. Use `--config` as the main entrypoint. Optionally pass `--workspace` during `onboard` when you want to initialize or update the saved workspace for a specific instance.
 
 ## Quick Start
 
@@ -37,7 +37,7 @@ nanobot gateway --config ~/.nanobot-feishu/config.json --port 18792
 
 ## Path Resolution
 
-When using `--config`, nanobot derives its runtime data directory from the config file location. The workspace still comes from `agents.defaults.workspace` unless you override it with `--workspace`.
+When using `--config`, Zhixu derives its runtime data directory from the config file location. The workspace still comes from `agents.defaults.workspace` unless you override it with `--workspace`.
 
 To open a CLI session against one of these instances locally:
 

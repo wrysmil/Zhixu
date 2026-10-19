@@ -6,11 +6,11 @@ const NETWORK_FIRST_STATIC_PATHS = new Set([
   "/",
   "/manifest.json",
   ASSET_MANIFEST_PATH,
-  "/brand/mira_apple_touch.png",
-  "/brand/mira_favicon_32.png",
-  "/brand/mira_icon_192.png",
-  "/brand/mira_icon_512.png",
-  "/brand/mira_icon_maskable.png",
+  "/brand/zhixu_apple_touch.png",
+  "/brand/zhixu_favicon_32.png",
+  "/brand/zhixu_icon_192.png",
+  "/brand/zhixu_icon_512.png",
+  "/brand/zhixu_icon_maskable.png",
 ]);
 
 function responseMayBeCached(response) {

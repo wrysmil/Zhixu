@@ -1,19 +1,19 @@
-# Build a Feishu AI Agent with nanobot
+# Build a Feishu AI Agent with Zhixu
 
-This guide connects nanobot to Feishu or Lark through the `feishu` channel. The
+This guide connects Zhixu to Feishu or Lark through the `feishu` channel. The
 channel uses a WebSocket long connection, so the first setup does not require a
 public webhook URL.
 
 ## What this guide builds
 
-- a Feishu/Lark bot app connected to nanobot
+- a Feishu/Lark bot app connected to Zhixu
 - the `feishu` channel enabled in `config.json`
 - one pairing-approved Feishu or Lark user
 - mention-only group behavior for first deployment
 
 ## Prerequisites
 
-- A working local nanobot reply:
+- A working local Zhixu reply:
 
 ```bash
 nanobot agent -m "Hello!"
@@ -22,7 +22,7 @@ nanobot agent -m "Hello!"
 - A Feishu or Lark account that can create or approve bot apps.
 - Permission to run `nanobot gateway` continuously.
 
-## Install nanobot
+## Install Zhixu
 
 ```bash
 python -m pip install nanobot-ai
@@ -43,7 +43,7 @@ The easiest path is QR login:
 nanobot channels login feishu
 ```
 
-Open the printed URL or scan the QR code. nanobot writes the generated `appId`,
+Open the printed URL or scan the QR code. Zhixu writes the generated `appId`,
 `appSecret`, `domain`, and `enabled` fields into the active config.
 
 If QR login is unavailable, create a Feishu/Lark app manually and merge this

@@ -3,7 +3,7 @@
 
 ## Workspace
 {% if agent_workspace_path != workspace_path %}
-Nanobot's agent workspace is at: {{ agent_workspace_path }}
+知序的 agent 工作区位于：{{ agent_workspace_path }}
 - Agent profile: {{ agent_workspace_path }}/SOUL.md and {{ agent_workspace_path }}/USER.md (automatically managed by Dream — do not edit directly)
 - **Long-term memory — primary store:** a three-layer SQLite database at {{ agent_workspace_path }}/memory/state.db. `memories` holds durable facts and preferences, `episodes` holds session summaries, `scratchpad` holds working state. It is written automatically by the memory extractor. This is the store `memory_search` reads.
 - Memory search tool: `memory_search` — **the** way to proactively retrieve long-term memory. Call it whenever users ask about past projects, decisions, preferences, or tool usage history, and whenever you are about to say you do not know something about the user.

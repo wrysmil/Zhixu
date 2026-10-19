@@ -1,6 +1,6 @@
-# How to Run a Long-Running AI Agent with nanobot
+# How to Run a Long-Running AI Agent with Zhixu
 
-nanobot can keep agent work alive across turns through sustained goals,
+Zhixu can keep agent work alive across turns through sustained goals,
 persistent sessions, scheduled automations, local triggers, and a gateway
 process that stays running.
 
@@ -40,7 +40,7 @@ From the WebUI or a chat session, start a sustained goal:
 ```
 
 For scheduled or trigger-based runs, create the automation from the target chat
-so nanobot can link it to the correct session and workspace.
+so Zhixu can link it to the correct session and workspace.
 
 ## Production notes
 
@@ -64,7 +64,7 @@ so nanobot can link it to the correct session and workspace.
 - If a local trigger fails, check the command copied from the WebUI Automations
   view.
 
-## Related nanobot docs
+## Related Zhixu docs
 
 - [Automations](../automations.md)
 - [WebUI Automations](../webui.md#automations)

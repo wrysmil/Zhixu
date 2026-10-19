@@ -1,18 +1,18 @@
-# AI Agent Memory in nanobot
+# AI Agent Memory in Zhixu
 
-This page explains how nanobot implements long-term AI agent memory: session
+This page explains how Zhixu implements long-term AI agent memory: session
 history, compressed archives, durable knowledge files, Dream consolidation, and
 Git-backed memory changes.
 
-nanobot's memory is built on a simple belief: memory should feel alive, but it should not feel chaotic.
+Zhixu's memory is built on a simple belief: memory should feel alive, but it should not feel chaotic.
 
 Good memory is not a pile of notes. It is a quiet system of attention. It notices what is worth keeping, lets go of what no longer needs the spotlight, and turns lived experience into something calm, durable, and useful.
 
-That is the shape of memory in nanobot.
+That is the shape of memory in Zhixu.
 
 ## The Design
 
-nanobot does not treat memory as one giant file.
+Zhixu does not treat memory as one giant file.
 
 It separates memory into layers, because different kinds of remembering deserve different tools:
 
@@ -25,7 +25,7 @@ This keeps the system light in the moment, but reflective over time.
 
 ## The Flow
 
-Memory moves through nanobot in two stages.
+Memory moves through Zhixu in two stages.
 
 ### Stage 1: Consolidator
 
@@ -58,7 +58,7 @@ Dream reads:
 
 Then it edits the long-term files surgically in a single pass — not by rewriting everything, but by making the smallest honest change that keeps memory coherent.
 
-This is why nanobot's memory is not just archival. It is interpretive.
+This is why Zhixu's memory is not just archival. It is interpretive.
 
 ## The Files
 
@@ -89,7 +89,7 @@ separate configured agent workspace when identity or memory must be isolated.
 
 These files play different roles:
 
-- `SOUL.md` remembers how nanobot should sound.
+- `SOUL.md` remembers how Zhixu should sound.
 - `USER.md` remembers who the user is and what they prefer.
 - `MEMORY.md` remembers what remains true about the work itself.
 - `history.jsonl` remembers what happened on the way there.
@@ -98,7 +98,7 @@ These files play different roles:
 
 The old `HISTORY.md` format was pleasant for casual reading, but it was too fragile as an operational substrate.
 
-`history.jsonl` gives nanobot:
+`history.jsonl` gives Zhixu:
 
 - stable incremental cursors
 - safer machine parsing
@@ -142,7 +142,7 @@ These commands exist for a reason: automatic memory is powerful, but users shoul
 
 ## Versioned Memory
 
-After Dream changes long-term memory files, nanobot can record that change with `GitStore`.
+After Dream changes long-term memory files, Zhixu can record that change with `GitStore`.
 
 This gives memory a history of its own:
 
@@ -154,7 +154,7 @@ That turns memory from a silent mutation into an auditable process.
 
 ## Guiding Dream
 
-Dream decides what to keep, update, or forget using nanobot's built-in memory instructions. Most users can leave this alone.
+Dream decides what to keep, update, or forget using Zhixu's built-in memory instructions. Most users can leave this alone.
 
 If one workspace needs a different memory style, create an editable guide:
 
@@ -170,9 +170,9 @@ workspace/prompts/dream.md
 
 Edit that file in plain Markdown. When it has content, Dream follows it for this workspace before reading the latest conversation history. You do not need to paste history into the file; Dream adds the current `## Conversation History` block automatically.
 
-To return to nanobot's default behavior, delete `prompts/dream.md` or leave it empty.
+To return to Zhixu's default behavior, delete `prompts/dream.md` or leave it empty.
 
-Each workspace has its own guide. Changing this file does not affect other nanobot workspaces.
+Each workspace has its own guide. Changing this file does not affect other Zhixu workspaces.
 
 ## Configuration
 

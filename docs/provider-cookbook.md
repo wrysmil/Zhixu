@@ -19,15 +19,15 @@ Match the recipe to the credential or endpoint you already have:
 | An OpenAI platform API key and OpenAI model ID | [OpenAI Direct](#recipe-openai-direct) | `OPENAI_API_KEY`, `provider: "openai"`, and an OpenAI model available to that account |
 | An Anthropic API key and Anthropic model ID | [Anthropic Direct](#recipe-anthropic-direct) | `ANTHROPIC_API_KEY`, `provider: "anthropic"`, and a non-gateway model ID |
 | A Kimi Coding Plan key | [Kimi Coding Plan](#recipe-kimi-coding-plan) | `KIMI_CODING_API_KEY`, `provider: "kimi_coding"`, and `model: "kimi-for-coding"` |
-| An OpenAI-compatible `/v1` endpoint that is not a named nanobot provider | [Custom OpenAI-Compatible Provider](#recipe-custom-openai-compatible-provider) | `apiBase`, optional API key, and the model ID served by that endpoint |
+| An OpenAI-compatible `/v1` endpoint that is not a named Zhixu provider | [Custom OpenAI-Compatible Provider](#recipe-custom-openai-compatible-provider) | `apiBase`, optional API key, and the model ID served by that endpoint |
 | Ollama already running locally | [Ollama Local Model](#recipe-ollama-local-model) | Ollama `apiBase`, pulled model name, and local server availability |
 | vLLM, LM Studio, or another local OpenAI-compatible server | [vLLM or LM Studio](#recipe-vllm-or-lm-studio) | Local `/v1` base URL, any required key, and served model name |
 | A primary model plus one or more backups | [Fallback Presets](#recipe-fallback-presets) | Named presets in `modelPresets`, referenced from `agents.defaults.fallbackModels` |
-| A working agent and a Langfuse project | [Langfuse Tracing](#recipe-langfuse-tracing) | Langfuse env vars in the same process environment that starts nanobot |
+| A working agent and a Langfuse project | [Langfuse Tracing](#recipe-langfuse-tracing) | Langfuse env vars in the same process environment that starts Zhixu |
 
 ## How to Use a Recipe
 
-1. Install nanobot and run `nanobot onboard` once so `~/.nanobot/config.json` exists. Use `nanobot onboard --wizard` if you prefer prompts over hand-editing JSON.
+1. Install Zhixu and run `nanobot onboard` once so `~/.nanobot/config.json` exists. Use `nanobot onboard --wizard` if you prefer prompts over hand-editing JSON.
 2. Put secrets in environment variables when possible.
 3. Merge the recipe snippet into `~/.nanobot/config.json`.
 4. Run `nanobot status`.
@@ -56,7 +56,7 @@ $env:OPENROUTER_API_KEY = "sk-or-v1-..."
 nanobot agent -m "Hello!"
 ```
 
-Environment variables set this way apply only to the current terminal. For long-running services such as systemd, Docker, LaunchAgent, or a remote shell, set the variables in that service environment before starting nanobot.
+Environment variables set this way apply only to the current terminal. For long-running services such as systemd, Docker, LaunchAgent, or a remote shell, set the variables in that service environment before starting Zhixu.
 
 ## Recipe: OpenRouter Gateway
 
@@ -93,7 +93,7 @@ nanobot status
 nanobot agent -m "Hello!"
 ```
 
-If this fails with `401` or `unauthorized`, check that `OPENROUTER_API_KEY` is visible in the same terminal or service that starts nanobot. If it fails with `model not found`, choose a model ID that OpenRouter lists for your account.
+If this fails with `401` or `unauthorized`, check that `OPENROUTER_API_KEY` is visible in the same terminal or service that starts Zhixu. If it fails with `model not found`, choose a model ID that OpenRouter lists for your account.
 
 ## Recipe: OpenCode Zen or Go
 
@@ -161,7 +161,7 @@ nanobot agent -m "Hello!"
 ```
 
 OpenCode's docs list models across multiple endpoint types. The `opencode_zen`
-and `opencode_go` providers in nanobot use the OpenAI-compatible
+and `opencode_go` providers in Zhixu use the OpenAI-compatible
 `chat/completions` path. If a model fails with `model not found` or an endpoint
 shape error, choose a model that OpenCode lists under `chat/completions` for the
 matching Zen or Go endpoint.
@@ -269,7 +269,7 @@ Do not configure Anthropic-compatible endpoints as arbitrary custom provider nam
 
 ## Recipe: Kimi Coding Plan
 
-This recipe applies when your key comes from Kimi's Coding Plan endpoint. Nanobot uses a dedicated `kimi_coding` provider for this Anthropic Messages API endpoint; do not configure it as a generic `custom` provider.
+This recipe applies when your key comes from Kimi's Coding Plan endpoint. Zhixu uses a dedicated `kimi_coding` provider for this Anthropic Messages API endpoint; do not configure it as a generic `custom` provider.
 
 ```json
 {
@@ -301,11 +301,11 @@ nanobot status
 nanobot agent -m "Hello!"
 ```
 
-The default base URL is `https://api.kimi.com/coding/v1`. This endpoint requires a Claude-compatible `User-Agent`; nanobot sends `claude-code/0.1.0` by default. If your account requires a different value, override it with `providers.kimiCoding.extraHeaders.User-Agent`.
+The default base URL is `https://api.kimi.com/coding/v1`. This endpoint requires a Claude-compatible `User-Agent`; Zhixu sends `claude-code/0.1.0` by default. If your account requires a different value, override it with `providers.kimiCoding.extraHeaders.User-Agent`.
 
 ## Recipe: Custom OpenAI-Compatible Provider
 
-This recipe applies to an OpenAI-compatible service that is not a named nanobot provider.
+This recipe applies to an OpenAI-compatible service that is not a named Zhixu provider.
 
 ```json
 {
@@ -332,7 +332,7 @@ This recipe applies to an OpenAI-compatible service that is not a named nanobot 
 }
 ```
 
-Verify the endpoint before blaming nanobot:
+Verify the endpoint before blaming Zhixu:
 
 ```bash
 curl -sS https://api.example.com/v1/models
@@ -422,7 +422,7 @@ nanobot agent -m "Hello!"
 
 If you see `connection refused`, Ollama is not running or `apiBase` points to the wrong port. If every response is slow, try a smaller local model or lower `contextWindowTokens`.
 
-If direct Ollama responses are fast but tool-using nanobot turns repeatedly evaluate
+If direct Ollama responses are fast but tool-using Zhixu turns repeatedly evaluate
 thousands of prompt tokens, the model's chat template may be moving its tool
 definitions between requests. See
 [Improve Ollama Tool-Calling Prompt Cache Reuse](./guides/configure-ollama-prompt-cache.md)
@@ -522,21 +522,21 @@ This recipe applies when one provider sometimes rate-limits, one model is expens
 }
 ```
 
-`fallbackModels` belongs under `agents.defaults`. String entries are preset names, not raw model names. nanobot tries the active preset first, then the fallback presets in order.
+`fallbackModels` belongs under `agents.defaults`. String entries are preset names, not raw model names. Zhixu tries the active preset first, then the fallback presets in order.
 
-Keep fallback candidates realistic. If the local fallback has a smaller context window, nanobot must build context that fits the smallest window in the active chain.
+Keep fallback candidates realistic. If the local fallback has a smaller context window, Zhixu must build context that fits the smallest window in the active chain.
 
 ## Recipe: Langfuse Tracing
 
 This recipe applies after the agent works and you want observability for OpenAI-compatible provider calls.
 
-Install the optional package in the same Python environment that runs nanobot:
+Install the optional package in the same Python environment that runs Zhixu:
 
 ```bash
 nanobot plugins enable langfuse
 ```
 
-Set the environment variables before starting nanobot:
+Set the environment variables before starting Zhixu:
 
 ```bash
 export LANGFUSE_SECRET_KEY="sk-lf-..."
@@ -604,7 +604,7 @@ turn keeps using the model it started with.
 | `model not found` | The model ID does not belong to the selected provider or gateway | Compare `modelPresets.<name>.provider` and `modelPresets.<name>.model` |
 | `connection refused` | Local server is not running or `apiBase` has the wrong port/path | Run `curl <apiBase>/models` |
 | `provider not found` | Provider name is misspelled or uses the config key instead of registry name | Use names such as `openrouter`, `openai`, `anthropic`, `ollama`, `vllm`, `lm_studio` |
-| Langfuse shows no traces | Env vars are missing, `langfuse` is not installed in the active Python environment, or the provider path is native | Run `python -m pip show langfuse` and restart nanobot from the same environment |
+| Langfuse shows no traces | Env vars are missing, `langfuse` is not installed in the active Python environment, or the provider path is native | Run `python -m pip show langfuse` and restart Zhixu from the same environment |
 
 ## Next References
 

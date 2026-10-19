@@ -1,4 +1,4 @@
-"""OpenAI-compatible HTTP API server for a fixed nanobot session.
+"""OpenAI-compatible HTTP API server for a fixed Zhixu session.
 
 Provides /v1/chat/completions and /v1/models endpoints.
 All requests route to a single persistent API session.
@@ -304,7 +304,7 @@ async def handle_chat_completions(request: web.Request) -> web.Response | web.St
         "request_timeout",
         120.0,
     )
-    model_name: str = _app_value(request.app, _MODEL_NAME_KEY, "model_name", "nanobot")
+    model_name: str = _app_value(request.app, _MODEL_NAME_KEY, "model_name", "zhixu")
 
     stream = False
     try:
@@ -449,7 +449,7 @@ async def handle_chat_completions(request: web.Request) -> web.Response | web.St
 
 async def handle_models(request: web.Request) -> web.Response:
     """GET /v1/models"""
-    model_name = _app_value(request.app, _MODEL_NAME_KEY, "model_name", "nanobot")
+    model_name = _app_value(request.app, _MODEL_NAME_KEY, "model_name", "zhixu")
     return web.json_response(
         {
             "object": "list",
@@ -458,7 +458,7 @@ async def handle_models(request: web.Request) -> web.Response:
                     "id": model_name,
                     "object": "model",
                     "created": 0,
-                    "owned_by": "nanobot",
+                    "owned_by": "zhixu",
                 }
             ],
         }
@@ -477,7 +477,7 @@ async def handle_health(request: web.Request) -> web.Response:
 
 def create_app(
     agent_loop: "AgentLoop",
-    model_name: str = "nanobot",
+    model_name: str = "zhixu",
     request_timeout: float = 120.0,
     api_key: str = "",
     prepare_agent: Callable[[], Awaitable[None]] | None = None,

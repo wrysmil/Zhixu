@@ -408,7 +408,7 @@ def _run_gateway(
         )
         raise typer.Exit(1)
 
-    console.print(f"{__logo__} Starting nanobot gateway version {__version__} on port {port}...")
+    console.print(f"{__logo__} Starting Zhixu gateway version {__version__} on port {port}...")
     _prepare_webui_bundle_for_gateway(
         config,
         mode=webui_bundle_mode,

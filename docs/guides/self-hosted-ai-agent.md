@@ -1,12 +1,12 @@
-# How to Run a Self-Hosted AI Agent with nanobot
+# How to Run a Self-Hosted AI Agent with Zhixu
 
-This guide sets up nanobot as a self-hosted AI agent runtime on your own
+This guide sets up Zhixu as a self-hosted AI agent runtime on your own
 machine or server. The result is a gateway process that can serve the WebUI,
 chat apps, automations, and API integrations.
 
 ## What you will build
 
-- a nanobot config and workspace under your control
+- a Zhixu config and workspace under your control
 - a model provider connected through `config.json`
 - a long-running `nanobot gateway`
 - optional browser, chat app, and API access
@@ -74,7 +74,7 @@ process running for messages.
 - Check port conflicts if the WebUI, WebSocket channel, or API endpoint fails to
   bind.
 
-## Related nanobot docs
+## Related Zhixu docs
 
 - [Deployment](../deployment.md)
 - [Multiple Instances](../multiple-instances.md)

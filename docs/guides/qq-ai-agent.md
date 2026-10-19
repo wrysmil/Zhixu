@@ -1,6 +1,6 @@
-# Build a QQ AI Agent with nanobot
+# Build a QQ AI Agent with Zhixu
 
-This guide connects nanobot to QQ through the official `qq` channel. The
+This guide connects Zhixu to QQ through the official `qq` channel. The
 official channel uses the botpy SDK and currently focuses on private messages.
 For QQ group chat and OneBot v11 workflows, use the Napcat section in the full
 chat-apps reference.
@@ -8,13 +8,13 @@ chat-apps reference.
 ## What this guide builds
 
 - a QQ bot application
-- the `qq` channel enabled in nanobot
+- the `qq` channel enabled in Zhixu
 - one pairing-approved QQ private sender
-- a running nanobot gateway
+- a running Zhixu gateway
 
 ## Prerequisites
 
-- A working local nanobot reply:
+- A working local Zhixu reply:
 
 ```bash
 nanobot agent -m "Hello!"
@@ -23,7 +23,7 @@ nanobot agent -m "Hello!"
 - Access to the QQ Open Platform.
 - A QQ account added to the bot sandbox for testing.
 
-## Install nanobot
+## Install Zhixu
 
 ```bash
 python -m pip install nanobot-ai

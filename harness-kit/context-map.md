@@ -49,5 +49,5 @@
 
 ## 待确认项
 
-- `nanobot/memory/`（新 memory 子系统）与 `nanobot/agent/memory.py`（旧 Dream 实现）的职责边界与迁移状态（当前 feature/memory-system 分支核心工作，见 `docs/memory.md` 与 `.ai-runtime-artifacts/`）。
+- `nanobot/memory/`（新 memory 子系统）与 `nanobot/agent/memory.py`（旧 Dream 实现）的职责边界与迁移状态。**已过期（2026-10-19 更正）**：该项原属 `feature/memory-system` 分支的当期工作，当前主线已切到 `feature/desktop-app`，结论待重新核对（参考 `docs/memory.md` 与 `.ai-runtime-artifacts/`）。
 - WebUI 与 gateway 的 WS 协议扩展点（memory 操作是否复用现有 multiplex 帧类型）。

@@ -325,7 +325,7 @@ export function useNanobotStream(
       || document.visibilityState === "visible"
       || !readLocalPreferences().browserNotifications
     ) return;
-    new Notification("nanobot", { body });
+    new Notification("知序", { body });
   }, []);
 
   const clearPendingStreamWork = useCallback(() => {

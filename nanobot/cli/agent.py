@@ -64,7 +64,7 @@ def agent(
     logs: bool = typer.Option(
         False,
         "--logs/--no-logs",
-        help="Show nanobot runtime logs during chat",
+        help="Show 知序 runtime logs during chat",
     ),
     classic: bool = typer.Option(
         False,

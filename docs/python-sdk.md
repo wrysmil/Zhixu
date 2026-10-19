@@ -1,20 +1,20 @@
-# Nanobot Python SDK: Run an AI Agent from Python
+# Zhixu Python SDK: Run an AI Agent from Python
 
-Use nanobot as a Python library. The SDK gives you the same agent runtime used
+Use Zhixu as a Python library. The SDK gives you the same agent runtime used
 by the CLI, but from code: model routing, tools, workspace access, conversation
 history, memory, streaming events, and runtime helpers.
 
 If you have used the OpenAI SDK before, the most important difference is this:
 
 - OpenAI SDK calls a model.
-- nanobot SDK runs an agent around a model.
+- Zhixu SDK runs an agent around a model.
 
 That means one SDK call can read files, call tools, keep session history, use
 memory, stream progress, and return structured runtime information.
 
 ```text
 your Python code
-  -> Nanobot SDK
+  -> Zhixu SDK
     -> agent runtime
       -> configured model provider
       -> tools
@@ -25,7 +25,7 @@ your Python code
 
 ## Before You Start
 
-Install and configure nanobot first. If you have not done that yet, follow the
+Install and configure Zhixu first. If you have not done that yet, follow the
 [Quick Start](quick-start.md) and complete the setup wizard. For SDK-only Python
 environments, install the package with:
 
@@ -210,7 +210,7 @@ stable `session_key`, stream events, keep the final `RunResult`, and let
 | `session_key` | The conversation history key. Reuse it to continue a thread; change it to isolate a thread. |
 | Workspace | The local directory where file tools and shell tools operate. |
 | Tools | Capabilities the agent may call, such as file access, shell, web, or custom tools from your config. |
-| Memory | Long-term memory files managed by nanobot. |
+| Memory | Long-term memory files managed by Zhixu. |
 | Stream event | A typed event such as `text.delta`, `tool.started`, or `run.completed`. |
 | Model override | A temporary model or model preset used for one SDK instance or one run. |
 
@@ -224,7 +224,7 @@ For most users, the mental model is:
 
 ## SDK Or OpenAI-Compatible API?
 
-nanobot has two programming surfaces:
+Zhixu has two programming surfaces:
 
 | Use | Choose | Why |
 |-----|--------|-----|
@@ -233,10 +233,10 @@ nanobot has two programming surfaces:
 
 The Python SDK is best when you are writing evals, notebooks, benchmark
 runners, product backends, local scripts, or integrations that should control
-nanobot directly.
+Zhixu directly.
 
 The OpenAI-compatible API is best when you already have an HTTP client, want
-process isolation, or need to call nanobot from a non-Python service.
+process isolation, or need to call Zhixu from a non-Python service.
 
 ## Common Patterns
 
@@ -251,7 +251,7 @@ async with Nanobot.from_config(workspace="/my/project") as bot:
     result = await bot.run("Explain the project structure")
 ```
 
-Use a custom config when you run multiple nanobot instances or test an isolated
+Use a custom config when you run multiple Zhixu instances or test an isolated
 setup:
 
 ```python
@@ -262,7 +262,7 @@ async with Nanobot.from_config(
     result = await bot.run("Hello from bot A")
 ```
 
-The config controls what nanobot may use. The workspace is where nanobot keeps
+The config controls what Zhixu may use. The workspace is where Zhixu keeps
 state for that instance. See [multiple-instances.md](multiple-instances.md) for
 multi-instance CLI and gateway examples.
 
@@ -395,7 +395,7 @@ half-consumed stream cannot leave a background task stuck behind backpressure.
 This is useful for evals, benchmark runners, migrations, and tests.
 
 Use `bot.sessions.ingest()` when you already have a transcript and want it to
-become nanobot session history. Ingesting a transcript does not call the model,
+become Zhixu session history. Ingesting a transcript does not call the model,
 execute tools, update memory, or compact automatically.
 
 ```python
@@ -430,7 +430,7 @@ print(result.content)
 ### Attach hooks for observability
 
 Hooks are an advanced escape hatch. Use them when you want custom logging,
-metrics, tracing, or output post-processing without modifying nanobot internals:
+metrics, tracing, or output post-processing without modifying Zhixu internals:
 
 ```python
 from nanobot.agent import AgentHook, AgentHookContext
@@ -640,9 +640,9 @@ Do not expose exported snapshots directly to chat users.
 ### Host integration context and persisted-turn callbacks
 
 Host applications can attach external context without copying or modifying the
-nanobot agent loop. A context provider receives a `RequestContext` before each
+Zhixu agent loop. A context provider receives a `RequestContext` before each
 model turn and may return one or more `RuntimeContextBlock` values. Use
-`attributes` for caller-owned routing data; nanobot keeps it separate from
+`attributes` for caller-owned routing data; Zhixu keeps it separate from
 trusted channel metadata and does not persist it in session messages.
 
 `on_session_turn_persisted()` invokes its callback after a non-ephemeral turn

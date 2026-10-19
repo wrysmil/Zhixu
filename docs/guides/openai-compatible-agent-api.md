@@ -1,12 +1,12 @@
-# How to Run an OpenAI-Compatible Agent API with nanobot
+# How to Run an OpenAI-Compatible Agent API with Zhixu
 
-nanobot can expose a local OpenAI-compatible endpoint behind
+Zhixu can expose a local OpenAI-compatible endpoint behind
 `/v1/chat/completions`. This lets existing OpenAI-style clients talk to a
-tool-using nanobot agent instead of a raw model.
+tool-using Zhixu agent instead of a raw model.
 
 ## What you will build
 
-- a working nanobot agent
+- a working Zhixu agent
 - a local API server on `127.0.0.1:8900`
 - a `/v1/chat/completions` request
 - optional session isolation with `session_id`
@@ -66,9 +66,9 @@ curl http://127.0.0.1:8900/v1/chat/completions \
   API key configuration.
 - If sessions mix together, pass unique `session_id` values.
 
-## Related nanobot docs
+## Related Zhixu docs
 
-- [Nanobot OpenAI-Compatible API](../openai-api.md)
+- [Zhixu OpenAI-Compatible API](../openai-api.md)
 - [Python SDK](../python-sdk.md)
 - [Configuration](../configuration.md)
 - [Deployment](../deployment.md)

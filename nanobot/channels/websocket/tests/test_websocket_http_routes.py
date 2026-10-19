@@ -1502,7 +1502,7 @@ def test_feishu_connect_create_appends_instance(
                 "feishu": {
                     "instances": [{
                         "id": "default",
-                        "name": "nanobot",
+                        "name": "知序",
                         "enabled": True,
                         "appId": "cli_default",
                         "appSecret": "default-secret",

@@ -1,8 +1,8 @@
-# Nanobot WebUI: Browser Workbench for Self-Hosted AI Agents
+# Zhixu WebUI: Browser Workbench for Self-Hosted AI Agents
 
-<!-- Meta description: Run nanobot from a browser WebUI with persistent and temporary chats, visible tool activity, workspace controls, Apps, skill discovery, settings, and Automations. -->
+<!-- Meta description: Run Zhixu from a browser WebUI with persistent and temporary chats, visible tool activity, workspace controls, Apps, skill discovery, settings, and Automations. -->
 
-The WebUI is nanobot's browser workbench for persistent topics, grouped
+The WebUI is Zhixu's browser workbench for persistent topics, grouped
 conversation panes, temporary chats, visible agent activity, workspace controls,
 Apps, skill discovery, settings, and Automations in one place. It shares the
 gateway and saved sessions with the native terminal client.
@@ -147,13 +147,13 @@ a bar for input tokens, output tokens, generation time, and the KV cache hit
 rate when reported. Provider usage may be estimated or unavailable; these
 figures are not a billing statement.
 
-When nanobot compacts context, the timeline shows its progress and outcome.
+When Zhixu compacts context, the timeline shows its progress and outcome.
 The compacted summary keeps earlier work available while recent messages remain
 in context. See [Memory](./memory.md) for compaction and Dream consolidation.
 
 ## Temporary Chats
 
-Use a temporary chat for a conversation that should not be added to nanobot's
+Use a temporary chat for a conversation that should not be added to Zhixu's
 topic history or long-term memory:
 
 1. Select **New topic**.
@@ -252,7 +252,7 @@ default **Ready** view shows only capabilities that can be used immediately:
 - **Agent Plugins** are local packages that can bundle skills, MCP servers, or
   both. A package under `<workspace>/plugins/` is installed but remains inactive
   until you enable it in Apps.
-- **CLI Apps** are local command-line adapters that nanobot runs on your
+- **CLI Apps** are local command-line adapters that Zhixu runs on your
   machine. Their installer manages the executable and exposes its adapter
   through the same plugin activation model. Installing an adapter does not
   modify the native desktop or web app it connects to.
@@ -264,24 +264,24 @@ default **Ready** view shows only capabilities that can be used immediately:
   localhost WebUIs return automatically; a remote plain-HTTP WebUI shows one
   field for pasting the complete localhost callback URL.
 
-Apps intentionally does not list nanobot runtime support packages such as
+Apps intentionally does not list Zhixu runtime support packages such as
 `api` or `bedrock`. Those packages enable providers, servers, or channels; they
 are not tools that can be attached to a turn with `@`. Manage them from
 **System**, **Models**, or **Web**. PDF and common Office document readers are
-included in nanobot and activate automatically when a file is attached. The
+included in Zhixu and activate automatically when a file is attached. The
 equivalent CLI for optional integrations remains `nanobot plugins`. See
 [`cli-reference.md`](./cli-reference.md#optional-features).
-That command manages nanobot runtime extras, not Agent Plugin packages.
+That command manages Zhixu runtime extras, not Agent Plugin packages.
 
 Some MCP presets connect to hosted keyless endpoints. For example, the Firecrawl
 preset uses Firecrawl's hosted MCP endpoint for search, scrape, crawl, and
-extraction tools without requiring an API key. This does not replace nanobot's
+extraction tools without requiring an API key. This does not replace Zhixu's
 built-in web search provider; mention the Firecrawl MCP preset with `@` when a
 turn needs Firecrawl's richer web data tools.
 
 The Parallel Search preset connects to the free, anonymous Parallel Search MCP
 endpoint and exposes `web_search` and `web_fetch` without requiring an API key.
-It is an optional integration and does not replace nanobot's built-in web search
+It is an optional integration and does not replace Zhixu's built-in web search
 provider; mention `@parallel-search` when a turn should use it.
 
 After a CLI App or MCP server is available, mention it from the composer with
@@ -308,7 +308,7 @@ your agent.
 ## Automations
 
 Automations are agent turns that run later in a linked topic. Create them from
-the topic or channel where they are supposed to run so nanobot keeps the
+the topic or channel where they are supposed to run so Zhixu keeps the
 correct target context. When an automation runs, it normally delivers the
 result back to that topic.
 
@@ -341,7 +341,7 @@ Search accepts plain text and field filters such as `name:backup`,
 `status:paused`.
 
 An automation without a linked topic cannot be enabled or run from the WebUI,
-because nanobot would not know where to deliver the scheduled turn. Recreate it
+because Zhixu would not know where to deliver the scheduled turn. Recreate it
 from the target topic or channel so the automation has complete context.
 
 Local triggers do not have a WebUI "Run now" action because each run needs a
@@ -392,7 +392,7 @@ WebSocket channel and open `https://<your-host>:8765`, or terminate HTTPS at a
 reverse proxy and use that proxy's HTTPS URL.
 
 Remote WebUI clients with a valid token can view and use Apps and installed
-skills. Actions that install missing nanobot support packages or third-party
+skills. Actions that install missing Zhixu support packages or third-party
 marketplace skills are blocked by default. To let trusted remote administrators
 perform those installations through the WebUI, opt in explicitly:
 
@@ -405,7 +405,7 @@ perform those installations through the WebUI, opt in explicitly:
 ```
 
 Use this only for a private deployment where every authenticated WebUI user is
-trusted to change nanobot's Python environment and install workspace skill
+trusted to change Zhixu's Python environment and install workspace skill
 instructions or scripts. If you publish the WebUI through Nginx, Caddy,
 Cloudflare Tunnel, or a similar service, treat it as remote access and leave
 package and skill installs disabled unless that is intentional.

@@ -1,18 +1,18 @@
-# Build a Discord AI Agent with nanobot
+# Build a Discord AI Agent with Zhixu
 
-This guide connects nanobot to Discord so a Discord user or server channel can
-talk to your self-hosted AI agent through the nanobot gateway.
+This guide connects Zhixu to Discord so a Discord user or server channel can
+talk to your self-hosted AI agent through the Zhixu gateway.
 
 ## What this guide builds
 
 - a Discord bot application
 - Message Content intent enabled
-- the `discord` channel enabled in nanobot
+- the `discord` channel enabled in Zhixu
 - one direct message or mention test
 
 ## Prerequisites
 
-- A working local nanobot reply:
+- A working local Zhixu reply:
 
 ```bash
 nanobot agent -m "Hello!"
@@ -21,7 +21,7 @@ nanobot agent -m "Hello!"
 - Access to the Discord Developer Portal.
 - A Discord server where you can invite a bot.
 
-## Install nanobot
+## Install Zhixu
 
 ```bash
 python -m pip install nanobot-ai

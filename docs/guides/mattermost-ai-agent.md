@@ -1,18 +1,18 @@
-# Build a Mattermost AI Agent with nanobot
+# Build a Mattermost AI Agent with Zhixu
 
-This guide connects nanobot to Mattermost through the built-in Mattermost
+This guide connects Zhixu to Mattermost through the built-in Mattermost
 channel, using WebSocket events and the Mattermost REST API.
 
 ## What this guide builds
 
 - a Mattermost bot account or token
-- the `mattermost` channel enabled in nanobot
+- the `mattermost` channel enabled in Zhixu
 - mention-only group behavior for first deployment
 - one pairing-approved DM or mention test
 
 ## Prerequisites
 
-- A working local nanobot reply:
+- A working local Zhixu reply:
 
 ```bash
 nanobot agent -m "Hello!"
@@ -21,7 +21,7 @@ nanobot agent -m "Hello!"
 - A Mattermost server URL.
 - A bot token or personal access token for the bot account.
 
-## Install nanobot
+## Install Zhixu
 
 ```bash
 python -m pip install nanobot-ai

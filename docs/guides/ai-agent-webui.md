@@ -1,6 +1,6 @@
-# How to Use an AI Agent WebUI with nanobot
+# How to Use an AI Agent WebUI with Zhixu
 
-nanobot includes a browser WebUI for persistent chat sessions, visible agent
+Zhixu includes a browser WebUI for persistent chat sessions, visible agent
 activity, workspace controls, Apps, MCP presets, Skills, settings, and
 Automations.
 
@@ -37,7 +37,7 @@ nanobot webui
 The launcher checks setup, enables the local WebSocket channel after
 confirmation, starts the gateway, and opens the browser.
 
-When nanobot edits a file, the WebUI activity timeline can show the changed
+When Zhixu edits a file, the WebUI activity timeline can show the changed
 line counts, a unified diff, and an **Open file** action for a read-only
 preview. File previews use the chat's current workspace access mode: restricted
 access stays inside the selected workspace, while Full Access can preview files
@@ -66,9 +66,9 @@ outside the workspace when the gateway allows it.
 - If the page opens but messages fail, check provider setup with
   `nanobot agent -m "Hello!"`.
 
-## Related nanobot docs
+## Related Zhixu docs
 
-- [Nanobot WebUI](../webui.md)
+- [Zhixu WebUI](../webui.md)
 - [Quick Start](../quick-start.md)
 - [WebSocket protocol](../websocket.md)
 - [Configuration](../configuration.md)

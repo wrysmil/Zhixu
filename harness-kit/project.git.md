@@ -20,7 +20,7 @@ org_skill: git-xywh
 | --- | --- |
 | 默认主干 | `main`（CI 仅对 push/PR 到 main 触发）；未见 `develop`/`test` 主干 |
 | 组织模型 | **偏离** git-xywh 三主干模型 → 实际为 `main` + `feature/*` 简化模型（推断，待确认） |
-| 当前工作分支 | `feature/memory-system`（本地领先 origin 4 个提交，未 push） |
+| 当前工作分支 | `feature/desktop-app`（与 `origin/feature/desktop-app` 同步，无未推送提交）；专项工作在其之上开临时 `feature/*` 分支 |
 | 提交格式 | Angular 风格（近期提交 `feat(webui): ...`、`docs(memory): ...`）；无 commitlint |
 | 提交前检查 | 无 `.husky/`、lint-staged（推断无本地 pre-commit 门禁） |
 | MR / PR 平台 | GitHub（`github.com/wrysmil/Agent-With-Memory`） |
@@ -47,7 +47,7 @@ org_skill: git-xywh
 ## 待确认项
 
 - 分支模型：采用 git-xywh 三主干，还是沿用现有 `main` + `feature/*`？
-- 是否允许 AI 直接 push `feature/memory-system` 到 origin（当前本地领先 4 提交）。
+- 是否允许 AI 直接 push `feature/desktop-app`（及在其之上的临时 `feature/*` 分支）到 origin。当前本地与 `origin/feature/desktop-app` 同步，无未推送提交。
 - MR/PR 必填审查人要求。
 - `uv.lock` 是否应恢复跟踪（现被 .gitignore 排除但 CI 引用）。
 

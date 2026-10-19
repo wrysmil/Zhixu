@@ -1,18 +1,18 @@
-# How to Configure MCP Tools in nanobot
+# How to Configure MCP Tools in Zhixu
 
-This guide adds an MCP server to nanobot so the agent can use external tools
+This guide adds an MCP server to Zhixu so the agent can use external tools
 through the Model Context Protocol.
 
 ## What you will build
 
-- a working nanobot agent
+- a working Zhixu agent
 - one MCP integration configured through Apps or `~/.nanobot/config.json`
 - a restricted set of MCP tools exposed to the model
 
 ## When to use this
 
 Use MCP when the capability you need already exists as an MCP server, or when
-you want external tools to be managed outside nanobot core.
+you want external tools to be managed outside Zhixu core.
 
 ## Install
 
@@ -35,7 +35,7 @@ For local interactive setup:
    and click **Connect**. Presets such as Xmind, Notion, and Linear go straight to
    **Connect**. Approve access in the browser window. HTTPS and localhost WebUIs
    return automatically. From a remote plain-HTTP WebUI, copy the complete
-   localhost callback URL from the browser address bar and paste it into nanobot.
+   localhost callback URL from the browser address bar and paste it into Zhixu.
 3. Limit the enabled tools when the server exposes more than the task needs.
 4. Save and restart when prompted.
 5. Mention the connected MCP server with `@` in the next message and ask for a small test action.
@@ -56,7 +56,7 @@ For manual or deployment-managed config, add this to `~/.nanobot/config.json`:
 }
 ```
 
-Restart nanobot and ask a question that requires the MCP tool.
+Restart Zhixu and ask a question that requires the MCP tool.
 
 ## Production notes
 
@@ -70,21 +70,21 @@ Restart nanobot and ask a question that requires the MCP tool.
 ## Security notes
 
 - Stdio MCP starts a local process; review the command before enabling it.
-- HTTP/SSE MCP uses nanobot's SSRF guard, including OAuth discovery, registration,
+- HTTP/SSE MCP uses Zhixu's SSRF guard, including OAuth discovery, registration,
   token exchange, and redirects.
-- OAuth credentials live in the nanobot data directory, not in `config.json`.
+- OAuth credentials live in the Zhixu data directory, not in `config.json`.
 - Allow private HTTP MCP hosts only with narrow `tools.ssrfWhitelist` CIDRs.
 - Do not place secrets in command arguments when environment variables or
   headers can be used.
 
 ## Troubleshooting
 
-- Run the MCP command outside nanobot first.
+- Run the MCP command outside Zhixu first.
 - Start `nanobot gateway --verbose` and inspect tool registration logs.
 - If an HTTP MCP URL is blocked, check whether it points to loopback or a
   private address that needs explicit allowlisting.
 
-## Related nanobot docs
+## Related Zhixu docs
 
 - [MCP tools for AI agents](./mcp-tools-for-ai-agents.md)
 - [Configuration: MCP](../configuration.md#mcp-model-context-protocol)

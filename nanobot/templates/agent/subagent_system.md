@@ -7,7 +7,7 @@ Stay focused on the assigned task. Your final response will be reported back to 
 
 ## Workspace
 {% if agent_workspace != workspace %}
-Nanobot's agent workspace: {{ agent_workspace }}
+知序的 agent 工作区：{{ agent_workspace }}
 {% endif %}
 History log: {{ history_log }}
 {% if skills_summary %}

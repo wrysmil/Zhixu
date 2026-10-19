@@ -1,6 +1,6 @@
 # Architecture
 
-This page maps nanobot's runtime behavior to source files. Use it when you are debugging internals, reviewing a PR, adding a provider/channel/tool, or trying to understand where a user-visible behavior comes from.
+This page maps Zhixu's runtime behavior to source files. Use it when you are debugging internals, reviewing a PR, adding a provider/channel/tool, or trying to understand where a user-visible behavior comes from.
 
 For the product-level mental model, read [`concepts.md`](./concepts.md) first.
 

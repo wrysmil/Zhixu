@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 export function BrandMark({ className }: { className?: string }) {
   return (
     <img
-      src="/brand/zhixu-logo.png"
+      src="/brand/zhixu_logo.png"
       alt=""
       aria-hidden="true"
       width={40}

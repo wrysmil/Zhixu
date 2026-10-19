@@ -48,7 +48,7 @@ TELEGRAM_MAX_MESSAGE_LEN = 4000  # Telegram message character limit
 TELEGRAM_HTML_MAX_LEN = 4096
 TELEGRAM_REPLY_CONTEXT_MAX_LEN = TELEGRAM_MAX_MESSAGE_LEN  # Max length for reply context in user message
 
-# python-telegram-bot exposes a six-parameter Application generic. Nanobot
+# python-telegram-bot exposes a six-parameter Application generic. 知序
 # doesn't customize its context/data/job-queue types, so keep that SDK boundary
 # explicit rather than allowing unspecialized generics to spread Unknown.
 TelegramApplication: TypeAlias = Application[Any, Any, Any, Any, Any, Any]

@@ -4,9 +4,9 @@
 
 ## 项目身份
 
-**nanobot-ai v0.3.0（Agent-With-Memory 仓库）** — 超轻量、自托管的个人 AI agent 框架（Python），支持 WebUI / 终端 / 聊天应用多端运行，内置工具、长期记忆（Dream）、MCP 集成、模型路由、多 agent 委派、定时任务与 OpenAI 兼容 API。
+**知序 Zhixu v0.3.0（Agent-With-Memory 仓库）** — 超轻量、自托管的个人 AI agent 框架（Python），支持 WebUI / 终端 / 聊天应用多端运行，内置工具、长期记忆（Dream）、MCP 集成、模型路由、多 agent 委派、定时任务与 OpenAI 兼容 API。
 
-本仓库是上游 HKUDS/nanobot 的个人分支（remote: `github.com/wrysmil/Agent-With-Memory`）。当前处于 **feature/memory-system** 分支（自 origin 领先 4 个提交）：正在为记忆系统做二期扩展——WebUI 记忆管理 API 与前端原型、episode 相关与部分更新 repository CRUD、phase-2 抽取设计。未提交的改动集中在 `webui/src/lib/`（api.ts / types.ts / 测试）与 `.gitignore`。
+本仓库是上游 HKUDS/nanobot 的个人分支（remote: `github.com/wrysmil/Agent-With-Memory`）。当前主线工作分支为 **feature/desktop-app**（与 `origin/feature/desktop-app` 同步，无未推送提交）；品牌改名（知序 Zhixu）等专项工作会在其之上开临时分支（如 `feature/zhixu-rename-phase1`）完成后合回。记忆系统二期扩展（WebUI 记忆管理 API 与前端原型、episode 相关与部分更新 repository CRUD、phase-2 抽取设计）属于 `feature/memory-system` 分支的历史工作，结论见 `docs/memory.md` 与 `.ai-runtime-artifacts/`。
 
 ## 技术栈
 
@@ -60,7 +60,7 @@
 ## 待确认项
 
 - 是否采用 git-xywh 三主干（main/test/develop），还是沿用本仓库现有的 `main` + `feature/*` 简化模型。
-- 远程保护分支与 AI push 权限：`origin/feature/memory-system` 已存在且本地领先 4 个提交，是否允许 Leader 直接 push。
+- 远程保护分支与 AI push 权限：`origin/feature/desktop-app` 已存在且本地与其同步，是否允许 Leader 直接 push；`origin/feature/memory-system` 亦存在但已非当前主线。
 - `uv.lock` 被 `.gitignore` 排除但 CI 引用 —— 是否有意为之，是否应恢复跟踪。
 - harness-kit 升级方式：目录拷贝（当前）还是改 Git Submodule。
 - MR/PR 审查人要求（CI 无 required-reviewer 配置，需人工约定）。
