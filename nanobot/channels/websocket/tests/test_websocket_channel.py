@@ -1072,6 +1072,7 @@ async def test_authenticated_webui_request_returns_correlated_success(bus: Magic
         conn,
         "settings.provider.update",
         {"provider": "openrouter", "apiKey": "secret"},
+        caller_chats=(),
     )
     assert json.loads(conn.send.await_args.args[0]) == {
         "event": "webui_response",
@@ -1094,6 +1095,8 @@ async def test_webui_mutations_preserve_request_and_response_order(bus: MagicMoc
         _connection: object,
         action: str,
         _payload: dict[str, object],
+        *,
+        caller_chats: tuple[str, ...] = (),
     ) -> Any:
         dispatch_order.append(action)
         if action == "settings.provider.update":
@@ -1153,7 +1156,13 @@ async def test_webui_request_survives_disconnect_and_preserves_reconnect_order(
     release = asyncio.Event()
     dispatch_order: list[str] = []
 
-    async def mutate(_connection: object, action: str, _payload: dict[str, Any]) -> Any:
+    async def mutate(
+        _connection: object,
+        action: str,
+        _payload: dict[str, Any],
+        *,
+        caller_chats: tuple[str, ...] = (),
+    ) -> Any:
         dispatch_order.append(action)
         if action == "automation.run":
             started.set()
@@ -4443,7 +4452,7 @@ async def test_settings_api_returns_safe_subset_and_updates_whitelist(
         assert saved.model_presets["Codex"].model == "openai/gpt-5.5"
         assert saved.model_presets["Codex"].provider == "openai"
         assert saved.agents.defaults.timezone == "Asia/Shanghai"
-        assert saved.agents.defaults.bot_name == "nanobot"
+        assert saved.agents.defaults.bot_name == "知序"
         assert saved.agents.defaults.bot_icon == "🐈"
         assert saved.agents.defaults.tool_hint_max_length == 120
         assert saved.providers.openrouter.api_key == "sk-or-next"
