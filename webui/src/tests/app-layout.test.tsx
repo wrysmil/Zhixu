@@ -264,8 +264,8 @@ vi.mock("@/lib/bootstrap", () => ({
   clearSavedSecret: vi.fn(),
 }));
 
-vi.mock("@/lib/nanobot-client", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/nanobot-client")>();
+vi.mock("@/lib/zhixu-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/zhixu-client")>();
   class MockClient {
     status = "idle" as const;
     defaultChatId: string | null = null;
@@ -316,7 +316,7 @@ vi.mock("@/lib/nanobot-client", async (importOriginal) => {
     updateMaxFrameBytes = vi.fn();
   }
 
-  return { ...actual, NanobotClient: MockClient };
+  return { ...actual, ZhixuClient: MockClient };
 });
 
 import {
@@ -358,12 +358,12 @@ describe("App layout", () => {
     window.history.replaceState(null, "", "/#/new");
     Reflect.deleteProperty(window, "nanobotHost");
     setNavigatorPlatform("Linux x86_64");
-    localStorage.removeItem("nanobot-webui.sidebar");
-    localStorage.removeItem("nanobot-webui.sidebar.completed-runs.v1");
-    localStorage.removeItem("nanobot-webui.sidebar.session-updates.v1");
-    localStorage.removeItem("nanobot-webui.collapsed-pane-groups.v1");
-    localStorage.removeItem("nanobot-webui.restartStartedAt");
-    localStorage.removeItem("nanobot-webui.restartRoute");
+    localStorage.removeItem("zhixu-webui.sidebar");
+    localStorage.removeItem("zhixu-webui.sidebar.completed-runs.v1");
+    localStorage.removeItem("zhixu-webui.sidebar.session-updates.v1");
+    localStorage.removeItem("zhixu-webui.collapsed-pane-groups.v1");
+    localStorage.removeItem("zhixu-webui.restartStartedAt");
+    localStorage.removeItem("zhixu-webui.restartRoute");
     vi.mocked(fetchBootstrap).mockReset().mockResolvedValue({
       token: "tok",
       api_token: "api-tok",
@@ -1056,12 +1056,12 @@ describe("App layout", () => {
   });
 
   it("restores the Settings route after a restart fallback hash", async () => {
-    localStorage.setItem("nanobot-webui.restartStartedAt", String(Date.now()));
-    localStorage.setItem("nanobot-webui.restartRoute", "#/settings?section=channels");
+    localStorage.setItem("zhixu-webui.restartStartedAt", String(Date.now()));
+    localStorage.setItem("zhixu-webui.restartRoute", "#/settings?section=channels");
     window.history.replaceState(null, "", "/#/new");
     mockFetchRoutes({
       "/api/settings": baseSettingsPayload(),
-      "/api/settings/nanobot-features": {
+      "/api/settings/zhixu-features": {
         features: [{
           name: "websocket",
           display_name: "Websocket",
@@ -2428,7 +2428,7 @@ describe("App layout", () => {
       },
     ];
     localStorage.setItem(
-      "nanobot-webui.sidebar.session-updates.v1",
+      "zhixu-webui.sidebar.session-updates.v1",
       JSON.stringify(["chat-b"]),
     );
 
@@ -2717,7 +2717,7 @@ describe("App layout", () => {
     );
 
     localStorage.setItem(
-      "nanobot-webui.settings-preferences",
+      "zhixu-webui.settings-preferences",
       JSON.stringify({ brandLogos: true }),
     );
     render(<App />);

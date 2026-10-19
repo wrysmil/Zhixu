@@ -2,26 +2,26 @@ import type { ComponentType } from "react";
 
 import type { ChannelPresentation } from "@/components/settings/channels/catalog";
 import type {
-  NanobotFeatureInfo,
-  NanobotFeaturesPayload,
+  ZhixuFeatureInfo,
+  ZhixuFeaturesPayload,
 } from "@/lib/types";
 
 export type ChannelPluginPanelProps = {
   token: string;
-  feature: NanobotFeatureInfo;
+  feature: ZhixuFeatureInfo;
   actionKey: string | null;
   chatAppsDocsUrl?: string;
   showBrandLogos: boolean;
   onAction: (action: "enable" | "disable", name: string) => void;
-  onFeaturesUpdate: (payload: NanobotFeaturesPayload) => void;
+  onFeaturesUpdate: (payload: ZhixuFeaturesPayload) => void;
 };
 
 export type ChannelPluginConnectFlowProps = {
   token: string;
-  feature: NanobotFeatureInfo;
+  feature: ZhixuFeatureInfo;
   idleLabel?: string;
   connectRequestId?: number;
-  onFeaturesUpdate: (payload: NanobotFeaturesPayload) => void;
+  onFeaturesUpdate: (payload: ZhixuFeaturesPayload) => void;
 };
 
 export type ChannelUiContribution = {

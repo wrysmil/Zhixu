@@ -24,7 +24,7 @@ import { DockFileTab } from "@/components/dock/DockFileTab";
 import { BrowserSection } from "@/components/workbench/BrowserSection";
 import { TerminalSurface } from "@/components/workbench/TerminalSurface";
 import { defaultGenerateTerminalId } from "@/components/workbench/terminal-shared";
-import { useTerminalStore } from "@/hooks/useNanobotStream";
+import { useTerminalStore } from "@/hooks/useZhixuStream";
 import { fetchTerminalShells, type TerminalShellsPayload } from "@/lib/api";
 import {
   dockStore,

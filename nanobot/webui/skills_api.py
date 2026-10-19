@@ -257,7 +257,14 @@ def _nanobot_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(raw, dict):
         return {}
     metadata_payload = cast(dict[str, Any], raw)
-    payload = metadata_payload.get("nanobot", metadata_payload.get("openclaw", {}))
+    # Dual fallback: `zhixu` is current, legacy `nanobot` keys from external
+    # skills stay supported for >=1 major version, `openclaw` is upstream.
+    # Keep in sync with nanobot/agent/skills.py::_parse_nanobot_metadata.
+    payload = (
+        metadata_payload.get("zhixu")
+        or metadata_payload.get("nanobot")
+        or metadata_payload.get("openclaw", {})
+    )
     return cast(dict[str, Any], payload) if isinstance(payload, dict) else {}
 
 

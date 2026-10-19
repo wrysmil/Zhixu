@@ -6,7 +6,7 @@ import { WritingChatPanel, type WritingChatSeed } from "@/components/creative/Wr
 import { ClientProvider } from "@/providers/ClientProvider";
 import { preloadMarkdownText } from "@/components/MarkdownText";
 import type { ArticleSnapshotPayload } from "@/lib/writing-api";
-import type { NanobotClient } from "@/lib/nanobot-client";
+import type { ZhixuClient } from "@/lib/zhixu-client";
 import type { WritingSessionInfo } from "@/lib/types";
 
 /**
@@ -82,7 +82,7 @@ function makeClient(overrides: Record<string, unknown> = {}) {
     requestMutation: vi.fn(async () => ({})),
     ...overrides,
   };
-  return client as unknown as NanobotClient & { sent: SentCall[] };
+  return client as unknown as ZhixuClient & { sent: SentCall[] };
 }
 
 function jsonResponse(body: unknown): Response {
@@ -122,7 +122,7 @@ function stubReads() {
 
 type PanelProps = ComponentProps<typeof WritingChatPanel>;
 
-function renderPanel(client: NanobotClient | null, props: Partial<PanelProps> = {}) {
+function renderPanel(client: ZhixuClient | null, props: Partial<PanelProps> = {}) {
   const panel = (
     <WritingChatPanel
       articleId="a-1"

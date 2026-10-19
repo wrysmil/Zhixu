@@ -11,7 +11,7 @@ import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 
 import { CLEAR_SCREEN, failureLabel } from "@/components/workbench/terminal-shared";
-import { useTerminalStore } from "@/hooks/useNanobotStream";
+import { useTerminalStore } from "@/hooks/useZhixuStream";
 import { useClient } from "@/providers/ClientProvider";
 
 /**

@@ -19,7 +19,7 @@ import {
   fetchMcpOAuthStatus,
   fetchMcpPresets,
   fetchMarketplaceSkillTrends,
-  fetchNanobotFeatures,
+  fetchZhixuFeatures,
   fetchProviderModels,
   fetchSessionAutomations,
   fetchSettingsUsage,
@@ -37,8 +37,8 @@ import {
   loginProviderOAuth,
   logoutProviderOAuth,
   migrateModelConfigurations,
-  disableNanobotFeature,
-  enableNanobotFeature,
+  disableZhixuFeature,
+  enableZhixuFeature,
   runAutomationAction,
   runCliAppAction,
   runMcpPresetAction,
@@ -796,22 +796,22 @@ describe("webui API helpers", () => {
       }),
     } as Response);
 
-    await expect(fetchNanobotFeatures("tok")).resolves.toMatchObject({ features: [] });
+    await expect(fetchZhixuFeatures("tok")).resolves.toMatchObject({ features: [] });
     expect(fetch).toHaveBeenCalledWith(
-      "/api/settings/nanobot-features",
+      "/api/settings/zhixu-features",
       expect.objectContaining({
         headers: { Authorization: "Bearer tok" },
       }),
     );
 
-    await enableNanobotFeature(mutationTransport, "matrix");
+    await enableZhixuFeature(mutationTransport, "matrix");
     expect(requestMutation).toHaveBeenLastCalledWith(
       "settings.feature.enable",
       { name: "matrix" },
       150_000,
     );
 
-    await disableNanobotFeature(mutationTransport, "matrix");
+    await disableZhixuFeature(mutationTransport, "matrix");
     expect(requestMutation).toHaveBeenLastCalledWith(
       "settings.feature.disable",
       { name: "matrix" },

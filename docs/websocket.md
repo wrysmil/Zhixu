@@ -264,7 +264,7 @@ For production deployments where `websocketRequiresToken: true`, use short-lived
 
 ### How it works
 
-1. Client sends `GET {tokenIssuePath}` with `Authorization: Bearer {tokenIssueSecret}` (or `X-Nanobot-Auth` header).
+1. Client sends `GET {tokenIssuePath}` with `Authorization: Bearer {tokenIssueSecret}` (or `X-Zhixu-Auth` header; the legacy `X-Nanobot-Auth` name is still accepted for >=1 major version).
 2. Server responds with a one-time-use token:
 
 ```json

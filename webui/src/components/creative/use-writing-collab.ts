@@ -35,9 +35,9 @@ import { errorLabelKey } from "./collab-labels";
 export interface CollabFrameClient extends WebUIMutationTransport {
   onChat?(chatId: string, handler: (event: unknown) => void): () => void;
   /**
-   * 既有系统命令通道（`/model <preset>` 等）。集成层传入真实 `NanobotClient`；
+   * 既有系统命令通道（`/model <preset>` 等）。集成层传入真实 `ZhixuClient`；
    * 能力保持可选，单测替身与预览 transport 不必实现它（面板会如实报「不支持」）。
-   * Source: webui/src/lib/nanobot-client.ts:1079（`sendSystemCommand`）。
+   * Source: webui/src/lib/zhixu-client.ts:1079（`sendSystemCommand`）。
    */
   sendSystemCommand?(chatId: string, command: string, timeoutMs?: number): Promise<void>;
   /**

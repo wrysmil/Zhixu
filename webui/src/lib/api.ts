@@ -18,7 +18,7 @@ import type {
   MemoryPriority,
   MemoryStats,
   MemoryType,
-  NanobotFeaturesPayload,
+  ZhixuFeaturesPayload,
   ModelConfigurationCreate,
   ModelConfigurationUpdate,
   NetworkSafetySettingsUpdate,
@@ -615,12 +615,12 @@ export async function fetchInstalledCliApps(
   );
 }
 
-export async function fetchNanobotFeatures(
+export async function fetchZhixuFeatures(
   token: string,
   base: string = "",
-): Promise<NanobotFeaturesPayload> {
-  return request<NanobotFeaturesPayload>(
-    `${base}/api/settings/nanobot-features`,
+): Promise<ZhixuFeaturesPayload> {
+  return request<ZhixuFeaturesPayload>(
+    `${base}/api/settings/zhixu-features`,
     token,
     undefined,
     API_READ_TIMEOUT_MS,
@@ -654,12 +654,12 @@ export async function stopApiService(
   return mutation<ApiServicePayload>(transport, "settings.api_service.stop");
 }
 
-export async function enableNanobotFeature(
+export async function enableZhixuFeature(
   transport: WebUIMutationTransport,
   name: string,
   options: { instanceId?: string } = {},
-): Promise<NanobotFeaturesPayload> {
-  return mutation<NanobotFeaturesPayload>(
+): Promise<ZhixuFeaturesPayload> {
+  return mutation<ZhixuFeaturesPayload>(
     transport,
     "settings.feature.enable",
     { name, ...(options.instanceId ? { instance_id: options.instanceId } : {}) },
@@ -667,12 +667,12 @@ export async function enableNanobotFeature(
   );
 }
 
-export async function disableNanobotFeature(
+export async function disableZhixuFeature(
   transport: WebUIMutationTransport,
   name: string,
   options: { instanceId?: string } = {},
-): Promise<NanobotFeaturesPayload> {
-  return mutation<NanobotFeaturesPayload>(
+): Promise<ZhixuFeaturesPayload> {
+  return mutation<ZhixuFeaturesPayload>(
     transport,
     "settings.feature.disable",
     { name, ...(options.instanceId ? { instance_id: options.instanceId } : {}) },

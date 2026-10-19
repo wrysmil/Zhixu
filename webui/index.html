@@ -98,10 +98,32 @@
     </style>
     <script>
       (function () {
+        // One-shot migration from the legacy `nanobot-*` localStorage keys so
+        // an upgrade does not silently reset the user's theme / locale.
+        // Read new key first; fall back to the old key and copy it forward.
+        try {
+          for (var pair of [
+            ["zhixu-webui.theme", "nanobot-webui.theme"],
+            ["zhixu.locale", "nanobot.locale"],
+          ]) {
+            var next = localStorage.getItem(pair[0]);
+            if (next === null) {
+              var legacy = localStorage.getItem(pair[1]);
+              if (legacy !== null) {
+                localStorage.setItem(pair[0], legacy);
+                localStorage.removeItem(pair[1]);
+              }
+            } else if (localStorage.getItem(pair[1]) !== null) {
+              localStorage.removeItem(pair[1]);
+            }
+          }
+        } catch {}
+      })();
+      (function () {
         try {
           var stored = null;
           try {
-            stored = localStorage.getItem("nanobot-webui.theme");
+            stored = localStorage.getItem("zhixu-webui.theme");
           } catch {}
           var dark =
             stored === "dark" ||
@@ -132,7 +154,7 @@
     </div>
     <script>
       (function () {
-        var localeKey = "nanobot.locale";
+        var localeKey = "zhixu.locale";
         var copy = {
           en: {
             boot: "Loading 知序…",

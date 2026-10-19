@@ -1,7 +1,7 @@
 import type { BootstrapResponse } from "./types";
 import { fetchWithTimeout } from "./http";
 
-const SECRET_STORAGE_KEY = "nanobot-webui.bootstrap-secret";
+const SECRET_STORAGE_KEY = "zhixu-webui.bootstrap-secret";
 const URL_SECRET_PARAM = "bootstrapSecret";
 
 export class BootstrapAuthRequiredError extends Error {
@@ -73,7 +73,7 @@ export async function fetchBootstrap(
 ): Promise<BootstrapResponse> {
   const headers: Record<string, string> = {};
   if (secret) {
-    headers["X-Nanobot-Auth"] = secret;
+    headers["X-Zhixu-Auth"] = secret;
   }
   const res = await fetchWithTimeout(`${baseUrl}/webui/bootstrap`, {
     method: "GET",

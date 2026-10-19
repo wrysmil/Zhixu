@@ -27,7 +27,7 @@ import {
   updateModelConfiguration,
   updateProviderSettings,
 } from "@/lib/api";
-import type { NanobotClient } from "@/lib/nanobot-client";
+import type { ZhixuClient } from "@/lib/zhixu-client";
 import { notifySaveFailed, notifySaved } from "@/lib/save-feedback";
 import type {
   ProviderOAuthAuthorizationRequired,
@@ -53,7 +53,7 @@ function isProviderOAuthPending(
 interface ModelSettingsActionsOptions {
   state: ModelSettingsState;
   settings: SettingsPayload | null;
-  client: NanobotClient;
+  client: ZhixuClient;
   t: TFunction;
   applyPayload: ApplySettingsPayload;
   maybeRestartHostEngine: MaybeRestartHostEngine;

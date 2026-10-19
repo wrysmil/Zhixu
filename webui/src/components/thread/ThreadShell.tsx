@@ -43,7 +43,7 @@ import {
 import { ThreadViewport, type ThreadViewportHandle } from "@/components/thread/ThreadViewport";
 import { TeamSelector, teamPickerVisibility } from "@/components/thread/TeamSelector";
 import { TeamProgressPanel } from "@/components/thread/TeamProgressPanel";
-import { useNanobotStream, type SendAttachment, type SendOptions } from "@/hooks/useNanobotStream";
+import { useZhixuStream, type SendAttachment, type SendOptions } from "@/hooks/useZhixuStream";
 import { useSubagentExecutions } from "@/features/subagent-execution/useSubagentExecutions";
 import { useTeamProgress } from "@/hooks/useTeamProgress";
 import { useSessionHistory } from "@/hooks/useSessions";
@@ -68,7 +68,7 @@ import {
   installedMcpPresetsFromPayload,
   isMcpPresetsPayload,
 } from "@/lib/mcp-preset-events";
-import type { CanonicalRunSnapshot, StreamError } from "@/lib/nanobot-client";
+import type { CanonicalRunSnapshot, StreamError } from "@/lib/zhixu-client";
 import { inferProviderFromModelName, providerDisplayLabel } from "@/lib/provider-brand";
 import type {
   ChatSummary,
@@ -883,7 +883,7 @@ export function ThreadShell({
     setMessages,
     streamError,
     dismissStreamError,
-  } = useNanobotStream(chatId, initial, hasPendingToolCalls, handleTurnEnd);
+  } = useZhixuStream(chatId, initial, hasPendingToolCalls, handleTurnEnd);
 
   useLayoutEffect(() => {
     if (currentUiMessagesRef.current === messages) return;
@@ -1451,7 +1451,7 @@ export function ThreadShell({
     }
   }, [chatId, displayMessages]);
 
-  // Persist thread to in-memory cache after paint so ``useNanobotStream``'s chat switch
+  // Persist thread to in-memory cache after paint so ``useZhixuStream``'s chat switch
   // ``useEffect`` reset has flushed; ``skipLayoutCacheRef`` drops the first run that still
   // sees the *previous* chat's ``messages`` (avoids stale rows leaking across sessions).
   useEffect(() => {

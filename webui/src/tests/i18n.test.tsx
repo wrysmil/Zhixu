@@ -148,14 +148,14 @@ const LOCALIZED_SETTINGS_COPY_KEYS = [
   "settings.skills.marketplaceInstall",
   "settings.skills.marketplaceNoTrend",
   "settings.skills.marketplaceTrendLabel",
-  "settings.nanobotFeatures.disable",
-  "settings.nanobotFeatures.ready",
-  "settings.nanobotFeatures.missingDependency",
-  "settings.nanobotFeatures.installConfirmTitle",
-  "settings.nanobotFeatures.installConfirmDescription",
-  "settings.nanobotFeatures.installConfirmAction",
-  "settings.nanobotFeatures.channelDisabled",
-  "settings.nanobotFeatures.notEnabled",
+  "settings.zhixuFeatures.disable",
+  "settings.zhixuFeatures.ready",
+  "settings.zhixuFeatures.missingDependency",
+  "settings.zhixuFeatures.installConfirmTitle",
+  "settings.zhixuFeatures.installConfirmDescription",
+  "settings.zhixuFeatures.installConfirmAction",
+  "settings.zhixuFeatures.channelDisabled",
+  "settings.zhixuFeatures.notEnabled",
   "settings.sections.about",
   "settings.rows.theme",
   "settings.rows.language",
@@ -352,7 +352,7 @@ const ACCIDENTALLY_SPANISH_SETTINGS_KEYS = [
 ];
 const INDEX_HTML = readFileSync(resolve(process.cwd(), "index.html"), "utf8");
 const PREBOOT_SCRIPT = INDEX_HTML.match(
-  /<script>\s*(\(function \(\) \{\s*var localeKey = "nanobot\.locale";[\s\S]*?\}\)\(\);)\s*<\/script>/,
+  /<script>\s*(\(function \(\) \{\s*var localeKey = "zhixu\.locale";[\s\S]*?\}\)\(\);)\s*<\/script>/,
 )?.[1];
 const BOOT_COPY_MARKUP = '<span data-boot-copy>Loading 知序…</span>';
 
@@ -515,7 +515,7 @@ describe("webui i18n", () => {
     await waitFor(() => {
       expect(document.documentElement.lang).toBe("zh-CN");
     });
-    expect(localStorage.getItem("nanobot.locale")).toBe("zh-CN");
+    expect(localStorage.getItem("zhixu.locale")).toBe("zh-CN");
     expect(screen.getByPlaceholderText("输入消息…")).toBeInTheDocument();
   });
 

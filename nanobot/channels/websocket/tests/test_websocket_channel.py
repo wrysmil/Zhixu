@@ -741,7 +741,7 @@ def test_issue_route_secret_matches_bearer_and_header() -> None:
     secret = "my-secret"
     bearer_headers = Headers([("Authorization", "Bearer my-secret")])
     assert _issue_route_secret_matches(bearer_headers, secret) is True
-    x_headers = Headers([("X-Nanobot-Auth", "my-secret")])
+    x_headers = Headers([("X-Zhixu-Auth", "my-secret")])
     assert _issue_route_secret_matches(x_headers, secret) is True
     wrong = Headers([("Authorization", "Bearer other")])
     assert _issue_route_secret_matches(wrong, secret) is False
@@ -4646,7 +4646,7 @@ async def test_bootstrap_exposes_native_surface(bus: MagicMock) -> None:
     try:
         response = await _http_get(
             f"http://127.0.0.1:{port}/webui/bootstrap",
-            headers={"X-Nanobot-Auth": "native-secret"},
+            headers={"X-Zhixu-Auth": "native-secret"},
         )
         assert response.status_code == 200
         body = response.json()

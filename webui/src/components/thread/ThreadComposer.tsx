@@ -96,7 +96,7 @@ import { getRuntimeHost } from "@/lib/runtime";
 import { projectNameFromPath, scopeWithAccessMode } from "@/lib/workspace";
 import { AgentChip, resolveSessionAgent } from "@/components/thread/AgentPicker";
 import { DEFAULT_MAIN_AGENT_ID, isDefaultMainAgent, type AgentProfile } from "@/lib/agents/types";
-import type { SendAttachment, SendOptions } from "@/hooks/useNanobotStream";
+import type { SendAttachment, SendOptions } from "@/hooks/useZhixuStream";
 import { useVoiceRecorder, type VoiceRecorderErrorKey } from "@/hooks/useVoiceRecorder";
 import type {
   CliAppInfo,

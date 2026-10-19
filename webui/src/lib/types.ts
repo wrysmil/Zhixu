@@ -976,7 +976,7 @@ export interface CliAppsPayload {
   };
 }
 
-export interface NanobotFeatureInfo {
+export interface ZhixuFeatureInfo {
   name: string;
   display_name: string;
   capabilities?: string[];
@@ -991,7 +991,7 @@ export interface NanobotFeatureInfo {
   config_values?: Record<string, string>;
   configured_fields?: string[];
   setup?: ChannelSetupContract;
-  instances?: NanobotChannelInstanceInfo[];
+  instances?: ZhixuChannelInstanceInfo[];
   installed: boolean;
   ready: boolean;
   status: "enabled" | "missing_dependency" | "not_enabled" | string;
@@ -1013,7 +1013,7 @@ export interface ChannelSetupContract {
   official_url?: string;
 }
 
-export interface NanobotChannelInstanceInfo {
+export interface ZhixuChannelInstanceInfo {
   id: string;
   name: string;
   display_name?: string;
@@ -1029,8 +1029,8 @@ export interface NanobotChannelInstanceInfo {
 
 export type ChannelRuntimeStatus = "running" | "starting" | "failed" | "stopped" | string;
 
-export interface NanobotFeaturesPayload {
-  features: NanobotFeatureInfo[];
+export interface ZhixuFeaturesPayload {
+  features: ZhixuFeatureInfo[];
   enabled_count: number;
   requires_restart?: boolean;
   last_action?: {
@@ -1207,14 +1207,14 @@ export interface ChannelConnectPayload {
   expires_at_ms?: number;
   app_id?: string;
   account?: string;
-  nanobot_features?: NanobotFeaturesPayload;
+  zhixu_features?: ZhixuFeaturesPayload;
 }
 
 export interface ChannelConfigurePayload {
   name: string;
   saved: boolean;
   saved_keys?: string[];
-  nanobot_features?: NanobotFeaturesPayload;
+  zhixu_features?: ZhixuFeaturesPayload;
 }
 
 export interface ModelConfigurationCreate {

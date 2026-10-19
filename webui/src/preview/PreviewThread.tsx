@@ -6,7 +6,7 @@ import { ThreadFrame } from "@/components/thread/ThreadFrame";
 import { ThreadWelcome } from "@/components/thread/ThreadWelcome";
 import { ThreadComposer } from "@/components/thread/ThreadComposer";
 import type { ModelPresetOption } from "@/components/thread/ModelPresetBadge";
-import type { SendAttachment } from "@/hooks/useNanobotStream";
+import type { SendAttachment } from "@/hooks/useZhixuStream";
 import type { UIMessage, WorkspaceScopePayload } from "@/lib/types";
 import { PREVIEW_DEFAULT_SCOPE } from "@/preview/fixtures";
 

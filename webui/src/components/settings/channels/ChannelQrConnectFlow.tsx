@@ -12,7 +12,7 @@ import {
 } from "@/lib/api";
 import type {
   ChannelConnectPayload,
-  NanobotFeaturesPayload,
+  ZhixuFeaturesPayload,
 } from "@/lib/types";
 import { useClient } from "@/providers/ClientProvider";
 
@@ -63,7 +63,7 @@ export function ChannelQrConnectFlow({
   connectRequestId?: number;
   forceOnRepeat?: boolean;
   labels: ChannelQrConnectLabels;
-  onFeaturesUpdate: (payload: NanobotFeaturesPayload) => void;
+  onFeaturesUpdate: (payload: ZhixuFeaturesPayload) => void;
   pausePolling?: (payload: ChannelConnectPayload) => boolean;
   renderPending?: (context: ChannelQrConnectPendingContext) => ReactNode;
   resolveMessage?: (payload: ChannelConnectPayload) => string | undefined;
@@ -138,8 +138,8 @@ export function ChannelQrConnectFlow({
           ...payload,
           qr_url: payload.qr_url ?? current?.qr_url,
         }));
-        if (payload.nanobot_features) {
-          onFeaturesUpdate(payload.nanobot_features);
+        if (payload.zhixu_features) {
+          onFeaturesUpdate(payload.zhixu_features);
         }
         if (payload.status !== "pending") {
           setError(null);
@@ -233,8 +233,8 @@ export function ChannelQrConnectFlow({
         ...payload,
         qr_url: payload.qr_url ?? current?.qr_url,
       }));
-      if (payload.nanobot_features) {
-        onFeaturesUpdate(payload.nanobot_features);
+      if (payload.zhixu_features) {
+        onFeaturesUpdate(payload.zhixu_features);
       }
       if (payload.status !== "pending") {
         setError(null);

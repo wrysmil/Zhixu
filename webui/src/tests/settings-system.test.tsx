@@ -202,7 +202,7 @@ describe("Settings system domains", () => {
       const url = String(input);
       if (url === "/api/settings") return jsonResponse(base);
       if (url === "/api/settings/api-service") return jsonResponse(stopped);
-      if (url === "/api/settings/nanobot-features") {
+      if (url === "/api/settings/zhixu-features") {
         return jsonResponse({ features: [], enabled_count: 0 });
       }
       return jsonResponse({});
@@ -295,7 +295,7 @@ describe("Settings system domains", () => {
       if (url === "/api/settings/mcp-presets") {
         return jsonResponse({ presets: [], installed_count: 0 });
       }
-      if (url === "/api/settings/nanobot-features") {
+      if (url === "/api/settings/zhixu-features") {
         return jsonResponse({
           features: [
             {
@@ -336,7 +336,7 @@ describe("Settings system domains", () => {
       if (url === "/api/settings") return jsonResponse(settingsPayload());
       if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
       if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-      if (url === "/api/settings/nanobot-features") {
+      if (url === "/api/settings/zhixu-features") {
         return jsonResponse({
           features: [{
             name: "matrix",

@@ -126,7 +126,7 @@ describe("Settings channels", () => {
       if (url === "/api/settings") return jsonResponse(settingsPayload());
       if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
       if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-      if (url === "/api/settings/nanobot-features") {
+      if (url === "/api/settings/zhixu-features") {
         return jsonResponse({
           features: [{
             name: "matrix",
@@ -193,7 +193,7 @@ describe("Settings channels", () => {
         if (url === "/api/settings") return jsonResponse(settingsPayload());
         if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
         if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-        if (url === "/api/settings/nanobot-features") {
+        if (url === "/api/settings/zhixu-features") {
           return jsonResponse({
             features: [{
               name: "matrix",
@@ -235,7 +235,7 @@ describe("Settings channels", () => {
       if (url === "/api/settings") return jsonResponse(settingsPayload());
       if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
       if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-      if (url === "/api/settings/nanobot-features") {
+      if (url === "/api/settings/zhixu-features") {
         return jsonResponse({
           features: [{
             name: "feishu",
@@ -294,7 +294,7 @@ describe("Settings channels", () => {
       if (url === "/api/settings") return jsonResponse(settingsPayload());
       if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
       if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-      if (url === "/api/settings/nanobot-features") {
+      if (url === "/api/settings/zhixu-features") {
         return jsonResponse({
           features: [{
             name: "feishu",
@@ -351,7 +351,7 @@ describe("Settings channels", () => {
       if (url === "/api/settings") return jsonResponse(settingsPayload());
       if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
       if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-      if (url === "/api/settings/nanobot-features") {
+      if (url === "/api/settings/zhixu-features") {
         return jsonResponse({
           features: [{
             name: "feishu",
@@ -443,7 +443,7 @@ describe("Settings channels", () => {
         if (url === "/api/settings") return jsonResponse(settingsPayload());
         if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
         if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-        if (url === "/api/settings/nanobot-features") {
+        if (url === "/api/settings/zhixu-features") {
           return jsonResponse({
             features: [{
               name: "feishu",
@@ -545,7 +545,7 @@ describe("Settings channels", () => {
       if (url === "/api/settings") return jsonResponse(settingsPayload());
       if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
       if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-      if (url === "/api/settings/nanobot-features") {
+      if (url === "/api/settings/zhixu-features") {
         return jsonResponse({
           features: [{
             name: "multiplugin",
@@ -657,7 +657,7 @@ describe("Settings channels", () => {
         if (url === "/api/settings") return jsonResponse(settingsPayload());
         if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
         if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-        if (url === "/api/settings/nanobot-features") return jsonResponse(feishuPayload);
+        if (url === "/api/settings/zhixu-features") return jsonResponse(feishuPayload);
         return { ok: false, status: 404, json: async () => ({}) } as Response;
       }),
     );
@@ -694,7 +694,7 @@ describe("Settings channels", () => {
         if (url === "/api/settings") return jsonResponse(settingsPayload());
         if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
         if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-        if (url === "/api/settings/nanobot-features") {
+        if (url === "/api/settings/zhixu-features") {
           return jsonResponse({
             features: [{
               name: "feishu",
@@ -754,7 +754,7 @@ describe("Settings channels", () => {
         if (url === "/api/settings") return jsonResponse(settingsPayload());
         if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
         if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-        if (url === "/api/settings/nanobot-features") {
+        if (url === "/api/settings/zhixu-features") {
           return jsonResponse({
             features: [{
               name: "discord",
@@ -818,7 +818,7 @@ describe("Settings channels", () => {
         if (url === "/api/settings") return jsonResponse(settingsPayload());
         if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
         if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-        if (url === "/api/settings/nanobot-features") {
+        if (url === "/api/settings/zhixu-features") {
           return jsonResponse({
             features: [{
               name: "email",
@@ -866,7 +866,7 @@ describe("Settings channels", () => {
       if (url === "/api/settings") return jsonResponse(settingsPayload());
       if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
       if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-      if (url === "/api/settings/nanobot-features") {
+      if (url === "/api/settings/zhixu-features") {
         return jsonResponse({
           features: [{
             name: "discord",
@@ -905,7 +905,7 @@ describe("Settings channels", () => {
             "channels.discord.allowChannels",
             "channels.discord.groupPolicy",
           ],
-          nanobot_features: {
+          zhixu_features: {
             features: [{
               name: "discord",
               display_name: "Discord",
@@ -981,7 +981,7 @@ describe("Settings channels", () => {
       if (url === "/api/settings") return jsonResponse(settingsPayload());
       if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
       if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-      if (url === "/api/settings/nanobot-features") {
+      if (url === "/api/settings/zhixu-features") {
         return jsonResponse({
           features: [{
             name: "discord",
@@ -1072,7 +1072,7 @@ describe("Settings channels", () => {
         if (url === "/api/settings") return jsonResponse(settingsPayload());
         if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
         if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-        if (url === "/api/settings/nanobot-features") {
+        if (url === "/api/settings/zhixu-features") {
           return jsonResponse({
             features: [{
               name: "telegram",
@@ -1129,7 +1129,7 @@ describe("Settings channels", () => {
         if (url === "/api/settings") return jsonResponse(settingsPayload());
         if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
         if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-        if (url === "/api/settings/nanobot-features") {
+        if (url === "/api/settings/zhixu-features") {
           return jsonResponse({
             features: channels.map(([name, displayName]) => ({
               name,
@@ -1187,7 +1187,7 @@ describe("Settings channels", () => {
         if (url === "/api/settings") return jsonResponse(settingsPayload());
         if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
         if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-        if (url === "/api/settings/nanobot-features") {
+        if (url === "/api/settings/zhixu-features") {
           return jsonResponse({
             features: ["email", "feishu", "matrix", "qq"].map((name) => ({
               name,
@@ -1255,7 +1255,7 @@ describe("Settings channels", () => {
       if (url === "/api/settings") return jsonResponse(settingsPayload());
       if (url === "/api/settings/cli-apps") return jsonResponse({ apps: [], installed_count: 0 });
       if (url === "/api/settings/mcp-presets") return jsonResponse({ presets: [], installed_count: 0 });
-      if (url === "/api/settings/nanobot-features") {
+      if (url === "/api/settings/zhixu-features") {
         return jsonResponse({
           features: [{
             name: "websocket",

@@ -1,4 +1,4 @@
-"""Nanobot optional feature helpers for WebUI Settings."""
+"""Zhixu optional feature helpers for WebUI Settings."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,7 +16,7 @@ from nanobot.webui.http_utils import query_first
 QueryParams = dict[str, list[str]]
 
 
-def nanobot_features_payload(*, config_path: Path | None = None) -> dict[str, Any]:
+def zhixu_features_payload(*, config_path: Path | None = None) -> dict[str, Any]:
     if config_path is None:
         return optional_features_payload()
 
@@ -25,7 +25,7 @@ def nanobot_features_payload(*, config_path: Path | None = None) -> dict[str, An
     return optional_features_payload(config=load_config(config_path))
 
 
-def nanobot_feature_instance_target(query: QueryParams) -> str | None:
+def zhixu_feature_instance_target(query: QueryParams) -> str | None:
     """Preserve the difference between a global action and an explicit instance."""
     instance_id = query_first(query, "instance_id")
     if instance_id is None:
@@ -33,7 +33,7 @@ def nanobot_feature_instance_target(query: QueryParams) -> str | None:
     return instance_id.strip() or None
 
 
-def nanobot_features_action(
+def zhixu_features_action(
     action: str,
     query: QueryParams,
     *,
@@ -41,7 +41,7 @@ def nanobot_features_action(
     config_path: Path | None = None,
 ) -> dict[str, Any]:
     name = (query_first(query, "name") or "").strip()
-    instance_id = nanobot_feature_instance_target(query)
+    instance_id = zhixu_feature_instance_target(query)
     if not name:
         raise OptionalFeatureError("missing feature name")
     if action == "enable":

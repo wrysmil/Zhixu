@@ -19,7 +19,7 @@ import {
 } from "@opentui/core"
 
 import {
-  NanobotClient,
+  ZhixuClient,
   connectionEndpoint,
   fetchAvailableSkills,
   fetchGatewayHealth,
@@ -397,9 +397,9 @@ function connectionStatusText(
   if (status === "unavailable") {
     return info?.health === "degraded"
       ? "Still getting ready…"
-      : "Nanobot is taking longer to respond…"
+      : "Zhixu is taking longer to respond…"
   }
-  if (status === "error") return "Nanobot unavailable · restart nanobot"
+  if (status === "error") return "Zhixu unavailable · restart nanobot"
   return "Session ended"
 }
 
@@ -466,7 +466,7 @@ async function copyWithSystemClipboard(text: string): Promise<void> {
   throw new Error("no clipboard provider available")
 }
 
-export class NanobotTui {
+export class ZhixuTui {
   private readonly renderer: CliRenderer
   private readonly transcript: Transcript
   private readonly commandMenu: CommandMenu
@@ -614,7 +614,7 @@ export class NanobotTui {
         onDismiss: () => void this.updateRecovery("dismiss"),
       },
     )
-    this.client = client || new NanobotClient({
+    this.client = client || new ZhixuClient({
       ...(options.bootstrapUrl
         ? {
             resolveConnection: () => fetchGatewayConnection(
@@ -839,7 +839,7 @@ export class NanobotTui {
     this.transcript.header(options)
   }
 
-  static async create(options: AppOptions): Promise<NanobotTui> {
+  static async create(options: AppOptions): Promise<ZhixuTui> {
     configureOpenTuiEnvironment()
     const host = createTuiHost()
     const renderer = await createCliRenderer({
@@ -850,7 +850,7 @@ export class NanobotTui {
       externalOutputMode: "passthrough",
       consoleMode: "disabled",
     })
-    return NanobotTui.mount(renderer, options, undefined, undefined, host)
+    return ZhixuTui.mount(renderer, options, undefined, undefined, host)
   }
 
   static mount(
@@ -860,8 +860,8 @@ export class NanobotTui {
     treeSitterClient?: TreeSitterClient,
     host?: TuiHost,
     clipboardImageReader?: ClipboardImageReader,
-  ): NanobotTui {
-    return new NanobotTui(
+  ): ZhixuTui {
+    return new ZhixuTui(
       renderer,
       options,
       client,

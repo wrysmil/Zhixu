@@ -39,7 +39,7 @@ describe("ChatList", () => {
   afterEach(() => {
     HTMLElement.prototype.animate = originalAnimate;
     HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
-    localStorage.removeItem("nanobot-webui.collapsed-pane-groups.v1");
+    localStorage.removeItem("zhixu-webui.collapsed-pane-groups.v1");
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });

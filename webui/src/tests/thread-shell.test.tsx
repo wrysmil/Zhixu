@@ -9,7 +9,7 @@ import { ThreadShell } from "@/components/thread/ThreadShell";
 import i18n from "@/i18n";
 import type { AgentProfile } from "@/lib/agents/types";
 import { CLI_APPS_CHANGED_EVENT } from "@/lib/cli-app-events";
-import type { CanonicalRunSnapshot, StreamError } from "@/lib/nanobot-client";
+import type { CanonicalRunSnapshot, StreamError } from "@/lib/zhixu-client";
 import { SESSION_AGENT_STORAGE_KEY } from "@/lib/session-agent-preference";
 import { ClientProvider } from "@/providers/ClientProvider";
 import type { CliAppsPayload, ConnectionStatus, SettingsPayload, UIMessage } from "@/lib/types";
@@ -227,7 +227,7 @@ function wrap(
 ) {
   return (
     <ClientProvider
-      client={client as unknown as import("@/lib/nanobot-client").NanobotClient}
+      client={client as unknown as import("@/lib/zhixu-client").ZhixuClient}
       token={token}
       modelName={modelName ?? null}
     >

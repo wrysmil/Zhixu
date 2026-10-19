@@ -9,11 +9,11 @@ import {
 import type { ChannelPluginPanelProps } from "@/channel-plugins/types";
 import { ChannelInstancesPanel } from "@/components/settings/channels/ChannelInstancesPanel";
 import { Button } from "@/components/ui/button";
-import { enableNanobotFeature } from "@/lib/api";
+import { enableZhixuFeature } from "@/lib/api";
 import type {
-  NanobotChannelInstanceInfo,
-  NanobotFeatureInfo,
-  NanobotFeaturesPayload,
+  ZhixuChannelInstanceInfo,
+  ZhixuFeatureInfo,
+  ZhixuFeaturesPayload,
 } from "@/lib/types";
 import { useClient } from "@/providers/ClientProvider";
 
@@ -89,8 +89,8 @@ function FeishuInstanceAction({
   onFeaturesUpdate,
 }: {
   token: string;
-  instance: NanobotChannelInstanceInfo;
-  onFeaturesUpdate: (payload: NanobotFeaturesPayload) => void;
+  instance: ZhixuChannelInstanceInfo;
+  onFeaturesUpdate: (payload: ZhixuFeaturesPayload) => void;
 }) {
   const { client } = useClient();
   const { t } = useTranslation();
@@ -115,7 +115,7 @@ function FeishuInstanceAction({
     setError(null);
     try {
       onFeaturesUpdate(
-        await enableNanobotFeature(client, "feishu", { instanceId: instance.id }),
+        await enableZhixuFeature(client, "feishu", { instanceId: instance.id }),
       );
     } catch (err) {
       setError((err as Error).message);
@@ -152,7 +152,7 @@ function FeishuInstanceAction({
   );
 }
 
-function defaultFeishuInstance(feature: NanobotFeatureInfo): NanobotChannelInstanceInfo {
+function defaultFeishuInstance(feature: ZhixuFeatureInfo): ZhixuChannelInstanceInfo {
   return {
     id: "default",
     name: "nanobot",
@@ -172,7 +172,7 @@ function feishuAssistantCountLabel(
   return tx("custom.countMany", "{{count}} assistants connected", { count });
 }
 
-function instanceDisplayName(instance: NanobotChannelInstanceInfo): string {
+function instanceDisplayName(instance: ZhixuChannelInstanceInfo): string {
   return instance.display_name?.trim() || instance.name.trim() || instance.id;
 }
 

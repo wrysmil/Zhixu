@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const SW_SCRIPT = readFileSync(resolve(process.cwd(), "public/sw.js"), "utf8");
 
 const ORIGIN = "https://nanobot.test";
-const CACHE_NAME = "nanobot-static-v2";
+const CACHE_NAME = "zhixu-static-v2";
 
 /** Minimal Cache-compatible in-memory store with SW-style URL normalization. */
 class FakeCacheStore {
@@ -66,7 +66,7 @@ function loadSw(): LoadedSw {
   const caches = {
     open: vi.fn(async () => store),
     match: vi.fn((input: Request | string) => store.match(input)),
-    keys: vi.fn(async () => [CACHE_NAME, "nanobot-static-v1", "other-app-cache"]),
+    keys: vi.fn(async () => [CACHE_NAME, "zhixu-static-v1", "other-app-cache"]),
     delete: vi.fn(async (name: string) => {
       deletedCacheNames.push(name);
       return true;
@@ -149,7 +149,7 @@ describe("service worker", () => {
 
     await sw.fire("activate");
 
-    expect(sw.deletedCacheNames).toEqual(["nanobot-static-v1"]);
+    expect(sw.deletedCacheNames).toEqual(["zhixu-static-v1"]);
     expect(sw.claimMock).toHaveBeenCalledTimes(1);
     expect(sw.store.entries.has(`${ORIGIN}/`)).toBe(true);
     expect(sw.store.entries.has(`${ORIGIN}/manifest.json`)).toBe(true);
@@ -166,8 +166,8 @@ describe("service worker", () => {
     const paths = [
       "/api/v1/models",
       "/auth/session",
-      "/__nanobot/ws",
-      "/__nanobot/socket.io",
+      "/__zhixu/ws",
+      "/__zhixu/socket.io",
       "/api/chat/completions",
       "/webui/bootstrap",
       "/webui/session/list",

@@ -19,7 +19,7 @@ import {
 import { AppearanceSettings, OverviewSettings } from "@/components/settings/overview/OverviewSettings";
 import { SettingsSidebar, standaloneSectionTitle } from "@/components/settings/SettingsSidebar";
 import {
-  NanobotFeatureInstallDialog,
+  ZhixuFeatureInstallDialog,
   SettingsGroup,
   SettingsRow,
 } from "@/components/settings/shared/SettingsControls";
@@ -109,7 +109,7 @@ export function SettingsPage({
     handleMcpPresetAction,
     handleMcpToolsChange,
     handleMigrateModelConfigurations,
-    handleNanobotFeatureAction,
+    handleZhixuFeatureAction,
     handleSaveCustomMcp,
     handleToggleProvider,
     handleWebSearchProviderChange,
@@ -143,11 +143,11 @@ export function SettingsPage({
     modelPresetEditingName,
     modelPresetNameError,
     modelPresetPendingDelete,
-    nanobotFeatureAction,
-    nanobotFeatureConfirm,
-    nanobotFeatures,
-    nanobotFeaturesError,
-    nanobotFeaturesLoading,
+    zhixuFeatureAction,
+    zhixuFeatureConfirm,
+    zhixuFeatures,
+    zhixuFeaturesError,
+    zhixuFeaturesLoading,
     networkSafetyDirty,
     networkSafetyForm,
     networkSafetySaving,
@@ -194,9 +194,9 @@ export function SettingsPage({
     setModelPresetEditingName,
     setModelPresetNameError,
     setModelPresetPendingDelete,
-    setNanobotFeatureConfirm,
-    setNanobotFeatures,
-    setNanobotFeaturesError,
+    setZhixuFeatureConfirm,
+    setZhixuFeatures,
+    setZhixuFeaturesError,
     setNetworkSafetyForm,
     setProviderForms,
     setProviderOAuthDialogError,
@@ -277,9 +277,9 @@ export function SettingsPage({
             />
             <ProvidersSettings
               settings={settings}
-              nanobotFeatures={nanobotFeatures}
-              featureAction={nanobotFeatureAction}
-              capabilityError={nanobotFeaturesError}
+              zhixuFeatures={zhixuFeatures}
+              featureAction={zhixuFeatureAction}
+              capabilityError={zhixuFeaturesError}
               expandedProvider={expandedProvider}
               providerForms={providerForms}
               visibleProviderKeys={visibleProviderKeys}
@@ -371,27 +371,27 @@ export function SettingsPage({
             isRestarting={isRestarting || hostEngineApplying}
             requiresRestartPending={pendingRestartSections.browser}
             olostepFeature={featureCatalog.find((feature) => feature.name === "olostep")}
-            olostepInstalling={nanobotFeatureAction === "enable:olostep"}
-            capabilityError={nanobotFeaturesError}
+            olostepInstalling={zhixuFeatureAction === "enable:olostep"}
+            capabilityError={zhixuFeaturesError}
           />
         );
       case "channels":
         return (
           <ChannelsSettings
             token={token}
-            nanobotFeatures={nanobotFeatures}
-            loading={nanobotFeaturesLoading}
+            zhixuFeatures={zhixuFeatures}
+            loading={zhixuFeaturesLoading}
             query={channelsQuery}
-            actionKey={nanobotFeatureAction}
+            actionKey={zhixuFeatureAction}
             chatAppsDocsUrl={settings.docs?.chat_apps_url}
             showBrandLogos={localPrefs.brandLogos}
-            error={nanobotFeaturesError}
+            error={zhixuFeaturesError}
             requiresRestartPending={pendingRestartSections.runtime}
             onQueryChange={setChannelsQuery}
-            onAction={handleNanobotFeatureAction}
-            onFeaturesUpdate={setNanobotFeatures}
+            onAction={handleZhixuFeatureAction}
+            onFeaturesUpdate={setZhixuFeatures}
             onDismissStatus={() => {
-              setNanobotFeaturesError(null);
+              setZhixuFeaturesError(null);
             }}
             onRestart={restartViaSettingsSurface}
             isRestarting={isRestarting || hostEngineApplying}
@@ -498,9 +498,9 @@ export function SettingsPage({
             apiServiceAction={apiServiceAction}
             apiServiceError={apiServiceError}
             langfuseFeature={featureCatalog.find((feature) => feature.name === "langfuse")}
-            capabilitiesLoading={nanobotFeaturesLoading}
-            capabilityAction={nanobotFeatureAction}
-            capabilityError={nanobotFeaturesError}
+            capabilitiesLoading={zhixuFeaturesLoading}
+            capabilityAction={zhixuFeatureAction}
+            capabilityError={zhixuFeaturesError}
             onApiServiceAction={handleApiServiceAction}
             onInstallCapability={(name) => void installCapabilities([name])}
           />
@@ -574,13 +574,13 @@ export function SettingsPage({
         onClose={closeProviderOAuthFlow}
       />
 
-      <NanobotFeatureInstallDialog
-        feature={nanobotFeatureConfirm}
-        installing={nanobotFeatureAction === `enable:${nanobotFeatureConfirm?.name ?? ""}`}
+      <ZhixuFeatureInstallDialog
+        feature={zhixuFeatureConfirm}
+        installing={zhixuFeatureAction === `enable:${zhixuFeatureConfirm?.name ?? ""}`}
         onOpenChange={(open) => {
-          if (!open) setNanobotFeatureConfirm(null);
+          if (!open) setZhixuFeatureConfirm(null);
         }}
-        onConfirm={(feature) => handleNanobotFeatureAction("enable", feature.name, true)}
+        onConfirm={(feature) => handleZhixuFeatureAction("enable", feature.name, true)}
       />
 
       <AutomationDeleteDialog

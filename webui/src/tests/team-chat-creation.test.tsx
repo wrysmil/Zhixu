@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ThreadHeader } from "@/components/thread/ThreadHeader";
 import { useSessions } from "@/hooks/useSessions";
 import * as api from "@/lib/api";
-import { NanobotClient } from "@/lib/nanobot-client";
+import { ZhixuClient } from "@/lib/zhixu-client";
 import { ClientProvider } from "@/providers/ClientProvider";
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -60,8 +60,8 @@ class FakeSocket {
   }
 }
 
-function makeClient(): NanobotClient {
-  const client = new NanobotClient({
+function makeClient(): ZhixuClient {
+  const client = new ZhixuClient({
     url: "ws://test",
     reconnect: false,
     socketFactory: (url: string) => new FakeSocket(url) as unknown as WebSocket,
@@ -149,7 +149,7 @@ describe("newChat 的团队参数", () => {
 });
 
 describe("useSessions.createChat 的团队透传", () => {
-  function wrap(client: NanobotClient) {
+  function wrap(client: ZhixuClient) {
     return function Wrapper({ children }: { children: ReactNode }) {
       return <ClientProvider client={client} token="tok">{children}</ClientProvider>;
     };

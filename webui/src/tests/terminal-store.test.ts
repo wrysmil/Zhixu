@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createTerminalStore, type TerminalStore } from "@/hooks/useNanobotStream";
+import { createTerminalStore, type TerminalStore } from "@/hooks/useZhixuStream";
 import type { TerminalEvent } from "@/lib/types";
 
 function started(

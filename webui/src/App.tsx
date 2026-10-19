@@ -76,7 +76,7 @@ import {
 } from "@/lib/bootstrap";
 import { displayTitle, sortSessions } from "@/lib/chat-groups";
 import { deriveTitle } from "@/lib/format";
-import { NanobotClient } from "@/lib/nanobot-client";
+import { ZhixuClient } from "@/lib/zhixu-client";
 import { notify } from "@/lib/toast-events";
 import { ClientProvider, useClient } from "@/providers/ClientProvider";
 import type {
@@ -119,7 +119,7 @@ type BootState =
   | { status: "auth"; failed?: boolean }
   | {
       status: "ready";
-      client: NanobotClient;
+      client: ZhixuClient;
       token: string;
       tokenExpiresAt: number | null;
       modelName: string | null;
@@ -128,11 +128,11 @@ type BootState =
       runtimeSurface: RuntimeSurface;
     };
 
-const SIDEBAR_STORAGE_KEY = "nanobot-webui.sidebar";
-const SESSION_UPDATES_STORAGE_KEY = "nanobot-webui.sidebar.session-updates.v1";
-const LEGACY_COMPLETED_RUNS_STORAGE_KEY = "nanobot-webui.sidebar.completed-runs.v1";
-const RESTART_STARTED_KEY = "nanobot-webui.restartStartedAt";
-const RESTART_ROUTE_KEY = "nanobot-webui.restartRoute";
+const SIDEBAR_STORAGE_KEY = "zhixu-webui.sidebar";
+const SESSION_UPDATES_STORAGE_KEY = "zhixu-webui.sidebar.session-updates.v1";
+const LEGACY_COMPLETED_RUNS_STORAGE_KEY = "zhixu-webui.sidebar.completed-runs.v1";
+const RESTART_STARTED_KEY = "zhixu-webui.restartStartedAt";
+const RESTART_ROUTE_KEY = "zhixu-webui.restartRoute";
 const RESTART_ROUTE_TTL_MS = 5 * 60 * 1000;
 // 视觉规格 v1.1（spec 2026-10-11）：54 / 220 替换 64 / 248，与 globals.css 的
 // --rail-w / --chat-col-w 对齐；如需调整只改 CSS 变量与此处。
@@ -788,7 +788,7 @@ export default function App() {
   const bootstrapSecretRef = useRef("");
 
   const refreshReadyClient = useCallback(
-    async (client: NanobotClient, fallbackSurface: RuntimeSurface) => {
+    async (client: ZhixuClient, fallbackSurface: RuntimeSurface) => {
       const boot = await fetchBootstrap("", bootstrapSecretRef.current);
       const url = deriveWsUrl(boot.ws_path, boot.token, boot.ws_url);
       const runtimeSurface = resolveRuntimeSurface(boot.runtime_surface, fallbackSurface);
@@ -832,7 +832,7 @@ export default function App() {
           const url = deriveWsUrl(boot.ws_path, boot.token, boot.ws_url);
           const runtimeSurface = resolveRuntimeSurface(boot.runtime_surface, "browser");
           const runtimeHost = createRuntimeHost(runtimeSurface, boot.runtime_capabilities);
-          const client = new NanobotClient({
+          const client = new ZhixuClient({
             url,
             maxFrameBytes: boot.limits?.transport.max_frame_bytes,
             socketFactory: runtimeHost.socketFactory,

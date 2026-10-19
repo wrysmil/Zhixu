@@ -12,7 +12,7 @@ import {
   toolTraceLinesFromEvents,
 } from "@/lib/tool-traces";
 import { hasPendingAgentActivity } from "@/lib/activity-timeline";
-import type { StreamError, NanobotClient } from "@/lib/nanobot-client";
+import type { StreamError, ZhixuClient } from "@/lib/zhixu-client";
 import {
   closeReasoningStream,
   filterCoveredFileEditToolEvents,
@@ -246,7 +246,7 @@ function appendProjectedSessionInput(
   return [...messages, row];
 }
 
-export function useNanobotStream(
+export function useZhixuStream(
   chatId: string | null,
   initialMessages: UIMessage[] = [],
   hasPendingToolCalls = false,
@@ -1727,9 +1727,9 @@ export function createTerminalStore(): TerminalStore {
   return store;
 }
 
-const terminalStoresByClient = new WeakMap<NanobotClient, TerminalStore>();
+const terminalStoresByClient = new WeakMap<ZhixuClient, TerminalStore>();
 
-export function getTerminalStore(client: NanobotClient): TerminalStore {
+export function getTerminalStore(client: ZhixuClient): TerminalStore {
   let store = terminalStoresByClient.get(client);
   if (!store) {
     store = createTerminalStore();

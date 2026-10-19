@@ -178,7 +178,7 @@ export function isSystemCommandTurnId(value: string | null | undefined): value i
   return typeof value === "string" && value.startsWith(SYSTEM_COMMAND_TURN_PREFIX);
 }
 
-export interface NanobotClientOptions {
+export interface ZhixuClientOptions {
   url: string;
   reconnect?: boolean;
   /** Maximum UTF-8 bytes accepted for one websocket message. */
@@ -216,7 +216,7 @@ interface PendingMessageSend {
  * ``chat_id``, and this class fans those events out to handlers registered
  * per chat. Reconnects are transparent and re-attach every known chat_id.
  */
-export class NanobotClient {
+export class ZhixuClient {
   private socket: WebSocket | null = null;
   private statusHandlers = new Set<StatusHandler>();
   private runtimeModelHandlers = new Set<RuntimeModelHandler>();
@@ -281,7 +281,7 @@ export class NanobotClient {
   // and must not schedule a reconnect or flip status back to "reconnecting".
   private intentionallyClosed = false;
 
-  constructor(private options: NanobotClientOptions) {
+  constructor(private options: ZhixuClientOptions) {
     this.shouldReconnect = options.reconnect ?? true;
     this.maxBackoffMs = options.maxBackoffMs ?? 15_000;
     this.maxFrameBytes = this.normalizeMaxFrameBytes(options.maxFrameBytes);
@@ -521,7 +521,7 @@ export class NanobotClient {
       if (!turnId) continue;
       fences.add(turnId);
     }
-    while (fences.size > NanobotClient.COMPLETED_TURN_FENCE_MAX) {
+    while (fences.size > ZhixuClient.COMPLETED_TURN_FENCE_MAX) {
       const oldest = fences.values().next().value;
       if (typeof oldest !== "string") break;
       fences.delete(oldest);
@@ -1549,7 +1549,7 @@ export class NanobotClient {
       this.pendingInboundByChat.set(chatId, q);
     }
     q.push(ev);
-    const over = q.length - NanobotClient.PENDING_INBOUND_MAX;
+    const over = q.length - ZhixuClient.PENDING_INBOUND_MAX;
     if (over > 0) {
       q.splice(0, over);
     }

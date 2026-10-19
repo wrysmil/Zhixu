@@ -17,12 +17,12 @@ import {
 } from "@/components/settings/shared/SettingsControls";
 import { Input } from "@/components/ui/input";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import type { NanobotFeaturesPayload } from "@/lib/types";
+import type { ZhixuFeaturesPayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function ChannelsSettings({
   token,
-  nanobotFeatures,
+  zhixuFeatures,
   loading,
   query,
   actionKey,
@@ -38,7 +38,7 @@ export function ChannelsSettings({
   isRestarting,
 }: {
   token: string;
-  nanobotFeatures: NanobotFeaturesPayload | null;
+  zhixuFeatures: ZhixuFeaturesPayload | null;
   loading: boolean;
   query: string;
   actionKey: string | null;
@@ -48,7 +48,7 @@ export function ChannelsSettings({
   requiresRestartPending: boolean;
   onQueryChange: (value: string) => void;
   onAction: (action: "enable" | "disable", name: string) => void;
-  onFeaturesUpdate: (payload: NanobotFeaturesPayload) => void;
+  onFeaturesUpdate: (payload: ZhixuFeaturesPayload) => void;
   onDismissStatus: () => void;
   onRestart?: () => void;
   isRestarting?: boolean;
@@ -61,7 +61,7 @@ export function ChannelsSettings({
   const containerRef = useRef<HTMLDivElement>(null);
   const compactDetailTopRef = useRef<HTMLButtonElement>(null);
   const [compactDetailOpen, setCompactDetailOpen] = useState(false);
-  const allChannels = (nanobotFeatures?.features ?? [])
+  const allChannels = (zhixuFeatures?.features ?? [])
     .filter((feature) => feature.type === "channel")
     .filter((feature) => feature.settings_visible !== false)
     .filter((feature) => !normalizedQuery || channelSearchText(feature, t).includes(normalizedQuery))
@@ -201,7 +201,7 @@ export function ChannelsSettings({
           splitLayout && "min-h-0 overflow-hidden",
         )}
       >
-        {loading && !nanobotFeatures ? (
+        {loading && !zhixuFeatures ? (
           <div className="flex h-36 items-center justify-center text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
             {tx("settings.channels.loading", "Loading Channels...")}

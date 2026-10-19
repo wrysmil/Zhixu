@@ -11,7 +11,7 @@ import {
   fetchAutomations,
   fetchCliApps,
   fetchMcpPresets,
-  fetchNanobotFeatures,
+  fetchZhixuFeatures,
 } from "@/lib/api";
 
 interface SystemSettingsEffectsOptions {
@@ -42,9 +42,9 @@ export function useSystemSettingsEffects({
     setMcpError,
     setMcpPresets,
     setMcpPresetsLoading,
-    setNanobotFeatures,
-    setNanobotFeaturesError,
-    setNanobotFeaturesLoading,
+    setZhixuFeatures,
+    setZhixuFeaturesError,
+    setZhixuFeaturesLoading,
   } = state;
 
   useEffect(() => {
@@ -94,19 +94,19 @@ export function useSystemSettingsEffects({
     const refresh = async (showLoading = false): Promise<void> => {
       if (refreshing) return;
       refreshing = true;
-      if (showLoading) setNanobotFeaturesLoading(true);
+      if (showLoading) setZhixuFeaturesLoading(true);
       try {
-        const payload = await fetchNanobotFeatures(getToken());
+        const payload = await fetchZhixuFeatures(getToken());
         if (!cancelled) {
-          setNanobotFeatures(payload);
-          setNanobotFeaturesError(null);
+          setZhixuFeatures(payload);
+          setZhixuFeaturesError(null);
         }
       } catch (err) {
         const message = (err as Error).message;
-        if (!cancelled && message !== "HTTP 404") setNanobotFeaturesError(message);
+        if (!cancelled && message !== "HTTP 404") setZhixuFeaturesError(message);
       } finally {
         refreshing = false;
-        if (!cancelled && showLoading) setNanobotFeaturesLoading(false);
+        if (!cancelled && showLoading) setZhixuFeaturesLoading(false);
       }
     };
     void refresh(true);

@@ -1,7 +1,7 @@
 // 创作空间右栏：真实团队会话。
 //
 // 会话身份由服务端 `bind_writing_session` 发放（文章 ↔ chat_id/session_key 一一对应），
-// 面板不自己拼 chatId。消息通过既有 `useNanobotStream` 发送，附带服务端校验的
+// 面板不自己拼 chatId。消息通过既有 `useZhixuStream` 发送，附带服务端校验的
 // `writing` 元数据（版本 + digest + 可选成员/任务/选区）；选择菜单只填输入框，不直接运行。
 import {
   useCallback,
@@ -31,12 +31,12 @@ import { ModelPresetBadge, type ModelPresetOption } from "@/components/thread/Mo
 import { ThreadMessages } from "@/components/thread/ThreadMessages";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useOptionalClient } from "@/providers/ClientProvider";
-import { useNanobotStream } from "@/hooks/useNanobotStream";
+import { useZhixuStream } from "@/hooks/useZhixuStream";
 import { useSessionHistory } from "@/hooks/useSessions";
 import { loadTeamDetail } from "@/lib/teams/api";
 import { workspaceRouteHash } from "@/workspace/routes";
 import type { ArticleSnapshotPayload } from "@/lib/writing-api";
-import type { StreamError } from "@/lib/nanobot-client";
+import type { StreamError } from "@/lib/zhixu-client";
 import type {
   UIMessage,
   WritingSelectionContext,
@@ -578,7 +578,7 @@ function StreamedConversation({
 }) {
   const { t, i18n } = useTranslation();
   const { client } = useOptionalClient() ?? {};
-  const stream = useNanobotStream(
+  const stream = useZhixuStream(
     session.chat_id,
     initialMessages,
     hasPendingToolCalls,

@@ -13,7 +13,7 @@ import { act, render, renderHook, screen, waitFor } from "@testing-library/react
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TeamProgressPanel } from "@/components/thread/TeamProgressPanel";
-import { useNanobotStream } from "@/hooks/useNanobotStream";
+import { useZhixuStream } from "@/hooks/useZhixuStream";
 import { useTeamProgress, type TeamFrameClient } from "@/hooks/useTeamProgress";
 import * as teamsApi from "@/lib/teams/api";
 import type { TeamRunSnapshot, TeamTaskSnapshot } from "@/lib/teams/types";
@@ -459,7 +459,7 @@ describe("看不懂的帧是空气", () => {
     const seen: UIMessage[] = [];
 
     function Harness() {
-      const stream = useNanobotStream(CHAT_ID);
+      const stream = useZhixuStream(CHAT_ID);
       const team = useTeamProgress(client, { chatId: CHAT_ID, token: "t", transport: null });
       seen.length = 0;
       seen.push(...stream.messages);

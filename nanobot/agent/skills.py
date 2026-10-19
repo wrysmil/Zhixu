@@ -326,7 +326,7 @@ class SkillsLoader:
         return content
 
     def _parse_nanobot_metadata(self, raw: object) -> dict[str, Any]:
-        """Extract nanobot/openclaw metadata from a frontmatter field.
+        """Extract zhixu/nanobot/openclaw metadata from a frontmatter field.
 
         ``raw`` may be a dict (already parsed by yaml.safe_load) or a JSON str.
         """
@@ -342,7 +342,13 @@ class SkillsLoader:
         if not isinstance(data, dict):
             return {}
         data_object = cast(dict[str, Any], data)
-        payload = data_object.get("nanobot", data_object.get("openclaw", {}))
+        # Dual fallback: `zhixu` is current, legacy `nanobot` keys from external
+        # skills stay supported for >=1 major version, `openclaw` is upstream.
+        payload = (
+            data_object.get("zhixu")
+            or data_object.get("nanobot")
+            or data_object.get("openclaw", {})
+        )
         return cast(dict[str, Any], payload) if isinstance(payload, dict) else {}
 
     def _check_requirements(self, skill_meta: dict[str, Any]) -> bool:

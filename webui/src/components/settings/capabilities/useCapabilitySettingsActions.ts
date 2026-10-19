@@ -17,14 +17,14 @@ import {
   updateTranscriptionSettings,
   updateWebSearchSettings,
 } from "@/lib/api";
-import type { NanobotClient } from "@/lib/nanobot-client";
+import type { ZhixuClient } from "@/lib/zhixu-client";
 import { notifySaveFailed, notifySaved } from "@/lib/save-feedback";
 import type { SettingsPayload, WebSearchSettingsUpdate } from "@/lib/types";
 
 interface CapabilitySettingsActionsOptions {
   state: CapabilitySettingsState;
   settings: SettingsPayload | null;
-  client: NanobotClient;
+  client: ZhixuClient;
   t: TFunction;
   applyPayload: ApplySettingsPayload;
   maybeRestartHostEngine: MaybeRestartHostEngine;

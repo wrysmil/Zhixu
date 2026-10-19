@@ -181,7 +181,7 @@ class WebSocketConfig(Base):
       nanobot and shares the asyncio loop, use a thread or async HTTP client for GET—do not call
       blocking ``urllib`` or synchronous ``httpx`` from inside a coroutine.
     - ``token_issue_secret``: If non-empty, token requests must send ``Authorization: Bearer <secret>`` or
-      ``X-Nanobot-Auth: <secret>``.
+      ``X-Zhixu-Auth: <secret>``.
     - ``public_ws_url``: Optional public WebSocket endpoint returned by WebUI bootstrap instead of
       deriving one from proxy request headers. Its path must match ``path``.
     - ``websocket_requires_token``: If True, the handshake must include a valid token (static or issued and not expired).

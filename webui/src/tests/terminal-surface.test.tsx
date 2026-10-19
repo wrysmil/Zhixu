@@ -5,8 +5,8 @@ import {
   TerminalSurface,
   type TerminalEmulator,
 } from "@/components/workbench/TerminalSurface";
-import { getTerminalStore } from "@/hooks/useNanobotStream";
-import { NanobotClient } from "@/lib/nanobot-client";
+import { getTerminalStore } from "@/hooks/useZhixuStream";
+import { ZhixuClient } from "@/lib/zhixu-client";
 import type { TerminalEvent } from "@/lib/types";
 import { ClientProvider } from "@/providers/ClientProvider";
 
@@ -156,7 +156,7 @@ function setup(options: { terminalId?: string; sessionKey?: string | null } = {}
     );
   let utils = renderSurface();
   const latest = (): RecordedTerminal | undefined => instances.at(-1);
-  const store = () => getTerminalStore(client as unknown as NanobotClient);
+  const store = () => getTerminalStore(client as unknown as ZhixuClient);
   return {
     client,
     instances,
@@ -347,7 +347,7 @@ describe("TerminalSurface (line mode, migrated from TerminalSection)", () => {
 });
 
 /**
- * Transport-layer checks on the real NanobotClient with a scripted socket
+ * Transport-layer checks on the real ZhixuClient with a scripted socket
  * (migrated from terminal-section.test.tsx + contract v2 shell/resize frames):
  * the outbound frames match contract v2 §4.2 and the inbound events
  * (plus terminal-scoped error frames) reach ``onTerminalEvent`` subscribers.
@@ -393,13 +393,13 @@ class FakeSocket {
   }
 }
 
-describe("NanobotClient terminal channel", () => {
-  let client: NanobotClient;
+describe("ZhixuClient terminal channel", () => {
+  let client: ZhixuClient;
   let socket: FakeSocket;
 
   beforeEach(() => {
     FakeSocket.instances = [];
-    client = new NanobotClient({
+    client = new ZhixuClient({
       url: "ws://test",
       reconnect: false,
       socketFactory: () => new FakeSocket() as unknown as WebSocket,

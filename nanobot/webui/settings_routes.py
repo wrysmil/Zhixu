@@ -41,11 +41,6 @@ from nanobot.webui.mcp_presets_api import (
     mcp_presets_settings_action,
 )
 from nanobot.webui.memory_routes import MemorySettingsOperations
-from nanobot.webui.nanobot_features_api import (
-    nanobot_feature_instance_target,
-    nanobot_features_action,
-    nanobot_features_payload,
-)
 from nanobot.webui.settings_api import (
     complete_oauth_provider,
     create_model_configuration,
@@ -80,6 +75,11 @@ from nanobot.webui.teams_routes import TeamSettingsOperations
 from nanobot.webui.version_check import check_for_update
 from nanobot.webui.writing_collab_routes import WritingCollabSettingsOperations
 from nanobot.webui.writing_routes import WritingSettingsOperations
+from nanobot.webui.zhixu_features_api import (
+    zhixu_feature_instance_target,
+    zhixu_features_action,
+    zhixu_features_payload,
+)
 
 _WEBUI_MUTATION_PAYLOAD_ATTR = "_nanobot_webui_mutation_payload"
 _WEBUI_MUTATION_REQUEST_ATTR = "_nanobot_webui_mutation_request"
@@ -148,9 +148,9 @@ _SYSTEM_ROUTES = {
     "/api/settings/cli-apps/update": "cli-update",
     "/api/settings/cli-apps/uninstall": "cli-uninstall",
     "/api/settings/cli-apps/test": "cli-test",
-    "/api/settings/nanobot-features": "features-list",
-    "/api/settings/nanobot-features/enable": "features-enable",
-    "/api/settings/nanobot-features/disable": "features-disable",
+    "/api/settings/zhixu-features": "features-list",
+    "/api/settings/zhixu-features/enable": "features-enable",
+    "/api/settings/zhixu-features/disable": "features-disable",
     "/api/settings/channels/validate": "channel-validate",
     "/api/settings/channels/configure": "channel-configure",
     "/api/settings/pairing": "pairing-list",
@@ -293,8 +293,8 @@ _SETTINGS_MUTATION_PATHS = frozenset({
     "/api/settings/cli-apps/update",
     "/api/settings/cli-apps/uninstall",
     "/api/settings/cli-apps/test",
-    "/api/settings/nanobot-features/enable",
-    "/api/settings/nanobot-features/disable",
+    "/api/settings/zhixu-features/enable",
+    "/api/settings/zhixu-features/disable",
     "/api/settings/channels/validate",
     "/api/settings/channels/configure",
     "/api/settings/pairing/approve",
@@ -837,7 +837,7 @@ class WebUISettingsRouter:
             update_image=update_image_generation_settings,
             update_transcription=update_transcription_settings,
             update_network=update_network_safety_settings,
-            nanobot_features_action=nanobot_features_action,
+            zhixu_features_action=zhixu_features_action,
             api_runtime=self._api_runtime,
             reload_image=lambda: request_image_generation_reload(self.bus),
         )
@@ -846,9 +846,9 @@ class WebUISettingsRouter:
         return system_domain.SystemSettingsOperations(
             cli_apps_payload=cli_apps_payload,
             cli_apps_action=cli_apps_action,
-            nanobot_features_payload=nanobot_features_payload,
-            nanobot_features_action=nanobot_features_action,
-            nanobot_feature_instance_target=nanobot_feature_instance_target,
+            zhixu_features_payload=zhixu_features_payload,
+            zhixu_features_action=zhixu_features_action,
+            zhixu_feature_instance_target=zhixu_feature_instance_target,
             validate_channel_config=validate_channel_config,
             load_channel_plugin=load_channel_plugin,
             list_pending=list_pending,
@@ -925,10 +925,10 @@ class WebUISettingsRouter:
         system_domain.assign_channel_config_value
     )
 
-    def _nanobot_features_payload(self) -> dict[str, Any]:
-        return nanobot_features_payload(config_path=self.settings.config.path)
+    def _zhixu_features_payload(self) -> dict[str, Any]:
+        return zhixu_features_payload(config_path=self.settings.config.path)
 
-    def _nanobot_features_action(
+    def _zhixu_features_action(
         self,
         action: str,
         query: QueryParams,
@@ -936,7 +936,7 @@ class WebUISettingsRouter:
         allow_install: bool = True,
     ) -> dict[str, Any]:
         return self.settings.mutate(
-            nanobot_features_action,
+            zhixu_features_action,
             action,
             query,
             allow_install=allow_install,

@@ -17,12 +17,12 @@ import type {
 import { useLogoFallback } from "@/hooks/useLogoFallback";
 import { normalizeLocale } from "@/i18n/config";
 import { logoFallbackUrls } from "@/lib/provider-brand";
-import type { ChannelRuntimeStatus, NanobotFeatureInfo } from "@/lib/types";
+import type { ChannelRuntimeStatus, ZhixuFeatureInfo } from "@/lib/types";
 
 export type ChannelFilter = "all" | "on" | "off";
 
 export function channelSetup(
-  feature: NanobotFeatureInfo,
+  feature: ZhixuFeatureInfo,
   locale = "en",
 ): ChannelSetupPresentation {
   const definition = channelUiPresentation(feature.name, feature.webui)?.setup;
@@ -123,7 +123,7 @@ export function ChannelLogo({
   feature,
   showBrandLogos,
 }: {
-  feature: NanobotFeatureInfo;
+  feature: ZhixuFeatureInfo;
   showBrandLogos: boolean;
 }) {
   const presentation = channelUiPresentation(feature.name, feature.webui);
@@ -174,46 +174,46 @@ export function ChannelLogo({
   );
 }
 
-function channelDisplayName(feature: NanobotFeatureInfo): string {
+function channelDisplayName(feature: ZhixuFeatureInfo): string {
   return channelUiPresentation(feature.name, feature.webui)?.displayName ?? feature.display_name;
 }
 
 export function localizedChannelDisplayName(
-  feature: NanobotFeatureInfo,
+  feature: ZhixuFeatureInfo,
   t: ReturnType<typeof useTranslation>["t"],
 ): string {
   const fallback = channelDisplayName(feature);
   return channelTranslator(t, channelUiOwner(feature.name))("displayName", fallback);
 }
 
-export function channelDescription(feature: NanobotFeatureInfo, t: ReturnType<typeof useTranslation>["t"]): string {
+export function channelDescription(feature: ZhixuFeatureInfo, t: ReturnType<typeof useTranslation>["t"]): string {
   const fallback =
     `Use 知序 from ${channelDisplayName(feature)}.`;
   return channelTranslator(t, channelUiOwner(feature.name))("description", fallback);
 }
 
-export function channelRequirements(feature: NanobotFeatureInfo, t: ReturnType<typeof useTranslation>["t"]): string {
+export function channelRequirements(feature: ZhixuFeatureInfo, t: ReturnType<typeof useTranslation>["t"]): string {
   const fallback =
     "Channel credentials and gateway settings";
   return channelTranslator(t, channelUiOwner(feature.name))("requirements", fallback);
 }
 
-export function channelMatchesFilter(feature: NanobotFeatureInfo, filter: ChannelFilter): boolean {
+export function channelMatchesFilter(feature: ZhixuFeatureInfo, filter: ChannelFilter): boolean {
   if (filter === "on") return channelIsRunning(feature);
   if (filter === "off") return !channelIsRunning(feature);
   return true;
 }
 
-export function channelIsRunning(feature: NanobotFeatureInfo): boolean {
+export function channelIsRunning(feature: ZhixuFeatureInfo): boolean {
   return feature.runtime_status === "running";
 }
 
-export function channelToggleChecked(feature: NanobotFeatureInfo): boolean {
+export function channelToggleChecked(feature: ZhixuFeatureInfo): boolean {
   return feature.runtime_status === "running" || feature.runtime_status === "starting";
 }
 
 export function channelStatusLabel(
-  feature: NanobotFeatureInfo,
+  feature: ZhixuFeatureInfo,
   tx: (key: string, fallback: string) => string,
 ): string {
   if (feature.runtime_status === "failed") {
@@ -228,7 +228,7 @@ export function channelStatusLabel(
 }
 
 export function channelSearchText(
-  feature: NanobotFeatureInfo,
+  feature: ZhixuFeatureInfo,
   t?: ReturnType<typeof useTranslation>["t"],
 ): string {
   return [

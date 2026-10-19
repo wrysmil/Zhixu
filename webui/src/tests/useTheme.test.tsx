@@ -5,7 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 
 describe("useTheme", () => {
   beforeEach(() => {
-    localStorage.removeItem("nanobot-webui.theme");
+    localStorage.removeItem("zhixu-webui.theme");
     document.documentElement.classList.remove("dark");
 
     const themeColor = document.createElement("meta");
@@ -19,11 +19,11 @@ describe("useTheme", () => {
   afterEach(() => {
     document.querySelector('meta[name="theme-color"]')?.remove();
     document.documentElement.classList.remove("dark");
-    localStorage.removeItem("nanobot-webui.theme");
+    localStorage.removeItem("zhixu-webui.theme");
   });
 
   it("keeps browser chrome in sync with the selected app theme", () => {
-    localStorage.setItem("nanobot-webui.theme", "dark");
+    localStorage.setItem("zhixu-webui.theme", "dark");
     const { result } = renderHook(useTheme);
     const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
 
@@ -34,6 +34,6 @@ describe("useTheme", () => {
 
     expect(document.documentElement).not.toHaveClass("dark");
     expect(themeColor?.content).toBe("#ffffff");
-    expect(localStorage.getItem("nanobot-webui.theme")).toBe("light");
+    expect(localStorage.getItem("zhixu-webui.theme")).toBe("light");
   });
 });

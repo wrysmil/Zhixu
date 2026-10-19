@@ -15,23 +15,23 @@ import type {
   CliAppsPayload,
   McpOAuthFlowPayload,
   McpPresetsPayload,
-  NanobotFeatureInfo,
-  NanobotFeaturesPayload,
+  ZhixuFeatureInfo,
+  ZhixuFeaturesPayload,
   SessionAutomationJob,
 } from "@/lib/types";
 
 export function useSystemSettingsState() {
   const [cliApps, setCliApps] = useState<CliAppsPayload | null>(null);
-  const [nanobotFeatures, setNanobotFeatures] = useState<NanobotFeaturesPayload | null>(null);
+  const [zhixuFeatures, setZhixuFeatures] = useState<ZhixuFeaturesPayload | null>(null);
   const [mcpPresets, setMcpPresets] = useState<McpPresetsPayload | null>(null);
   const [automations, setAutomations] = useState<AutomationsPayload | null>(null);
   const [cliAppsLoading, setCliAppsLoading] = useState(true);
-  const [nanobotFeaturesLoading, setNanobotFeaturesLoading] = useState(true);
+  const [zhixuFeaturesLoading, setZhixuFeaturesLoading] = useState(true);
   const [mcpPresetsLoading, setMcpPresetsLoading] = useState(true);
   const [automationsLoading, setAutomationsLoading] = useState(false);
   const [cliAppsAction, setCliAppsAction] = useState<string | null>(null);
-  const [nanobotFeatureAction, setNanobotFeatureAction] = useState<string | null>(null);
-  const [nanobotFeatureConfirm, setNanobotFeatureConfirm] = useState<NanobotFeatureInfo | null>(null);
+  const [zhixuFeatureAction, setZhixuFeatureAction] = useState<string | null>(null);
+  const [zhixuFeatureConfirm, setZhixuFeatureConfirm] = useState<ZhixuFeatureInfo | null>(null);
   const [mcpPresetAction, setMcpPresetAction] = useState<string | null>(null);
   const [mcpOAuthFlow, setMcpOAuthFlow] = useState<McpOAuthFlowPayload | null>(null);
   const mcpOAuthFlowRef = useRef<McpOAuthFlowPayload | null>(null);
@@ -52,7 +52,7 @@ export function useSystemSettingsState() {
   const [automationsSort, setAutomationsSort] = useState<AutomationSort>("next");
   const [cliAppsMessage, setCliAppsMessage] = useState<string | null>(null);
   const [cliAppsError, setCliAppsError] = useState<string | null>(null);
-  const [nanobotFeaturesError, setNanobotFeaturesError] = useState<string | null>(null);
+  const [zhixuFeaturesError, setZhixuFeaturesError] = useState<string | null>(null);
   const [cliAppsFocusName, setCliAppsFocusName] = useState<string | null>(null);
   const [appsKindFilter, setAppsKindFilter] = useState<AppsKindFilter>("cli");
   const [mcpMessage, setMcpMessage] = useState<string | null>(null);
@@ -106,11 +106,11 @@ export function useSystemSettingsState() {
     mcpPresetAction,
     mcpPresets,
     mcpPresetsLoading,
-    nanobotFeatureAction,
-    nanobotFeatureConfirm,
-    nanobotFeatures,
-    nanobotFeaturesError,
-    nanobotFeaturesLoading,
+    zhixuFeatureAction,
+    zhixuFeatureConfirm,
+    zhixuFeatures,
+    zhixuFeaturesError,
+    zhixuFeaturesLoading,
     setApiService,
     setApiServiceAction,
     setApiServiceError,
@@ -146,11 +146,11 @@ export function useSystemSettingsState() {
     setMcpPresetAction,
     setMcpPresets,
     setMcpPresetsLoading,
-    setNanobotFeatureAction,
-    setNanobotFeatureConfirm,
-    setNanobotFeatures,
-    setNanobotFeaturesError,
-    setNanobotFeaturesLoading,
+    setZhixuFeatureAction,
+    setZhixuFeatureConfirm,
+    setZhixuFeatures,
+    setZhixuFeaturesError,
+    setZhixuFeaturesLoading,
   };
 }
 

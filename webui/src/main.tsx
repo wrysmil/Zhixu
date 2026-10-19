@@ -41,7 +41,7 @@ async function renderWebui(container: HTMLElement) {
     ReactDOM.createRoot(container).render(<PreviewApp />);
     return;
   }
-  /* StrictMode disabled: dev double-invokes state updaters; delta accumulation must stay pure — see useNanobotStream. */
+  /* StrictMode disabled: dev double-invokes state updaters; delta accumulation must stay pure — see useZhixuStream. */
   ReactDOM.createRoot(container).render(<App />);
 }
 

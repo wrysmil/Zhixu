@@ -119,7 +119,8 @@ channels.websocket.tokenIssueSecret
 的值；该项为空时回退到同级的 `channels.websocket.token`（取值逻辑见 `nanobot/cli/webui_support.py::webui_bootstrap_secret`）。它不是单独的用户账号密码。
 
 - **生成**：首次启用 WebUI 时自动写入 `secrets.token_urlsafe(32)`（43 字符，见 `nanobot/cli/webui_support.py::_ensure_local_webui_channel`）；`nanobot onboard` Quick Start 会提示「Set a WebUI password」并写同一字段（`nanobot/cli/onboard.py`）。
-- **用途/校验**：它是 bootstrap 与 token-issue 的共享密钥，HTTP 侧用 `Authorization: Bearer <secret>` 或 `X-Nanobot-Auth: <secret>` 校验（`nanobot/webui/ws_http.py::_handle_bootstrap`、`nanobot/webui/http_utils.py::issue_route_secret_matches`）。填错 → 前端提示 `app.auth.invalid`（Incorrect password）。
+- **用途/校验**：它是 bootstrap 与 token-issue 的共享密钥，HTTP 侧用 `Authorization: Bearer <secret>` 或 `X-Zhixu-Auth: <secret>` 校验（`nanobot/webui/ws_http.py::_handle_bootstrap`、`nanobot/webui/http_utils.py::issue_route_secret_matches`）。填错 → 前端提示 `app.auth.invalid`（Incorrect password）。
+- **旧头兼容**：`issue_route_secret_matches` 新旧双读，先试 `X-Zhixu-Auth` / `x-zhixu-auth`，再回退旧名 `X-Nanobot-Auth` / `x-nanobot-auth`，兼容期 ≥1 个大版本后随 Phase 2/3 兼容代码一并删除。
 - **正常路径不会弹出此页**：`nanobot webui` 和桌面端 `desktop/main.cjs` 都把 URL 开成 `http://127.0.0.1:<port>/#/?bootstrapSecret=<secret>`，自动完成认证。只有裸开 `http://127.0.0.1:8765`（不带 `bootstrapSecret` fragment）、或 config 缺该字段时才需要手输。
 - **查看/重置**：直接读或改 config 中该字段即可；若清空，下次启动会重新生成一个新密码。
 

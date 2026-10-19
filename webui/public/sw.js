@@ -1,4 +1,4 @@
-const CACHE_PREFIX = "nanobot-static-";
+const CACHE_PREFIX = "zhixu-static-";
 const CACHE_NAME = `${CACHE_PREFIX}v2`;
 const ASSET_MANIFEST_PATH = "/asset-manifest.json";
 const PRECACHE = ["/", "/manifest.json", ASSET_MANIFEST_PATH];
