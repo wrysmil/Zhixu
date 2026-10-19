@@ -16,6 +16,7 @@ import { ClientProvider } from "@/providers/ClientProvider";
  * resize frames and line-mode fallback without a real renderer in jsdom.
  */
 interface RecordedTerminal extends TerminalEmulator {
+  updateAppearance: ReturnType<typeof vi.fn>;
   writes: string[];
   dataHandler: ((data: string) => void) | null;
   resizeHandler: ((size: { cols: number; rows: number }) => void) | null;
@@ -28,6 +29,7 @@ function makeFakeTerminal(): RecordedTerminal {
   const dataSubscription = { dispose: vi.fn() };
   const resizeSubscription = { dispose: vi.fn() };
   const instance: RecordedTerminal = {
+    updateAppearance: vi.fn(),
     writes: [],
     dataHandler: null,
     resizeHandler: null,
@@ -135,6 +137,30 @@ function errorEvent(id: string, detail: string) {
 }
 
 const TERMINAL_ID = "term-1";
+
+describe("TerminalSurface appearance", () => {
+  it.each([true, false])("updates the existing emulator in PTY=%s without replaying output", (pty) => {
+    const { client, instances, latest, unmount } = setup();
+    client.emit(startedEvent(TERMINAL_ID, "ok", undefined, pty));
+    client.emit(outputEvent(TERMINAL_ID, 1, "retained output\n"));
+    const emulator = latest()!;
+    expect(emulator.updateAppearance).toHaveBeenCalledTimes(1);
+    const written = [...emulator.writes];
+    const fitted = emulator.fit.mock.calls.length;
+
+    act(() => window.dispatchEvent(new Event("zhixu-webui.appearance-applied")));
+    expect(emulator.updateAppearance).toHaveBeenCalledTimes(2);
+    expect(emulator.fit.mock.calls.length).toBe(fitted + 1);
+    expect(instances).toHaveLength(1);
+    expect(emulator.writes).toEqual(written);
+    expect(client.terminalStart).not.toHaveBeenCalled();
+    expect(client.terminalKill).not.toHaveBeenCalled();
+
+    unmount();
+    window.dispatchEvent(new Event("zhixu-webui.appearance-applied"));
+    expect(emulator.updateAppearance).toHaveBeenCalledTimes(2);
+  });
+});
 
 function setup(options: { terminalId?: string; sessionKey?: string | null } = {}) {
   const terminalId = options.terminalId ?? TERMINAL_ID;

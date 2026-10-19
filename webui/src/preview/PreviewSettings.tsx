@@ -9,6 +9,7 @@ import {
 import { SettingsSectionFrame } from "@/components/settings/shared/SettingsSectionFrame";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { AppearanceEditor } from "@/components/settings/appearance/AppearanceEditor";
 
 /** The 11 non-capability settings sections the live app exposes. The four
  *  capability pages (apps/agents/skills/automations) live in
@@ -38,37 +39,6 @@ const SECTION_LABELS: Record<NormalSection, string> = {
   runtime: "运行时",
   advanced: "安全",
 };
-
-function PreviewToggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-        checked ? "bg-primary" : "bg-muted-foreground/30",
-      )}
-    >
-      <span
-        className={cn(
-          "absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform",
-          checked ? "translate-x-[22px]" : "translate-x-0.5",
-        )}
-      />
-    </button>
-  );
-}
 
 function DisabledActionRow({
   title,
@@ -106,7 +76,6 @@ export function PreviewSettings({
 }) {
   const { t } = useTranslation();
   const [section, setSection] = useState<NormalSection>(initialSection);
-  const [theme, setTheme] = useState({ auto: false, reduceMotion: true });
   const [saved, setSaved] = useState(false);
   const changeSection = (next: NormalSection) => {
     setSection(next);
@@ -121,16 +90,7 @@ export function PreviewSettings({
         <ReadOnlyRow title="本次会话消息" value="3" description="示例数据，刷新后重置。" />
       </SettingsGroup>
     ),
-    appearance: (
-      <SettingsGroup>
-        <SettingsRow title="跟随系统深色" description="关闭后使用下方固定配色（示例）。">
-          <PreviewToggle label="跟随系统深色" checked={theme.auto} onChange={(v) => setTheme((s) => ({ ...s, auto: v }))} />
-        </SettingsRow>
-        <SettingsRow title="减少动效" description="降低过渡与动画强度。">
-          <PreviewToggle label="减少动效" checked={theme.reduceMotion} onChange={(v) => setTheme((s) => ({ ...s, reduceMotion: v }))} />
-        </SettingsRow>
-      </SettingsGroup>
-    ),
+    appearance: <AppearanceEditor preview />,
     models: (
       <SettingsGroup>
         <ReadOnlyRow title="推理模型" value="gpt-example-mini" />
@@ -210,7 +170,7 @@ export function PreviewSettings({
         <SettingsSectionFrame
           title={SECTION_LABELS[section]}
           description={"界面预览 · 示例内容，保存与操作均不会改动真实配置。"}
-          actions={
+          actions={section === "appearance" ? undefined :
             <Button
               type="button"
               size="sm"

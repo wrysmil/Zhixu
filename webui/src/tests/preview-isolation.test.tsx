@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import PreviewApp from "@/preview/PreviewApp";
@@ -79,6 +79,33 @@ describe("PreviewApp isolation", () => {
       expect(window.location.hash).toBe("#/settings?section=appearance");
       expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("aria-current", "page");
     } finally {
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
+  it("shares settings and sidebar appearance without reading or saving real preferences", () => {
+    localStorage.setItem("zhixu-webui.appearance", "real-user-preferences");
+    const before = localStorage.getItem("zhixu-webui.appearance");
+    const writes = vi.spyOn(localStorage, "setItem");
+    const reads = vi.spyOn(localStorage, "getItem");
+    window.history.replaceState(null, "", "/?preview=1#/settings?section=appearance");
+    try {
+      render(<PreviewApp />);
+      expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("zhixu");
+      expect(screen.getByText("Preview only. Appearance changes stay in this session and do not change your saved preferences.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "保存" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+      expect(screen.getByRole("button", { name: "Switch to light theme" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Switch to light theme" }));
+      expect(screen.getByRole("radio", { name: "Light" })).toBeChecked();
+      fireEvent.change(screen.getByRole("textbox", { name: "Accent HEX" }), { target: { value: "#0169CC" } });
+      expect(reads.mock.calls.some(([key]) => key === "zhixu-webui.appearance")).toBe(false);
+      expect(writes.mock.calls.some(([key]) => key === "zhixu-webui.appearance" || key === "zhixu-webui.theme")).toBe(false);
+    } finally {
+      reads.mockRestore();
+      writes.mockRestore();
+      expect(localStorage.getItem("zhixu-webui.appearance")).toBe(before);
+      localStorage.removeItem("zhixu-webui.appearance");
       window.history.replaceState(null, "", "/");
     }
   });

@@ -19,6 +19,7 @@ import { PREVIEW_DEFAULT_SCOPE, previewCapabilityCopy, previewSessions } from "@
 import type { WebUIMutationTransport } from "@/lib/api";
 import type { ChatSummary, SidebarProjectEntry, WorkspaceScopePayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ThemeProvider, useTheme } from "@/hooks/useTheme";
 
 const CreativeWorkspace = lazy(() => import("@/components/creative/CreativeWorkspace"));
 
@@ -40,7 +41,8 @@ const PREVIEW_NO_TRANSPORT: WebUIMutationTransport = {
  */
 export default function PreviewApp() {
   const { t, i18n } = useTranslation();
-  const [darkPreview, setDarkPreview] = useState(() => document.documentElement.classList.contains("dark"));
+  const appearance = useTheme({ persist: false });
+  const darkPreview = appearance.theme === "dark";
   const themeLabel = i18n.resolvedLanguage?.startsWith("zh")
     ? darkPreview ? "切换为浅色主题" : "切换为深色主题"
     : darkPreview ? "Switch to light theme" : "Switch to dark theme";
@@ -63,14 +65,6 @@ export default function PreviewApp() {
   useEffect(() => {
     if (narrow) setCollapsed(true);
   }, [narrow]);
-
-  useEffect(() => {
-    const previous = document.documentElement.classList.contains("dark");
-    document.documentElement.classList.toggle("dark", darkPreview);
-    return () => {
-      document.documentElement.classList.toggle("dark", previous);
-    };
-  }, [darkPreview]);
 
   const selectWorkspace = useCallback((scope: WorkspaceScopePayload) => {
     setWorkspaceScope(scope);
@@ -98,6 +92,7 @@ export default function PreviewApp() {
   }, []);
 
   return (
+    <ThemeProvider theme={appearance.theme} appearance={appearance}>
     <div className="preview-app-shell relative flex h-[100dvh] w-full overflow-hidden bg-background text-foreground">
       <div
         className={cn(
@@ -116,7 +111,7 @@ export default function PreviewApp() {
           onToggleCollapsed={() => setCollapsed((value) => !value)}
           footerAction={
             <button type="button" aria-label={themeLabel} title={themeLabel}
-              onClick={() => setDarkPreview((current) => !current)}
+              onClick={appearance.toggle}
               className="host-no-drag flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors duration-150 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {darkPreview ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
             </button>
@@ -181,6 +176,7 @@ export default function PreviewApp() {
         )}
       </main>
     </div>
+    </ThemeProvider>
   );
 }
 

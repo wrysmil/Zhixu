@@ -2,6 +2,128 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Page-specific artwork and identity colors stay intact; interface surfaces use
+   the active palette whenever the user leaves the original Zhixu theme. */
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) {
+  --inline-token-highlight: hsl(var(--accent-foreground));
+  --temporary-control-active: hsl(var(--accent-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.teams-surface, .team-editor) {
+  --team-ink: hsl(var(--foreground));
+  --team-muted: hsl(var(--muted-foreground));
+  --team-line: hsl(var(--border));
+  --team-paper: hsl(var(--card));
+  --team-tint: hsl(var(--accent));
+  --team-accent: hsl(var(--accent-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.teams-heading-icon, .teams-empty, .teams-guide, .team-editor-head, .team-editor-footer) {
+  background: linear-gradient(120deg, hsl(var(--card)), hsl(var(--accent) / 0.5));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-card, .team-candidate, .team-member-config, .team-formation-person) {
+  background: linear-gradient(115deg, hsl(var(--card)), hsl(var(--secondary) / 0.55));
+  border-color: hsl(var(--border));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-card:hover, .team-candidate:hover, .team-member-config:focus-within, .team-formation-person:hover:not(:disabled), .team-formation-person.is-leader) {
+  border-color: hsl(var(--primary) / 0.65);
+  box-shadow: 0 3px 12px hsl(var(--foreground) / 0.035);
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-leader-seat, .team-candidate:has(input:checked)) {
+  background: linear-gradient(115deg, hsl(var(--accent)), hsl(var(--card)));
+  border-color: hsl(var(--primary) / 0.55);
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-formation {
+  background: radial-gradient(circle at 90% 10%, hsl(var(--primary) / 0.1), transparent 70%), radial-gradient(hsl(var(--muted-foreground) / 0.16) 0.75px, transparent 0.75px), hsl(var(--secondary));
+  background-size: auto, 16px 16px, auto;
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-editor :is(input, textarea, select) {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-editor input:focus-visible, .team-editor textarea:focus-visible, .team-editor select:focus-visible, .team-remove-member:focus-visible, .team-formation-person:focus-visible) {
+  outline-color: hsl(var(--ring));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-completion-step.is-complete {
+  color: hsl(var(--accent-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-completion-step.is-complete > span {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-section-number {
+  color: hsl(var(--muted-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-remove-member:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-formation-empty, .team-formation-members) {
+  border-color: hsl(var(--border));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-formation-connector, .team-progress-track),
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-formation-members .team-formation-person::before {
+  background: hsl(var(--border));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-track > span {
+  background: hsl(var(--primary));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .agent-editor {
+  --agent-accent: hsl(var(--accent-foreground));
+  --agent-accent-soft: hsl(var(--accent));
+  --agent-paper: hsl(var(--card));
+  --agent-line: hsl(var(--border));
+  background-image: linear-gradient(115deg, hsl(var(--card)), hsl(var(--background)));
+  box-shadow: 0 28px 100px hsl(var(--foreground) / 0.12), 0 3px 18px hsl(var(--foreground) / 0.06);
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.agent-editor-rail, .agent-editor-footer) {
+  background: linear-gradient(175deg, hsl(var(--accent) / 0.3), hsl(var(--secondary) / 0.6));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .agent-editor-footer .agent-editor-save {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .agent-editor-footer .agent-editor-save:hover {
+  background: hsl(var(--primary) / 0.9);
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .agent-editor :is(button.text-emerald-800, svg.text-emerald-700) {
+  color: hsl(var(--accent-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .agent-editor span.bg-emerald-700 {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .agent-editor [class*="focus-visible:ring-emerald"]:focus-visible {
+  --tw-ring-color: hsl(var(--ring) / 0.6);
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .agent-editor [class*="focus-visible:border-emerald"]:focus-visible {
+  border-color: hsl(var(--ring) / 0.6);
+}
+
 @supports (content-visibility: auto) {
   .apps-catalog-row {
     content-visibility: auto;
@@ -13,6 +135,9 @@
 @layer base {
   :root {
     color-scheme: light;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    --font-code: "JetBrains Mono", "SFMono-Regular", "SF Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+    --font-display: Georgia, "Songti SC", "Noto Serif SC", serif;
     --background: 42 32% 96%;
     --foreground: 153 15% 17%;
     --card: 48 38% 99%;
@@ -149,7 +274,8 @@
     overflow: hidden;
   }
 
-  html:lang(zh) body {
+  html:lang(zh):not([data-appearance-font]) body,
+  html:lang(zh)[data-appearance-font="system"] body {
     font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif;
   }
 
@@ -1125,7 +1251,7 @@ body,
   max-width: 580px;
   white-space: normal;
   text-wrap: balance;
-  font-family: Georgia, "Songti SC", "Noto Serif SC", serif;
+  font-family: var(--font-display);
   font-size: clamp(2rem, 3.8vw, 3.25rem);
   font-weight: 400;
   line-height: 1.18;
@@ -1221,7 +1347,7 @@ body,
   padding-top: 1px;
   margin-right: 0.1rem;
   color: hsl(var(--muted-foreground) / 0.7);
-  font-family: Georgia, serif;
+  font-family: var(--font-display);
   font-size: 10px;
 }
 

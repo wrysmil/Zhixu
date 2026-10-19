@@ -1007,7 +1007,8 @@ function Shell({
 }) {
   const { t, i18n } = useTranslation();
   const { client, getToken, token } = useClient();
-  const { theme, toggle } = useTheme();
+  const appearance = useTheme();
+  const { theme, toggle } = appearance;
   const {
     sessions,
     loading,
@@ -2705,7 +2706,7 @@ function Shell({
   }, [showHostChrome]);
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme} appearance={appearance}>
       <div
         className={cn(
           "relative h-full w-full overflow-hidden",

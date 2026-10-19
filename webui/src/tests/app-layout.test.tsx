@@ -241,6 +241,7 @@ vi.mock("@/hooks/useTheme", async () => {
       toggle: toggleThemeSpy,
     }),
     useThemeValue: () => "light" as const,
+    useAppearance: () => null,
   };
 });
 

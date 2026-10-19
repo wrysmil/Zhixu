@@ -25,8 +25,12 @@ vi.mock("@/lib/api", async (importOriginal) => {
 // xterm 在 happy-dom 下不做真实渲染：桩掉构造器即可验证 dock→surface 的接线。
 vi.mock("@xterm/xterm", () => ({
   Terminal: class FakeXterm {
+    options: Record<string, unknown>;
     cols = 80;
     rows = 24;
+    constructor(options: Record<string, unknown>) {
+      this.options = { ...options };
+    }
     open() {}
     write() {}
     scrollToBottom() {}

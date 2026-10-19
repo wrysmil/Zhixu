@@ -12,6 +12,7 @@ import "@xterm/xterm/css/xterm.css";
 
 import { CLEAR_SCREEN, failureLabel } from "@/components/workbench/terminal-shared";
 import { useTerminalStore } from "@/hooks/useZhixuStream";
+import { APPEARANCE_APPLIED_EVENT } from "@/lib/appearance";
 import { useClient } from "@/providers/ClientProvider";
 
 /**
@@ -27,6 +28,7 @@ export interface TerminalEmulator {
   onData?(callback: (data: string) => void): { dispose(): void } | void;
   onResize?(callback: (size: { cols: number; rows: number }) => void): { dispose(): void } | void;
   fit?(): void;
+  updateAppearance?(): void;
   size?: { cols: number; rows: number };
 }
 
@@ -42,6 +44,24 @@ interface TerminalSurfaceProps {
 }
 
 const TERMINAL_FONT_FAMILY = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+
+function updateTerminalAppearance(terminal: Terminal) {
+  const styles = getComputedStyle(document.documentElement);
+  const color = (name: string, fallback: string) => {
+    const value = styles.getPropertyValue(name).trim();
+    return value ? `hsl(${value})` : fallback;
+  };
+  terminal.options.fontFamily = styles.getPropertyValue("--font-code").trim() || TERMINAL_FONT_FAMILY;
+  terminal.options.theme = {
+    ...terminal.options.theme,
+    background: color("--background", "#ffffff"),
+    foreground: color("--foreground", "#222222"),
+    cursor: color("--primary", "#222222"),
+    cursorAccent: color("--background", "#ffffff"),
+    selectionBackground: color("--accent", "#b7c9bd"),
+    selectionForeground: color("--accent-foreground", "#222222"),
+  };
+}
 
 /** PTY 直通终端：xterm 接管 stdin，提示符/回显来自宿主 PTY。 */
 function createInteractiveTerminal(): TerminalEmulator {
@@ -67,6 +87,7 @@ function createInteractiveTerminal(): TerminalEmulator {
     onData: (callback) => terminal.onData(callback),
     onResize: (callback) => terminal.onResize(callback),
     fit: () => fitAddon.fit(),
+    updateAppearance: () => updateTerminalAppearance(terminal),
     get size() {
       return { cols: terminal.cols, rows: terminal.rows };
     },
@@ -87,11 +108,15 @@ function createLineTerminal(): TerminalEmulator {
     cursorBlink: false,
     theme: { background: "transparent" },
   });
+  const fitAddon = new FitAddon();
+  terminal.loadAddon(fitAddon);
   return {
     open: (element) => terminal.open(element),
     write: (data) => terminal.write(data),
     scrollToBottom: () => terminal.scrollToBottom(),
     dispose: () => terminal.dispose(),
+    updateAppearance: () => updateTerminalAppearance(terminal),
+    fit: () => fitAddon.fit(),
   };
 }
 
@@ -206,11 +231,18 @@ export function TerminalSurface({
     const terminal = factory(terminalId);
     emulatorRef.current = terminal;
     terminal.open(element);
+    const applyAppearance = () => {
+      terminal.updateAppearance?.();
+      terminal.fit?.();
+    };
+    applyAppearance();
+    window.addEventListener(APPEARANCE_APPLIED_EVENT, applyAppearance);
     const lines = recordRef.current?.lines ?? [];
     for (const line of lines) terminal.write(line.data);
     writtenRef.current = lines.length;
     terminal.scrollToBottom();
     return () => {
+      window.removeEventListener(APPEARANCE_APPLIED_EVENT, applyAppearance);
       emulatorRef.current = null;
       writtenRef.current = 0;
       terminal.dispose();

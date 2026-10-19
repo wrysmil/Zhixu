@@ -42,18 +42,19 @@
 
       body {
         margin: 0;
-        background: #ffffff;
-        color: #121212;
+        background: hsl(var(--background, 42 32% 96%));
+        color: hsl(var(--foreground, 153 15% 17%));
         font-family:
           -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto,
           "Helvetica Neue", Arial, "Noto Sans", "Noto Sans SC",
           "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
           sans-serif;
+        font-family: var(--font-ui, system-ui, sans-serif);
       }
 
       html.dark body {
-        background: #121212;
-        color: #f5f5f5;
+        background: hsl(var(--background, 153 13% 10%));
+        color: hsl(var(--foreground, 45 20% 91%));
       }
 
       .boot-splash {
@@ -102,6 +103,7 @@
         // an upgrade does not silently reset the user's theme / locale.
         // Read new key first; fall back to the old key and copy it forward.
         try {
+          if (new URLSearchParams(window.location.search).get("preview") === "1") return;
           for (var pair of [
             ["zhixu-webui.theme", "nanobot-webui.theme"],
             ["zhixu.locale", "nanobot.locale"],
@@ -121,23 +123,96 @@
       })();
       (function () {
         try {
-          var stored = null;
-          try {
-            stored = localStorage.getItem("zhixu-webui.theme");
-          } catch {}
-          var dark =
-            stored === "dark" ||
-            (stored !== "light" &&
-              window.matchMedia &&
-              window.matchMedia("(prefers-color-scheme: dark)").matches);
-          if (dark) document.documentElement.classList.add("dark");
-          var themeColor = document.querySelector('meta[name="theme-color"]');
-          if (themeColor) {
-            var color = themeColor.getAttribute(
-              dark ? "data-theme-color-dark" : "data-theme-color-light"
-            );
-            if (color) themeColor.setAttribute("content", color);
+          // Version 1 cache protocol; keep validation aligned with appearance.ts.
+          // Only fixed properties with validated values reach style.setProperty.
+          var preview = new URLSearchParams(window.location.search).get("preview") === "1";
+          var source = null, legacy = null;
+          if (!preview) {
+            try {
+              var raw = localStorage.getItem("zhixu-webui.appearance");
+              if (raw !== null) {
+                try { source = JSON.parse(raw); } catch {}
+              } else legacy = localStorage.getItem("zhixu-webui.theme");
+            } catch {}
           }
+          function object(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+          function preset(value) { return ["zhixu", "graphite", "ocean", "sand"].indexOf(value) !== -1; }
+          function hex(value) {
+            if (typeof value !== "string") return null;
+            value = value.trim().replace(/^#/, "");
+            if (/^[0-9a-f]{3}$/i.test(value)) value = value.split("").map(function (c) { return c + c; }).join("");
+            return /^[0-9a-f]{6}$/i.test(value) ? "#" + value.toUpperCase() : null;
+          }
+          function font(value, kind) {
+            value = object(value);
+            var ids = kind === "ui" ? ["system", "sans", "serif"] : ["default", "consolas", "cascadia", "jetbrains"];
+            if (ids.indexOf(value.id) !== -1) return { id: value.id, family: "" };
+            var family = typeof value.family === "string" ? value.family.trim() : "";
+            if (value.id === "custom" && family && family.length <= 80 && !/[\u0000-\u001f\u007f]/.test(value.family) && /^[\p{L}\p{N} _.-]+$/u.test(family)) return { id: "custom", family: family };
+            return { id: ids[0], family: "" };
+          }
+          function overrides(value) {
+            value = object(value);
+            var result = {};
+            ["accent", "background", "foreground"].forEach(function (field) { var color = hex(value[field]); if (color) result[field] = color; });
+            return result;
+          }
+          var value = object(source), custom = object(value.custom);
+          var validVersion = value.schemaVersion === 1;
+          var normalizedCustom = validVersion && preset(custom.basePreset) ? { basePreset: custom.basePreset, light: overrides(custom.light), dark: overrides(custom.dark) } : null;
+          var preferences = {
+            schemaVersion: 1,
+            mode: validVersion && (value.mode === "light" || value.mode === "dark") ? value.mode : legacy === "light" || legacy === "dark" ? legacy : "system",
+            presetId: validVersion && preset(value.presetId) ? value.presetId : validVersion && value.presetId === "custom" && normalizedCustom ? "custom" : "zhixu",
+            custom: normalizedCustom,
+            uiFont: font(validVersion ? value.uiFont : null, "ui"),
+            codeFont: font(validVersion ? value.codeFont : null, "code")
+          };
+          var dark = preferences.mode === "dark" || (preferences.mode === "system" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var root = document.documentElement;
+          root.classList.toggle("dark", !!dark);
+          root.style.colorScheme = dark ? "dark" : "light";
+          var canonical = JSON.stringify(preferences), hash = 2166136261;
+          for (var i = 0; i < canonical.length; i++) hash = Math.imul(hash ^ canonical.charCodeAt(i), 16777619);
+          var hslKeys = ["background", "foreground", "card", "popover", "primary", "primary-foreground", "secondary", "muted", "muted-foreground", "accent", "accent-foreground", "border", "surface-app", "surface-panel", "sidebar", "sidebar-accent", "card-foreground", "popover-foreground", "secondary-foreground", "input", "ring", "border-soft", "temporary-accent", "temporary-foreground", "temporary-border", "sidebar-foreground", "sidebar-selected", "sidebar-accent-foreground", "sidebar-border", "settings-canvas", "settings-surface"];
+          var hexKeys = ["inline-token-highlight", "temporary-control-active", "appearance-safe-foreground"];
+          var fontKeys = ["font-ui", "font-code", "font-display"];
+          var allKeys = hslKeys.concat(hexKeys, fontKeys).map(function (key) { return "--" + key; });
+          function safeSnapshot(snapshot) {
+            if (!snapshot || typeof snapshot !== "object" || Object.keys(snapshot).length !== allKeys.length) return false;
+            return allKeys.every(function (key) {
+              var val = snapshot[key];
+              if (typeof val !== "string") return false;
+              if (hexKeys.indexOf(key.slice(2)) !== -1) return !!hex(val) && /^#[0-9a-f]{6}$/i.test(val);
+              if (fontKeys.indexOf(key.slice(2)) !== -1) return val.length <= 1024 && /^[\p{L}\p{N} _.,"'-]+$/u.test(val);
+              var match = /^(\d+(?:\.\d+)?) (\d+(?:\.\d+)?)% (\d+(?:\.\d+)?)%$/.exec(val);
+              return !!match && +match[1] <= 360 && +match[2] <= 100 && +match[3] <= 100;
+            });
+          }
+          var snapshot = object(value.snapshot);
+          var validSnapshot = validVersion && snapshot.version === 1 && snapshot.signature === (hash >>> 0).toString(16) && safeSnapshot(snapshot.light) && safeSnapshot(snapshot.dark);
+          if (validSnapshot) {
+            var selected = dark ? snapshot.dark : snapshot.light;
+            allKeys.forEach(function (key) { root.style.setProperty(key, selected[key]); });
+            root.dataset.appearanceTheme = preferences.presetId;
+            root.dataset.appearanceFont = preferences.uiFont.id;
+          } else {
+            root.style.setProperty("--background", dark ? "153 13% 10%" : "42 32% 96%");
+            root.style.setProperty("--foreground", dark ? "45 20% 91%" : "153 15% 17%");
+            root.style.setProperty("--primary", dark ? "143 26% 66%" : "154 29% 29%");
+            root.dataset.appearanceTheme = "zhixu";
+            root.dataset.appearanceFont = "system";
+          }
+          function hslHex(input) {
+            var parts = input.split(" "), h = parseFloat(parts[0]), s = parseFloat(parts[1]) / 100, l = parseFloat(parts[2]) / 100;
+            var a = s * Math.min(l, 1 - l);
+            return "#" + [0, 8, 4].map(function (n) {
+              var k = (n + h / 30) % 12;
+              return Math.round((l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))) * 255).toString(16).padStart(2, "0");
+            }).join("").toUpperCase();
+          }
+          var themeColor = document.querySelector('meta[name="theme-color"]');
+          if (themeColor) themeColor.setAttribute("content", hslHex(root.style.getPropertyValue("--background")));
         } catch {}
       })();
     </script>

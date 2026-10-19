@@ -17,17 +17,7 @@ interface LoadedDiffSyntaxHighlightProps extends DiffSyntaxHighlightProps {
 type RendererArgs = Parameters<NonNullable<SyntaxHighlighterProps["renderer"]>>[0];
 type SyntaxNode = RendererArgs["rows"][number];
 
-const CODE_FONT_STACK = [
-  '"JetBrains Mono"',
-  '"SFMono-Regular"',
-  '"SF Mono"',
-  '"Fira Code"',
-  '"Cascadia Code"',
-  '"Source Code Pro"',
-  "Menlo",
-  "Consolas",
-  "monospace",
-].join(", ");
+const CODE_FONT_STACK = "var(--font-code)";
 
 const LazyDiffSyntaxHighlight = lazy(async () => {
   const [
@@ -57,6 +47,7 @@ const LazyDiffSyntaxHighlight = lazy(async () => {
           CodeTag="div"
           customStyle={{
             background: "transparent",
+            color: "hsl(var(--foreground))",
             margin: 0,
             padding: 0,
             overflow: "visible",
@@ -67,6 +58,7 @@ const LazyDiffSyntaxHighlight = lazy(async () => {
           codeTagProps={{
             style: {
               background: "transparent",
+              color: "hsl(var(--foreground))",
               fontFamily: CODE_FONT_STACK,
             },
           }}

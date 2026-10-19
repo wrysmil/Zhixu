@@ -16,6 +16,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { AppearanceEditor } from "@/components/settings/appearance/AppearanceEditor";
 import { DEFAULT_TRANSCRIPTION_SETTINGS } from "@/components/settings/capabilities/TranscriptionSettings";
 import type { SettingsSectionKey } from "@/components/settings/contracts";
 import { settingsProviderConfigured } from "@/components/settings/shared/ModelControls";
@@ -29,6 +30,7 @@ import { ToggleButton } from "@/components/settings/ToggleButton";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useLogoFallback } from "@/hooks/useLogoFallback";
+import { useAppearance } from "@/hooks/useTheme";
 import { checkVersion } from "@/lib/api";
 import type {
   FileEditDisplayMode,
@@ -317,13 +319,15 @@ export function AppearanceSettings({
   onChangeLocalPrefs: Dispatch<SetStateAction<LocalPreferences>>;
 }) {
   const { t } = useTranslation();
+  const appearance = useAppearance();
   const tx = (key: string, fallback: string) => t(key, { defaultValue: fallback });
   return (
     <div className="space-y-7">
+      {appearance && <AppearanceEditor />}
       <section>
         <SettingsSectionTitle>{t("settings.sections.interface")}</SettingsSectionTitle>
         <SettingsGroup>
-          <SettingsRow title={t("settings.rows.theme")}>
+          {!appearance && <SettingsRow title={t("settings.rows.theme")}>
             <button
               type="button"
               onClick={onToggleTheme}
@@ -348,7 +352,7 @@ export function AppearanceSettings({
                 {t("settings.values.dark")}
               </span>
             </button>
-          </SettingsRow>
+          </SettingsRow>}
 
           <SettingsRow title={t("settings.rows.language")}>
             <LanguageSwitcher />
