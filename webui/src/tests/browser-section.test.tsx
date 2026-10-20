@@ -105,4 +105,30 @@ describe("BrowserSection", () => {
     fireEvent.click(screen.getByRole("button", { name: /open externally/i }));
     expect(openExternal).toHaveBeenCalledWith(expect.stringContaining("blocked.example"));
   });
+
+  it("restores the browser history for its dock scope", () => {
+    sessionStorage.setItem(
+      "zhixu.dock.browser.websocket:home",
+      JSON.stringify({ history: ["https://example.com/"], index: 0 }),
+    );
+    render(<BrowserSection scope="websocket:home" />);
+    expect(screen.getByTestId(IFRAME)).toHaveAttribute(
+      "src",
+      "https://example.com/",
+    );
+    sessionStorage.clear();
+  });
+
+  it("opens the current page in a detached desktop window", () => {
+    const openBrowserWindow = vi.fn().mockResolvedValue(true);
+    (window as { mira?: { openBrowserWindow?: typeof openBrowserWindow } }).mira = {
+      openBrowserWindow,
+    };
+    render(<BrowserSection scope="websocket:home" />);
+    navigateTo("https://detached.example");
+    fireEvent.click(screen.getByTestId("browser-detached"));
+    expect(openBrowserWindow).toHaveBeenCalledWith(
+      expect.stringContaining("detached.example"),
+    );
+  });
 });

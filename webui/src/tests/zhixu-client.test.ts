@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ZhixuClient } from "@/lib/zhixu-client";
-import type { SidebarStatePayload } from "@/lib/types";
+import type { SidebarStatePayload, TerminalEvent } from "@/lib/types";
 
 /**
  * Minimal fake WebSocket implementing the subset ZhixuClient touches.
@@ -2382,5 +2382,27 @@ describe("ZhixuClient", () => {
     await vi.advanceTimersByTimeAsync(50);
     expect(seen).toContain("reconnecting");
     expect(FakeSocket.instances.length).toBeGreaterThan(1);
+  });
+
+  it("routes terminal_snapshot frames to terminalEventHandlers", () => {
+    const client = new ZhixuClient({
+      url: "ws://test",
+      reconnect: false,
+      socketFactory: (url) => new FakeSocket(url) as unknown as WebSocket,
+    });
+    const received: TerminalEvent[] = [];
+    client.onTerminalEvent((event) => received.push(event));
+    client.connect();
+    const socket = lastSocket();
+    socket.fakeOpen();
+    socket.fakeMessage({
+      type: "terminal_snapshot",
+      event: "terminal_snapshot",
+      terminal_id: "term-1",
+      seq: 1,
+      data: "restored\n",
+      truncated: false,
+    });
+    expect(received.map((event) => event.event)).toContain("terminal_snapshot");
   });
 });

@@ -1,3 +1,14 @@
+export async function readTextFromClipboard(): Promise<string | null> {
+  try {
+    if (navigator.clipboard?.readText) {
+      return await navigator.clipboard.readText();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export async function copyTextToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {

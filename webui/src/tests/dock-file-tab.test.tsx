@@ -7,6 +7,7 @@ import { HOME_DOCK_SCOPE } from "@/lib/dock-store";
 
 const mocks = vi.hoisted(() => ({
   fetchWorkspaceFiles: vi.fn(),
+  fetchWorkspaceSearch: vi.fn(),
   fetchFilePreview: vi.fn(),
 }));
 
@@ -22,6 +23,21 @@ beforeEach(() => {
     path: "/tmp/project",
     project_path: "/tmp/project",
     entries: [{ name: "README.md", path: "README.md", kind: "file", size: 6 }],
+  });
+  mocks.fetchWorkspaceSearch.mockReset().mockResolvedValue({
+    query: "README",
+    results: [{
+      name: "README.md",
+      path: "README.md",
+      display_path: "README.md",
+      line: 0,
+      column: 0,
+      snippet: "README.md",
+      match: "README.md",
+      hidden: false,
+    }],
+    truncated: false,
+    scanned_files: 1,
   });
   mocks.fetchFilePreview.mockReset().mockResolvedValue({
     path: "/tmp/project/README.md",
@@ -68,5 +84,31 @@ describe("DockFileTab two-column layout", () => {
       const code = preview.querySelector("code");
       expect(code?.style.whiteSpace).toBe("pre-wrap");
     }, { timeout: 3000 });
+  });
+});
+
+describe("DockFileTab toolbar", () => {
+  it("toggles hidden files through the scoped workspace endpoint", async () => {
+    renderTab();
+    await screen.findByTestId("dock-file-toolbar");
+    fireEvent.click(screen.getByTestId("dock-file-hidden-toggle"));
+    await waitFor(() => {
+      expect(mocks.fetchWorkspaceFiles).toHaveBeenCalledWith("tok", null, "", true);
+    });
+  });
+
+  it("searches file names and contents from the toolbar", async () => {
+    renderTab();
+    await screen.findByTestId("dock-file-toolbar");
+    fireEvent.click(screen.getByTestId("dock-file-search-toggle"));
+    fireEvent.change(screen.getByTestId("dock-file-search-input"), {
+      target: { value: "README" },
+    });
+    expect(
+      await screen.findByTestId("dock-file-search-hit-README.md", {}, { timeout: 2000 }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mocks.fetchWorkspaceSearch).toHaveBeenCalledWith("tok", "README", "", false);
+    });
   });
 });

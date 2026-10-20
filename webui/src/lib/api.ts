@@ -49,6 +49,7 @@ import type {
   TranscriptionSettingsUpdate,
   WebSearchSettingsUpdate,
   WorkspacesPayload,
+  WorkspaceSearchPayload,
   WebuiThreadPersistedPayload,
   WorkspaceScopePayload,
 } from "./types";
@@ -315,9 +316,11 @@ export async function fetchSessionDirectory(
   key: string,
   path: string | null,
   base: string = "",
+  showHidden: boolean = false,
 ): Promise<SessionDirectoryPayload> {
   const query = new URLSearchParams();
   if (path) query.set("path", path);
+  if (showHidden) query.set("show_hidden", "1");
   return request<SessionDirectoryPayload>(
     `${base}/api/sessions/${encodeURIComponent(key)}/files?${query}`,
     token,
@@ -336,11 +339,46 @@ export async function fetchWorkspaceFiles(
   token: string,
   path: string | null = null,
   base: string = "",
+  showHidden: boolean = false,
 ): Promise<SessionDirectoryPayload> {
   const query = new URLSearchParams({ scope: "default" });
   if (path) query.set("path", path);
+  if (showHidden) query.set("show_hidden", "1");
   return request<SessionDirectoryPayload>(
     `${base}/api/workspace/files?${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
+export async function fetchSessionSearch(
+  token: string,
+  key: string,
+  text: string,
+  base: string = "",
+  showHidden: boolean = false,
+): Promise<WorkspaceSearchPayload> {
+  const query = new URLSearchParams({ q: text });
+  if (showHidden) query.set("show_hidden", "1");
+  return request<WorkspaceSearchPayload>(
+    `${base}/api/sessions/${encodeURIComponent(key)}/files/search?${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
+export async function fetchWorkspaceSearch(
+  token: string,
+  text: string,
+  base: string = "",
+  showHidden: boolean = false,
+): Promise<WorkspaceSearchPayload> {
+  const query = new URLSearchParams({ scope: "default", q: text });
+  if (showHidden) query.set("show_hidden", "1");
+  return request<WorkspaceSearchPayload>(
+    `${base}/api/workspace/files/search?${query}`,
     token,
     undefined,
     API_READ_TIMEOUT_MS,

@@ -48,4 +48,29 @@ describe("dock store", () => {
     expect(dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs.map((t) => t.kind)).toEqual(["file"]);
     expect(dockStore.getSnapshot("websocket:chat-9").tabs.map((t) => t.kind)).toEqual(["browser"]);
   });
+
+  it("persists file/browser tabs and restores them per scope", () => {
+    dockStore.openFile(HOME_DOCK_SCOPE);
+    dockStore.openBrowser(HOME_DOCK_SCOPE);
+    dockStore.renameTab(HOME_DOCK_SCOPE, "file", "Docs");
+    dockStore.focusTab(HOME_DOCK_SCOPE, "browser");
+
+    dockStore.resetForTests();
+    const restored = dockStore.getSnapshot(HOME_DOCK_SCOPE);
+
+    expect(restored.tabs.map((tab) => [tab.kind, tab.customTitle])).toEqual([
+      ["file", "Docs"],
+      ["browser", undefined],
+    ]);
+    expect(restored.activeId).toBe("browser");
+  });
+
+  it("renameTab clears back to the localized default on blank input", () => {
+    dockStore.openFile(HOME_DOCK_SCOPE);
+    dockStore.renameTab(HOME_DOCK_SCOPE, "file", "Docs");
+    dockStore.renameTab(HOME_DOCK_SCOPE, "file", "   ");
+    expect(
+      dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs[0].customTitle,
+    ).toBeUndefined();
+  });
 });

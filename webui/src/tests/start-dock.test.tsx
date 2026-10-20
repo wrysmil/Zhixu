@@ -133,7 +133,10 @@ function renderDock(props: Partial<React.ComponentProps<typeof StartDock>> = {})
 // + 菜单的 shell 子菜单据此渲染。
 async function waitForShells() {
   await waitFor(() => expect(mocks.fetchTerminalShells).toHaveBeenCalledWith("tok"));
-  
+  // 让已 resolve 的 shells 请求把 state 提交完，避免紧随其后的点击读到 null。
+  await act(async () => {
+    await Promise.resolve();
+  });
 }
 
 function startedEvent(
@@ -367,5 +370,49 @@ describe("StartDock collapse", () => {
   it("renders no collapse affordance when the host owns the toggle", () => {
     renderDock();
     expect(screen.queryByRole("button", { name: /Collapse/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("StartDock tab shell v1.2", () => {
+  it("renames a tab on double click", () => {
+    renderDock();
+    fireEvent.click(screen.getByTestId("dock-card-files"));
+    fireEvent.doubleClick(screen.getByTestId("dock-tab-file"));
+    const input = screen.getByTestId("dock-tab-rename-file");
+    fireEvent.change(input, { target: { value: "Docs" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByTestId("dock-tab-file")).toHaveTextContent("Docs");
+    expect(
+      dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs[0].customTitle,
+    ).toBe("Docs");
+  });
+
+  it("closes a tab with the middle mouse button", () => {
+    renderDock();
+    fireEvent.click(screen.getByTestId("dock-card-files"));
+    fireEvent(
+      screen.getByTestId("dock-tab-file"),
+      new MouseEvent("auxclick", { bubbles: true, button: 1 }),
+    );
+    expect(screen.queryByTestId("dock-tab-file")).toBeNull();
+  });
+
+  it("keeps inactive panels mounted without stealing focus", async () => {
+    const client = renderDock();
+    await waitForShells();
+    fireEvent.click(screen.getByTestId("dock-card-files"));
+    expect(await screen.findByText("README.md")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("dock-plus-button"));
+    fireEvent.click(screen.getByTestId("dock-plus-terminal"));
+    fireEvent.click(await screen.findByTestId("dock-shell-zsh"));
+    const id = client.terminalStart.mock.calls[0][0] as string;
+
+    expect(screen.getByTestId("dock-panel-file")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByTestId(`dock-panel-${id}`)).toHaveAttribute("aria-hidden", "false");
+    expect(screen.getByText("README.md")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("dock-tab-file"));
+    expect(screen.getByTestId("dock-panel-file")).toHaveAttribute("aria-hidden", "false");
   });
 });

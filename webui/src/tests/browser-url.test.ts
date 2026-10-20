@@ -115,4 +115,38 @@ describe("normalizeBrowserUrl", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("malformed");
   });
+
+  it("accepts bare public hosts with https", () => {
+    expect(normalizeBrowserUrl("example.com")).toEqual({
+      ok: true,
+      url: "https://example.com/",
+    });
+    expect(normalizeBrowserUrl("example.com:8080/docs")).toEqual({
+      ok: true,
+      url: "https://example.com:8080/docs",
+    });
+  });
+
+  it("accepts bare loopback hosts with http", () => {
+    expect(normalizeBrowserUrl("localhost:5173")).toEqual({
+      ok: true,
+      url: "http://localhost:5173/",
+    });
+    expect(normalizeBrowserUrl("127.0.0.1:8765")).toEqual({
+      ok: true,
+      url: "http://127.0.0.1:8765/",
+    });
+  });
+
+  it("keeps single-label input malformed and rejects bare private hosts", () => {
+    expect(normalizeBrowserUrl("notaurl")).toEqual({ ok: false, reason: "malformed" });
+    expect(normalizeBrowserUrl("192.168.1.1")).toEqual({ ok: false, reason: "private" });
+  });
+
+  it("keeps non-http schemes rejected", () => {
+    expect(normalizeBrowserUrl("mailto:user@example.com")).toEqual({
+      ok: false,
+      reason: "scheme",
+    });
+  });
 });

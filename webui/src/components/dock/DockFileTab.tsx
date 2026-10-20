@@ -1,18 +1,20 @@
 // dock 的「文件」标签页（批次 home-dock-pty-terminal-v1.1 Task 9）。
-// 由 v1 HomeStartPanel 的工作区文件状态机（probe / noWorkspace / error / retry +
-// root 缓存）与 WorkspaceFilePreview 整体迁移而来，占满 dock 全高。
+// 由 v1 HomeStartPanel 的工作区文件状态机（probe / noWorkspace / error / retry）
+// 与 WorkspaceFilePreview 整体迁移而来，占满 dock 全高。
 // 双锚点：sessionKey 非空 = session 锚点（WorkspaceFileTree 默认 fetchSessionDirectory，
 // 预览走 fetchFilePreview(token, sessionKey, path)）；为空 = home/工作区锚点
 // （fetchWorkspaceFiles + HOME_PREVIEW_SESSION_KEY + scope "default"，与 v1 逐一对应）。
 // onOpenFilePreview 传入时预览上抛宿主（SessionWorkbench 保留外置预览面板语义）。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RotateCw, X } from "lucide-react";
+import { ChevronsDownUp, Eye, EyeOff, RefreshCw, RotateCw, Search, X } from "lucide-react";
 
 import { CodeBlock } from "@/components/CodeBlock";
+import { DockFileSearch } from "@/components/dock/DockFileSearch";
 import { WorkspaceFileTree } from "@/components/workbench/WorkspaceFileTree";
 import { ApiError, fetchFilePreview, fetchWorkspaceFiles } from "@/lib/api";
-import type { FilePreviewPayload, SessionDirectoryPayload } from "@/lib/types";
+import type { FilePreviewPayload } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 /**
  * The home dock has no session, but the file-preview route lives under
@@ -134,18 +136,19 @@ export function DockFileTab({
   const { t } = useTranslation();
   const [filesState, setFilesState] = useState<FilesState>("idle");
   const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [collapseToken, setCollapseToken] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
-  // Root listing from the tab-level probe; consumed by the tree's first load
-  // so a 404 (no default workspace) can be told apart from a generic error.
-  const rootPayloadRef = useRef<SessionDirectoryPayload | null>(null);
 
   const homeAnchored = sessionKey === null;
 
   const probeWorkspaceRoot = useCallback(async () => {
     setFilesState("loading");
     try {
-      rootPayloadRef.current = await fetchWorkspaceFiles(getTokenRef.current(), null);
+      await fetchWorkspaceFiles(getTokenRef.current(), null, "", false);
       setFilesState("ready");
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) setFilesState("noWorkspace");
@@ -159,18 +162,83 @@ export function DockFileTab({
     }
   }, [homeAnchored, filesState, probeWorkspaceRoot]);
 
-  const fetchDirectory = useCallback(async (token: string, path: string | null) => {
-    if (path === null && rootPayloadRef.current) {
-      const payload = rootPayloadRef.current;
-      rootPayloadRef.current = null;
-      return payload;
-    }
-    return fetchWorkspaceFiles(token, path);
-  }, []);
+  const fetchDirectory = useCallback(
+    (token: string, path: string | null, hidden: boolean) =>
+      fetchWorkspaceFiles(token, path, "", hidden),
+    [],
+  );
 
   const openPreview = onOpenFilePreview ?? setPreviewPath;
   // 宿主自带外置预览面板时（会话工作台）不内嵌预览列，文件树占满整列。
   const inlinePreview = !onOpenFilePreview;
+
+  const toolButton = (active = false) =>
+    cn(
+      "grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground",
+      active && "bg-muted/70 text-foreground",
+    );
+
+  const toolbar = (
+    <div
+      data-testid="dock-file-toolbar"
+      className="flex shrink-0 items-center gap-0.5"
+    >
+      <button
+        type="button"
+        data-testid="dock-file-refresh"
+        aria-label={t("dock.refresh", { defaultValue: "Refresh" })}
+        title={t("dock.refresh", { defaultValue: "Refresh" })}
+        onClick={() => setRefreshToken((value) => value + 1)}
+        className={toolButton()}
+      >
+        <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      <button
+        type="button"
+        data-testid="dock-file-hidden-toggle"
+        aria-pressed={showHidden}
+        aria-label={
+          showHidden
+            ? t("dock.hideHidden", { defaultValue: "Hide hidden files" })
+            : t("dock.showHidden", { defaultValue: "Show hidden files" })
+        }
+        title={
+          showHidden
+            ? t("dock.hideHidden", { defaultValue: "Hide hidden files" })
+            : t("dock.showHidden", { defaultValue: "Show hidden files" })
+        }
+        onClick={() => setShowHidden((value) => !value)}
+        className={toolButton(showHidden)}
+      >
+        {showHidden ? (
+          <EyeOff className="h-3.5 w-3.5" aria-hidden />
+        ) : (
+          <Eye className="h-3.5 w-3.5" aria-hidden />
+        )}
+      </button>
+      <button
+        type="button"
+        data-testid="dock-file-collapse"
+        aria-label={t("dock.collapseAll", { defaultValue: "Collapse all" })}
+        title={t("dock.collapseAll", { defaultValue: "Collapse all" })}
+        onClick={() => setCollapseToken((value) => value + 1)}
+        className={toolButton()}
+      >
+        <ChevronsDownUp className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      <button
+        type="button"
+        data-testid="dock-file-search-toggle"
+        aria-pressed={searchOpen}
+        aria-label={t("dock.search", { defaultValue: "Search files" })}
+        title={t("dock.search", { defaultValue: "Search files" })}
+        onClick={() => setSearchOpen((value) => !value)}
+        className={toolButton(searchOpen)}
+      >
+        <Search className="h-3.5 w-3.5" aria-hidden />
+      </button>
+    </div>
+  );
 
   const renderTree = () => (
     <div className="flex min-h-0 flex-1 gap-2">
@@ -207,12 +275,18 @@ export function DockFileTab({
           <WorkspaceFileTree
             getToken={getToken}
             fetchDirectory={fetchDirectory}
+            showHidden={showHidden}
+            refreshToken={refreshToken}
+            collapseToken={collapseToken}
             onOpenFilePreview={openPreview}
           />
         ) : (
           <WorkspaceFileTree
             sessionKey={sessionKey ?? ""}
             getToken={getToken}
+            showHidden={showHidden}
+            refreshToken={refreshToken}
+            collapseToken={collapseToken}
             onOpenFilePreview={openPreview}
           />
         )}
@@ -220,49 +294,26 @@ export function DockFileTab({
     </div>
   );
 
-  if (!homeAnchored) {
-    return (
-      <div
-        data-scope={scope}
-        className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto px-3 py-2 scrollbar-thin"
-      >
-        {renderTree()}
-      </div>
-    );
-  }
-
-  if (filesState === "loading" || filesState === "idle") {
-    return (
-      <div
-        data-scope={scope}
-        className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto px-3 py-2 scrollbar-thin"
-      >
+  const content = () => {
+    if (!homeAnchored) return renderTree();
+    if (filesState === "loading" || filesState === "idle") {
+      return (
         <p className="py-1 text-[12px] text-muted-foreground/60">
           {t("workbench.treeLoading", { defaultValue: "Loading…" })}
         </p>
-      </div>
-    );
-  }
-  if (filesState === "noWorkspace") {
-    return (
-      <div
-        data-scope={scope}
-        className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto px-3 py-2 scrollbar-thin"
-      >
+      );
+    }
+    if (filesState === "noWorkspace") {
+      return (
         <p role="status" className="py-1 text-[12px] text-muted-foreground">
           {t("startPanel.openProjectFirst", {
             defaultValue: "Available after you pick a project",
           })}
         </p>
-      </div>
-    );
-  }
-  if (filesState === "error") {
-    return (
-      <div
-        data-scope={scope}
-        className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto px-3 py-2 scrollbar-thin"
-      >
+      );
+    }
+    if (filesState === "error") {
+      return (
         <button
           type="button"
           onClick={() => void probeWorkspaceRoot()}
@@ -273,16 +324,27 @@ export function DockFileTab({
             defaultValue: "Could not load the workspace — retry",
           })}
         </button>
-      </div>
-    );
-  }
+      );
+    }
+    return renderTree();
+  };
 
   return (
     <div
       data-scope={scope}
       className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto px-3 py-2 scrollbar-thin"
     >
-      {renderTree()}
+      {toolbar}
+      {searchOpen ? (
+        <DockFileSearch
+          sessionKey={sessionKey}
+          getToken={getToken}
+          showHidden={showHidden}
+          onOpen={openPreview}
+          onClose={() => setSearchOpen(false)}
+        />
+      ) : null}
+      {content()}
     </div>
   );
 }

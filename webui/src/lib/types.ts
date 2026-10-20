@@ -1667,6 +1667,8 @@ export interface SessionDirectoryEntry {
   display_path: string;
   is_dir: boolean;
   size: number;
+  /** True for dot-prefixed names and node_modules; only surfaced with show_hidden. */
+  hidden?: boolean;
 }
 
 export interface SessionDirectoryPayload {
@@ -1676,6 +1678,25 @@ export interface SessionDirectoryPayload {
   parent_path: string | null;
   entries: SessionDirectoryEntry[];
   truncated: boolean;
+}
+
+export interface WorkspaceSearchHit {
+  name: string;
+  path: string;
+  display_path: string;
+  /** 1-based for content hits; 0 for a file-name hit. */
+  line: number;
+  column: number;
+  snippet: string;
+  match: string;
+  hidden: boolean;
+}
+
+export interface WorkspaceSearchPayload {
+  query: string;
+  results: WorkspaceSearchHit[];
+  truncated: boolean;
+  scanned_files: number;
 }
 
 /** Contract §1.2 (2026-10-11 home-start-panel): the four host→client terminal
@@ -1715,6 +1736,13 @@ export type TerminalEvent =
       seq: number;
       stream: TerminalOutputStreamName;
       data: string;
+    }
+  | {
+      event: "terminal_snapshot";
+      terminal_id: string;
+      seq: number;
+      data: string;
+      truncated: boolean;
     }
   | { event: "terminal_exit"; terminal_id: string; exit_code: number | null }
   | { event: "terminal_list_result"; terminals: TerminalListEntry[] }

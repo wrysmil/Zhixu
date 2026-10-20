@@ -8,11 +8,13 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { useTranslation } from "react-i18next";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
+import { ChevronRight, ClipboardPaste, Copy, CornerDownLeft, Eraser, SquareTerminal } from "lucide-react";
 import "@xterm/xterm/css/xterm.css";
 
 import { CLEAR_SCREEN, failureLabel } from "@/components/workbench/terminal-shared";
 import { useTerminalStore } from "@/hooks/useZhixuStream";
 import { APPEARANCE_APPLIED_EVENT } from "@/lib/appearance";
+import { copyTextToClipboard, readTextFromClipboard } from "@/lib/clipboard";
 import { useClient } from "@/providers/ClientProvider";
 
 /**
@@ -29,6 +31,7 @@ export interface TerminalEmulator {
   onResize?(callback: (size: { cols: number; rows: number }) => void): { dispose(): void } | void;
   fit?(): void;
   updateAppearance?(): void;
+  getSelection?(): string;
   size?: { cols: number; rows: number };
 }
 
@@ -41,6 +44,8 @@ interface TerminalSurfaceProps {
   createTerminalInstance?: (tabId: string) => TerminalEmulator;
   /** v1 TerminalSection 的 id 生成 prop 已归 dock 宿主；保留类型位拒绝误用。 */
   generateTerminalId?: never;
+  /** False while the dock tab is hidden; stops stdin/resize work without unmounting. */
+  active?: boolean;
 }
 
 const TERMINAL_FONT_FAMILY = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
@@ -69,7 +74,8 @@ function createInteractiveTerminal(): TerminalEmulator {
     disableStdin: false,
     convertEol: false,
     scrollback: 5000,
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 1.55,
     fontFamily: TERMINAL_FONT_FAMILY,
     cursorBlink: true,
     theme: { background: "transparent" },
@@ -88,6 +94,7 @@ function createInteractiveTerminal(): TerminalEmulator {
     onResize: (callback) => terminal.onResize(callback),
     fit: () => fitAddon.fit(),
     updateAppearance: () => updateTerminalAppearance(terminal),
+    getSelection: () => terminal.getSelection(),
     get size() {
       return { cols: terminal.cols, rows: terminal.rows };
     },
@@ -103,7 +110,8 @@ function createLineTerminal(): TerminalEmulator {
     // Pipe-mode shells emit bare ``\n``; convert so each line starts at column 0.
     convertEol: true,
     scrollback: 5000,
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 1.55,
     fontFamily: TERMINAL_FONT_FAMILY,
     cursorBlink: false,
     theme: { background: "transparent" },
@@ -116,6 +124,7 @@ function createLineTerminal(): TerminalEmulator {
     scrollToBottom: () => terminal.scrollToBottom(),
     dispose: () => terminal.dispose(),
     updateAppearance: () => updateTerminalAppearance(terminal),
+    getSelection: () => terminal.getSelection(),
     fit: () => fitAddon.fit(),
   };
 }
@@ -163,7 +172,9 @@ function TerminalInput({ disabled, onSubmit }: TerminalInputProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-1">
+    <form onSubmit={handleSubmit} className="shrink-0 border-t border-border/50 bg-muted/20 p-2.5">
+      <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-background px-2.5 shadow-sm transition-colors focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10">
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-primary/80" aria-hidden />
       <label className="sr-only" htmlFor="terminal-command-input">
         {t("startPanel.terminalInput", { defaultValue: "Command input" })}
       </label>
@@ -180,8 +191,18 @@ function TerminalInput({ disabled, onSubmit }: TerminalInputProps) {
         placeholder={t("startPanel.terminalInputPlaceholder", {
           defaultValue: "Type a command and press Enter",
         })}
-        className="h-6 min-w-0 flex-1 rounded border border-border/50 bg-background px-1.5 font-mono text-[11.5px] text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring/60 disabled:opacity-50"
+        className="h-9 min-w-0 flex-1 border-0 bg-transparent p-0 font-mono text-[12px] text-foreground outline-none placeholder:text-muted-foreground/65 disabled:opacity-50"
       />
+      <button
+        type="submit"
+        aria-label="Enter"
+        title="Enter"
+        disabled={disabled || !draft.trim()}
+        className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30"
+      >
+        <CornerDownLeft className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      </div>
     </form>
   );
 }
@@ -202,6 +223,7 @@ export function TerminalSurface({
   terminalId,
   sessionKey = null,
   createTerminalInstance,
+  active = true,
 }: TerminalSurfaceProps) {
   const { t } = useTranslation();
   const { client } = useClient();
@@ -219,7 +241,8 @@ export function TerminalSurface({
 
   const modeKnown = record !== null && record.status !== "starting";
   const ptyMode = record?.pty === true;
-  const interactive = ptyMode && record?.status === "running";
+  const interactive = ptyMode && record?.status === "running" && active;
+  const shellName = record?.shell.split(/[\\/]/).pop()?.replace(/\.exe$/i, "") || "Terminal";
 
   // 创建 emulator：terminal_started 之后（pty 模式此时已知）；创建时把已缓存的
   // 行整体回放一次（含 starting 期间到达的输出）。
@@ -248,6 +271,30 @@ export function TerminalSurface({
       terminal.dispose();
     };
   }, [modeKnown, ptyMode, terminalId]);
+
+  // 管道终端也需跟随面板尺寸重排，否则默认 80 列会撑出横向滚动条。
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!modeKnown || ptyMode || !active || !element) return;
+    const fit = () => emulatorRef.current?.fit?.();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    observer?.observe(element);
+    fit();
+    return () => observer?.disconnect();
+  }, [modeKnown, ptyMode, active, terminalId]);
+
+  const viewEpoch = record?.viewEpoch ?? 0;
+
+  // Snapshot replay: a takeover snapshot replaces the local buffer wholesale.
+  useEffect(() => {
+    const terminal = emulatorRef.current;
+    if (!terminal) return;
+    terminal.write(CLEAR_SCREEN);
+    const lines = recordRef.current?.lines ?? [];
+    for (const line of lines) terminal.write(line.data);
+    writtenRef.current = lines.length;
+    terminal.scrollToBottom();
+  }, [viewEpoch]);
 
   // 增量输出回放（迁移 v1 TerminalOutput）：缓冲被裁剪时 CLEAR_SCREEN 全量重绘。
   useEffect(() => {
@@ -290,6 +337,36 @@ export function TerminalSurface({
     };
   }, [interactive, terminalId, client]);
 
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 1200);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  const copyOutput = async () => {
+    const selected = emulatorRef.current?.getSelection?.() ?? "";
+    const text = selected || (recordRef.current?.lines ?? []).map((line) => line.data).join("");
+    if (!text) return;
+    if (await copyTextToClipboard(text)) {
+      setNotice(t("dock.copied", { defaultValue: "Copied" }));
+    }
+  };
+
+  const pasteInput = async () => {
+    const current = recordRef.current;
+    if (!current || current.status !== "running") return;
+    const text = await readTextFromClipboard();
+    if (text === null) return;
+    if (current.pty) {
+      client.terminalWrite(terminalId, text);
+    } else {
+      client.terminalWrite(terminalId, `${text}\n`);
+      store.appendEcho(terminalId, text);
+    }
+  };
+
   const handleLine = (line: string) => {
     client.terminalWrite(terminalId, `${line}\n`);
     store.appendEcho(terminalId, line);
@@ -299,15 +376,15 @@ export function TerminalSurface({
     <div
       data-testid={`terminal-surface-${terminalId}`}
       data-session-key={sessionKey ?? undefined}
-      className="flex min-h-0 flex-1 flex-col gap-1.5"
+      className="m-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/60 bg-background shadow-[0_2px_12px_-6px_hsl(var(--foreground)/0.12)]"
     >
       {record?.status === "failed" ? (
-        <p role="alert" className="text-[12px] text-destructive">
+        <p role="alert" className="border-b border-destructive/15 bg-destructive/5 px-3 py-2 text-[12px] text-destructive">
           {failureLabel(record.message ?? "terminal_error", t)}
         </p>
       ) : null}
       {record?.status === "exited" ? (
-        <p role="status" className="text-[12px] text-muted-foreground">
+        <p role="status" className="border-b border-border/50 bg-muted/30 px-3 py-2 text-[12px] text-muted-foreground">
           {record.exitCode === null
             ? t("startPanel.terminalExpired", { defaultValue: "Session expired" })
             : t("startPanel.terminalExit", {
@@ -316,15 +393,71 @@ export function TerminalSurface({
               })}
         </p>
       ) : null}
+      <div className="flex shrink-0 items-center gap-2 border-b border-border/50 bg-muted/20 px-3 py-2.5">
+        <SquareTerminal className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate font-mono text-[12px] font-medium text-foreground">{shellName}</span>
+            <span
+              aria-hidden
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${record?.status === "running" ? "bg-emerald-500" : record?.status === "failed" ? "bg-destructive" : "bg-muted-foreground/40"}`}
+            />
+          </div>
+          {record?.cwd ? (
+            <p title={record.cwd} className="mt-0.5 truncate font-mono text-[10px] leading-4 text-muted-foreground/75">{record.cwd}</p>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/40 bg-background/70 p-0.5">
+        <button
+          type="button"
+          data-testid={`terminal-copy-${terminalId}`}
+          aria-label={t("dock.copyOutput", { defaultValue: "Copy output" })}
+          title={t("dock.copyOutput", { defaultValue: "Copy output" })}
+          onClick={() => void copyOutput()}
+          className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Copy className="h-3.5 w-3.5" aria-hidden />
+        </button>
+        <button
+          type="button"
+          data-testid={`terminal-clear-${terminalId}`}
+          aria-label={t("dock.clearOutput", { defaultValue: "Clear terminal" })}
+          title={t("dock.clearOutput", { defaultValue: "Clear terminal" })}
+          onClick={() => store.clear(terminalId)}
+          className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Eraser className="h-3.5 w-3.5" aria-hidden />
+        </button>
+        <button
+          type="button"
+          data-testid={`terminal-paste-${terminalId}`}
+          aria-label={t("dock.pasteInput", { defaultValue: "Paste" })}
+          title={t("dock.pasteInput", { defaultValue: "Paste" })}
+          disabled={!record || record.status !== "running"}
+          onClick={() => void pasteInput()}
+          className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition-colors enabled:hover:bg-muted enabled:hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30"
+        >
+          <ClipboardPaste className="h-3.5 w-3.5" aria-hidden />
+        </button>
+        </div>
+      </div>
+      {notice ? <span role="status" className="px-3 pt-2 text-[11px] text-muted-foreground">{notice}</span> : null}
+      {record?.historyTruncated ? (
+        <p role="status" className="px-3 pt-2 text-[11.5px] text-amber-700 dark:text-amber-200">
+          {t("dock.historyTruncated", {
+            defaultValue: "Earlier output was truncated",
+          })}
+        </p>
+      ) : null}
       {!record || record.status === "starting" ? (
-        <p role="status" className="animate-pulse text-[12px] text-muted-foreground/70">
+        <p role="status" className="px-3 pt-3 text-[12px] text-muted-foreground/70">
           {t("startPanel.terminalStarting", { defaultValue: "Starting terminal…" })}
         </p>
       ) : null}
       <div
         ref={containerRef}
         data-testid={`terminal-output-${terminalId}`}
-        className="min-h-0 w-full flex-1 overflow-hidden rounded border border-border/50 bg-background text-terminal [&_.xterm]:h-full [&_.xterm]:w-full"
+        className="min-h-0 w-full flex-1 overflow-hidden bg-background px-3 py-3 text-terminal [&_.xterm]:h-full [&_.xterm]:w-full [&_.xterm-viewport]:scrollbar-thin [&_.xterm-viewport]:!overflow-x-hidden"
       />
       {ptyMode ? null : (
         <TerminalInput disabled={!record || record.status !== "running"} onSubmit={handleLine} />

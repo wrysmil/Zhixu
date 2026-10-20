@@ -12,21 +12,46 @@ export type BrowserUrlResult =
  * local-name-resolution host is rejected to keep the panel from aiming at
  * internal services. Pure URL/regex parsing — no new dependencies.
  */
+const BARE_HOST = /^(?:localhost|\[[0-9a-f:.]+\]|(?:\d{1,3}\.){3}\d{1,3}|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+)(?::\d{1,5})?(?:[/?#].*)?$/i;
+
+function looksLikeBareHost(value: string): boolean {
+  return BARE_HOST.test(value);
+}
+
+function withImplicitScheme(value: string): string {
+  const host = value.match(/^(?:\[[^\]]+\]|[^:/?#]+)/)?.[0]?.toLowerCase() ?? "";
+  const loopback =
+    host === "localhost" ||
+    host === "[::1]" ||
+    host.startsWith("127.");
+  return `${loopback ? "http" : "https"}://${value}`;
+}
+
 export function normalizeBrowserUrl(raw: string): BrowserUrlResult {
   if (typeof raw !== "string") return { ok: false, reason: "malformed" };
   const trimmed = raw.trim();
   if (!trimmed) return { ok: false, reason: "malformed" };
 
-  let url: URL;
+  let url: URL | null = null;
   try {
     url = new URL(trimmed);
   } catch {
-    return { ok: false, reason: "malformed" };
+    url = null;
   }
 
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return { ok: false, reason: "scheme" };
+  if (url && url.protocol !== "http:" && url.protocol !== "https:") {
+    if (!looksLikeBareHost(trimmed)) return { ok: false, reason: "scheme" };
+    url = null;
   }
+  if (!url) {
+    if (!looksLikeBareHost(trimmed)) return { ok: false, reason: "malformed" };
+    try {
+      url = new URL(withImplicitScheme(trimmed));
+    } catch {
+      return { ok: false, reason: "malformed" };
+    }
+  }
+
   if (url.username || url.password) {
     return { ok: false, reason: "malformed" };
   }

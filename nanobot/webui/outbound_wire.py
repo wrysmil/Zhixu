@@ -129,6 +129,15 @@ class TerminalOutputWirePayload(TypedDict):
     data: str
 
 
+class TerminalSnapshotWirePayload(TypedDict):
+    event: Literal["terminal_snapshot"]
+    type: Literal["terminal_snapshot"]
+    terminal_id: str
+    seq: int
+    data: str
+    truncated: bool
+
+
 class TerminalExitWirePayload(TypedDict):
     event: Literal["terminal_exit"]
     type: Literal["terminal_exit"]
@@ -378,6 +387,24 @@ def encode_terminal_output(
         "data": data,
     }
     return payload
+
+
+def encode_terminal_snapshot(
+    *,
+    terminal_id: str,
+    seq: int,
+    data: str,
+    truncated: bool,
+) -> TerminalSnapshotWirePayload:
+    """Bounded tail replay sent to the chat that just took the terminal over."""
+    return {
+        "event": "terminal_snapshot",
+        "type": "terminal_snapshot",
+        "terminal_id": terminal_id,
+        "seq": int(seq),
+        "data": data,
+        "truncated": bool(truncated),
+    }
 
 
 def encode_terminal_exit(

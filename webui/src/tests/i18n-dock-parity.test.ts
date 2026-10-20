@@ -21,6 +21,23 @@ const DOCK_KEYS = [
   "takeoverHint",
   "closeTab",
   "platformDefaultShell",
+  "renameTab",
+  "copyOutput",
+  "clearOutput",
+  "pasteInput",
+  "browserWindow",
+  "showHidden",
+  "hideHidden",
+  "refresh",
+  "collapseAll",
+  "search",
+  "searchPlaceholder",
+  "searching",
+  "noMatches",
+  "searchTruncated",
+  "searchFailed",
+  "copied",
+  "historyTruncated",
 ];
 
 function loadLocale(lang: string): Record<string, Record<string, string>> {

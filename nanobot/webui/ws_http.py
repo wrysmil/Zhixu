@@ -141,6 +141,7 @@ from nanobot.webui.transcript import (
 from nanobot.webui.workspace_files import (
     resolve_workspace_anchor,
     workspace_directory_payload,
+    workspace_search_payload,
 )
 from nanobot.webui.workspaces import WebUIWorkspaceController
 from nanobot.webui.writing_collab_routes import WritingCollabSettingsOperations
@@ -779,6 +780,10 @@ class GatewayHTTPHandler:
         if m:
             return self._handle_file_preview(request, m.group(1))
 
+        m = re.match(r"^/api/sessions/([^/]+)/files/search$", got)
+        if m:
+            return self._handle_session_search(request, m.group(1))
+
         m = re.match(r"^/api/sessions/([^/]+)/files$", got)
         if m:
             return self._handle_session_files(request, m.group(1))
@@ -1024,9 +1029,14 @@ class GatewayHTTPHandler:
             return _http_error(404, "session not found")
         query = _parse_query(request.path)
         path = _query_first(query, "path")
+        show_hidden = (_query_first(query, "show_hidden") or "").lower() in {
+            "1", "true", "yes", "on",
+        }
         try:
             scope = self.workspaces.scope_for_session_key(decoded_key)
-            payload = workspace_directory_payload(path, scope=scope)
+            payload = workspace_directory_payload(
+                path, scope=scope, show_hidden=show_hidden
+            )
         except WebUIFilePreviewError as e:
             return _http_error(e.status, e.message)
         return _http_json_response(
@@ -1046,11 +1056,70 @@ class GatewayHTTPHandler:
         )
         if anchor is None:
             return _http_json_response({"error": "no_default_workspace"}, status=404)
+        show_hidden = (_query_first(query, "show_hidden") or "").lower() in {
+            "1", "true", "yes", "on",
+        }
         try:
-            payload = workspace_directory_payload(path, scope=anchor)
+            payload = workspace_directory_payload(
+                path, scope=anchor, show_hidden=show_hidden
+            )
         except WebUIFilePreviewError as e:
             if e.status in {400, 403}:
                 return _http_json_response({"error": "invalid_path"}, status=400)
+            return _http_json_response({"error": e.message}, status=e.status)
+        return _http_json_response(
+            payload,
+            accept_encoding=_combined_list_header(request.headers, "Accept-Encoding"),
+        )
+
+    def _handle_session_search(self, request: WsRequest, key: str) -> Response:
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        decoded_key = _decode_api_key(key)
+        if decoded_key is None:
+            return _http_error(400, "invalid session key")
+        if not _is_websocket_channel_session_key(decoded_key):
+            return _http_error(404, "session not found")
+        query = _parse_query(request.path)
+        show_hidden = (_query_first(query, "show_hidden") or "").lower() in {
+            "1", "true", "yes", "on",
+        }
+        try:
+            scope = self.workspaces.scope_for_session_key(decoded_key)
+            payload = workspace_search_payload(
+                _query_first(query, "q"),
+                scope=scope,
+                show_hidden=show_hidden,
+            )
+        except WebUIFilePreviewError as e:
+            return _http_error(e.status, e.message)
+        return _http_json_response(
+            payload,
+            accept_encoding=_combined_list_header(request.headers, "Accept-Encoding"),
+        )
+
+    def _handle_workspace_search(self, request: WsRequest) -> Response:
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        query = _parse_query(request.path)
+        anchor = resolve_workspace_anchor(
+            _query_first(query, "scope"),
+            default_scope=self.workspaces.default_scope(),
+        )
+        if anchor is None:
+            return _http_json_response({"error": "no_default_workspace"}, status=404)
+        show_hidden = (_query_first(query, "show_hidden") or "").lower() in {
+            "1", "true", "yes", "on",
+        }
+        try:
+            payload = workspace_search_payload(
+                _query_first(query, "q"),
+                scope=anchor,
+                show_hidden=show_hidden,
+            )
+        except WebUIFilePreviewError as e:
+            if e.status in {400, 403}:
+                return _http_json_response({"error": "invalid_query"}, status=400)
             return _http_json_response({"error": e.message}, status=e.status)
         return _http_json_response(
             payload,
@@ -1321,6 +1390,8 @@ class GatewayHTTPHandler:
             return await self._handle_workspace_folder_picker(connection, request)
         if got == "/api/workspaces":
             return self._handle_workspaces(connection, request)
+        if got == "/api/workspace/files/search":
+            return self._handle_workspace_search(request)
         if got == "/api/workspace/files":
             return self._handle_workspace_files(request)
         if got == "/webui/terminal/shells":

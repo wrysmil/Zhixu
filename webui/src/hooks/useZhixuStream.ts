@@ -1513,6 +1513,10 @@ export interface TerminalRecord {
   exitCode: number | null | undefined;
   message: string | null;
   lines: TerminalLine[];
+  /** Bumped when a takeover snapshot replaces ``lines`` wholesale. */
+  viewEpoch: number;
+  /** The replaying snapshot dropped older server-side output. */
+  historyTruncated: boolean;
 }
 
 export interface TerminalStoreState {
@@ -1527,6 +1531,8 @@ export interface TerminalStore {
   beginCreate(id: string, sessionKey: string | null): void;
   /** Buffer a local echo line for the given terminal. */
   appendEcho(id: string, text: string): void;
+  /** Clear buffered output locally; the server sequence keeps increasing. */
+  clear(id: string): void;
   remove(id: string): void;
   applyEvent(event: TerminalEvent): void;
   /** Reference-counted event-source wiring: the first mount attaches, the
@@ -1553,6 +1559,8 @@ function createEmptyRecord(id: string, sessionKey: string | null): TerminalRecor
     exitCode: undefined,
     message: null,
     lines: [],
+    viewEpoch: 0,
+    historyTruncated: false,
   };
 }
 
@@ -1622,6 +1630,12 @@ export function createTerminalStore(): TerminalStore {
       );
     },
 
+    clear(id) {
+      const existing = state.byId[id];
+      if (!existing || existing.lines.length === 0) return;
+      upsert(id, (record) => ({ ...record, lines: [], historyTruncated: false }));
+    },
+
     remove(id) {
       removedIds.add(id);
       if (!state.byId[id]) return;
@@ -1646,6 +1660,22 @@ export function createTerminalStore(): TerminalStore {
             cwd: event.cwd || record.cwd,
             pty: event.pty === true,
             message: running ? null : (failToken ?? event.message ?? event.status),
+          }));
+          break;
+        }
+        case "terminal_snapshot": {
+          if (removedIds.has(event.terminal_id)) break;
+          const record = state.byId[event.terminal_id];
+          if (record && event.seq < record.lastSeq) break;
+          upsert(event.terminal_id, (current) => ({
+            ...current,
+            status: current.status === "starting" ? "running" : current.status,
+            lastSeq: Math.max(current.lastSeq, event.seq),
+            lines: event.data
+              ? [{ stream: "stdout" as const, data: event.data }]
+              : [],
+            viewEpoch: current.viewEpoch + 1,
+            historyTruncated: event.truncated,
           }));
           break;
         }

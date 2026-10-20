@@ -331,6 +331,7 @@ import App from "@/App";
 describe("App layout", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
+    sessionStorage.clear();
     dockStore.resetForTests();
     mockSessions = [];
     connectSpy.mockClear();

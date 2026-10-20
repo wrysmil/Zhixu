@@ -310,3 +310,33 @@ async def test_supervisor_list_visible_merges_both_bridges(scope, tmp_path):
         assert {"term-m1", "term-m2"} <= ids
     finally:
         await bridge.aclose()
+
+
+async def test_pty_takeover_replays_bounded_scrollback(scope):
+    bridge = PtyTerminalBridge()
+    first, second = Collector(), Collector()
+    try:
+        await bridge.start(
+            terminal_id="term-replay", scope=scope, chat_id="chat-1",
+            session_key="websocket:chat-1", publisher=first,
+        )
+        await bridge.write(terminal_id="term-replay", data="echo BEFORE_TAKEOVER\n")
+        await _wait_until(
+            lambda: "BEFORE_TAKEOVER" in first.text(),
+            message="pre-takeover output",
+        )
+
+        result = await bridge.start(
+            terminal_id="term-replay", scope=scope, chat_id="chat-2",
+            session_key="websocket:chat-2", publisher=second,
+        )
+
+        assert result["status"] == "already_running"
+        snapshots = second.of("terminal_snapshot")
+        assert len(snapshots) == 1
+        assert "BEFORE_TAKEOVER" in snapshots[0]["data"]
+        assert snapshots[0]["truncated"] is False
+        assert snapshots[0]["seq"] >= 1
+        assert first.of("terminal_snapshot") == []
+    finally:
+        await bridge.aclose()

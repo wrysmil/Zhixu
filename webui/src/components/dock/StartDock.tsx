@@ -31,6 +31,7 @@ import {
   dockTerminalTitle,
   useDockTabs,
   type DockTab,
+  type DockTabKind,
   type PersistedTerminal,
 } from "@/lib/dock-store";
 import type { TerminalEvent } from "@/lib/types";
@@ -78,6 +79,11 @@ const CARD_SPECS: CardSpec[] = [
   },
 ];
 
+function TabKindIcon({ kind }: { kind: DockTabKind }) {
+  const Icon = kind === "file" ? Files : kind === "browser" ? Globe : SquareTerminal;
+  return <Icon className="h-3 w-3 shrink-0 opacity-70" aria-hidden />;
+}
+
 export interface StartDockProps {
   /** 宿主形态：rail = 首页独立右坞；embedded = 会话页工具侧边栏，铺满宿主给的容器（不渲染自身 aside）。 */
   variant?: "rail" | "embedded";
@@ -110,6 +116,8 @@ export function StartDock({
   const [plusOpen, setPlusOpen] = useState(false);
   const [shellSubOpen, setShellSubOpen] = useState(false);
   const [shells, setShells] = useState<TerminalShellsPayload | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   // 启动器不再做 shell 选择（规格 §6）：终端卡片直接以 platforms 默认 shell 开 tab；
   // + 菜单里的 shell 子菜单仍可指定 shell。
   // 本 dock 生命周期内被用户关闭过的 terminal id（tombstone）：
@@ -199,6 +207,24 @@ export function StartDock({
     dockStore.closeTab(scope, tab.id);
   };
 
+  const tabLabel = (tab: DockTab) => {
+    if (tab.customTitle) return tab.customTitle;
+    if (tab.kind === "file") return t("dock.tabFile", { defaultValue: "Files" });
+    if (tab.kind === "browser") return t("dock.tabBrowser", { defaultValue: "Browser" });
+    return tab.title;
+  };
+
+  const beginRename = (tab: DockTab) => {
+    setRenamingId(tab.id);
+    setRenameDraft(tabLabel(tab));
+  };
+
+  const commitRename = () => {
+    if (!renamingId) return;
+    dockStore.renameTab(scope, renamingId, renameDraft);
+    setRenamingId(null);
+  };
+
   const openCard = (cardId: string) => {
     if (cardId === "files") dockStore.openFile(scope);
     else if (cardId === "browser") dockStore.openBrowser(scope);
@@ -228,19 +254,48 @@ export function StartDock({
                   isActive && "bg-muted/70",
                 )}
               >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  data-testid={`dock-tab-${tab.id}`}
-                  onClick={() => dockStore.focusTab(scope, tab.id)}
-                  className={cn(
-                    "max-w-[10rem] truncate rounded px-1.5 py-0.5 text-[11.5px] text-muted-foreground/80 hover:bg-muted/60 hover:text-foreground",
-                    isActive && "font-medium text-foreground",
-                  )}
-                >
-                  {tab.title}
-                </button>
+                {renamingId === tab.id ? (
+                  <input
+                    autoFocus
+                    data-testid={`dock-tab-rename-${tab.id}`}
+                    aria-label={t("dock.renameTab", { defaultValue: "Rename tab" })}
+                    value={renameDraft}
+                    maxLength={80}
+                    onChange={(event) => setRenameDraft(event.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        commitRename();
+                      } else if (event.key === "Escape") {
+                        event.preventDefault();
+                        setRenamingId(null);
+                      }
+                    }}
+                    className="w-28 rounded border border-border/60 bg-background px-1 py-0.5 text-[11.5px] text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring/60"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    data-testid={`dock-tab-${tab.id}`}
+                    onClick={() => dockStore.focusTab(scope, tab.id)}
+                    onDoubleClick={() => beginRename(tab)}
+                    onAuxClick={(event) => {
+                      if (event.button !== 1) return;
+                      event.preventDefault();
+                      closeTab(tab);
+                    }}
+                    className={cn(
+                      "flex max-w-[10rem] items-center gap-1 truncate rounded px-1.5 py-0.5 text-[11.5px] text-muted-foreground/80 hover:bg-muted/60 hover:text-foreground",
+                      isActive && "font-medium text-foreground",
+                    )}
+                  >
+                    <TabKindIcon kind={tab.kind} />
+                    <span className="truncate">{tabLabel(tab)}</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   aria-label={t("dock.closeTab", { defaultValue: "Close tab" })}
@@ -400,19 +455,40 @@ export function StartDock({
           </ul>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          {activeTab && activeTab.kind === "file" ? (
-            <DockFileTab
-              scope={scope}
-              sessionKey={sessionKey}
-              getToken={getToken}
-              onOpenFilePreview={onOpenFilePreview}
-            />
-          ) : null}
-          {activeTab && activeTab.kind === "browser" ? <BrowserSection fullHeight /> : null}
-          {activeTab && activeTab.kind === "terminal" ? (
-            <TerminalSurface terminalId={activeTab.id} sessionKey={sessionKey} />
-          ) : null}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {snapshot.tabs.map((tab) => {
+            const isActive = tab.id === snapshot.activeId;
+            return (
+              <div
+                key={tab.id}
+                data-testid={`dock-panel-${tab.id}`}
+                aria-hidden={!isActive}
+                className={cn(
+                  "absolute inset-0 flex min-h-0 flex-col",
+                  !isActive && "invisible pointer-events-none",
+                )}
+              >
+                {tab.kind === "file" ? (
+                  <DockFileTab
+                    scope={scope}
+                    sessionKey={sessionKey}
+                    getToken={getToken}
+                    onOpenFilePreview={onOpenFilePreview}
+                  />
+                ) : null}
+                {tab.kind === "browser" ? (
+                  <BrowserSection key={scope} fullHeight scope={scope} />
+                ) : null}
+                {tab.kind === "terminal" ? (
+                  <TerminalSurface
+                    terminalId={tab.id}
+                    sessionKey={sessionKey}
+                    active={isActive}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       )}
     </>

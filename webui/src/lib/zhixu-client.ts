@@ -155,6 +155,7 @@ const TURN_REJECTION_DETAILS = new Set([
 const TERMINAL_EVENT_NAMES = new Set([
   "terminal_started",
   "terminal_output",
+  "terminal_snapshot",
   "terminal_exit",
   "terminal_list_result",
 ]);

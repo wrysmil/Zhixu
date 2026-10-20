@@ -1,6 +1,7 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CLEAR_SCREEN } from "@/components/workbench/terminal-shared";
 import {
   TerminalSurface,
   type TerminalEmulator,
@@ -18,6 +19,7 @@ import { ClientProvider } from "@/providers/ClientProvider";
 interface RecordedTerminal extends TerminalEmulator {
   updateAppearance: ReturnType<typeof vi.fn>;
   writes: string[];
+  selection: string;
   dataHandler: ((data: string) => void) | null;
   resizeHandler: ((size: { cols: number; rows: number }) => void) | null;
   dataSubscription: { dispose: ReturnType<typeof vi.fn> };
@@ -31,6 +33,10 @@ function makeFakeTerminal(): RecordedTerminal {
   const instance: RecordedTerminal = {
     updateAppearance: vi.fn(),
     writes: [],
+    selection: "",
+    getSelection() {
+      return instance.selection;
+    },
     dataHandler: null,
     resizeHandler: null,
     dataSubscription,
@@ -369,6 +375,64 @@ describe("TerminalSurface (line mode, migrated from TerminalSection)", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "This shell is not installed on the host.",
     );
+  });
+});
+
+describe("TerminalSurface toolbar and replay", () => {
+  it("replaces the buffer when terminal_snapshot lands", () => {
+    const { client, latest } = setup();
+    client.emit(startedEvent(TERMINAL_ID, "ok", undefined, true));
+    client.emit(outputEvent(TERMINAL_ID, 1, "old\n"));
+    client.emit({
+      event: "terminal_snapshot",
+      type: "terminal_snapshot",
+      terminal_id: TERMINAL_ID,
+      seq: 1,
+      data: "restored\n",
+      truncated: true,
+    } as unknown as TerminalEvent);
+
+    const emulator = latest()!;
+    expect(emulator.writes).toContain(CLEAR_SCREEN);
+    expect(emulator.writes.at(-1)).toBe("restored\n");
+    expect(screen.getByText(/truncated/i)).toBeInTheDocument();
+  });
+
+  it("clears buffered output from the toolbar", () => {
+    const { client, latest } = setup();
+    client.emit(startedEvent(TERMINAL_ID, "ok", undefined, true));
+    client.emit(outputEvent(TERMINAL_ID, 1, "hello\n"));
+    fireEvent.click(screen.getByTestId(`terminal-clear-${TERMINAL_ID}`));
+    expect(latest()!.writes.at(-1)).toBe(CLEAR_SCREEN);
+  });
+
+  it("copies the xterm selection when present", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const { client, latest } = setup();
+    client.emit(startedEvent(TERMINAL_ID, "ok", undefined, true));
+    latest()!.selection = "selected text";
+    fireEvent.click(screen.getByTestId(`terminal-copy-${TERMINAL_ID}`));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("selected text"));
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
+
+  it("pastes clipboard text into a PTY terminal", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { readText: vi.fn().mockResolvedValue("echo hi\n") },
+    });
+    const { client } = setup();
+    client.emit(startedEvent(TERMINAL_ID, "ok", undefined, true));
+    fireEvent.click(screen.getByTestId(`terminal-paste-${TERMINAL_ID}`));
+    await waitFor(() =>
+      expect(client.terminalWrite).toHaveBeenCalledWith(TERMINAL_ID, "echo hi\n"),
+    );
+    Reflect.deleteProperty(navigator, "clipboard");
   });
 });
 

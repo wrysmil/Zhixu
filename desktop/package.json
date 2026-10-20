@@ -11,6 +11,7 @@
     "start": "node scripts/run.cjs start",
     "dev": "node scripts/run.cjs dev",
     "smoke": "node scripts/run.cjs smoke",
+    "test:browser-policy": "node --test browser-policy.test.cjs",
     "dist": "electron-builder --win nsis",
     "dist:all": "electron-builder"
   },
@@ -22,7 +23,7 @@
     "appId": "ai.zhixu.desktop",
     "productName": "知序",
     "directories": { "output": "release" },
-    "files": ["main.cjs", "preload.cjs", "boot.html", "assets/**"],
+    "files": ["main.cjs", "preload.cjs", "browser-policy.cjs", "boot.html", "assets/**"],
     "win": { "target": ["nsis"], "icon": "assets/icon.png" },
     "nsis": {
       "oneClick": false,
