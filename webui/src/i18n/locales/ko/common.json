@@ -2064,6 +2064,7 @@
     "tabBrowser": "브라우저",
     "plusAria": "새 탭",
     "newTerminal": "새 터미널",
+    "openTerminal": "터미널 패널 열기",
     "shellChoices": "shell 선택",
     "takeoverRunning": "실행 중인 터미널",
     "takeoverAction": "인수",

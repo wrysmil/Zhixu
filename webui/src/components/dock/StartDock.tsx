@@ -8,7 +8,7 @@
 // 渲染方必须自行排除 snapshot 已存在的 tab id（orchestrator 裁定 1）。
 // terminal 标签内容直接复用 TerminalSurface——pty===true 走 xterm 直通、
 // false/缺省保持行式回退，dock 外层不再分叉（orchestrator 裁定 3）。
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Files,
@@ -30,6 +30,8 @@ import {
   dockStore,
   dockTerminalTitle,
   useDockTabs,
+  consumeDockTerminalPanelRequest,
+  subscribeDockTerminalPanel,
   type DockTab,
   type DockTabKind,
   type PersistedTerminal,
@@ -66,7 +68,7 @@ const CARD_SPECS: CardSpec[] = [
     titleDefault: "New terminal",
     descKey: "startPanel.terminalDesc",
     descDefault: "Run commands in the session workspace",
-    shortcut: null,
+    shortcut: "⌘J",
   },
   {
     id: "browser",
@@ -94,8 +96,8 @@ export interface StartDockProps {
   /** 传入则文件预览上抛宿主（SessionWorkbench 外置预览面板语义）。 */
   onOpenFilePreview?: (path: string) => void;
   /**
-   * 收起回调：收起一律由宿主卸载整条坞，组件内部不留 40px 竖条——
-   * 后者会让头部开关与实际可见状态各说各话。
+   * 会话覆盖层宿主传入收起回调；首页由顶栏开关收起，不传以避免两个收起按钮。
+   * 收起一律由宿主卸载整条坞，组件内部不留 40px 竖条。
    */
   onCollapse?: () => void;
 }
@@ -181,14 +183,24 @@ export function StartDock({
     [scope, snapshot],
   );
 
-  const openTerminalTab = (shell: string | null) => {
+  const openTerminalTab = useCallback((shell: string | null) => {
     setPlusOpen(false);
     setShellSubOpen(false);
     const id = defaultGenerateTerminalId();
     if (dockStore.openTerminal(scope, id, shell) === null) return;
     terminalStore.beginCreate(id, sessionKey);
     client.terminalStart(id, sessionKey, shell);
-  };
+  }, [client, scope, sessionKey, terminalStore]);
+
+  // 顶栏「打开终端面板」与 ⌘J 共用同一意图：挂载后取用一次，
+  // 已挂载时由订阅即时消费，避免首页懒加载期间丢请求。
+  useEffect(() => {
+    const consumeRequest = () => {
+      if (consumeDockTerminalPanelRequest()) openTerminalTab(null);
+    };
+    consumeRequest();
+    return subscribeDockTerminalPanel(consumeRequest);
+  }, [openTerminalTab]);
 
   const takeOver = (entry: PersistedTerminal) => {
     if (dockStore.openTerminal(scope, entry.id, entry.shell) === null) return;
@@ -416,39 +428,43 @@ export function StartDock({
       {snapshot.tabs.length === 0 ? (
         <div
           data-testid="dock-launcher"
-          className="min-h-0 flex-1 overflow-y-auto px-3 py-3 scrollbar-thin"
+          className="dock-launcher-surface flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 scrollbar-thin"
         >
-          <ul className="space-y-2" role="list">
+          {/* m-auto：空间足够时垂直居中，内容超高时自动让位给滚动。 */}
+          <ul className="m-auto w-full space-y-2.5" role="list">
             {CARD_SPECS.map((card) => {
               const Icon = card.icon;
               return (
                 <li key={card.id}>
-                  <div className="border-b border-border/40 last:border-b-0">
-                    <button
-                      type="button"
-                      data-testid={`dock-card-${card.id}`}
-                      onClick={() => openCard(card.id)}
-                      className="flex w-full items-center gap-3 px-2 py-2 text-left"
-                    >
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border/50 bg-muted/30">
-                        <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
+                  <button
+                    type="button"
+                    data-testid={`dock-card-${card.id}`}
+                    onClick={() => openCard(card.id)}
+                    className={cn(
+                      "group flex min-h-[76px] w-full cursor-pointer items-center gap-3 rounded-xl border border-border/60 bg-background/85 px-3.5 py-3 text-left",
+                      "shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-[border-color,background-color,box-shadow] duration-200",
+                      "hover:border-primary/30 hover:bg-background hover:shadow-[0_8px_22px_-14px_rgba(15,23,42,0.45)]",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+                      "dark:bg-card/80 dark:hover:border-primary/35 dark:hover:bg-card",
+                    )}
+                  >
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border/50 bg-muted/40 text-foreground/75 transition-colors duration-200 group-hover:bg-primary/[0.08] group-hover:text-primary">
+                      <Icon className="h-5 w-5" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13.5px] font-semibold text-foreground/90">
+                        {t(card.titleKey, { defaultValue: card.titleDefault })}
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-medium text-foreground/90">
-                          {t(card.titleKey, { defaultValue: card.titleDefault })}
-                        </span>
-                        <span className="block truncate text-[11.5px] text-muted-foreground">
-                          {t(card.descKey, { defaultValue: card.descDefault })}
-                        </span>
+                      <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground">
+                        {t(card.descKey, { defaultValue: card.descDefault })}
                       </span>
-                      {card.shortcut ? (
-                        <kbd className="shrink-0 rounded border border-border/60 bg-muted/40 px-1.5 py-px text-[11px] tabular-nums text-muted-foreground/80">
-                          {card.shortcut}
-                        </kbd>
-                      ) : null}
-                    </button>
-
-                  </div>
+                    </span>
+                    {card.shortcut ? (
+                      <kbd className="shrink-0 rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-[10.5px] tabular-nums text-muted-foreground/80">
+                        {card.shortcut}
+                      </kbd>
+                    ) : null}
+                  </button>
                 </li>
               );
             })}

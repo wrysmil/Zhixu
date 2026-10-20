@@ -2064,6 +2064,7 @@
     "tabBrowser": "Navegador",
     "plusAria": "Nueva pestaña",
     "newTerminal": "Nueva terminal",
+    "openTerminal": "Abrir panel de terminal",
     "shellChoices": "Elegir shell",
     "takeoverRunning": "Terminal en ejecución",
     "takeoverAction": "Tomar el control",

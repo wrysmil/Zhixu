@@ -2064,6 +2064,7 @@
     "tabBrowser": "ブラウザ",
     "plusAria": "新規タブ",
     "newTerminal": "新規ターミナル",
+    "openTerminal": "ターミナルパネルを開く",
     "shellChoices": "shell を選択",
     "takeoverRunning": "実行中のターミナル",
     "takeoverAction": "引き継ぐ",

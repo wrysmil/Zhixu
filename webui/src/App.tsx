@@ -15,6 +15,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   ShieldCheck,
+  SquareTerminal,
   Sun,
   X,
 } from "lucide-react";
@@ -27,7 +28,7 @@ import {
 import { channelUiPresentation } from "@/channel-plugins/registry";
 import { Sidebar } from "@/components/Sidebar";
 import { PROJECTS_SECTION_KEY, type SidebarDeleteItem } from "@/components/ChatList";
-import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
+import { HOME_DOCK_SCOPE, dockStore, requestDockTerminalPanel } from "@/lib/dock-store";
 import { resolveDockShortcut } from "@/lib/dock-shortcuts";
 import type { SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
@@ -1968,7 +1969,8 @@ function Shell({
         event.preventDefault();
         const scope = activeKey ?? HOME_DOCK_SCOPE;
         if (dockSection === "file") dockStore.openFile(scope);
-        else dockStore.openBrowser(scope);
+        else if (dockSection === "browser") dockStore.openBrowser(scope);
+        else requestDockTerminalPanel();
         // 首页右坞默认收起：快捷键直达标签时一并把覆盖层拉出来。
         if (activeKey === null) setHomeDockOpen(true);
         return;
@@ -2449,23 +2451,42 @@ function Shell({
 
   // 首页右坞与会话内嵌工作台互斥：两者都是 StartDock，同时出现会叠成两块，
   // 各自还带一个收起按钮、状态互不同步。会话页只保留会话工作台内的内嵌 dock。
+  const openHomeDockTerminal = useCallback(() => {
+    setHomeDockOpen(true);
+    requestDockTerminalPanel();
+  }, []);
+
   const dockToggle = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      data-testid="start-dock-toggle"
-      aria-label={homeDockOpen
-        ? t("startPanel.collapse", { defaultValue: "Collapse the start panel" })
-        : t("startPanel.expand", { defaultValue: "Expand the start panel" })}
-      aria-pressed={homeDockOpen}
-      onClick={() => setHomeDockOpen((open) => !open)}
-      className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
-    >
-      {homeDockOpen
-        ? <PanelRightClose className="h-4 w-4" aria-hidden />
-        : <PanelRightOpen className="h-4 w-4" aria-hidden />}
-    </Button>
+    <div className="flex shrink-0 items-center gap-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        data-testid="start-dock-terminal-toggle"
+        aria-label={t("dock.openTerminal", { defaultValue: "Open terminal panel" })}
+        title={`${t("dock.openTerminal", { defaultValue: "Open terminal panel" })} (Ctrl+J)`}
+        onClick={openHomeDockTerminal}
+        className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
+      >
+        <SquareTerminal className="h-4 w-4" aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        data-testid="start-dock-toggle"
+        aria-label={homeDockOpen
+          ? t("startPanel.collapse", { defaultValue: "Collapse the start panel" })
+          : t("startPanel.expand", { defaultValue: "Expand the start panel" })}
+        aria-pressed={homeDockOpen}
+        onClick={() => setHomeDockOpen((open) => !open)}
+        className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
+      >
+        {homeDockOpen
+          ? <PanelRightClose className="h-4 w-4" aria-hidden />
+          : <PanelRightOpen className="h-4 w-4" aria-hidden />}
+      </Button>
+    </div>
   );
   // 文件/终端/浏览器在会话页只有一个入口：会话头部的工作台按钮 → SessionWorkbench
   // 内嵌 dock。首页没有会话工作台，才由顶栏这个按钮挂独立右坞。
@@ -2704,7 +2725,7 @@ function Shell({
     <ThemeProvider theme={theme} appearance={appearance}>
       <div
         className={cn(
-          "relative h-full w-full overflow-hidden",
+          "app-shell-canvas relative h-full w-full overflow-hidden",
           showHostChrome && "host-window-shell",
         )}
       >
@@ -2740,7 +2761,7 @@ function Shell({
             <aside
               data-testid="host-sidebar-flow"
               className={cn(
-                "relative z-20 hidden shrink-0 overflow-hidden lg:block",
+                "relative z-20 hidden shrink-0 overflow-hidden lg:my-2 lg:ml-2 lg:block",
                 "transition-[width] duration-150 ease-out",
                 "host-sidebar-aside",
               )}
@@ -2750,7 +2771,7 @@ function Shell({
             >
               <div
                 className={cn(
-                  "absolute inset-y-0 left-0 h-full w-full overflow-hidden",
+                  "app-shell-panel absolute inset-y-0 left-0 h-full w-full overflow-hidden",
                   showHostChrome
                     ? "host-sidebar-glass"
                     : "bg-sidebar",
@@ -2802,11 +2823,12 @@ function Shell({
               />
             </Suspense>
           ) : null}
-        <main
-          className={cn(
-            "relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background",
-          )}
-        >
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col lg:p-2 lg:pl-1.5">
+          <main
+            className={cn(
+              "app-shell-card relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background",
+            )}
+          >
             <div
               className={cn(
                 "absolute inset-0 flex flex-col",
@@ -2879,7 +2901,6 @@ function Shell({
                             onTurnEnd={onTurnEnd}
                             theme={theme}
                             onToggleTheme={toggle}
-                            hideSidebarToggleForHostChrome
                             hideHeader={false}
                             workspaceScope={activeWorkspaceScope}
                             workspaceDefaultScope={workspaces?.default_scope ?? null}
@@ -2925,7 +2946,6 @@ function Shell({
                           theme={theme}
                           onToggleTheme={toggle}
                           hideSidebarToggle={!context.active}
-                          hideSidebarToggleForHostChrome={context.active}
                           hideThemeButton={!context.active}
                           hideHeaderTitle
                           inlineHandle={workbenchPaneSessions.length > 1}
@@ -2969,7 +2989,6 @@ function Shell({
                       scope={HOME_DOCK_SCOPE}
                       sessionKey={activeKey}
                       getToken={getToken}
-                      onCollapse={() => setHomeDockOpen(false)}
                     />
                   </Suspense>
                 ) : null}
@@ -3034,6 +3053,7 @@ function Shell({
               </div>
             ) : null}
           </main>
+        </div>
         </div>
 
         {pendingDelete ? (

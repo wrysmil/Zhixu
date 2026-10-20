@@ -672,6 +672,9 @@ describe("App layout", () => {
     // 开关落在会话头右端，首页不再单独留一条顶栏格位给按钮，也不再显示临时聊天气泡。
     const heroHeader = screen.getByTestId("thread-header");
     expect(within(heroHeader).getByTestId("start-dock-toggle")).toBeInTheDocument();
+    expect(
+      within(heroHeader).getByTestId("start-dock-terminal-toggle"),
+    ).toHaveAttribute("aria-label", "Open terminal panel");
     expect(screen.queryByTestId("workbench-header-host")).not.toBeInTheDocument();
     expect(within(heroHeader).queryByRole("button", { name: "Temporary chat" }))
       .not.toBeInTheDocument();

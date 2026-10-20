@@ -2064,6 +2064,7 @@
     "tabBrowser": "Trình duyệt",
     "plusAria": "Tab mới",
     "newTerminal": "Terminal mới",
+    "openTerminal": "Mở bảng terminal",
     "shellChoices": "Chọn shell",
     "takeoverRunning": "Terminal đang chạy",
     "takeoverAction": "Tiếp quản",

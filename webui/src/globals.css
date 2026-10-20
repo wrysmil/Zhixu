@@ -120,6 +120,8 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     --ring: var(--accent-foreground);
     /* Tier below --background: the window shell behind panels. */
     --surface-app: 220 26% 99%;
+    /* Window canvas behind the inset content card (wrapped shell). */
+    --app-canvas: 220 24% 96%;
     /* Tiered sidebar/inspector surface, separated by a hairline. */
     --surface-panel: 0 0% 100%;
     --border-soft: var(--border);
@@ -157,8 +159,8 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     /* 知序 UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
     --rail-w: 54px;
     --chat-col-w: 220px;
-    --dock-w: 336px;
-    --dock-w-xl: 384px;
+    --dock-w: 360px;
+    --dock-w-xl: 420px;
     --dock-header-h: 40px;
     --browser-toolbar-h: 36px;
     --terminal-font-size: 12.5px;
@@ -198,6 +200,7 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     --input: var(--border);
     --ring: var(--accent-foreground);
     --surface-app: 220 26% 7%;
+    --app-canvas: 220 26% 6%;
     --surface-panel: 220 20% 11%;
     --border-soft: var(--border);
     --inline-token-highlight: #9fc2f7;
@@ -230,8 +233,8 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     /* 知序 UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
     --rail-w: 54px;
     --chat-col-w: 220px;
-    --dock-w: 336px;
-    --dock-w-xl: 384px;
+    --dock-w: 360px;
+    --dock-w-xl: 420px;
     --dock-header-h: 40px;
     --browser-toolbar-h: 36px;
     --terminal-font-size: 12.5px;
@@ -373,6 +376,54 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     }
   }
 
+  /* Wrapped shell: the window canvas stays visible around an inset content card. */
+  .app-shell-canvas {
+    background-color: hsl(var(--app-canvas));
+    background-image: radial-gradient(
+      120% 90% at 50% -20%,
+      hsl(var(--primary) / 0.05),
+      transparent 60%
+    );
+  }
+
+  .app-shell-card {
+    background-color: hsl(var(--background));
+  }
+
+  @media (min-width: 1024px) {
+    .app-shell-card,
+    .app-shell-panel {
+      border: 1px solid hsl(var(--border) / 0.7);
+      border-radius: var(--radius-prominent);
+      box-shadow:
+        0 1px 2px hsl(var(--foreground) / 0.04),
+        0 18px 40px -28px hsl(var(--foreground) / 0.28);
+    }
+
+    .dark .app-shell-card,
+    .dark .app-shell-panel {
+      border-color: hsl(var(--border) / 0.8);
+      box-shadow:
+        0 1px 2px hsl(0 0% 0% / 0.35),
+        0 20px 44px -30px hsl(0 0% 0% / 0.65);
+    }
+  }
+
+  /* Side-panel launcher: a soft glow over a fine dot grid, cards float on top. */
+  .dock-launcher-surface {
+    background-color: hsl(var(--surface-panel));
+    background-image:
+      radial-gradient(110% 70% at 50% 0%, hsl(var(--primary) / 0.07), transparent 62%),
+      radial-gradient(hsl(var(--foreground) / 0.06) 1px, transparent 1px);
+    background-size: 100% 100%, 14px 14px;
+  }
+
+  .dark .dock-launcher-surface {
+    background-image:
+      radial-gradient(110% 70% at 50% 0%, hsl(var(--primary) / 0.1), transparent 62%),
+      radial-gradient(hsl(var(--foreground) / 0.1) 1px, transparent 1px);
+  }
+
   .host-drag-region {
     -webkit-app-region: drag;
   }
@@ -399,7 +450,6 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
 
   .host-sidebar-glass {
     background: hsl(var(--sidebar));
-    border-right: 1px solid hsl(var(--border-soft));
   }
 
   .dark .host-window-shell {

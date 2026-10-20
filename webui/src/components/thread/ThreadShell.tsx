@@ -435,7 +435,6 @@ interface ThreadShellProps {
   onTurnEnd?: () => void;
   theme?: "light" | "dark";
   onToggleTheme?: () => void;
-  hideSidebarToggleForHostChrome?: boolean;
   hideSidebarToggle?: boolean;
   hideThemeButton?: boolean;
   hideHeaderTitle?: boolean;
@@ -684,7 +683,6 @@ export function ThreadShell({
   onTurnEnd,
   theme = "light",
   onToggleTheme = () => {},
-  hideSidebarToggleForHostChrome = false,
   hideSidebarToggle = false,
   hideHeaderTitle = false,
   inlineHandle = false,
@@ -2022,7 +2020,6 @@ export function ThreadShell({
       onToggleSidebar={onToggleSidebar}
       theme={theme}
       onToggleTheme={onToggleTheme}
-      hideSidebarToggleForHostChrome={hideSidebarToggleForHostChrome}
       hideSidebarToggle={hideSidebarToggle}
       hideThemeButton
       hideTitle={hideHeaderTitle}

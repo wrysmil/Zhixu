@@ -2064,6 +2064,7 @@
     "tabBrowser": "瀏覽器",
     "plusAria": "新增標籤",
     "newTerminal": "新終端機",
+    "openTerminal": "開啟終端面板",
     "shellChoices": "選擇 shell",
     "takeoverRunning": "執行中的終端機",
     "takeoverAction": "點擊接管",

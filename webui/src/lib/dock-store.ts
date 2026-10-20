@@ -20,6 +20,27 @@ export interface DockScopeSnapshot {
 
 export const HOME_DOCK_SCOPE = "websocket:home";
 export const MAX_DOCK_TERMINAL_TABS = 8;
+
+// 「打开终端面板」意图只登记一次：入口可能在 StartDock 尚未挂载时触发
+// （首页先展开右坞再懒加载），因此由 StartDock 挂载后取用，而不是即时广播。
+let terminalPanelRequested = false;
+const terminalPanelListeners = new Set<() => void>();
+
+export function requestDockTerminalPanel(): void {
+  terminalPanelRequested = true;
+  for (const listener of [...terminalPanelListeners]) listener();
+}
+
+export function subscribeDockTerminalPanel(listener: () => void): () => void {
+  terminalPanelListeners.add(listener);
+  return () => terminalPanelListeners.delete(listener);
+}
+
+export function consumeDockTerminalPanelRequest(): boolean {
+  const requested = terminalPanelRequested;
+  terminalPanelRequested = false;
+  return requested;
+}
 const PERSIST_PREFIX = "nanobot.dock.terminals.";
 const PERSIST_TABS_PREFIX = "nanobot.dock.tabs.";
 
@@ -244,6 +265,7 @@ class DockStore {
     this.snapshots.clear();
     this.hydratedScopes.clear();
     this.terminalShells.clear();
+    terminalPanelRequested = false;
   }
 
   private openSingleton(scope: string, kind: "file" | "browser", id: string): string {

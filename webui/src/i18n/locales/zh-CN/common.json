@@ -2120,6 +2120,7 @@
     "tabBrowser": "浏览器",
     "plusAria": "新建标签",
     "newTerminal": "新建终端",
+    "openTerminal": "打开终端面板",
     "shellChoices": "选择 shell",
     "takeoverRunning": "已运行终端",
     "takeoverAction": "点击接管",

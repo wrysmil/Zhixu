@@ -2064,6 +2064,7 @@
     "tabBrowser": "Navigateur",
     "plusAria": "Nouvel onglet",
     "newTerminal": "Nouveau terminal",
+    "openTerminal": "Ouvrir le panneau du terminal",
     "shellChoices": "Choisir le shell",
     "takeoverRunning": "Terminal en cours d'exécution",
     "takeoverAction": "Prendre la main",

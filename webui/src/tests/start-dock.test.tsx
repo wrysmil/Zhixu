@@ -7,7 +7,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StartDock } from "@/components/dock/StartDock";
-import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
+import { HOME_DOCK_SCOPE, dockStore, requestDockTerminalPanel } from "@/lib/dock-store";
 import type { TerminalEvent } from "@/lib/types";
 import { ClientProvider } from "@/providers/ClientProvider";
 
@@ -222,6 +222,22 @@ describe("StartDock launcher empty state", () => {
     expect(client.terminalStart).toHaveBeenCalledWith(id, null, null);
     expect(screen.getByTestId(`dock-tab-${id}`)).toHaveTextContent(">. terminal");
   });
+
+  it("opens a terminal when the header button or ⌘J requests the panel", async () => {
+    const client = renderDock();
+    await waitForShells();
+    act(() => requestDockTerminalPanel());
+    const id = client.terminalStart.mock.calls[0][0] as string;
+    expect(client.terminalStart).toHaveBeenCalledWith(id, null, null);
+    expect(screen.getByTestId(`terminal-surface-${id}`)).toBeInTheDocument();
+    expect(screen.queryByTestId("dock-launcher")).toBeNull();
+  });
+
+  it("consumes a terminal request issued before the dock mounted", () => {
+    requestDockTerminalPanel();
+    const client = renderDock();
+    expect(client.terminalStart).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("StartDock plus menu", () => {
@@ -368,6 +384,7 @@ describe("StartDock collapse", () => {
   });
 
   it("renders no collapse affordance when the host owns the toggle", () => {
+    // 首页由顶栏 start-dock-toggle 收起，坞内不再出现第二个开关。
     renderDock();
     expect(screen.queryByRole("button", { name: /Collapse/i })).not.toBeInTheDocument();
   });

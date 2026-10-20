@@ -2120,6 +2120,7 @@
     "tabBrowser": "Browser",
     "plusAria": "New tab",
     "newTerminal": "New terminal",
+    "openTerminal": "Open terminal panel",
     "shellChoices": "Choose shell",
     "takeoverRunning": "Running terminal",
     "takeoverAction": "Take over",
