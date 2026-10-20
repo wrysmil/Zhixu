@@ -39,7 +39,7 @@ function Checkbox({
       className={cn(
         "flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border",
         checked || indeterminate
-          ? "border-emerald-700 bg-emerald-700 text-white dark:border-emerald-500 dark:bg-emerald-500 dark:text-slate-950"
+          ? "border-primary bg-primary text-primary-foreground"
           : "border-border bg-background",
         disabled && "opacity-45",
       )}
@@ -202,7 +202,7 @@ export function CapabilityPicker({
                     type="button"
                     aria-expanded={!isCollapsed}
                     onClick={() => toggleGroupCollapsed(group.id)}
-                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700/60"
+                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <ChevronRight
                       className={cn(
@@ -222,7 +222,7 @@ export function CapabilityPicker({
                     <button
                       type="button"
                       onClick={() => setGroup(selectable, !allSelected)}
-                      className="shrink-0 rounded px-2 py-1 text-[11px] text-emerald-800 transition-colors duration-150 ease-[cubic-bezier(.2,.8,.2,1)] hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700/60 motion-reduce:transition-none dark:text-emerald-300"
+                      className="shrink-0 rounded px-2 py-1 text-[11px] text-accent-foreground transition-colors duration-150 ease-out hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
                     >
                       {allSelected
                         ? t("settings.agents.capability.clearGroup", "全不选")
@@ -246,7 +246,7 @@ export function CapabilityPicker({
                             onClick={() => interactive && toggleItem(item.id)}
                             title={item.blocked ? item.blockedReason : undefined}
                             className={cn(
-                              "flex w-full min-w-0 items-start gap-2.5 px-3 py-3 text-left transition-colors duration-150 ease-[cubic-bezier(.2,.8,.2,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700/60 motion-reduce:transition-none",
+                              "flex w-full min-w-0 items-start gap-2.5 px-3 py-3 text-left transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none",
                               interactive ? "hover:bg-muted/50" : "cursor-default",
                               item.blocked && "opacity-50",
                             )}

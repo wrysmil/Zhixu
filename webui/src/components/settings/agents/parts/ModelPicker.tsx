@@ -73,9 +73,9 @@ export function ModelPicker({
             aria-haspopup="listbox"
             aria-label={t("settings.agents.model.label", "模型")}
             onKeyDown={(event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); } }}
-            className="flex min-h-11 w-full items-center gap-2 rounded-control border border-border bg-background px-3 py-2 text-left text-[13px] transition-colors duration-150 [transition-timing-function:cubic-bezier(.2,.8,.2,1)] hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700/40 motion-reduce:transition-none"
+            className="flex min-h-11 w-full items-center gap-2 rounded-control border border-border bg-background px-3 py-2 text-left text-[13px] transition-colors duration-150 ease-out hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
           >
-            <Cpu className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden />
+            <Cpu className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
             <span className="min-w-0 flex-1 break-words text-foreground/90">
               {selected
                 ? selected.label

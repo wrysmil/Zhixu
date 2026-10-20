@@ -62,7 +62,7 @@ function PromptTextarea({
       spellCheck={false}
       style={{ maxHeight: `${maxHeightPx}px` }}
       className={cn(
-        "resize-none overflow-y-auto rounded-xl border-border/75 bg-background/80 p-4 font-mono text-[13px] leading-7 shadow-none scrollbar-thin focus-visible:border-emerald-700/60 focus-visible:ring-emerald-700/20",
+        "resize-none overflow-y-auto rounded-control border-border/75 bg-background/80 p-4 font-mono text-[13px] leading-7 shadow-none scrollbar-thin focus-visible:border-ring/50 focus-visible:ring-ring/20",
         expanded ? "min-h-[60dvh]" : "min-h-[320px]",
       )}
     />
