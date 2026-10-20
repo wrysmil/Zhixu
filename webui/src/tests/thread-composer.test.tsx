@@ -154,7 +154,7 @@ function agent(
 }
 
 const AGENTS: AgentProfile[] = [
-  agent("commander", "指挥官"),
+  agent("commander", "知序指挥官"),
   agent("code-helper", "代码助手", { icon: "🛠", color: "#2563EB" }),
   agent("secret-helper", "隐藏助手", { hidden: true }),
 ];
@@ -1818,7 +1818,7 @@ describe("ThreadComposer", () => {
     const manyAgents = Array.from({ length: 10 }, (_, index) =>
       agent(
         index === 0 ? "commander" : `agent-${index}`,
-        index === 0 ? "指挥官" : `助手 ${index}`,
+        index === 0 ? "知序指挥官" : `助手 ${index}`,
       ));
     render(
       <ThreadComposer
@@ -3362,7 +3362,7 @@ describe("ThreadComposer agent selection", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Current agent: 指挥官" }));
+    await user.click(screen.getByRole("button", { name: "Current agent: 知序指挥官" }));
     await user.click(await screen.findByRole("button", { name: /代码助手/ }));
 
     expect(onAgentSelectionChange).toHaveBeenCalledWith("code-helper");
@@ -3379,7 +3379,7 @@ describe("ThreadComposer agent selection", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Current agent: 指挥官" }));
+    await user.click(screen.getByRole("button", { name: "Current agent: 知序指挥官" }));
 
     expect(await screen.findByRole("button", { name: /代码助手/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /隐藏助手/ })).not.toBeInTheDocument();
@@ -3445,7 +3445,7 @@ describe("ThreadComposer agent selection", () => {
     // 胶囊跟着本轮生效的档案走。
     expect(screen.getByRole("button", { name: "Current agent: 代码助手" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Current agent: 代码助手" }));
-    await user.click(await screen.findByRole("button", { name: /指挥官/ }));
+    await user.click(await screen.findByRole("button", { name: /知序指挥官/ }));
 
     expect(onAgentSelectionChange).toHaveBeenCalledWith("commander");
     expect(input).toHaveValue("@commander 看一下");

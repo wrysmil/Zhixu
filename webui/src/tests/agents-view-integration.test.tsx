@@ -56,7 +56,7 @@ const agent: AgentProfile = {
 const commander: AgentProfile = {
   ...agent,
   id: "commander",
-  name: "指挥官",
+  name: "知序指挥官",
   description: "默认主 Agent",
   type: "system",
   categoryId: "general",
@@ -79,9 +79,18 @@ describe("agents 编辑提示词", () => {
     render(<AgentsView />);
 
     const rows = await screen.findAllByRole("group");
-    expect(rows[0]).toHaveTextContent("指挥官");
+    expect(rows[0]).toHaveTextContent("知序指挥官");
     expect(within(rows[0]).getByText("Default agent")).toBeVisible();
     expect(within(rows[1]).queryByText("Default agent")).toBeNull();
+  });
+
+  it("默认以卡片视图打开", async () => {
+    listAgents.mockResolvedValue({ agents: [agent, commander] });
+    render(<AgentsView />);
+
+    await screen.findByText("代码审查");
+    expect(screen.getByRole("button", { name: "Cards" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "List" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("shows every agent in the tree view when no sub-agent hierarchy is configured", async () => {
@@ -91,7 +100,7 @@ describe("agents 编辑提示词", () => {
 
     await user.click(await screen.findByRole("button", { name: "Tree" }));
 
-    expect(await screen.findByText("指挥官")).toBeVisible();
+    expect(await screen.findByText("知序指挥官")).toBeVisible();
     expect(screen.getByText("代码审查")).toBeVisible();
     expect(screen.queryByText("No agents to show")).toBeNull();
   });

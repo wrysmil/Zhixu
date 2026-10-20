@@ -148,8 +148,8 @@ def test_default_main_agent_is_the_commander(runtime: AgentProfileRuntime) -> No
         known_skills=["alpha"],
     )
     assert resolved is not None
-    assert resolved.name == "指挥官"
-    assert "指挥官" in resolved.prompt
+    assert resolved.name == "知序指挥官"
+    assert "知序指挥官" in resolved.prompt
     # 全量选择：主回合拿到调用方真实注册表里的全部工具，技能不裁剪。
     assert resolved.tool_names == frozenset({"read_file", "exec"})
     assert resolved.skill_exclude == frozenset()

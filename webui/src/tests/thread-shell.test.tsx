@@ -4487,7 +4487,7 @@ describe("ThreadShell", () => {
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
       if (String(input).includes("/api/settings/agents")) {
         return Promise.resolve(httpJson({
-          agents: [agent("commander", "指挥官"), agent("writer", "写手")],
+          agents: [agent("commander", "知序指挥官"), agent("writer", "写手")],
         }));
       }
       return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
@@ -4501,7 +4501,7 @@ describe("ThreadShell", () => {
     // 存过就按存过的显示，而不是回到默认主 Agent。
     const chip = await screen.findByRole("button", { name: "Current agent: 写手" });
     await user.click(chip);
-    await user.click(await screen.findByRole("button", { name: /指挥官/ }));
+    await user.click(await screen.findByRole("button", { name: /知序指挥官/ }));
 
     // 改选写回本地存储，且只动当前 chat 这一条。
     expect(JSON.parse(window.localStorage.getItem(SESSION_AGENT_STORAGE_KEY) ?? "{}")).toEqual({

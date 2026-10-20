@@ -1,4 +1,4 @@
-"""主回合的 Agent 接管：默认指挥官、显式 @ 档案、团队优先。
+"""主回合的 Agent 接管：默认主 Agent、显式 @ 档案、团队优先。
 
 全部用内存 provider 替身，不发真实网络请求、不读本机配置。
 """
@@ -78,7 +78,7 @@ async def test_plain_turn_is_taken_over_by_the_default_commander(tmp_path: Path)
 
     await _dispatch(loop, content="帮我看下这个项目")
 
-    assert "指挥官" in provider.last_system_prompt
+    assert "知序指挥官" in provider.last_system_prompt
     # 全量选择不改变本回合工具集：仍是 loop 的真实注册表。
     assert sorted(_names(provider.last_tool_definitions)) == sorted(loop.tool_names)
 
@@ -106,7 +106,7 @@ async def test_mentioned_agent_applies_prompt_tools_and_model(tmp_path: Path) ->
     await _dispatch(loop, content="@code-helper 看看入口", metadata={"agent_id": "code-helper"})
 
     assert "你是代码助手，只读地分析代码。" in provider.last_system_prompt
-    assert "指挥官" not in provider.last_system_prompt
+    assert "知序指挥官" not in provider.last_system_prompt
     assert _names(provider.last_tool_definitions) == ["read_file"]
     assert provider.last_model == "fast-model"
 

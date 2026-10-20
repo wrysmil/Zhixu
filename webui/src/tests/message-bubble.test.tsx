@@ -15,7 +15,7 @@ import type { AgentProfile } from "@/lib/agents/types";
 const AGENTS: AgentProfile[] = [
   {
     id: "commander",
-    name: "指挥官",
+    name: "知序指挥官",
     description: "接住用户请求",
     type: "system",
     customized: false,

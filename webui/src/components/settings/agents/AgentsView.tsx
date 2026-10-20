@@ -53,7 +53,9 @@ export function AgentsView() {
 
   const [categoryFilter, setCategoryFilter] = useState<string>(ALL);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<ViewMode>("list");
+  // 默认卡片视图：卡片一屏能横向扫过图标、描述与能力摘要，列表只能看到名称
+  // 和一行描述；「点开看详情」的成本交给编辑弹窗，不再让首屏承担。
+  const [view, setView] = useState<ViewMode>("card");
 
   const [editing, setEditing] = useState<{ agent: AgentProfile | null; isNew: boolean } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AgentProfile | null>(null);

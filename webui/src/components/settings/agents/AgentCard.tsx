@@ -73,6 +73,9 @@ export function AgentCard({
 
   return (
     <div
+      // 与 AgentRow 同语义：一张卡是一个档案的完整描述，读屏与测试都能按组取到它，
+      // 不必关心当前是卡片还是列表视图。
+      role="group"
       className={cn(
         "group flex flex-col rounded-panel border border-border/50 bg-settings-surface p-4 transition-all duration-200",
         "hover:border-border hover:shadow-md hover:-translate-y-0.5",

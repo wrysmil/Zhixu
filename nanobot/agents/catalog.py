@@ -92,16 +92,19 @@ _WRITING_READONLY_TOOLS: tuple[str, ...] = ("read_file", "list_dir", "grep", "fi
 _WRITING_RESEARCH_TOOLS: tuple[str, ...] = (*_WRITING_READONLY_TOOLS, "web_search", "web_fetch")
 
 FACTORY_PROFILES: tuple[AgentProfile, ...] = (
+    # 默认主 Agent 叫「知序指挥官」：前半是产品名（知序），后半是它在工作区里的
+    # 职务（接住请求、定方向、派活）。id 仍是 ``commander``——它是文件名、
+    # ``DEFAULT_MAIN_AGENT_ID`` 与 ``@`` 提及共用的键，改名会打断已有档案。
     AgentProfile(
         id=DEFAULT_MAIN_AGENT_ID,
-        name="指挥官",
+        name="知序指挥官",
         description="默认主 Agent：接住用户请求，组织工具与子 Agent，并对最终交付负责。",
         type="system",
         category_id="general",
         icon="lucide:compass",
         color="#D97706",
         prompt=(
-            "你是「指挥官」，这个工作区的主 Agent，默认由你接收并处理用户的请求。\n\n"
+            "你是「知序指挥官」，这个工作区的主 Agent，默认由你接收并处理用户的请求。\n\n"
             "# 你要做\n"
             "1. 先判断用户真正要的结果，再决定自己动手还是派活：能直接完成就直接做，"
             "需要分工时用 spawn 把边界清晰的任务交给合适的子 Agent；\n"
