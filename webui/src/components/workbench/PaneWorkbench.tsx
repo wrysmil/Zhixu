@@ -73,8 +73,6 @@ interface PaneWorkbenchProps {
   onSplitRatiosChange?: (splitRatios: number[]) => void;
   composerRailInset?: string;
   renderPane: (pane: WorkbenchPane, context: PaneRenderContext) => ReactNode;
-  /** 顶栏右端的额外控件（如右侧 StartDock 的开关）。Portal 头占左，trailing 占右。 */
-  headerTrailingAction?: ReactNode;
 }
 
 const LAYOUT_MOTION_DURATION_MS = 260;
@@ -172,7 +170,6 @@ export function PaneWorkbench({
   onSplitRatiosChange = IGNORE_SPLIT_RATIO_CHANGE,
   composerRailInset,
   renderPane,
-  headerTrailingAction,
 }: PaneWorkbenchProps) {
   const { t } = useTranslation();
   const compact = useMediaQuery("(max-width: 767px)");
@@ -640,7 +637,7 @@ export function PaneWorkbench({
       className="flex h-full min-h-0 flex-col overflow-hidden bg-background"
     >
       <TooltipProvider delayDuration={500} skipDelayDuration={100}>
-        {(chrome || headerTrailingAction) ? (
+        {chrome ? (
           <header className="shrink-0 bg-background">
             <div className="flex items-center">
               <div
@@ -648,11 +645,6 @@ export function PaneWorkbench({
                 data-testid="workbench-header-host"
                 className="min-w-0 flex-1"
               />
-              {headerTrailingAction ? (
-                <div className="flex shrink-0 items-center pr-2">
-                  {headerTrailingAction}
-                </div>
-              ) : null}
             </div>
           </header>
         ) : null}
@@ -791,20 +783,22 @@ export function PaneWorkbench({
         </div>
 
         {chrome ? (
-          <footer className="shrink-0 bg-background px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4">
+          <footer
+            className="shrink-0 bg-background px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4"
+            // 让位放在 footer 的 padding 上，而不是宿主的 margin-right：宿主的可用宽度
+            // 才是消息列真实的中线基准，两者都等于「聊天区 − rail」。挂在 margin 上会让
+            // 宿主先按 rail 缩一次、再由 mx-auto 二次居中，输入框整体右移约 rail 的一半
+            // （2026-10-20 实测 1736px 下偏 99px）。
+            style={
+              composerRailInset && !compact
+                ? { paddingRight: `calc(${composerRailInset} + 1rem)` }
+                : undefined
+            }
+          >
             <div
               ref={setComposerPortalTarget}
               data-testid="workbench-composer-host"
-              // 这里刻意不写 `w-full`：宽度一旦钉成 100%，`margin-right` 就是过约束，
-              // CSS 会把 auto 边距压成 0、丢掉右外边距，19rem 的让位随之失效 →
-              // 常驻工作台 rail 会盖到输入区上。宽度交给 width:auto（可用宽 − 边距）推。
-              // rail 在 <768px 是 `hidden md:flex`，那时不该白让位。
-              className="mx-auto max-w-[58rem]"
-              style={
-                composerRailInset && !compact
-                  ? { marginRight: composerRailInset }
-                  : undefined
-              }
+              className="mx-auto max-w-[49.5rem]"
             />
           </footer>
         ) : null}

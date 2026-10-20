@@ -1611,9 +1611,9 @@ describe("ThreadShell", () => {
     render(wrap(client, <ThreadShell session={null} title="nanobot" onToggleSidebar={() => {}}
       onCreateChat={createChat} />));
     await act(async () => {});
-    fireEvent.click(screen.getByRole("button", { name: /Organize notes/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Summarize a document/ }));
     expect(screen.getByRole("textbox", { name: "Message input" })).toHaveValue(
-      "Help me organize these notes into key points, open questions, and next steps.",
+      "Summarize a document for me: pull out the key points, open questions, and next steps. I'll paste it or attach the file.",
     );
     expect(createChat).not.toHaveBeenCalled();
     expect(client.sendMessage).not.toHaveBeenCalled();
@@ -1623,12 +1623,12 @@ describe("ThreadShell", () => {
     const client = makeClient();
     render(wrap(client, <ThreadShell session={session("empty-welcome")} title="Empty conversation"
       onToggleSidebar={() => {}} />));
-    const suggestion = await screen.findByRole("button", { name: /Organize notes/ });
+    const suggestion = await screen.findByRole("button", { name: /Summarize a document/ });
     const input = screen.getByRole("textbox", { name: "Message input" });
     fireEvent.change(input, { target: { value: "Keep this conversation draft." } });
     fireEvent.click(suggestion);
     expect(input).toHaveValue(
-      "Keep this conversation draft.\nHelp me organize these notes into key points, open questions, and next steps.",
+      "Keep this conversation draft.\nSummarize a document for me: pull out the key points, open questions, and next steps. I'll paste it or attach the file.",
     );
     expect(client.sendMessage).not.toHaveBeenCalled();
   });

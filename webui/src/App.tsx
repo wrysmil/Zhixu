@@ -1032,6 +1032,8 @@ function Shell({
   );
   const [view, setView] = useState<ShellView>(initialRouteRef.current.view);
   const [temporarySessions, setTemporarySessions] = useState<Record<string, ChatSummary>>({});
+  // 临时聊天的开关按钮已下线，状态保留：运行时（侧栏分区、关闭动作、#/temporary 路由）
+  // 仍然完整，重新接回开关即可恢复新建临时聊天。
   const [temporaryChatEnabled, setTemporaryChatEnabled] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] =
     useState<SettingsSectionKey>(initialRouteRef.current.settingsSection);
@@ -1615,13 +1617,6 @@ function Shell({
     setSessionSearchOpen(false);
     setMobileSidebarOpen(false);
   }, [navigate]);
-
-  const onTemporaryChatEnabledChange = useCallback((enabled: boolean) => {
-    if (view !== "chat" || activeKey) return;
-    setTemporaryChatEnabled(enabled);
-    setDraftWorkspaceScope(null);
-    setWorkspaceError(null);
-  }, [activeKey, view]);
 
   const onNewChatInProject = useCallback(
     (projectPath: string, projectName: string) => {
@@ -2465,7 +2460,7 @@ function Shell({
         : t("startPanel.expand", { defaultValue: "Expand the start panel" })}
       aria-pressed={homeDockOpen}
       onClick={() => setHomeDockOpen((open) => !open)}
-      className="host-no-drag h-8 w-8 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
+      className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
     >
       {homeDockOpen
         ? <PanelRightClose className="h-4 w-4" aria-hidden />
@@ -2842,7 +2837,6 @@ function Shell({
                     splitRatios={renderedWorkbenchSplitRatios}
                     chrome={paneChromeEnabled}
                     showLayoutControl={activeTabVisible}
-                    headerTrailingAction={dockVisible ? dockToggle : undefined}
                     onActivatePane={onActivateWorkbenchPane}
                     onLayoutChange={(layout) => {
                       if (!activeTabKey) return;
@@ -2869,15 +2863,14 @@ function Shell({
                           <ThreadShell
                             session={activeSession}
                             sessions={sessions}
+                            onOpenChat={onSelectChat}
                             title={headerTitle}
                             temporary={temporaryChatRequested}
                             temporaryChatIds={temporaryChatIds}
                             temporaryChatEnabled={temporaryChatEnabled}
-                            onTemporaryChatEnabledChange={
-                              !activeKey ? onTemporaryChatEnabledChange : undefined
-                            }
                             onToggleSidebar={toggleSidebar}
                             headerActions={context.headerActions}
+                            trailingAction={dockVisible ? dockToggle : undefined}
                             onNewChat={onNewChat}
                             onCreateChat={
                               temporaryChatEnabled ? onCreateTemporaryChat : onCreateChat
@@ -2922,6 +2915,7 @@ function Shell({
                         <ThreadShell
                           session={paneSession}
                           sessions={sessions}
+                          onOpenChat={onSelectChat}
                           title={pane.title}
                           onToggleSidebar={toggleSidebar}
                           onNewChat={onNewChat}

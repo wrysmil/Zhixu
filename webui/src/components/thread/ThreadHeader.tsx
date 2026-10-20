@@ -1,15 +1,9 @@
-import { Menu, MessageCircleDashed, Moon, Sun, Users } from "lucide-react";
+import { Menu, Moon, Sun, Users } from "lucide-react";
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { SessionHandleLabel } from "@/components/SessionHandleLabel";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { SessionHandle, TeamBinding } from "@/lib/types";
 
@@ -25,14 +19,13 @@ interface ThreadHeaderProps {
   hideTitle?: boolean;
   actions?: ReactNode;
   workbenchAction?: ReactNode;
+  /** 头部右端最后一位控件（例如首页右坞开关），排在所有其它动作之后。 */
+  trailingAction?: ReactNode;
   minimal?: boolean;
   promptNavigatorAction?: ReactNode;
   sessionInfoAction?: ReactNode;
   /** Server-confirmed team binding, shown read-only next to the title. */
   teamInfo?: TeamBinding | null;
-  temporaryChatEnabled?: boolean;
-  temporaryChatDisabled?: boolean;
-  onTemporaryChatEnabledChange?: (enabled: boolean) => void;
 }
 
 export function ThreadHeader({
@@ -47,15 +40,13 @@ export function ThreadHeader({
   hideTitle = false,
   actions,
   workbenchAction,
+  trailingAction,
   minimal = false,
   promptNavigatorAction,
   sessionInfoAction,
   teamInfo = null,
-  temporaryChatEnabled = false,
-  temporaryChatDisabled = false,
-  onTemporaryChatEnabledChange,
 }: ThreadHeaderProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   return (
     <div
@@ -83,6 +74,20 @@ export function ThreadHeader({
         {!minimal && !hideTitle ? (
           <div className="flex min-w-0 items-center rounded-md px-1.5 py-1 text-[12px] font-medium text-muted-foreground">
             <span className="max-w-[min(60vw,32rem)] truncate">{title}</span>
+          </div>
+        ) : null}
+        {minimal && !hideTitle ? (
+          <div
+            data-testid="thread-header-breadcrumb"
+            className="flex min-w-0 items-center gap-2 px-1.5 py-1 text-[12px] text-muted-foreground"
+          >
+            <span className="shrink-0">
+              {i18n.resolvedLanguage?.startsWith("zh") ? "个人空间" : "Personal space"}
+            </span>
+            <span aria-hidden className="text-border">/</span>
+            <strong className="max-w-[min(60vw,32rem)] truncate font-normal text-foreground/75">
+              {t("sidebar.newChat")}
+            </strong>
           </div>
         ) : null}
         {handle ? (
@@ -115,54 +120,6 @@ export function ThreadHeader({
         {sessionInfoAction}
         {promptNavigatorAction}
         {actions}
-        {onTemporaryChatEnabledChange ? (
-          <TooltipProvider delayDuration={700} skipDelayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={temporaryChatDisabled}
-                  aria-label={t("temporaryChat.title")}
-                  aria-pressed={temporaryChatEnabled}
-                  onClick={() => onTemporaryChatEnabledChange(!temporaryChatEnabled)}
-                  className={cn(
-                    "host-no-drag h-8 w-8 shrink-0 rounded-full bg-transparent text-muted-foreground shadow-none transition-none hover:text-foreground",
-                    temporaryChatEnabled ? "hover:bg-transparent" : "hover:bg-accent/45",
-                  )}
-                >
-                  <MessageCircleDashed
-                    data-testid="temporary-chat-icon"
-                    className={cn(
-                      "h-4 w-4 motion-safe:transition-colors",
-                      temporaryChatEnabled
-                        ? "text-[var(--temporary-control-active)] motion-safe:duration-150"
-                        : "text-current motion-safe:duration-75",
-                    )}
-                    aria-hidden
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent
-                side="bottom"
-                align="end"
-                className="max-w-72 rounded-xl border border-border/70 bg-popover px-3 py-2 text-[12px]/[1.4] text-popover-foreground shadow-[0_8px_24px_rgba(15,23,42,0.13)] dark:border-white/10"
-              >
-                <div className="font-medium">{t("temporaryChat.title")}</div>
-                <div className="mt-1 text-muted-foreground">
-                  {t("temporaryChat.retention")}
-                </div>
-                <div className="mt-1 font-medium">
-                  {t("temporaryChat.expiration")}
-                </div>
-                <div className="mt-1 text-muted-foreground">
-                  {t("temporaryChat.externalEffects")}
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : null}
         {!hideThemeButton ? (
           <ThemeButton
             theme={theme}
@@ -171,6 +128,7 @@ export function ThreadHeader({
           />
         ) : null}
         {workbenchAction}
+        {trailingAction}
       </div>
 
       {!minimal ? (

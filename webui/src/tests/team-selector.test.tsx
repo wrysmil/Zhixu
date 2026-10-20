@@ -234,7 +234,7 @@ describe("TeamSelector", () => {
     expect(
       teamPickerVisibility({ temporary: true, hasMessages: false, bound: null, canSelect: true }),
     ).toBe("hidden");
-    // 「下一条消息开临时聊天」的开关也要藏住选择器：那条发送根本不会带 team_id。
+    // 「下一条消息开临时聊天」的状态也要藏住选择器：那条发送根本不会带 team_id。
     expect(
       teamPickerVisibility({
         temporary: false,
@@ -244,15 +244,6 @@ describe("TeamSelector", () => {
         canSelect: true,
       }),
     ).toBe("hidden");
-    expect(
-      teamPickerVisibility({
-        temporary: false,
-        temporaryRequested: false,
-        hasMessages: false,
-        bound: null,
-        canSelect: true,
-      }),
-    ).toBe("select");
     expect(
       teamPickerVisibility({ temporary: false, hasMessages: false, bound: null, canSelect: false }),
     ).toBe("hidden");

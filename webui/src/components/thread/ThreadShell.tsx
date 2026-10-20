@@ -30,7 +30,8 @@ import type {
 } from "@/components/thread/ComposerUsagePopover";
 import type { ModelPresetOption } from "@/components/thread/ModelPresetBadge";
 import { ThreadHeader } from "@/components/thread/ThreadHeader";
-import { ThreadWelcome } from "@/components/thread/ThreadWelcome";
+import { ThreadWelcomeExtras, ThreadWelcomeIntro } from "@/components/thread/ThreadWelcome";
+import { visibleSessionPreview } from "@/lib/format";
 import { StreamErrorNotice } from "@/components/thread/StreamErrorNotice";
 import {
   SubagentExecutionEntryProvider,
@@ -414,11 +415,13 @@ function maxFilePreviewWidth(containerWidth: number): number {
 interface ThreadShellProps {
   session: ChatSummary | null;
   sessions?: ChatSummary[];
+  /** Opens an existing conversation from the landing page resume rows. */
+  onOpenChat?: (chatKey: string) => void;
   title: string;
   temporary?: boolean;
   temporaryChatIds?: readonly string[];
+  /** 下一条消息是否走临时聊天（临时聊天不带 team_id，团队选择器要藏起来）。 */
   temporaryChatEnabled?: boolean;
-  onTemporaryChatEnabledChange?: (enabled: boolean) => void;
   onToggleSidebar: () => void;
   onGoHome?: () => void;
   onNewChat?: () => void;
@@ -439,6 +442,8 @@ interface ThreadShellProps {
   inlineHandle?: boolean;
   hideHeader?: boolean;
   headerActions?: ReactNode;
+  /** 头部右端最后一位控件（例如首页右坞开关）。 */
+  trailingAction?: ReactNode;
   headerPortalTarget?: HTMLElement | null;
   headerActive?: boolean;
   composerPortalTarget?: HTMLElement | null;
@@ -562,8 +567,7 @@ function modelPresetOptionsFromSettings(
     });
 }
 
-const HERO_GREETING_KEYS = [
-  "thread.empty.greetings.workOn",
+const HERO_GREETING_KEYS = [  "thread.empty.greetings.workOn",
   "thread.empty.greetings.start",
   "thread.empty.greetings.build",
   "thread.empty.greetings.tackle",
@@ -572,6 +576,12 @@ const HERO_GREETING_KEYS = [
 function randomHeroGreetingKey(): (typeof HERO_GREETING_KEYS)[number] {
   const index = Math.floor(Math.random() * HERO_GREETING_KEYS.length);
   return HERO_GREETING_KEYS[index] ?? HERO_GREETING_KEYS[0];
+}
+
+/** Recency sort key for the landing resume rows; unparsable dates sink to the end. */
+function sessionRecency(summary: ChatSummary): number {
+  const parsed = Date.parse(summary.updatedAt ?? summary.createdAt ?? "");
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 interface PendingFirstMessage {
@@ -663,11 +673,11 @@ function useInstalledSettingItems<Payload, Item>({
 export function ThreadShell({
   session,
   sessions = [],
+  onOpenChat,
   title,
   temporary = false,
   temporaryChatIds = [],
   temporaryChatEnabled = false,
-  onTemporaryChatEnabledChange,
   onToggleSidebar,
   onCreateChat,
   onForkChat,
@@ -680,6 +690,7 @@ export function ThreadShell({
   inlineHandle = false,
   hideHeader = false,
   headerActions,
+  trailingAction,
   headerPortalTarget,
   headerActive = true,
   composerPortalTarget,
@@ -851,8 +862,6 @@ export function ThreadShell({
   const sessionKeyByChatIdRef = useRef<Map<string, string>>(new Map());
   const currentUiMessagesRef = useRef<UIMessage[] | null>(null);
   const uiRevisionRef = useRef(0);
-  const showTemporaryChatControl =
-    !hideHeader && !session && !loading && !!onTemporaryChatEnabledChange;
 
   const initial = useMemo(() => {
     if (!chatId) return historical;
@@ -1921,13 +1930,36 @@ export function ThreadShell({
     </>
   );
 
+  // Landing resume rows: real conversations, newest first, never the one on screen.
+  const welcomeRecents = useMemo(() => {
+    if (!sessions.length) return [];
+    return [...sessions]
+      .filter((item) => item.key !== session?.key)
+      .sort((left, right) => sessionRecency(right) - sessionRecency(left))
+      .slice(0, 2)
+      .map((item) => ({
+        key: item.key,
+        title: item.title?.trim() || visibleSessionPreview(item.preview) || item.chatId,
+        preview: item.preview,
+        meta: item.workspaceScope?.project_name ?? null,
+        updatedAt: item.updatedAt ?? item.createdAt,
+      }));
+  }, [session?.key, sessions]);
+
   const emptyState = loading ? (
     <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
       {t("thread.loadingConversation")}
     </div>
   ) : (
-    <ThreadWelcome
-      greeting={t(heroGreetingKey)}
+    <ThreadWelcomeIntro greeting={t(heroGreetingKey)} />
+  );
+
+  // Shortcuts and resume rows live *below* the hero composer, matching the demo's
+  // reading order: greeting → input → quick starts → pick up where you left off.
+  const emptyStateBelow = loading ? null : (
+    <ThreadWelcomeExtras
+      recents={welcomeRecents}
+      onOpenRecent={onOpenChat}
       onChoosePrompt={(text) => {
         welcomeDraftTokenRef.current -= 1;
         setWelcomeDraftSeed({ text, token: welcomeDraftTokenRef.current, mode: "append" });
@@ -1996,12 +2028,8 @@ export function ThreadShell({
       hideTitle={hideHeaderTitle}
       actions={headerActions}
       workbenchAction={workbenchAction}
+      trailingAction={trailingAction}
       minimal={!session && !loading}
-      temporaryChatEnabled={temporaryChatEnabled}
-      temporaryChatDisabled={booting || turnActive}
-      onTemporaryChatEnabledChange={
-        showTemporaryChatControl ? onTemporaryChatEnabledChange : undefined
-      }
     />
   ) : null;
 
@@ -2035,6 +2063,7 @@ export function ThreadShell({
             runStartedAt={currentRunStartedAt}
             retryStatus={retryStatus}
             emptyState={emptyState}
+            emptyStateBelow={emptyStateBelow}
             composer={composerPortalTarget === undefined ? composer : null}
             activeTurnId={viewportTurnId}
             activeTurnStartedHere={activeTurnStartedHere}
