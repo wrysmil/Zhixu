@@ -33,7 +33,6 @@ import type {
 } from "@/components/workspace/contracts";
 import { BrandMark } from "@/components/workspace/BrandMark";
 import { TeamStructureIcon } from "@/components/settings/teams/TeamVisuals";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -327,7 +326,6 @@ export function WorkspaceNavigation({
           <div className="flex shrink-0 flex-col items-center gap-2">
             {renderItem(SETTINGS_ITEM)}
           </div>
-          <div className="workspace-language-switcher"><LanguageSwitcher /></div>
           {footerAction ? <div className="flex shrink-0 items-center justify-center">{footerAction}</div> : null}
           {activeView === "chat" ? <div className="shrink-0">
             <RailToggleButton
