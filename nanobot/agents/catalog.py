@@ -101,7 +101,7 @@ FACTORY_PROFILES: tuple[AgentProfile, ...] = (
         description="默认主 Agent：接住用户请求，组织工具与子 Agent，并对最终交付负责。",
         type="system",
         category_id="general",
-        icon="lucide:compass",
+        icon="lucide:crown",
         color="#D97706",
         prompt=(
             "你是「知序指挥官」，这个工作区的主 Agent，默认由你接收并处理用户的请求。\n\n"
@@ -134,7 +134,7 @@ FACTORY_PROFILES: tuple[AgentProfile, ...] = (
         description="只用读文件与列目录完成被指派的小任务；需要写入、执行或联网时如实说明受限。",
         type="system",
         category_id="general",
-        icon="🤖",
+        icon="lucide:bot",
         color="#4A90D9",
         prompt=(
             "你是「通用助理」，接一件边界清楚的小事。你看不到派活方的对话，"
@@ -162,7 +162,7 @@ FACTORY_PROFILES: tuple[AgentProfile, ...] = (
         description="只读地审查改动，指出缺陷与风险，不动手改代码。",
         type="system",
         category_id="coding",
-        icon="🔍",
+        icon="lucide:shield",
         color="#8E44AD",
         prompt=(
             "你是「代码评审」，只读地审查交给你的改动，指出缺陷与风险。你不改代码。\n\n"
@@ -192,7 +192,7 @@ FACTORY_PROFILES: tuple[AgentProfile, ...] = (
         description="多轮检索与交叉验证，最后给出带出处的结论。",
         type="system",
         category_id="research",
-        icon="🔬",
+        icon="lucide:telescope",
         color="#16A085",
         prompt=(
             "你是「资料研究」，把一个待确认的问题查成有出处的结论。\n\n"
@@ -220,7 +220,7 @@ FACTORY_PROFILES: tuple[AgentProfile, ...] = (
         description="在受控环境里执行命令并回报结果，适合排障与部署检查。",
         type="system",
         category_id="ops",
-        icon="🛠️",
+        icon="lucide:wrench",
         color="#C0392B",
         prompt=(
             "你是「运维执行」，在给定工作区里执行命令并如实回报。\n\n"
@@ -255,7 +255,7 @@ FACTORY_PROFILES: tuple[AgentProfile, ...] = (
         description="理解目标、拆解任务、选择成员并检查交付，只做组织与把关。",
         type="system",
         category_id="writing",
-        icon="📝",
+        icon="lucide:book-open",
         color="#E67E22",
         prompt=(
             "你是「创作团队」的主编，负责把作者的一句话目标变成可执行的写作计划。\n\n"
@@ -290,7 +290,7 @@ FACTORY_PROFILES: tuple[AgentProfile, ...] = (
         description="读取指定素材、检索核对来源，并标注仍需确认的疑点。",
         type="system",
         category_id="writing",
-        icon="🔎",
+        icon="lucide:search",
         color="#E67E22",
         prompt=(
             "你是「创作团队」的资料研究员，只对作者指定的题目与素材做检索和核对。\n\n"
@@ -319,7 +319,7 @@ FACTORY_PROFILES: tuple[AgentProfile, ...] = (
         description="组织主张、论据与例子，形成可确认的提纲与论证链。",
         type="system",
         category_id="writing",
-        icon="🧭",
+        icon="lucide:layers",
         color="#E67E22",
         prompt=(
             "你是「创作团队」的结构编辑，把作者确认的主张组织成有论证链的提纲。\n\n"
@@ -347,7 +347,7 @@ FACTORY_PROFILES: tuple[AgentProfile, ...] = (
         description="依据确认的提纲与素材分节写作、续写与局部改写。",
         type="system",
         category_id="writing",
-        icon="✍️",
+        icon="lucide:feather",
         color="#E67E22",
         prompt=(
             "你是「创作团队」的写手，按确认过的提纲和素材分节写作。\n\n"
@@ -375,7 +375,7 @@ FACTORY_PROFILES: tuple[AgentProfile, ...] = (
         description="独立检查事实、结构、重复与可读性，输出问题与修改建议。",
         type="system",
         category_id="writing",
-        icon="🧐",
+        icon="lucide:microscope",
         color="#E67E22",
         prompt=(
             "你是「创作团队」的审校，独立检查终稿的事实、结构、重复与可读性。\n\n"

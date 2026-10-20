@@ -88,12 +88,12 @@ export interface LucideAgentIconGroup {
   items: string[];
 }
 
-/** 图标选择器用的 Lucide 分组；`commander` 默认的 compass 排在最前。 */
+/** 图标选择器用的 Lucide 分组；`commander` 默认的 crown 排在最前。 */
 export const LUCIDE_AGENT_ICON_GROUPS: LucideAgentIconGroup[] = [
   {
     id: "command",
     label: "指挥与目标",
-    items: ["compass", "crown", "target", "rocket", "shield", "sword", "orbit", "satellite"],
+    items: ["crown", "compass", "target", "rocket", "shield", "sword", "orbit", "satellite"],
   },
   {
     id: "thinking",
