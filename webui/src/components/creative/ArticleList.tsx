@@ -118,15 +118,15 @@ export function ArticleList({
               </span>
             ) : null}
           </p>
-          <h1 className="font-serif text-[28px] font-medium leading-[1.3] tracking-tight text-foreground sm:text-[34px]">
+          <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.015em] text-foreground">
             {t("creative.headline")}
           </h1>
-          <p className="mt-2.5 max-w-[590px] text-xs leading-6 text-muted-foreground sm:text-[13px]">
+          <p className="mt-2 max-w-[590px] text-xs leading-6 text-muted-foreground sm:text-[13px]">
             {t("creative.hero_description")}
           </p>
         </div>
         <img src={writingIllustration} alt="" aria-hidden="true" width={690} height={460}
-          decoding="async" className="hidden h-[132px] w-[184px] shrink-0 object-contain sm:block lg:w-[208px] dark:brightness-90" />
+          decoding="async" className="hidden h-[104px] w-[144px] shrink-0 object-contain sm:block lg:w-[164px] dark:brightness-90" />
       </header>
 
       <form data-testid="create-article-form" aria-busy={submitting}

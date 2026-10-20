@@ -47,11 +47,6 @@ interface NavItem {
   icon: typeof MessagesSquare | typeof TeamStructureIcon;
 }
 
-const PRIMARY_ITEMS: NavItem[] = [
-  { view: "chat", labelKey: "workspace.nav.assistant", labelDefault: "Assistant", icon: MessagesSquare },
-  { view: "creative", labelKey: "workspace.nav.creative", labelDefault: "Creative", icon: Feather },
-];
-
 const APP_ITEM: NavItem = {
   view: "apps", labelKey: "sidebar.apps", labelDefault: "Apps", icon: Plug,
 };
@@ -77,6 +72,16 @@ const TEAM_ITEM: NavItem = {
   icon: TeamStructureIcon,
 };
 
+// Keep the product's daily loop visible. Infrastructure and occasional
+// configuration live behind More so the rail stays useful without becoming a
+// miniature settings sidebar.
+const PRIMARY_ITEMS: NavItem[] = [
+  { view: "chat", labelKey: "workspace.nav.assistant", labelDefault: "Assistant", icon: MessagesSquare },
+  { view: "creative", labelKey: "workspace.nav.creative", labelDefault: "Creative", icon: Feather },
+  AGENTS_ITEM,
+  MEMORY_ITEM,
+];
+
 interface NavGroup {
   key: string;
   labelKey: string;
@@ -95,13 +100,13 @@ const MORE_GROUPS: NavGroup[] = [
     key: "ai",
     labelKey: "workspace.nav.groups.ai",
     labelDefault: "AI configuration",
-    items: [AGENTS_ITEM, TEAM_ITEM],
+    items: [TEAM_ITEM],
   },
   {
     key: "personal",
     labelKey: "workspace.nav.groups.personal",
     labelDefault: "Personal",
-    items: [MEMORY_ITEM, IDENTITY_ITEM],
+    items: [IDENTITY_ITEM],
   },
 ];
 
@@ -191,11 +196,11 @@ export function WorkspaceNavigation({
           SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           active
-            ? "bg-accent font-medium text-sidebar-foreground"
+            ? "font-medium text-[hsl(var(--nav-active-fg))]"
             : "text-sidebar-foreground/85 hover:bg-sidebar-foreground/[0.05] hover:text-sidebar-foreground dark:hover:bg-white/[0.06]",
         )}
       >
-        <Icon className={cn("h-[19px] w-[19px] shrink-0", active && "text-accent-foreground")} strokeWidth={item.view === "teams" ? undefined : 1.65} aria-hidden />
+        <Icon className="h-[19px] w-[19px] shrink-0" strokeWidth={item.view === "teams" ? undefined : 1.65} aria-hidden />
         <span className="workspace-nav-label" aria-hidden>{item.view === "automations"
           ? (i18n.resolvedLanguage?.startsWith("zh") ? "定时" : "Tasks")
           : label}</span>
@@ -224,12 +229,12 @@ export function WorkspaceNavigation({
             SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             moreActive
-              ? "bg-accent font-medium text-sidebar-foreground"
+              ? "font-medium text-[hsl(var(--nav-active-fg))]"
               : "text-sidebar-foreground/85 hover:bg-sidebar-foreground/[0.05] hover:text-sidebar-foreground dark:hover:bg-white/[0.06]",
           )}
         >
           <MoreHorizontal
-            className={cn("h-[19px] w-[19px] shrink-0", moreActive && "text-accent-foreground")}
+            className="h-[19px] w-[19px] shrink-0"
             strokeWidth={1.65}
             aria-hidden
           />
@@ -261,7 +266,7 @@ export function WorkspaceNavigation({
                   className={cn(
                     "flex w-full cursor-pointer items-center gap-2 rounded-control px-1.5 py-1.5 text-left text-[12px] transition-colors",
                     active
-                      ? "bg-accent font-medium text-accent-foreground"
+                      ? "bg-[hsl(var(--nav-active-bg))] font-medium text-[hsl(var(--nav-active-fg))]"
                       : "text-foreground hover:bg-accent/60",
                   )}
                 >
@@ -303,8 +308,7 @@ export function WorkspaceNavigation({
               "flex shrink-0 items-center justify-center pb-3",
             )}
           >
-            <BrandMark className="h-9 w-9" />
-            <span className="sr-only">{t("workspace.brand", { defaultValue: "知序" })}</span>
+            <BrandMark className="h-9" />
           </div>
           {preview ? (
             <span

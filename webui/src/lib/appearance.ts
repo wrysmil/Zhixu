@@ -32,7 +32,7 @@ export const DEFAULT_APPEARANCE: AppearancePreferences = {
 };
 
 export const THEME_PRESETS: Array<{ id: PresetId; name: string; light: Palette; dark: Palette }> = [
-  { id: "zhixu", name: "Zhixu", light: { accent: "#355F4D", background: "#F8F6F2", foreground: "#25322C" }, dark: { accent: "#92BFA3", background: "#161D1A", foreground: "#EDEAE3" } },
+  { id: "zhixu", name: "Zhixu", light: { accent: "#3C64B4", background: "#FFFFFF", foreground: "#202B3C" }, dark: { accent: "#8FB0E8", background: "#111621", foreground: "#EDF1F7" } },
   { id: "graphite", name: "Graphite", light: { accent: "#52525B", background: "#FAFAFA", foreground: "#242426" }, dark: { accent: "#B3B3BC", background: "#18181B", foreground: "#E4E4E7" } },
   { id: "ocean", name: "Ocean", light: { accent: "#0169CC", background: "#F4F8FC", foreground: "#152A3E" }, dark: { accent: "#76B8F5", background: "#101C29", foreground: "#E1EBF5" } },
   { id: "sand", name: "Sand", light: { accent: "#976337", background: "#FAF5EB", foreground: "#3A3026" }, dark: { accent: "#D7AD79", background: "#241F19", foreground: "#EDE3D6" } },
@@ -40,7 +40,6 @@ export const THEME_PRESETS: Array<{ id: PresetId; name: string; light: Palette; 
 
 const UI_SYSTEM = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif, "Apple Color Emoji", "Segoe UI Emoji"';
 const CODE_DEFAULT = '"JetBrains Mono", "SFMono-Regular", "SF Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, "Noto Sans Mono CJK SC", "Noto Sans SC", "Microsoft YaHei", monospace';
-const DISPLAY_DEFAULT = 'Georgia, "Songti SC", "Noto Serif SC", serif';
 const UI_FONTS: Record<string, string> = {
   system: UI_SYSTEM,
   sans: 'Arial, "Noto Sans", "Noto Sans SC", "Microsoft YaHei", sans-serif',
@@ -132,6 +131,21 @@ export function contrastRatio(firstHex: string, secondHex: string): number {
 function readableOn(background: string): string {
   return contrastRatio(background, "#FFFFFF") > contrastRatio(background, "#0D0D0D") ? "#FFFFFF" : "#0D0D0D";
 }
+/**
+ * Keep a chosen colour recognisable but never invisible: when the user picks an
+ * accent that sits too close to the surface it is tinted towards the readable
+ * foreground until the text/background pair clears the WCAG body-text ratio.
+ * A white accent used to paint the active rail item white-on-white; this is the
+ * guard that stops that class of bug for every custom palette.
+ */
+function ensureReadable(color: string, background: string, min: number, fallback: string): string {
+  if (contrastRatio(color, background) >= min) return color;
+  for (let step = 0.12; step < 1; step += 0.08) {
+    const candidate = mix(color, fallback, step);
+    if (contrastRatio(candidate, background) >= min) return candidate;
+  }
+  return fallback;
+}
 function mix(first: string, second: string, amount: number): string {
   const a = rgb(first), b = rgb(second);
   return `#${a.map((n, i) => Math.round(n * (1 - amount) + b[i] * amount).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
@@ -146,20 +160,22 @@ function hsl(hex: string): string {
   return `${+(h * 60).toFixed(3)} ${+(s * 100).toFixed(3)}% ${+(l * 100).toFixed(3)}%`;
 }
 
-// Keep the original HSL tokens verbatim: rounding through HEX would alter the baseline.
+// Keep the default HSL tokens verbatim: rounding through HEX would alter the
+// baseline. Light is a white canvas with near-white tiers (no grey-blue wash),
+// dark stays a low saturation navy so the same blue accent reads in both themes.
 const ZHIXU_LIGHT = {
-  "--background": "42 32% 96%", "--foreground": "153 15% 17%", "--card": "48 38% 99%", "--popover": "48 38% 99%",
-  "--primary": "154 29% 29%", "--primary-foreground": "0 0% 100%", "--secondary": "43 22% 92%", "--muted": "43 22% 92%",
-  "--muted-foreground": "139 7% 43%", "--accent": "143 21% 90%", "--accent-foreground": "154 29% 29%", "--border": "43 16% 84%",
-  "--surface-app": "42 24% 92%", "--surface-panel": "46 35% 98%", "--sidebar": "43 23% 92%", "--sidebar-accent": "42 19% 87%",
-  "--inline-token-highlight": "#35654e", "--temporary-control-active": "#35654e",
+  "--background": "0 0% 100%", "--foreground": "222 30% 16%", "--card": "0 0% 100%", "--popover": "0 0% 100%",
+  "--primary": "221 58% 44%", "--primary-foreground": "0 0% 100%", "--secondary": "220 26% 97%", "--muted": "220 26% 97%",
+  "--muted-foreground": "218 13% 44%", "--accent": "219 100% 96%", "--accent-foreground": "221 60% 38%", "--border": "220 22% 91%",
+  "--surface-app": "220 26% 99%", "--surface-panel": "0 0% 100%", "--sidebar": "220 24% 98%", "--sidebar-accent": "219 34% 94%",
+  "--inline-token-highlight": "#2F58B1", "--temporary-control-active": "#2F58B1",
 };
 const ZHIXU_DARK = {
-  "--background": "153 13% 10%", "--foreground": "45 20% 91%", "--card": "151 12% 13%", "--popover": "151 12% 14%",
-  "--primary": "143 26% 66%", "--primary-foreground": "153 20% 12%", "--secondary": "151 10% 18%", "--muted": "151 10% 18%",
-  "--muted-foreground": "135 8% 64%", "--accent": "151 16% 21%", "--accent-foreground": "142 31% 73%", "--border": "151 8% 25%",
-  "--surface-app": "153 13% 9%", "--surface-panel": "151 12% 13%", "--sidebar": "151 13% 12%", "--sidebar-accent": "151 10% 18%",
-  "--inline-token-highlight": "#a5cbb0", "--temporary-control-active": "#a5cbb0",
+  "--background": "220 24% 8%", "--foreground": "214 22% 92%", "--card": "220 20% 11%", "--popover": "220 20% 12%",
+  "--primary": "217 70% 70%", "--primary-foreground": "222 40% 10%", "--secondary": "220 16% 15%", "--muted": "220 16% 15%",
+  "--muted-foreground": "215 14% 67%", "--accent": "220 28% 19%", "--accent-foreground": "214 70% 78%", "--border": "220 14% 23%",
+  "--surface-app": "220 26% 7%", "--surface-panel": "220 20% 11%", "--sidebar": "220 24% 9%", "--sidebar-accent": "220 16% 16%",
+  "--inline-token-highlight": "#9FC2F7", "--temporary-control-active": "#9FC2F7",
 };
 
 export function resolveAppearance(preferences: AppearancePreferences, theme: Theme): Record<string, string> {
@@ -168,13 +184,24 @@ export function resolveAppearance(preferences: AppearancePreferences, theme: The
   const safeForeground = readableOn(background);
   const surface = mix(background, safeForeground, theme === "dark" ? 0.035 : 0.025);
   const secondary = mix(background, safeForeground, 0.06);
+  const accentSurface = mix(background, accent, theme === "dark" ? 0.22 : 0.15);
+  // A near-white accent must still paint visible controls: 3:1 against the page
+  // is the floor for a filled button or an icon stroke.
+  const primary = ensureReadable(accent, background, 3, safeForeground);
+  // Selected states (rail pill, popover rows) are text on a tinted surface: the
+  // ink must stay readable even when the accent itself is white.
+  const accentInk = ensureReadable(accent, accentSurface, 4.5, safeForeground);
+  const navSurface = mix(background, accentInk, theme === "dark" ? 0.2 : 0.11);
+  const navInk = ensureReadable(accentInk, navSurface, 4.5, safeForeground);
   const tokens: Record<string, string> = {
     "--background": hsl(background), "--foreground": hsl(foreground), "--card": hsl(surface), "--popover": hsl(surface),
-    "--primary": hsl(accent), "--primary-foreground": hsl(readableOn(accent)), "--secondary": hsl(secondary), "--muted": hsl(secondary),
-    "--muted-foreground": hsl(mix(background, foreground, 0.68)), "--accent": hsl(mix(background, accent, 0.15)),
-    "--accent-foreground": hsl(accent), "--border": hsl(mix(background, safeForeground, 0.18)),
+    "--primary": hsl(primary), "--primary-foreground": hsl(readableOn(primary)), "--secondary": hsl(secondary), "--muted": hsl(secondary),
+    "--muted-foreground": hsl(mix(background, foreground, 0.68)), "--accent": hsl(accentSurface),
+    "--accent-foreground": hsl(accentInk), "--border": hsl(mix(background, safeForeground, 0.18)),
     "--surface-app": hsl(secondary), "--surface-panel": hsl(surface), "--sidebar": hsl(mix(background, safeForeground, 0.045)),
     "--sidebar-accent": hsl(mix(background, accent, 0.1)), "--inline-token-highlight": accent, "--temporary-control-active": accent,
+    "--nav-active-bg": hsl(navSurface), "--nav-active-fg": hsl(navInk),
+    "--nav-active-ring": hsl(mix(navSurface, navInk, 0.32)),
   };
   const hasOverrides = preferences.presetId === "custom" && Object.keys(preferences.custom?.[theme] ?? {}).length > 0;
   const base = preferences.presetId === "custom" ? preferences.custom?.basePreset : preferences.presetId;
@@ -191,7 +218,7 @@ export function resolveAppearance(preferences: AppearancePreferences, theme: The
   const code = preferences.codeFont;
   tokens["--font-ui"] = ui.id === "custom" ? `"${normalizeFontFamily(ui.family) ?? "sans-serif"}", ${UI_SYSTEM}` : UI_FONTS[ui.id] ?? UI_SYSTEM;
   tokens["--font-code"] = code.id === "custom" ? `"${normalizeFontFamily(code.family) ?? "monospace"}", ${CODE_DEFAULT}` : CODE_FONTS[code.id] ?? CODE_DEFAULT;
-  tokens["--font-display"] = ui.id === "system" ? DISPLAY_DEFAULT : tokens["--font-ui"];
+  tokens["--font-display"] = tokens["--font-ui"];
   tokens["--appearance-safe-foreground"] = safeForeground;
   return tokens;
 }

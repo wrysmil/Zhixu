@@ -131,45 +131,59 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .agent-editor [
   }
 }
 
-/* Warm paper and forest-green accents keep long sessions calm and readable. */
+/* White canvas, near-white tiers and a low-saturation blue accent: an AI
+   workbench rather than a paper page. Surfaces are intentionally whiter than
+   the old grey-blue wash; colour lives in the type scale and the accent. */
 @layer base {
   :root {
     color-scheme: light;
     --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
     --font-code: "JetBrains Mono", "SFMono-Regular", "SF Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
-    --font-display: Georgia, "Songti SC", "Noto Serif SC", serif;
-    --background: 42 32% 96%;
-    --foreground: 153 15% 17%;
-    --card: 48 38% 99%;
+    --font-display: var(--font-ui);
+    --background: 0 0% 100%;
+    --foreground: 222 30% 16%;
+    --card: 0 0% 100%;
     --card-foreground: var(--foreground);
-    --popover: 48 38% 99%;
+    --popover: 0 0% 100%;
     --popover-foreground: var(--foreground);
-    --primary: 154 29% 29%;
+    --primary: 221 58% 44%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 43 22% 92%;
+    --secondary: 220 26% 97%;
     --secondary-foreground: var(--foreground);
-    --muted: 43 22% 92%;
-    --muted-foreground: 139 7% 43%;
-    --accent: 143 21% 90%;
-    --accent-foreground: 154 29% 29%;
+    --muted: 220 26% 97%;
+    --muted-foreground: 218 13% 44%;
+    --accent: 219 100% 96%;
+    --accent-foreground: 221 60% 38%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 43 16% 84%;
+    --border: 220 22% 91%;
     --input: var(--border);
     --ring: var(--accent-foreground);
     /* Tier below --background: the window shell behind panels. */
-    --surface-app: 42 24% 92%;
+    --surface-app: 220 26% 99%;
     /* Tiered sidebar/inspector surface, separated by a hairline. */
-    --surface-panel: 46 35% 98%;
+    --surface-panel: 0 0% 100%;
     --border-soft: var(--border);
-    --inline-token-highlight: #35654e;
+    --inline-token-highlight: #2f58b1;
     --usage-token: 29 86% 56%;
     --session-handle-lightness: 0.5;
     --session-handle-chroma: 0.12;
-    --temporary-control-active: #35654e;
+    --temporary-control-active: #2f58b1;
     --temporary-accent: var(--accent-foreground);
     --temporary-foreground: var(--accent-foreground);
     --temporary-border: var(--accent-foreground);
+    /* Type scale: ink headings, slate body, an indigo label voice. Large display
+       copy carries the brand blue so the page opens with colour, not black. */
+    --tone-violet: 255 52% 55%;
+    --tone-violet-soft: 255 100% 97%;
+    --text-strong: 222 32% 15%;
+    --text-body: 219 16% 33%;
+    --text-soft: 217 13% 48%;
+    --text-display: 221 58% 40%;
+    /* Selected navigation: tinted surface + readable ink, never "white on white". */
+    --nav-active-bg: 219 100% 96%;
+    --nav-active-fg: 221 62% 36%;
+    --nav-active-ring: 221 60% 82%;
     --radius: 0.5rem;
     /* Shared shape scale: controls and repeated panels 8px, composer 16px. */
     --radius-mark: 0.25rem;
@@ -189,12 +203,12 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .agent-editor [
     --dock-header-h: 40px;
     --browser-toolbar-h: 36px;
     --terminal-font-size: 12.5px;
-    --hero-text-size: 30px;
-    --hero-composer-max-w: 62rem;
-    --sidebar: 43 23% 92%;
+    --hero-text-size: 26px;
+    --hero-composer-max-w: clamp(43rem, 46vw, 52rem);
+    --sidebar: 220 24% 98%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);
-    --sidebar-accent: 42 19% 87%;
+    --sidebar-accent: 219 34% 94%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
     --settings-canvas: var(--background);
@@ -205,39 +219,48 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .agent-editor [
 
   .dark {
     color-scheme: dark;
-    --background: 153 13% 10%;
-    --foreground: 45 20% 91%;
-    --card: 151 12% 13%;
+    --background: 220 24% 8%;
+    --foreground: 214 22% 92%;
+    --card: 220 20% 11%;
     --card-foreground: var(--foreground);
-    --popover: 151 12% 14%;
+    --popover: 220 20% 12%;
     --popover-foreground: var(--foreground);
-    --primary: 143 26% 66%;
-    --primary-foreground: 153 20% 12%;
-    --secondary: 151 10% 18%;
+    --primary: 217 70% 70%;
+    --primary-foreground: 222 40% 10%;
+    --secondary: 220 16% 15%;
     --secondary-foreground: var(--foreground);
-    --muted: 151 10% 18%;
-    --muted-foreground: 135 8% 64%;
-    --accent: 151 16% 21%;
-    --accent-foreground: 142 31% 73%;
+    --muted: 220 16% 15%;
+    --muted-foreground: 215 14% 67%;
+    --accent: 220 28% 19%;
+    --accent-foreground: 214 70% 78%;
     --destructive: 0 62% 55%;
     --destructive-foreground: 0 0% 98%;
-    --border: 151 8% 25%;
+    --border: 220 14% 23%;
     --input: var(--border);
     --ring: var(--accent-foreground);
-    --surface-app: 153 13% 9%;
-    --surface-panel: 151 12% 13%;
+    --surface-app: 220 26% 7%;
+    --surface-panel: 220 20% 11%;
     --border-soft: var(--border);
-    --inline-token-highlight: #a5cbb0;
+    --inline-token-highlight: #9fc2f7;
     --session-handle-lightness: 0.75;
     --session-handle-chroma: 0.11;
-    --temporary-control-active: #a5cbb0;
+    --temporary-control-active: #9fc2f7;
     --temporary-accent: var(--accent-foreground);
     --temporary-foreground: var(--accent-foreground);
     --temporary-border: var(--accent-foreground);
-    --sidebar: 151 13% 12%;
+    --tone-violet: 255 74% 78%;
+    --tone-violet-soft: 255 32% 20%;
+    --text-strong: 214 26% 95%;
+    --text-body: 215 18% 82%;
+    --text-soft: 215 14% 66%;
+    --text-display: 216 76% 78%;
+    --nav-active-bg: 220 30% 22%;
+    --nav-active-fg: 214 78% 82%;
+    --nav-active-ring: 218 34% 34%;
+    --sidebar: 220 24% 9%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);
-    --sidebar-accent: 151 10% 18%;
+    --sidebar-accent: 220 16% 16%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
     --settings-canvas: var(--background);
@@ -253,8 +276,8 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .agent-editor [
     --dock-header-h: 40px;
     --browser-toolbar-h: 36px;
     --terminal-font-size: 12.5px;
-    --hero-text-size: 30px;
-    --hero-composer-max-w: 62rem;
+    --hero-text-size: 26px;
+    --hero-composer-max-w: clamp(43rem, 46vw, 52rem);
   }
 }
 
@@ -1159,26 +1182,26 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 }
 
 
-/* The canvas has a quiet paper grain. All assets are local and the gradients
-   adapt to semantic tokens, including the dark theme. */
+/* Surfaces stay flat: one hairline, no paper grain, and only a whisper of blue
+   in the corners so long sessions do not feel clinical. */
 body,
 .bg-background,
 .bg-settings-canvas,
 .agent-thread-shell,
 .workspace-navigation {
   background-image:
-    radial-gradient(ellipse at 95% 0%, hsl(var(--primary) / 0.045), transparent 58%),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%237d7665' opacity='.035' filter='url(%23grain)' d='M0 0h180v180H0z'/%3E%3C/svg%3E");
+    radial-gradient(ellipse at 88% 0%, hsl(var(--primary) / 0.035), transparent 46%),
+    radial-gradient(ellipse at 0% 100%, hsl(var(--primary) / 0.02), transparent 40%);
 }
 
 .bg-card,
 .bg-settings-surface,
 .thread-composer-surface {
-  background-image: linear-gradient(115deg, hsl(var(--card)), hsl(var(--background) / 0.45));
+  background-image: none;
 }
 
 .workspace-navigation-rail {
-  background: linear-gradient(165deg, hsl(var(--sidebar) / 0.4), hsl(var(--sidebar)));
+  background: hsl(var(--sidebar));
 }
 
 .workspace-nav-label {
@@ -1193,10 +1216,39 @@ body,
   letter-spacing: -0.02em;
 }
 
+/* Sidebar group labels ("Projects", "Topics") join the indigo label voice so
+   the rail is not a wall of near-black text. */
+.sidebar-group-label {
+  color: hsl(var(--tone-violet) / 0.92);
+  letter-spacing: 0.015em;
+}
+
+/* Type wordmark instead of a logo asset: two characters, brand blue, no image
+   to fail loading and no white plate over the rail. */
+.brand-wordmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 46px;
+  height: 2.25rem;
+  color: hsl(var(--text-display));
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+  user-select: none;
+}
+
 .workspace-nav-item[aria-current="page"] {
-  color: hsl(var(--accent-foreground));
-  background: hsl(var(--accent));
-  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.08);
+  color: hsl(var(--nav-active-fg));
+  background: hsl(var(--nav-active-bg));
+  box-shadow: inset 0 0 0 1px hsl(var(--nav-active-ring) / 0.9);
+}
+
+.workspace-nav-item[aria-current="page"] .workspace-nav-label {
+  font-weight: 600;
 }
 
 .workspace-language-switcher button {
@@ -1214,186 +1266,563 @@ body,
   clip-path: inset(50%);
 }
 
-.thread-welcome {
+/* ---------------------------------------------------------------------------
+   AI workbench page system.
+
+   One shared vocabulary for the assistant home, memory, identity and every
+   capability page: page header, illustration slot, toolbar, content panel and
+   status chip. The classes only read semantic tokens, so the appearance editor
+   and the dark theme keep working without per-page overrides.
+--------------------------------------------------------------------------- */
+.assistant-page {
   width: 100%;
   min-width: 0;
+  max-width: 1120px;
+  margin-inline: auto;
+  padding: 1.75rem 1.75rem 3rem;
+}
+
+.assistant-page[data-width="wide"] {
+  max-width: 1240px;
+}
+
+.assistant-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.assistant-page-heading-group {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.assistant-page-kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: hsl(var(--tone-violet));
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.assistant-page-kicker::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: hsl(var(--tone-violet));
+  box-shadow: 0 0 0 3px hsl(var(--tone-violet) / 0.14);
+}
+
+.assistant-page-heading {
+  margin: 0;
+  color: hsl(var(--text-display));
+  font-family: var(--font-ui);
+  font-size: clamp(1.25rem, 1.08rem + 0.5vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.assistant-page-description {
+  max-width: 64ch;
+  margin: 0;
+  color: hsl(var(--text-body));
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.assistant-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.125rem;
+}
+
+.assistant-page-illustration {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 128px;
+}
+
+.assistant-page-illustration[data-size="compact"] {
+  width: 104px;
+}
+
+.assistant-page-illustration[data-size="home"] {
+  width: 176px;
+}
+
+.assistant-page-illustration img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.dark .assistant-page-illustration img {
+  opacity: 0.9;
+  filter: saturate(0.86) brightness(0.95);
+}
+
+.assistant-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.assistant-toolbar-search {
+  position: relative;
+  flex: 1 1 14rem;
+  min-width: 10rem;
+  max-width: 22rem;
+}
+
+.assistant-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.assistant-panel {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-panel);
+  background: hsl(var(--card));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.03);
+}
+
+.assistant-panel-subtle {
+  border-color: hsl(var(--border) / 0.8);
+  background: hsl(var(--secondary) / 0.55);
+  box-shadow: none;
+}
+
+.assistant-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.8);
+}
+
+.assistant-section-title {
+  margin: 0;
+  color: hsl(var(--foreground) / 0.9);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.assistant-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.375rem;
+  padding-inline: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-pill);
+  background: hsl(var(--secondary));
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.assistant-status-chip[data-tone="primary"] {
+  border-color: hsl(var(--primary) / 0.22);
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--accent-foreground));
+}
+
+.assistant-status-chip[data-tone="success"] {
+  border-color: hsl(152 42% 82%);
+  background: hsl(152 48% 95%);
+  color: hsl(158 52% 26%);
+}
+
+.assistant-status-chip[data-tone="warn"] {
+  border-color: hsl(34 74% 82%);
+  background: hsl(36 82% 95%);
+  color: hsl(28 62% 30%);
+}
+
+.assistant-status-chip[data-tone="danger"] {
+  border-color: hsl(var(--destructive) / 0.24);
+  background: hsl(var(--destructive) / 0.08);
+  color: hsl(var(--destructive));
+}
+
+.dark .assistant-status-chip[data-tone="success"] {
+  border-color: hsl(152 30% 30%);
+  background: hsl(152 32% 16%);
+  color: hsl(150 46% 74%);
+}
+
+.dark .assistant-status-chip[data-tone="warn"] {
+  border-color: hsl(34 40% 30%);
+  background: hsl(34 36% 16%);
+  color: hsl(34 62% 76%);
+}
+
+.assistant-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1.5rem;
+  border: 1px dashed hsl(var(--border));
+  border-radius: var(--radius-panel);
+  background: hsl(var(--secondary) / 0.4);
+  text-align: center;
+}
+
+/* The assistant landing keeps a single small mascot; it sits beside the copy,
+   never behind it, so the first prompt stays the loudest element. */
+/* The landing is split across the composer: intro above it, shortcuts and resume
+   rows below. Both halves share one column so the composer lands on the same axis. */
+.thread-welcome,
+.thread-welcome-intro-block,
+.thread-welcome-extras-block {
+  width: 100%;
+  max-width: var(--hero-composer-max-w);
+  min-width: 0;
+  margin-inline: auto;
   text-align: left;
+}
+
+.thread-welcome,
+.thread-welcome-intro-block {
   animation: workspace-arrive 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.thread-welcome {
+  padding-top: clamp(1.15rem, 3vh, 2.5rem);
+}
+
+.thread-welcome-intro-block {
+  padding-top: clamp(0.5rem, 2.2vh, 1.75rem);
+}
+
+/* Bottom-aligned copy against the mascot: the greeting stays the loudest element
+   while the illustration hangs slightly below the baseline, as in the demo. */
 .thread-welcome-intro {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 190px;
-  align-items: start;
-  gap: 1.5rem;
-  padding-bottom: 2.5rem;
+  display: flex;
+  min-height: 11rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .thread-welcome-copy {
   min-width: 0;
-  padding-top: 0.75rem;
+  flex: 1;
+  padding-bottom: 1.9rem;
+  padding-top: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .thread-welcome-eyebrow {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-  margin-bottom: 1.5rem;
-  color: hsl(var(--primary));
-  font-size: 10px;
-  line-height: 1.5;
-  font-weight: 650;
-  letter-spacing: 0.13em;
+  gap: 0.44rem;
+  margin-bottom: 1rem;
+  color: hsl(var(--tone-violet));
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 500;
+  letter-spacing: 0.055em;
+}
+
+.thread-welcome-eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--tone-violet));
+  box-shadow: 0 0 0 4px hsl(var(--tone-violet) / 0.14);
 }
 
 .thread-welcome-title {
-  max-width: 580px;
-  white-space: normal;
+  margin: 0 0 0.68rem;
+  max-width: 40rem;
   text-wrap: balance;
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 3.8vw, 3.25rem);
-  font-weight: 400;
-  line-height: 1.18;
-  letter-spacing: -0.05em;
-  color: hsl(var(--foreground));
+  font-family: var(--font-ui);
+  font-size: clamp(1.5rem, 2.2vw + 1.1rem, 1.875rem);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.04em;
+  color: hsl(var(--text-display));
 }
 
 .thread-welcome-description {
-  max-width: 27rem;
-  margin-top: 1.1rem;
-  color: hsl(var(--muted-foreground));
-  font-size: 13px;
-  line-height: 1.9;
+  max-width: 30rem;
+  margin: 0;
+  color: hsl(var(--text-body));
+  font-size: 12.5px;
+  line-height: 1.8;
 }
 
 .thread-welcome-illustration {
   position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 0;
-  padding-top: 0.5rem;
+  width: 11.625rem;
+  flex-shrink: 0;
+  align-items: flex-end;
+  justify-content: center;
+  margin-bottom: -0.9rem;
+  pointer-events: none;
+  z-index: 3;
 }
 
 .thread-welcome-illustration > img {
   position: relative;
-  width: 190px;
-  height: 165px;
+  width: 11.875rem;
+  max-width: calc(100% + 1.25rem);
+  height: auto;
   object-fit: contain;
-  opacity: 0.9;
 }
 
-.thread-welcome-orbit {
+.thread-welcome-halo {
   position: absolute;
-  inset: -0.25rem -0.75rem 0;
+  right: 0.55rem;
+  bottom: 0.5rem;
+  width: 8.75rem;
+  height: 8.75rem;
   border-radius: 50%;
-  background: radial-gradient(ellipse, hsl(var(--primary) / 0.08), transparent 68%);
-}
-
-.thread-welcome-caption {
-  position: relative;
-  margin-top: 1rem;
-  color: hsl(var(--muted-foreground) / 0.8);
-  font-size: 9px;
-  line-height: 1.5;
+  background: radial-gradient(circle at 62% 58%, hsl(var(--primary) / 0.12), transparent 70%);
 }
 
 .dark .thread-welcome-illustration > img {
-  opacity: 0.78;
-  filter: brightness(0.9) saturate(0.7);
+  opacity: 0.9;
+  filter: saturate(0.86) brightness(0.95);
 }
 
-.thread-welcome-starts {
-  padding-top: 1.2rem;
-  border-top: 1px solid hsl(var(--border));
+.thread-welcome-starters {
+  margin-top: 1.5rem;
 }
 
-.thread-welcome-starts-label {
+.thread-welcome-starters-label {
   margin-bottom: 0.7rem;
   color: hsl(var(--muted-foreground));
-  font-size: 9px;
+  font-size: 11.5px;
   line-height: 1.5;
-  font-weight: 550;
-  letter-spacing: 0.1em;
+  font-weight: 400;
 }
 
-.thread-welcome-prompt-list {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.75rem;
-}
-
-.thread-welcome-prompt {
+.thread-welcome-chips {
   display: flex;
-  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.thread-welcome-chip {
+  display: inline-flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.8rem 0 1rem;
-  border-bottom: 1px solid hsl(var(--border) / 0.65);
-  color: hsl(var(--primary));
+  gap: 0.44rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.625rem;
+  background: hsl(var(--card));
+  color: hsl(var(--text-body));
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease-out,
+    background-color 140ms ease-out,
+    color 140ms ease-out,
+    transform 140ms ease-out;
+}
+
+.thread-welcome-chip > svg {
+  flex-shrink: 0;
+  color: hsl(var(--primary) / 0.82);
+}
+
+.thread-welcome-chip:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--primary) / 0.4);
+  background: hsl(var(--accent) / 0.6);
+  color: hsl(var(--foreground));
+}
+
+.thread-welcome-chip:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.5);
+  outline-offset: 2px;
+}
+
+/* Resume rows carry the same weight as chips: real sessions, real recency. */
+.thread-welcome-recents {
+  margin-top: 1.9rem;
+}
+
+.thread-welcome-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.thread-welcome-section-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  margin: 0;
+  color: hsl(var(--text-strong));
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.thread-welcome-section-heading h2::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: hsl(var(--tone-violet) / 0.8);
+}
+
+.thread-welcome-section-heading > span {
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+}
+
+.thread-welcome-recent-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.thread-welcome-recent-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.75);
+  background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: color 160ms ease-out, border-color 160ms ease-out;
+  transition: background-color 140ms ease-out;
 }
 
-.thread-welcome-prompt:hover {
-  color: hsl(var(--foreground));
-  border-bottom-color: hsl(var(--primary) / 0.55);
+.thread-welcome-recent-row:last-child {
+  border-bottom: none;
 }
 
-.thread-welcome-prompt-number {
-  align-self: flex-start;
-  padding-top: 1px;
-  margin-right: 0.1rem;
-  color: hsl(var(--muted-foreground) / 0.7);
-  font-family: var(--font-display);
-  font-size: 10px;
+.thread-welcome-recent-row:hover {
+  background: hsl(var(--accent) / 0.45);
 }
 
-.thread-welcome-prompt > svg {
+.thread-welcome-recent-row:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.45);
+  outline-offset: -2px;
+}
+
+.thread-welcome-recent-icon {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.95rem;
   flex-shrink: 0;
+  border-radius: 0.5rem;
+  background: hsl(var(--accent));
+  color: hsl(var(--primary));
 }
 
-.thread-welcome-prompt-copy {
-  display: flex;
+.thread-welcome-recent-copy {
+  display: grid;
   min-width: 0;
   flex: 1;
-  flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.15rem;
 }
 
-.thread-welcome-prompt-copy strong {
-  color: hsl(var(--foreground));
-  font-size: 12px;
-  line-height: 1.5;
+.thread-welcome-recent-copy strong {
+  overflow: hidden;
+  color: hsl(var(--text-strong));
+  font-size: 12.5px;
   font-weight: 550;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.thread-welcome-prompt-copy > span {
+.thread-welcome-recent-copy > span {
+  overflow: hidden;
   color: hsl(var(--muted-foreground));
-  font-size: 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-welcome-recent-meta {
+  color: hsl(var(--muted-foreground) / 0.9);
+}
+
+.thread-welcome-recent-detail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-welcome-recent-time {
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+}
+
+.thread-welcome-recent-arrow {
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground) / 0.8);
+}
+
+.thread-welcome-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.44rem;
+  margin-top: 1.9rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
   line-height: 1.6;
 }
 
-.thread-welcome-prompt-arrow {
-  margin-left: 0.25rem;
-  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.thread-welcome-prompt:hover .thread-welcome-prompt-arrow {
-  transform: translate(2px, -2px);
+.thread-welcome-foot-dot {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: hsl(var(--primary) / 0.5);
 }
 
 .agent-preview-welcome-content {
   width: 100%;
-  max-width: 62rem;
+  max-width: 58rem;
   margin-inline: auto;
-  padding: clamp(2.5rem, 6vw, 5.25rem) clamp(1.5rem, 5vw, 5rem) 2rem;
+  padding: clamp(1.75rem, 4vw, 3.25rem) clamp(1.25rem, 4vw, 3rem) 2rem;
 }
 
 .agent-preview-welcome-content .preview-composer-wrap {
-  padding: 2.25rem 0 0;
+  padding: 1.75rem 0 0;
 }
 
 .thread-welcome-footnote {
@@ -1403,34 +1832,63 @@ body,
 }
 
 .agent-thread-shell .thread-layout[data-layout="hero"] {
-  max-width: 62rem;
-  padding: clamp(2.5rem, 6vw, 5.25rem) clamp(1.5rem, 5vw, 5rem) 2rem;
-  grid-template-rows: auto auto minmax(1.5rem, 1fr);
+  max-width: 58rem;
+  padding: clamp(1rem, 3vh, 2.25rem) clamp(1.25rem, 4vw, 3rem) 2rem;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
 }
 
 .agent-thread-shell .thread-layout[data-layout="hero"] > [data-testid="thread-empty-region"] {
   align-items: flex-start;
-  justify-content: flex-start;
-  padding-bottom: 2.25rem;
+  justify-content: center;
+  padding-bottom: 0.9rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] > [data-testid="thread-empty-below"] {
+  align-items: flex-start;
+  justify-content: center;
+  padding-bottom: 0.5rem;
 }
 
 .agent-thread-shell .thread-layout[data-layout="hero"] > [data-testid="thread-composer-dock"] {
   align-self: start;
 }
 
+/* Project / team / environment read as quiet metadata above the composer,
+   matching the demo's single-line "按任务选择项目与模型" hint. */
+[data-testid="composer-context-tabs"] {
+  color: hsl(var(--muted-foreground) / 0.9);
+  font-size: 11.5px;
+}
+
+[data-testid="composer-context-tabs"] button,
+[data-testid="composer-context-tabs"] [role="button"],
+[data-testid="composer-context-tabs"] [role="combobox"] {
+  color: hsl(var(--muted-foreground) / 0.9);
+  font-size: 11.5px;
+}
+
+[data-testid="composer-context-tabs"] svg {
+  opacity: 0.66;
+}
+
 .thread-composer-surface {
   border-color: hsl(var(--border));
-  border-radius: 12px;
-  box-shadow: 0 4px 18px -10px hsl(var(--foreground) / 0.12), 0 1px 2px hsl(var(--foreground) / 0.02);
+  border-radius: 1.3125rem;
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.03), 0 8px 24px -20px hsl(var(--foreground) / 0.28);
+}
+
+/* Hero composer keeps a roomier writing area, closer to the demo's three-line box. */
+.thread-composer-surface.max-w-heroComposer textarea {
+  min-height: 5.25rem;
 }
 
 .thread-composer-surface:focus-within {
-  border-color: hsl(var(--primary) / 0.45);
-  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.035), 0 4px 18px -10px hsl(var(--foreground) / 0.12);
+  border-color: hsl(var(--primary) / 0.42);
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.07);
 }
 
 .agent-thread-header {
-  background: linear-gradient(100deg, hsl(var(--card) / 0.4), transparent);
+  background: hsl(var(--card));
 }
 
 .agent-thread-header h1 {
@@ -1447,37 +1905,86 @@ body,
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Wide screens: the demo artboard is 960px wide, so the compact column would read
+   as a small island on a real desktop. Scale one step up instead of centring a
+   narrow strip in a sea of empty canvas. */
+@media (min-width: 1280px) {
+  .thread-welcome-intro { min-height: 12.5rem; }
+  .thread-welcome-title { font-size: 2.125rem; }
+  .thread-welcome-description { font-size: 13.5px; }
+  .thread-welcome-illustration,
+  .thread-welcome-illustration > img { width: 13rem; }
+  .thread-welcome-halo { width: 9.5rem; height: 9.5rem; }
+  .thread-welcome-chip { padding: 0.56rem 0.8rem; font-size: 12.5px; }
+  .thread-welcome-chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  }
+  .thread-welcome-chip { justify-content: center; }
+  .thread-welcome-section-heading h2 { font-size: 13px; }
+  .thread-welcome-recent-copy strong { font-size: 13px; }
+  .thread-welcome-recent-copy > span { font-size: 12px; }
+  .thread-welcome-recent-row { padding-block: 0.6rem; }
+}
+
 @media (max-width: 1050px) {
-  .thread-welcome-intro {
-    grid-template-columns: minmax(0, 1fr) 145px;
-    gap: 1rem;
-  }
+  .thread-welcome-illustration,
   .thread-welcome-illustration > img {
-    width: 145px;
-    height: 145px;
+    width: 9.25rem;
   }
-  .thread-welcome-caption { display: none; }
+  .thread-welcome-halo {
+    width: 7rem;
+    height: 7rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .assistant-page { padding: 1.35rem 1.25rem 2.5rem; }
+  .assistant-page-illustration { width: 108px; }
+  .assistant-page-illustration[data-size="home"] { width: 140px; }
 }
 
 @media (max-width: 767px) {
   .thread-welcome-intro {
-    grid-template-columns: minmax(0, 1fr);
-    padding-bottom: 2rem;
+    min-height: 9.5rem;
+    gap: 0.6rem;
   }
-  .thread-welcome-illustration { display: none; }
-  .thread-welcome-eyebrow { margin-bottom: 1rem; font-size: 9px; }
-  .thread-welcome-title { font-size: 2.25rem; max-width: 25rem; }
-  .thread-welcome-description { font-size: 12px; margin-top: 1rem; }
-  .thread-welcome-prompt-list { grid-template-columns: 1fr; gap: 0; }
-  .thread-welcome-prompt { padding-block: 0.85rem; }
+  .thread-welcome-copy { padding-bottom: 1.5rem; }
+  .thread-welcome-illustration,
+  .thread-welcome-illustration > img { width: 6.5rem; }
+  .thread-welcome-halo { display: none; }
+  .thread-welcome-title { font-size: 1.5rem; max-width: 100%; white-space: normal; }
+  .thread-welcome-description { font-size: 12px; }
+  .thread-welcome-chips { gap: 0.375rem; }
+  .thread-welcome-chip { padding: 0.44rem 0.56rem; font-size: 11.5px; }
+  .thread-welcome-recents { margin-top: 1.9rem; }
+  .thread-welcome-recent-time { display: none; }
+  .thread-welcome-foot { margin-top: 1.75rem; }
+  .assistant-page { padding: 1.15rem 0.9375rem 2rem; }
+  .assistant-page-header { gap: 0.75rem; padding-bottom: 0.875rem; }
+  .assistant-page-illustration { width: 88px; }
+  .assistant-page-illustration[data-size="home"] { width: 100px; }
+  .assistant-toolbar-search { max-width: none; }
   .agent-preview-welcome-content,
   .agent-thread-shell .thread-layout[data-layout="hero"] {
-    padding: 2.75rem 1.25rem 1.5rem;
+    padding: 2.25rem 1.1rem 1.5rem;
   }
   .agent-preview-welcome-content .preview-composer-wrap { padding-top: 1.75rem; }
 }
 
+@media (max-width: 560px) {
+  .thread-welcome-illustration { display: none; }
+  .thread-welcome-chips {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .thread-welcome-chip { justify-content: center; min-width: 0; }
+  .assistant-page-illustration { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .thread-welcome { animation: none; }
-  .thread-welcome-prompt-arrow { transition: none; }
+  .thread-welcome-chip,
+  .thread-welcome-recent-row { transition: none; }
+  .thread-welcome-chip:hover { transform: none; }
 }

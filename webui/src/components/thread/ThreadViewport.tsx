@@ -43,6 +43,9 @@ interface ThreadViewportProps {
   retryStatus?: RetryStatus | null;
   composer?: ReactNode;
   emptyState?: ReactNode;
+  /** Rendered below the hero composer — the demo keeps shortcuts and resume rows
+   *  under the input rather than above it. */
+  emptyStateBelow?: ReactNode;
   scrollToBottomSignal?: number;
   activeTurnId?: string | null;
   activeTurnStartedHere?: boolean;
@@ -227,6 +230,7 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
   retryStatus = null,
   composer,
   emptyState,
+  emptyStateBelow,
   scrollToBottomSignal = 0,
   activeTurnId = null,
   activeTurnStartedHere = false,
@@ -911,6 +915,15 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
             </div>
           )}
 
+          {!hasMessages && emptyStateBelow ? (
+            <div
+              data-testid="thread-empty-below"
+              className="row-start-3 flex min-h-0 w-full min-w-0 justify-center"
+            >
+              {emptyStateBelow}
+            </div>
+          ) : null}
+
           {hasComposer ? (
             <div
               ref={composerDockRef}
@@ -959,7 +972,10 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
           {hasComposer ? (
             <div
               aria-hidden
-              className="thread-layout-spacer row-start-3 min-h-0 overflow-hidden"
+              className={cn(
+                "thread-layout-spacer min-h-0 overflow-hidden",
+                emptyStateBelow && !hasMessages ? "row-start-4" : "row-start-3",
+              )}
             />
           ) : null}
         </div>

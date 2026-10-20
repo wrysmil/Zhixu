@@ -2781,12 +2781,12 @@ export function ThreadComposer({
               }
               onClick={showStopButton ? handleStop : modelNeedsSetup ? onModelBadgeClick : undefined}
               className={cn(
-                "thread-composer-action touch-target rounded-full transition-transform",
+                "thread-composer-action touch-target rounded-full transition-transform duration-150 ease-out",
                 showStopButton
                   ? "border border-border/70 bg-card text-foreground/85 shadow-[0_3px_10px_rgba(15,23,42,0.08)] hover:bg-muted/65 hover:text-foreground disabled:text-muted-foreground/50"
                   : isHero
-                    ? "border border-foreground bg-foreground text-background shadow-[0_4px_12px_rgba(15,23,42,0.20)] hover:bg-foreground/90 disabled:border-foreground disabled:bg-foreground disabled:text-background"
-                    : "border border-foreground bg-foreground text-background shadow-[0_3px_10px_rgba(15,23,42,0.18)] hover:bg-foreground/90 disabled:border-foreground disabled:bg-foreground disabled:text-background",
+                    ? "border border-primary bg-primary text-primary-foreground shadow-[0_4px_12px_hsl(var(--primary)/0.24)] hover:bg-primary/90 disabled:border-primary disabled:bg-primary disabled:text-primary-foreground"
+                    : "border border-primary bg-primary text-primary-foreground shadow-[0_3px_10px_hsl(var(--primary)/0.22)] hover:bg-primary/90 disabled:border-primary disabled:bg-primary disabled:text-primary-foreground",
                 isHero ? "h-8 w-8" : "h-9 w-9",
                 (canSend || canOpenModelSettings || showStopButton) && "hover:scale-[1.03] active:scale-95",
               )}

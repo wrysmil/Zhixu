@@ -247,26 +247,24 @@ export function AppsCatalogSettings({
   return (
     <div className="space-y-7">
       <div role="status" className="sr-only">{oauthStatusAnnouncement}</div>
-      <section className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder={tx("settings.apps.searchPlaceholder", "Search Apps")}
-              className={cn(
-                "h-12 pl-11 text-[15px]",
-                SETTINGS_SEARCH_INPUT_CLASS,
-              )}
-            />
-          </div>
-          <SegmentedControl
-            value={filter}
-            options={filterOptions}
-            onChange={(value) => onFilterChange(value as AppsKindFilter)}
+      <section className="assistant-toolbar">
+        <div className="assistant-toolbar-search">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder={tx("settings.apps.searchPlaceholder", "Search Apps")}
+            className={cn(
+              "h-10 pl-10 text-[13px]",
+              SETTINGS_SEARCH_INPUT_CLASS,
+            )}
           />
         </div>
+        <SegmentedControl
+          value={filter}
+          options={filterOptions}
+          onChange={(value) => onFilterChange(value as AppsKindFilter)}
+        />
       </section>
 
       {statusMessage ? (
@@ -289,16 +287,14 @@ export function AppsCatalogSettings({
         />
       ) : null}
 
-      <section className="rounded-panel bg-settings-surface px-3 py-3 sm:px-4">
-        <div className="flex items-center justify-between border-b border-border/45 pb-3">
+      <section className="assistant-panel px-3 py-3 sm:px-4">
+        <div className="flex items-center justify-between border-b border-border/60 pb-3">
           <SettingsSectionTitle>
             {filter === "mcp"
               ? tx("settings.apps.mcpTools", "MCP tools")
               : tx("settings.apps.featured", "Tools")}
           </SettingsSectionTitle>
-          <span className="rounded-full bg-muted px-2.5 py-1 text-[12px] font-medium text-muted-foreground">
-            {items.length}
-          </span>
+          <span className="assistant-status-chip">{items.length}</span>
         </div>
         {loading ? (
           <div className="flex h-36 items-center justify-center text-sm text-muted-foreground">
@@ -342,8 +338,8 @@ export function AppsCatalogSettings({
             )}
           </div>
         ) : (
-          <div className="px-3 py-12 text-center text-sm text-muted-foreground">
-            <p>{emptyTitle}</p>
+          <div className="assistant-empty my-3 mx-1">
+            <p className="text-sm text-muted-foreground">{emptyTitle}</p>
             {normalizedQuery ? (
               <Button
                 type="button"

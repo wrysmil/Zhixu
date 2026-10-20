@@ -21,14 +21,12 @@ function renderNav(overrides: Partial<WorkspaceNavigationProps> = {}) {
   };
 }
 
-const RAIL_ITEMS = ["Assistant", "Creative", "More", "Settings"];
+const RAIL_ITEMS = ["Assistant", "Creative", "Agents", "Memory", "More", "Settings"];
 const GROUPED_ITEMS = [
   "Apps",
   "Skills",
   "Automations",
-  "Agents",
   "Teams",
-  "Memory",
   "Identity",
 ];
 
@@ -72,9 +70,7 @@ describe("WorkspaceNavigation", () => {
   });
 
   it.each([
-    ["Agents", "agents"],
     ["Teams", "teams"],
-    ["Memory", "memory"],
     ["Identity", "identity"],
     ["Apps", "apps"],
     ["Skills", "skills"],
@@ -99,7 +95,7 @@ describe("WorkspaceNavigation", () => {
     ).not.toHaveAttribute("aria-current");
   });
 
-  it.each(["memory", "identity", "teams", "apps", "skills", "automations", "agents"] as const)(
+  it.each(["identity", "teams", "apps", "skills", "automations"] as const)(
     "marks More as current on the %s view and the entry inside the menu",
     (activeView) => {
       renderNav({ activeView });
@@ -109,13 +105,11 @@ describe("WorkspaceNavigation", () => {
       openMore();
       const menu = screen.getByRole("dialog");
       const label = {
-        memory: "Memory",
         identity: "Identity",
         teams: "Teams",
         apps: "Apps",
         skills: "Skills",
         automations: "Automations",
-        agents: "Agents",
       }[activeView];
       expect(within(menu).getByRole("button", { name: label })).toHaveAttribute(
         "aria-current",
@@ -123,6 +117,19 @@ describe("WorkspaceNavigation", () => {
       );
     },
   );
+
+  it.each([
+    ["Agents", "agents"],
+    ["Memory", "memory"],
+  ] as const)("keeps core capability %s visible on the rail", (label, activeView) => {
+    const { onNavigate } = renderNav({ activeView });
+    const item = screen.getByRole("button", { name: label });
+    expect(item).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "More" })).not.toHaveAttribute("aria-current");
+
+    fireEvent.click(item);
+    expect(onNavigate).toHaveBeenCalledWith({ view: activeView });
+  });
 
   it("marks Settings as current for the settings view", () => {
     renderNav({ activeView: "settings" });

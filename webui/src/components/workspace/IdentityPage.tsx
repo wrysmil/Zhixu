@@ -27,6 +27,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { formControlFocusClassName } from "@/components/ui/form-control";
+import { PageHeading } from "@/components/workspace/PageHeading";
 import {
   fetchIdentityFile,
   getActivePersona,
@@ -58,8 +59,8 @@ import {
 interface PersonaCardSpec {
   presetKey: string;
   icon: LucideIcon;
-  /** Marker color used for the persona card swatch. Avoid purple — use the
-   *  project's sage/forest/amber/terracotta palette only. */
+  /** Marker color used for the persona card swatch. Kept to soft blue/neutral
+   *  tints with at most one warm accent so the page stays a calm workbench. */
   toneClass: string;
   fallbackLabel: string;
   fallbackTagline: string;
@@ -71,7 +72,7 @@ const PERSONA_CARDS: PersonaCardSpec[] = [
   {
     presetKey: "balanced",
     icon: Compass,
-    toneClass: "from-emerald-100/80 via-emerald-50 to-amber-50/70 text-emerald-900",
+    toneClass: "from-primary/[0.1] via-primary/[0.04] to-secondary text-foreground",
     fallbackLabel: "Balanced",
     fallbackTagline: "Act → explain briefly → ask only when needed.",
     fallbackTraits: ["先做再说", "短而准", "不装懂"],
@@ -80,7 +81,7 @@ const PERSONA_CARDS: PersonaCardSpec[] = [
   {
     presetKey: "mentor",
     icon: ShieldCheck,
-    toneClass: "from-amber-100/80 via-amber-50 to-stone-100/70 text-amber-900",
+    toneClass: "from-amber-50/70 via-secondary to-card text-foreground",
     fallbackLabel: "Mentor",
     fallbackTagline: "Ask how you think first; correct mistakes directly.",
     fallbackTraits: ["先问你思路", "结论带依据", "错了直说"],
@@ -89,7 +90,7 @@ const PERSONA_CARDS: PersonaCardSpec[] = [
   {
     presetKey: "creative",
     icon: Feather,
-    toneClass: "from-rose-100/70 via-amber-50 to-emerald-50/70 text-rose-900",
+    toneClass: "from-rose-50/60 via-secondary to-card text-foreground",
     fallbackLabel: "Creative partner",
     fallbackTagline: "Three directions first; keep your voice in the final cut.",
     fallbackTraits: ["先给三个方向", "保留你的原味", "鼓励试错"],
@@ -98,7 +99,7 @@ const PERSONA_CARDS: PersonaCardSpec[] = [
   {
     presetKey: "companion",
     icon: Heart,
-    toneClass: "from-amber-50 via-rose-50 to-emerald-50/60 text-rose-900",
+    toneClass: "from-rose-50/50 via-secondary to-card text-foreground",
     fallbackLabel: "Companion",
     fallbackTagline: "Friend, not support desk. Empathise before offering solutions.",
     fallbackTraits: ["像朋友", "先共情", "再给方案"],
@@ -107,7 +108,7 @@ const PERSONA_CARDS: PersonaCardSpec[] = [
   {
     presetKey: "tech_expert",
     icon: FlaskConical,
-    toneClass: "from-stone-100/80 via-emerald-50 to-stone-50/70 text-stone-900",
+    toneClass: "from-slate-100/70 via-secondary to-card text-foreground",
     fallbackLabel: "Tech expert",
     fallbackTagline: "No diluted jargon. Version-scoped. Evidence over vibes.",
     fallbackTraits: ["术语不稀释", "带版本前提", "以测试为准"],
@@ -260,8 +261,8 @@ function PersonaGallery({
               "disabled:cursor-default disabled:opacity-90",
               spec.toneClass,
               isActive
-                ? "border-primary/60 shadow-[0_18px_45px_-25px_rgba(71,119,91,0.55)]"
-                : "border-border/70 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_18px_45px_-25px_rgba(71,119,91,0.35)]",
+                ? "border-primary/45 shadow-[0_14px_36px_-28px_hsl(var(--primary)/0.5)]"
+                : "border-border hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_14px_36px_-30px_hsl(var(--primary)/0.35)]",
               offsetClass,
             )}
           >
@@ -338,8 +339,8 @@ function TonePicker({
               "flex flex-col items-start gap-1 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 ease-out",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               active
-                ? "border-primary/55 bg-primary/[0.08] text-foreground shadow-[0_12px_28px_-18px_rgba(71,119,91,0.45)]"
-                : "border-border/70 bg-background/60 text-foreground/80 hover:border-primary/35 hover:bg-primary/[0.04]",
+                ? "border-primary/45 bg-primary/[0.07] text-foreground shadow-[0_10px_24px_-20px_hsl(var(--primary)/0.45)]"
+                : "border-border bg-card text-foreground/80 hover:border-primary/30 hover:bg-primary/[0.04]",
             )}
           >
             <span className="flex items-center gap-1.5 text-[13px] font-semibold">
@@ -439,23 +440,7 @@ function LivePreview({
   const sampleLine = card.fallbackSample;
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-background/70 p-5 shadow-[0_30px_80px_-50px_rgba(29,42,35,0.35)]">
-      <span
-        className="absolute inset-0 -z-10 opacity-70"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 18% 18%, hsl(154 30% 80% / 0.55), transparent 55%), radial-gradient(circle at 82% 78%, hsl(40 50% 85% / 0.45), transparent 60%)",
-        }}
-        aria-hidden
-      />
-      <span
-        className="absolute inset-0 -z-10 opacity-[0.18] mix-blend-multiply"
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.10 0 0 0 0 0.14 0 0 0 0 0.12 0 0 0 0.40 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
-        }}
-        aria-hidden
-      />
+    <div className="relative overflow-hidden rounded-panel border border-border bg-card p-5 shadow-[0_10px_30px_-26px_hsl(var(--foreground)/0.4)]">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-foreground shadow-sm", card.toneClass)}>
@@ -741,29 +726,13 @@ export function IdentityPage() {
   }, [client, token]);
 
   return (
-    <div className="mx-auto w-full max-w-[1180px] px-4 py-8 sm:px-8 lg:px-10 2xl:max-w-[1400px]">
-      <header className="grid grid-cols-1 items-end gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="space-y-2">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-primary/85">
-            {t("settings.identity.page.hero.eyebrow")}
-          </p>
-          <h1 className="text-[28px] font-semibold leading-tight text-foreground sm:text-[32px]">
-            {t("settings.identity.page.hero.title")}
-          </h1>
-          <p className="max-w-[720px] text-[13.5px] leading-relaxed text-muted-foreground">
-            {t("settings.identity.page.hero.subtitle")}
-          </p>
-        </div>
-        <div className="hidden justify-self-end lg:block">
-          <img
-            src="/illustrations/identity-hero.svg"
-            alt=""
-            aria-hidden
-            className="h-[120px] w-auto select-none 2xl:h-[148px]"
-            draggable={false}
-          />
-        </div>
-      </header>
+    <div className="assistant-page">
+      <PageHeading
+        kicker={t("settings.identity.page.hero.eyebrow")}
+        title={t("settings.identity.page.hero.title")}
+        description={t("settings.identity.page.hero.subtitle")}
+        illustration={{ src: "/illustrations/zhixu-mascot.webp", size: "compact" }}
+      />
 
       {loadError ? (
         <div

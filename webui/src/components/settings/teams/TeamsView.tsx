@@ -183,15 +183,15 @@ export function TeamsView() {
   return (
     <div className="teams-surface space-y-4">
       <div className="teams-toolbar">
-        <div className="teams-heading"><TeamStructureIcon className="teams-heading-icon" /><div><p className="teams-kicker">{t("settings.teams.workspaceEyebrow", "Agent teams")}</p><p className="teams-toolbar-title">{t("settings.teams.myTeams", "我的团队")}<span className="teams-count">{visible.length.toString().padStart(2, "0")}</span></p>{teams.length > 0 ? <p className="teams-toolbar-subtitle">{t("settings.teams.workspaceSubtitle", "把各有所长的 Agent 编成一支团队：队长拆解目标并分派任务，成员各自执行。适合需要多步协作的事。")}</p> : null}</div></div>
-        <div className="relative min-w-[10rem] flex-1 sm:max-w-[16rem]">
+        <div className="teams-heading"><TeamStructureIcon className="teams-heading-icon" /><div><p className="teams-toolbar-title">{t("settings.teams.myTeams", "我的团队")}<span className="teams-count">{visible.length.toString().padStart(2, "0")}</span></p></div></div>
+        <div className="assistant-toolbar-search">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("settings.teams.search", "搜索团队")}
             aria-label={t("settings.teams.search", "搜索团队")}
-            className="pl-8"
+            className="h-9 pl-8 text-[13px]"
           />
         </div>
         {archivedCount > 0 ? (

@@ -682,7 +682,7 @@ export const ChatList = memo(function ChatList({
             onClose={onCloseTemporaryChat}
           />
         ) : null}
-        <div className="group/projects flex items-center gap-1 px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
+        <div className="sidebar-group-label group/projects flex items-center gap-1 px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
           <button
             type="button"
             aria-expanded={!projectsSectionCollapsed}
@@ -1902,7 +1902,7 @@ function ProjectGroupHeader({
 
 function ChatsGroupHeader({ label }: { label: string }) {
   return (
-    <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
+    <div className="sidebar-group-label px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
       {label}
     </div>
   );

@@ -77,8 +77,8 @@ export function AgentCard({
       // 不必关心当前是卡片还是列表视图。
       role="group"
       className={cn(
-        "group flex flex-col rounded-panel border border-border/50 bg-settings-surface p-4 transition-all duration-200",
-        "hover:border-border hover:shadow-md hover:-translate-y-0.5",
+        "group flex flex-col rounded-panel border border-border bg-card p-4 transition-[border-color,box-shadow] duration-200 ease-out",
+        "hover:border-primary/30 hover:shadow-sm",
         isDefault && "border-amber-300/70 bg-amber-50/45 ring-1 ring-amber-300/50 hover:border-amber-400/70 dark:border-amber-700/40 dark:bg-amber-950/15 dark:ring-amber-700/40",
         dimmed && "opacity-60",
       )}

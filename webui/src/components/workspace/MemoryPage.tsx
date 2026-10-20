@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { PageHeading } from "@/components/workspace/PageHeading";
 import { MemorySection } from "@/components/settings/memory/MemorySection";
 import type { SettingsPayload } from "@/lib/types";
 
@@ -29,28 +30,25 @@ export function MemoryPage({
   if (!hydrated) return null;
 
   return (
-    <div className="mx-auto w-full max-w-[1080px] px-4 py-8 sm:px-8 lg:px-10">
-      <header className="mb-6 flex flex-col gap-2">
-        <p className="text-[13px] font-medium text-primary">
-          {t("settings.memory.pageEyebrow", { defaultValue: "Memory center" })}
-        </p>
-        <h1 className="text-[26px] font-semibold leading-tight text-foreground">
-          {t("settings.nav.memory", { defaultValue: "Memory" })}
-        </h1>
-        <p className="max-w-[640px] text-sm text-muted-foreground">
-          {t("settings.memory.pageSubtitle", {
-            defaultValue:
-              "Long-term facts and conversation excerpts the agent keeps across sessions. Toggle automatic extraction here, or just browse and curate what's already there.",
-          })}
-        </p>
-      </header>
-      <MemorySection
-        settings={payload}
-        onSettingsChange={(next) => {
-          setPayload(next);
-          onSettingsChange(next);
-        }}
+    <div className="assistant-page">
+      <PageHeading
+        kicker={t("settings.memory.pageEyebrow", { defaultValue: "Memory center" })}
+        title={t("settings.nav.memory", { defaultValue: "Memory" })}
+        description={t("settings.memory.pageSubtitle", {
+          defaultValue:
+            "Long-term facts and conversation excerpts the agent keeps across sessions. Toggle automatic extraction here, or just browse and curate what's already there.",
+        })}
+        illustration={{ src: "/illustrations/zhixu-toolbox.webp", size: "compact" }}
       />
+      <div className="mt-5">
+        <MemorySection
+          settings={payload}
+          onSettingsChange={(next) => {
+            setPayload(next);
+            onSettingsChange(next);
+          }}
+        />
+      </div>
     </div>
   );
 }

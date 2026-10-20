@@ -231,8 +231,8 @@ export function AgentsView() {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[14rem] flex-1">
+      <div className="assistant-toolbar">
+        <div className="assistant-toolbar-search">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
             aria-hidden
@@ -319,7 +319,7 @@ export function AgentsView() {
           {t("settings.agents.loading", "加载中…")}
         </div>
       ) : !loadError && catalog && filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-panel border border-dashed border-border px-6 py-14 text-center">
+        <div className="assistant-empty">
           <UserPlus className="h-7 w-7 text-muted-foreground/60" aria-hidden />
           <p className="text-[13px] text-muted-foreground">
             {filtersActive
@@ -384,7 +384,7 @@ export function AgentsView() {
       ) : null}
 
       {hiddenAgents.length > 0 && catalog && !loadError ? (
-        <details className="rounded-panel bg-settings-surface px-4 py-3">
+        <details className="assistant-panel px-4 py-3">
           <summary className="cursor-pointer text-[12px] text-muted-foreground">
             {t("settings.agents.hiddenGroup", "已隐藏的智能体（{{count}}）", {
               count: hiddenAgents.length,

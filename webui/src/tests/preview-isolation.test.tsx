@@ -58,10 +58,9 @@ describe("PreviewApp isolation", () => {
     render(<PreviewApp />);
     fireEvent.click(screen.getByRole("button", { name: "Switch to dark theme" }));
     expect(document.documentElement).toHaveClass("dark");
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
-    fireEvent.click(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "Memory" }),
-    );
+    // Memory moved from the More popover to the primary rail; the point of this
+    // test is that navigation never touches the transports, not where it lives.
+    fireEvent.click(screen.getByRole("button", { name: "Memory" }));
     expect(document.documentElement).toHaveClass("dark");
     fireEvent.click(screen.getByRole("button", { name: "Switch to light theme" }));
     expect(document.documentElement).not.toHaveClass("dark");

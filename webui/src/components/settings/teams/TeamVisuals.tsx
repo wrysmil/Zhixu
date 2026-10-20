@@ -54,7 +54,7 @@ export function AgentAvatar({ id, name, className }: { id: string; name: string;
   );
 }
 
-export const teamIllustration = `${import.meta.env.BASE_URL}illustrations/agent-team-assembly.png`;
+export const teamIllustration = `${import.meta.env.BASE_URL}illustrations/zhixu-team.webp`;
 
 export function CompletionStep({ index, complete, children }: { index: number; complete: boolean; children: ReactNode }) {
   return (

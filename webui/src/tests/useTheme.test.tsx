@@ -17,11 +17,11 @@ describe("appearance controller", () => {
     meta.name = "theme-color";
     document.head.append(meta);
     const { result } = renderHook(() => useTheme({ persist: false }));
-    expect(meta.content).toBe("#F8F6F2");
+    expect(meta.content).toBe("#FFFFFF");
     act(() => result.current.setColor("background", "#123456"));
     expect(meta.content).toBe("#123456");
     act(() => result.current.setTheme("dark"));
-    expect(meta.content).toBe("#161D1A");
+    expect(meta.content).toBe("#111621");
     meta.remove();
   });
 

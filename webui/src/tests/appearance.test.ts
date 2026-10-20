@@ -23,16 +23,44 @@ describe("appearance model", () => {
   });
 
   it("preserves default Zhixu tokens exactly and supplies complete preset palettes", () => {
-    expect(resolveAppearance(DEFAULT_APPEARANCE, "light")["--background"]).toBe("42 32% 96%");
-    expect(resolveAppearance(DEFAULT_APPEARANCE, "light")["--primary"]).toBe("154 29% 29%");
-    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--background"]).toBe("153 13% 10%");
-    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--primary"]).toBe("143 26% 66%");
+    expect(resolveAppearance(DEFAULT_APPEARANCE, "light")["--background"]).toBe("0 0% 100%");
+    expect(resolveAppearance(DEFAULT_APPEARANCE, "light")["--primary"]).toBe("221 58% 44%");
+    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--background"]).toBe("220 24% 8%");
+    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--primary"]).toBe("217 70% 70%");
     expect(THEME_PRESETS).toHaveLength(4);
     for (const preset of THEME_PRESETS) {
       for (const theme of ["light", "dark"] as const) {
         for (const color of Object.values(preset[theme])) expect(normalizeHex(color)).toBe(color);
       }
     }
+  });
+
+  it("keeps the selected-navigation pair readable for a white accent", () => {
+    const preferences = normalizeAppearance({
+      ...DEFAULT_APPEARANCE,
+      presetId: "custom",
+      custom: {
+        basePreset: "zhixu",
+        light: { accent: "#FFFFFF", background: "#FFFFFF", foreground: "#202B3C" },
+        dark: {},
+      },
+    });
+    const tokens = resolveAppearance(preferences, "light");
+    const toHex = (token: string) => {
+      const [h, s, l] = token.split(" ").map((part) => parseFloat(part));
+      const a = (s / 100) * Math.min(l / 100, 1 - l / 100);
+      const channel = (n: number) => {
+        const k = (n + h / 30) % 12;
+        const value = (l / 100) - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+        return Math.round(value * 255).toString(16).padStart(2, "0");
+      };
+      return `#${channel(0)}${channel(8)}${channel(4)}`.toUpperCase();
+    };
+    const navBackground = toHex(tokens["--nav-active-bg"]);
+    const navForeground = toHex(tokens["--nav-active-fg"]);
+    expect(contrastRatio(navBackground, navForeground)).toBeGreaterThanOrEqual(4.5);
+    expect(navForeground).not.toBe("#FFFFFF");
+    expect(contrastRatio(toHex(tokens["--accent"]), toHex(tokens["--accent-foreground"]))).toBeGreaterThanOrEqual(4.5);
   });
 
   it("applies only current-mode overrides and keeps backgrounds and foregrounds exact", () => {

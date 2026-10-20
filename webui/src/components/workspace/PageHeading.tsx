@@ -2,31 +2,51 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
+export interface PageHeadingIllustration {
+  src: string;
+  /** Home keeps the largest mascot; capability pages stay compact. */
+  size?: "compact" | "default" | "home";
+}
+
 interface PageHeadingProps {
+  kicker?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
+  illustration?: PageHeadingIllustration;
   className?: string;
 }
 
-/** Shared page-level heading: 28–32px title, supporting copy, action row. */
-export function PageHeading({ title, description, actions, className }: PageHeadingProps) {
+/**
+ * Shared page header for the assistant workbench pages: kicker, sans heading,
+ * supporting copy, an optional action row and a small decorative illustration.
+ * The illustration is decorative only — it never carries page copy.
+ */
+export function PageHeading({
+  kicker,
+  title,
+  description,
+  actions,
+  illustration,
+  className,
+}: PageHeadingProps) {
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pb-1",
-        className,
-      )}
-    >
-      <div className="min-w-0">
-        <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-foreground">
-          {title}
-        </h1>
-        {description ? (
-          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{description}</p>
-        ) : null}
+    <header className={cn("assistant-page-header", className)}>
+      <div className="assistant-page-heading-group">
+        {kicker ? <p className="assistant-page-kicker">{kicker}</p> : null}
+        <h1 className="assistant-page-heading">{title}</h1>
+        {description ? <p className="assistant-page-description">{description}</p> : null}
+        {actions ? <div className="assistant-page-actions">{actions}</div> : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center gap-2 pb-0.5">{actions}</div> : null}
-    </div>
+      {illustration ? (
+        <div
+          className="assistant-page-illustration"
+          data-size={illustration.size ?? "default"}
+          aria-hidden
+        >
+          <img src={illustration.src} alt="" width={176} height={150} draggable={false} />
+        </div>
+      ) : null}
+    </header>
   );
 }

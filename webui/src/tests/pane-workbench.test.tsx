@@ -414,16 +414,18 @@ describe("PaneWorkbench", () => {
 
     const { rerender } = render(view());
     const host = screen.getByTestId("workbench-composer-host");
-    expect(host.style.marginRight).toBe("");
+    const footer = host.parentElement as HTMLElement;
+    expect(footer.style.paddingRight).toBe("");
 
     rerender(view("19rem"));
-    expect(host.style.marginRight).toBe("19rem");
-    // 右边距只在宽度不是 100% 时才参与盒宽计算：w-full 会让它变成过约束并被 CSS 丢弃，
-    // 19rem 的让位就失效、rail 压到输入区上（2026-10-17 实测的根因）。
+    // 让位挂在 footer 的 padding 上，宿主宽度才能和消息列共用同一条中线；
+    // 挂在 margin-right 上会让宿主被二次居中、整体右移半个 rail。
+    expect(footer.style.paddingRight).toBe("calc(19rem + 1rem)");
+    expect(host.style.marginRight).toBe("");
     expect(host.className).not.toMatch(/\bw-full\b/);
 
     rerender(view());
-    expect(host.style.marginRight).toBe("");
+    expect(footer.style.paddingRight).toBe("");
   });
 
   it("drops the rail inset while the rail is hidden on narrow viewports", () => {
@@ -453,7 +455,8 @@ describe("PaneWorkbench", () => {
       />,
     );
 
-    expect(screen.getByTestId("workbench-composer-host").style.marginRight).toBe("");
+    const host = screen.getByTestId("workbench-composer-host");
+    expect((host.parentElement as HTMLElement).style.paddingRight).toBe("");
   });
 
   it("fills the workbench through alternating binary splits", () => {

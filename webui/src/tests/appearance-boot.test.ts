@@ -41,12 +41,12 @@ describe("appearance before React startup", () => {
     stored.snapshot.dark["--font-ui"] = 'serif; background: url(https://invalid)';
     localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(stored));
     boot();
-    expect(document.documentElement.style.getPropertyValue("--background")).toBe("42 32% 96%");
+    expect(document.documentElement.style.getPropertyValue("--background")).toBe("0 0% 100%");
     stored.snapshot.dark["--font-ui"] = stored.snapshot.light["--font-ui"];
     stored.mode = "dark";
     localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(stored));
     boot();
-    expect(document.documentElement.style.getPropertyValue("--background")).toBe("153 13% 10%");
+    expect(document.documentElement.style.getPropertyValue("--background")).toBe("220 24% 8%");
   });
 
   it("does not apply arbitrary properties from a snapshot", () => {
@@ -82,7 +82,7 @@ describe("appearance before React startup", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(localStorage.getItem("zhixu-webui.theme")).toBe("dark");
     expect(localStorage.getItem("nanobot-webui.theme")).toBeNull();
-    expect(document.documentElement.style.getPropertyValue("--background")).toBe("153 13% 10%");
+    expect(document.documentElement.style.getPropertyValue("--background")).toBe("220 24% 8%");
   });
 
   it("uses defaults for unknown versions and malformed JSON without overwriting them", () => {

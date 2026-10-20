@@ -7,12 +7,12 @@ export function MemoryGuide({ preview = false }: { preview?: boolean }) {
   const zh = preview || i18n.resolvedLanguage?.startsWith("zh");
 
   return (
-    <div className="flex items-start gap-5 overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.07] via-card/80 to-background px-5 py-5 sm:px-6 sm:py-6">
+    <div className="assistant-panel assistant-panel-subtle flex items-start gap-5 px-5 py-5 sm:px-6 sm:py-6">
       <div className="min-w-0 max-w-[650px] flex-1">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
           {zh ? "与你有关，始终由你掌握" : "Useful context, under your control"}
         </p>
-        <h3 className="font-serif text-[24px] leading-snug tracking-tight text-foreground sm:text-[28px]">
+        <h3 className="text-[18px] font-semibold leading-snug tracking-[-0.01em] text-foreground">
           {zh ? "值得记住的，留在这里。" : "Keep what matters for next time."}
         </h3>
         <p className="mt-2 max-w-[50ch] text-[13px] leading-6 text-muted-foreground">
@@ -20,7 +20,7 @@ export function MemoryGuide({ preview = false }: { preview?: boolean }) {
             ? "少一些重复解释，多一点默契。查看知序记住了什么，也可以随时修改或删除。"
             : "Repeat yourself less. Review what Zhixu remembers, then edit or remove anything that no longer fits."}
         </p>
-        <dl className="mt-5 grid gap-4 text-[12px] leading-5 lg:grid-cols-2">
+        <dl className="mt-4 grid gap-4 text-[12px] leading-5 lg:grid-cols-2">
           <div className="flex items-start gap-2.5">
             <Bookmark className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
             <div>
@@ -37,14 +37,6 @@ export function MemoryGuide({ preview = false }: { preview?: boolean }) {
           </div>
         </dl>
       </div>
-      <img
-        src="/illustrations/memory-notes.svg"
-        alt=""
-        aria-hidden="true"
-        width="160"
-        height="160"
-        className="pointer-events-none mt-3 hidden h-32 w-24 shrink-0 object-contain opacity-80 sm:block lg:h-36 lg:w-28"
-      />
     </div>
   );
 }
