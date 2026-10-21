@@ -2400,6 +2400,28 @@ describe("ThreadComposer", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("colors the @ prefix of composer mentions with the identity color", () => {
+    render(
+      <ThreadComposer
+        onSend={vi.fn()}
+        placeholder="Type your message..."
+        agents={AGENTS}
+      />,
+    );
+
+    const input = screen.getByLabelText("Message input");
+    fireEvent.change(input, {
+      target: { value: "hand off to @commander", selectionStart: 21 },
+    });
+
+    const at = screen.getByTestId("composer-agent-mention-commander")
+      .querySelector("[data-mention-at]");
+    expect(at).not.toBeNull();
+    expect(at!.textContent).toBe("@");
+    expect(at!.className).toContain("opacity-60");
+    expect(at!.className).not.toContain("text-muted-foreground");
+  });
+
   it("uses the shared accent when an installed CLI app has no brand metadata", () => {
     const mention = "@obsidian-agent-cli";
     const app: CliAppInfo = {

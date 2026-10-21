@@ -5,7 +5,6 @@ import {
   INLINE_TOKEN_HIGHLIGHT_COLOR,
   InlineTokenHighlight,
 } from "@/components/InlineTokenHighlight";
-import { AgentGlyph } from "@/components/ui/agent-glyph";
 import { useLogoFallback } from "@/hooks/useLogoFallback";
 import { logoFallbackUrls } from "@/lib/provider-brand";
 import { sessionHandleColor } from "@/lib/session-handle";
@@ -168,7 +167,8 @@ function mentionName(label: string): string {
 }
 
 /**
- * `@` 始终可见（弱化色），名字用身份色。
+ * `@` 跟随身份色（透明度弱化），名字用身份色本色；
+ * 灰色 `@` 夹在彩色标识与彩色名字之间会像误插入的杂字符。
  * composer 变体不能引入任何行内宽度（透明 textarea 的原生光标按自己的排版绘制），
  * 所以身份图标只出现在消息里渲染的胶囊上。
  */
@@ -202,7 +202,7 @@ function MentionToken({
             {glyph}
           </span>
         ) : null}
-        <span className="text-muted-foreground/70">@</span>
+        <span data-mention-at className="opacity-60">@</span>
         <span>{name}</span>
       </span>
     );
@@ -214,7 +214,7 @@ function MentionToken({
       color={color}
       className={MENTION_COMPOSER_CHIP_CLASSES}
     >
-      <span className="text-muted-foreground/70">@</span>
+      <span data-mention-at className="opacity-60">@</span>
       {name}
     </InlineTokenHighlight>
   );
@@ -233,12 +233,10 @@ function AgentMentionToken({
   return (
     <MentionToken
       testId={`${testIdPrefix}-agent-mention-${agent.id}`}
-      badgeTestId={`${testIdPrefix}-agent-mention-glyph-${agent.id}`}
       title={`Agent: ${agent.name}`}
       color={agent.color || INLINE_TOKEN_HIGHLIGHT_COLOR}
       name={mentionName(label)}
       variant={variant}
-      glyph={<AgentGlyph icon={agent.icon} size={MENTION_GLYPH_SIZE} />}
     />
   );
 }

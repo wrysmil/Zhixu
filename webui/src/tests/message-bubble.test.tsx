@@ -693,9 +693,28 @@ describe("MessageBubble", () => {
     expect(token.className).toContain("rounded-full");
     expect(token.getAttribute("style")).toContain("color: #D97706");
     expect(token.querySelector(".text-transparent")).toBeNull();
+    expect(token.querySelector("svg")).toBeNull();
     expect(
-      screen.getByTestId("message-agent-mention-glyph-commander"),
-    ).toBeInTheDocument();
+      screen.queryByTestId("message-agent-mention-glyph-commander"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("colors the @ prefix with the mention identity instead of muted gray", () => {
+    const message: UIMessage = {
+      id: "u-agent-at",
+      role: "user",
+      content: "交给 @commander 处理",
+      createdAt: Date.now(),
+    };
+
+    render(<MessageBubble message={message} agents={AGENTS} />);
+
+    const at = screen.getByTestId("message-agent-mention-commander")
+      .querySelector("[data-mention-at]");
+    expect(at).not.toBeNull();
+    expect(at!.textContent).toBe("@");
+    expect(at!.className).toContain("opacity-60");
+    expect(at!.className).not.toContain("text-muted-foreground");
   });
 
   it("renders persisted session mentions inside sent user messages", () => {
