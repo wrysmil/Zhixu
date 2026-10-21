@@ -954,7 +954,7 @@ function StreamedConversation({
     <aside
       data-testid="writing-chat-panel"
       aria-label={t("creative.chat.title", { defaultValue: "创作团队" })}
-      className="flex h-full min-h-0 w-full flex-col bg-background"
+      className="writing-chat-compact flex h-full min-h-0 w-full flex-col bg-background"
     >
       <header className="shrink-0 border-b border-border px-3 py-2">
         <div className="flex items-center gap-2">
@@ -1093,7 +1093,7 @@ function StreamedConversation({
       >
         {showEmpty ? (
           <div data-testid="writing-chat-empty" className="flex flex-col gap-3">
-            <p className="text-[12.5px] leading-relaxed text-foreground">
+            <p className="text-[12px] leading-relaxed text-foreground">
               {t("creative.chat.welcome", {
                 defaultValue: "我是你的创作主编，可以帮你查资料、搭结构、写正文和改表达。",
               })}
@@ -1331,7 +1331,7 @@ function StreamedConversation({
                 defaultValue: "输入需求，/ 选任务，@ 选成员",
               })}
               aria-label={t("creative.chat.inputLabel", { defaultValue: "创作对话输入框" })}
-              className="block min-h-[64px] w-full resize-none border-none bg-transparent px-2.5 pt-2 text-[12.5px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground"
+              className="block min-h-[64px] w-full resize-none border-none bg-transparent px-2.5 pt-2 text-[12px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground"
             />
             <div className="flex items-center justify-between gap-2 px-2 pb-1.5">
               <div className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">

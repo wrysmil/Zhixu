@@ -805,7 +805,7 @@ export default function MarkdownTextRenderer({
       rehypePlugins={rehypePlugins}
       components={components}
       className={cn(
-        "markdown-content prose max-w-none dark:prose-invert",
+        "markdown-content prose text-[14px] max-w-none dark:prose-invert",
         "prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-headings:tracking-tight",
         "prose-h1:text-lg prose-h2:text-base prose-h3:text-sm prose-h4:text-[13px]",
         "prose-p:my-2",

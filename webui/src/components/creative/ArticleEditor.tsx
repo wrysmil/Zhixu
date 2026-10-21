@@ -106,8 +106,11 @@ interface Props {
   onLeaveRetry?: () => void;
   onLeaveStay?: () => void;
   onLeaveForce?: () => void;
-  /** 右侧真实团队会话：由 `CreativeWorkspace` 构造并注入，编辑器不自己取数。 */
-  writingChat?: ReactNode;
+  /**
+   * 右侧真实团队会话：由 `CreativeWorkspace` 构造并注入，编辑器不自己取数。
+   * 传函数时由编辑器注入收起动作，让窄屏浮层里也有显式关闭入口。
+   */
+  writingChat?: ReactNode | ((controls: { onCollapse: () => void }) => ReactNode);
   /** 划词操作条；只有真实创作入口注入，预览入口不产生写请求。 */
   onSelectionAction?: (selection: WritingSelectionContext, action: WritingSelectionAction) => void;
   /** 团队写入后的对比/撤销条，由容器按文章版本构造。 */
@@ -325,6 +328,9 @@ export function ArticleEditor({
 
   const showEditor = mode === "edit" || mode === "split";
   const showPreview = mode === "preview" || mode === "split";
+  const writingChatNode = typeof writingChat === "function"
+    ? writingChat({ onCollapse: () => setChatOpen(false) })
+    : writingChat;
 
   const bodyInput = (
     <textarea
@@ -354,7 +360,7 @@ export function ArticleEditor({
           dispatchSelectionAction("ask", current);
         }
       }}
-      className="min-h-[300px] h-full w-full resize-none border-none bg-transparent text-[15px] leading-relaxed text-foreground outline-none"
+      className="min-h-[300px] h-full w-full resize-none border-none bg-transparent text-[13px] leading-relaxed text-foreground outline-none"
       placeholder={t("creative.body_placeholder", { defaultValue: "开始写作…" })}
       aria-label="正文编辑"
     />
@@ -363,7 +369,7 @@ export function ArticleEditor({
   const previewPane = (
     <article
       data-testid="article-preview-pane"
-      className="prose prose-sm max-w-none text-[15px] leading-relaxed dark:prose-invert"
+      className="prose prose-sm max-w-none text-[13px] leading-relaxed prose-h1:text-base prose-h2:text-sm prose-h3:text-[13px] prose-h4:text-[12.5px] dark:prose-invert"
     >
       <MarkdownText>{draft.body || t("creative.body_empty", { defaultValue: "*暂无内容*" })}</MarkdownText>
     </article>
@@ -386,47 +392,70 @@ export function ArticleEditor({
             variant="outline"
             size="sm"
             onClick={() => setDrawer((open) => (open === "materials" ? null : "materials"))}
+            aria-label={t("creative.tab_materials", { defaultValue: "素材" })}
             aria-expanded={drawer === "materials"}
             aria-controls="creative-side-drawer"
             data-testid="materials-toggle"
           >
-            <BookOpen className="mr-1 h-3.5 w-3.5" />
-            {t("creative.tab_materials", { defaultValue: "素材" })}
-            {draft.materials.length > 0 ? ` ${draft.materials.length}` : ""}
+            <BookOpen className="h-3.5 w-3.5 md:mr-1" />
+            <span className="hidden md:inline">
+              {t("creative.tab_materials", { defaultValue: "素材" })}
+              {draft.materials.length > 0 ? ` ${draft.materials.length}` : ""}
+            </span>
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setDrawer((open) => (open === "outline" ? null : "outline"))}
+            aria-label={t("creative.tab_outline", { defaultValue: "提纲" })}
             aria-expanded={drawer === "outline"}
             aria-controls="creative-side-drawer"
             data-testid="outline-toggle"
           >
-            <ListTree className="mr-1 h-3.5 w-3.5" />
-            {t("creative.tab_outline", { defaultValue: "提纲" })}
-            {draft.outline.length > 0 ? ` ${draft.outline.length}` : ""}
+            <ListTree className="h-3.5 w-3.5 md:mr-1" />
+            <span className="hidden md:inline">
+              {t("creative.tab_outline", { defaultValue: "提纲" })}
+              {draft.outline.length > 0 ? ` ${draft.outline.length}` : ""}
+            </span>
           </Button>
-          {writingChat ? (
+          {writingChatNode ? (
             <Button
               variant="outline"
               size="sm"
               onClick={() => setChatOpen((open) => !open)}
+              aria-label={t("creative.chat.title", { defaultValue: "创作团队" })}
               aria-expanded={chatOpen}
               aria-controls="creative-partner-column"
               data-testid="partner-toggle"
             >
-              <MessagesSquare className="mr-1 h-3.5 w-3.5" />
-              {t("creative.chat.title", { defaultValue: "创作团队" })}
+              <MessagesSquare className="h-3.5 w-3.5 md:mr-1" />
+              <span className="hidden md:inline">
+                {t("creative.chat.title", { defaultValue: "创作团队" })}
+              </span>
             </Button>
           ) : null}
-          <Button variant="outline" size="sm" onClick={() => void onSaveNow()}
-            disabled={saveState.phase === "saving" || !dirty}>
-            <Save className="mr-1 h-3.5 w-3.5" />
-            {t("creative.save_now", { defaultValue: "保存" })}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void onSaveNow()}
+            aria-label={t("creative.save_now", { defaultValue: "保存" })}
+            disabled={saveState.phase === "saving" || !dirty}
+          >
+            <Save className="h-3.5 w-3.5 md:mr-1" />
+            <span className="hidden md:inline">
+              {t("creative.save_now", { defaultValue: "保存" })}
+            </span>
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="mr-1 h-3.5 w-3.5" />
-            {t("creative.export_md", { defaultValue: "导出 Markdown" })}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            aria-label={t("creative.export_md", { defaultValue: "导出 Markdown" })}
+          >
+            <Download className="h-3.5 w-3.5 md:mr-1" />
+            <span className="hidden md:inline">
+              {t("creative.export_md", { defaultValue: "导出 Markdown" })}
+            </span>
           </Button>
         </div>
       </div>
@@ -658,7 +687,7 @@ export function ArticleEditor({
           ) : null}
         </div>
 
-        {writingChat && chatOpen ? (
+        {writingChatNode && chatOpen ? (
           <div
             id="creative-partner-column"
             data-testid="creative-partner-column"
@@ -709,7 +738,7 @@ export function ArticleEditor({
               }}
               className="absolute inset-y-0 -left-1 hidden w-2 cursor-col-resize lg:block"
             />
-            <div className="min-h-0 flex-1 overflow-hidden">{writingChat}</div>
+            <div className="min-h-0 flex-1 overflow-hidden">{writingChatNode}</div>
           </div>
         ) : null}
       </div>

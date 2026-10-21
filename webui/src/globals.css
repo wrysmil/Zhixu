@@ -480,6 +480,23 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     line-height: var(--cjk-line-height);
   }
 
+  /* The creative partner column is only 340–480px wide, so its conversation
+     runs one step tighter than the main thread instead of wrapping into a wall. */
+  .writing-chat-compact .markdown-content {
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .writing-chat-compact [data-session-message] {
+    font-size: 12px;
+  }
+
+  .writing-chat-compact p[data-user-message-text] {
+    padding: 0.3125rem 0.625rem;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
   .markdown-content .contains-task-list {
     @apply list-none pl-0;
   }

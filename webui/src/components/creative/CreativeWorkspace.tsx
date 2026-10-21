@@ -821,26 +821,29 @@ function EditorHost({
     </div>
   ) : null;
 
-  const writingChat = partnerEnabled ? (
-    <WritingChatPanel
-      articleId={article.id}
-      articleSnapshot={flow.draft}
-      flushForWriting={flow.flushForWriting}
-      seed={composerSeed}
-      onSeedConsumed={handleSeedConsumed}
-      onSessionChange={setWritingSession}
-      articleEditSeq={bodyEditSeq}
-      modelPresets={writingModelOptions}
-      modelPreset={writingPreset}
-      modelDetail={writingDisplay.model}
-      modelProvider={writingDisplay.provider}
-      modelProviderLabel={writingDisplay.providerLabel}
-      modelPresetFromFallback={!writingSessionPreset}
-      modelNeedsSetup={writingNeedsSetup}
-      onManageModels={openModelSettings}
-      onModelRefresh={readWritingSessionPreset}
-    />
-  ) : null;
+  const writingChat = partnerEnabled
+    ? ({ onCollapse }: { onCollapse: () => void }) => (
+      <WritingChatPanel
+        articleId={article.id}
+        articleSnapshot={flow.draft}
+        flushForWriting={flow.flushForWriting}
+        seed={composerSeed}
+        onSeedConsumed={handleSeedConsumed}
+        onSessionChange={setWritingSession}
+        articleEditSeq={bodyEditSeq}
+        modelPresets={writingModelOptions}
+        modelPreset={writingPreset}
+        modelDetail={writingDisplay.model}
+        modelProvider={writingDisplay.provider}
+        modelProviderLabel={writingDisplay.providerLabel}
+        modelPresetFromFallback={!writingSessionPreset}
+        modelNeedsSetup={writingNeedsSetup}
+        onManageModels={openModelSettings}
+        onModelRefresh={readWritingSessionPreset}
+        onCollapse={onCollapse}
+      />
+    )
+    : null;
 
   return (
     <ArticleEditor

@@ -79,7 +79,11 @@ function editorDraft() {
   };
 }
 
-function renderEditor(writingChat?: React.ReactNode) {
+type WritingChatSlot =
+  | React.ReactNode
+  | ((controls: { onCollapse: () => void }) => React.ReactNode);
+
+function renderEditor(writingChat?: WritingChatSlot) {
   return render(
     <ArticleEditor
       article={wireArticle() as never}
@@ -115,6 +119,19 @@ describe("创作团队侧栏挂载", () => {
 
     fireEvent.click(screen.getByTestId("partner-toggle"));
     expect(screen.getByTestId("creative-partner-column")).toBeInTheDocument();
+  });
+
+  it("函数式注入时由编辑器提供显式收起入口", () => {
+    renderEditor(({ onCollapse }) => (
+      <div data-testid="fake-chat">
+        <button type="button" onClick={onCollapse}>收起会话</button>
+      </div>
+    ));
+
+    fireEvent.click(screen.getByRole("button", { name: "收起会话" }));
+
+    expect(screen.queryByTestId("creative-partner-column")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("fake-chat")).not.toBeInTheDocument();
   });
 
   it("没有注入会话时不显示右栏和开关", () => {

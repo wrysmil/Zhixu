@@ -414,6 +414,7 @@ export function MessageBubble({
         ) : null}
         {hasText ? (
           <p
+            data-user-message-text
             data-temporary-message={temporary ? "true" : undefined}
             className={cn(
               "ml-auto w-fit max-w-full min-w-0 rounded-floating px-4 py-2",
