@@ -1293,8 +1293,8 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   align-items: center;
   gap: 0.4rem;
   margin: 0;
-  color: hsl(var(--tone-violet));
-  font-size: 10.5px;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0.12em;
@@ -1306,13 +1306,12 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: hsl(var(--tone-violet));
-  box-shadow: 0 0 0 3px hsl(var(--tone-violet) / 0.14);
+  background: hsl(var(--muted-foreground));
 }
 
 .assistant-page-heading {
   margin: 0;
-  color: hsl(var(--text-display));
+  color: hsl(var(--text-strong));
   font-family: var(--font-ui);
   font-size: clamp(1.125rem, 1rem + 0.4vw, 1.375rem);
   font-weight: 600;
@@ -1340,15 +1339,15 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 .assistant-page-illustration {
   flex: 0 0 auto;
   align-self: center;
-  width: 128px;
+  width: 96px;
 }
 
 .assistant-page-illustration[data-size="compact"] {
-  width: 104px;
+  width: 80px;
 }
 
 .assistant-page-illustration[data-size="home"] {
-  width: 176px;
+  width: 128px;
 }
 
 .assistant-page-illustration img {
@@ -1529,8 +1528,8 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   align-items: center;
   gap: 0.44rem;
   margin-bottom: 1rem;
-  color: hsl(var(--tone-violet));
-  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
   line-height: 1.6;
   font-weight: 500;
   letter-spacing: 0.055em;
@@ -1540,8 +1539,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: hsl(var(--tone-violet));
-  box-shadow: 0 0 0 4px hsl(var(--tone-violet) / 0.14);
+  background: hsl(var(--primary));
 }
 
 .thread-welcome-title {
@@ -1549,49 +1547,43 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   max-width: 40rem;
   text-wrap: balance;
   font-family: var(--font-ui);
-  font-size: clamp(1.375rem, 1.6vw + 1rem, 1.75rem);
+  font-size: 1.6875rem;
   font-weight: 600;
   line-height: 1.35;
   letter-spacing: -0.04em;
-  color: hsl(var(--text-display));
+  color: hsl(var(--text-strong));
 }
 
 .thread-welcome-description {
   max-width: 30rem;
   margin: 0;
   color: hsl(var(--text-body));
-  font-size: 12.5px;
-  line-height: 1.8;
+  font-size: 15px;
+  line-height: 1.7;
 }
 
 .thread-welcome-illustration {
   position: relative;
   display: flex;
-  width: 11.625rem;
+  width: 6rem;
   flex-shrink: 0;
   align-items: flex-end;
   justify-content: center;
-  margin-bottom: -0.9rem;
+  margin-bottom: -0.35rem;
   pointer-events: none;
   z-index: 3;
 }
 
 .thread-welcome-illustration > img {
   position: relative;
-  width: 11.875rem;
-  max-width: calc(100% + 1.25rem);
+  width: 6rem;
+  max-width: 100%;
   height: auto;
   object-fit: contain;
 }
 
 .thread-welcome-halo {
-  position: absolute;
-  right: 0.55rem;
-  bottom: 0.5rem;
-  width: 8.75rem;
-  height: 8.75rem;
-  border-radius: 50%;
-  background: radial-gradient(circle at 62% 58%, hsl(var(--primary) / 0.12), transparent 70%);
+  display: none;
 }
 
 .dark .thread-welcome-illustration > img {
@@ -1606,7 +1598,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 .thread-welcome-starters-label {
   margin-bottom: 0.7rem;
   color: hsl(var(--muted-foreground));
-  font-size: 11.5px;
+  font-size: 13px;
   line-height: 1.5;
   font-weight: 400;
 }
@@ -1622,11 +1614,11 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   align-items: center;
   gap: 0.44rem;
   padding: 0.5rem 0.7rem;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid transparent;
   border-radius: 0.625rem;
-  background: hsl(var(--card));
+  background: transparent;
   color: hsl(var(--text-body));
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.4;
   cursor: pointer;
   transition:
@@ -1638,13 +1630,13 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 
 .thread-welcome-chip > svg {
   flex-shrink: 0;
-  color: hsl(var(--primary) / 0.82);
+  color: hsl(var(--muted-foreground));
 }
 
 .thread-welcome-chip:hover {
   transform: translateY(-2px);
-  border-color: hsl(var(--primary) / 0.4);
-  background: hsl(var(--accent) / 0.6);
+  border-color: transparent;
+  background: hsl(var(--accent) / 0.7);
   color: hsl(var(--foreground));
 }
 
@@ -1672,7 +1664,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   gap: 0.42rem;
   margin: 0;
   color: hsl(var(--text-strong));
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.5;
 }
@@ -1682,7 +1674,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: hsl(var(--tone-violet) / 0.8);
+  background: hsl(var(--muted-foreground) / 0.55);
 }
 
 .thread-welcome-section-heading > span {
@@ -1702,7 +1694,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   align-items: center;
   gap: 0.7rem;
   padding: 0.5rem 0.25rem;
-  border-bottom: 1px solid hsl(var(--border) / 0.75);
+  border: none;
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -1729,8 +1721,8 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   height: 1.95rem;
   flex-shrink: 0;
   border-radius: 0.5rem;
-  background: hsl(var(--accent));
-  color: hsl(var(--primary));
+  background: transparent;
+  color: hsl(var(--muted-foreground));
 }
 
 .thread-welcome-recent-copy {
@@ -1743,7 +1735,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 .thread-welcome-recent-copy strong {
   overflow: hidden;
   color: hsl(var(--text-strong));
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 550;
   line-height: 1.5;
   text-overflow: ellipsis;
@@ -1753,7 +1745,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 .thread-welcome-recent-copy > span {
   overflow: hidden;
   color: hsl(var(--muted-foreground));
-  font-size: 11.5px;
+  font-size: 11px;
   line-height: 1.5;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1782,14 +1774,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 }
 
 .thread-welcome-foot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.44rem;
-  margin-top: 1.9rem;
-  color: hsl(var(--muted-foreground));
-  font-size: 11px;
-  line-height: 1.6;
+  display: none;
 }
 
 .thread-welcome-foot-dot {
@@ -1896,38 +1881,19 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
    narrow strip in a sea of empty canvas. */
 @media (min-width: 1280px) {
   .thread-welcome-intro { min-height: 12.5rem; }
-  .thread-welcome-title { font-size: 1.75rem; }
-  .thread-welcome-description { font-size: 13.5px; }
-  .thread-welcome-illustration,
-  .thread-welcome-illustration > img { width: 13rem; }
-  .thread-welcome-halo { width: 9.5rem; height: 9.5rem; }
-  .thread-welcome-chip { padding: 0.56rem 0.8rem; font-size: 12.5px; }
+  .thread-welcome-chip { padding: 0.56rem 0.8rem; font-size: 13px; }
   .thread-welcome-chips {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   }
   .thread-welcome-chip { justify-content: center; }
-  .thread-welcome-section-heading h2 { font-size: 13px; }
-  .thread-welcome-recent-copy strong { font-size: 13px; }
-  .thread-welcome-recent-copy > span { font-size: 12px; }
   .thread-welcome-recent-row { padding-block: 0.6rem; }
-}
-
-@media (max-width: 1050px) {
-  .thread-welcome-illustration,
-  .thread-welcome-illustration > img {
-    width: 9.25rem;
-  }
-  .thread-welcome-halo {
-    width: 7rem;
-    height: 7rem;
-  }
 }
 
 @media (max-width: 900px) {
   .assistant-page { padding: 1.35rem 1.25rem 2.5rem; }
-  .assistant-page-illustration { width: 108px; }
-  .assistant-page-illustration[data-size="home"] { width: 140px; }
+  .assistant-page-illustration { width: 88px; }
+  .assistant-page-illustration[data-size="home"] { width: 112px; }
 }
 
 @media (max-width: 767px) {
@@ -1937,19 +1903,17 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   }
   .thread-welcome-copy { padding-bottom: 1.5rem; }
   .thread-welcome-illustration,
-  .thread-welcome-illustration > img { width: 6.5rem; }
-  .thread-welcome-halo { display: none; }
+  .thread-welcome-illustration > img { width: 6rem; }
   .thread-welcome-title { font-size: 1.5rem; max-width: 100%; white-space: normal; }
-  .thread-welcome-description { font-size: 12px; }
+  .thread-welcome-description { font-size: 13px; }
   .thread-welcome-chips { gap: 0.375rem; }
-  .thread-welcome-chip { padding: 0.44rem 0.56rem; font-size: 11.5px; }
+  .thread-welcome-chip { padding: 0.44rem 0.56rem; font-size: 13px; }
   .thread-welcome-recents { margin-top: 1.9rem; }
   .thread-welcome-recent-time { display: none; }
-  .thread-welcome-foot { margin-top: 1.75rem; }
   .assistant-page { padding: 1.15rem 0.9375rem 2rem; }
   .assistant-page-header { gap: 0.75rem; padding-bottom: 0.875rem; }
-  .assistant-page-illustration { width: 88px; }
-  .assistant-page-illustration[data-size="home"] { width: 100px; }
+  .assistant-page-illustration { width: 72px; }
+  .assistant-page-illustration[data-size="home"] { width: 96px; }
   .assistant-toolbar-search { max-width: none; }
   .agent-preview-welcome-content,
   .agent-thread-shell .thread-layout[data-layout="hero"] {
