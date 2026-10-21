@@ -982,11 +982,6 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
         {!hasMessages ? <div ref={bottomRef} aria-hidden className="h-px" /> : null}
       </div>
 
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-3 bg-gradient-to-b from-background to-transparent"
-      />
-
       {hasMessages ? (
         <PromptRail
           messages={visibleMessages}
