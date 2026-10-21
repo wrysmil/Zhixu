@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronsDownUp, Eye, EyeOff, RefreshCw, RotateCw, Search, X } from "lucide-react";
 
 import { CodeBlock } from "@/components/CodeBlock";
+import { ResizeHandle } from "@/components/workbench/ResizeHandle";
 import { DockFileSearch } from "@/components/dock/DockFileSearch";
 import { WorkspaceFileTree } from "@/components/workbench/WorkspaceFileTree";
 import { ApiError, fetchFilePreview, fetchWorkspaceFiles } from "@/lib/api";
@@ -140,6 +141,8 @@ export function DockFileTab({
   const [refreshToken, setRefreshToken] = useState(0);
   const [collapseToken, setCollapseToken] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [treePercent, setTreePercent] = useState(46);
+  const columnsRef = useRef<HTMLDivElement>(null);
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
 
@@ -241,7 +244,7 @@ export function DockFileTab({
   );
 
   const renderTree = () => (
-    <div className="flex min-h-0 flex-1 gap-2">
+    <div ref={columnsRef} className="flex min-h-0 min-w-0 flex-1">
       {inlinePreview ? (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {previewPath ? (
@@ -263,11 +266,21 @@ export function DockFileTab({
           )}
         </div>
       ) : null}
+      {inlinePreview ? <ResizeHandle
+        label={t("filePreview.resizeTree", { defaultValue: "Resize file tree" })}
+        value={treePercent} min={20} max={65} step={5}
+        valueAtPointer={(x) => {
+          const bounds = columnsRef.current?.getBoundingClientRect();
+          return bounds?.width ? (x - bounds.left) / bounds.width * 100 : treePercent;
+        }}
+        onChange={setTreePercent}
+      /> : null}
       <div
         data-testid="dock-file-tree-column"
+        style={inlinePreview ? { width: `${treePercent}%` } : undefined}
         className={
           inlinePreview
-            ? "flex min-h-0 w-[46%] shrink-0 flex-col gap-2"
+            ? "flex min-h-0 min-w-0 shrink-0 flex-col gap-2"
             : "flex min-h-0 flex-1 flex-col gap-2"
         }
       >

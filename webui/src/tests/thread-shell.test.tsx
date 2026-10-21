@@ -459,6 +459,47 @@ function settingsWithFastPreset(): SettingsPayload {
 }
 
 describe("ThreadShell", () => {
+  it("keeps an empty session composer in the welcome area when a shared footer exists", async () => {
+    const footer = document.createElement("div");
+    document.body.append(footer);
+    const client = makeClient();
+    const view = render(wrap(client, <ThreadShell
+      session={session("empty-with-footer")}
+      title="Empty session"
+      onToggleSidebar={() => {}}
+      composerPortalTarget={footer}
+    />));
+    await waitFor(() => expect(screen.getByTestId("thread-welcome-layout"))
+      .toContainElement(screen.getByLabelText("Message input")));
+    const input = screen.getByLabelText("Message input");
+    expect(footer).not.toContainElement(input);
+    fireEvent.click(screen.getByRole("button", { name: "Tools sidebar" }));
+    expect(screen.getByTestId("thread-welcome-layout")).toContainElement(input);
+    view.unmount();
+    footer.remove();
+    window.localStorage.removeItem("mira.dock-tools.open");
+  });
+
+  it("opens the narrow workbench as a dismissible dialog while keeping the welcome composer inline", async () => {
+    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
+      matches: query.includes("max-width: 767px"), media: query,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    })));
+    const client = makeClient();
+    const view = render(wrap(client, <ThreadShell session={session("narrow-workbench")}
+      title="Narrow session" onToggleSidebar={() => {}} />));
+    await waitFor(() => expect(screen.getByTestId("thread-welcome-layout"))
+      .toContainElement(screen.getByLabelText("Message input")));
+    expect(screen.queryByTestId("session-workbench")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Workbench" }));
+    expect(screen.getByRole("dialog")).toContainElement(screen.getByTestId("session-workbench"));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByTestId("thread-welcome-layout")).toContainElement(screen.getByLabelText("Message input"));
+    view.unmount();
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
@@ -3915,20 +3956,20 @@ describe("ThreadShell", () => {
     );
 
     // No banner yet: only appears once the client emits a matching error.
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Message too large")).not.toBeInTheDocument();
 
     await act(async () => {});
     await act(async () => {
       client._emitError({ kind: "message_too_big" });
     });
 
-    const banner = await screen.findByRole("alert");
+    const banner = await screen.findByText("Message too large");
     expect(banner).toHaveTextContent("Message too large");
 
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
 
     await waitFor(() => {
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("Message too large")).not.toBeInTheDocument();
     });
   });
 
@@ -3965,7 +4006,9 @@ describe("ThreadShell", () => {
       });
     });
 
-    const banner = await screen.findByRole("alert");
+    const message = await screen.findByText("无法连接模型提供商");
+    const banner = message.closest('[role="alert"]');
+    expect(banner).toBeInTheDocument();
     expect(banner).toHaveTextContent("无法连接模型提供商");
     expect(banner).toHaveTextContent(
       "模型提供商请求在第 4 次尝试后仍然失败，已停止重试。请检查提供商配置或服务状态后重试。",
@@ -3978,7 +4021,7 @@ describe("ThreadShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
 
     await waitFor(() => {
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("无法连接模型提供商")).not.toBeInTheDocument();
     });
   });
 
@@ -4018,7 +4061,8 @@ describe("ThreadShell", () => {
     const status = screen.getByRole("button", {
       name: "Not sent: Message too large",
     });
-    expect(screen.getByRole("alert")).toHaveClass("sr-only");
+    expect(screen.getAllByRole("alert").find((element) => element.classList.contains("sr-only")))
+      .toBeInTheDocument();
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 
     fireEvent.focus(status);
@@ -4049,7 +4093,7 @@ describe("ThreadShell", () => {
     await act(async () => {
       client._emitError({ kind: "message_too_big" });
     });
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(await screen.findByText("Message too large")).toBeInTheDocument();
 
     // Switch to a different chat. The banner was about the *previous* send
     // in chat-a; it must not leak into chat-b's view.
@@ -4069,7 +4113,7 @@ describe("ThreadShell", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("Message too large")).not.toBeInTheDocument();
     });
   });
 

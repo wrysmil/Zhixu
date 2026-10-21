@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { DockFileTab } from "@/components/dock/DockFileTab";
+import { ResizableRail } from "@/components/workbench/ResizableRail";
 import { BrowserSection } from "@/components/workbench/BrowserSection";
 import { TerminalSurface } from "@/components/workbench/TerminalSurface";
 import { defaultGenerateTerminalId } from "@/components/workbench/terminal-shared";
@@ -523,12 +524,15 @@ export function StartDock({
   }
 
   return (
+    <ResizableRail label={t("workbench.resizeTools", { defaultValue: "Resize tools sidebar" })}
+      defaultWidth={480} minWidth={320} className="hidden md:flex">
     <aside
       data-testid="start-dock"
       aria-label={t("startPanel.title", { defaultValue: "Start" })}
-      className="hidden w-dock shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 md:flex xl:w-dockXl"
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border/60 bg-muted/20"
     >
       {shellInner}
     </aside>
+    </ResizableRail>
   );
 }

@@ -82,6 +82,19 @@ const shellsPayload = {
 
 const TAKEOVER_KEY = `nanobot.dock.terminals.${HOME_DOCK_SCOPE}`;
 
+it("lets the home dock grow from its left edge without changing terminal scope", async () => {
+  const client = makeFakeClient();
+  render(<ClientProvider client={client as never} getToken={() => "tok"}>
+    <StartDock scope={HOME_DOCK_SCOPE} sessionKey={null} getToken={() => "tok"} />
+  </ClientProvider>);
+  await waitFor(() => expect(mocks.fetchTerminalShells).toHaveBeenCalled());
+  const separator = screen.getByRole("separator", { name: "Resize tools sidebar" });
+  const width = Number(separator.getAttribute("aria-valuenow"));
+  fireEvent.keyDown(separator, { key: "ArrowLeft" });
+  expect(Number(separator.getAttribute("aria-valuenow"))).toBe(width + 32);
+  expect(client.terminalStart).not.toHaveBeenCalled();
+});
+
 interface FakeClient {
   terminalStart: ReturnType<typeof vi.fn>;
   terminalWrite: ReturnType<typeof vi.fn>;

@@ -428,6 +428,23 @@ describe("PaneWorkbench", () => {
     expect(footer.style.paddingRight).toBe("");
   });
 
+  it("follows the active pane rail width and removes the footer for an inline welcome composer", () => {
+    render(<PaneWorkbench
+      panes={[{ key: "alpha", title: "Alpha" }]} activePaneKey="alpha"
+      layout="columns" showLayoutControl={false} onActivatePane={vi.fn()}
+      onLayoutChange={vi.fn()} onPaneOrderChange={vi.fn()}
+      renderPane={(_pane, context) => <>
+        <button onClick={() => context.onComposerRailInsetChange?.(520)}>Widen rail</button>
+        <button onClick={() => context.onComposerPlacementChange?.("inline")}>Show welcome</button>
+      </>}
+    />);
+    fireEvent.click(screen.getByRole("button", { name: "Widen rail" }));
+    const footer = screen.getByTestId("workbench-composer-host").parentElement;
+    expect((footer as HTMLElement).style.paddingRight).toBe("calc(520px + 1rem)");
+    fireEvent.click(screen.getByRole("button", { name: "Show welcome" }));
+    expect(footer).toHaveAttribute("hidden");
+  });
+
   it("drops the rail inset while the rail is hidden on narrow viewports", () => {
     // rail 本身是 `hidden md:flex`：<768px 时它不存在，输入区就不该被 19rem 白让位。
     vi.stubGlobal("matchMedia", vi.fn((query: string) => ({

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties } from "react";
 import { AlertCircle, ChevronRight, Loader2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { CodeBlock } from "@/components/CodeBlock";
+import { ResizeHandle } from "@/components/workbench/ResizeHandle";
 import { splitFilePath } from "@/components/FileReferenceChip";
 import { ApiError, fetchFilePreview } from "@/lib/api";
 import type { FilePreviewPayload } from "@/lib/types";
@@ -15,7 +16,8 @@ interface FilePreviewPanelProps {
   token: string;
   desktopWidth?: number;
   isClosing?: boolean;
-  onResizeStart?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  maxDesktopWidth?: number;
+  onWidthChange?: (width: number) => void;
   onClose: () => void;
 }
 
@@ -30,12 +32,16 @@ export function FilePreviewPanel({
   token,
   desktopWidth = 544,
   isClosing = false,
-  onResizeStart,
+  maxDesktopWidth = 860,
+  onWidthChange,
   onClose,
 }: FilePreviewPanelProps) {
   const { t } = useTranslation();
   const [state, setState] = useState<PreviewState>({ status: "loading" });
   const [entered, setEntered] = useState(false);
+  const [resizing, setResizing] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const tokenRef = useRef(token);
   tokenRef.current = token;
 
@@ -58,6 +64,17 @@ export function FilePreviewPanel({
       cancelled = true;
     };
   }, [path, sessionKey]);
+
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+    // A resize changes the available width; start long lines at their real
+    // left edge instead of retaining an old horizontal offset from the slimmer panel.
+    container.scrollLeft = 0;
+    container.querySelectorAll("pre").forEach((pre) => {
+      pre.scrollLeft = 0;
+    });
+  }, [desktopWidth, path]);
 
   const displayPath = state.status === "ready" ? state.payload.display_path : path;
   const previewPath = state.status === "ready" ? state.payload.path : displayPath;
@@ -98,6 +115,7 @@ export function FilePreviewPanel({
 
   return (
     <aside
+      ref={panelRef}
       aria-label={t("filePreview.aria", { defaultValue: "File preview" })}
       style={{
         "--file-preview-width": `${desktopWidth}px`,
@@ -105,7 +123,7 @@ export function FilePreviewPanel({
       } as CSSProperties}
       className={cn(
         "absolute inset-y-0 right-0 z-30 w-[min(100vw,var(--file-preview-slot-width))] overflow-hidden",
-        "transition-[width] duration-300 ease-out will-change-[width]",
+        !resizing && "transition-[width] duration-300 ease-out will-change-[width]",
         "md:relative md:z-auto md:w-[var(--file-preview-slot-width)] md:min-w-0 md:shrink-0",
         isClosing && "pointer-events-none",
       )}
@@ -121,24 +139,13 @@ export function FilePreviewPanel({
           "motion-reduce:translate-x-0",
         )}
       >
-        {onResizeStart ? (
-          <button
-            type="button"
-            aria-label={t("filePreview.resize", { defaultValue: "Resize file preview" })}
-            className={cn(
-              "group absolute inset-y-0 left-0 z-20 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none md:flex",
-              "items-stretch justify-center focus-visible:outline-none",
-            )}
-            onPointerDown={onResizeStart}
-          >
-            <span
-              aria-hidden
-              className={cn(
-                "h-full w-px bg-foreground/25 opacity-0 transition-opacity",
-                "group-hover:opacity-100 group-focus-visible:bg-ring group-focus-visible:opacity-100",
-              )}
-            />
-          </button>
+        {onWidthChange ? (
+          <ResizeHandle label={t("filePreview.resize", { defaultValue: "Resize file preview" })}
+            value={desktopWidth} min={Math.min(360, maxDesktopWidth)} max={maxDesktopWidth}
+            className="absolute inset-y-0 left-0 hidden md:flex"
+            valueAtPointer={(x) => (panelRef.current?.getBoundingClientRect().right ?? 0) - x}
+            onChange={onWidthChange} onDraggingChange={setResizing}
+          />
         ) : null}
         <div className="flex min-h-0 flex-1 flex-col">
           <div
@@ -212,7 +219,7 @@ export function FilePreviewPanel({
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
             {state.status === "loading" ? (
               <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />

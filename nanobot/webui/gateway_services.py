@@ -661,6 +661,7 @@ def build_gateway_services(
         settings=settings,
         skills_workspace_path=workspace_path,
         disabled_skills=disabled_skills,
+        subagent_execution_operations=subagent_execution_operations,
         memory_operations=build_memory_operations(
             workspace_id="default",
             workspace_path=workspace_path,

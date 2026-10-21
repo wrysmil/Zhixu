@@ -24,6 +24,7 @@ from websockets.datastructures import Headers
 from websockets.http11 import Request as WsRequest
 from websockets.http11 import Response
 
+from nanobot.agent.skills import SkillsLoader
 from nanobot.command.builtin import builtin_command_palette
 from nanobot.cron.session_turns import is_bound_cron_job
 from nanobot.cron.types import CronJob, CronSchedule
@@ -114,6 +115,7 @@ from nanobot.webui.session_list_index import (
     indexed_workspace_scope,
     list_webui_sessions,
 )
+from nanobot.webui.session_workbench import session_workbench_payload
 from nanobot.webui.sidebar_state import (
     read_webui_sidebar_state,
     write_webui_sidebar_state,
@@ -132,6 +134,7 @@ from nanobot.webui.skills_marketplace import (
     search_marketplace_skills,
     trending_marketplace_skills,
 )
+from nanobot.webui.subagent_execution_routes import SubagentExecutionSettingsOperations
 from nanobot.webui.teams_routes import TeamSettingsOperations
 from nanobot.webui.thread_disk import delete_webui_thread
 from nanobot.webui.transcript import (
@@ -382,6 +385,7 @@ class GatewayHTTPHandler:
             Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]] | None
         ) = None,
         memory_operations: MemorySettingsOperations | None = None,
+        subagent_execution_operations: SubagentExecutionSettingsOperations | None = None,
         identity_operations: IdentitySettingsOperations | None = None,
         agents_operations: AgentSettingsOperations | None = None,
         writing_operations: WritingSettingsOperations | None = None,
@@ -402,6 +406,8 @@ class GatewayHTTPHandler:
         self.settings = settings
         self.skills_workspace_path = skills_workspace_path
         self.memory_operations = memory_operations
+        self.subagent_execution_operations = subagent_execution_operations
+        self._mcp_runtime_status = mcp_runtime_status
         self.identity_operations = identity_operations
         self.agents_operations = agents_operations
         self.writing_operations = writing_operations
@@ -776,6 +782,10 @@ class GatewayHTTPHandler:
         if m:
             return await self._handle_session_context_get(request, m.group(1))
 
+        m = re.match(r"^/api/sessions/([^/]+)/workbench$", got)
+        if m:
+            return await self._handle_session_workbench_get(request, m.group(1))
+
         m = re.match(r"^/api/sessions/([^/]+)/file-preview$", got)
         if m:
             return self._handle_file_preview(request, m.group(1))
@@ -836,6 +846,60 @@ class GatewayHTTPHandler:
         if session is None:
             return _http_error(404, "session not found")
         return _http_json_response(session_context_payload(session))
+
+    async def _handle_session_workbench_get(self, request: WsRequest, key: str) -> Response:
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        if str(getattr(request, "method", "GET")).upper() != "GET":
+            return _http_error(405, "workbench queries require GET")
+        decoded_key = _decode_api_key(key)
+        if decoded_key is None:
+            return _http_error(400, "invalid session key")
+        if not _is_websocket_channel_session_key(decoded_key):
+            return _http_error(404, "session not found")
+        if self.session_manager is None:
+            return _http_error(503, "session manager unavailable")
+
+        def read_payload() -> dict[str, Any] | None:
+            assert self.session_manager is not None
+            session = self.session_manager.read_session_snapshot(decoded_key)
+            if session is None:
+                return None
+            skills = None
+            always: list[str] = []
+            mcp_status = None
+            try:
+                skills = webui_skills_payload(
+                    self.skills_workspace_path, disabled_skills=self.disabled_skills,
+                )["skills"]
+                always = SkillsLoader(self.skills_workspace_path).get_always_skills()
+            except Exception:
+                logger.bind(event="workbench_source_unavailable", source="skills",
+                            session_key=decoded_key).warning("Workbench skills are unavailable")
+            try:
+                configured = self.settings.config.load().tools.mcp_servers
+                mcp_status = {name: "configured" for name in list(configured)[:100]}
+                if self._mcp_runtime_status is not None:
+                    mcp_status.update(self._mcp_runtime_status())
+            except Exception:
+                logger.bind(event="workbench_source_unavailable", source="mcp",
+                            session_key=decoded_key).warning("Workbench MCP state is unavailable")
+            return session_workbench_payload(
+                session, memory_operations=self.memory_operations,
+                execution_operations=self.subagent_execution_operations,
+                skills=skills, always_skills=always, mcp_status=mcp_status,
+            )
+
+        try:
+            payload = await asyncio.to_thread(read_payload)
+        except Exception:
+            logger.bind(event="workbench_read_failed", session_key=decoded_key).warning(
+                "Session workbench could not be read"
+            )
+            return _http_error(503, "session workbench unavailable")
+        if payload is None:
+            return _http_error(404, "session not found")
+        return _http_json_response(payload, extra_headers=_NO_STORE_HEADERS)
 
     async def _handle_sessions_list(self, request: WsRequest) -> Response:
         if not self.check_api_token(request):

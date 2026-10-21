@@ -1,0 +1,2472 @@
+diff --git a/nanobot/agent/tools/update_plan.py b/nanobot/agent/tools/update_plan.py
+new file mode 100644
+index 0000000..26710f4
+--- /dev/null
++++ b/nanobot/agent/tools/update_plan.py
+@@ -0,0 +1,136 @@
++"""Maintain a normal conversation plan without granting sustained-goal permission."""
++
++# pyright: reportIncompatibleMethodOverride=false
++
++from __future__ import annotations
++
++import json
++import re
++from copy import deepcopy
++from datetime import datetime, timezone
++from typing import Any, ClassVar, cast
++from uuid import uuid4
++
++from loguru import logger
++
++from nanobot.agent.tools.base import Tool, ToolResult, tool_parameters
++from nanobot.agent.tools.context import ToolContext, current_request_context
++from nanobot.agent.tools.schema import (
++    ArraySchema,
++    ObjectSchema,
++    StringSchema,
++    tool_parameters_schema,
++)
++from nanobot.session.manager import SessionManager
++
++PLAN_KEY = "workbench_plan"
++PLAN_STATUSES = ("pending", "in_progress", "completed", "blocked", "cancelled")
++MAX_PLAN_STEPS = 50
++_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
++
++
++def _stored_steps(value: Any) -> list[dict[str, Any]]:
++    if not isinstance(value, list):
++        return []
++    return [cast(dict[str, Any], row) for row in cast(list[Any], value)[:MAX_PLAN_STEPS]
++            if isinstance(row, dict)]
++
++
++@tool_parameters(tool_parameters_schema(
++    explanation=StringSchema("Short explanation of this plan or its update.", max_length=1000),
++    steps=ArraySchema(ObjectSchema(
++        id=StringSchema("Existing step ID, if known.", max_length=64),
++        title=StringSchema("Concrete step to perform.", min_length=1, max_length=300),
++        status=StringSchema("Current observed step status.", enum=PLAN_STATUSES),
++        required=["title", "status"], additional_properties=False,
++    ), description="Full replacement list; keep completed steps to show progress.", max_items=50),
++))
++class UpdatePlanTool(Tool):
++    name: ClassVar[str] = "update_plan"
++    description: ClassVar[str] = (
++        "Maintain a structured plan for the current conversation. Use for multi-step work, "
++        "then update step statuses as work progresses. Omit steps to read the persisted plan "
++        "after context compaction. Supply the complete list to update; steps=[] clears it. "
++        "This records ordinary progress only; it does not create a sustained goal, schedule "
++        "background work, or authorize continued execution."
++    )
++
++    def __init__(self, sessions: SessionManager) -> None:
++        self._sessions = sessions
++
++    @classmethod
++    def enabled(cls, ctx: ToolContext) -> bool:
++        return ctx.sessions is not None
++
++    @classmethod
++    def create(cls, ctx: ToolContext) -> Tool:
++        if ctx.sessions is None:
++            raise ValueError("update_plan requires session storage")
++        return cls(ctx.sessions)
++
++    async def execute(
++        self, steps: list[dict[str, Any]] | None = None, explanation: str = "", **kwargs: Any,
++    ) -> str:
++        request = current_request_context()
++        if request is None or not request.session_key:
++            return ToolResult.error("Error: update_plan requires the current request session.")
++        if kwargs:
++            return ToolResult.error("Error: update_plan accepts only steps and explanation.")
++        if steps is None:
++            session = self._sessions.get_cached(request.session_key)
++            session = session or self._sessions.read_session_snapshot(request.session_key)
++            plan = session.metadata.get(PLAN_KEY) if session is not None else None
++            if not isinstance(plan, dict):
++                return "No plan recorded for the current conversation."
++            plan = cast(dict[str, Any], plan)
++            safe_steps = [
++                {key: str(row.get(key, ""))[:300] for key in ("id", "title", "status")}
++                for row in _stored_steps(plan.get("steps"))
++            ]
++            return json.dumps({
++                "explanation": str(plan.get("explanation", ""))[:1000], "steps": safe_steps,
++            }, ensure_ascii=False)
++        errors = self.validate_params({"steps": steps, "explanation": explanation})
++        if errors:
++            return ToolResult.error("Error: invalid plan: " + "; ".join(errors))
++        if any(not step["title"].strip() for step in steps):
++            return ToolResult.error("Error: plan step titles must not be blank.")
++        supplied_ids = [step["id"] for step in steps if "id" in step]
++        if any(not _ID_RE.fullmatch(value) for value in supplied_ids) or len(set(supplied_ids)) != len(supplied_ids):
++            return ToolResult.error("Error: plan step IDs must be unique safe identifiers.")
++        session = self._sessions.get_or_create(request.session_key)
++        previous = deepcopy(session.metadata.get(PLAN_KEY))
++        had_plan = PLAN_KEY in session.metadata
++        old_plan = cast(dict[str, Any], previous) if isinstance(previous, dict) else {}
++        ids_by_title: dict[str, list[str]] = {}
++        for step in _stored_steps(old_plan.get("steps")):
++            if isinstance(step.get("title"), str) and isinstance(step.get("id"), str):
++                ids_by_title.setdefault(step["title"], []).append(step["id"])
++        used_ids = set(supplied_ids)
++        normalized: list[dict[str, str]] = []
++        for step in steps:
++            title = step["title"].strip()
++            step_id = step.get("id")
++            if step_id is None:
++                matches = ids_by_title.get(title, [])
++                step_id = next((value for value in matches if value not in used_ids and _ID_RE.fullmatch(value)), None)
++                step_id = step_id or uuid4().hex
++            used_ids.add(step_id)
++            normalized.append({"id": step_id, "title": title, "status": step["status"]})
++        session.metadata[PLAN_KEY] = {
++            "explanation": explanation.strip(), "steps": normalized,
++            "updated_at": datetime.now(timezone.utc).isoformat(),
++        }
++        try:
++            self._sessions.save(session)
++        except Exception:
++            if had_plan:
++                session.metadata[PLAN_KEY] = previous
++            else:
++                session.metadata.pop(PLAN_KEY, None)
++            logger.bind(event="workbench_plan_save_failed", session_key=request.session_key).warning(
++                "Conversation plan could not be persisted"
++            )
++            return ToolResult.error("Error: the plan could not be saved; the previous plan was restored.")
++        completed = sum(step["status"] == "completed" for step in normalized)
++        return f"Plan updated. {completed}/{len(normalized)} steps completed."
+diff --git a/nanobot/webui/gateway_services.py b/nanobot/webui/gateway_services.py
+index 69c302a..46f0fad 100644
+--- a/nanobot/webui/gateway_services.py
++++ b/nanobot/webui/gateway_services.py
+@@ -661,6 +661,7 @@ def build_gateway_services(
+         settings=settings,
+         skills_workspace_path=workspace_path,
+         disabled_skills=disabled_skills,
++        subagent_execution_operations=subagent_execution_operations,
+         memory_operations=build_memory_operations(
+             workspace_id="default",
+             workspace_path=workspace_path,
+diff --git a/nanobot/webui/session_workbench.py b/nanobot/webui/session_workbench.py
+new file mode 100644
+index 0000000..0e28fcc
+--- /dev/null
++++ b/nanobot/webui/session_workbench.py
+@@ -0,0 +1,227 @@
++"""Bounded, read-only projection of real session workbench state."""
++
++from __future__ import annotations
++
++import json
++from collections import Counter
++from collections.abc import Mapping
++from typing import Any, cast
++
++from loguru import logger
++
++from nanobot.agent.tools.mcp import _tool_prefix  # pyright: ignore[reportPrivateUsage]
++from nanobot.agent.tools.update_plan import MAX_PLAN_STEPS, PLAN_KEY, PLAN_STATUSES
++from nanobot.memory.scratchpad_writer import ScratchpadWriter
++from nanobot.session.goal_state import goal_state_raw, parse_goal_state
++from nanobot.session.manager import Session
++from nanobot.webui.memory_routes import MemorySettingsOperations
++from nanobot.webui.session_identity import webui_chat_id
++from nanobot.webui.subagent_execution_routes import SubagentExecutionSettingsOperations
++
++_MAX_CONTENT = 4000
++_MAX_HISTORY = 500
++_MAX_CAPABILITIES = 100
++
++
++def _text(value: Any, limit: int = _MAX_CONTENT) -> str:
++    return value.strip()[:limit] if isinstance(value, str) else ""
++
++
++def _rows(value: Any, limit: int) -> list[dict[str, Any]]:
++    if not isinstance(value, list):
++        return []
++    return [cast(dict[str, Any], row) for row in cast(list[Any], value)[:limit]
++            if isinstance(row, dict)]
++
++
++def _mapping(value: Any) -> dict[str, Any] | None:
++    return cast(dict[str, Any], value) if isinstance(value, dict) else None
++
++
++def _task(row: dict[str, Any]) -> dict[str, str] | None:
++    title = _text(row.get("title"), 300)
++    step_id = _text(row.get("id"), 64)
++    status = row.get("status")
++    if not title or not step_id or status not in PLAN_STATUSES:
++        return None
++    return {"id": step_id, "title": title, "status": status, "source": "plan"}
++
++
++def _observed_tools(session: Session) -> tuple[Counter[str], set[str]]:
++    """Count calls; successful Skill file reads are evidence of actual usage."""
++    calls: Counter[str] = Counter()
++    read_requests: dict[str, str] = {}
++    used_skills: set[str] = set()
++    for message in session.messages[-_MAX_HISTORY:]:
++        for call in _rows(message.get("tool_calls"), 50):
++            function = _mapping(call.get("function"))
++            if function is None:
++                continue
++            name = _text(function.get("name"), 150)
++            if name.startswith("mcp_"):
++                calls[name] += 1
++            if name != "read_file":
++                continue
++            arguments = function.get("arguments")
++            if isinstance(arguments, str) and len(arguments) <= 4096:
++                try:
++                    arguments = json.loads(arguments)
++                except ValueError:
++                    continue
++            arguments = _mapping(arguments)
++            if arguments is None:
++                continue
++            path = _text(arguments.get("path"), 2000).replace("\\", "/").rstrip("/")
++            if path.endswith("/SKILL.md"):
++                read_requests[_text(call.get("id"), 150)] = path.split("/")[-2]
++        if message.get("role") == "tool":
++            call_id = _text(message.get("tool_call_id"), 150)
++            content = message.get("content")
++            if (call_id and call_id in read_requests and not message.get("is_error")
++                    and isinstance(content, str) and content.strip()
++                    and not content.lstrip().startswith(("Error:", "error:"))):
++                used_skills.add(read_requests[call_id])
++    return calls, used_skills
++
++
++def session_workbench_payload(
++    session: Session, *,
++    memory_operations: MemorySettingsOperations | None = None,
++    execution_operations: SubagentExecutionSettingsOperations | None = None,
++    skills: list[dict[str, Any]] | None = None,
++    always_skills: list[str] | None = None,
++    mcp_status: Mapping[str, str] | None = None,
++) -> dict[str, Any]:
++    """Use gateway-owned services; never create stores or invoke models here."""
++    limitations: list[str] = []
++
++    def unavailable(module: str) -> None:
++        limitations.append(f"{module}_unavailable")
++        logger.bind(event="workbench_source_unavailable", source=module,
++                    session_key=session.key).warning("Workbench source is unavailable")
++
++    raw_plan = _mapping(session.metadata.get(PLAN_KEY))
++    plan = None
++    tasks: list[dict[str, str]] = []
++    if raw_plan is not None:
++        tasks = [task for row in _rows(raw_plan.get("steps"), MAX_PLAN_STEPS)
++                 if (task := _task(row)) is not None]
++        plan = {"explanation": _text(raw_plan.get("explanation"), 1000),
++                "steps": tasks, "updated_at": _text(raw_plan.get("updated_at"), 80) or None}
++    raw_goal = parse_goal_state(goal_state_raw(session.metadata))
++    goal = None
++    if isinstance(raw_goal, dict) and _text(raw_goal.get("objective")):
++        goal = {"objective": _text(raw_goal.get("objective")),
++                "status": _text(raw_goal.get("status"), 40)}
++        for key in ("ui_summary", "recap"):
++            value = _text(raw_goal.get(key), 1000)
++            if value:
++                goal[key] = value
++        if plan is None:
++            status = {"active": "in_progress", "blocked": "blocked", "completed": "completed",
++                      "cancelled": "cancelled"}.get(goal["status"], "pending")
++            tasks = [{"id": "sustained-goal", "title": goal["objective"][:300],
++                      "status": status, "source": "goal"}]
++
++    agents: list[dict[str, str]] = []
++    if execution_operations is None:
++        limitations.append("subagent_executions_unavailable")
++    else:
++        try:
++            page = execution_operations.list_executions(chat_id=webui_chat_id(session.key) or "", limit=20)
++            for row in _rows(page.get("executions"), 20):
++                invocation_id = _text(row.get("invocationId"), 80)
++                if invocation_id:
++                    agents.append({"id": invocation_id, "invocation_id": invocation_id,
++                                   "name": _text(row.get("agentName"), 100),
++                                   "status": _text(row.get("status"), 40),
++                                   "detail": _text(row.get("lastAction") or row.get("title"), 300)})
++        except Exception:
++            unavailable("subagent_executions")
++
++    memories: list[dict[str, Any]] = []
++    if memory_operations is None:
++        limitations.append("memory_unavailable")
++    else:
++        try:
++            row = _mapping(memory_operations.fetch_scratchpad(
++                user_id=ScratchpadWriter.user_id_for_key(session.key),
++            ).get("scratchpad"))
++            if row is not None:
++                parts = [_text(row.get("content")), _text(row.get("current_focus"))]
++                for key in ("active_projects", "open_questions", "next_steps"):
++                    items = row.get(key)
++                    if isinstance(items, list):
++                        parts.extend(_text(item, 300) for item in cast(list[Any], items)[:10])
++                content = "\n".join(dict.fromkeys(part for part in parts if part))[:_MAX_CONTENT]
++                if content:
++                    memories.append({"id": "working:" + session.key, "kind": "working",
++                                     "title": _text(row.get("current_focus"), 100) or "工作记忆",
++                                     "content": content, "source": "session_scratchpad",
++                                     "updated_at": _text(row.get("updated_at"), 80) or None,
++                                     "persisted": True})
++        except Exception:
++            unavailable("working_memory")
++        try:
++            episodes = memory_operations.list_episodes(session_id=session.key, limit=20)
++            seen: set[str] = set()
++            for episode in _rows(episodes.get("items"), 20):
++                linked = episode.get("linked_memory_ids")
++                if not isinstance(linked, list):
++                    continue
++                for memory_id in cast(list[Any], linked)[:20]:
++                    if len(memories) >= 20 or len(seen) >= 20:
++                        break
++                    if not isinstance(memory_id, str) or memory_id in seen:
++                        continue
++                    seen.add(memory_id)
++                    try:
++                        row = _mapping(memory_operations.fetch_memory(memory_id).get("memory"))
++                    except Exception:
++                        unavailable("linked_memory")
++                        continue
++                    if row is not None and _text(row.get("content")):
++                        memories.append({"id": _text(row.get("id"), 100), "kind": "long_term",
++                                         "title": _text(row.get("content"), 80),
++                                         "content": _text(row.get("content")),
++                                         "source": "episode:" + _text(episode.get("id"), 100),
++                                         "updated_at": _text(row.get("updated_at"), 80) or None,
++                                         "persisted": True})
++        except Exception:
++            unavailable("session_memories")
++
++    calls, used_skills = _observed_tools(session)
++    projected_skills: list[dict[str, str]] = []
++    always = set(always_skills or [])
++    for row in _rows(skills or [], _MAX_CAPABILITIES):
++        name = _text(row.get("name"), 100)
++        if not name or not row.get("enabled") or not row.get("available"):
++            continue
++        status = "used" if name in used_skills else "always_loaded" if name in always else "available"
++        projected_skills.append({"name": name, "status": status, "source": _text(row.get("source"), 40)})
++    if skills is None:
++        limitations.append("skills_unavailable")
++    limitations.append("skill_usage_tracks_successful_file_reads_only")
++    if len(session.messages) > _MAX_HISTORY:
++        limitations.append("tool_usage_limited_to_recent_500_messages")
++
++    statuses = dict(list((mcp_status or {}).items())[:_MAX_CAPABILITIES])
++    counts: Counter[str] = Counter()
++    names_by_length = sorted(statuses, key=len, reverse=True)
++    for name, count in calls.items():
++        server = next((key for key in names_by_length if name.startswith(_tool_prefix(key))), name)
++        counts[server] += count
++    mcp = [{"name": _text(name, 150),
++            "status": statuses.get(name, "observed") if statuses.get(name, "observed") in
++                {"connecting", "connected", "failed", "observed", "configured"} else "unknown",
++            "calls": counts[name], "successes": None, "failures": None}
++           for name in sorted(set(statuses) | set(counts))[:_MAX_CAPABILITIES]]
++    if mcp_status is None:
++        limitations.append("mcp_connection_state_unavailable")
++    if calls:
++        limitations.append("mcp_call_outcomes_not_tracked")
++    return {"schema_version": 1, "session_key": session.key,
++            "updated_at": session.updated_at.isoformat() if session.updated_at else None,
++            "goal": goal, "tasks": tasks, "plan": plan, "agents": agents,
++            "memories": memories, "skills": projected_skills, "mcp": mcp,
++            "limitations": list(dict.fromkeys(limitations))}
+diff --git a/nanobot/webui/ws_http.py b/nanobot/webui/ws_http.py
+index f3aec84..97f16f7 100644
+--- a/nanobot/webui/ws_http.py
++++ b/nanobot/webui/ws_http.py
+@@ -24,6 +24,7 @@ from websockets.datastructures import Headers
+ from websockets.http11 import Request as WsRequest
+ from websockets.http11 import Response
+ 
++from nanobot.agent.skills import SkillsLoader
+ from nanobot.command.builtin import builtin_command_palette
+ from nanobot.cron.session_turns import is_bound_cron_job
+ from nanobot.cron.types import CronJob, CronSchedule
+@@ -114,6 +115,7 @@ from nanobot.webui.session_list_index import (
+     indexed_workspace_scope,
+     list_webui_sessions,
+ )
++from nanobot.webui.session_workbench import session_workbench_payload
+ from nanobot.webui.sidebar_state import (
+     read_webui_sidebar_state,
+     write_webui_sidebar_state,
+@@ -132,6 +134,7 @@ from nanobot.webui.skills_marketplace import (
+     search_marketplace_skills,
+     trending_marketplace_skills,
+ )
++from nanobot.webui.subagent_execution_routes import SubagentExecutionSettingsOperations
+ from nanobot.webui.teams_routes import TeamSettingsOperations
+ from nanobot.webui.thread_disk import delete_webui_thread
+ from nanobot.webui.transcript import (
+@@ -382,6 +385,7 @@ class GatewayHTTPHandler:
+             Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]] | None
+         ) = None,
+         memory_operations: MemorySettingsOperations | None = None,
++        subagent_execution_operations: SubagentExecutionSettingsOperations | None = None,
+         identity_operations: IdentitySettingsOperations | None = None,
+         agents_operations: AgentSettingsOperations | None = None,
+         writing_operations: WritingSettingsOperations | None = None,
+@@ -402,6 +406,8 @@ class GatewayHTTPHandler:
+         self.settings = settings
+         self.skills_workspace_path = skills_workspace_path
+         self.memory_operations = memory_operations
++        self.subagent_execution_operations = subagent_execution_operations
++        self._mcp_runtime_status = mcp_runtime_status
+         self.identity_operations = identity_operations
+         self.agents_operations = agents_operations
+         self.writing_operations = writing_operations
+@@ -776,6 +782,10 @@ class GatewayHTTPHandler:
+         if m:
+             return await self._handle_session_context_get(request, m.group(1))
+ 
++        m = re.match(r"^/api/sessions/([^/]+)/workbench$", got)
++        if m:
++            return await self._handle_session_workbench_get(request, m.group(1))
++
+         m = re.match(r"^/api/sessions/([^/]+)/file-preview$", got)
+         if m:
+             return self._handle_file_preview(request, m.group(1))
+@@ -837,6 +847,60 @@ class GatewayHTTPHandler:
+             return _http_error(404, "session not found")
+         return _http_json_response(session_context_payload(session))
+ 
++    async def _handle_session_workbench_get(self, request: WsRequest, key: str) -> Response:
++        if not self.check_api_token(request):
++            return _http_error(401, "Unauthorized")
++        if str(getattr(request, "method", "GET")).upper() != "GET":
++            return _http_error(405, "workbench queries require GET")
++        decoded_key = _decode_api_key(key)
++        if decoded_key is None:
++            return _http_error(400, "invalid session key")
++        if not _is_websocket_channel_session_key(decoded_key):
++            return _http_error(404, "session not found")
++        if self.session_manager is None:
++            return _http_error(503, "session manager unavailable")
++
++        def read_payload() -> dict[str, Any] | None:
++            assert self.session_manager is not None
++            session = self.session_manager.read_session_snapshot(decoded_key)
++            if session is None:
++                return None
++            skills = None
++            always: list[str] = []
++            mcp_status = None
++            try:
++                skills = webui_skills_payload(
++                    self.skills_workspace_path, disabled_skills=self.disabled_skills,
++                )["skills"]
++                always = SkillsLoader(self.skills_workspace_path).get_always_skills()
++            except Exception:
++                logger.bind(event="workbench_source_unavailable", source="skills",
++                            session_key=decoded_key).warning("Workbench skills are unavailable")
++            try:
++                configured = self.settings.config.load().tools.mcp_servers
++                mcp_status = {name: "configured" for name in list(configured)[:100]}
++                if self._mcp_runtime_status is not None:
++                    mcp_status.update(self._mcp_runtime_status())
++            except Exception:
++                logger.bind(event="workbench_source_unavailable", source="mcp",
++                            session_key=decoded_key).warning("Workbench MCP state is unavailable")
++            return session_workbench_payload(
++                session, memory_operations=self.memory_operations,
++                execution_operations=self.subagent_execution_operations,
++                skills=skills, always_skills=always, mcp_status=mcp_status,
++            )
++
++        try:
++            payload = await asyncio.to_thread(read_payload)
++        except Exception:
++            logger.bind(event="workbench_read_failed", session_key=decoded_key).warning(
++                "Session workbench could not be read"
++            )
++            return _http_error(503, "session workbench unavailable")
++        if payload is None:
++            return _http_error(404, "session not found")
++        return _http_json_response(payload, extra_headers=_NO_STORE_HEADERS)
++
+     async def _handle_sessions_list(self, request: WsRequest) -> Response:
+         if not self.check_api_token(request):
+             return _http_error(401, "Unauthorized")
+diff --git a/tests/webui/test_session_workbench.py b/tests/webui/test_session_workbench.py
+new file mode 100644
+index 0000000..40c4b51
+--- /dev/null
++++ b/tests/webui/test_session_workbench.py
+@@ -0,0 +1,231 @@
++"""Session workbench: persisted plans, scoped memory and safe read projection."""
++
++from __future__ import annotations
++
++import json
++from types import SimpleNamespace
++from unittest.mock import MagicMock
++from urllib.parse import quote
++
++import pytest
++from websockets.datastructures import Headers
++from websockets.http11 import Request
++
++from nanobot.agent.tools.context import RequestContext, ToolContext, request_context
++from nanobot.agent.tools.loader import ToolLoader
++from nanobot.config.schema import ToolsConfig
++from nanobot.session.manager import SessionManager
++
++
++def plan_tool(manager):
++    from nanobot.agent.tools.update_plan import UpdatePlanTool
++
++    return UpdatePlanTool(manager)
++
++
++@pytest.mark.asyncio
++async def test_plan_persists_only_current_session_and_does_not_authorize_goal(tmp_path):
++    manager = SessionManager(tmp_path)
++    tool = plan_tool(manager)
++    ctx = RequestContext(channel="websocket", chat_id="a", session_key="websocket:a")
++    with request_context(ctx):
++        result = await tool.execute(steps=[{"title": "检查布局", "status": "in_progress"}])
++    assert not getattr(result, "is_error", False)
++    persisted = SessionManager(tmp_path).read_session_snapshot("websocket:a")
++    assert persisted is not None
++    assert persisted.metadata["workbench_plan"]["steps"][0]["title"] == "检查布局"
++    assert "goal_state" not in persisted.metadata
++    assert manager.read_session_snapshot("websocket:b") is None
++    previous_id = persisted.metadata["workbench_plan"]["steps"][0]["id"]
++    with request_context(ctx):
++        await tool.execute(steps=[{"title": "检查布局", "status": "completed"}])
++    assert manager.get_or_create(ctx.session_key).metadata["workbench_plan"]["steps"][0]["id"] == previous_id
++
++
++@pytest.mark.asyncio
++async def test_plan_requires_context_validates_and_rolls_back_failed_save(tmp_path, monkeypatch):
++    manager = SessionManager(tmp_path)
++    tool = plan_tool(manager)
++    assert getattr(await tool.execute(steps=[]), "is_error", False)
++    session = manager.get_or_create("websocket:a")
++    session.metadata["workbench_plan"] = {"steps": [], "explanation": "old"}
++    manager.save(session)
++    ctx = RequestContext(channel="websocket", chat_id="a", session_key=session.key)
++    with request_context(ctx):
++        assert getattr(await tool.execute(steps=[{"title": " ", "status": "completed"}]), "is_error", False)
++        assert getattr(await tool.execute(steps=[{"title": "x", "status": "done"}]), "is_error", False)
++        assert getattr(await tool.execute(steps=[{"title": "x", "status": "pending"}] * 51), "is_error", False)
++        monkeypatch.setattr(manager, "save", MagicMock(side_effect=OSError("private path")))
++        failed = await tool.execute(steps=[{"title": "new", "status": "pending"}])
++    assert getattr(failed, "is_error", False)
++    assert "private path" not in str(failed)
++    assert session.metadata["workbench_plan"] == {"steps": [], "explanation": "old"}
++
++
++def test_plan_auto_discovery_and_construction(tmp_path):
++    manager = SessionManager(tmp_path)
++    candidates = [cls for cls in ToolLoader().discover() if getattr(cls, "name", None) == "update_plan"]
++    assert len(candidates) == 1
++    context = ToolContext(config=ToolsConfig(), workspace=str(tmp_path), sessions=manager)
++    assert candidates[0].enabled(context)
++    assert candidates[0].create(context).name == "update_plan"
++
++
++@pytest.mark.asyncio
++async def test_plan_read_after_reload_does_not_write_or_clear(tmp_path, monkeypatch):
++    manager = SessionManager(tmp_path)
++    ctx = RequestContext(channel="websocket", chat_id="a", session_key="websocket:a")
++    with request_context(ctx):
++        await plan_tool(manager).execute(steps=[{"title": "压缩后继续", "status": "pending"}])
++    reloaded = SessionManager(tmp_path)
++    save = MagicMock(side_effect=AssertionError("read must not write"))
++    monkeypatch.setattr(reloaded, "save", save)
++    with request_context(ctx):
++        result = await plan_tool(reloaded).execute()
++    assert "压缩后继续" in str(result)
++    assert "pending" in str(result)
++    save.assert_not_called()
++
++
++def test_workbench_projects_current_session_memory_and_capabilities(tmp_path):
++    from nanobot.webui.session_workbench import session_workbench_payload
++
++    manager = SessionManager(tmp_path)
++    session = manager.get_or_create("websocket:a")
++    session.metadata["workbench_plan"] = {
++        "steps": [{"id": "s1", "title": "修复", "status": "completed"}],
++        "explanation": "先修复后验收", "updated_at": "now",
++    }
++    session.messages = [{"role": "assistant", "tool_calls": [
++        {"function": {"name": "mcp_file_server_read", "arguments": "{}"}},
++        {"id": "read-skill", "function": {"name": "read_file", "arguments": json.dumps({"path": "skills/design/SKILL.md"})}},
++    ]}, {"role": "tool", "tool_call_id": "read-skill", "content": "# Design skill"}]
++    memory = SimpleNamespace(
++        fetch_scratchpad=MagicMock(return_value={"scratchpad": {"current_focus": "修布局", "content": "工作上下文", "updated_at": "now"}}),
++        list_episodes=MagicMock(return_value={"items": [{"id": "ep", "linked_memory_ids": ["m1"]}]}),
++        fetch_memory=MagicMock(return_value={"memory": {"id": "m1", "content": "偏好简洁", "updated_at": "now"}}),
++    )
++    executions = SimpleNamespace(list_executions=MagicMock(return_value={"executions": [
++        {"invocationId": "inv", "agentName": "设计", "status": "running", "lastAction": "检查布局"}
++    ]}))
++    result = session_workbench_payload(session, memory_operations=memory,
++        execution_operations=executions,
++        skills=[{"name": "design", "source": "workspace", "enabled": True, "available": True}],
++        always_skills=[], mcp_status={"file_server": "connected"})
++    assert result["tasks"][0]["source"] == "plan"
++    assert result["plan"]["steps"] == result["tasks"]
++    assert {m["kind"] for m in result["memories"]} == {"working", "long_term"}
++    assert all(m["persisted"] for m in result["memories"])
++    memory.fetch_scratchpad.assert_called_once_with(user_id="a")
++    memory.list_episodes.assert_called_once_with(session_id=session.key, limit=20)
++    memory.fetch_memory.assert_called_once_with("m1")
++    executions.list_executions.assert_called_once_with(chat_id="a", limit=20)
++    assert result["agents"][0]["invocation_id"] == "inv"
++    assert result["skills"][0]["status"] == "used"
++    assert result["mcp"] == [{"name": "file_server", "status": "connected", "calls": 1, "successes": None, "failures": None}]
++    assert "arguments" not in json.dumps(result)
++
++
++def test_workbench_unavailable_memory_is_explicit_and_bounded(tmp_path):
++    from nanobot.webui.session_workbench import session_workbench_payload
++
++    session = SessionManager(tmp_path).get_or_create("websocket:a")
++    session.metadata["goal_state"] = {"objective": "目标", "status": "completed"}
++    memory = SimpleNamespace(fetch_scratchpad=MagicMock(side_effect=RuntimeError("secret")),
++        list_episodes=MagicMock(return_value={"items": []}))
++    result = session_workbench_payload(session, memory_operations=memory)
++    assert result["goal"]["status"] == "completed"
++    assert result["tasks"][0]["status"] == "completed"
++    assert result["limitations"]
++    assert "secret" not in json.dumps(result)
++
++
++def test_real_memory_store_excludes_unrelated_sessions(tmp_path):
++    from functools import partial
++
++    from nanobot.memory.models import Episode, Memory, ScratchpadEntry
++    from nanobot.memory.repository import add_episode, add_memory, upsert_scratchpad
++    from nanobot.webui import memory_api
++    from nanobot.webui.memory_services import MemoryServices
++    from nanobot.webui.session_workbench import session_workbench_payload
++
++    services = MemoryServices.for_workspace("default", tmp_path)
++    with services.database.connect() as conn:
++        for key in ("a", "b"):
++            add_memory(conn, Memory(id="memory-" + key, content="memory " + key, created_at="now"))
++            add_episode(conn, Episode(id="episode-" + key, session_id="websocket:" + key,
++                summary="episode " + key, started_at="now", ended_at="now", linked_memory_ids=["memory-" + key]))
++            upsert_scratchpad(conn, ScratchpadEntry(user_id=key, workspace_id="default",
++                updated_at="now", current_focus="focus " + key))
++    operations = SimpleNamespace(
++        fetch_scratchpad=partial(memory_api.scratchpad_payload, services),
++        list_episodes=partial(memory_api.list_episodes_payload, services),
++        fetch_memory=partial(memory_api.fetch_memory_payload, services),
++    )
++    session = SessionManager(tmp_path).get_or_create("websocket:a")
++    result = session_workbench_payload(session, memory_operations=operations)
++    assert [row["content"] for row in result["memories"]] == ["focus a", "memory a"]
++    assert "memory b" not in json.dumps(result)
++    assert "focus b" not in json.dumps(result)
++
++
++def test_projection_bounds_historical_records_and_content(tmp_path):
++    from nanobot.webui.session_workbench import session_workbench_payload
++
++    session = SessionManager(tmp_path).get_or_create("websocket:a")
++    session.metadata["workbench_plan"] = {"steps": [
++        {"id": str(i), "title": "x" * 1000, "status": "pending"} for i in range(100)
++    ]}
++    memory = SimpleNamespace(
++        fetch_scratchpad=lambda **_: {"scratchpad": {"content": "x" * 10000}},
++        list_episodes=lambda **_: {"items": [{"id": "ep", "linked_memory_ids": [str(i) for i in range(100)]}]},
++        fetch_memory=lambda mid: {"memory": {"id": mid, "content": "y" * 10000}},
++    )
++    result = session_workbench_payload(session, memory_operations=memory)
++    assert len(result["tasks"]) == 50
++    assert all(len(row["title"]) <= 300 for row in result["tasks"])
++    assert len(result["memories"]) == 20
++    assert all(len(row["content"]) <= 4000 for row in result["memories"])
++
++
++def test_mcp_calls_use_real_sanitized_server_prefix(tmp_path):
++    from nanobot.agent.tools.mcp import _sanitize_mcp_tool_name
++    from nanobot.webui.session_workbench import session_workbench_payload
++
++    session = SessionManager(tmp_path).get_or_create("websocket:a")
++    name = "file.server 中文"
++    session.messages = [{"role": "assistant", "tool_calls": [
++        {"function": {"name": _sanitize_mcp_tool_name(f"mcp_{name}_read")}}
++    ]}]
++    result = session_workbench_payload(session, mcp_status={name: "configured"})
++    assert result["mcp"] == [{"name": name, "status": "configured", "calls": 1,
++                              "successes": None, "failures": None}]
++
++
++@pytest.mark.asyncio
++async def test_workbench_get_auth_namespace_missing_and_real_persisted_plan(tmp_path):
++    from nanobot.webui.ws_http import GatewayHTTPHandler
++
++    manager = SessionManager(tmp_path)
++    session = manager.get_or_create("websocket:a")
++    manager.save(session)
++    with request_context(RequestContext(channel="websocket", chat_id="a", session_key=session.key)):
++        await plan_tool(manager).execute(steps=[{"title": "真实计划", "status": "pending"}])
++    handler = GatewayHTTPHandler.__new__(GatewayHTTPHandler)
++    handler.session_manager = manager
++    handler.check_api_token = lambda request: request.headers.get("Authorization") == "Bearer tok"
++    handler.memory_operations = None
++    handler.subagent_execution_operations = None
++    handler._mcp_runtime_status = None
++    handler.skills_workspace_path = tmp_path
++    handler.disabled_skills = set()
++    handler.settings = SimpleNamespace(config=SimpleNamespace(load=lambda: SimpleNamespace(
++        tools=SimpleNamespace(mcp_servers={})
++    )))
++    for key, token, status in [(session.key, "bad", 401), ("telegram:a", "tok", 404), ("websocket:missing", "tok", 404), (session.key, "tok", 200)]:
++        encoded = quote(key, safe="")
++        request = Request(f"/api/sessions/{encoded}/workbench", Headers([("Authorization", f"Bearer {token}")]))
++        response = await handler._dispatch_session_routes(request, request.path)
++        assert response.status_code == status
++        if status == 200:
++            assert json.loads(response.body)["tasks"][0]["title"] == "真实计划"
+diff --git a/webui/src/App.tsx b/webui/src/App.tsx
+index afb709c..a6d4673 100644
+--- a/webui/src/App.tsx
++++ b/webui/src/App.tsx
+@@ -2953,11 +2953,12 @@ function Shell({
+                           headerPortalTarget={context.headerPortalTarget}
+                           headerActive={context.active}
+                           composerPortalTarget={context.composerPortalTarget}
++                          onComposerRailInsetChange={context.onComposerRailInsetChange}
++                          onComposerPlacementChange={context.onComposerPlacementChange}
+                           composerActive={context.active}
+                           composerInputAriaLabel={t("workbench.composerAria", {
+                             title: pane.title,
+                           })}
+-                          emptyComposerVariant="thread"
+                           workspaceScope={paneScope}
+                           workspaceDefaultScope={workspaces?.default_scope ?? null}
+                           workspaceControls={workspaces?.controls ?? null}
+diff --git a/webui/src/components/FilePreviewPanel.tsx b/webui/src/components/FilePreviewPanel.tsx
+index 08e0932..420b47c 100644
+--- a/webui/src/components/FilePreviewPanel.tsx
++++ b/webui/src/components/FilePreviewPanel.tsx
+@@ -1,9 +1,10 @@
+ import { useEffect, useMemo, useRef, useState } from "react";
+-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
++import type { CSSProperties } from "react";
+ import { AlertCircle, ChevronRight, Loader2, X } from "lucide-react";
+ import { useTranslation } from "react-i18next";
+ 
+ import { CodeBlock } from "@/components/CodeBlock";
++import { ResizeHandle } from "@/components/workbench/ResizeHandle";
+ import { splitFilePath } from "@/components/FileReferenceChip";
+ import { ApiError, fetchFilePreview } from "@/lib/api";
+ import type { FilePreviewPayload } from "@/lib/types";
+@@ -15,7 +16,8 @@ interface FilePreviewPanelProps {
+   token: string;
+   desktopWidth?: number;
+   isClosing?: boolean;
+-  onResizeStart?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
++  maxDesktopWidth?: number;
++  onWidthChange?: (width: number) => void;
+   onClose: () => void;
+ }
+ 
+@@ -30,12 +32,15 @@ export function FilePreviewPanel({
+   token,
+   desktopWidth = 544,
+   isClosing = false,
+-  onResizeStart,
++  maxDesktopWidth = 860,
++  onWidthChange,
+   onClose,
+ }: FilePreviewPanelProps) {
+   const { t } = useTranslation();
+   const [state, setState] = useState<PreviewState>({ status: "loading" });
+   const [entered, setEntered] = useState(false);
++  const [resizing, setResizing] = useState(false);
++  const panelRef = useRef<HTMLElement>(null);
+   const tokenRef = useRef(token);
+   tokenRef.current = token;
+ 
+@@ -98,6 +103,7 @@ export function FilePreviewPanel({
+ 
+   return (
+     <aside
++      ref={panelRef}
+       aria-label={t("filePreview.aria", { defaultValue: "File preview" })}
+       style={{
+         "--file-preview-width": `${desktopWidth}px`,
+@@ -105,7 +111,7 @@ export function FilePreviewPanel({
+       } as CSSProperties}
+       className={cn(
+         "absolute inset-y-0 right-0 z-30 w-[min(100vw,var(--file-preview-slot-width))] overflow-hidden",
+-        "transition-[width] duration-300 ease-out will-change-[width]",
++        !resizing && "transition-[width] duration-300 ease-out will-change-[width]",
+         "md:relative md:z-auto md:w-[var(--file-preview-slot-width)] md:min-w-0 md:shrink-0",
+         isClosing && "pointer-events-none",
+       )}
+@@ -121,24 +127,13 @@ export function FilePreviewPanel({
+           "motion-reduce:translate-x-0",
+         )}
+       >
+-        {onResizeStart ? (
+-          <button
+-            type="button"
+-            aria-label={t("filePreview.resize", { defaultValue: "Resize file preview" })}
+-            className={cn(
+-              "group absolute inset-y-0 left-0 z-20 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none md:flex",
+-              "items-stretch justify-center focus-visible:outline-none",
+-            )}
+-            onPointerDown={onResizeStart}
+-          >
+-            <span
+-              aria-hidden
+-              className={cn(
+-                "h-full w-px bg-foreground/25 opacity-0 transition-opacity",
+-                "group-hover:opacity-100 group-focus-visible:bg-ring group-focus-visible:opacity-100",
+-              )}
+-            />
+-          </button>
++        {onWidthChange ? (
++          <ResizeHandle label={t("filePreview.resize", { defaultValue: "Resize file preview" })}
++            value={desktopWidth} min={Math.min(360, maxDesktopWidth)} max={maxDesktopWidth}
++            className="absolute inset-y-0 left-0 hidden md:flex"
++            valueAtPointer={(x) => (panelRef.current?.getBoundingClientRect().right ?? 0) - x}
++            onChange={onWidthChange} onDraggingChange={setResizing}
++          />
+         ) : null}
+         <div className="flex min-h-0 flex-1 flex-col">
+           <div
+diff --git a/webui/src/components/dock/DockFileTab.tsx b/webui/src/components/dock/DockFileTab.tsx
+index 583b125..7418ce0 100644
+--- a/webui/src/components/dock/DockFileTab.tsx
++++ b/webui/src/components/dock/DockFileTab.tsx
+@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
+ import { ChevronsDownUp, Eye, EyeOff, RefreshCw, RotateCw, Search, X } from "lucide-react";
+ 
+ import { CodeBlock } from "@/components/CodeBlock";
++import { ResizeHandle } from "@/components/workbench/ResizeHandle";
+ import { DockFileSearch } from "@/components/dock/DockFileSearch";
+ import { WorkspaceFileTree } from "@/components/workbench/WorkspaceFileTree";
+ import { ApiError, fetchFilePreview, fetchWorkspaceFiles } from "@/lib/api";
+@@ -140,6 +141,8 @@ export function DockFileTab({
+   const [refreshToken, setRefreshToken] = useState(0);
+   const [collapseToken, setCollapseToken] = useState(0);
+   const [searchOpen, setSearchOpen] = useState(false);
++  const [treePercent, setTreePercent] = useState(46);
++  const columnsRef = useRef<HTMLDivElement>(null);
+   const getTokenRef = useRef(getToken);
+   getTokenRef.current = getToken;
+ 
+@@ -241,7 +244,7 @@ export function DockFileTab({
+   );
+ 
+   const renderTree = () => (
+-    <div className="flex min-h-0 flex-1 gap-2">
++    <div ref={columnsRef} className="flex min-h-0 min-w-0 flex-1">
+       {inlinePreview ? (
+         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+           {previewPath ? (
+@@ -263,11 +266,21 @@ export function DockFileTab({
+           )}
+         </div>
+       ) : null}
++      {inlinePreview ? <ResizeHandle
++        label={t("filePreview.resizeTree", { defaultValue: "Resize file tree" })}
++        value={treePercent} min={20} max={65} step={5}
++        valueAtPointer={(x) => {
++          const bounds = columnsRef.current?.getBoundingClientRect();
++          return bounds?.width ? (x - bounds.left) / bounds.width * 100 : treePercent;
++        }}
++        onChange={setTreePercent}
++      /> : null}
+       <div
+         data-testid="dock-file-tree-column"
++        style={inlinePreview ? { width: `${treePercent}%` } : undefined}
+         className={
+           inlinePreview
+-            ? "flex min-h-0 w-[46%] shrink-0 flex-col gap-2"
++            ? "flex min-h-0 min-w-0 shrink-0 flex-col gap-2"
+             : "flex min-h-0 flex-1 flex-col gap-2"
+         }
+       >
+diff --git a/webui/src/components/dock/StartDock.tsx b/webui/src/components/dock/StartDock.tsx
+index 64f75bf..4c87f71 100644
+--- a/webui/src/components/dock/StartDock.tsx
++++ b/webui/src/components/dock/StartDock.tsx
+@@ -21,6 +21,7 @@ import {
+ } from "lucide-react";
+ 
+ import { DockFileTab } from "@/components/dock/DockFileTab";
++import { ResizableRail } from "@/components/workbench/ResizableRail";
+ import { BrowserSection } from "@/components/workbench/BrowserSection";
+ import { TerminalSurface } from "@/components/workbench/TerminalSurface";
+ import { defaultGenerateTerminalId } from "@/components/workbench/terminal-shared";
+@@ -523,12 +524,15 @@ export function StartDock({
+   }
+ 
+   return (
++    <ResizableRail label={t("workbench.resizeTools", { defaultValue: "Resize tools sidebar" })}
++      defaultWidth={480} minWidth={320} className="hidden md:flex">
+     <aside
+       data-testid="start-dock"
+       aria-label={t("startPanel.title", { defaultValue: "Start" })}
+-      className="hidden w-dock shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 md:flex xl:w-dockXl"
++      className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border/60 bg-muted/20"
+     >
+       {shellInner}
+     </aside>
++    </ResizableRail>
+   );
+ }
+diff --git a/webui/src/components/thread/ThreadShell.tsx b/webui/src/components/thread/ThreadShell.tsx
+index 2874fb0..8159aa0 100644
+--- a/webui/src/components/thread/ThreadShell.tsx
++++ b/webui/src/components/thread/ThreadShell.tsx
+@@ -1,15 +1,18 @@
+ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
++import type { ReactNode } from "react";
+ import { createPortal } from "react-dom";
+ import { useTranslation } from "react-i18next";
+ import { PanelRight } from "lucide-react";
+ 
+ import { Button } from "@/components/ui/button";
++import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+ import { FilePreviewAvailabilityProvider } from "@/components/FilePreviewAvailabilityContext";
+ import { FilePreviewPanel } from "@/components/FilePreviewPanel";
+ import { StartDock } from "@/components/dock/StartDock";
+ import { SessionHandleLabel } from "@/components/SessionHandleLabel";
+ import { SessionWorkbench } from "@/components/workbench/SessionWorkbench";
++import { ResizableRail } from "@/components/workbench/ResizableRail";
++import { useMediaQuery } from "@/hooks/useMediaQuery";
+ import { deriveSessionWorkbench } from "@/components/workbench/session-workbench-model";
+ import { RecoveryNotice } from "@/components/thread/RecoveryNotice";
+ import { AskQuestionCard } from "@/components/thread/AskQuestionCard";
+@@ -447,6 +450,8 @@ interface ThreadShellProps {
+   headerActive?: boolean;
+   composerPortalTarget?: HTMLElement | null;
+   composerActive?: boolean;
++  onComposerRailInsetChange?: (width: number) => void;
++  onComposerPlacementChange?: (placement: "inline" | "footer") => void;
+   composerInputAriaLabel?: string;
+   emptyComposerVariant?: "hero" | "thread";
+   workspaceScope?: WorkspaceScopePayload | null;
+@@ -693,6 +698,8 @@ export function ThreadShell({
+   headerActive = true,
+   composerPortalTarget,
+   composerActive = true,
++  onComposerRailInsetChange,
++  onComposerPlacementChange,
+   composerInputAriaLabel,
+   emptyComposerVariant = "hero",
+   workspaceScope = null,
+@@ -813,11 +820,14 @@ export function ThreadShell({
+   const [rightSurfaces, setRightSurfaces] = useState<RightSurface[]>([WORKBENCH_SURFACE]);
+   const activeRightSurface = rightSurfaces[rightSurfaces.length - 1] ?? WORKBENCH_SURFACE;
+   const filePreviewPath = activeRightSurface.kind === "file" ? activeRightSurface.path : null;
++  const narrowViewport = useMediaQuery("(max-width: 767px)");
++  const [mobileWorkbenchOpen, setMobileWorkbenchOpen] = useState(false);
+   const executionSurface = activeRightSurface.kind === "execution" ? activeRightSurface : null;
+   const [executionReturnFocus, setExecutionReturnFocus] = useState<HTMLElement | null>(null);
+   const [shellWidth, setShellWidth] = useState(() =>
+     typeof window === "undefined" ? 1024 : window.innerWidth,
+   );
++  const compactWorkbench = narrowViewport || shellWidth < 680;
+   const executionScrollTopRef = useRef<Record<string, number>>({});
+   const [filePreviewClosing, setFilePreviewClosing] = useState(false);
+   const [filePreviewWidth, setFilePreviewWidth] = useState(FILE_PREVIEW_DEFAULT_WIDTH);
+@@ -837,6 +847,9 @@ export function ThreadShell({
+   const [quotedContext, setQuotedContext] = useState<string | null>(null);
+   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
+   const shellRef = useRef<HTMLElement | null>(null);
++  const mainColumnRef = useRef<HTMLDivElement | null>(null);
++  const insetCallbackRef = useRef(onComposerRailInsetChange);
++  insetCallbackRef.current = onComposerRailInsetChange;
+   const composerSurfaceRef = useRef<HTMLDivElement | null>(null);
+   const filePreviewWidthRef = useRef(FILE_PREVIEW_DEFAULT_WIDTH);
+   const filePreviewCloseTimerRef = useRef<number | null>(null);
+@@ -1038,6 +1051,9 @@ export function ThreadShell({
+   ]);
+ 
+   const showHeroComposer = displayMessages.length === 0 && !loading;
++  useEffect(() => {
++    onComposerPlacementChange?.(showHeroComposer ? "inline" : "footer");
++  }, [onComposerPlacementChange, showHeroComposer]);
+   const composerVariant = showHeroComposer ? emptyComposerVariant : "thread";
+   const wasShowingHeroComposerRef = useRef(showHeroComposer);
+   const sessionModelPreset = session?.modelPreset?.trim() || null;
+@@ -1587,12 +1603,18 @@ export function ThreadShell({
+       const rectWidth = shell?.getBoundingClientRect().width ?? 0;
+       const clientWidth = shell?.clientWidth ?? 0;
+       setShellWidth(rectWidth || clientWidth || window.innerWidth);
++      const shellRect = shell?.getBoundingClientRect();
++      const mainRect = mainColumnRef.current?.getBoundingClientRect();
++      if (shellRect && mainRect) {
++        insetCallbackRef.current?.(Math.max(0, Math.round(shellRect.right - mainRect.right)));
++      }
+     };
+     updateWidth();
+     const observer = typeof ResizeObserver === "undefined"
+       ? null
+       : new ResizeObserver(updateWidth);
+     observer?.observe(shell ?? document.documentElement);
++    if (mainColumnRef.current) observer?.observe(mainColumnRef.current);
+     window.addEventListener("resize", updateWidth);
+     return () => {
+       observer?.disconnect();
+@@ -1621,59 +1643,6 @@ export function ThreadShell({
+     }, FILE_PREVIEW_CLOSE_ANIMATION_MS);
+   }, [filePreviewClosing, filePreviewPath]);
+ 
+-  const handleFilePreviewResizeStart = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+-    event.preventDefault();
+-    event.stopPropagation();
+-    const panel = event.currentTarget.closest<HTMLElement>("[data-file-preview-panel]");
+-    const shellRect = shellRef.current?.getBoundingClientRect();
+-    const rightEdge = shellRect?.right ?? window.innerWidth;
+-    const maxWidth = maxFilePreviewWidth(shellRect?.width ?? window.innerWidth);
+-    const originalBodyCursor = document.body.style.cursor;
+-    const originalBodyUserSelect = document.body.style.userSelect;
+-    const originalPanelTransition = panel?.style.transition ?? "";
+-    let nextWidth = filePreviewWidthRef.current;
+-    let frame: number | null = null;
+-
+-    document.body.style.cursor = "col-resize";
+-    document.body.style.userSelect = "none";
+-    if (panel) panel.style.transition = "none";
+-
+-    const applyWidth = (clientX: number) => {
+-      nextWidth = clampFilePreviewWidth(rightEdge - clientX, maxWidth);
+-      filePreviewWidthRef.current = nextWidth;
+-      if (frame !== null) return;
+-      frame = window.requestAnimationFrame(() => {
+-        frame = null;
+-        panel?.style.setProperty("--file-preview-width", `${nextWidth}px`);
+-        panel?.style.setProperty("--file-preview-slot-width", `${nextWidth}px`);
+-      });
+-    };
+-    const handlePointerMove = (moveEvent: PointerEvent) => {
+-      moveEvent.preventDefault();
+-      applyWidth(moveEvent.clientX);
+-    };
+-    const handlePointerUp = () => {
+-      if (frame !== null) {
+-        window.cancelAnimationFrame(frame);
+-        frame = null;
+-      }
+-      panel?.style.setProperty("--file-preview-width", `${nextWidth}px`);
+-      panel?.style.setProperty("--file-preview-slot-width", `${nextWidth}px`);
+-      if (panel) panel.style.transition = originalPanelTransition;
+-      setFilePreviewWidth(nextWidth);
+-      document.body.style.cursor = originalBodyCursor;
+-      document.body.style.userSelect = originalBodyUserSelect;
+-      window.removeEventListener("pointermove", handlePointerMove);
+-      window.removeEventListener("pointerup", handlePointerUp);
+-      window.removeEventListener("pointercancel", handlePointerUp);
+-    };
+-
+-    applyWidth(event.clientX);
+-    window.addEventListener("pointermove", handlePointerMove);
+-    window.addEventListener("pointerup", handlePointerUp);
+-    window.addEventListener("pointercancel", handlePointerUp);
+-  }, []);
+-
+   useEffect(() => {
+     if (!filePreviewPath) return;
+     const clampToShell = () => {
+@@ -2001,9 +1970,9 @@ export function ThreadShell({
+       variant="ghost"
+       size="icon"
+       type="button"
+-      aria-label={t("workbench.tools", { defaultValue: "Tools sidebar" })}
+-      aria-pressed={toolsOpen}
+-      onClick={toggleToolsSurface}
++      aria-label={compactWorkbench ? t("workbench.title", { defaultValue: "Workbench" }) : t("workbench.tools", { defaultValue: "Tools sidebar" })}
++      aria-pressed={compactWorkbench ? mobileWorkbenchOpen : toolsOpen}
++      onClick={compactWorkbench ? () => setMobileWorkbenchOpen((open) => !open) : toggleToolsSurface}
+       className={`host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground ${
+         toolsOpen ? "bg-accent/40 text-foreground" : ""
+       }`}
+@@ -2032,7 +2001,7 @@ export function ThreadShell({
+ 
+   return (
+     <section ref={shellRef} className="agent-thread-shell relative flex min-h-0 flex-1 overflow-hidden">
+-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
++      <div ref={mainColumnRef} className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+         {hideHeaderTitle && inlineHandle && !temporary && session?.handle ? (
+           <div
+             aria-label={`Session @${session.handle.name}`}
+@@ -2061,7 +2030,7 @@ export function ThreadShell({
+             retryStatus={retryStatus}
+             emptyState={emptyState}
+             emptyStateBelow={emptyStateBelow}
+-            composer={composerPortalTarget === undefined ? composer : null}
++            composer={showHeroComposer || composerPortalTarget === undefined ? composer : null}
+             activeTurnId={viewportTurnId}
+             activeTurnStartedHere={activeTurnStartedHere}
+             conversationKey={historyKey}
+@@ -2090,7 +2059,8 @@ export function ThreadShell({
+           token={token}
+           desktopWidth={filePreviewWidth}
+           isClosing={filePreviewClosing}
+-          onResizeStart={handleFilePreviewResizeStart}
++          maxDesktopWidth={maxFilePreviewWidth(shellWidth)}
++          onWidthChange={setFilePreviewWidth}
+           onClose={handleCloseFilePreview}
+         />
+       ) : null}
+@@ -2113,9 +2083,29 @@ export function ThreadShell({
+       {session && (
+         activeRightSurface.kind === "workbench" || activeRightSurface.kind === "tools"
+       ) ? (
+-        <div className="relative hidden shrink-0 md:flex">
++        compactWorkbench ? (
++          <Dialog open={mobileWorkbenchOpen} onOpenChange={setMobileWorkbenchOpen}>
++            <DialogContent aria-describedby={undefined} className="fixed inset-y-0 left-auto right-0 flex h-full w-[min(100vw,380px)] max-w-full translate-x-0 translate-y-0 flex-col gap-0 rounded-none p-0 pt-12">
++              <DialogTitle className="sr-only">{t("workbench.title", { defaultValue: "Workbench" })}</DialogTitle>
++              <Button variant="ghost" className="absolute left-2 top-2" onClick={toggleToolsSurface}>
++                {toolsOpen ? t("workbench.title", { defaultValue: "Workbench" }) : t("workbench.tools", { defaultValue: "Tools sidebar" })}
++              </Button>
++              {toolsOpen ? <StartDock variant="embedded" scope={historyKey ?? HOME_DOCK_SCOPE}
++                sessionKey={historyKey} getToken={getToken} onCollapse={closeToolsSurface}
++                onOpenFilePreview={historyKey ? (path) => { setMobileWorkbenchOpen(false); handleOpenFilePreview(path); } : undefined}
++              /> : <SessionWorkbench model={workbenchModel} sessionKey={historyKey} token={token} client={client}
++                onOpenExecution={(id) => { setMobileWorkbenchOpen(false); handleOpenExecution(id, null); }}
++                onOpenFilePreview={historyKey ? (path) => { setMobileWorkbenchOpen(false); handleOpenFilePreview(path); } : undefined}
++              />}
++            </DialogContent>
++          </Dialog>
++        ) : <ResizableRail label={t("workbench.resizeRail", { defaultValue: "Resize workbench" })}>
+           <SessionWorkbench
+             model={workbenchModel}
++            sessionKey={historyKey}
++            token={token}
++            client={client}
++            onOpenExecution={(id) => handleOpenExecution(id, null)}
+             onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
+           />
+           {activeRightSurface.kind === "tools" ? (
+@@ -2132,12 +2122,12 @@ export function ThreadShell({
+               />
+             </div>
+           ) : null}
+-        </div>
++        </ResizableRail>
+       ) : null}
+       {headerPortalTarget && headerActive
+         ? createPortal(threadHeader, headerPortalTarget)
+         : null}
+-      {composerPortalTarget ? createPortal(
++      {composerPortalTarget && !showHeroComposer ? createPortal(
+         <div
+           hidden={!composerActive}
+           aria-hidden={!composerActive}
+diff --git a/webui/src/components/workbench/PaneWorkbench.tsx b/webui/src/components/workbench/PaneWorkbench.tsx
+index 327744e..a579551 100644
+--- a/webui/src/components/workbench/PaneWorkbench.tsx
++++ b/webui/src/components/workbench/PaneWorkbench.tsx
+@@ -57,6 +57,8 @@ interface PaneRenderContext {
+   active: boolean;
+   headerPortalTarget: HTMLElement | null | undefined;
+   composerPortalTarget: HTMLElement | null | undefined;
++  onComposerRailInsetChange: (width: number) => void;
++  onComposerPlacementChange: (placement: "inline" | "footer") => void;
+   headerActions: ReactNode;
+ }
+ 
+@@ -176,6 +178,13 @@ export function PaneWorkbench({
+   const effectiveLayout = layout;
+   const [headerPortalTarget, setHeaderPortalTarget] = useState<HTMLElement | null>(null);
+   const [composerPortalTarget, setComposerPortalTarget] = useState<HTMLElement | null>(null);
++  const [paneComposerLayouts, setPaneComposerLayouts] = useState<Record<string, {
++    railWidth?: number;
++    placement?: "inline" | "footer";
++  }>>({});
++  const activeComposerLayout = paneComposerLayouts[activePaneKey];
++  const activeRailInset = activeComposerLayout?.railWidth === undefined
++    ? composerRailInset : `${activeComposerLayout.railWidth}px`;
+   const gridRef = useRef<HTMLDivElement | null>(null);
+   const paneRefs = useRef(new Map<string, HTMLElement>());
+   const lastRectsRef = useRef(new Map<string, DOMRect>());
+@@ -682,6 +691,16 @@ export function PaneWorkbench({
+                     active,
+                     headerPortalTarget: chrome ? headerPortalTarget : undefined,
+                     composerPortalTarget: chrome ? composerPortalTarget : undefined,
++                    onComposerRailInsetChange: (railWidth) => setPaneComposerLayouts((previous) => (
++                      previous[pane.key]?.railWidth === railWidth ? previous : {
++                        ...previous, [pane.key]: { ...previous[pane.key], railWidth },
++                      }
++                    )),
++                    onComposerPlacementChange: (placement) => setPaneComposerLayouts((previous) => (
++                      previous[pane.key]?.placement === placement ? previous : {
++                        ...previous, [pane.key]: { ...previous[pane.key], placement },
++                      }
++                    )),
+                     headerActions,
+                   })}
+                   {chrome && panes.length > 1 && !compact ? (
+@@ -784,14 +803,15 @@ export function PaneWorkbench({
+ 
+         {chrome ? (
+           <footer
++            hidden={activeComposerLayout?.placement === "inline"}
+             className="shrink-0 bg-background px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4"
+             // 让位放在 footer 的 padding 上，而不是宿主的 margin-right：宿主的可用宽度
+             // 才是消息列真实的中线基准，两者都等于「聊天区 − rail」。挂在 margin 上会让
+             // 宿主先按 rail 缩一次、再由 mx-auto 二次居中，输入框整体右移约 rail 的一半
+             // （2026-10-20 实测 1736px 下偏 99px）。
+             style={
+-              composerRailInset && !compact
+-                ? { paddingRight: `calc(${composerRailInset} + 1rem)` }
++              activeRailInset && !compact
++                ? { paddingRight: `calc(${activeRailInset} + 1rem)` }
+                 : undefined
+             }
+           >
+diff --git a/webui/src/components/workbench/ResizableRail.tsx b/webui/src/components/workbench/ResizableRail.tsx
+new file mode 100644
+index 0000000..3934c83
+--- /dev/null
++++ b/webui/src/components/workbench/ResizableRail.tsx
+@@ -0,0 +1,44 @@
++import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
++import { ResizeHandle } from "@/components/workbench/ResizeHandle";
++import { cn } from "@/lib/utils";
++
++export function ResizableRail({ children, label, defaultWidth = 304, minWidth = 280,
++  maxWidth = 860, className, onWidthChange,
++}: {
++  children: ReactNode;
++  label: string;
++  defaultWidth?: number;
++  minWidth?: number;
++  maxWidth?: number;
++  className?: string;
++  onWidthChange?: (width: number) => void;
++}) {
++  const railRef = useRef<HTMLDivElement>(null);
++  const [requestedWidth, setRequestedWidth] = useState(defaultWidth);
++  const [availableWidth, setAvailableWidth] = useState(maxWidth);
++  useEffect(() => {
++    const parent = railRef.current?.parentElement;
++    const measure = () => {
++      const width = parent?.getBoundingClientRect().width || window.innerWidth;
++      setAvailableWidth(width < 768 ? width : Math.max(minWidth, width - 360));
++    };
++    measure();
++    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
++    if (parent) observer?.observe(parent);
++    window.addEventListener("resize", measure);
++    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
++  }, [minWidth]);
++  const max = Math.max(0, Math.min(maxWidth, availableWidth));
++  const min = Math.min(minWidth, max);
++  const width = Math.min(max, Math.max(min, requestedWidth));
++  useEffect(() => { onWidthChange?.(width); }, [onWidthChange, width]);
++  return <div ref={railRef} data-testid="resizable-rail"
++    className={cn("relative flex min-h-0 w-[var(--rail-width)] max-w-full shrink-0 flex-col", className)}
++    style={{ "--rail-width": `${width}px` } as CSSProperties}>
++    <ResizeHandle label={label} value={width} min={min} max={max}
++      className="absolute inset-y-0 left-0"
++      valueAtPointer={(x) => (railRef.current?.getBoundingClientRect().right ?? 0) - x}
++      onChange={setRequestedWidth} />
++    {children}
++  </div>;
++}
+diff --git a/webui/src/components/workbench/ResizeHandle.tsx b/webui/src/components/workbench/ResizeHandle.tsx
+new file mode 100644
+index 0000000..886090d
+--- /dev/null
++++ b/webui/src/components/workbench/ResizeHandle.tsx
+@@ -0,0 +1,65 @@
++import { useRef } from "react";
++import { cn } from "@/lib/utils";
++
++/** A right-anchored column boundary, shared by rails and the inline file tree. */
++export function ResizeHandle({
++  label, value, min, max, step = 32, valueAtPointer, onChange, onDraggingChange, className,
++}: {
++  label: string;
++  value: number;
++  min: number;
++  max: number;
++  step?: number;
++  valueAtPointer: (clientX: number) => number;
++  onChange: (value: number) => void;
++  onDraggingChange?: (dragging: boolean) => void;
++  className?: string;
++}) {
++  const pointerRef = useRef<number | null>(null);
++  const clamp = (next: number) => Math.round(Math.min(max, Math.max(min, next)));
++  return <button
++    type="button"
++    role="separator"
++    aria-orientation="vertical"
++    aria-label={label}
++    aria-valuemin={min}
++    aria-valuemax={max}
++    aria-valuenow={Math.round(value)}
++    aria-keyshortcuts="ArrowLeft ArrowRight Home End"
++    className={cn("group host-no-drag z-40 flex w-3 shrink-0 touch-none cursor-col-resize items-center justify-center bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
++    onPointerDown={(event) => {
++      if (event.button !== 0 || pointerRef.current !== null) return;
++      event.preventDefault();
++      event.stopPropagation();
++      pointerRef.current = event.pointerId;
++      onDraggingChange?.(true);
++      // Keep receiving moves after crossing an iframe or leaving this narrow handle.
++      // https://developer.mozilla.org/en-US/docs/Web/API/Element/setPointerCapture
++      event.currentTarget.setPointerCapture(event.pointerId);
++    }}
++    onPointerMove={(event) => {
++      if (pointerRef.current !== event.pointerId) return;
++      event.preventDefault();
++      onChange(clamp(valueAtPointer(event.clientX)));
++    }}
++    onPointerUp={(event) => {
++      if (pointerRef.current !== event.pointerId) return;
++      pointerRef.current = null;
++      onDraggingChange?.(false);
++      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
++        event.currentTarget.releasePointerCapture(event.pointerId);
++      }
++    }}
++    onPointerCancel={() => { pointerRef.current = null; onDraggingChange?.(false); }}
++    onLostPointerCapture={() => { pointerRef.current = null; onDraggingChange?.(false); }}
++    onKeyDown={(event) => {
++      const next = event.key === "ArrowLeft" ? value + step
++        : event.key === "ArrowRight" ? value - step
++          : event.key === "Home" ? min : event.key === "End" ? max : null;
++      if (next === null) return;
++      event.preventDefault();
++      event.stopPropagation();
++      onChange(clamp(next));
++    }}
++  ><span aria-hidden className="h-full min-h-8 w-px bg-border/70 group-hover:bg-primary/60 group-focus-visible:bg-primary" /></button>;
++}
+diff --git a/webui/src/components/workbench/SessionWorkbench.tsx b/webui/src/components/workbench/SessionWorkbench.tsx
+index 17ded22..8dcdf54 100644
+--- a/webui/src/components/workbench/SessionWorkbench.tsx
++++ b/webui/src/components/workbench/SessionWorkbench.tsx
+@@ -1,254 +1,114 @@
+-import { useState, type ReactNode } from "react";
++import { useId, useState } from "react";
+ import { useTranslation } from "react-i18next";
+-import {
+-  ChevronRight,
+-  Search,
+-  Wrench,
+-} from "lucide-react";
+-
+-import {
+-  type SessionWorkbenchModel,
+-  type WorkbenchSource,
+-} from "./session-workbench-model";
++import { RefreshCw, Search } from "lucide-react";
++import type { SessionWorkbenchModel } from "./session-workbench-model";
++import { useSessionWorkbench, type WorkbenchEventClient } from "./use-session-workbench";
++import { WorkbenchProgress } from "./workbench-progress";
++import { WorkbenchCapabilities, WorkbenchLimitations, WorkbenchMemories } from "./workbench-context";
++import { WorkbenchEmpty, WorkbenchSection, useWorkbenchText } from "./workbench-parts";
+ import { cn } from "@/lib/utils";
+ 
+-// Mirrors the rail's literal `w-[19rem]` below (Tailwind can't see dynamic classes).
++// Default width only; the host owns resizing and the composer inset.
+ export const SESSION_WORKBENCH_RAIL_WIDTH = "19rem";
+-
+ interface SessionWorkbenchProps {
+   model: SessionWorkbenchModel;
++  sessionKey?: string | null;
++  token?: string;
++  client?: WorkbenchEventClient;
+   onOpenFilePreview?: (path: string) => void;
++  onOpenExecution?: (invocationId: string) => void;
+ }
++type Tab = "progress" | "memory" | "capabilities";
+ 
+-function formatUpdatedAt(ms: number | null, language: string): string {
+-  if (ms === null || !Number.isFinite(ms)) return "";
+-  return new Date(ms).toLocaleTimeString(
+-    language.startsWith("zh") ? "zh-CN" : language,
+-    { hour: "2-digit", minute: "2-digit" },
+-  );
+-}
+-
+-function Section({
+-  title,
+-  count,
+-  defaultOpen,
+-  children,
+-}: {
+-  title: string;
+-  count?: number;
+-  defaultOpen: boolean;
+-  children: ReactNode;
+-}) {
+-  const [open, setOpen] = useState(defaultOpen);
+-  return (
+-    <div className="border-b border-border/40 last:border-b-0">
+-      <button
+-        type="button"
+-        aria-expanded={open}
+-        onClick={() => setOpen((value) => !value)}
+-        className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-[12.5px] font-medium text-foreground/85 hover:bg-muted/40"
+-      >
+-        <ChevronRight
+-          className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform", open && "rotate-90")}
+-          aria-hidden
+-        />
+-        <span className="min-w-0 truncate">{title}</span>
+-        {typeof count === "number" && count > 0 ? (
+-          <span className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground/70">
+-            {count}
+-          </span>
+-        ) : null}
+-      </button>
+-      {open ? <div className="px-3 pb-2.5 text-[12.5px]">{children}</div> : null}
+-    </div>
+-  );
+-}
+-
+-function SourceLink({ source }: { source: WorkbenchSource }) {
+-  return (
+-    <a
+-      href={source.href}
+-      target="_blank"
+-      rel="noreferrer noopener"
+-      title={source.href}
+-      className="flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-muted-foreground hover:bg-muted/45 hover:text-foreground hover:underline hover:underline-offset-2"
+-    >
+-      <Search className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+-      <span className="min-w-0 truncate">{source.title}</span>
+-      {source.host ? (
+-        <span className="ml-auto shrink-0 text-[11px] opacity-60">{source.host}</span>
+-      ) : null}
+-    </a>
+-  );
+-}
+-
+-export function SessionWorkbench({
+-  model,
+-  onOpenFilePreview,
+-}: SessionWorkbenchProps) {
++export function SessionWorkbench({ model, sessionKey, token, client, onOpenFilePreview, onOpenExecution }: SessionWorkbenchProps) {
+   const { t, i18n } = useTranslation();
+-  const updated = formatUpdatedAt(model.updatedAtMs, i18n.language);
+-  const hasIntegrations = model.mcpUsed.length > 0 || model.cliUsed.length > 0;
+-
+-  return (
+-    <aside
+-      data-testid="session-workbench"
+-      aria-label={t("workbench.title", { defaultValue: "Workbench" })}
+-      className="relative flex w-[19rem] shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20"
+-    >
+-      <header className="flex h-9 shrink-0 items-center gap-2 border-b border-border/40 px-3">
+-        <span className="text-[12.5px] font-semibold text-foreground/85">
+-          {t("workbench.title", { defaultValue: "Workbench" })}
+-        </span>
+-        {updated ? (
+-          <span className="truncate text-[11px] text-muted-foreground/80">
+-            {t("workbench.updatedAt", {
+-              time: updated,
+-              defaultValue: "Updated {{time}}",
+-            })}
+-          </span>
+-        ) : null}
+-      </header>
++  const text = useWorkbenchText();
++  const id = useId();
++  const [tab, setTab] = useState<Tab>("progress");
++  const { snapshot, loading, error, refresh } = useSessionWorkbench({ sessionKey, token, client });
++  const timestamp = snapshot?.updated_at ? Date.parse(snapshot.updated_at) : model.updatedAtMs;
++  const updated = timestamp && Number.isFinite(timestamp)
++    ? new Date(timestamp).toLocaleTimeString(i18n.language, { hour: "2-digit", minute: "2-digit" }) : "";
++  const tabs: { key: Tab; label: string; count?: number }[] = [
++    { key: "progress", label: text("进展", "Progress") },
++    { key: "memory", label: text("记忆", "Memory"), count: snapshot?.memories.length },
++    { key: "capabilities", label: text("能力", "Capabilities"), count: snapshot ? snapshot.skills.length + snapshot.mcp.length : undefined },
++  ];
+ 
+-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+-        <Section
+-          title={t("workbench.overview", { defaultValue: "Overview" })}
+-          defaultOpen
+-        >
+-          {model.summary ? (
+-            <p className="text-[12px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+-              {model.summary}
+-            </p>
+-          ) : (
+-            <p className="text-[12px] text-muted-foreground/60">
+-              {t("workbench.emptyOverview", { defaultValue: "No summary yet" })}
+-            </p>
+-          )}
+-        </Section>
+-
+-        <Section
+-          title={t("workbench.environment", { defaultValue: "Environment" })}
+-          defaultOpen
+-        >
+-          <div className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
+-            <span
+-              className={cn(
+-                "rounded border px-1.5 py-px tabular-nums",
+-                model.diffDeleted > 0
+-                  ? "border-border/50 bg-muted/40 text-muted-foreground"
+-                  : "border-emerald-500/35 bg-emerald-500/8 text-emerald-600 dark:text-emerald-400",
+-              )}
+-            >
+-              +{model.diffAdded} −{model.diffDeleted} · {model.diffFiles}{" "}
+-              {t("workbench.files", { defaultValue: "files" })}
+-            </span>
+-            <span className="rounded border border-border/50 bg-muted/40 px-1.5 py-px text-muted-foreground">
+-              {t("workbench.local", { defaultValue: "Local" })}
+-            </span>
+-            {model.accessMode ? (
+-              <span className="rounded border border-border/50 bg-muted/40 px-1.5 py-px text-muted-foreground">
+-                {model.accessMode === "full"
+-                  ? t("workbench.fullAccess", { defaultValue: "Full access" })
+-                  : t("workbench.restrictedAccess", { defaultValue: "Restricted" })}
+-              </span>
+-            ) : null}
+-          </div>
+-          {model.projectName || model.projectPath ? (
+-            <p className="mt-1.5 truncate text-[11.5px] text-muted-foreground/80" title={model.projectPath}>
+-              {model.projectName || model.projectPath}
+-            </p>
+-          ) : null}
+-          <button
+-            type="button"
+-            disabled
+-            title={t("workbench.commitPushHint", { defaultValue: "Coming with the workbench API" })}
+-            className="mt-2 w-full rounded border border-dashed border-border/60 px-2 py-1 text-[11.5px] text-muted-foreground/55"
+-          >
+-            {t("workbench.commitPush", { defaultValue: "Commit or push" })}
++  return <aside data-testid="session-workbench" aria-label={t("workbench.title", { defaultValue: "工作台" })}
++    className="relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 text-foreground">
++    <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border/50 px-4">
++      <span className="text-xs font-semibold">{t("workbench.title", { defaultValue: "工作台" })}</span>
++      {updated && <span className="ml-auto text-[10px] text-muted-foreground">{text("更新于", "Updated")} {updated}</span>}
++      {sessionKey && token && <button type="button" onClick={refresh} disabled={loading}
++        aria-label={text("刷新工作台", "Refresh workbench")} className="ml-auto rounded p-1.5 text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
++        <RefreshCw aria-hidden className="h-3.5 w-3.5" />
++      </button>}
++    </header>
++    <div role="tablist" aria-label={text("工作台视图", "Workbench views")} className="flex shrink-0 border-b border-border/50 px-3">
++      {tabs.map((item) => <button key={item.key} id={`${id}-${item.key}`} type="button" role="tab"
++        aria-selected={tab === item.key} aria-controls={`${id}-panel`} tabIndex={tab === item.key ? 0 : -1}
++        onClick={() => setTab(item.key)}
++        onKeyDown={(event) => {
++          const offset = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
++          if (!offset && event.key !== "Home" && event.key !== "End") return;
++          event.preventDefault();
++          const next = event.key === "Home" ? tabs[0] : event.key === "End" ? tabs[2] : tabs[(tabs.findIndex((entry) => entry.key === tab) + offset + tabs.length) % tabs.length];
++          setTab(next.key);
++          document.getElementById(`${id}-${next.key}`)?.focus();
++        }}
++        className={cn("flex flex-1 items-center justify-center gap-1.5 border-b-2 px-2 py-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", tab === item.key ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
++        {item.label}{!!item.count && <span className="text-[10px] tabular-nums text-muted-foreground">{item.count}</span>}
++      </button>)}
++    </div>
++    <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${tab}`} className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
++      {loading && <div role="status" className="space-y-2 border-b border-border/45 px-4 py-3">
++        <p className="text-[11px] text-muted-foreground">{text("正在读取会话状态…", "Loading session state…")}</p>
++        <div className="h-2 rounded bg-muted" /><div className="h-2 w-2/3 rounded bg-muted" />
++      </div>}
++      {error && <div role="alert" className="border-b border-border/45 px-4 py-3 text-xs">
++        <p className="font-medium text-destructive">{text("工作台数据加载失败", "Could not load workbench data")}</p>
++        <p className="mt-1 text-[11px] text-muted-foreground [overflow-wrap:anywhere]">{error}</p>
++        <button type="button" onClick={refresh} className="mt-2 rounded border border-border bg-background px-2 py-1 hover:bg-muted">{text("重试", "Retry")}</button>
++      </div>}
++      {!sessionKey && <div className="px-4 py-3"><WorkbenchEmpty>{text("开始会话后，任务、记忆和能力状态会显示在这里。", "Start a session to see tasks, memories and capabilities.")}</WorkbenchEmpty></div>}
++      {tab === "progress" && <>
++        {model.summary && <div className="border-b border-border/45 px-4 py-3">
++          <p className="mb-1 text-[10px] text-muted-foreground">{text("最近进展", "Latest progress")}</p>
++          <p className="line-clamp-3 text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]" title={model.summary}>{model.summary.slice(0, 140)}{model.summary.length > 140 ? "…" : ""}</p>
++        </div>}
++        {!loading && !error && <WorkbenchProgress snapshot={snapshot} onOpenExecution={onOpenExecution} />}
++      </>}
++      {tab === "memory" && !loading && !error && <WorkbenchMemories snapshot={snapshot} onOpenFilePreview={onOpenFilePreview} />}
++      {tab === "capabilities" && !loading && !error && <>
++        <WorkbenchCapabilities snapshot={snapshot} />
++        {!!model.cliUsed.length && <WorkbenchSection title="CLI" count={model.cliUsed.length} defaultOpen><ul className="space-y-2">{model.cliUsed.map((item) => <li key={item.name} className="flex justify-between gap-2 text-xs text-muted-foreground"><span className="min-w-0 truncate">{item.name}</span><span>×{item.count}</span></li>)}</ul></WorkbenchSection>}
++      </>}
++      {!!snapshot?.limitations.length && <WorkbenchLimitations limitations={snapshot.limitations} />}
++      <WorkbenchSection title={t("workbench.environment", { defaultValue: "环境信息" })}>
++        <div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
++          <span className="rounded border border-border/50 px-1.5 py-0.5 tabular-nums">+{model.diffAdded} −{model.diffDeleted} · {model.diffFiles} {t("workbench.files", { defaultValue: "文件" })}</span>
++          <span className="rounded border border-border/50 px-1.5 py-0.5">{t("workbench.local", { defaultValue: "本地" })}</span>
++          {model.accessMode && <span className="rounded border border-border/50 px-1.5 py-0.5">{model.accessMode === "full" ? t("workbench.fullAccess") : t("workbench.restrictedAccess")}</span>}
++        </div>
++        {(model.projectName || model.projectPath) && <p title={model.projectPath} className="mt-2 truncate text-[11px] text-muted-foreground">{model.projectName || model.projectPath}</p>}
++      </WorkbenchSection>
++      <WorkbenchSection title={t("workbench.outputs", { defaultValue: "产出" })} count={model.outputs.length}>
++        {model.outputs.length ? <ul className="space-y-1">{model.outputs.map((output) => <li key={output.path}>
++          <button type="button" onClick={() => onOpenFilePreview?.(output.path)} disabled={!onOpenFilePreview} title={output.path}
++            className="flex w-full min-w-0 items-center gap-1.5 rounded py-1 text-left text-xs text-muted-foreground enabled:hover:bg-muted enabled:hover:text-foreground">
++            <span className="min-w-0 flex-1 truncate">{output.display}</span>
++            <span className="shrink-0 text-[10px] tabular-nums"><span className="text-emerald-600 dark:text-emerald-400">+{output.added}</span> <span className="text-destructive">−{output.deleted}</span></span>
+           </button>
+-        </Section>
+-
+-        <Section
+-          title={t("workbench.integrations", { defaultValue: "Skills & MCP" })}
+-          count={model.mcpUsed.length + model.cliUsed.length}
+-          defaultOpen={false}
+-        >
+-          {hasIntegrations ? (
+-            <ul className="space-y-1">
+-              {model.mcpUsed.map((item) => (
+-                <li key={`mcp:${item.name}`} className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted-foreground">
+-                  <Wrench className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+-                  <span className="min-w-0 truncate">{item.name}</span>
+-                  <span className="ml-auto shrink-0 tabular-nums opacity-70">×{item.count}</span>
+-                </li>
+-              ))}
+-              {model.cliUsed.map((item) => (
+-                <li key={`cli:${item.name}`} className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted-foreground">
+-                  <ChevronRight className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+-                  <span className="min-w-0 truncate">{item.name}</span>
+-                  <span className="ml-auto shrink-0 tabular-nums opacity-70">×{item.count}</span>
+-                </li>
+-              ))}
+-            </ul>
+-          ) : (
+-            <p className="text-[12px] text-muted-foreground/60">
+-              {t("workbench.emptyIntegrations", { defaultValue: "No MCP/CLI used this session" })}
+-            </p>
+-          )}
+-        </Section>
+-
+-        <Section
+-          title={t("workbench.outputs", { defaultValue: "Outputs" })}
+-          count={model.outputs.length}
+-          defaultOpen={false}
+-        >
+-          {model.outputs.length ? (
+-            <ul className="space-y-0.5">
+-              {model.outputs.map((output) => (
+-                <li key={output.path}>
+-                  <button
+-                    type="button"
+-                    onClick={() => onOpenFilePreview?.(output.path)}
+-                    disabled={!onOpenFilePreview}
+-                    title={output.path}
+-                    className="flex w-full min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left text-[12px] text-muted-foreground enabled:hover:bg-muted/45 enabled:hover:text-foreground disabled:cursor-default"
+-                  >
+-                    <span className="min-w-0 truncate">{output.display}</span>
+-                    <span className="ml-auto shrink-0 space-x-1 text-[11px] tabular-nums">
+-                      {output.added > 0 ? <span className="text-emerald-600 dark:text-emerald-400">+{output.added}</span> : null}
+-                      {output.deleted > 0 ? <span className="text-destructive/80">−{output.deleted}</span> : null}
+-                    </span>
+-                  </button>
+-                </li>
+-              ))}
+-            </ul>
+-          ) : (
+-            <p className="text-[12px] text-muted-foreground/60">
+-              {t("workbench.emptyOutputs", { defaultValue: "No files changed yet" })}
+-            </p>
+-          )}
+-        </Section>
+-
+-        <Section
+-          title={t("workbench.sources", { defaultValue: "Sources" })}
+-          count={model.sources.length}
+-          defaultOpen={false}
+-        >
+-          {model.sources.length ? (
+-            <ul className="space-y-0.5">
+-              {model.sources.map((source) => (
+-                <li key={source.href} className="min-w-0">
+-                  <SourceLink source={source} />
+-                </li>
+-              ))}
+-            </ul>
+-          ) : (
+-            <p className="text-[12px] text-muted-foreground/60">
+-              {t("workbench.emptySources", { defaultValue: "No web sources yet" })}
+-            </p>
+-          )}
+-        </Section>
+-      </div>
+-    </aside>
+-  );
++        </li>)}</ul> : <WorkbenchEmpty>{t("workbench.emptyOutputs")}</WorkbenchEmpty>}
++      </WorkbenchSection>
++      <WorkbenchSection title={t("workbench.sources", { defaultValue: "来源" })} count={model.sources.length}>
++        {model.sources.length ? <ul className="space-y-1">{model.sources.map((source) => <li key={source.href}>
++          <a href={source.href} target="_blank" rel="noreferrer noopener" title={source.href} className="flex min-w-0 items-center gap-1.5 rounded py-1 text-xs text-muted-foreground hover:text-foreground hover:underline">
++            <Search aria-hidden className="h-3 w-3 shrink-0" /><span className="min-w-0 truncate">{source.title}</span>
++          </a>
++        </li>)}</ul> : <WorkbenchEmpty>{t("workbench.emptySources")}</WorkbenchEmpty>}
++      </WorkbenchSection>
++    </div>
++  </aside>;
+ }
+diff --git a/webui/src/components/workbench/session-workbench-api.ts b/webui/src/components/workbench/session-workbench-api.ts
+new file mode 100644
+index 0000000..c6e7b41
+--- /dev/null
++++ b/webui/src/components/workbench/session-workbench-api.ts
+@@ -0,0 +1,59 @@
++import { request } from "@/lib/api";
++
++export type WorkbenchTaskStatus = "pending" | "in_progress" | "completed" | "blocked" | "cancelled";
++export interface WorkbenchTask {
++  id: string;
++  title: string;
++  status: WorkbenchTaskStatus;
++  source: string;
++  detail?: string;
++}
++export interface SessionWorkbenchSnapshot {
++  schema_version: 1;
++  session_key: string;
++  updated_at: string | null;
++  goal: { objective: string; status: string; ui_summary?: string; recap?: string } | null;
++  tasks: WorkbenchTask[];
++  plan: { explanation: string; steps: WorkbenchTask[]; updated_at: string | null } | null;
++  agents: { id: string; name: string; status: string; detail: string; invocation_id: string }[];
++  memories: { id: string; kind: "working" | "long_term"; title: string; content: string; source: string; updated_at: string | null; persisted: boolean }[];
++  skills: { name: string; status: "available" | "always_loaded" | "used"; source: string }[];
++  mcp: { name: string; status: string; calls: number; successes: number | null; failures: number | null }[];
++  limitations: string[];
++}
++
++type Row = Record<string, unknown>;
++const record = (value: unknown): value is Row => !!value && typeof value === "object" && !Array.isArray(value);
++const string = (value: unknown): value is string => typeof value === "string";
++const nullableString = (value: unknown) => value === null || string(value);
++const count = (value: unknown) => typeof value === "number" && Number.isInteger(value) && value >= 0;
++const nullableCount = (value: unknown) => value === null || count(value);
++const rows = (value: unknown, validate: (row: Row) => boolean) => Array.isArray(value) && value.every((row: unknown) => record(row) && validate(row));
++const task = (row: Row) => [row.id, row.title, row.source].every(string)
++  && string(row.status) && ["pending", "in_progress", "completed", "blocked", "cancelled"].includes(row.status)
++  && (row.detail === undefined || string(row.detail));
++
++function validSnapshot(data: unknown, sessionKey: string): data is SessionWorkbenchSnapshot {
++  return record(data) && data.schema_version === 1 && data.session_key === sessionKey && nullableString(data.updated_at)
++    && (data.goal === null || (record(data.goal) && string(data.goal.objective) && string(data.goal.status)
++      && [data.goal.ui_summary, data.goal.recap].every((value) => value === undefined || string(value))))
++    && rows(data.tasks, task)
++    && (data.plan === null || (record(data.plan) && string(data.plan.explanation) && rows(data.plan.steps, task) && nullableString(data.plan.updated_at)))
++    && rows(data.agents, (row) => [row.id, row.name, row.status, row.detail, row.invocation_id].every(string))
++    && rows(data.memories, (row) => [row.id, row.title, row.content, row.source].every(string)
++      && (row.kind === "working" || row.kind === "long_term") && typeof row.persisted === "boolean" && nullableString(row.updated_at))
++    && rows(data.skills, (row) => string(row.name) && string(row.source) && string(row.status) && ["available", "always_loaded", "used"].includes(row.status))
++    && rows(data.mcp, (row) => string(row.name) && string(row.status) && count(row.calls) && nullableCount(row.successes) && nullableCount(row.failures))
++    && Array.isArray(data.limitations) && data.limitations.every(string);
++}
++
++export async function fetchSessionWorkbench(token: string, sessionKey: string, signal: AbortSignal): Promise<SessionWorkbenchSnapshot> {
++  const data = await request<unknown>(
++    `/api/sessions/${encodeURIComponent(sessionKey)}/workbench`, token,
++    { signal, cache: "no-store" }, 15_000,
++  );
++  if (!validSnapshot(data, sessionKey)) {
++    throw new Error("工作台返回的数据格式不正确");
++  }
++  return data;
++}
+diff --git a/webui/src/components/workbench/use-session-workbench.ts b/webui/src/components/workbench/use-session-workbench.ts
+new file mode 100644
+index 0000000..00c5cec
+--- /dev/null
++++ b/webui/src/components/workbench/use-session-workbench.ts
+@@ -0,0 +1,83 @@
++import { useEffect, useRef, useState } from "react";
++import type { ZhixuClient } from "@/lib/zhixu-client";
++import { fetchSessionWorkbench, type SessionWorkbenchSnapshot } from "./session-workbench-api";
++
++export type WorkbenchEventClient = Pick<ZhixuClient, "onChat" | "onSessionUpdate" | "onStatus" | "status">;
++interface Options { sessionKey?: string | null; token?: string; client?: WorkbenchEventClient; }
++interface State { identity: string; snapshot: SessionWorkbenchSnapshot | null; loading: boolean; error: string | null; }
++
++export function useSessionWorkbench({ sessionKey, token, client }: Options) {
++  const identity = JSON.stringify([sessionKey, token]);
++  const [state, setState] = useState<State>({ identity, snapshot: null, loading: false, error: null });
++  const refreshRef = useRef<() => void>(() => {});
++
++  // Cleanup cancels requests, subscriptions and timers, including Strict Mode remounts.
++  // https://react.dev/reference/react/useEffect#fetching-data-with-effects
++  useEffect(() => {
++    let disposed = false;
++    let request: AbortController | null = null;
++    let timer: ReturnType<typeof setTimeout> | undefined;
++    let dirty = false;
++    const chatId = sessionKey?.replace(/^websocket:/, "");
++    const canFetch = () => !!sessionKey && !!token && !document.hidden && (!client || client.status === "open");
++    setState({ identity, snapshot: null, loading: !!sessionKey && !!token, error: null });
++
++    const load = async () => {
++      if (disposed || !canFetch()) return;
++      if (request) { dirty = true; return; }
++      if (timer) clearTimeout(timer);
++      const controller = new AbortController();
++      request = controller;
++      setState((current) => ({ ...current, loading: !current.snapshot, error: null }));
++      let active = false;
++      try {
++        const snapshot = await fetchSessionWorkbench(token!, sessionKey!, controller.signal);
++        if (disposed || controller.signal.aborted) return;
++        active = snapshot.tasks.some((task) => task.status === "in_progress")
++          || snapshot.agents.some((agent) => ["running", "pending", "queued"].includes(agent.status));
++        setState({ identity, snapshot, loading: false, error: null });
++      } catch (reason) {
++        if (disposed || controller.signal.aborted) return;
++        setState((current) => ({ ...current, loading: false, error: reason instanceof Error ? reason.message : "无法读取工作台" }));
++      } finally {
++        request = null;
++        if (!disposed && canFetch()) {
++          if (dirty) { dirty = false; timer = setTimeout(() => void load(), 350); }
++          else timer = setTimeout(() => void load(), active ? 10_000 : 30_000);
++        }
++      }
++    };
++    const refresh = () => {
++      if (timer) clearTimeout(timer);
++      timer = setTimeout(() => void load(), 200);
++    };
++    refreshRef.current = refresh;
++    const onVisibility = () => {
++      if (document.hidden) { if (timer) clearTimeout(timer); }
++      else refresh();
++    };
++    document.addEventListener("visibilitychange", onVisibility);
++    const unsubChat = chatId ? client?.onChat(chatId, (event) => {
++      if (!["delta", "reasoning_delta"].includes(event.event)) refresh();
++    }) : undefined;
++    const unsubSession = client?.onSessionUpdate((id) => {
++      if (id === chatId || id === sessionKey) refresh();
++    });
++    const unsubStatus = client?.onStatus((status) => {
++      if (status === "open") refresh();
++      else if (timer) clearTimeout(timer);
++    });
++    void load();
++    return () => {
++      disposed = true;
++      request?.abort();
++      if (timer) clearTimeout(timer);
++      document.removeEventListener("visibilitychange", onVisibility);
++      unsubChat?.(); unsubSession?.(); unsubStatus?.();
++      refreshRef.current = () => {};
++    };
++  }, [identity, sessionKey, token, client]);
++
++  const visible = state.identity === identity ? state : { snapshot: null, loading: !!sessionKey && !!token, error: null };
++  return { ...visible, refresh: () => refreshRef.current() };
++}
+diff --git a/webui/src/components/workbench/workbench-context.tsx b/webui/src/components/workbench/workbench-context.tsx
+new file mode 100644
+index 0000000..f836bca
+--- /dev/null
++++ b/webui/src/components/workbench/workbench-context.tsx
+@@ -0,0 +1,108 @@
++import { useTranslation } from "react-i18next";
++
++import type { SessionWorkbenchSnapshot } from "./session-workbench-api";
++import { WorkbenchBadge, WorkbenchEmpty, WorkbenchSection, useWorkbenchText } from "./workbench-parts";
++
++export function WorkbenchMemories({ snapshot, onOpenFilePreview }: {
++  snapshot: SessionWorkbenchSnapshot | null; onOpenFilePreview?: (path: string) => void;
++}) {
++  const text = useWorkbenchText();
++  const { i18n } = useTranslation();
++  const memories = snapshot?.memories ?? [];
++  const formatTime = (value: string) => {
++    const date = new Date(value);
++    return Number.isNaN(date.getTime()) ? value : date.toLocaleString(i18n.language, {
++      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
++    });
++  };
++  return <div className="px-4 py-3">
++    <p className="mb-3 text-[11px] leading-5 text-muted-foreground">{text("区分任务中的上下文与已保存的长期记忆。", "Working context and saved long-term memories are shown separately.")}</p>
++    {memories.length ? <ul className="space-y-3">{memories.map((memory) => <li key={memory.id} className="rounded-md border border-border/55 bg-background/60 p-3">
++      <div className="mb-2 flex flex-wrap items-center gap-1.5">
++        <WorkbenchBadge>{memory.kind === "working" ? text("工作记忆", "Working memory") : text("长期记忆", "Long-term memory")}</WorkbenchBadge>
++        <span className="text-[10px] text-muted-foreground">{memory.persisted ? text("已持久化", "Saved") : text("尚未持久化", "Not persisted")}</span>
++      </div>
++      <p className="text-xs font-medium [overflow-wrap:anywhere]">{memory.title}</p>
++      <details className="mt-2">
++        <summary className="cursor-pointer text-[11px] text-muted-foreground">{text("查看内容", "View content")}</summary>
++        <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{memory.content}</p>
++      </details>
++      <p className="mt-2 text-[10px] text-muted-foreground [overflow-wrap:anywhere]">{text("来源", "Source")}: {memory.source === "session_scratchpad" ? text("本会话工作记忆", "Session scratchpad") : memory.source.startsWith("episode:") ? `${text("会话经历", "Session episode")} ${memory.source.slice(8)}` : memory.source}</p>
++      {memory.updated_at && <time dateTime={memory.updated_at} className="mt-1 block text-[10px] text-muted-foreground">{formatTime(memory.updated_at)}</time>}
++      {memory.source.startsWith("/") && onOpenFilePreview && <button type="button" className="mt-2 text-[11px] text-primary hover:underline" onClick={() => onOpenFilePreview(memory.source)}>{text("打开来源文件", "Open source file")}</button>}
++    </li>)}</ul> : <WorkbenchEmpty>{text("尚无与本会话关联的记忆。其他会话的长期记忆不会混入这里。", "No memories linked to this session. Memories from other sessions are excluded.")}</WorkbenchEmpty>}
++  </div>;
++}
++
++export function WorkbenchCapabilities({ snapshot }: { snapshot: SessionWorkbenchSnapshot | null }) {
++  const text = useWorkbenchText();
++  const skillStatus = { available: text("可用 · 未记录使用", "Available · no recorded use"), always_loaded: text("常驻加载", "Always loaded"), used: text("本会话已使用", "Used in this session") };
++  const mcpStatus: Record<string, string> = { connected: text("已连接", "Connected"), connecting: text("连接中", "Connecting"), failed: text("连接失败", "Connection failed"), observed: text("已记录调用 · 连接状态未知", "Calls observed · connection unknown"), disconnected: text("未连接", "Disconnected"), configured: text("已配置", "Configured"), unavailable: text("不可用", "Unavailable"), unknown: text("连接状态未知", "Connection unknown") };
++  const skills = [...(snapshot?.skills ?? [])].sort((left, right) => {
++    const priority = { used: 0, always_loaded: 1, available: 2 };
++    return priority[left.status] - priority[right.status] || left.name.localeCompare(right.name);
++  });
++  const mcp = snapshot?.mcp ?? [];
++  const usedSkills = skills.filter((skill) => skill.status === "used").length;
++  const loadedSkills = skills.filter((skill) => skill.status === "always_loaded").length;
++  const connectedMcp = mcp.filter((server) => ["connected", "connecting"].includes(server.status)).length;
++  const calls = mcp.reduce((total, server) => total + server.calls, 0);
++  const summaries = [
++    { label: text("Skill 可用", "Skills available"), value: skills.length, detail: loadedSkills ? `${loadedSkills} ${text("常驻", "always loaded")}` : text("按需加载", "Load on demand") },
++    { label: text("已记录使用", "Recorded use"), value: usedSkills, detail: text("本会话", "This session") },
++    { label: text("MCP 连接", "MCP connected"), value: connectedMcp, detail: `${mcp.length} ${text("已配置", "configured")}` },
++    { label: text("MCP 调用", "MCP calls"), value: calls, detail: text("最近 500 条消息", "Latest 500 messages") },
++  ];
++  return <>
++    <div aria-label={text("能力概览", "Capability overview")} className="grid grid-cols-2 gap-2 border-b border-border/45 px-4 py-3">
++      {summaries.map((summary) => <div key={summary.label} className="rounded-md border border-border/55 bg-background/70 px-2.5 py-2">
++        <p className="text-[10px] text-muted-foreground">{summary.label}</p>
++        <p className="mt-1 text-lg font-semibold tabular-nums leading-none">{summary.value}</p>
++        <p className="mt-1 truncate text-[9px] text-muted-foreground">{summary.detail}</p>
++      </div>)}
++    </div>
++    <WorkbenchSection title="Skill" count={skills.length} defaultOpen>
++      {skills.length ? <ul className="space-y-2">{skills.map((skill) => <li key={`${skill.name}:${skill.source}`} className="rounded-md border border-border/45 bg-background/55 px-2.5 py-2">
++        <div className="flex items-start gap-2">
++          <span aria-hidden className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${skill.status === "used" ? "bg-emerald-500" : skill.status === "always_loaded" ? "bg-primary" : "bg-muted-foreground/45"}`} />
++          <div className="min-w-0 flex-1">
++            <p className="text-xs font-medium [overflow-wrap:anywhere]">{skill.name}</p>
++            <p className="mt-0.5 text-[10px] text-muted-foreground">{skillStatus[skill.status]}</p>
++            <p className="mt-0.5 text-[9px] text-muted-foreground">{text("来源", "Source")}: {skill.source}</p>
++          </div>
++        </div>
++      </li>)}</ul> : <WorkbenchEmpty>{text("当前没有可展示的 Skill 记录。", "No Skill records available.")}</WorkbenchEmpty>}
++    </WorkbenchSection>
++    <WorkbenchSection title="MCP" count={snapshot?.mcp.length ?? 0} defaultOpen>
++      {mcp.length ? <ul className="space-y-2">{mcp.map((server) => <li key={server.name} className="rounded-md border border-border/45 bg-background/55 px-2.5 py-2">
++        <p className="text-xs font-medium [overflow-wrap:anywhere]">{server.name}</p>
++        <p className={`mt-1 text-[10px] ${server.status === "connected" ? "text-emerald-600 dark:text-emerald-400" : server.status === "failed" ? "text-destructive" : "text-muted-foreground"}`}>{mcpStatus[server.status] || server.status}</p>
++        <p className="mt-0.5 text-[10px] text-muted-foreground">{server.calls ? `${text("调用", "Calls")} ${server.calls}` : text("尚未调用", "No calls yet")}</p>
++        {server.calls > 0 && <p className="mt-1 text-[10px] text-muted-foreground">
++          {server.successes === null ? text("成功次数未知", "Success count unknown") : `${text("成功", "Succeeded")} ${server.successes}`} · {server.failures === null ? text("失败次数未知", "Failure count unknown") : `${text("失败", "Failed")} ${server.failures}`}
++        </p>}
++      </li>)}</ul> : <WorkbenchEmpty>{text("当前没有 MCP 连接或调用记录。", "No MCP connection or call records.")}</WorkbenchEmpty>}
++    </WorkbenchSection>
++  </>;
++}
++
++export function WorkbenchLimitations({ limitations }: { limitations: string[] }) {
++  const text = useWorkbenchText();
++  const messages: Record<string, string> = {
++    subagent_executions_unavailable: text("子 Agent 执行记录暂不可读取。", "Subagent execution history is unavailable."),
++    memory_unavailable: text("记忆服务暂不可读取。", "Memory service is unavailable."),
++    working_memory_unavailable: text("工作记忆暂不可读取。", "Working memory is unavailable."),
++    linked_memory_unavailable: text("关联的长期记忆暂不可读取。", "Linked long-term memories are unavailable."),
++    session_memories_unavailable: text("本会话的记忆关联暂不可读取。", "Session memory links are unavailable."),
++    skills_unavailable: text("Skill 清单暂不可读取。", "The Skill list is unavailable."),
++    skill_usage_tracks_successful_file_reads_only: text("Skill 使用状态依据成功读取技能文件的记录，不能代表技能已执行完成。", "Skill use is inferred from successful reads of skill files; it does not confirm completion."),
++    tool_usage_limited_to_recent_500_messages: text("工具调用统计仅涵盖最近 500 条消息。", "Tool call counts cover the most recent 500 messages."),
++    mcp_connection_state_unavailable: text("MCP 连接状态暂不可读取，调用记录仍会单独显示。", "MCP connection state is unavailable; call records are shown separately."),
++    mcp_call_outcomes_not_tracked: text("MCP 调用结果尚未跟踪，成功与失败次数显示为未知。", "MCP outcomes are not tracked; success and failure counts are unknown."),
++  };
++  const descriptions = [...new Set(limitations.map((item) => messages[item] || text("部分状态暂不可读取，可稍后刷新。", "Some state is unavailable. Try refreshing later.")))];
++  return <div className="border-b border-border/45 px-4 py-3"><details>
++    <summary className="cursor-pointer text-[11px] text-muted-foreground">{text("数据来源与统计范围", "Data sources and tracking coverage")}</summary>
++    <ul className="mt-2 space-y-2 text-[10px] leading-4 text-muted-foreground">{descriptions.map((item) => <li key={item} className="[overflow-wrap:anywhere]">{item}</li>)}</ul>
++  </details></div>;
++}
+diff --git a/webui/src/components/workbench/workbench-parts.tsx b/webui/src/components/workbench/workbench-parts.tsx
+new file mode 100644
+index 0000000..1ed7c3f
+--- /dev/null
++++ b/webui/src/components/workbench/workbench-parts.tsx
+@@ -0,0 +1,29 @@
++import { useState, type ReactNode } from "react";
++import { useTranslation } from "react-i18next";
++import { ChevronRight } from "lucide-react";
++import { cn } from "@/lib/utils";
++
++export function useWorkbenchText() {
++  const { i18n } = useTranslation();
++  return (zh: string, en: string) => i18n.language.startsWith("zh") ? zh : en;
++}
++export function WorkbenchSection({ title, count, defaultOpen = false, children }: {
++  title: string; count?: number; defaultOpen?: boolean; children: ReactNode;
++}) {
++  const [open, setOpen] = useState(defaultOpen);
++  return <section className="border-b border-border/45 last:border-b-0">
++    <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
++      className="flex w-full items-center gap-1.5 px-4 py-3 text-left text-xs font-medium hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
++      <ChevronRight aria-hidden className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground", open && "rotate-90")} />
++      <span className="min-w-0 flex-1 truncate">{title}</span>
++      {count !== undefined && <span className="text-[11px] tabular-nums text-muted-foreground">{count}</span>}
++    </button>
++    {open && <div className="px-4 pb-3 text-xs">{children}</div>}
++  </section>;
++}
++export function WorkbenchEmpty({ children }: { children: ReactNode }) {
++  return <p className="text-xs leading-5 text-muted-foreground">{children}</p>;
++}
++export function WorkbenchBadge({ children }: { children: ReactNode }) {
++  return <span className="inline-flex shrink-0 rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">{children}</span>;
++}
+diff --git a/webui/src/components/workbench/workbench-progress.tsx b/webui/src/components/workbench/workbench-progress.tsx
+new file mode 100644
+index 0000000..969d458
+--- /dev/null
++++ b/webui/src/components/workbench/workbench-progress.tsx
+@@ -0,0 +1,68 @@
++import { CheckCircle2, Circle, CircleDot, Bot } from "lucide-react";
++import type { SessionWorkbenchSnapshot, WorkbenchTask } from "./session-workbench-api";
++import { WorkbenchBadge, WorkbenchEmpty, WorkbenchSection, useWorkbenchText } from "./workbench-parts";
++
++function TaskRow({ task }: { task: WorkbenchTask }) {
++  const text = useWorkbenchText();
++  const labels = {
++    pending: text("待开始", "Pending"), in_progress: text("进行中", "In progress"),
++    completed: text("已完成", "Completed"), blocked: text("受阻", "Blocked"), cancelled: text("已取消", "Cancelled"),
++  };
++  const Icon = task.status === "completed" ? CheckCircle2 : task.status === "in_progress" ? CircleDot : Circle;
++  return <li className="flex gap-2 py-2">
++    <Icon aria-hidden className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${task.status === "completed" ? "text-emerald-600 dark:text-emerald-400" : task.status === "in_progress" ? "text-primary" : "text-muted-foreground"}`} />
++    <div className="min-w-0 flex-1">
++      <div className="text-xs leading-5 [overflow-wrap:anywhere]">{task.title}</div>
++      <p className="mt-0.5 text-[10px] text-muted-foreground">{labels[task.status]} · {task.source === "goal" ? text("持续目标", "Sustained goal") : ["workbench_plan", "plan"].includes(task.source) ? text("会话计划", "Session plan") : task.source}</p>
++      {task.detail && <p className="mt-1 text-[11px] leading-5 text-muted-foreground [overflow-wrap:anywhere]">{task.detail}</p>}
++    </div>
++  </li>;
++}
++
++export function WorkbenchProgress({ snapshot, onOpenExecution }: {
++  snapshot: SessionWorkbenchSnapshot | null; onOpenExecution?: (invocationId: string) => void;
++}) {
++  const text = useWorkbenchText();
++  const tasks = snapshot?.tasks ?? [];
++  const done = tasks.filter((task) => task.status === "completed").length;
++  const active = tasks.filter((task) => task.status === "in_progress").length;
++  const plan = snapshot?.plan;
++  return <>
++    {snapshot?.goal && <div className="border-b border-border/45 px-4 py-3">
++      <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
++        {text("当前目标", "Current goal")}<WorkbenchBadge>{({ active: text("进行中", "Active"), completed: text("已完成", "Completed"), blocked: text("受阻", "Blocked"), cancelled: text("已取消", "Cancelled"), paused: text("已暂停", "Paused") } as Record<string, string>)[snapshot.goal.status] || snapshot.goal.status}</WorkbenchBadge>
++      </div>
++      <p className="text-xs leading-5 [overflow-wrap:anywhere]">{snapshot.goal.ui_summary || snapshot.goal.objective}</p>
++    </div>}
++    <WorkbenchSection title={text("任务清单", "Tasks")} count={tasks.length} defaultOpen>
++      {tasks.length ? <>
++        <div className="mb-2 flex items-baseline justify-between text-[11px] text-muted-foreground">
++          <span>{text("已完成", "Completed")} <strong className="text-foreground">{done}/{tasks.length}</strong></span>
++          <span>{active ? `${active} ${text("进行中", "in progress")}` : text("暂无运行任务", "No running tasks")}</span>
++        </div>
++        <div role="progressbar" aria-label={text("任务完成进度", "Task completion")} aria-valuenow={done} aria-valuemin={0} aria-valuemax={tasks.length} className="h-1 overflow-hidden rounded bg-muted">
++          <div className="h-full bg-primary/75" style={{ width: `${done / tasks.length * 100}%` }} />
++        </div>
++        <ul className="mt-2 divide-y divide-border/35">{tasks.map((task) => <TaskRow key={task.id} task={task} />)}</ul>
++      </> : <WorkbenchEmpty>{text("还没有记录任务。Agent 更新计划后会显示在这里。", "No recorded tasks. They appear when the agent updates its plan.")}</WorkbenchEmpty>}
++    </WorkbenchSection>
++    <WorkbenchSection title={text("当前计划", "Current plan")} count={plan?.steps.length}>
++      {plan ? <>
++        {plan.explanation && <p className="mb-2 leading-5 text-muted-foreground [overflow-wrap:anywhere]">{plan.explanation}</p>}
++        <ul>{plan.steps.map((task) => <TaskRow key={task.id} task={task} />)}</ul>
++      </> : <WorkbenchEmpty>{text("当前会话尚无持久化计划。", "This session has no saved plan yet.")}</WorkbenchEmpty>}
++    </WorkbenchSection>
++    <WorkbenchSection title={text("子 Agent", "Subagents")} count={snapshot?.agents.length ?? 0} defaultOpen>
++      {snapshot?.agents.length ? <ul className="space-y-2">{snapshot.agents.map((agent) => <li key={agent.id}>
++        <button type="button" disabled={!onOpenExecution || !agent.invocation_id}
++          onClick={() => onOpenExecution?.(agent.invocation_id)}
++          className="flex w-full items-start gap-2 rounded border border-border/50 bg-background/60 p-2 text-left enabled:hover:bg-muted/60 disabled:cursor-default">
++          <Bot aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
++          <div className="min-w-0 flex-1"><p className="text-xs [overflow-wrap:anywhere]">{agent.name}</p>
++            <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground [overflow-wrap:anywhere]">{agent.detail}</p></div>
++          <WorkbenchBadge>{({ running: text("运行中", "Running"), queued: text("排队中", "Queued"), succeeded: text("已完成", "Succeeded"), completed: text("已完成", "Completed"), failed: text("失败", "Failed"), cancelled: text("已取消", "Cancelled"), pending: text("等待中", "Pending") } as Record<string, string>)[agent.status] || agent.status}</WorkbenchBadge>
++        </button>
++      </li>)}</ul> : <WorkbenchEmpty>{text("当前会话没有子 Agent 执行记录。", "No subagent executions in this session.")}</WorkbenchEmpty>}
++    </WorkbenchSection>
++  </>;
++}
+diff --git a/webui/src/tests/dock-file-tab.test.tsx b/webui/src/tests/dock-file-tab.test.tsx
+index 093f8a9..b2f0514 100644
+--- a/webui/src/tests/dock-file-tab.test.tsx
++++ b/webui/src/tests/dock-file-tab.test.tsx
+@@ -61,11 +61,36 @@ function renderTab() {
+ }
+ 
+ describe("DockFileTab two-column layout", () => {
++  it("lets readers widen inline preview with the column separator and clamps the tree", async () => {
++    renderTab();
++    const tree = await screen.findByTestId("dock-file-tree-column");
++    const separator = screen.getByRole("separator", { name: "Resize file tree" });
++    const initial = Number(separator.getAttribute("aria-valuenow"));
++    fireEvent.keyDown(separator, { key: "ArrowRight" });
++    expect(Number(separator.getAttribute("aria-valuenow"))).toBeLessThan(initial);
++    expect(tree.style.width).toBe(`${initial - 5}%`);
++    fireEvent.keyDown(separator, { key: "Home" });
++    expect(tree.style.width).toBe("20%");
++    fireEvent.keyDown(separator, { key: "End" });
++    expect(tree.style.width).toBe("65%");
++
++    const columns = tree.parentElement;
++    expect(columns).not.toBeNull();
++    vi.spyOn(columns!, "getBoundingClientRect").mockReturnValue({
++      left: 0, right: 1000, width: 1000,
++    } as DOMRect);
++    separator.setPointerCapture = vi.fn();
++    separator.hasPointerCapture = vi.fn(() => true);
++    separator.releasePointerCapture = vi.fn();
++    fireEvent.pointerDown(separator, { pointerId: 7, button: 0, clientX: 650 });
++    fireEvent.pointerMove(separator, { pointerId: 7, clientX: 300 });
++    expect(tree.style.width).toBe("30%");
++  });
+   it("puts the file tree in its own right-hand column", async () => {
+     renderTab();
+     const treeColumn = await screen.findByTestId("dock-file-tree-column");
+-    // 右栏固定宽度，左栏（预览）吃掉剩余空间。
+-    expect(treeColumn.className).toContain("w-[46%]");
++    // 右栏有初始宽度，左栏（预览）吃掉剩余空间；边界可调整。
++    expect(treeColumn.style.width).toBe("46%");
+     expect(treeColumn.className).toContain("shrink-0");
+   });
+ 
+diff --git a/webui/src/tests/file-preview-panel.test.tsx b/webui/src/tests/file-preview-panel.test.tsx
+index 290b71c..d3ba4a3 100644
+--- a/webui/src/tests/file-preview-panel.test.tsx
++++ b/webui/src/tests/file-preview-panel.test.tsx
+@@ -1,4 +1,4 @@
+-import { act, render, screen } from "@testing-library/react";
++import { act, fireEvent, render, screen } from "@testing-library/react";
+ import userEvent from "@testing-library/user-event";
+ import { beforeEach, describe, expect, it, vi } from "vitest";
+ 
+@@ -40,6 +40,31 @@ describe("FilePreviewPanel", () => {
+     vi.mocked(fetchFilePreview).mockReset();
+   });
+ 
++  it("resizes the external preview with keyboard and captured pointer, then stops on cancellation", async () => {
++    vi.mocked(fetchFilePreview).mockResolvedValue({ path: "notes.md", display_path: "notes.md",
++      language: "markdown", content: "# Notes", truncated: false });
++    const change = vi.fn();
++    render(<FilePreviewPanel sessionKey="websocket:chat-1" path="notes.md" token="tok"
++      desktopWidth={544} maxDesktopWidth={800} onWidthChange={change} onClose={() => {}} />);
++    await screen.findByTestId("mock-code-block");
++    const separator = screen.getByRole("separator", { name: "Resize file preview" });
++    fireEvent.keyDown(separator, { key: "ArrowLeft" });
++    expect(change).toHaveBeenLastCalledWith(576);
++    const panel = screen.getByTestId("file-preview-panel");
++    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ right: 1000 } as DOMRect);
++    separator.setPointerCapture = vi.fn();
++    separator.hasPointerCapture = vi.fn(() => true);
++    separator.releasePointerCapture = vi.fn();
++    fireEvent.pointerDown(separator, { pointerId: 5, button: 0, clientX: 456 });
++    expect(separator.setPointerCapture).toHaveBeenCalledWith(5);
++    fireEvent.pointerMove(separator, { pointerId: 5, clientX: 100 });
++    expect(change).toHaveBeenLastCalledWith(800);
++    fireEvent.pointerCancel(separator, { pointerId: 5 });
++    const count = change.mock.calls.length;
++    fireEvent.pointerMove(separator, { pointerId: 5, clientX: 500 });
++    expect(change).toHaveBeenCalledTimes(count);
++  });
++
+   it("shows a compact breadcrumb with one file name and a visible close action", async () => {
+     const user = userEvent.setup();
+     const onClose = vi.fn();
+diff --git a/webui/src/tests/pane-workbench.test.tsx b/webui/src/tests/pane-workbench.test.tsx
+index 944a865..752d46d 100644
+--- a/webui/src/tests/pane-workbench.test.tsx
++++ b/webui/src/tests/pane-workbench.test.tsx
+@@ -428,6 +428,23 @@ describe("PaneWorkbench", () => {
+     expect(footer.style.paddingRight).toBe("");
+   });
+ 
++  it("follows the active pane rail width and removes the footer for an inline welcome composer", () => {
++    render(<PaneWorkbench
++      panes={[{ key: "alpha", title: "Alpha" }]} activePaneKey="alpha"
++      layout="columns" showLayoutControl={false} onActivatePane={vi.fn()}
++      onLayoutChange={vi.fn()} onPaneOrderChange={vi.fn()}
++      renderPane={(_pane, context) => <>
++        <button onClick={() => context.onComposerRailInsetChange?.(520)}>Widen rail</button>
++        <button onClick={() => context.onComposerPlacementChange?.("inline")}>Show welcome</button>
++      </>}
++    />);
++    fireEvent.click(screen.getByRole("button", { name: "Widen rail" }));
++    const footer = screen.getByTestId("workbench-composer-host").parentElement;
++    expect((footer as HTMLElement).style.paddingRight).toBe("calc(520px + 1rem)");
++    fireEvent.click(screen.getByRole("button", { name: "Show welcome" }));
++    expect(footer).toHaveAttribute("hidden");
++  });
++
+   it("drops the rail inset while the rail is hidden on narrow viewports", () => {
+     // rail 本身是 `hidden md:flex`：<768px 时它不存在，输入区就不该被 19rem 白让位。
+     vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
+diff --git a/webui/src/tests/session-workbench-live.test.tsx b/webui/src/tests/session-workbench-live.test.tsx
+new file mode 100644
+index 0000000..27f7674
+--- /dev/null
++++ b/webui/src/tests/session-workbench-live.test.tsx
+@@ -0,0 +1,109 @@
++import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
++import { afterEach, describe, expect, it, vi } from "vitest";
++import { SessionWorkbench } from "@/components/workbench/SessionWorkbench";
++import { useSessionWorkbench } from "@/components/workbench/use-session-workbench";
++import type { SessionWorkbenchSnapshot } from "@/components/workbench/session-workbench-api";
++import type { SessionWorkbenchModel } from "@/components/workbench/session-workbench-model";
++import i18n from "@/i18n";
++
++const snapshot = (session_key = "websocket:one"): SessionWorkbenchSnapshot => ({
++  schema_version: 1, session_key, updated_at: null, goal: null,
++  tasks: [{ id: "t1", title: "接通会话计划", status: "in_progress", source: "workbench_plan" }],
++  plan: { explanation: "按真实数据接入", steps: [], updated_at: null },
++  agents: [{ id: "a1", name: "界面 Agent", status: "running", detail: "正在检查", invocation_id: "exec-1" }],
++  memories: [{ id: "m1", kind: "working", title: "当前约束", content: "保持真实数据", source: "scratchpad", persisted: false, updated_at: null }],
++  skills: [{ name: "design", status: "available", source: "workspace" }],
++  mcp: [{ name: "github", status: "connected", calls: 0, successes: null, failures: null }], limitations: [],
++});
++const model: SessionWorkbenchModel = {
++  updatedAtMs: null, summary: "", diffFiles: 0, diffAdded: 0, diffDeleted: 0,
++  projectName: "", projectPath: "", accessMode: null, mcpUsed: [], cliUsed: [], outputs: [], sources: [],
++};
++function reply(body: SessionWorkbenchSnapshot) { return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } }); }
++afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
++
++describe("会话工作台真实数据", () => {
++  it("会话切换立即清旧数据且丢弃延迟响应", async () => {
++    let finishOld!: (response: Response) => void;
++    const fetcher = vi.fn().mockImplementationOnce(() => new Promise<Response>((resolve) => { finishOld = resolve; }))
++      .mockResolvedValueOnce(reply(snapshot("websocket:two")));
++    vi.stubGlobal("fetch", fetcher);
++    const { result, rerender } = renderHook(({ key }) => useSessionWorkbench({ sessionKey: key, token: "tok" }), { initialProps: { key: "websocket:one" } });
++    rerender({ key: "websocket:two" });
++    expect(result.current.snapshot).toBeNull();
++    await waitFor(() => expect(result.current.snapshot?.session_key).toBe("websocket:two"));
++    await act(async () => { finishOld(reply(snapshot())); });
++    expect(result.current.snapshot?.session_key).toBe("websocket:two");
++    expect(fetcher.mock.calls[1][0]).toBe("/api/sessions/websocket%3Atwo/workbench");
++  });
++
++  it("权限错误保持错误态并允许重试", async () => {
++    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response('{"error":"forbidden"}', { status: 403 }))
++      .mockResolvedValueOnce(reply(snapshot())));
++    const { result } = renderHook(() => useSessionWorkbench({ sessionKey: "websocket:one", token: "tok" }));
++    await waitFor(() => expect(result.current.error).toBeTruthy());
++    expect(result.current.snapshot).toBeNull();
++    act(() => result.current.refresh());
++    await waitFor(() => expect(result.current.snapshot?.tasks).toHaveLength(1));
++    expect(result.current.error).toBeNull();
++  });
++
++  it("展示真实计划和执行详情入口并区分能力可用与已使用", async () => {
++    await i18n.changeLanguage("zh");
++    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(reply(snapshot()))));
++    const open = vi.fn();
++    render(<SessionWorkbench model={model} sessionKey="websocket:one" token="tok" onOpenExecution={open} />);
++    await screen.findByText("接通会话计划");
++    fireEvent.click(screen.getByRole("button", { name: /界面 Agent/ }));
++    expect(open).toHaveBeenCalledWith("exec-1");
++    fireEvent.click(screen.getByRole("tab", { name: /记忆/ }));
++    expect(screen.getByText("尚未持久化")).toBeInTheDocument();
++    fireEvent.click(screen.getByRole("tab", { name: /能力/ }));
++    expect(screen.getByText("可用 · 未记录使用")).toBeInTheDocument();
++    expect(screen.getByText("已连接")).toBeInTheDocument();
++    expect(screen.getByText("尚未调用")).toBeInTheDocument();
++    expect(screen.queryByText(/成功 0/)).toBeNull();
++  });
++
++  it("长任务持续限频刷新，隐藏页面暂停，卸载后不再请求", async () => {
++    vi.useFakeTimers();
++    const fetcher = vi.fn().mockImplementation(() => Promise.resolve(reply(snapshot())));
++    vi.stubGlobal("fetch", fetcher);
++    const { unmount } = renderHook(() => useSessionWorkbench({ sessionKey: "websocket:one", token: "tok" }));
++    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
++    await act(async () => { await vi.advanceTimersByTimeAsync(130_000); });
++    expect(fetcher).toHaveBeenCalledTimes(14);
++    Object.defineProperty(document, "hidden", { value: true, configurable: true });
++    act(() => document.dispatchEvent(new Event("visibilitychange")));
++    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
++    expect(fetcher).toHaveBeenCalledTimes(14);
++    Object.defineProperty(document, "hidden", { value: false, configurable: true });
++    act(() => document.dispatchEvent(new Event("visibilitychange")));
++    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
++    expect(fetcher).toHaveBeenCalledTimes(15);
++    unmount();
++    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
++    expect(fetcher).toHaveBeenCalledTimes(15);
++  });
++
++  it("把能力跟踪限制解释为用户可读提示", async () => {
++    await i18n.changeLanguage("zh");
++    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({ ...snapshot(), limitations: ["mcp_call_outcomes_not_tracked"] })));
++    render(<SessionWorkbench model={model} sessionKey="websocket:one" token="tok" />);
++    await screen.findByText("接通会话计划");
++    expect(screen.getByText("MCP 调用结果尚未跟踪，成功与失败次数显示为未知。")).toBeInTheDocument();
++    expect(screen.queryByText("mcp_call_outcomes_not_tracked")).toBeNull();
++  });
++
++  it.each([
++    { ...snapshot(), tasks: [null] },
++    { ...snapshot(), plan: { explanation: "缺少步骤" } },
++    { ...snapshot(), tasks: [{ id: "bad", title: "错误状态", source: "plan", status: "invented" }] },
++  ])("错形接口响应进入错误面板而不崩溃", async (payload) => {
++    await i18n.changeLanguage("zh");
++    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { headers: { "Content-Type": "application/json" } })));
++    render(<SessionWorkbench model={model} sessionKey="websocket:one" token="tok" />);
++    expect(await screen.findByRole("alert")).toHaveTextContent("工作台返回的数据格式不正确");
++    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
++  });
++});
+diff --git a/webui/src/tests/start-dock.test.tsx b/webui/src/tests/start-dock.test.tsx
+index 98f7132..461ff33 100644
+--- a/webui/src/tests/start-dock.test.tsx
++++ b/webui/src/tests/start-dock.test.tsx
+@@ -82,6 +82,19 @@ const shellsPayload = {
+ 
+ const TAKEOVER_KEY = `nanobot.dock.terminals.${HOME_DOCK_SCOPE}`;
+ 
++it("lets the home dock grow from its left edge without changing terminal scope", async () => {
++  const client = makeFakeClient();
++  render(<ClientProvider client={client as never} getToken={() => "tok"}>
++    <StartDock scope={HOME_DOCK_SCOPE} sessionKey={null} getToken={() => "tok"} />
++  </ClientProvider>);
++  await waitFor(() => expect(mocks.fetchTerminalShells).toHaveBeenCalled());
++  const separator = screen.getByRole("separator", { name: "Resize tools sidebar" });
++  const width = Number(separator.getAttribute("aria-valuenow"));
++  fireEvent.keyDown(separator, { key: "ArrowLeft" });
++  expect(Number(separator.getAttribute("aria-valuenow"))).toBe(width + 32);
++  expect(client.terminalStart).not.toHaveBeenCalled();
++});
++
+ interface FakeClient {
+   terminalStart: ReturnType<typeof vi.fn>;
+   terminalWrite: ReturnType<typeof vi.fn>;
+diff --git a/webui/src/tests/thread-shell.test.tsx b/webui/src/tests/thread-shell.test.tsx
+index 4c5440c..0ac11ff 100644
+--- a/webui/src/tests/thread-shell.test.tsx
++++ b/webui/src/tests/thread-shell.test.tsx
+@@ -459,6 +459,47 @@ function settingsWithFastPreset(): SettingsPayload {
+ }
+ 
+ describe("ThreadShell", () => {
++  it("keeps an empty session composer in the welcome area when a shared footer exists", async () => {
++    const footer = document.createElement("div");
++    document.body.append(footer);
++    const client = makeClient();
++    const view = render(wrap(client, <ThreadShell
++      session={session("empty-with-footer")}
++      title="Empty session"
++      onToggleSidebar={() => {}}
++      composerPortalTarget={footer}
++    />));
++    await waitFor(() => expect(screen.getByTestId("thread-welcome-layout"))
++      .toContainElement(screen.getByLabelText("Message input")));
++    const input = screen.getByLabelText("Message input");
++    expect(footer).not.toContainElement(input);
++    fireEvent.click(screen.getByRole("button", { name: "Tools sidebar" }));
++    expect(screen.getByTestId("thread-welcome-layout")).toContainElement(input);
++    view.unmount();
++    footer.remove();
++    window.localStorage.removeItem("mira.dock-tools.open");
++  });
++
++  it("opens the narrow workbench as a dismissible dialog while keeping the welcome composer inline", async () => {
++    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
++      matches: query.includes("max-width: 767px"), media: query,
++      addEventListener: vi.fn(), removeEventListener: vi.fn(),
++    })));
++    const client = makeClient();
++    const view = render(wrap(client, <ThreadShell session={session("narrow-workbench")}
++      title="Narrow session" onToggleSidebar={() => {}} />));
++    await waitFor(() => expect(screen.getByTestId("thread-welcome-layout"))
++      .toContainElement(screen.getByLabelText("Message input")));
++    expect(screen.queryByTestId("session-workbench")).toBeNull();
++    fireEvent.click(screen.getByRole("button", { name: "Workbench" }));
++    expect(screen.getByRole("dialog")).toContainElement(screen.getByTestId("session-workbench"));
++    fireEvent.click(screen.getByRole("button", { name: "Close" }));
++    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
++    expect(screen.getByTestId("thread-welcome-layout")).toContainElement(screen.getByLabelText("Message input"));
++    view.unmount();
++    vi.unstubAllGlobals();
++  });
++
+   beforeEach(() => {
+     vi.stubGlobal(
+       "fetch",
+@@ -3915,20 +3956,20 @@ describe("ThreadShell", () => {
+     );
+ 
+     // No banner yet: only appears once the client emits a matching error.
+-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
++    expect(screen.queryByText("Message too large")).not.toBeInTheDocument();
+ 
+     await act(async () => {});
+     await act(async () => {
+       client._emitError({ kind: "message_too_big" });
+     });
+ 
+-    const banner = await screen.findByRole("alert");
++    const banner = await screen.findByText("Message too large");
+     expect(banner).toHaveTextContent("Message too large");
+ 
+     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+ 
+     await waitFor(() => {
+-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
++      expect(screen.queryByText("Message too large")).not.toBeInTheDocument();
+     });
+   });
+ 
+@@ -3965,7 +4006,9 @@ describe("ThreadShell", () => {
+       });
+     });
+ 
+-    const banner = await screen.findByRole("alert");
++    const message = await screen.findByText("无法连接模型提供商");
++    const banner = message.closest('[role="alert"]');
++    expect(banner).toBeInTheDocument();
+     expect(banner).toHaveTextContent("无法连接模型提供商");
+     expect(banner).toHaveTextContent(
+       "模型提供商请求在第 4 次尝试后仍然失败，已停止重试。请检查提供商配置或服务状态后重试。",
+@@ -3978,7 +4021,7 @@ describe("ThreadShell", () => {
+     fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+ 
+     await waitFor(() => {
+-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
++      expect(screen.queryByText("无法连接模型提供商")).not.toBeInTheDocument();
+     });
+   });
+ 
+@@ -4018,7 +4061,8 @@ describe("ThreadShell", () => {
+     const status = screen.getByRole("button", {
+       name: "Not sent: Message too large",
+     });
+-    expect(screen.getByRole("alert")).toHaveClass("sr-only");
++    expect(screen.getAllByRole("alert").find((element) => element.classList.contains("sr-only")))
++      .toBeInTheDocument();
+     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+ 
+     fireEvent.focus(status);
+@@ -4049,7 +4093,7 @@ describe("ThreadShell", () => {
+     await act(async () => {
+       client._emitError({ kind: "message_too_big" });
+     });
+-    expect(await screen.findByRole("alert")).toBeInTheDocument();
++    expect(await screen.findByText("Message too large")).toBeInTheDocument();
+ 
+     // Switch to a different chat. The banner was about the *previous* send
+     // in chat-a; it must not leak into chat-b's view.
+@@ -4069,7 +4113,7 @@ describe("ThreadShell", () => {
+     });
+ 
+     await waitFor(() => {
+-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
++      expect(screen.queryByText("Message too large")).not.toBeInTheDocument();
+     });
+   });
+ 

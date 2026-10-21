@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { PanelRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { FilePreviewAvailabilityProvider } from "@/components/FilePreviewAvailabilityContext";
 import { FilePreviewPanel } from "@/components/FilePreviewPanel";
 import { StartDock } from "@/components/dock/StartDock";
 import { SessionHandleLabel } from "@/components/SessionHandleLabel";
 import { SessionWorkbench } from "@/components/workbench/SessionWorkbench";
+import { ResizableRail } from "@/components/workbench/ResizableRail";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { deriveSessionWorkbench } from "@/components/workbench/session-workbench-model";
 import { RecoveryNotice } from "@/components/thread/RecoveryNotice";
 import { AskQuestionCard } from "@/components/thread/AskQuestionCard";
@@ -447,6 +450,8 @@ interface ThreadShellProps {
   headerActive?: boolean;
   composerPortalTarget?: HTMLElement | null;
   composerActive?: boolean;
+  onComposerRailInsetChange?: (width: number) => void;
+  onComposerPlacementChange?: (placement: "inline" | "footer") => void;
   composerInputAriaLabel?: string;
   emptyComposerVariant?: "hero" | "thread";
   workspaceScope?: WorkspaceScopePayload | null;
@@ -693,6 +698,8 @@ export function ThreadShell({
   headerActive = true,
   composerPortalTarget,
   composerActive = true,
+  onComposerRailInsetChange,
+  onComposerPlacementChange,
   composerInputAriaLabel,
   emptyComposerVariant = "hero",
   workspaceScope = null,
@@ -813,11 +820,14 @@ export function ThreadShell({
   const [rightSurfaces, setRightSurfaces] = useState<RightSurface[]>([WORKBENCH_SURFACE]);
   const activeRightSurface = rightSurfaces[rightSurfaces.length - 1] ?? WORKBENCH_SURFACE;
   const filePreviewPath = activeRightSurface.kind === "file" ? activeRightSurface.path : null;
+  const narrowViewport = useMediaQuery("(max-width: 767px)");
+  const [mobileWorkbenchOpen, setMobileWorkbenchOpen] = useState(false);
   const executionSurface = activeRightSurface.kind === "execution" ? activeRightSurface : null;
   const [executionReturnFocus, setExecutionReturnFocus] = useState<HTMLElement | null>(null);
   const [shellWidth, setShellWidth] = useState(() =>
     typeof window === "undefined" ? 1024 : window.innerWidth,
   );
+  const compactWorkbench = narrowViewport || shellWidth < 680;
   const executionScrollTopRef = useRef<Record<string, number>>({});
   const [filePreviewClosing, setFilePreviewClosing] = useState(false);
   const [filePreviewWidth, setFilePreviewWidth] = useState(FILE_PREVIEW_DEFAULT_WIDTH);
@@ -837,6 +847,9 @@ export function ThreadShell({
   const [quotedContext, setQuotedContext] = useState<string | null>(null);
   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   const shellRef = useRef<HTMLElement | null>(null);
+  const mainColumnRef = useRef<HTMLDivElement | null>(null);
+  const insetCallbackRef = useRef(onComposerRailInsetChange);
+  insetCallbackRef.current = onComposerRailInsetChange;
   const composerSurfaceRef = useRef<HTMLDivElement | null>(null);
   const filePreviewWidthRef = useRef(FILE_PREVIEW_DEFAULT_WIDTH);
   const filePreviewCloseTimerRef = useRef<number | null>(null);
@@ -1038,6 +1051,9 @@ export function ThreadShell({
   ]);
 
   const showHeroComposer = displayMessages.length === 0 && !loading;
+  useEffect(() => {
+    onComposerPlacementChange?.(showHeroComposer ? "inline" : "footer");
+  }, [onComposerPlacementChange, showHeroComposer]);
   const composerVariant = showHeroComposer ? emptyComposerVariant : "thread";
   const wasShowingHeroComposerRef = useRef(showHeroComposer);
   const sessionModelPreset = session?.modelPreset?.trim() || null;
@@ -1587,12 +1603,18 @@ export function ThreadShell({
       const rectWidth = shell?.getBoundingClientRect().width ?? 0;
       const clientWidth = shell?.clientWidth ?? 0;
       setShellWidth(rectWidth || clientWidth || window.innerWidth);
+      const shellRect = shell?.getBoundingClientRect();
+      const mainRect = mainColumnRef.current?.getBoundingClientRect();
+      if (shellRect && mainRect) {
+        insetCallbackRef.current?.(Math.max(0, Math.round(shellRect.right - mainRect.right)));
+      }
     };
     updateWidth();
     const observer = typeof ResizeObserver === "undefined"
       ? null
       : new ResizeObserver(updateWidth);
     observer?.observe(shell ?? document.documentElement);
+    if (mainColumnRef.current) observer?.observe(mainColumnRef.current);
     window.addEventListener("resize", updateWidth);
     return () => {
       observer?.disconnect();
@@ -1620,59 +1642,6 @@ export function ThreadShell({
       setFilePreviewClosing(false);
     }, FILE_PREVIEW_CLOSE_ANIMATION_MS);
   }, [filePreviewClosing, filePreviewPath]);
-
-  const handleFilePreviewResizeStart = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const panel = event.currentTarget.closest<HTMLElement>("[data-file-preview-panel]");
-    const shellRect = shellRef.current?.getBoundingClientRect();
-    const rightEdge = shellRect?.right ?? window.innerWidth;
-    const maxWidth = maxFilePreviewWidth(shellRect?.width ?? window.innerWidth);
-    const originalBodyCursor = document.body.style.cursor;
-    const originalBodyUserSelect = document.body.style.userSelect;
-    const originalPanelTransition = panel?.style.transition ?? "";
-    let nextWidth = filePreviewWidthRef.current;
-    let frame: number | null = null;
-
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    if (panel) panel.style.transition = "none";
-
-    const applyWidth = (clientX: number) => {
-      nextWidth = clampFilePreviewWidth(rightEdge - clientX, maxWidth);
-      filePreviewWidthRef.current = nextWidth;
-      if (frame !== null) return;
-      frame = window.requestAnimationFrame(() => {
-        frame = null;
-        panel?.style.setProperty("--file-preview-width", `${nextWidth}px`);
-        panel?.style.setProperty("--file-preview-slot-width", `${nextWidth}px`);
-      });
-    };
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      moveEvent.preventDefault();
-      applyWidth(moveEvent.clientX);
-    };
-    const handlePointerUp = () => {
-      if (frame !== null) {
-        window.cancelAnimationFrame(frame);
-        frame = null;
-      }
-      panel?.style.setProperty("--file-preview-width", `${nextWidth}px`);
-      panel?.style.setProperty("--file-preview-slot-width", `${nextWidth}px`);
-      if (panel) panel.style.transition = originalPanelTransition;
-      setFilePreviewWidth(nextWidth);
-      document.body.style.cursor = originalBodyCursor;
-      document.body.style.userSelect = originalBodyUserSelect;
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-      window.removeEventListener("pointercancel", handlePointerUp);
-    };
-
-    applyWidth(event.clientX);
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-    window.addEventListener("pointercancel", handlePointerUp);
-  }, []);
 
   useEffect(() => {
     if (!filePreviewPath) return;
@@ -2001,9 +1970,9 @@ export function ThreadShell({
       variant="ghost"
       size="icon"
       type="button"
-      aria-label={t("workbench.tools", { defaultValue: "Tools sidebar" })}
-      aria-pressed={toolsOpen}
-      onClick={toggleToolsSurface}
+      aria-label={compactWorkbench ? t("workbench.title", { defaultValue: "Workbench" }) : t("workbench.tools", { defaultValue: "Tools sidebar" })}
+      aria-pressed={compactWorkbench ? mobileWorkbenchOpen : toolsOpen}
+      onClick={compactWorkbench ? () => setMobileWorkbenchOpen((open) => !open) : toggleToolsSurface}
       className={`host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground ${
         toolsOpen ? "bg-accent/40 text-foreground" : ""
       }`}
@@ -2032,7 +2001,7 @@ export function ThreadShell({
 
   return (
     <section ref={shellRef} className="agent-thread-shell relative flex min-h-0 flex-1 overflow-hidden">
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div ref={mainColumnRef} className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         {hideHeaderTitle && inlineHandle && !temporary && session?.handle ? (
           <div
             aria-label={`Session @${session.handle.name}`}
@@ -2061,7 +2030,7 @@ export function ThreadShell({
             retryStatus={retryStatus}
             emptyState={emptyState}
             emptyStateBelow={emptyStateBelow}
-            composer={composerPortalTarget === undefined ? composer : null}
+            composer={showHeroComposer || composerPortalTarget === undefined ? composer : null}
             activeTurnId={viewportTurnId}
             activeTurnStartedHere={activeTurnStartedHere}
             conversationKey={historyKey}
@@ -2090,7 +2059,8 @@ export function ThreadShell({
           token={token}
           desktopWidth={filePreviewWidth}
           isClosing={filePreviewClosing}
-          onResizeStart={handleFilePreviewResizeStart}
+          maxDesktopWidth={maxFilePreviewWidth(shellWidth)}
+          onWidthChange={setFilePreviewWidth}
           onClose={handleCloseFilePreview}
         />
       ) : null}
@@ -2113,9 +2083,29 @@ export function ThreadShell({
       {session && (
         activeRightSurface.kind === "workbench" || activeRightSurface.kind === "tools"
       ) ? (
-        <div className="relative hidden shrink-0 md:flex">
+        compactWorkbench ? (
+          <Dialog open={mobileWorkbenchOpen} onOpenChange={setMobileWorkbenchOpen}>
+            <DialogContent aria-describedby={undefined} className="fixed inset-y-0 left-auto right-0 flex h-full w-[min(100vw,380px)] max-w-full translate-x-0 translate-y-0 flex-col gap-0 rounded-none p-0 pt-12">
+              <DialogTitle className="sr-only">{t("workbench.title", { defaultValue: "Workbench" })}</DialogTitle>
+              <Button variant="ghost" className="absolute left-2 top-2" onClick={toggleToolsSurface}>
+                {toolsOpen ? t("workbench.title", { defaultValue: "Workbench" }) : t("workbench.tools", { defaultValue: "Tools sidebar" })}
+              </Button>
+              {toolsOpen ? <StartDock variant="embedded" scope={historyKey ?? HOME_DOCK_SCOPE}
+                sessionKey={historyKey} getToken={getToken} onCollapse={closeToolsSurface}
+                onOpenFilePreview={historyKey ? (path) => { setMobileWorkbenchOpen(false); handleOpenFilePreview(path); } : undefined}
+              /> : <SessionWorkbench model={workbenchModel} sessionKey={historyKey} token={token} client={client}
+                onOpenExecution={(id) => { setMobileWorkbenchOpen(false); handleOpenExecution(id, null); }}
+                onOpenFilePreview={historyKey ? (path) => { setMobileWorkbenchOpen(false); handleOpenFilePreview(path); } : undefined}
+              />}
+            </DialogContent>
+          </Dialog>
+        ) : <ResizableRail label={t("workbench.resizeRail", { defaultValue: "Resize workbench" })}>
           <SessionWorkbench
             model={workbenchModel}
+            sessionKey={historyKey}
+            token={token}
+            client={client}
+            onOpenExecution={(id) => handleOpenExecution(id, null)}
             onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
           />
           {activeRightSurface.kind === "tools" ? (
@@ -2132,12 +2122,12 @@ export function ThreadShell({
               />
             </div>
           ) : null}
-        </div>
+        </ResizableRail>
       ) : null}
       {headerPortalTarget && headerActive
         ? createPortal(threadHeader, headerPortalTarget)
         : null}
-      {composerPortalTarget ? createPortal(
+      {composerPortalTarget && !showHeroComposer ? createPortal(
         <div
           hidden={!composerActive}
           aria-hidden={!composerActive}

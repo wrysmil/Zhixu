@@ -2953,11 +2953,12 @@ function Shell({
                           headerPortalTarget={context.headerPortalTarget}
                           headerActive={context.active}
                           composerPortalTarget={context.composerPortalTarget}
+                          onComposerRailInsetChange={context.onComposerRailInsetChange}
+                          onComposerPlacementChange={context.onComposerPlacementChange}
                           composerActive={context.active}
                           composerInputAriaLabel={t("workbench.composerAria", {
                             title: pane.title,
                           })}
-                          emptyComposerVariant="thread"
                           workspaceScope={paneScope}
                           workspaceDefaultScope={workspaces?.default_scope ?? null}
                           workspaceControls={workspaces?.controls ?? null}

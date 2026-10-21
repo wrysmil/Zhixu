@@ -61,11 +61,36 @@ function renderTab() {
 }
 
 describe("DockFileTab two-column layout", () => {
+  it("lets readers widen inline preview with the column separator and clamps the tree", async () => {
+    renderTab();
+    const tree = await screen.findByTestId("dock-file-tree-column");
+    const separator = screen.getByRole("separator", { name: "Resize file tree" });
+    const initial = Number(separator.getAttribute("aria-valuenow"));
+    fireEvent.keyDown(separator, { key: "ArrowRight" });
+    expect(Number(separator.getAttribute("aria-valuenow"))).toBeLessThan(initial);
+    expect(tree.style.width).toBe(`${initial - 5}%`);
+    fireEvent.keyDown(separator, { key: "Home" });
+    expect(tree.style.width).toBe("20%");
+    fireEvent.keyDown(separator, { key: "End" });
+    expect(tree.style.width).toBe("65%");
+
+    const columns = tree.parentElement;
+    expect(columns).not.toBeNull();
+    vi.spyOn(columns!, "getBoundingClientRect").mockReturnValue({
+      left: 0, right: 1000, width: 1000,
+    } as DOMRect);
+    separator.setPointerCapture = vi.fn();
+    separator.hasPointerCapture = vi.fn(() => true);
+    separator.releasePointerCapture = vi.fn();
+    fireEvent.pointerDown(separator, { pointerId: 7, button: 0, clientX: 650 });
+    fireEvent.pointerMove(separator, { pointerId: 7, clientX: 300 });
+    expect(tree.style.width).toBe("30%");
+  });
   it("puts the file tree in its own right-hand column", async () => {
     renderTab();
     const treeColumn = await screen.findByTestId("dock-file-tree-column");
-    // 右栏固定宽度，左栏（预览）吃掉剩余空间。
-    expect(treeColumn.className).toContain("w-[46%]");
+    // 右栏有初始宽度，左栏（预览）吃掉剩余空间；边界可调整。
+    expect(treeColumn.style.width).toBe("46%");
     expect(treeColumn.className).toContain("shrink-0");
   });
 

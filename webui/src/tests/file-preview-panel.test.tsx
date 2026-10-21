@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -38,6 +38,31 @@ describe("FilePreviewPanel", () => {
   beforeEach(async () => {
     await setAppLanguage("en");
     vi.mocked(fetchFilePreview).mockReset();
+  });
+
+  it("resizes the external preview with keyboard and captured pointer, then stops on cancellation", async () => {
+    vi.mocked(fetchFilePreview).mockResolvedValue({ path: "notes.md", display_path: "notes.md",
+      language: "markdown", content: "# Notes", truncated: false });
+    const change = vi.fn();
+    render(<FilePreviewPanel sessionKey="websocket:chat-1" path="notes.md" token="tok"
+      desktopWidth={544} maxDesktopWidth={800} onWidthChange={change} onClose={() => {}} />);
+    await screen.findByTestId("mock-code-block");
+    const separator = screen.getByRole("separator", { name: "Resize file preview" });
+    fireEvent.keyDown(separator, { key: "ArrowLeft" });
+    expect(change).toHaveBeenLastCalledWith(576);
+    const panel = screen.getByTestId("file-preview-panel");
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ right: 1000 } as DOMRect);
+    separator.setPointerCapture = vi.fn();
+    separator.hasPointerCapture = vi.fn(() => true);
+    separator.releasePointerCapture = vi.fn();
+    fireEvent.pointerDown(separator, { pointerId: 5, button: 0, clientX: 456 });
+    expect(separator.setPointerCapture).toHaveBeenCalledWith(5);
+    fireEvent.pointerMove(separator, { pointerId: 5, clientX: 100 });
+    expect(change).toHaveBeenLastCalledWith(800);
+    fireEvent.pointerCancel(separator, { pointerId: 5 });
+    const count = change.mock.calls.length;
+    fireEvent.pointerMove(separator, { pointerId: 5, clientX: 500 });
+    expect(change).toHaveBeenCalledTimes(count);
   });
 
   it("shows a compact breadcrumb with one file name and a visible close action", async () => {

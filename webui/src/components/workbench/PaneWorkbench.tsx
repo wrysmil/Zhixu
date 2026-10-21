@@ -57,6 +57,8 @@ interface PaneRenderContext {
   active: boolean;
   headerPortalTarget: HTMLElement | null | undefined;
   composerPortalTarget: HTMLElement | null | undefined;
+  onComposerRailInsetChange: (width: number) => void;
+  onComposerPlacementChange: (placement: "inline" | "footer") => void;
   headerActions: ReactNode;
 }
 
@@ -176,6 +178,13 @@ export function PaneWorkbench({
   const effectiveLayout = layout;
   const [headerPortalTarget, setHeaderPortalTarget] = useState<HTMLElement | null>(null);
   const [composerPortalTarget, setComposerPortalTarget] = useState<HTMLElement | null>(null);
+  const [paneComposerLayouts, setPaneComposerLayouts] = useState<Record<string, {
+    railWidth?: number;
+    placement?: "inline" | "footer";
+  }>>({});
+  const activeComposerLayout = paneComposerLayouts[activePaneKey];
+  const activeRailInset = activeComposerLayout?.railWidth === undefined
+    ? composerRailInset : `${activeComposerLayout.railWidth}px`;
   const gridRef = useRef<HTMLDivElement | null>(null);
   const paneRefs = useRef(new Map<string, HTMLElement>());
   const lastRectsRef = useRef(new Map<string, DOMRect>());
@@ -634,11 +643,11 @@ export function PaneWorkbench({
   return (
     <section
       aria-label={t("workbench.aria", { defaultValue: "Conversation workbench" })}
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-background"
+      className="workbench-canvas flex h-full min-h-0 flex-col overflow-hidden bg-background"
     >
       <TooltipProvider delayDuration={500} skipDelayDuration={100}>
         {chrome ? (
-          <header className="shrink-0 bg-background">
+          <header className="shrink-0 bg-transparent">
             <div className="flex items-center">
               <div
                 ref={setHeaderPortalTarget}
@@ -648,7 +657,7 @@ export function PaneWorkbench({
             </div>
           </header>
         ) : null}
-        <div className="relative min-h-0 flex-1 bg-background">
+        <div className="relative min-h-0 flex-1 bg-transparent">
           <div
             ref={gridRef}
             data-testid="pane-grid"
@@ -675,13 +684,23 @@ export function PaneWorkbench({
                   data-testid={`workbench-pane-${pane.key}`}
                   onPointerDownCapture={(event) => handlePanePointerDown(pane.key, event)}
                   onFocusCapture={(event) => handlePaneFocus(pane.key, event)}
-                  className="workbench-pane relative flex min-h-0 min-w-0 overflow-hidden bg-background"
+                  className="workbench-pane relative flex min-h-0 min-w-0 overflow-hidden bg-transparent"
                   style={layoutGeometry.paneStyles[index]}
                 >
                   {renderPane(pane, {
                     active,
                     headerPortalTarget: chrome ? headerPortalTarget : undefined,
                     composerPortalTarget: chrome ? composerPortalTarget : undefined,
+                    onComposerRailInsetChange: (railWidth) => setPaneComposerLayouts((previous) => (
+                      previous[pane.key]?.railWidth === railWidth ? previous : {
+                        ...previous, [pane.key]: { ...previous[pane.key], railWidth },
+                      }
+                    )),
+                    onComposerPlacementChange: (placement) => setPaneComposerLayouts((previous) => (
+                      previous[pane.key]?.placement === placement ? previous : {
+                        ...previous, [pane.key]: { ...previous[pane.key], placement },
+                      }
+                    )),
                     headerActions,
                   })}
                   {chrome && panes.length > 1 && !compact ? (
@@ -784,14 +803,15 @@ export function PaneWorkbench({
 
         {chrome ? (
           <footer
-            className="shrink-0 bg-background px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4"
+            hidden={activeComposerLayout?.placement === "inline"}
+            className="shrink-0 bg-transparent px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4"
             // 让位放在 footer 的 padding 上，而不是宿主的 margin-right：宿主的可用宽度
             // 才是消息列真实的中线基准，两者都等于「聊天区 − rail」。挂在 margin 上会让
             // 宿主先按 rail 缩一次、再由 mx-auto 二次居中，输入框整体右移约 rail 的一半
             // （2026-10-20 实测 1736px 下偏 99px）。
             style={
-              composerRailInset && !compact
-                ? { paddingRight: `calc(${composerRailInset} + 1rem)` }
+              activeRailInset && !compact
+                ? { paddingRight: `calc(${activeRailInset} + 1rem)` }
                 : undefined
             }
           >
