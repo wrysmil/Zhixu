@@ -27,7 +27,7 @@ export interface AppearanceController {
 export const APPEARANCE_STORAGE_KEY = "zhixu-webui.appearance";
 export const APPEARANCE_APPLIED_EVENT = "zhixu-webui.appearance-applied";
 export const DEFAULT_APPEARANCE: AppearancePreferences = {
-  schemaVersion: 1, mode: "system", presetId: "zhixu", custom: null,
+  schemaVersion: 1, mode: "light", presetId: "zhixu", custom: null,
   uiFont: { id: "system", family: "" }, codeFont: { id: "default", family: "" },
 };
 
@@ -38,7 +38,7 @@ export const THEME_PRESETS: Array<{ id: PresetId; name: string; light: Palette; 
   { id: "sand", name: "Sand", light: { accent: "#976337", background: "#FAF5EB", foreground: "#3A3026" }, dark: { accent: "#D7AD79", background: "#241F19", foreground: "#EDE3D6" } },
 ];
 
-const UI_SYSTEM = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif, "Apple Color Emoji", "Segoe UI Emoji"';
+const UI_SYSTEM = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"';
 const CODE_DEFAULT = '"JetBrains Mono", "SFMono-Regular", "SF Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, "Noto Sans Mono CJK SC", "Noto Sans SC", "Microsoft YaHei", monospace';
 const UI_FONTS: Record<string, string> = {
   system: UI_SYSTEM,
@@ -98,7 +98,7 @@ export function normalizeAppearance(value: unknown): AppearancePreferences {
   } : null;
   return {
     schemaVersion: 1,
-    mode: source.mode === "light" || source.mode === "dark" ? source.mode : "system",
+    mode: source.mode === "light" || source.mode === "dark" || source.mode === "system" ? source.mode : "light",
     presetId: isPreset(source.presetId) ? source.presetId : source.presetId === "custom" && normalizedCustom ? "custom" : "zhixu",
     custom: normalizedCustom,
     uiFont: normalizeFontChoice(source.uiFont, "ui"),

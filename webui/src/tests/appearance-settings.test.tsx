@@ -47,7 +47,7 @@ describe("appearance editor", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Light" }));
     expect(screen.getByRole("textbox", { name: "Accent HEX" })).toHaveValue("#0169CC");
     fireEvent.click(screen.getByRole("button", { name: "Restore default appearance" }));
-    expect(screen.getByRole("radio", { name: "System" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Light" })).toBeChecked();
     expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("zhixu");
     expect(screen.getByRole("combobox", { name: "Code font" })).toHaveValue("default");
   });

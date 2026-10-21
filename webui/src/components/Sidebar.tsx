@@ -187,7 +187,7 @@ export function Sidebar(props: SidebarProps) {
               props.hostChromeInset ? "pt-8" : "pt-3",
             )}
           >
-            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-sidebar-foreground">
+            <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-sidebar-foreground">
               {t("sidebar.recent")}
             </span>
             <Button

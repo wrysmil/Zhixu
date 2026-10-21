@@ -528,7 +528,7 @@ describe("ThreadComposer", () => {
     const input = screen.getByPlaceholderText("Ask anything...");
     expect(input).toBeInTheDocument();
     expect(input.className).toContain("min-h-[78px]");
-    expect(input.className).toContain("text-[16px]");
+    expect(input.className).toContain("text-[15px]");
     expect(input.className).toContain("pt-[27px]");
     fireEvent.change(input, { target: { value: "1" } });
     expect(input.className).toContain("pt-[27px]");
@@ -762,7 +762,7 @@ describe("ThreadComposer", () => {
     expect(providerLogo).not.toHaveClass("border", "bg-background");
     const input = screen.getByPlaceholderText("Type your message...");
     expect(input.className).toContain("min-h-[50px]");
-    expect(input.className).toContain("text-[16px]");
+    expect(input.className).toContain("text-[15px]");
     expect(input.parentElement?.parentElement?.className).toContain("max-w-[49.5rem]");
     expect(input.parentElement?.parentElement?.className).toContain("rounded-prominent");
     expect(input.parentElement?.parentElement?.className).not.toContain("shadow-");

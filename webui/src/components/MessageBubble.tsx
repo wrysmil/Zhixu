@@ -284,7 +284,7 @@ function IncomingSessionMessage({
   return (
     <div
       data-session-message
-      className="group w-full text-[15px]"
+      className="group w-full text-[14px]"
       style={{ lineHeight: "var(--cjk-line-height)" }}
     >
       <div
@@ -417,7 +417,7 @@ export function MessageBubble({
             data-temporary-message={temporary ? "true" : undefined}
             className={cn(
               "ml-auto w-fit max-w-full min-w-0 rounded-floating px-4 py-2",
-              "text-left text-[16px]/[1.75] whitespace-pre-wrap [overflow-wrap:anywhere]",
+              "text-left text-[14px]/[1.75] whitespace-pre-wrap [overflow-wrap:anywhere]",
               temporary
                 ? "border border-dashed border-muted-foreground/40 bg-transparent"
                 : "bg-secondary/70",
@@ -503,7 +503,7 @@ export function MessageBubble({
     message.role === "assistant"
     && (!empty || hasReasoning || media.length > 0);
   return (
-    <div className="w-full text-[15px]" style={{ lineHeight: "var(--cjk-line-height)" }}>
+    <div className="w-full text-[14px]" style={{ lineHeight: "var(--cjk-line-height)" }}>
       {hasReasoning ? (
         <ReasoningBubble
           text={reasoning}

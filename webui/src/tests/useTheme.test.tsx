@@ -49,6 +49,7 @@ describe("appearance controller", () => {
   it("toggle exits system mode with an explicit choice and removes its listener", () => {
     const remove = vi.spyOn(media, "removeEventListener");
     const { result } = renderHook(() => useTheme({ persist: false }));
+    act(() => result.current.setMode("system"));
     act(() => result.current.toggle());
     expect(result.current.theme).toBe("dark");
     expect(result.current.preferences.mode).toBe("dark");
@@ -57,13 +58,14 @@ describe("appearance controller", () => {
     expect(result.current.theme).toBe("light");
   });
 
-  it("tracks system changes only in system mode", () => {
+  it("defaults to light and tracks system changes only in system mode", () => {
     const { result, unmount } = renderHook(() => useTheme());
-    expect(result.current.preferences.mode).toBe("system");
+    expect(result.current.preferences.mode).toBe("light");
+    act(() => result.current.setMode("system"));
     act(() => { media.matches = true; media.dispatchEvent(new Event("change")); });
     expect(result.current.theme).toBe("dark");
     act(() => result.current.setMode("light"));
-    act(() => { media.matches = true; media.dispatchEvent(new Event("change")); });
+    act(() => { media.matches = false; media.dispatchEvent(new Event("change")); });
     expect(result.current.theme).toBe("light");
     unmount();
   });

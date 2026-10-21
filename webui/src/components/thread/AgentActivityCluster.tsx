@@ -562,7 +562,7 @@ function ActivityModelMessage({
     <div
       data-testid="activity-model-message"
       data-assistant-selectable={active && message.isStreaming ? undefined : "true"}
-      className="w-full min-w-0 py-1 text-[15px]"
+      className="w-full min-w-0 py-1 text-[14px]"
       style={{ lineHeight: "var(--cjk-line-height)" }}
     >
       <MarkdownText

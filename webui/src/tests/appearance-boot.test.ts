@@ -21,7 +21,7 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); window.history.re
 
 describe("appearance before React startup", () => {
   it.each(["light", "dark"] as const)("restores all validated %s colors and fonts consistently with runtime", (theme) => {
-    const preferences = normalizeAppearance({ ...DEFAULT_APPEARANCE, presetId: "custom",
+    const preferences = normalizeAppearance({ ...DEFAULT_APPEARANCE, mode: theme, presetId: "custom",
       custom: { basePreset: "ocean", light: { background: "#AABBCC" }, dark: { background: "#112233" } },
       uiFont: { id: "custom", family: "本机字体" }, codeFont: { id: "consolas", family: "" },
     });
