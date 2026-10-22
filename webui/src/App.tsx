@@ -2778,7 +2778,7 @@ function Shell({
             <aside
               data-testid="host-sidebar-flow"
               className={cn(
-                "relative z-20 hidden shrink-0 overflow-hidden lg:my-2 lg:ml-2 lg:block",
+                "relative z-20 hidden shrink-0 overflow-hidden lg:block lg:border-r lg:border-sidebar-border/70",
                 "transition-[width] duration-150 ease-out",
                 "host-sidebar-aside",
               )}
@@ -2840,7 +2840,7 @@ function Shell({
               />
             </Suspense>
           ) : null}
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col lg:p-2 lg:pl-1.5">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           <main
             className={cn(
               "app-shell-card relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background",
