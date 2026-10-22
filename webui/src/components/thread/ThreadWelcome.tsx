@@ -35,6 +35,10 @@ export function ThreadWelcomeIntro({ greeting }: ThreadWelcomeIntroProps) {
     <div className="thread-welcome-intro-block">
       <div className="thread-welcome-intro">
         <div className="thread-welcome-copy">
+          <p className="thread-welcome-eyebrow">
+            <span className="thread-welcome-eyebrow-dot" aria-hidden />
+            {zh ? "你好，我是知序" : "HI, I'M ZHIXU"}
+          </p>
           <h1
             data-testid="hero-greeting"
             className="thread-welcome-title select-none whitespace-nowrap"

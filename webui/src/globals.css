@@ -1513,25 +1513,46 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   z-index: 2;
 }
 
+.thread-welcome-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.7rem;
+  color: hsl(var(--muted-foreground));
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.thread-welcome-eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: hsl(var(--text-strong) / 0.45);
+}
+
 .thread-welcome-title {
   margin: 0 0 0.625rem;
   max-width: 40rem;
   text-wrap: balance;
   font-family: var(--font-ui);
-  font-size: 1.75rem;
+  font-size: clamp(1.65rem, 1.45rem + 0.5vw, 2rem);
   font-weight: 600;
-  line-height: 1.35;
-  letter-spacing: -0.02em;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
   white-space: normal;
   color: hsl(var(--text-strong));
 }
 
 .thread-welcome-description {
-  max-width: 30rem;
+  max-width: 32rem;
   margin: 0;
   color: hsl(var(--text-body));
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: 15px;
+  line-height: 1.65;
 }
 
 .thread-welcome-illustration {
@@ -1559,39 +1580,45 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 }
 
 .thread-welcome-starters {
-  margin-top: 1.5rem;
+  margin-top: 1.75rem;
 }
 
 .thread-welcome-starters-label {
-  margin-bottom: 0.7rem;
+  margin-bottom: 0.75rem;
   color: hsl(var(--muted-foreground));
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.5;
-  font-weight: 400;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .thread-welcome-chips {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
 .thread-welcome-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.44rem;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid transparent;
-  border-radius: 0.625rem;
-  background: transparent;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--card));
   color: hsl(var(--text-body));
   font-size: 13px;
   line-height: 1.4;
+  text-align: left;
   cursor: pointer;
   transition:
     border-color 140ms ease-out,
     background-color 140ms ease-out,
     color 140ms ease-out,
+    box-shadow 140ms ease-out,
     transform 140ms ease-out;
 }
 
@@ -1601,10 +1628,11 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 }
 
 .thread-welcome-chip:hover {
-  transform: translateY(-2px);
-  border-color: transparent;
-  background: hsl(var(--accent) / 0.7);
-  color: hsl(var(--foreground));
+  transform: translateY(-1px);
+  border-color: hsl(var(--text-strong) / 0.22);
+  background: hsl(var(--card));
+  color: hsl(var(--text-strong));
+  box-shadow: 0 2px 6px hsl(var(--text-strong) / 0.06);
 }
 
 .thread-welcome-chip:focus-visible {
@@ -1716,7 +1744,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
    as a small island on a real desktop. Scale one step up instead of centring a
    narrow strip in a sea of empty canvas. */
 @media (min-width: 1280px) {
-  .thread-welcome-chip { padding: 0.56rem 0.8rem; font-size: 13px; }
+  .thread-welcome-chips { gap: 0.625rem; }
 }
 
 @media (max-width: 900px) {
@@ -1734,9 +1762,9 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   .thread-welcome-illustration,
   .thread-welcome-illustration > img { width: 100%; }
   .thread-welcome-title { font-size: 1.5rem; max-width: 100%; white-space: normal; }
-  .thread-welcome-description { font-size: 13px; }
-  .thread-welcome-chips { gap: 0.375rem; }
-  .thread-welcome-chip { padding: 0.44rem 0.56rem; font-size: 13px; }
+  .thread-welcome-description { font-size: 14px; }
+  .thread-welcome-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.375rem; }
+  .thread-welcome-chip { padding: 0.55rem 0.7rem; font-size: 13px; }
   .assistant-page { padding: 1.15rem 0.9375rem 2rem; }
   .assistant-page-header { gap: 0.75rem; padding-bottom: 0.875rem; }
   .assistant-page-illustration { width: 72px; }
@@ -1753,10 +1781,9 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   .thread-welcome-intro { grid-template-columns: minmax(0, 1fr); min-height: 7rem; }
   .thread-welcome-illustration { display: none; }
   .thread-welcome-chips {
-    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .thread-welcome-chip { justify-content: center; min-width: 0; }
+  .thread-welcome-chip { justify-content: flex-start; }
   .assistant-page-illustration { display: none; }
 }
 
