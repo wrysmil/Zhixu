@@ -384,6 +384,22 @@ export const ChatList = memo(function ChatList({
     () => limitGroups(groups, visibleLimit, activeKey, collapsedGroups),
     [activeKey, collapsedGroups, groups, visibleLimit],
   );
+  // Low-signal titles collapse to the same fallback ("New chat · 9/30"); a
+  // per-group ordinal keeps those rows distinguishable in the sidebar.
+  const uniqueTitles = useMemo(() => {
+    const titles = new Map<string, string>();
+    for (const group of groups) {
+      const seen = new Map<string, number>();
+      for (const session of group.sessions) {
+        if (titles.has(session.key)) continue;
+        const base = displayTitle(session, titleOverrides, t("chat.newChat"));
+        const count = (seen.get(base) ?? 0) + 1;
+        seen.set(base, count);
+        titles.set(session.key, count === 1 ? base : `${base} · ${count}`);
+      }
+    }
+    return titles;
+  }, [groups, t, titleOverrides]);
   const totalSessionCount = useMemo(
     () => groups.reduce(
       (total, group) =>
@@ -788,7 +804,8 @@ export const ChatList = memo(function ChatList({
                   {visibleSessions.map((s) => {
                     const topicActive = s.key === activeKey;
                     const paneGroup = paneGroups[s.key];
-                    const title = displayTitle(s, titleOverrides, t("chat.newChat"));
+                    const title = uniqueTitles.get(s.key)
+                      ?? displayTitle(s, titleOverrides, t("chat.newChat"));
                     const resolvedPaneGroup = paneGroup ?? {
                       tabKey: s.key,
                       title,
@@ -1974,7 +1991,7 @@ function SessionActivityIndicator({
         <span
           role="img"
           aria-label={label}
-          className="grid h-4 w-4 shrink-0 place-items-center text-[#ff8a3d]"
+          className="grid h-4 w-4 shrink-0 place-items-center text-muted-foreground/60 group-hover:text-[#ff8a3d]"
         >
           <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
         </span>

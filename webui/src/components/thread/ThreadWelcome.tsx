@@ -1,24 +1,10 @@
 import {
-  ArrowUpRight,
   Files,
   ListChecks,
-  MessageSquare,
   NotebookPen,
   Telescope,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
-import { relativeTime, visibleSessionPreview } from "@/lib/format";
-
-/** One resumable conversation on the landing page. Keys are real session keys, so
- *  clicking a row opens that chat instead of staging a demo prompt. */
-export interface WelcomeRecent {
-  key: string;
-  title: string;
-  preview?: string;
-  meta?: string | null;
-  updatedAt?: string | null;
-}
 
 interface ThreadWelcomeIntroProps {
   greeting?: string;
@@ -26,26 +12,21 @@ interface ThreadWelcomeIntroProps {
 
 interface ThreadWelcomeExtrasProps {
   onChoosePrompt: (text: string) => void;
-  /** Most recent real conversations; empty when the workspace has no history yet. */
-  recents?: WelcomeRecent[];
-  onOpenRecent?: (key: string) => void;
-  /** True while the session list is still loading, so the section can hold its shape. */
-  recentsLoading?: boolean;
 }
 
 const MASCOT_SRC = `${import.meta.env.BASE_URL}illustrations/zhixu-mascot.webp`;
 
 function useWelcomeCopy() {
   const { t, i18n } = useTranslation();
-  const locale = i18n.resolvedLanguage;
-  const zh = Boolean(locale?.startsWith("zh"));
-  return { t, i18n, locale, zh };
+  const zh = Boolean(i18n.resolvedLanguage?.startsWith("zh"));
+  return { t, zh };
 }
 
 /**
  * Top half of the landing: greeting and mascot. It sits above the composer, so it
- * carries only the copy — the shortcuts and resume rows render *below* the
- * composer to match the assistant demo's reading order.
+ * carries only the copy — the shortcuts render *below* the composer to match the
+ * assistant demo's reading order. Recent conversations stay in the sidebar only;
+ * repeating them here competed with the sidebar for the same job.
  */
 export function ThreadWelcomeIntro({ greeting }: ThreadWelcomeIntroProps) {
   const { t, zh } = useWelcomeCopy();
@@ -54,10 +35,6 @@ export function ThreadWelcomeIntro({ greeting }: ThreadWelcomeIntroProps) {
     <div className="thread-welcome-intro-block">
       <div className="thread-welcome-intro">
         <div className="thread-welcome-copy">
-          <p className="thread-welcome-eyebrow">
-            <span className="thread-welcome-eyebrow-dot" aria-hidden />
-            {zh ? "你好，我是知序" : "HI, I'M ZHIXU"}
-          </p>
           <h1
             data-testid="hero-greeting"
             className="thread-welcome-title select-none whitespace-nowrap"
@@ -79,14 +56,9 @@ export function ThreadWelcomeIntro({ greeting }: ThreadWelcomeIntroProps) {
   );
 }
 
-/** Bottom half of the landing: starter chips, real resume rows, and the footnote. */
-export function ThreadWelcomeExtras({
-  onChoosePrompt,
-  recents = [],
-  onOpenRecent,
-  recentsLoading = false,
-}: ThreadWelcomeExtrasProps) {
-  const { locale, zh } = useWelcomeCopy();
+/** Bottom half of the landing: starter chips. */
+export function ThreadWelcomeExtras({ onChoosePrompt }: ThreadWelcomeExtrasProps) {
+  const { zh } = useWelcomeCopy();
 
   const starters = [
     {
@@ -139,60 +111,6 @@ export function ThreadWelcomeExtras({
           ))}
         </div>
       </section>
-
-      {recentsLoading || recents.length > 0 ? (
-        <section
-          className="thread-welcome-recents"
-          aria-label={zh ? "继续手头的工作" : "Pick up where you left off"}
-        >
-          <header className="thread-welcome-section-heading">
-            <h2>{zh ? "继续手头的工作" : "Pick up where you left off"}</h2>
-            <span>{recentsLoading ? (zh ? "正在加载" : "Loading") : zh ? "最近对话" : "Recent chats"}</span>
-          </header>
-          <div className="thread-welcome-recent-list" aria-busy={recentsLoading}>
-            {recents.map((row) => {
-              const preview = visibleSessionPreview(row.preview);
-              const showPreview = Boolean(preview) && preview !== row.title;
-              return (
-                <button
-                  key={row.key}
-                  type="button"
-                  className="thread-welcome-recent-row"
-                  onClick={() => onOpenRecent?.(row.key)}
-                  disabled={!onOpenRecent}
-                >
-                  <span className="thread-welcome-recent-icon" aria-hidden>
-                    <MessageSquare size={15} strokeWidth={1.7} />
-                  </span>
-                  <span className="thread-welcome-recent-copy">
-                    <strong>{row.title}</strong>
-                    {showPreview || row.meta ? (
-                      <span className="thread-welcome-recent-detail">
-                        {showPreview ? preview : null}
-                        {showPreview && row.meta ? <span aria-hidden> · </span> : null}
-                        {row.meta ? (
-                          <span className="thread-welcome-recent-meta">{row.meta}</span>
-                        ) : null}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="thread-welcome-recent-time">
-                    {row.updatedAt ? relativeTime(row.updatedAt, locale) : ""}
-                  </span>
-                  <ArrowUpRight size={14} strokeWidth={1.7} aria-hidden className="thread-welcome-recent-arrow" />
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
-
-      <p className="thread-welcome-foot">
-        <span className="thread-welcome-foot-dot" aria-hidden />
-        {zh
-          ? "想法不用一次说清楚，我们可以边聊边整理。"
-          : "You don't have to have it all figured out — we can sort it out together."}
-      </p>
     </div>
   );
 }

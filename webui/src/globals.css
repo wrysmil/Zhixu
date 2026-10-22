@@ -165,7 +165,7 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     --browser-toolbar-h: 36px;
     --terminal-font-size: 12.5px;
     --hero-text-size: 26px;
-    --hero-composer-max-w: clamp(43rem, 46vw, 52rem);
+    --hero-composer-max-w: min(44rem, 100%);
     --sidebar: 220 24% 98%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);
@@ -239,7 +239,7 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     --browser-toolbar-h: 36px;
     --terminal-font-size: 12.5px;
     --hero-text-size: 26px;
-    --hero-composer-max-w: clamp(43rem, 46vw, 52rem);
+    --hero-composer-max-w: min(44rem, 100%);
   }
 }
 
@@ -1525,7 +1525,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 .thread-welcome-intro {
   position: relative;
   display: flex;
-  min-height: 11rem;
+  min-height: 8.5rem;
   align-items: flex-end;
   justify-content: space-between;
   gap: 0.75rem;
@@ -1534,29 +1534,10 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 .thread-welcome-copy {
   min-width: 0;
   flex: 1;
-  padding-bottom: 1.9rem;
+  padding-bottom: 1.25rem;
   padding-top: 0;
   position: relative;
   z-index: 2;
-}
-
-.thread-welcome-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 0.44rem;
-  margin-bottom: 1rem;
-  color: hsl(var(--muted-foreground));
-  font-size: 13px;
-  line-height: 1.6;
-  font-weight: 500;
-  letter-spacing: 0.055em;
-}
-
-.thread-welcome-eyebrow-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: hsl(var(--primary));
 }
 
 .thread-welcome-title {
@@ -1615,7 +1596,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 .thread-welcome-starters-label {
   margin-bottom: 0.7rem;
   color: hsl(var(--muted-foreground));
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.5;
   font-weight: 400;
 }
@@ -1660,146 +1641,6 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 .thread-welcome-chip:focus-visible {
   outline: 2px solid hsl(var(--primary) / 0.5);
   outline-offset: 2px;
-}
-
-/* Resume rows carry the same weight as chips: real sessions, real recency. */
-.thread-welcome-recents {
-  margin-top: 1.9rem;
-}
-
-.thread-welcome-section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.6rem;
-}
-
-.thread-welcome-section-heading h2 {
-  display: flex;
-  align-items: center;
-  gap: 0.42rem;
-  margin: 0;
-  color: hsl(var(--text-strong));
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.5;
-}
-
-.thread-welcome-section-heading h2::before {
-  content: "";
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: hsl(var(--muted-foreground) / 0.55);
-}
-
-.thread-welcome-section-heading > span {
-  flex-shrink: 0;
-  color: hsl(var(--muted-foreground));
-  font-size: 11px;
-}
-
-.thread-welcome-recent-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.thread-welcome-recent-row {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.5rem 0.25rem;
-  border: none;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 140ms ease-out;
-}
-
-.thread-welcome-recent-row:last-child {
-  border-bottom: none;
-}
-
-.thread-welcome-recent-row:hover {
-  background: hsl(var(--accent) / 0.45);
-}
-
-.thread-welcome-recent-row:focus-visible {
-  outline: 2px solid hsl(var(--primary) / 0.45);
-  outline-offset: -2px;
-}
-
-.thread-welcome-recent-icon {
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.95rem;
-  flex-shrink: 0;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: hsl(var(--muted-foreground));
-}
-
-.thread-welcome-recent-copy {
-  display: grid;
-  min-width: 0;
-  flex: 1;
-  gap: 0.15rem;
-}
-
-.thread-welcome-recent-copy strong {
-  overflow: hidden;
-  color: hsl(var(--text-strong));
-  font-size: 13px;
-  font-weight: 550;
-  line-height: 1.5;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.thread-welcome-recent-copy > span {
-  overflow: hidden;
-  color: hsl(var(--muted-foreground));
-  font-size: 11px;
-  line-height: 1.5;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.thread-welcome-recent-meta {
-  color: hsl(var(--muted-foreground) / 0.9);
-}
-
-.thread-welcome-recent-detail {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.thread-welcome-recent-time {
-  flex-shrink: 0;
-  color: hsl(var(--muted-foreground));
-  font-size: 11px;
-}
-
-.thread-welcome-recent-arrow {
-  flex-shrink: 0;
-  color: hsl(var(--muted-foreground) / 0.8);
-}
-
-.thread-welcome-foot {
-  display: none;
-}
-
-.thread-welcome-foot-dot {
-  width: 5px;
-  height: 5px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: hsl(var(--primary) / 0.5);
 }
 
 .agent-preview-welcome-content {
@@ -1897,14 +1738,8 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
    as a small island on a real desktop. Scale one step up instead of centring a
    narrow strip in a sea of empty canvas. */
 @media (min-width: 1280px) {
-  .thread-welcome-intro { min-height: 12.5rem; }
+  .thread-welcome-intro { min-height: 10rem; }
   .thread-welcome-chip { padding: 0.56rem 0.8rem; font-size: 13px; }
-  .thread-welcome-chips {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  }
-  .thread-welcome-chip { justify-content: center; }
-  .thread-welcome-recent-row { padding-block: 0.6rem; }
 }
 
 @media (max-width: 900px) {
@@ -1925,8 +1760,6 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   .thread-welcome-description { font-size: 13px; }
   .thread-welcome-chips { gap: 0.375rem; }
   .thread-welcome-chip { padding: 0.44rem 0.56rem; font-size: 13px; }
-  .thread-welcome-recents { margin-top: 1.9rem; }
-  .thread-welcome-recent-time { display: none; }
   .assistant-page { padding: 1.15rem 0.9375rem 2rem; }
   .assistant-page-header { gap: 0.75rem; padding-bottom: 0.875rem; }
   .assistant-page-illustration { width: 72px; }
@@ -1951,7 +1784,6 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 
 @media (prefers-reduced-motion: reduce) {
   .thread-welcome { animation: none; }
-  .thread-welcome-chip,
-  .thread-welcome-recent-row { transition: none; }
+  .thread-welcome-chip { transition: none; }
   .thread-welcome-chip:hover { transform: none; }
 }

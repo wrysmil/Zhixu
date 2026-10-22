@@ -153,7 +153,11 @@ export function displayTitle(
   return (
     titleOverrides[session.key]?.trim()
     || session.title?.trim()
-    || deriveTitle(session.preview, fallbackTitle)
+    || deriveTitle(
+      session.preview,
+      fallbackTitle,
+      session.updatedAt ?? session.createdAt,
+    )
   );
 }
 
@@ -350,7 +354,11 @@ function titleForSort(
   return (
     titleOverrides[session.key]?.trim()
     || session.title?.trim()
-    || deriveTitle(session.preview, "new chat")
+    || deriveTitle(
+      session.preview,
+      "new chat",
+      session.updatedAt ?? session.createdAt,
+    )
   ).toLocaleLowerCase("en");
 }
 

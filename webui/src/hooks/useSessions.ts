@@ -678,5 +678,6 @@ export function sessionTitle(
   return deriveTitle(
     session.title || firstUserMessage || session.preview,
     i18n.t("chat.newChat"),
+    session.updatedAt ?? session.createdAt,
   );
 }

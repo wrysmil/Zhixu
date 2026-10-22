@@ -2333,7 +2333,11 @@ function Shell({
   const titleForSession = useCallback((session: ChatSummary) => (
     sidebarState.title_overrides[session.key]
     || session.title
-    || deriveTitle(session.preview, t("chat.newChat"))
+    || deriveTitle(
+      session.preview,
+      t("chat.newChat"),
+      session.updatedAt ?? session.createdAt,
+    )
   ), [sidebarState.title_overrides, t]);
 
   const automaticSidebarSort = sidebarState.view.sort === "manual"
@@ -2885,7 +2889,6 @@ function Shell({
                           <ThreadShell
                             session={activeSession}
                             sessions={sessions}
-                            onOpenChat={onSelectChat}
                             title={headerTitle}
                             temporary={temporaryChatRequested}
                             temporaryChatIds={temporaryChatIds}
@@ -2936,7 +2939,6 @@ function Shell({
                         <ThreadShell
                           session={paneSession}
                           sessions={sessions}
-                          onOpenChat={onSelectChat}
                           title={pane.title}
                           onToggleSidebar={toggleSidebar}
                           onNewChat={onNewChat}

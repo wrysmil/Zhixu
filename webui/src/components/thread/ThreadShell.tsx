@@ -34,7 +34,6 @@ import type {
 import type { ModelPresetOption } from "@/components/thread/ModelPresetBadge";
 import { ThreadHeader } from "@/components/thread/ThreadHeader";
 import { ThreadWelcomeExtras, ThreadWelcomeIntro } from "@/components/thread/ThreadWelcome";
-import { visibleSessionPreview } from "@/lib/format";
 import { StreamErrorNotice } from "@/components/thread/StreamErrorNotice";
 import {
   SubagentExecutionEntryProvider,
@@ -418,8 +417,6 @@ function maxFilePreviewWidth(containerWidth: number): number {
 interface ThreadShellProps {
   session: ChatSummary | null;
   sessions?: ChatSummary[];
-  /** Opens an existing conversation from the landing page resume rows. */
-  onOpenChat?: (chatKey: string) => void;
   title: string;
   temporary?: boolean;
   temporaryChatIds?: readonly string[];
@@ -582,12 +579,6 @@ function randomHeroGreetingKey(): (typeof HERO_GREETING_KEYS)[number] {
   return HERO_GREETING_KEYS[index] ?? HERO_GREETING_KEYS[0];
 }
 
-/** Recency sort key for the landing resume rows; unparsable dates sink to the end. */
-function sessionRecency(summary: ChatSummary): number {
-  const parsed = Date.parse(summary.updatedAt ?? summary.createdAt ?? "");
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 interface PendingFirstMessage {
   content: string;
   images?: SendAttachment[];
@@ -677,7 +668,6 @@ function useInstalledSettingItems<Payload, Item>({
 export function ThreadShell({
   session,
   sessions = [],
-  onOpenChat,
   title,
   temporary = false,
   temporaryChatIds = [],
@@ -1897,22 +1887,6 @@ export function ThreadShell({
     </>
   );
 
-  // Landing resume rows: real conversations, newest first, never the one on screen.
-  const welcomeRecents = useMemo(() => {
-    if (!sessions.length) return [];
-    return [...sessions]
-      .filter((item) => item.key !== session?.key)
-      .sort((left, right) => sessionRecency(right) - sessionRecency(left))
-      .slice(0, 2)
-      .map((item) => ({
-        key: item.key,
-        title: item.title?.trim() || visibleSessionPreview(item.preview) || item.chatId,
-        preview: item.preview,
-        meta: item.workspaceScope?.project_name ?? null,
-        updatedAt: item.updatedAt ?? item.createdAt,
-      }));
-  }, [session?.key, sessions]);
-
   const emptyState = loading ? (
     <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
       {t("thread.loadingConversation")}
@@ -1921,12 +1895,10 @@ export function ThreadShell({
     <ThreadWelcomeIntro greeting={t(heroGreetingKey)} />
   );
 
-  // Shortcuts and resume rows live *below* the hero composer, matching the demo's
-  // reading order: greeting → input → quick starts → pick up where you left off.
+  // Shortcuts live *below* the hero composer, matching the demo's reading order:
+  // greeting → input → quick starts.
   const emptyStateBelow = loading ? null : (
     <ThreadWelcomeExtras
-      recents={welcomeRecents}
-      onOpenRecent={onOpenChat}
       onChoosePrompt={(text) => {
         welcomeDraftTokenRef.current -= 1;
         setWelcomeDraftSeed({ text, token: welcomeDraftTokenRef.current, mode: "append" });
@@ -2117,7 +2089,6 @@ export function ThreadShell({
                 scope={historyKey ?? HOME_DOCK_SCOPE}
                 sessionKey={historyKey ?? null}
                 getToken={getToken}
-                onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
                 onCollapse={closeToolsSurface}
               />
             </div>
