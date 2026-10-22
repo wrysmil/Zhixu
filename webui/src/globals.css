@@ -392,19 +392,10 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     }
   }
 
-  /* Side-panel launcher: a soft glow over a fine dot grid, cards float on top. */
+  /* Side-panel launcher: flat surface, the cards carry all the structure. */
   .dock-launcher-surface {
     background-color: hsl(var(--surface-panel));
-    background-image:
-      radial-gradient(110% 70% at 50% 0%, hsl(var(--primary) / 0.07), transparent 62%),
-      radial-gradient(hsl(var(--foreground) / 0.06) 1px, transparent 1px);
-    background-size: 100% 100%, 14px 14px;
-  }
-
-  .dark .dock-launcher-surface {
-    background-image:
-      radial-gradient(110% 70% at 50% 0%, hsl(var(--primary) / 0.1), transparent 62%),
-      radial-gradient(hsl(var(--foreground) / 0.1) 1px, transparent 1px);
+    background-image: none;
   }
 
   .host-drag-region {
@@ -1194,14 +1185,10 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 }
 
 
-/* Surfaces stay flat: one hairline, no paper grain, and only a whisper of blue
-   in the corners so long sessions do not feel clinical. The tint is owned by
-   the workbench canvas alone; every layer above it stays transparent, so nested
-   boxes cannot restart the gradient at their own origin and leave seams. */
+/* Flat white canvas: no ambient tint anywhere, so nested boxes cannot restart a
+   gradient at their own origin and leave seams. */
 .workbench-canvas {
-  background-image:
-    radial-gradient(ellipse at 88% 0%, hsl(var(--primary) / 0.035), transparent 46%),
-    radial-gradient(ellipse at 0% 100%, hsl(var(--primary) / 0.02), transparent 40%);
+  background-image: none;
 }
 
 .bg-card,
