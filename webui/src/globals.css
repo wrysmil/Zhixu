@@ -1660,6 +1660,11 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   font-size: 10px;
 }
 
+/* Shell-level right-edge action: the dock keeps a slot for it so the control
+   never covers the panel header, and never shifts when the panel opens. */
+[data-shell-right-action] [data-testid="start-dock"] > header {
+  padding-right: 2.75rem;
+}
 /* The landing block (greeting → composer → shortcuts) is centred as one unit:
    the trailing spacer collapses to zero and the grid distributes the remaining
    space above and below it instead of pinning the block to the top. */

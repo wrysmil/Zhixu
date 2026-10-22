@@ -18,8 +18,6 @@ interface ThreadHeaderProps {
   hideTitle?: boolean;
   actions?: ReactNode;
   workbenchAction?: ReactNode;
-  /** 头部右端最后一位控件（例如首页右坞开关），排在所有其它动作之后。 */
-  trailingAction?: ReactNode;
   minimal?: boolean;
   promptNavigatorAction?: ReactNode;
   sessionInfoAction?: ReactNode;
@@ -38,7 +36,6 @@ export function ThreadHeader({
   hideTitle = false,
   actions,
   workbenchAction,
-  trailingAction,
   minimal = false,
   promptNavigatorAction,
   sessionInfoAction,
@@ -113,7 +110,6 @@ export function ThreadHeader({
           />
         ) : null}
         {workbenchAction}
-        {trailingAction}
       </div>
 
       {!minimal ? (

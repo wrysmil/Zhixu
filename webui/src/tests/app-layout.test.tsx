@@ -669,11 +669,12 @@ describe("App layout", () => {
     // 右坞默认收起：首页不留常驻列，标签内容不挂载。
     expect(screen.queryByTestId("start-dock")).not.toBeInTheDocument();
 
-    // 开关落在会话头右端，首页不再单独留一条顶栏格位给按钮，也不再显示临时聊天气泡。
+    // 开关锚定在工作区容器右上角，而不是会话头右端：右坞展开时按钮不能左移。
     const heroHeader = screen.getByTestId("thread-header");
-    expect(within(heroHeader).getByTestId("start-dock-toggle")).toBeInTheDocument();
+    expect(within(heroHeader).queryByTestId("start-dock-toggle")).not.toBeInTheDocument();
+    expect(screen.getByTestId("start-dock-toggle")).toBeInTheDocument();
     expect(
-      within(heroHeader).getByTestId("start-dock-terminal-toggle"),
+      screen.getByTestId("start-dock-terminal-toggle"),
     ).toHaveAttribute("aria-label", "Open terminal panel");
     expect(screen.queryByTestId("workbench-header-host")).not.toBeInTheDocument();
     expect(within(heroHeader).queryByRole("button", { name: "Temporary chat" }))
@@ -2045,7 +2046,8 @@ describe("App layout", () => {
       .map((button) => button.textContent?.trim())
       .filter(Boolean);
 
-    expect(labels).toEqual(["Alpha plan", "New topic", "Zulu work"]);
+    // Low-signal previews fall back to the placeholder plus the session date.
+    expect(labels).toEqual(["Alpha plan", "New topic · 4/15", "Zulu work"]);
   });
 
   it("shows running and completed session indicators in the sidebar", async () => {

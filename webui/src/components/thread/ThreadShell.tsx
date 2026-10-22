@@ -441,8 +441,6 @@ interface ThreadShellProps {
   inlineHandle?: boolean;
   hideHeader?: boolean;
   headerActions?: ReactNode;
-  /** 头部右端最后一位控件（例如首页右坞开关）。 */
-  trailingAction?: ReactNode;
   headerPortalTarget?: HTMLElement | null;
   headerActive?: boolean;
   composerPortalTarget?: HTMLElement | null;
@@ -683,7 +681,6 @@ export function ThreadShell({
   inlineHandle = false,
   hideHeader = false,
   headerActions,
-  trailingAction,
   headerPortalTarget,
   headerActive = true,
   composerPortalTarget,
@@ -1966,7 +1963,6 @@ export function ThreadShell({
       hideTitle={hideHeaderTitle}
       actions={headerActions}
       workbenchAction={workbenchAction}
-      trailingAction={trailingAction}
       minimal={!session && !loading}
     />
   ) : null;

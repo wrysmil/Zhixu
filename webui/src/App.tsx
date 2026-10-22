@@ -12,8 +12,6 @@ import {
   Eye,
   EyeOff,
   Moon,
-  PanelRightClose,
-  PanelRightOpen,
   ShieldCheck,
   SquareTerminal,
   Sun,
@@ -198,6 +196,24 @@ const RenameChatDialog = lazy(async () => {
   const module = await import("@/components/RenameChatDialog");
   return { default: module.RenameChatDialog };
 });
+
+function DockPanelIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={className}
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <rect x="14" y="7" width="5" height="10" rx="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 
 function SurfaceLoadingFallback() {
   const { t } = useTranslation();
@@ -2486,9 +2502,7 @@ function Shell({
         onClick={() => setHomeDockOpen((open) => !open)}
         className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
       >
-        {homeDockOpen
-          ? <PanelRightClose className="h-4 w-4" aria-hidden />
-          : <PanelRightOpen className="h-4 w-4" aria-hidden />}
+        <DockPanelIcon className="h-4 w-4" />
       </Button>
     </div>
   );
@@ -2834,11 +2848,19 @@ function Shell({
             )}
           >
             <div
+              data-shell-right-action={dockVisible ? "" : undefined}
               className={cn(
                 "absolute inset-0 flex flex-col",
                 view !== "chat" && "hidden",
               )}
             >
+              {/* Anchored to the workspace surface (not the chat column), so
+                  opening the right dock does not shift the toggle leftwards. */}
+              {dockVisible ? (
+                <div className="pointer-events-none absolute right-2 top-1.5 z-40 flex">
+                  <div className="pointer-events-auto">{dockToggle}</div>
+                </div>
+              ) : null}
               <WorkbenchTabBar
                 tabs={sidebarTabPresentations
                   .filter((presentation) => (
@@ -2895,7 +2917,6 @@ function Shell({
                             temporaryChatEnabled={temporaryChatEnabled}
                             onToggleSidebar={toggleSidebar}
                             headerActions={context.headerActions}
-                            trailingAction={dockVisible ? dockToggle : undefined}
                             onNewChat={onNewChat}
                             onCreateChat={
                               temporaryChatEnabled ? onCreateTemporaryChat : onCreateChat
