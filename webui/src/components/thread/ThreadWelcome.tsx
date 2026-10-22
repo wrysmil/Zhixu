@@ -14,7 +14,7 @@ interface ThreadWelcomeExtrasProps {
   onChoosePrompt: (text: string) => void;
 }
 
-const MASCOT_SRC = `${import.meta.env.BASE_URL}illustrations/zhixu-mascot.webp`;
+const MASCOT_SRC = `${import.meta.env.BASE_URL}illustrations/zhixu-welcome.webp`;
 
 function useWelcomeCopy() {
   const { t, i18n } = useTranslation();
@@ -39,17 +39,16 @@ export function ThreadWelcomeIntro({ greeting }: ThreadWelcomeIntroProps) {
             data-testid="hero-greeting"
             className="thread-welcome-title select-none whitespace-nowrap"
           >
-            {greeting ?? t("thread.empty.greetings.workOn")}
+            {zh ? "今天，想做点什么？" : greeting ?? t("thread.empty.greetings.workOn")}
           </h1>
           <p className="thread-welcome-description">
             {zh
-              ? "找资料、理思路，或把一件事交给我。"
-              : "Look things up, think it through, or hand a task over."}
+              ? "查资料、写点东西，或把手头的任务交给我。"
+              : "Find an answer, shape a draft, or work through a task together."}
           </p>
         </div>
         <div className="thread-welcome-illustration" aria-hidden>
-          <span className="thread-welcome-halo" />
-          <img src={MASCOT_SRC} alt="" width={186} height={158} draggable={false} />
+          <img src={MASCOT_SRC} alt="" width={552} height={368} draggable={false} />
         </div>
       </div>
     </div>

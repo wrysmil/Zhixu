@@ -235,11 +235,11 @@ export function WorkspaceNavigation({
         ref={active ? activeRailRef : undefined}
         onClick={() => navigateTo(item.view)}
         className={cn(
-          "workspace-nav-item host-no-drag flex h-9 min-w-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-left text-[13px] transition-colors duration-150",
+          "workspace-nav-item host-no-drag flex h-9 min-w-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-left text-[13px] font-medium transition-colors duration-150",
           SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           active
-            ? "font-medium text-[hsl(var(--nav-active-fg))]"
+            ? "font-semibold text-[hsl(var(--nav-active-fg))]"
             : "text-sidebar-foreground/85 hover:bg-sidebar-foreground/[0.05] hover:text-sidebar-foreground dark:hover:bg-white/[0.06]",
         )}
       >
@@ -260,11 +260,11 @@ export function WorkspaceNavigation({
           title={moreLabel}
           ref={moreActive ? activeRailRef : undefined}
           className={cn(
-            "workspace-nav-item host-no-drag flex h-9 min-w-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-left text-[13px] transition-colors duration-150",
+            "workspace-nav-item host-no-drag flex h-9 min-w-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-left text-[13px] font-medium transition-colors duration-150",
             SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             moreActive
-              ? "font-medium text-[hsl(var(--nav-active-fg))]"
+              ? "font-semibold text-[hsl(var(--nav-active-fg))]"
               : "text-sidebar-foreground/85 hover:bg-sidebar-foreground/[0.05] hover:text-sidebar-foreground dark:hover:bg-white/[0.06]",
           )}
         >

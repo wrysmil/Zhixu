@@ -1,11 +1,15 @@
 import { cn } from "@/lib/utils";
 
-/** The rail wordmark: the product name as type, not a logo image.
- *  Keeps the brand readable on both light and dark shells without an asset. */
+/** Outlined wordmark stays consistent without requiring an installed font. */
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <span className={cn("brand-wordmark", className)}>
-      知序
-    </span>
+    <img
+      src={`${import.meta.env.BASE_URL}brand/zhixu-wordmark.svg`}
+      alt="知序 Zhixu"
+      width={100}
+      height={50}
+      draggable={false}
+      className={cn("brand-image w-auto shrink-0 select-none object-contain", className)}
+    />
   );
 }
