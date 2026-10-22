@@ -235,7 +235,7 @@ export function WorkspaceNavigation({
         ref={active ? activeRailRef : undefined}
         onClick={() => navigateTo(item.view)}
         className={cn(
-          "workspace-nav-item host-no-drag flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-control px-2 text-left text-[12.5px] transition-colors duration-150",
+          "workspace-nav-item host-no-drag flex h-9 min-w-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-left text-[13px] transition-colors duration-150",
           SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           active
@@ -260,7 +260,7 @@ export function WorkspaceNavigation({
           title={moreLabel}
           ref={moreActive ? activeRailRef : undefined}
           className={cn(
-            "workspace-nav-item host-no-drag flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-control px-2 text-left text-[12.5px] transition-colors duration-150",
+            "workspace-nav-item host-no-drag flex h-9 min-w-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-left text-[13px] transition-colors duration-150",
             SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             moreActive
@@ -454,7 +454,7 @@ export function WorkspaceNavigation({
               data-testid="sidebar-footer-nav"
               className="shrink-0 border-t border-sidebar-border bg-background/50 p-2"
             >
-              <div className="grid grid-cols-2 gap-0.5">
+              <div className="flex flex-col gap-0.5">
                 {PRIMARY_ITEMS.map(renderFooterItem)}
                 {renderFooterMore()}
                 {renderFooterItem(SETTINGS_ITEM)}

@@ -142,9 +142,9 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     --text-soft: 217 13% 48%;
     --text-display: 221 58% 40%;
     /* Selected navigation: tinted surface + readable ink, never "white on white". */
-    --nav-active-bg: 219 100% 96%;
-    --nav-active-fg: 221 62% 36%;
-    --nav-active-ring: 221 60% 82%;
+    --nav-active-bg: 220 14% 90%;
+    --nav-active-fg: 222 30% 16%;
+    --nav-active-ring: 220 14% 86%;
     --radius: 0.5rem;
     /* Shared shape scale: controls and repeated panels 8px, composer 16px. */
     --radius-mark: 0.25rem;
@@ -216,9 +216,9 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     --text-body: 215 18% 82%;
     --text-soft: 215 14% 66%;
     --text-display: 216 76% 78%;
-    --nav-active-bg: 220 30% 22%;
-    --nav-active-fg: 214 78% 82%;
-    --nav-active-ring: 218 34% 34%;
+    --nav-active-bg: 220 16% 20%;
+    --nav-active-fg: 220 20% 96%;
+    --nav-active-ring: 220 14% 30%;
     --sidebar: 220 24% 9%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);

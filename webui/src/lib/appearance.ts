@@ -167,7 +167,8 @@ const ZHIXU_LIGHT = {
   "--background": "0 0% 100%", "--foreground": "222 30% 16%", "--card": "0 0% 100%", "--popover": "0 0% 100%",
   "--primary": "221 58% 44%", "--primary-foreground": "0 0% 100%", "--secondary": "220 26% 97%", "--muted": "220 26% 97%",
   "--muted-foreground": "218 13% 44%", "--accent": "219 100% 96%", "--accent-foreground": "221 60% 38%", "--border": "220 22% 91%",
-  "--surface-app": "220 26% 99%", "--surface-panel": "0 0% 100%", "--sidebar": "220 24% 98%", "--sidebar-accent": "219 34% 94%",
+  "--surface-app": "220 26% 99%", "--surface-panel": "0 0% 100%", "--sidebar": "220 16% 94%", "--sidebar-accent": "219 34% 91%",
+  "--nav-active-bg": "220 14% 90%", "--nav-active-fg": "222 30% 16%", "--nav-active-ring": "220 14% 86%",
   "--inline-token-highlight": "#2F58B1", "--temporary-control-active": "#2F58B1",
 };
 const ZHIXU_DARK = {
@@ -175,6 +176,7 @@ const ZHIXU_DARK = {
   "--primary": "217 70% 70%", "--primary-foreground": "222 40% 10%", "--secondary": "220 16% 15%", "--muted": "220 16% 15%",
   "--muted-foreground": "215 14% 67%", "--accent": "220 28% 19%", "--accent-foreground": "214 70% 78%", "--border": "220 14% 23%",
   "--surface-app": "220 26% 7%", "--surface-panel": "220 20% 11%", "--sidebar": "220 24% 9%", "--sidebar-accent": "220 16% 16%",
+  "--nav-active-bg": "220 16% 20%", "--nav-active-fg": "220 20% 96%", "--nav-active-ring": "220 14% 30%",
   "--inline-token-highlight": "#9FC2F7", "--temporary-control-active": "#9FC2F7",
 };
 
