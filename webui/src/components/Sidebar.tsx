@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   Archive,
+  PanelLeftClose,
   Search,
   SquarePen,
 } from "lucide-react";
@@ -16,6 +17,7 @@ import {
   SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
 } from "@/components/SidebarSelectionHighlight";
 import { WorkspaceNavigation } from "@/components/workspace/WorkspaceNavigation";
+import { BrandMark } from "@/components/workspace/BrandMark";
 import type { WorkspaceView } from "@/components/workspace/contracts";
 import type { SettingsSectionKey } from "@/components/settings/contracts";
 import { Button } from "@/components/ui/button";
@@ -183,24 +185,23 @@ export function Sidebar(props: SidebarProps) {
           <div
             data-testid="sidebar-brand-row"
             className={cn(
-              "flex items-center gap-1 px-3 pb-1",
+              "flex items-center gap-2 px-3 pb-1",
               props.hostChromeInset ? "pt-8" : "pt-3",
             )}
           >
-            <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-sidebar-foreground">
-              {t("sidebar.recent")}
-            </span>
+            <BrandMark className="h-6 shrink-0 text-[14px]" />
+            <div className="min-w-0 flex-1" />
             <Button
               variant="ghost"
               size="icon"
-              aria-label={t("sidebar.searchAria")}
-              onClick={props.onOpenSearch}
+              aria-label={t("sidebar.collapse")}
+              onClick={props.onCollapse}
               className="host-no-drag h-7 w-7 rounded-lg text-muted-foreground/85 hover:bg-sidebar-accent/75 hover:text-sidebar-foreground"
             >
-              <Search className="h-3.5 w-3.5" />
+              <PanelLeftClose className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <div className="space-y-1.5 px-2 pb-2 pt-1">
+          <div className="space-y-0.5 px-2 pb-2 pt-1">
             <SidebarActionButton
               label={t("sidebar.newChat")}
               onClick={props.onNewChat}
@@ -209,6 +210,11 @@ export function Sidebar(props: SidebarProps) {
               icon={<SquarePen className="h-4 w-4" />}
               shortcut={newChatShortcut}
               ariaKeyShortcuts="Meta+Shift+O Control+Shift+O"
+            />
+            <SidebarActionButton
+              label={t("sidebar.searchAria")}
+              onClick={props.onOpenSearch}
+              icon={<Search className="h-4 w-4" />}
             />
             {props.archivedCount ? (
               <SidebarActionButton
@@ -307,7 +313,7 @@ function SidebarActionButton({
       title={title}
       onClick={() => onClick()}
       className={cn(
-        "touch-target group h-8 w-full min-w-0 justify-start gap-2 overflow-hidden rounded-xl px-3 font-medium text-[13px]",
+        "touch-target group h-8 w-full min-w-0 justify-start gap-2 overflow-hidden rounded-xl px-3 text-left font-medium text-[13px]",
         SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
         active
           ? "text-sidebar-accent-foreground"

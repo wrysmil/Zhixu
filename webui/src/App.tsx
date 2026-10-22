@@ -133,12 +133,11 @@ const LEGACY_COMPLETED_RUNS_STORAGE_KEY = "zhixu-webui.sidebar.completed-runs.v1
 const RESTART_STARTED_KEY = "zhixu-webui.restartStartedAt";
 const RESTART_ROUTE_KEY = "zhixu-webui.restartRoute";
 const RESTART_ROUTE_TTL_MS = 5 * 60 * 1000;
-// 视觉规格 v1.1（spec 2026-10-11）：54 / 220 替换 64 / 248，与 globals.css 的
-// --rail-w / --chat-col-w 对齐；如需调整只改 CSS 变量与此处。
+// 视觉规格 v1.2：展开的聊天侧栏是单列（导航移到底部），折叠后仍为 54px 图标列。
 const SIDEBAR_WIDTH = 54;
 const SIDEBAR_RAIL_WIDTH = 54;
-const SIDEBAR_CHAT_WIDTH = 220;
-const MOBILE_SIDEBAR_WIDTH = `min(${SIDEBAR_WIDTH + SIDEBAR_CHAT_WIDTH}px, calc(100vw - 0.75rem))`;
+const SIDEBAR_CHAT_WIDTH = 264;
+const MOBILE_SIDEBAR_WIDTH = `min(${SIDEBAR_CHAT_WIDTH}px, calc(100vw - 0.75rem))`;
 const TOKEN_REFRESH_MARGIN_MS = 30_000;
 const SUBAGENT_EXECUTION_EVENTS_CAPABILITY = "subagentExecutionEventsV1";
 const TOKEN_REFRESH_MIN_DELAY_MS = 5_000;
@@ -2722,7 +2721,7 @@ function Shell({
   const hostSidebarFlowWidth = !hostSidebarOpen
     ? SIDEBAR_RAIL_WIDTH
     : view === "chat"
-      ? SIDEBAR_WIDTH + SIDEBAR_CHAT_WIDTH
+      ? SIDEBAR_CHAT_WIDTH
       : SIDEBAR_WIDTH;
   const isSettingsLikeView =
     view === "settings"

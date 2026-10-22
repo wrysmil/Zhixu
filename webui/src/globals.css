@@ -158,7 +158,7 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
 
     /* 知序 UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
     --rail-w: 54px;
-    --chat-col-w: 220px;
+    --chat-col-w: 264px;
     --dock-w: 360px;
     --dock-w-xl: 420px;
     --dock-header-h: 40px;
@@ -232,7 +232,7 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
 
     /* 知序 UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
     --rail-w: 54px;
-    --chat-col-w: 220px;
+    --chat-col-w: 264px;
     --dock-w: 360px;
     --dock-w-xl: 420px;
     --dock-header-h: 40px;
@@ -1237,7 +1237,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 /* Sidebar group labels ("Projects", "Topics") join the indigo label voice so
    the rail is not a wall of near-black text. */
 .sidebar-group-label {
-  color: hsl(var(--tone-violet) / 0.92);
+  color: hsl(var(--muted-foreground) / 0.85);
   letter-spacing: 0.015em;
 }
 

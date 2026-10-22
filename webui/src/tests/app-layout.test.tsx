@@ -1604,7 +1604,7 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const flowSidebar = screen.getByTestId("host-sidebar-flow");
-    expect(flowSidebar).toHaveStyle({ width: "274px" });
+    expect(flowSidebar).toHaveStyle({ width: "264px" });
     expect(screen.getByTestId("sidebar-brand-row")).toHaveClass("pt-8");
     expect(screen.getByTestId("sidebar-brand-row")).not.toHaveClass("pt-3");
     expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
@@ -1623,7 +1623,7 @@ describe("App layout", () => {
       within(screen.getByRole("navigation", { name: "Sidebar navigation" }))
         .getByRole("button", { name: "Toggle sidebar" }),
     );
-    await waitFor(() => expect(flowSidebar).toHaveStyle({ width: "274px" }));
+    await waitFor(() => expect(flowSidebar).toHaveStyle({ width: "264px" }));
   });
 
   it("aligns native settings navigation below the titlebar without extra top padding", async () => {
@@ -2514,8 +2514,10 @@ describe("App layout", () => {
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
     const moreButton = within(sidebar).getByRole("button", { name: "More" });
-    const searchButton = within(sidebar).getByRole("button", { name: "Search" });
-    expect(moreButton.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const settingsButton = within(sidebar).getByRole("button", { name: "Settings" });
+    expect(
+      moreButton.compareDocumentPosition(settingsButton) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(within(sidebar).queryByRole("button", { name: "Apps" })).not.toBeInTheDocument();
     const appsEntry = moreEntry("Apps");
     expect(appsEntry).toBeInTheDocument();
@@ -3037,7 +3039,7 @@ describe("App layout", () => {
     const newChatButton = within(sidebar).getByRole("button", { name: "New chat" });
     const searchButton = within(sidebar).getByRole("button", { name: "Search" });
     expect(
-      searchButton.compareDocumentPosition(newChatButton) &
+      newChatButton.compareDocumentPosition(searchButton) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
@@ -3743,7 +3745,7 @@ describe("App layout", () => {
     expect(within(rail).queryByText("Existing chat")).not.toBeInTheDocument();
 
     fireEvent.click(within(rail).getByRole("button", { name: "Toggle sidebar" }));
-    await waitFor(() => expect(sidebarAside.style.width).toBe("274px"));
+    await waitFor(() => expect(sidebarAside.style.width).toBe("264px"));
 
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
     fireEvent.click(within(sidebar).getByRole("button", { name: "New chat" }));
