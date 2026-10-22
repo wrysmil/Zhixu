@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DockFileTab } from "@/components/dock/DockFileTab";
 import { HOME_DOCK_SCOPE } from "@/lib/dock-store";
+import { ClientProvider } from "@/providers/ClientProvider";
 
 const mocks = vi.hoisted(() => ({
   fetchWorkspaceFiles: vi.fn(),
@@ -109,6 +110,40 @@ describe("DockFileTab two-column layout", () => {
       const code = preview.querySelector("code");
       expect(code?.style.whiteSpace).toBe("pre-wrap");
     }, { timeout: 3000 });
+  });
+
+  it("edits the content in place and saves through the workspace mutation", async () => {
+    const requestMutation = vi.fn().mockResolvedValue({
+      path: "/tmp/project/README.md",
+      display_path: "README.md",
+      language: "javascript",
+      size: 11,
+    });
+    render(
+      <ClientProvider client={{ requestMutation } as never} token="tok">
+        <DockFileTab scope={HOME_DOCK_SCOPE} sessionKey={null} getToken={() => "tok"} />
+      </ClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /README\.md/ }));
+    expect(screen.queryByTestId("dock-file-preview-edit")).toBeNull();
+    fireEvent.change(await screen.findByTestId("dock-file-preview-editor"), {
+      target: { value: "new content" },
+    });
+    fireEvent.click(screen.getByTestId("dock-file-preview-save"));
+
+    await waitFor(() => {
+      expect(requestMutation).toHaveBeenCalledWith(
+        "workspace.file.save",
+        {
+          key: "websocket:home",
+          path: "/tmp/project/README.md",
+          content: "new content",
+          scope: "default",
+        },
+        expect.any(Number),
+      );
+    });
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
   });
 });
 

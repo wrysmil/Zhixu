@@ -1661,6 +1661,13 @@ export interface FilePreviewPayload {
   truncated: boolean;
 }
 
+export interface FileSavePayload {
+  path: string;
+  display_path: string;
+  language: string;
+  size: number;
+}
+
 export interface SessionDirectoryEntry {
   name: string;
   path: string;

@@ -2054,6 +2054,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "Tuju",
     "browserEmptyHint": "Masukkan alamat untuk mulai menjelajah.",
+    "browserNewTab": "Tab baru",
     "browserFrameTitle": "Halaman peramban sematan",
     "browserError_scheme": "Hanya alamat http/https yang bisa dibuka di sini.",
     "browserError_private": "Alamat privat atau jaringan lokal tidak diizinkan.",
@@ -2087,7 +2088,8 @@
     "searchTruncated": "Menampilkan sebagian hasil",
     "searchFailed": "Pencarian gagal",
     "copied": "Disalin",
-    "historyTruncated": "Keluaran sebelumnya terpotong"
+    "historyTruncated": "Keluaran sebelumnya terpotong",
+    "terminalTheme": "Ganti tema terminal"
   },
   "plusMenu": {
     "groupAdd": "Tambah",
@@ -2674,7 +2676,13 @@
     "routeMissing": "Pratinjau file memerlukan gateway terbaru. Mulai ulang 知序 gateway lalu coba lagi.",
     "resize": "Ubah ukuran pratinjau file",
     "pickFile": "Pilih file untuk pratinjau di sini.",
-    "truncated": "Pratinjau dipotong karena file ini besar."
+    "truncated": "Pratinjau dipotong karena file ini besar.",
+    "edit": "Edit file",
+    "save": "Simpan file",
+    "cancel": "Batal mengedit",
+    "saved": "Tersimpan",
+    "saveFailed": "Tidak dapat menyimpan file ini.",
+    "editTruncated": "File yang terlalu besar tidak dapat diedit di sini."
   },
   "code": {
     "fallbackLanguage": "kode",

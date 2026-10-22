@@ -2054,6 +2054,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "Aller",
     "browserEmptyHint": "Saisissez une adresse pour commencer la navigation.",
+    "browserNewTab": "Nouvel onglet",
     "browserFrameTitle": "Page du navigateur intégré",
     "browserError_scheme": "Seules les adresses http/https peuvent être ouvertes ici.",
     "browserError_private": "Les adresses privées ou de réseau local ne sont pas autorisées.",
@@ -2087,7 +2088,8 @@
     "searchTruncated": "Résultats partiels",
     "searchFailed": "Échec de la recherche",
     "copied": "Copié",
-    "historyTruncated": "La sortie précédente a été tronquée"
+    "historyTruncated": "La sortie précédente a été tronquée",
+    "terminalTheme": "Basculer le thème du terminal"
   },
   "plusMenu": {
     "groupAdd": "Ajouter",
@@ -2674,7 +2676,13 @@
     "routeMissing": "L’aperçu du fichier nécessite le dernier gateway. Redémarrez 知序 gateway puis réessayez.",
     "resize": "Redimensionner l’aperçu du fichier",
     "pickFile": "Sélectionnez un fichier pour l’aperçu ici.",
-    "truncated": "L’aperçu est tronqué car le fichier est volumineux."
+    "truncated": "L’aperçu est tronqué car le fichier est volumineux.",
+    "edit": "Modifier le fichier",
+    "save": "Enregistrer le fichier",
+    "cancel": "Annuler la modification",
+    "saved": "Enregistré",
+    "saveFailed": "Impossible d’enregistrer ce fichier.",
+    "editTruncated": "Les fichiers volumineux ne peuvent pas être modifiés ici."
   },
   "code": {
     "fallbackLanguage": "code",

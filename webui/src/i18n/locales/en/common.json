@@ -2110,6 +2110,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "Go",
     "browserEmptyHint": "Enter an address to start browsing.",
+    "browserNewTab": "New tab",
     "browserFrameTitle": "Embedded browser page",
     "browserError_scheme": "Only http/https addresses can be opened here.",
     "browserError_private": "Private or local-network addresses are not allowed.",
@@ -2143,7 +2144,8 @@
     "searchTruncated": "Showing partial results",
     "searchFailed": "Search failed",
     "copied": "Copied",
-    "historyTruncated": "Earlier output was truncated"
+    "historyTruncated": "Earlier output was truncated",
+    "terminalTheme": "Toggle terminal theme"
   },
   "plusMenu": {
     "groupAdd": "Add",
@@ -2730,7 +2732,13 @@
     "routeMissing": "File preview needs the latest gateway. Restart 知序 gateway and try again.",
     "resize": "Resize file preview",
     "pickFile": "Pick a file to preview it here.",
-    "truncated": "Preview is truncated because this file is large."
+    "truncated": "Preview is truncated because this file is large.",
+    "edit": "Edit file",
+    "save": "Save file",
+    "cancel": "Cancel editing",
+    "saved": "Saved",
+    "saveFailed": "Could not save this file.",
+    "editTruncated": "Large files cannot be edited here."
   },
   "code": {
     "fallbackLanguage": "code",

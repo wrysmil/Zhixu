@@ -2054,6 +2054,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "Ir",
     "browserEmptyHint": "Digite um endereço para começar a navegar.",
+    "browserNewTab": "Nova aba",
     "browserFrameTitle": "Página do navegador incorporado",
     "browserError_scheme": "Apenas endereços http/https podem ser abertos aqui.",
     "browserError_private": "Endereços privados ou de rede local não são permitidos.",
@@ -2087,7 +2088,8 @@
     "searchTruncated": "Mostrando resultados parciais",
     "searchFailed": "Falha na pesquisa",
     "copied": "Copiado",
-    "historyTruncated": "A saída anterior foi truncada"
+    "historyTruncated": "A saída anterior foi truncada",
+    "terminalTheme": "Alternar tema do terminal"
   },
   "plusMenu": {
     "groupAdd": "Adicionar",
@@ -2674,7 +2676,13 @@
     "routeMissing": "A pré-visualização de arquivo precisa do gateway mais recente. Reinicie o 知序 gateway e tente novamente.",
     "resize": "Redimensionar pré-visualização de arquivo",
     "pickFile": "Escolha um arquivo para visualizar aqui.",
-    "truncated": "A pré-visualização foi truncada porque este arquivo é grande."
+    "truncated": "A pré-visualização foi truncada porque este arquivo é grande.",
+    "edit": "Editar arquivo",
+    "save": "Salvar arquivo",
+    "cancel": "Cancelar edição",
+    "saved": "Salvo",
+    "saveFailed": "Não foi possível salvar este arquivo.",
+    "editTruncated": "Arquivos grandes não podem ser editados aqui."
   },
   "code": {
     "fallbackLanguage": "código",

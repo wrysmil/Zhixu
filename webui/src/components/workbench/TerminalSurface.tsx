@@ -8,13 +8,23 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { useTranslation } from "react-i18next";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { ChevronRight, ClipboardPaste, Copy, CornerDownLeft, Eraser, SquareTerminal } from "lucide-react";
+import {
+  ChevronRight,
+  ClipboardPaste,
+  Copy,
+  CornerDownLeft,
+  Eraser,
+  Moon,
+  SquareTerminal,
+  Sun,
+} from "lucide-react";
 import "@xterm/xterm/css/xterm.css";
 
 import { CLEAR_SCREEN, failureLabel } from "@/components/workbench/terminal-shared";
 import { useTerminalStore } from "@/hooks/useZhixuStream";
 import { APPEARANCE_APPLIED_EVENT } from "@/lib/appearance";
 import { copyTextToClipboard, readTextFromClipboard } from "@/lib/clipboard";
+import { cn } from "@/lib/utils";
 import { useClient } from "@/providers/ClientProvider";
 
 /**
@@ -30,7 +40,7 @@ export interface TerminalEmulator {
   onData?(callback: (data: string) => void): { dispose(): void } | void;
   onResize?(callback: (size: { cols: number; rows: number }) => void): { dispose(): void } | void;
   fit?(): void;
-  updateAppearance?(): void;
+  updateAppearance?(theme: TerminalTheme): void;
   getSelection?(): string;
   size?: { cols: number; rows: number };
 }
@@ -50,26 +60,51 @@ interface TerminalSurfaceProps {
 
 const TERMINAL_FONT_FAMILY = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 
-function updateTerminalAppearance(terminal: Terminal) {
+export type TerminalTheme = "dark" | "light";
+
+export const TERMINAL_THEME_STORAGE_KEY = "zhixu-webui.terminal-theme";
+
+export const TERMINAL_DARK_BACKGROUND = "#0b0f19";
+
+const TERMINAL_DARK_COLORS = {
+  background: TERMINAL_DARK_BACKGROUND,
+  foreground: "#e6e9ef",
+  cursor: "#8fb0e8",
+  cursorAccent: TERMINAL_DARK_BACKGROUND,
+  selectionBackground: "#2b3a55",
+  selectionForeground: "#e6e9ef",
+};
+
+function readTerminalTheme(): TerminalTheme {
+  try {
+    return localStorage.getItem(TERMINAL_THEME_STORAGE_KEY) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+function updateTerminalAppearance(terminal: Terminal, theme: TerminalTheme) {
   const styles = getComputedStyle(document.documentElement);
   const color = (name: string, fallback: string) => {
     const value = styles.getPropertyValue(name).trim();
     return value ? `hsl(${value})` : fallback;
   };
   terminal.options.fontFamily = styles.getPropertyValue("--font-code").trim() || TERMINAL_FONT_FAMILY;
-  terminal.options.theme = {
-    ...terminal.options.theme,
-    background: color("--background", "#ffffff"),
-    foreground: color("--foreground", "#222222"),
-    cursor: color("--primary", "#222222"),
-    cursorAccent: color("--background", "#ffffff"),
-    selectionBackground: color("--accent", "#b7c9bd"),
-    selectionForeground: color("--accent-foreground", "#222222"),
-  };
+  terminal.options.theme = theme === "dark"
+    ? { ...terminal.options.theme, ...TERMINAL_DARK_COLORS }
+    : {
+      ...terminal.options.theme,
+      background: color("--background", "#ffffff"),
+      foreground: color("--foreground", "#222222"),
+      cursor: color("--primary", "#222222"),
+      cursorAccent: color("--background", "#ffffff"),
+      selectionBackground: color("--accent", "#b7c9bd"),
+      selectionForeground: color("--accent-foreground", "#222222"),
+    };
 }
 
 /** PTY 直通终端：xterm 接管 stdin，提示符/回显来自宿主 PTY。 */
-function createInteractiveTerminal(): TerminalEmulator {
+function createInteractiveTerminal(theme: TerminalTheme): TerminalEmulator {
   const terminal = new Terminal({
     disableStdin: false,
     convertEol: false,
@@ -93,7 +128,7 @@ function createInteractiveTerminal(): TerminalEmulator {
     onData: (callback) => terminal.onData(callback),
     onResize: (callback) => terminal.onResize(callback),
     fit: () => fitAddon.fit(),
-    updateAppearance: () => updateTerminalAppearance(terminal),
+    updateAppearance: (nextTheme) => updateTerminalAppearance(terminal, nextTheme ?? theme),
     getSelection: () => terminal.getSelection(),
     get size() {
       return { cols: terminal.cols, rows: terminal.rows };
@@ -102,7 +137,7 @@ function createInteractiveTerminal(): TerminalEmulator {
 }
 
 /** 行式降级终端（v1 原样）：只读输出面，输入走下方单行 composer。 */
-function createLineTerminal(): TerminalEmulator {
+function createLineTerminal(theme: TerminalTheme): TerminalEmulator {
   const terminal = new Terminal({
     // Read-only output surface: input happens in the one-line composer below,
     // so the terminal never needs stdin or a cursor of its own.
@@ -123,7 +158,7 @@ function createLineTerminal(): TerminalEmulator {
     write: (data) => terminal.write(data),
     scrollToBottom: () => terminal.scrollToBottom(),
     dispose: () => terminal.dispose(),
-    updateAppearance: () => updateTerminalAppearance(terminal),
+    updateAppearance: (nextTheme) => updateTerminalAppearance(terminal, nextTheme ?? theme),
     getSelection: () => terminal.getSelection(),
     fit: () => fitAddon.fit(),
   };
@@ -131,14 +166,16 @@ function createLineTerminal(): TerminalEmulator {
 
 interface TerminalInputProps {
   disabled: boolean;
+  theme: TerminalTheme;
   onSubmit: (line: string) => void;
 }
 
-function TerminalInput({ disabled, onSubmit }: TerminalInputProps) {
+function TerminalInput({ disabled, theme, onSubmit }: TerminalInputProps) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState("");
   const [history, setHistory] = useState<string[]>([]);
   const [cursor, setCursor] = useState<number | null>(null);
+  const dark = theme === "dark";
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -172,9 +209,25 @@ function TerminalInput({ disabled, onSubmit }: TerminalInputProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="shrink-0 border-t border-border/50 bg-muted/20 p-2.5">
-      <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-background px-2.5 shadow-sm transition-colors focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10">
-      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-primary/80" aria-hidden />
+    <form
+      onSubmit={handleSubmit}
+      className={cn(
+        "shrink-0 border-t p-2.5",
+        dark ? "border-[#1b2333] bg-[#0b0f19]" : "border-border/50 bg-muted/20",
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-lg border px-2.5 shadow-sm transition-colors",
+          dark
+            ? "border-[#26314a] bg-[#111726] focus-within:border-[#3d5a8a] focus-within:ring-2 focus-within:ring-[#26314a]"
+            : "border-border/70 bg-background focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10",
+        )}
+      >
+      <ChevronRight
+        className={cn("h-3.5 w-3.5 shrink-0", dark ? "text-[#8fb0e8]" : "text-primary/80")}
+        aria-hidden
+      />
       <label className="sr-only" htmlFor="terminal-command-input">
         {t("startPanel.terminalInput", { defaultValue: "Command input" })}
       </label>
@@ -191,14 +244,24 @@ function TerminalInput({ disabled, onSubmit }: TerminalInputProps) {
         placeholder={t("startPanel.terminalInputPlaceholder", {
           defaultValue: "Type a command and press Enter",
         })}
-        className="h-9 min-w-0 flex-1 border-0 bg-transparent p-0 font-mono text-[12px] text-foreground outline-none placeholder:text-muted-foreground/65 disabled:opacity-50"
+        className={cn(
+          "h-9 min-w-0 flex-1 border-0 bg-transparent p-0 font-mono text-[12px] outline-none disabled:opacity-50",
+          dark
+            ? "text-[#e6e9ef] placeholder:text-[#7c8798]"
+            : "text-foreground placeholder:text-muted-foreground/65",
+        )}
       />
       <button
         type="submit"
         aria-label="Enter"
         title="Enter"
         disabled={disabled || !draft.trim()}
-        className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30"
+        className={cn(
+          "grid h-6 w-6 shrink-0 place-items-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30",
+          dark
+            ? "text-[#8b96a8] enabled:hover:bg-[#1b2333] enabled:hover:text-[#e6e9ef]"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
       >
         <CornerDownLeft className="h-3.5 w-3.5" aria-hidden />
       </button>
@@ -242,20 +305,34 @@ export function TerminalSurface({
   const modeKnown = record !== null && record.status !== "starting";
   const ptyMode = record?.pty === true;
   const interactive = ptyMode && record?.status === "running" && active;
-  const shellName = record?.shell.split(/[\\/]/).pop()?.replace(/\.exe$/i, "") || "Terminal";
+  const shellName = record?.shell?.split(/[\\/]/).pop()?.replace(/\.exe$/i, "") || "Terminal";
+  const [terminalTheme, setTerminalTheme] = useState<TerminalTheme>(readTerminalTheme);
+  const terminalThemeRef = useRef(terminalTheme);
+  terminalThemeRef.current = terminalTheme;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TERMINAL_THEME_STORAGE_KEY, terminalTheme);
+    } catch {
+      /* localStorage may be unavailable in private mode */
+    }
+    emulatorRef.current?.updateAppearance?.(terminalTheme);
+  }, [terminalTheme]);
 
   // 创建 emulator：terminal_started 之后（pty 模式此时已知）；创建时把已缓存的
   // 行整体回放一次（含 starting 期间到达的输出）。
   useEffect(() => {
     const element = containerRef.current;
     if (!modeKnown || !element) return;
-    const factory =
-      factoryRef.current ?? (ptyMode ? createInteractiveTerminal : createLineTerminal);
-    const terminal = factory(terminalId);
+    const terminal = factoryRef.current
+      ? factoryRef.current(terminalId)
+      : ptyMode
+        ? createInteractiveTerminal(terminalThemeRef.current)
+        : createLineTerminal(terminalThemeRef.current);
     emulatorRef.current = terminal;
     terminal.open(element);
     const applyAppearance = () => {
-      terminal.updateAppearance?.();
+      terminal.updateAppearance?.(terminalThemeRef.current);
       terminal.fit?.();
     };
     applyAppearance();
@@ -410,6 +487,21 @@ export function TerminalSurface({
         <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/40 bg-background/70 p-0.5">
         <button
           type="button"
+          data-testid={`terminal-theme-${terminalId}`}
+          aria-label={t("dock.terminalTheme", { defaultValue: "Toggle terminal theme" })}
+          title={t("dock.terminalTheme", { defaultValue: "Toggle terminal theme" })}
+          aria-pressed={terminalTheme === "dark"}
+          onClick={() => setTerminalTheme((value) => (value === "dark" ? "light" : "dark"))}
+          className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {terminalTheme === "dark" ? (
+            <Sun className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <Moon className="h-3.5 w-3.5" aria-hidden />
+          )}
+        </button>
+        <button
+          type="button"
           data-testid={`terminal-copy-${terminalId}`}
           aria-label={t("dock.copyOutput", { defaultValue: "Copy output" })}
           title={t("dock.copyOutput", { defaultValue: "Copy output" })}
@@ -457,10 +549,18 @@ export function TerminalSurface({
       <div
         ref={containerRef}
         data-testid={`terminal-output-${terminalId}`}
-        className="min-h-0 w-full flex-1 overflow-hidden bg-background px-3 py-3 text-terminal [&_.xterm]:h-full [&_.xterm]:w-full [&_.xterm-viewport]:scrollbar-thin [&_.xterm-viewport]:!overflow-x-hidden"
+        data-terminal-theme={terminalTheme}
+        className={cn(
+          "min-h-0 w-full flex-1 overflow-hidden px-3 py-3 text-terminal [&_.xterm]:h-full [&_.xterm]:w-full [&_.xterm-viewport]:scrollbar-thin [&_.xterm-viewport]:!overflow-x-hidden",
+          terminalTheme === "dark" ? "bg-[#0b0f19]" : "bg-background",
+        )}
       />
       {ptyMode ? null : (
-        <TerminalInput disabled={!record || record.status !== "running"} onSubmit={handleLine} />
+        <TerminalInput
+          disabled={!record || record.status !== "running"}
+          theme={terminalTheme}
+          onSubmit={handleLine}
+        />
       )}
     </div>
   );

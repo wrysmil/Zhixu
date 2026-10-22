@@ -7,14 +7,27 @@
 // onOpenFilePreview 传入时预览上抛宿主（SessionWorkbench 保留外置预览面板语义）。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronsDownUp, Eye, EyeOff, RefreshCw, RotateCw, Search, X } from "lucide-react";
+import {
+  Check,
+  ChevronsDownUp,
+  Eye,
+  EyeOff,
+  Loader2,
+  RefreshCw,
+  RotateCw,
+  Search,
+  Undo2,
+  X,
+} from "lucide-react";
 
 import { CodeBlock } from "@/components/CodeBlock";
 import { ResizeHandle } from "@/components/workbench/ResizeHandle";
 import { DockFileSearch } from "@/components/dock/DockFileSearch";
 import { WorkspaceFileTree } from "@/components/workbench/WorkspaceFileTree";
+import { useFileSaver } from "@/hooks/useFileSaver";
 import { ApiError, fetchFilePreview, fetchWorkspaceFiles } from "@/lib/api";
 import type { FilePreviewPayload } from "@/lib/types";
+import { useOptionalClient } from "@/providers/ClientProvider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -47,6 +60,16 @@ function DockFilePreview({
   const [state, setState] = useState<PreviewState>({ status: "loading" });
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
+  const clientContext = useOptionalClient();
+  const previewKey = sessionKey ?? HOME_PREVIEW_SESSION_KEY;
+  const previewScope = sessionKey ? null : "default";
+  const saver = useFileSaver({
+    transport: clientContext?.client ?? null,
+    sessionKey: previewKey,
+    scope: previewScope,
+    payload: state.status === "ready" ? state.payload : null,
+    onSaved: (next) => setState({ status: "ready", payload: next }),
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -70,13 +93,44 @@ function DockFilePreview({
       aria-label={t("filePreview.aria", { defaultValue: "File preview" })}
       className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border/50 bg-background/70"
     >
-      <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border/40 px-2" title={path}>
+      <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border/40 px-2" title={path}>
         <span
           data-testid="dock-file-preview-title"
           className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground/90"
         >
           {state.status === "ready" ? state.payload.display_path : path}
         </span>
+        {saver.editable ? (
+          <>
+            {saver.dirty ? (
+              <button
+                type="button"
+                data-testid="dock-file-preview-revert"
+                onClick={saver.revert}
+                aria-label={t("filePreview.cancel", { defaultValue: "Cancel editing" })}
+                title={t("filePreview.cancel", { defaultValue: "Cancel editing" })}
+                className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
+              >
+                <Undo2 className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              data-testid="dock-file-preview-save"
+              onClick={() => void saver.save()}
+              disabled={saver.saving || !saver.dirty}
+              aria-label={t("filePreview.save", { defaultValue: "Save file" })}
+              title={`${t("filePreview.save", { defaultValue: "Save file" })} (Ctrl+S)`}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground disabled:opacity-35"
+            >
+              {saver.saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Check className="h-3.5 w-3.5" aria-hidden />
+              )}
+            </button>
+          </>
+        ) : null}
         <button
           type="button"
           onClick={onClose}
@@ -86,7 +140,16 @@ function DockFilePreview({
           <X className="h-3.5 w-3.5" aria-hidden />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
+      {saver.error ? (
+        <p role="alert" className="shrink-0 border-b border-destructive/15 bg-destructive/5 px-2 py-1 text-[11.5px] text-destructive">
+          {t("filePreview.saveFailed", { defaultValue: "Could not save this file." })}
+        </p>
+      ) : saver.saved ? (
+        <p role="status" className="shrink-0 border-b border-border/40 bg-muted/30 px-2 py-1 text-[11.5px] text-muted-foreground">
+          {t("filePreview.saved", { defaultValue: "Saved" })}
+        </p>
+      ) : null}
+      <div className="flex min-h-0 flex-1 flex-col">
         {state.status === "loading" ? (
           <p className="py-1 text-[12px] text-muted-foreground/60">
             {t("filePreview.loading", { defaultValue: "Loading preview..." })}
@@ -95,8 +158,23 @@ function DockFilePreview({
           <p role="alert" className="py-1 text-[12px] text-destructive">
             {t("filePreview.failed", { defaultValue: "Could not preview this file." })}
           </p>
+        ) : saver.editable ? (
+          <textarea
+            data-testid="dock-file-preview-editor"
+            aria-label={t("filePreview.edit", { defaultValue: "Edit file" })}
+            value={saver.draft}
+            onChange={(event) => saver.setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+                event.preventDefault();
+                void saver.save();
+              }
+            }}
+            spellCheck={false}
+            className="min-h-0 w-full flex-1 resize-none border-0 bg-background px-3 py-2 font-mono text-[12.5px] leading-[1.65] text-foreground outline-none"
+          />
         ) : (
-          <>
+          <div className="min-h-0 flex-1 overflow-auto">
             {state.payload.truncated ? (
               <p className="mx-2 mt-2 rounded-md border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[11.5px] text-amber-700 dark:text-amber-200">
                 {t("filePreview.truncated", {
@@ -112,7 +190,7 @@ function DockFilePreview({
               showLineNumbers={false}
               wrapLongLines
             />
-          </>
+          </div>
         )}
       </div>
     </div>

@@ -42,6 +42,7 @@ from nanobot.webui.file_preview import (
     WebUIFilePreviewError,
     file_preview_availability_payload,
     file_preview_payload,
+    file_save_payload,
 )
 from nanobot.webui.gateway_tokens import GatewayTokenStore, token_response_payload
 from nanobot.webui.http_utils import (
@@ -541,6 +542,8 @@ class GatewayHTTPHandler:
             return True
         if re.match(r"^/api/sessions/[^/]+/delete$", path):
             return True
+        if re.match(r"^/api/sessions/[^/]+/file-save$", path):
+            return True
         if re.match(r"^/api/webui/automations/(enable|disable|delete|run|update)$", path):
             return True
         if path in {"/api/webui/recovery/continue", "/api/webui/recovery/dismiss"}:
@@ -566,6 +569,11 @@ class GatewayHTTPHandler:
             if not isinstance(key, str) or not key.strip():
                 return _http_error(400, "missing session key")
             return f"/api/sessions/{quote(key, safe='')}/delete"
+        if action == "workspace.file.save":
+            key = payload.get("key")
+            if not isinstance(key, str) or not key.strip():
+                return _http_error(400, "missing session key")
+            return f"/api/sessions/{quote(key, safe='')}/file-save"
         connect_action = _WEBUI_CHANNEL_CONNECT_ACTIONS.get(action)
         if connect_action is not None:
             channel = payload.get("channel")
@@ -789,6 +797,10 @@ class GatewayHTTPHandler:
         m = re.match(r"^/api/sessions/([^/]+)/file-preview$", got)
         if m:
             return self._handle_file_preview(request, m.group(1))
+
+        m = re.match(r"^/api/sessions/([^/]+)/file-save$", got)
+        if m:
+            return self._handle_file_save(request, m.group(1))
 
         m = re.match(r"^/api/sessions/([^/]+)/files/search$", got)
         if m:
@@ -1082,6 +1094,46 @@ class GatewayHTTPHandler:
                 return _http_json_response({"available": False})
             return _http_error(e.status, e.message)
         return _http_json_response(payload)
+
+    def _handle_file_save(self, request: WsRequest, key: str) -> Response:
+        if not getattr(request, _WEBUI_MUTATION_REQUEST_ATTR, False):
+            return _http_error(405, "file saves require an authenticated WebSocket")
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        decoded_key = _decode_api_key(key)
+        if decoded_key is None:
+            return _http_error(400, "invalid session key")
+        if not _is_websocket_channel_session_key(decoded_key):
+            return _http_error(404, "session not found")
+        payload = _mutation_payload(request)
+        if payload is None:
+            return _http_error(400, "invalid file save payload")
+        scope_param = payload.get("scope")
+        if scope_param is not None and not isinstance(scope_param, str):
+            return _http_error(400, "invalid workspace scope")
+        raw_path = payload.get("path")
+        if raw_path is not None and not isinstance(raw_path, str):
+            return _http_error(400, "invalid path")
+        if scope_param == "":
+            scope_param = None
+        try:
+            if scope_param is None:
+                scope = self.workspaces.scope_for_session_key(decoded_key)
+            else:
+                scope = resolve_workspace_anchor(
+                    scope_param,
+                    default_scope=self.workspaces.default_scope(),
+                )
+                if scope is None:
+                    return _http_json_response({"error": "no_default_workspace"}, status=404)
+            saved = file_save_payload(
+                raw_path,
+                payload.get("content"),
+                scope=scope,
+            )
+        except WebUIFilePreviewError as e:
+            return _http_error(e.status, e.message)
+        return _http_json_response(saved)
 
     def _handle_session_files(self, request: WsRequest, key: str) -> Response:
         if not self.check_api_token(request):

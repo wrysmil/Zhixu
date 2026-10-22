@@ -2054,6 +2054,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "Đi",
     "browserEmptyHint": "Nhập địa chỉ để bắt đầu duyệt.",
+    "browserNewTab": "Tab mới",
     "browserFrameTitle": "Trang trình duyệt nhúng",
     "browserError_scheme": "Chỉ mở được địa chỉ http/https ở đây.",
     "browserError_private": "Địa chỉ riêng hoặc mạng nội bộ không được phép.",
@@ -2087,7 +2088,8 @@
     "searchTruncated": "Chỉ hiển thị một phần kết quả",
     "searchFailed": "Tìm kiếm thất bại",
     "copied": "Đã sao chép",
-    "historyTruncated": "Đầu ra trước đó đã bị cắt"
+    "historyTruncated": "Đầu ra trước đó đã bị cắt",
+    "terminalTheme": "Chuyển giao diện terminal"
   },
   "plusMenu": {
     "groupAdd": "Thêm",
@@ -2674,7 +2676,13 @@
     "routeMissing": "Xem trước tệp cần gateway mới nhất. Hãy khởi động lại 知序 gateway rồi thử lại.",
     "resize": "Đổi kích thước bản xem trước tệp",
     "pickFile": "Chọn một tệp để xem trước ở đây.",
-    "truncated": "Bản xem trước bị cắt vì tệp này lớn."
+    "truncated": "Bản xem trước bị cắt vì tệp này lớn.",
+    "edit": "Chỉnh sửa tệp",
+    "save": "Lưu tệp",
+    "cancel": "Hủy chỉnh sửa",
+    "saved": "Đã lưu",
+    "saveFailed": "Không thể lưu tệp này.",
+    "editTruncated": "Tệp quá lớn không thể chỉnh sửa tại đây."
   },
   "code": {
     "fallbackLanguage": "mã",

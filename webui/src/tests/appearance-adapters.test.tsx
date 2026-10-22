@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CodeBlock } from "@/components/CodeBlock";
@@ -32,12 +32,13 @@ vi.mock("@/hooks/useZhixuStream", () => ({
 
 afterEach(() => {
   document.documentElement.removeAttribute("style");
+  localStorage.removeItem("zhixu-webui.terminal-theme");
   mocks.instances.length = 0;
   mocks.fit.mockClear();
 });
 
 describe("standalone renderer appearance adapters", () => {
-  it.each([true, false])("applies root colors and font to real xterm wrapper (PTY=%s)", (mode) => {
+  it.each([true, false])("defaults to dark and follows root colors after a light toggle (PTY=%s)", (mode) => {
     pty = mode;
     document.documentElement.style.setProperty("--background", "210 25% 12%");
     document.documentElement.style.setProperty("--foreground", "30 20% 92%");
@@ -46,13 +47,26 @@ describe("standalone renderer appearance adapters", () => {
     const view = render(<TerminalSurface terminalId="term" />);
     const instance = mocks.instances[0]!;
     expect(instance.options.fontFamily).toBe('"Consolas", monospace');
-    expect(instance.options.theme).toMatchObject({ background: "hsl(210 25% 12%)", foreground: "hsl(30 20% 92%)", cursor: "hsl(210 70% 60%)", red: "#ff1234" });
+    expect(instance.options.theme).toMatchObject({
+      background: "#0b0f19",
+      foreground: "#e6e9ef",
+      red: "#ff1234",
+    });
 
     document.documentElement.style.setProperty("--font-code", '"Cascadia Code", monospace');
     document.documentElement.style.setProperty("--accent", "210 40% 25%");
+    fireEvent.click(screen.getByTestId("terminal-theme-term"));
+    expect(instance.options.fontFamily).toBe('"Cascadia Code", monospace');
+    expect(instance.options.theme).toMatchObject({
+      background: "hsl(210 25% 12%)",
+      foreground: "hsl(30 20% 92%)",
+      cursor: "hsl(210 70% 60%)",
+      selectionBackground: "hsl(210 40% 25%)",
+      red: "#ff1234",
+    });
+
     const fits = mocks.fit.mock.calls.length;
     act(() => window.dispatchEvent(new Event("zhixu-webui.appearance-applied")));
-    expect(instance.options.fontFamily).toBe('"Cascadia Code", monospace');
     expect(instance.options.theme).toMatchObject({ selectionBackground: "hsl(210 40% 25%)", red: "#ff1234" });
     expect(mocks.fit.mock.calls.length).toBe(fits + 1);
     expect(mocks.instances).toHaveLength(1);

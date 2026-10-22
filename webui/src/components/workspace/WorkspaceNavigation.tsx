@@ -323,11 +323,10 @@ export function WorkspaceNavigation({
             {renderMore()}
           </div>
           <div className="min-h-8 flex-1" />
-          <div className="flex shrink-0 flex-col items-center gap-2">
+          <div className="flex shrink-0 flex-col items-center gap-2 pb-1">
             {renderItem(SETTINGS_ITEM)}
-          </div>
-          {footerAction ? <div className="flex shrink-0 items-center justify-center">{footerAction}</div> : null}
-          {activeView === "chat" ? <div className="shrink-0">
+            {footerAction}
+            {/* 固定在 rail 底部，始终渲染：不随视图切换或折叠状态跳位。 */}
             <RailToggleButton
               collapsed={collapsed}
               label={
@@ -337,7 +336,7 @@ export function WorkspaceNavigation({
               }
               onClick={onToggleCollapsed}
             />
-          </div> : null}
+          </div>
 
           {!collapsed && !showChatColumn && connectionStatus ? (
             <div className="sr-only">
@@ -370,6 +369,7 @@ function RailToggleButton({
       type="button"
       variant={null}
       size="icon"
+      data-testid="sidebar-rail-toggle"
       aria-label={label}
       title={label}
       onClick={onClick}

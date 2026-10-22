@@ -2054,6 +2054,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "前往",
     "browserEmptyHint": "輸入網址開始瀏覽。",
+    "browserNewTab": "新分頁",
     "browserFrameTitle": "內嵌瀏覽器頁面",
     "browserError_scheme": "只能開啟 http/https 網址。",
     "browserError_private": "不允許存取私網或本地網路網址。",
@@ -2087,7 +2088,8 @@
     "searchTruncated": "僅顯示部分結果",
     "searchFailed": "搜尋失敗",
     "copied": "已複製",
-    "historyTruncated": "較早的輸出已被截斷"
+    "historyTruncated": "較早的輸出已被截斷",
+    "terminalTheme": "切換終端明暗"
   },
   "plusMenu": {
     "groupAdd": "新增",
@@ -2674,7 +2676,13 @@
     "routeMissing": "檔案預覽需要最新版本的閘道。請重新啟動 知序 閘道後再試一次。",
     "resize": "調整檔案預覽寬度",
     "pickFile": "選擇檔案後在這裡預覽。",
-    "truncated": "檔案較大，因此預覽內容已截斷。"
+    "truncated": "檔案較大，因此預覽內容已截斷。",
+    "edit": "編輯檔案",
+    "save": "儲存檔案",
+    "cancel": "取消編輯",
+    "saved": "已儲存",
+    "saveFailed": "儲存失敗，請重試。",
+    "editTruncated": "檔案過大，無法在此編輯。"
   },
   "code": {
     "fallbackLanguage": "程式碼",

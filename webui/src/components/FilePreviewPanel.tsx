@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { AlertCircle, ChevronRight, Loader2, X } from "lucide-react";
+import { AlertCircle, Check, ChevronRight, Loader2, Undo2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { CodeBlock } from "@/components/CodeBlock";
 import { ResizeHandle } from "@/components/workbench/ResizeHandle";
 import { splitFilePath } from "@/components/FileReferenceChip";
+import { useFileSaver } from "@/hooks/useFileSaver";
 import { ApiError, fetchFilePreview } from "@/lib/api";
 import type { FilePreviewPayload } from "@/lib/types";
+import { useOptionalClient } from "@/providers/ClientProvider";
 import { cn } from "@/lib/utils";
 
 interface FilePreviewPanelProps {
@@ -44,6 +46,14 @@ export function FilePreviewPanel({
   const contentRef = useRef<HTMLDivElement>(null);
   const tokenRef = useRef(token);
   tokenRef.current = token;
+  const clientContext = useOptionalClient();
+  const saver = useFileSaver({
+    transport: clientContext?.client ?? null,
+    sessionKey,
+    scope: null,
+    payload: state.status === "ready" ? state.payload : null,
+    onSaved: (next) => setState({ status: "ready", payload: next }),
+  });
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setEntered(true));
@@ -203,6 +213,45 @@ export function FilePreviewPanel({
                 );
               })}
             </nav>
+            {saver.editable ? (
+              <>
+                {saver.dirty ? (
+                  <button
+                    type="button"
+                    data-testid="file-preview-revert"
+                    onClick={saver.revert}
+                    className={cn(
+                      "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+                      "text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    )}
+                    title={t("filePreview.cancel", { defaultValue: "Cancel editing" })}
+                    aria-label={t("filePreview.cancel", { defaultValue: "Cancel editing" })}
+                  >
+                    <Undo2 className="h-4 w-4" aria-hidden />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  data-testid="file-preview-save"
+                  onClick={() => void saver.save()}
+                  disabled={saver.saving || !saver.dirty}
+                  className={cn(
+                    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+                    "text-muted-foreground transition-colors enabled:hover:bg-muted enabled:hover:text-foreground",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-35",
+                  )}
+                  title={`${t("filePreview.save", { defaultValue: "Save file" })} (Ctrl+S)`}
+                  aria-label={t("filePreview.save", { defaultValue: "Save file" })}
+                >
+                  {saver.saving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Check className="h-4 w-4" aria-hidden />
+                  )}
+                </button>
+              </>
+            ) : null}
             <button
               type="button"
               onClick={onClose}
@@ -219,14 +268,24 @@ export function FilePreviewPanel({
             </button>
           </div>
 
-          <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          {saver.error ? (
+            <p role="alert" className="shrink-0 border-b border-destructive/15 bg-destructive/5 px-3 py-1.5 text-[11.5px] text-destructive">
+              {t("filePreview.saveFailed", { defaultValue: "Could not save this file." })}
+            </p>
+          ) : saver.saved ? (
+            <p role="status" className="shrink-0 border-b border-border/40 bg-muted/30 px-3 py-1.5 text-[11.5px] text-muted-foreground">
+              {t("filePreview.saved", { defaultValue: "Saved" })}
+            </p>
+          ) : null}
+
+          <div ref={contentRef} className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {state.status === "loading" ? (
-              <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+              <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                 {t("filePreview.loading", { defaultValue: "Loading preview..." })}
               </div>
             ) : state.status === "error" ? (
-              <div className="flex h-full items-center justify-center px-8 text-center text-sm text-muted-foreground">
+              <div className="flex flex-1 items-center justify-center px-8 text-center text-sm text-muted-foreground">
                 <div className="max-w-sm">
                   <AlertCircle
                     className="mx-auto mb-3 h-5 w-5 text-muted-foreground/70"
@@ -235,8 +294,23 @@ export function FilePreviewPanel({
                   <p>{errorMessage}</p>
                 </div>
               </div>
+            ) : saver.editable ? (
+              <textarea
+                data-testid="file-preview-editor"
+                aria-label={t("filePreview.edit", { defaultValue: "Edit file" })}
+                value={saver.draft}
+                onChange={(event) => saver.setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+                    event.preventDefault();
+                    void saver.save();
+                  }
+                }}
+                spellCheck={false}
+                className="min-h-0 w-full flex-1 resize-none border-0 bg-background px-4 py-3 font-mono text-[12.5px] leading-[1.65] text-foreground outline-none"
+              />
             ) : (
-              <div className="min-h-full">
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
                 {state.payload.truncated ? (
                   <div className="mx-4 mt-3 rounded-md border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-200">
                     {t("filePreview.truncated", {

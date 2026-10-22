@@ -2110,6 +2110,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "前往",
     "browserEmptyHint": "输入网址开始浏览。",
+    "browserNewTab": "新标签页",
     "browserFrameTitle": "内嵌浏览器页面",
     "browserError_scheme": "只能打开 http/https 地址。",
     "browserError_private": "不允许访问私网或本地网络地址。",
@@ -2143,7 +2144,8 @@
     "searchTruncated": "仅显示部分结果",
     "searchFailed": "搜索失败",
     "copied": "已复制",
-    "historyTruncated": "较早的输出已被截断"
+    "historyTruncated": "较早的输出已被截断",
+    "terminalTheme": "切换终端明暗"
   },
   "plusMenu": {
     "groupAdd": "添加",
@@ -2730,7 +2732,13 @@
     "routeMissing": "文件预览需要最新的网关。请重启 知序 gateway 后再试。",
     "resize": "调整文件预览宽度",
     "pickFile": "选择文件后在这里预览。",
-    "truncated": "文件较大，当前只显示前半部分预览。"
+    "truncated": "文件较大，当前只显示前半部分预览。",
+    "edit": "编辑文件",
+    "save": "保存文件",
+    "cancel": "取消编辑",
+    "saved": "已保存",
+    "saveFailed": "保存失败，请重试。",
+    "editTruncated": "文件过大，无法在此编辑。"
   },
   "code": {
     "fallbackLanguage": "代码",

@@ -2054,6 +2054,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "移動",
     "browserEmptyHint": "アドレスを入力して閲覧を開始。",
+    "browserNewTab": "新しいタブ",
     "browserFrameTitle": "埋め込みブラウザページ",
     "browserError_scheme": "http/https のアドレスのみ開けます。",
     "browserError_private": "プライベートまたはローカルネットワークのアドレスは不可です。",
@@ -2087,7 +2088,8 @@
     "searchTruncated": "一部の結果のみ表示",
     "searchFailed": "検索に失敗しました",
     "copied": "コピーしました",
-    "historyTruncated": "以前の出力は切り捨てられました"
+    "historyTruncated": "以前の出力は切り捨てられました",
+    "terminalTheme": "ターミナルの明暗を切り替え"
   },
   "plusMenu": {
     "groupAdd": "追加",
@@ -2674,7 +2676,13 @@
     "routeMissing": "ファイルプレビューには最新の gateway が必要です。知序 gateway を再起動してから再試行してください。",
     "resize": "ファイルプレビューの幅を変更",
     "pickFile": "ファイルを選ぶとここに表示されます。",
-    "truncated": "ファイルが大きいため、プレビューは途中まで表示されています。"
+    "truncated": "ファイルが大きいため、プレビューは途中まで表示されています。",
+    "edit": "ファイルを編集",
+    "save": "ファイルを保存",
+    "cancel": "編集をキャンセル",
+    "saved": "保存しました",
+    "saveFailed": "このファイルを保存できませんでした。",
+    "editTruncated": "大きすぎるファイルはここで編集できません。"
   },
   "code": {
     "fallbackLanguage": "コード",

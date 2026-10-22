@@ -9,6 +9,7 @@ import type {
   CliAppsPayload,
   EpisodePayload,
   FilePreviewPayload,
+  FileSavePayload,
   IdentityFileEntry,
   ImageGenerationSettingsUpdate,
   McpPresetsPayload,
@@ -309,6 +310,22 @@ export async function fetchFilePreviewAvailability(
     API_READ_TIMEOUT_MS,
   );
   return payload.available !== false;
+}
+
+/** Save editor content back to a workspace file through the authenticated WebSocket. */
+export async function saveFileContent(
+  transport: WebUIMutationTransport,
+  key: string,
+  path: string,
+  content: string,
+  scope: string | null = null,
+): Promise<FileSavePayload> {
+  return mutation<FileSavePayload>(transport, "workspace.file.save", {
+    key,
+    path,
+    content,
+    ...(scope ? { scope } : {}),
+  });
 }
 
 export async function fetchSessionDirectory(
