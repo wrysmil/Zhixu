@@ -307,7 +307,7 @@ function SidebarActionButton({
       title={title}
       onClick={() => onClick()}
       className={cn(
-        "touch-target group h-8 w-full min-w-0 justify-start gap-2 overflow-hidden rounded-xl px-3 font-medium text-[12.5px]",
+        "touch-target group h-8 w-full min-w-0 justify-start gap-2 overflow-hidden rounded-xl px-3 font-medium text-[13px]",
         SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
         active
           ? "text-sidebar-accent-foreground"

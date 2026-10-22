@@ -908,7 +908,7 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
               data-testid="thread-empty-region"
               className={cn(
                 "row-start-1 flex min-h-0 min-w-0 w-full items-center justify-center",
-                hasComposer && "sm:items-end sm:pb-8",
+                hasComposer && "sm:items-end sm:pb-2",
               )}
             >
               {emptyState}

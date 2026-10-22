@@ -1324,7 +1324,7 @@ describe("ThreadViewport", () => {
       "min-h-0",
       "items-center",
       "sm:items-end",
-      "sm:pb-8",
+      "sm:pb-2",
     );
     expect(screen.getByTestId("thread-composer-motion")).toContainElement(
       screen.getByText("composer"),

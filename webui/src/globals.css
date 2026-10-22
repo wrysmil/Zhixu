@@ -1548,7 +1548,7 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   font-size: 1.6875rem;
   font-weight: 600;
   line-height: 1.35;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.02em;
   color: hsl(var(--text-strong));
 }
 
@@ -1660,16 +1660,20 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   font-size: 10px;
 }
 
+/* The landing block (greeting → composer → shortcuts) is centred as one unit:
+   the trailing spacer collapses to zero and the grid distributes the remaining
+   space above and below it instead of pinning the block to the top. */
 .agent-thread-shell .thread-layout[data-layout="hero"] {
   max-width: 58rem;
   padding: clamp(1rem, 3vh, 2.25rem) clamp(1.25rem, 4vw, 3rem) 2rem;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto 0;
+  align-content: center;
 }
 
 .agent-thread-shell .thread-layout[data-layout="hero"] > [data-testid="thread-empty-region"] {
   align-items: flex-start;
   justify-content: center;
-  padding-bottom: 0.9rem;
+  padding-bottom: 0.25rem;
 }
 
 .agent-thread-shell .thread-layout[data-layout="hero"] > [data-testid="thread-empty-below"] {

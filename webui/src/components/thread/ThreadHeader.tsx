@@ -44,7 +44,7 @@ export function ThreadHeader({
   sessionInfoAction,
   teamInfo = null,
 }: ThreadHeaderProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   return (
     <div
@@ -73,20 +73,6 @@ export function ThreadHeader({
         {!minimal && !hideTitle ? (
           <div className="flex min-w-0 items-center rounded-md px-1.5 py-1 text-[12px] font-medium text-muted-foreground">
             <span className="max-w-[min(60vw,32rem)] truncate">{title}</span>
-          </div>
-        ) : null}
-        {minimal && !hideTitle ? (
-          <div
-            data-testid="thread-header-breadcrumb"
-            className="flex min-w-0 items-center gap-2 px-1.5 py-1 text-[12px] text-muted-foreground"
-          >
-            <span className="shrink-0">
-              {i18n.resolvedLanguage?.startsWith("zh") ? "个人空间" : "Personal space"}
-            </span>
-            <span aria-hidden className="text-border">/</span>
-            <strong className="max-w-[min(60vw,32rem)] truncate font-normal text-foreground/75">
-              {t("sidebar.newChat")}
-            </strong>
           </div>
         ) : null}
         {handle ? (
