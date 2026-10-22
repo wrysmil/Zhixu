@@ -164,20 +164,20 @@ function hsl(hex: string): string {
 // baseline. Light is a white canvas with near-white tiers (no grey-blue wash),
 // dark stays a low saturation navy so the same blue accent reads in both themes.
 const ZHIXU_LIGHT = {
-  "--background": "0 0% 100%", "--foreground": "222 30% 16%", "--card": "0 0% 100%", "--popover": "0 0% 100%",
-  "--primary": "221 58% 44%", "--primary-foreground": "0 0% 100%", "--secondary": "220 26% 97%", "--muted": "220 26% 97%",
-  "--muted-foreground": "218 13% 44%", "--accent": "219 100% 96%", "--accent-foreground": "221 60% 38%", "--border": "220 22% 91%",
-  "--surface-app": "220 26% 99%", "--surface-panel": "0 0% 100%", "--sidebar": "220 16% 94%", "--sidebar-accent": "219 34% 91%",
-  "--nav-active-bg": "220 14% 90%", "--nav-active-fg": "222 30% 16%", "--nav-active-ring": "220 14% 86%",
-  "--inline-token-highlight": "#2F58B1", "--temporary-control-active": "#2F58B1",
+  "--background": "0 0% 100%", "--foreground": "220 9% 11%", "--card": "0 0% 100%", "--popover": "0 0% 100%",
+  "--primary": "220 9% 11%", "--primary-foreground": "0 0% 100%", "--secondary": "220 10% 96%", "--muted": "220 10% 96%",
+  "--muted-foreground": "220 6% 44%", "--accent": "220 10% 96%", "--accent-foreground": "220 9% 11%", "--border": "220 10% 90%",
+  "--surface-app": "220 10% 97%", "--surface-panel": "0 0% 100%", "--sidebar": "220 10% 94%", "--sidebar-accent": "220 10% 91%",
+  "--nav-active-bg": "220 8% 89%", "--nav-active-fg": "220 9% 11%", "--nav-active-ring": "220 8% 85%",
+  "--inline-token-highlight": "#1A1C1F", "--temporary-control-active": "#1A1C1F",
 };
 const ZHIXU_DARK = {
-  "--background": "220 24% 8%", "--foreground": "214 22% 92%", "--card": "220 20% 11%", "--popover": "220 20% 12%",
-  "--primary": "217 70% 70%", "--primary-foreground": "222 40% 10%", "--secondary": "220 16% 15%", "--muted": "220 16% 15%",
-  "--muted-foreground": "215 14% 67%", "--accent": "220 28% 19%", "--accent-foreground": "214 70% 78%", "--border": "220 14% 23%",
-  "--surface-app": "220 26% 7%", "--surface-panel": "220 20% 11%", "--sidebar": "220 24% 9%", "--sidebar-accent": "220 16% 16%",
-  "--nav-active-bg": "220 16% 20%", "--nav-active-fg": "220 20% 96%", "--nav-active-ring": "220 14% 30%",
-  "--inline-token-highlight": "#9FC2F7", "--temporary-control-active": "#9FC2F7",
+  "--background": "220 10% 8%", "--foreground": "220 8% 92%", "--card": "220 8% 11%", "--popover": "220 8% 12%",
+  "--primary": "220 8% 92%", "--primary-foreground": "220 10% 8%", "--secondary": "220 8% 16%", "--muted": "220 8% 16%",
+  "--muted-foreground": "220 6% 62%", "--accent": "220 8% 16%", "--accent-foreground": "220 8% 92%", "--border": "220 8% 18%",
+  "--surface-app": "220 9% 9%", "--surface-panel": "220 8% 12%", "--sidebar": "220 9% 10%", "--sidebar-accent": "220 8% 16%",
+  "--nav-active-bg": "220 8% 18%", "--nav-active-fg": "220 8% 92%", "--nav-active-ring": "220 8% 26%",
+  "--inline-token-highlight": "#E9EAEC", "--temporary-control-active": "#E9EAEC",
 };
 
 export function resolveAppearance(preferences: AppearancePreferences, theme: Theme): Record<string, string> {

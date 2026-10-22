@@ -24,9 +24,9 @@ describe("appearance model", () => {
 
   it("preserves default Zhixu tokens exactly and supplies complete preset palettes", () => {
     expect(resolveAppearance(DEFAULT_APPEARANCE, "light")["--background"]).toBe("0 0% 100%");
-    expect(resolveAppearance(DEFAULT_APPEARANCE, "light")["--primary"]).toBe("221 58% 44%");
-    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--background"]).toBe("220 24% 8%");
-    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--primary"]).toBe("217 70% 70%");
+    expect(resolveAppearance(DEFAULT_APPEARANCE, "light")["--primary"]).toBe("220 9% 11%");
+    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--background"]).toBe("220 10% 8%");
+    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--primary"]).toBe("220 8% 92%");
     expect(THEME_PRESETS).toHaveLength(4);
     for (const preset of THEME_PRESETS) {
       for (const theme of ["light", "dark"] as const) {
