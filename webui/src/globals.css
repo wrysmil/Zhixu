@@ -166,10 +166,10 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     --terminal-font-size: 12.5px;
     --hero-text-size: 26px;
     --hero-composer-max-w: min(44rem, 100%);
-    --sidebar: 220 16% 96%;
+    --sidebar: 220 16% 94%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);
-    --sidebar-accent: 219 34% 94%;
+    --sidebar-accent: 219 34% 91%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
     --settings-canvas: var(--background);
