@@ -1,0 +1,105 @@
+{
+  "definition": {
+    "id": "content-team",
+    "revision": 1,
+    "name": "内容团队",
+    "description": "先研究、再撰稿、最后由 Leader 汇总。",
+    "instructions": "研究员只读资料并给出来源；撰稿人按验收条件成稿；主编辑负责拆解任务、审阅成员结果并输出一次汇总。",
+    "leaderAgentId": "leader",
+    "members": [
+      {
+        "memberId": "m-researcher",
+        "agentId": "researcher",
+        "role": "查阅资料，输出可核对的来源清单"
+      },
+      {
+        "memberId": "m-writer",
+        "agentId": "writer",
+        "role": "依据研究结论撰写正文，遵守验收条件"
+      }
+    ],
+    "limits": {
+      "maxConcurrency": 3,
+      "maxTasks": 16,
+      "maxDispatchRounds": 4,
+      "taskTimeoutSeconds": 600,
+      "runTimeoutSeconds": 1800
+    },
+    "archived": false,
+    "createdAt": "2026-10-15T08:00:00+00:00",
+    "updatedAt": "2026-10-15T08:00:00+00:00"
+  },
+  "leader": {
+    "id": "leader",
+    "updatedAt": "2026-10-15T08:00:00+00:00",
+    "prompt": "你是主编辑：拆解本轮目标、按验收条件审阅成员结果，并只汇总一次。",
+    "modelId": "opus-high",
+    "tools": {
+      "mode": "include",
+      "entries": ["read_file", "list_dir"]
+    },
+    "skills": {
+      "mode": "all",
+      "entries": []
+    },
+    "subAgents": {
+      "mode": "include",
+      "entries": ["researcher", "writer"]
+    },
+    "name": "主编"
+  },
+  "members": [
+    {
+      "member": {
+        "memberId": "m-researcher",
+        "agentId": "researcher",
+        "role": "查阅资料，输出可核对的来源清单"
+      },
+      "profile": {
+        "id": "researcher",
+        "updatedAt": "2026-10-14T10:00:00+00:00",
+        "prompt": "你只负责检索与核对来源，输出结构化清单，不写正文。",
+        "modelId": null,
+        "tools": {
+          "mode": "exclude",
+          "entries": ["execute_shell"]
+        },
+        "skills": {
+          "mode": "include",
+          "entries": ["web-search"]
+        },
+        "subAgents": {
+          "mode": "all",
+          "entries": []
+        },
+        "name": "研究员"
+      }
+    },
+    {
+      "member": {
+        "memberId": "m-writer",
+        "agentId": "writer",
+        "role": "依据研究结论撰写正文，遵守验收条件"
+      },
+      "profile": {
+        "id": "writer",
+        "updatedAt": "2026-10-14T10:05:00+00:00",
+        "prompt": "你按验收条件撰写正文并写入工作区相对路径，不修改他人来源。",
+        "modelId": "sonnet-fast",
+        "tools": {
+          "mode": "include",
+          "entries": ["read_file", "write_file"]
+        },
+        "skills": {
+          "mode": "exclude",
+          "entries": ["web-search"]
+        },
+        "subAgents": {
+          "mode": "exclude",
+          "entries": ["leader"]
+        },
+        "name": "撰稿人"
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@nanobot/tui",
+      "name": "@zhixu/tui",
       "dependencies": {
         "@opentui/core": "0.5.10",
       },

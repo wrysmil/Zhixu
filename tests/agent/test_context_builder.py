@@ -330,7 +330,7 @@ class TestBuildSystemPrompt:
         result = ContextBuilder(agent_home)._get_identity(workspace=project)
 
         assert str(project.resolve()) not in result
-        assert f"agent workspace is at: {agent_home.resolve()}" in result
+        assert f"知序的 agent 工作区位于：{agent_home.resolve()}" in result
         assert f"{agent_home.resolve()}/SOUL.md" in result
         assert f"{project.resolve()}/SOUL.md" not in result
 
@@ -790,7 +790,7 @@ def test_factory_template_persona_is_injected_when_activated(tmp_path):
     prompt = ContextBuilder(ws).build_system_prompt()
 
     assert prompt.count("## 当前人格：tech_expert") == 1
-    assert "你是 nanobot 的技术搭档" in prompt
+    assert "你是知序的技术搭档" in prompt
 
 
 def test_unactivated_factory_persona_costs_nothing(tmp_path):

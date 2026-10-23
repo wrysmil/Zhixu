@@ -1,11 +1,11 @@
 ---
 name: AGENTS
-description: Agent Harness 入口（覆盖层）+ nanobot 项目开发指南
+description: Agent Harness 入口（覆盖层）+ 知序 Zhixu 项目开发指南
 ---
 
 # AGENTS.md
 
-项目背景：nanobot-ai（v0.3.0，Agent-With-Memory 仓库）是超轻量自托管的个人 AI agent 框架，Python ≥3.11 + asyncio 核心，配套 React/TypeScript WebUI 与终端 TUI。当前在 feature/memory-system 分支扩展记忆系统（WebUI 记忆管理 API + 前端 + phase-2 抽取）。
+项目背景：知序 Zhixu（nanobot-ai v0.3.0，Agent-With-Memory 仓库）是超轻量自托管的个人 AI agent 框架，Python ≥3.11 + asyncio 核心，配套 React/TypeScript WebUI 与终端 TUI。当前主线分支为 feature/desktop-app；品牌改名（nanobot → zhixu）按低/中/高三期推进，方案见 `.ai-runtime-artifacts/specs/2026-10-19-zhixu-rename-spec.md`。记忆系统二期扩展（WebUI 记忆管理 API + 前端 + phase-2 抽取）属于 feature/memory-system 分支的历史工作。
 
 > 必读：`harness-kit/core/routing.md`（路由判定、阶段门禁、按判定加载）
 > AI 入口顺序：1. 本文件 → 2. `harness-kit/core/routing.md` → 3. 平台适配器入口（`.claude/rules/`）
@@ -37,7 +37,7 @@ description: Agent Harness 入口（覆盖层）+ nanobot 项目开发指南
 
 对用户回复、子 Agent 派发、产物摘要、验收口径全部使用**中文**（代码标识符、路径、命令、API 名保留英文）。细则见 `routing.md` § 沟通语言。
 
-## 项目指南（nanobot 仓库原有内容，保留）
+## 项目指南（知序 仓库原有内容，保留）
 
 ---
 
@@ -45,7 +45,7 @@ This file provides guidance to AI coding agents working with this repository.
 
 ## Project Overview
 
-nanobot is a lightweight, open-source AI agent framework written in Python with a React/TypeScript WebUI. It centers around a small agent loop that receives messages from chat channels, invokes an LLM provider, executes tools, and manages session memory.
+Zhixu is a lightweight, open-source AI agent framework written in Python with a React/TypeScript WebUI. It centers around a small agent loop that receives messages from chat channels, invokes an LLM provider, executes tools, and manages session memory.
 
 ## Development Commands
 
@@ -107,6 +107,22 @@ Messages flow through an async `MessageBus` (`nanobot/bus/queue.py`) that decoup
 - Architecture constraints: [`.agent/design.md`](.agent/design.md)
 - Security boundaries: [`.agent/security.md`](.agent/security.md)
 - Common gotchas: [`.agent/gotchas.md`](.agent/gotchas.md)
+
+## WebUI 连接密码（Connect 页 Password 的来源）
+
+**结论：** WebUI 登录页（`webui/src/App.tsx` 的 `AuthForm`，文案 `app.auth.label` = Password、`app.auth.submit` = Connect）要求输入的密码，就是配置文件 `~/.nanobot/config.json` 里
+
+```
+channels.websocket.tokenIssueSecret
+```
+
+的值；该项为空时回退到同级的 `channels.websocket.token`（取值逻辑见 `nanobot/cli/webui_support.py::webui_bootstrap_secret`）。它不是单独的用户账号密码。
+
+- **生成**：首次启用 WebUI 时自动写入 `secrets.token_urlsafe(32)`（43 字符，见 `nanobot/cli/webui_support.py::_ensure_local_webui_channel`）；`nanobot onboard` Quick Start 会提示「Set a WebUI password」并写同一字段（`nanobot/cli/onboard.py`）。
+- **用途/校验**：它是 bootstrap 与 token-issue 的共享密钥，HTTP 侧用 `Authorization: Bearer <secret>` 或 `X-Zhixu-Auth: <secret>` 校验（`nanobot/webui/ws_http.py::_handle_bootstrap`、`nanobot/webui/http_utils.py::issue_route_secret_matches`）。填错 → 前端提示 `app.auth.invalid`（Incorrect password）。
+- **旧头兼容**：`issue_route_secret_matches` 新旧双读，先试 `X-Zhixu-Auth` / `x-zhixu-auth`，再回退旧名 `X-Nanobot-Auth` / `x-nanobot-auth`，兼容期 ≥1 个大版本后随 Phase 2/3 兼容代码一并删除。
+- **正常路径不会弹出此页**：`nanobot webui` 和桌面端 `desktop/main.cjs` 都把 URL 开成 `http://127.0.0.1:<port>/#/?bootstrapSecret=<secret>`，自动完成认证。只有裸开 `http://127.0.0.1:8765`（不带 `bootstrapSecret` fragment）、或 config 缺该字段时才需要手输。
+- **查看/重置**：直接读或改 config 中该字段即可；若清空，下次启动会重新生成一个新密码。
 
 ## Contribution Flow
 

@@ -1,5 +1,5 @@
 {
-  "description": "Gunakan Mira dari percakapan WhatsApp.",
+  "description": "Gunakan 知序 dari percakapan WhatsApp.",
   "requirements": "Setup koneksi WhatsApp dan gateway",
   "setup": {
     "primaryAction": "Hubungkan WhatsApp",

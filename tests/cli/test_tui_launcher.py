@@ -728,7 +728,7 @@ def test_gateway_reuse_requires_the_matching_managed_instance(
     monkeypatch.setattr("nanobot.gateway.GatewayRuntime", FakeRuntime)
     monkeypatch.setattr("nanobot.cli.tui_launcher._webui_endpoint_reachable", lambda _url: True)
 
-    with pytest.raises(TuiUnavailableError, match="different nanobot instance"):
+    with pytest.raises(TuiUnavailableError, match="different Zhixu instance"):
         _ensure_gateway(
             config,
             config_path=tmp_path / "config.json",

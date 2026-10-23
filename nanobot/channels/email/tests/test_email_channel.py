@@ -92,7 +92,7 @@ def test_fetch_new_messages_returns_accepted_and_skipped_uids(monkeypatch) -> No
 
 
 def test_fetch_new_messages_rejected_returns_skipped_uid(monkeypatch) -> None:
-    raw = _make_raw_email(from_addr="Nanobot <bot@example.com>", subject="Loop test")
+    raw = _make_raw_email(from_addr="知序 <bot@example.com>", subject="Loop test")
 
     monkeypatch.setattr(
         "nanobot.channels.email.runtime.imaplib.IMAP4_SSL",
@@ -491,7 +491,7 @@ async def test_start_keeps_post_actions_for_successful_emails_when_later_deliver
 
 
 def test_fetch_new_messages_skips_self_sent_email_and_marks_seen(monkeypatch) -> None:
-    raw = _make_raw_email(from_addr="Nanobot <bot@example.com>", subject="Loop test")
+    raw = _make_raw_email(from_addr="知序 <bot@example.com>", subject="Loop test")
 
     fake = _make_fake_imap(raw, uid=b"123")
     monkeypatch.setattr("nanobot.channels.email.runtime.imaplib.IMAP4_SSL", lambda _h, _p: fake)

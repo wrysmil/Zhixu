@@ -31,7 +31,9 @@ import {
 import { createBlankAgent, slugifyAgentId, uniqueAgentId } from "@/lib/agents/catalog";
 import type { AgentCatalog } from "@/lib/agents/catalog";
 import type { AgentProfile } from "@/lib/agents/types";
+import { isDefaultMainAgent } from "@/lib/agents/types";
 import { AGENT_CATEGORY_LABEL_KEY } from "@/lib/agents/i18n";
+import { notifySaved } from "@/lib/save-feedback";
 
 const ALL = "__all__";
 type ViewMode = "list" | "card" | "tree";
@@ -51,21 +53,14 @@ export function AgentsView() {
 
   const [categoryFilter, setCategoryFilter] = useState<string>(ALL);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<ViewMode>("list");
+  // 默认卡片视图：卡片一屏能横向扫过图标、描述与能力摘要，列表只能看到名称
+  // 和一行描述；「点开看详情」的成本交给编辑弹窗，不再让首屏承担。
+  const [view, setView] = useState<ViewMode>("card");
 
   const [editing, setEditing] = useState<{ agent: AgentProfile | null; isNew: boolean } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AgentProfile | null>(null);
-  const [savedNotice, setSavedNotice] = useState(false);
 
   const originalsRef = useRef(new Map<string, AgentProfile>());
-  const savedNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (savedNoticeTimer.current) clearTimeout(savedNoticeTimer.current);
-    },
-    [],
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -118,15 +113,19 @@ export function AgentsView() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return visibleAgents.filter((agent) => {
-      if (categoryFilter !== ALL && agent.categoryId !== categoryFilter) return false;
-      if (!needle) return true;
-      return (
-        agent.name.toLowerCase().includes(needle) ||
-        agent.description.toLowerCase().includes(needle) ||
-        agent.id.toLowerCase().includes(needle)
+    return visibleAgents
+      .filter((agent) => {
+        if (categoryFilter !== ALL && agent.categoryId !== categoryFilter) return false;
+        if (!needle) return true;
+        return (
+          agent.name.toLowerCase().includes(needle) ||
+          agent.description.toLowerCase().includes(needle) ||
+          agent.id.toLowerCase().includes(needle)
+        );
+      })
+      .sort(
+        (a, b) => Number(!isDefaultMainAgent(a)) - Number(!isDefaultMainAgent(b)),
       );
-    });
   }, [visibleAgents, categoryFilter, query]);
 
   const hiddenAgents = useMemo(() => agents.filter((agent) => agent.hidden), [agents]);
@@ -146,6 +145,7 @@ export function AgentsView() {
         return copy;
       });
       originalsRef.current.set(saved.id, saved);
+      notifySaved();
       return saved;
     } catch (reason: unknown) {
       setActionError(reason instanceof Error ? reason.message : String(reason));
@@ -161,13 +161,9 @@ export function AgentsView() {
       return payload.agent;
     }).then((saved) => {
       if (!saved) return;
-      // 保存后留在编辑器里接着改：基线换成刚落库的那份，dirty 随之归零，
-      // 再闪一次「已保存」作为回执。改回 setEditing(null) 会让用户每存一次
-      // 就被弹回列表，想微调提示词就得重开一遍。
+      // 保存后留在编辑器里接着改：基线换成刚落库的那份，dirty 随之归零。
+      // 改回 setEditing(null) 会让用户每存一次就被弹回列表，想微调提示词就得重开一遍。
       setEditing((prev) => (prev ? { ...prev, agent: saved, isNew: false } : prev));
-      setSavedNotice(true);
-      if (savedNoticeTimer.current) clearTimeout(savedNoticeTimer.current);
-      savedNoticeTimer.current = setTimeout(() => setSavedNotice(false), 3000);
     });
   };
 
@@ -235,8 +231,8 @@ export function AgentsView() {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[14rem] flex-1">
+      <div className="assistant-toolbar">
+        <div className="assistant-toolbar-search">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
             aria-hidden
@@ -323,7 +319,7 @@ export function AgentsView() {
           {t("settings.agents.loading", "加载中…")}
         </div>
       ) : !loadError && catalog && filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-panel border border-dashed border-border px-6 py-14 text-center">
+        <div className="assistant-empty">
           <UserPlus className="h-7 w-7 text-muted-foreground/60" aria-hidden />
           <p className="text-[13px] text-muted-foreground">
             {filtersActive
@@ -347,10 +343,6 @@ export function AgentsView() {
                 <AgentRow
                   key={agent.id}
                   agent={agent}
-                  agentIds={agentIds}
-                  tools={catalog.tools}
-                  skills={catalog.skills}
-                  models={catalog.models}
                   onEdit={() => setEditing({ agent, isNew: false })}
                   onDuplicate={() => handleDuplicate(agent)}
                   onToggleHidden={() => handleToggleHidden(agent)}
@@ -392,7 +384,7 @@ export function AgentsView() {
       ) : null}
 
       {hiddenAgents.length > 0 && catalog && !loadError ? (
-        <details className="rounded-panel bg-settings-surface px-4 py-3">
+        <details className="assistant-panel px-4 py-3">
           <summary className="cursor-pointer text-[12px] text-muted-foreground">
             {t("settings.agents.hiddenGroup", "已隐藏的智能体（{{count}}）", {
               count: hiddenAgents.length,
@@ -403,10 +395,6 @@ export function AgentsView() {
               <AgentRow
                 key={agent.id}
                 agent={agent}
-                agentIds={agentIds}
-                tools={catalog.tools}
-                skills={catalog.skills}
-                models={catalog.models}
                 dimmed
                 onEdit={() => setEditing({ agent, isNew: false })}
                 onDuplicate={() => handleDuplicate(agent)}
@@ -427,7 +415,6 @@ export function AgentsView() {
           catalog={catalog}
           globalModelLabel={globalModelLabel}
           saving={busy}
-          savedNotice={savedNotice}
           onOpenChange={(open) => {
             if (!open) setEditing(null);
           }}

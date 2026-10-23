@@ -89,7 +89,7 @@ BUILTIN_COMMAND_SPECS: tuple[BuiltinCommandSpec, ...] = (
     ),
     BuiltinCommandSpec(
         "/restart",
-        "Restart nanobot",
+        "Restart Zhixu",
         "Restart the bot process.",
         "rotate-cw",
     ),
@@ -561,14 +561,14 @@ async def cmd_dream_prompt(ctx: CommandContext) -> OutboundMessage:
         if not initialize_workspace_prompt(path, store.default_dream_prompt()):
             content = (
                 f"Dream memory instructions already exist at `{display_path}`.\n\n"
-                "Edit that file, or delete/empty it to return to nanobot's default."
+                "Edit that file, or delete/empty it to return to Zhixu's default."
             )
         else:
             content = (
                 f"Created Dream memory instructions at `{display_path}`.\n\n"
                 "Edit that file to teach Dream how to organize memory. "
-                "This fully replaces nanobot's default Dream guide for this workspace. "
-                "Delete or empty it to return to nanobot's default."
+                "This fully replaces Zhixu's default Dream guide for this workspace. "
+                "Delete or empty it to return to Zhixu's default."
             )
     elif args:
         content = "Usage: /dream-prompt [init]"
@@ -576,11 +576,11 @@ async def cmd_dream_prompt(ctx: CommandContext) -> OutboundMessage:
         content = (
             "Dream memory instructions: custom for this workspace\n\n"
             f"- Path: `{display_path}`\n"
-            "- Delete or empty this file to return to nanobot's default."
+            "- Delete or empty this file to return to Zhixu's default."
         )
     else:
         content = (
-            "Dream memory instructions: nanobot default\n\n"
+            "Dream memory instructions: Zhixu default\n\n"
             f"- Editable file: `{display_path}`\n"
             "- Run `/dream-prompt init` to create an editable copy."
         )
@@ -610,7 +610,7 @@ async def cmd_evaluator_prompt(ctx: CommandContext) -> OutboundMessage:
         if not initialize_workspace_prompt(path, default_evaluator_prompt()):
             content = (
                 f"Heartbeat evaluator prompt already exists at `{display_path}`.\n\n"
-                "Edit that file, or delete/empty it to return to nanobot's default."
+                "Edit that file, or delete/empty it to return to Zhixu's default."
             )
         else:
             content = (
@@ -626,11 +626,11 @@ async def cmd_evaluator_prompt(ctx: CommandContext) -> OutboundMessage:
         content = (
             "Heartbeat evaluator prompt: custom for this workspace\n\n"
             f"- Path: `{display_path}`\n"
-            "- Delete or empty this file to return to nanobot's default."
+            "- Delete or empty this file to return to Zhixu's default."
         )
     else:
         content = (
-            "Heartbeat evaluator prompt: nanobot default\n\n"
+            "Heartbeat evaluator prompt: Zhixu default\n\n"
             f"- Editable file: `{display_path}`\n"
             "- Run `/evaluator-prompt init` to create an editable copy."
         )
@@ -1183,7 +1183,7 @@ async def cmd_help(ctx: CommandContext) -> OutboundMessage:
 
 
 async def cmd_user_shell(ctx: CommandContext) -> OutboundMessage:
-    """Run a trusted local ``!command`` through nanobot's exec policy."""
+    """Run a trusted local ``!command`` through Zhixu's exec policy."""
     metadata = dict(ctx.msg.metadata or {})
     if (
         ctx.msg.channel != "websocket"
@@ -1208,7 +1208,7 @@ async def cmd_user_shell(ctx: CommandContext) -> OutboundMessage:
 
 def build_help_text() -> str:
     """Build canonical help text shared across channels."""
-    lines = ["🐈 nanobot commands:"]
+    lines = ["🐈 Zhixu commands:"]
     for spec in BUILTIN_COMMAND_SPECS:
         command = spec.command
         if spec.arg_hint:

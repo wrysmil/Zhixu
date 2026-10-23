@@ -10,6 +10,7 @@ export interface DockTab {
   id: string;
   kind: DockTabKind;
   title: string;
+  customTitle?: string;
 }
 
 export interface DockScopeSnapshot {
@@ -19,7 +20,29 @@ export interface DockScopeSnapshot {
 
 export const HOME_DOCK_SCOPE = "websocket:home";
 export const MAX_DOCK_TERMINAL_TABS = 8;
+
+// 「打开终端面板」意图只登记一次：入口可能在 StartDock 尚未挂载时触发
+// （首页先展开右坞再懒加载），因此由 StartDock 挂载后取用，而不是即时广播。
+let terminalPanelRequested = false;
+const terminalPanelListeners = new Set<() => void>();
+
+export function requestDockTerminalPanel(): void {
+  terminalPanelRequested = true;
+  for (const listener of [...terminalPanelListeners]) listener();
+}
+
+export function subscribeDockTerminalPanel(listener: () => void): () => void {
+  terminalPanelListeners.add(listener);
+  return () => terminalPanelListeners.delete(listener);
+}
+
+export function consumeDockTerminalPanelRequest(): boolean {
+  const requested = terminalPanelRequested;
+  terminalPanelRequested = false;
+  return requested;
+}
 const PERSIST_PREFIX = "nanobot.dock.terminals.";
+const PERSIST_TABS_PREFIX = "nanobot.dock.tabs.";
 
 export interface PersistedTerminal {
   id: string;
@@ -56,18 +79,98 @@ function savePersisted(scope: string, entries: PersistedTerminal[]): void {
   }
 }
 
+interface PersistedTab {
+  id: string;
+  kind: "file" | "browser";
+  title: string;
+  customTitle?: string;
+}
+
+function loadPersistedTabs(scope: string): DockScopeSnapshot | null {
+  try {
+    const raw = sessionStorage.getItem(PERSIST_TABS_PREFIX + scope);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { tabs?: unknown; activeId?: unknown };
+    if (!Array.isArray(parsed.tabs)) return null;
+
+    const tabs: DockTab[] = [];
+    for (const item of parsed.tabs) {
+      if (!item || typeof item !== "object") continue;
+      const entry = item as Partial<PersistedTab>;
+      if (entry.kind !== "file" && entry.kind !== "browser") continue;
+      if (entry.id !== entry.kind) continue;
+      if (tabs.some((tab) => tab.id === entry.id)) continue;
+      const customTitle =
+        typeof entry.customTitle === "string" && entry.customTitle.trim()
+          ? entry.customTitle.trim().slice(0, 80)
+          : undefined;
+      tabs.push({
+        id: entry.id,
+        kind: entry.kind,
+        title: typeof entry.title === "string" ? entry.title : "",
+        customTitle,
+      });
+    }
+    if (tabs.length === 0) return null;
+
+    const activeId =
+      typeof parsed.activeId === "string" &&
+      tabs.some((tab) => tab.id === parsed.activeId)
+        ? parsed.activeId
+        : tabs[0]?.id ?? null;
+    return { tabs, activeId };
+  } catch {
+    return null;
+  }
+}
+
+function savePersistedTabs(scope: string, snapshot: DockScopeSnapshot): void {
+  const tabs: PersistedTab[] = snapshot.tabs
+    .filter((tab) => tab.kind !== "terminal")
+    .map((tab) => ({
+      id: tab.id,
+      kind: tab.kind as "file" | "browser",
+      title: tab.title,
+      ...(tab.customTitle ? { customTitle: tab.customTitle } : {}),
+    }));
+  const activeId =
+    snapshot.activeId && tabs.some((tab) => tab.id === snapshot.activeId)
+      ? snapshot.activeId
+      : null;
+  try {
+    if (tabs.length === 0) {
+      sessionStorage.removeItem(PERSIST_TABS_PREFIX + scope);
+    } else {
+      sessionStorage.setItem(
+        PERSIST_TABS_PREFIX + scope,
+        JSON.stringify({ tabs, activeId }),
+      );
+    }
+  } catch {
+    /* private mode */
+  }
+}
+
 const EMPTY_SNAPSHOT: DockScopeSnapshot = { tabs: [], activeId: null };
 
 type Listener = () => void;
 
 class DockStore {
   private snapshots = new Map<string, DockScopeSnapshot>();
+  private hydratedScopes = new Set<string>();
   private listeners = new Set<Listener>();
   // terminalId -> 原始 shell 路径（openTerminal/setTerminalTitle 收到的路径，非标题形态）。
   // terminal id 为 uuid 形态、全局唯一，故表无需按 scope 分片。
   private terminalShells = new Map<string, string>();
 
   getSnapshot(scope: string): DockScopeSnapshot {
+    if (!this.hydratedScopes.has(scope)) {
+      this.hydratedScopes.add(scope);
+      if (!this.snapshots.has(scope)) {
+        const restored = loadPersistedTabs(scope);
+        if (restored) this.snapshots.set(scope, restored);
+      }
+    }
     return this.snapshots.get(scope) ?? EMPTY_SNAPSHOT;
   }
 
@@ -123,6 +226,18 @@ class DockStore {
     this.writePersisted(scope, tabs);
   }
 
+  renameTab(scope: string, tabId: string, title: string): void {
+    const current = this.getSnapshot(scope);
+    if (!current.tabs.some((tab) => tab.id === tabId)) return;
+    const customTitle = title.trim().slice(0, 80);
+    const tabs = current.tabs.map((tab) =>
+      tab.id === tabId
+        ? { ...tab, customTitle: customTitle || undefined }
+        : tab,
+    );
+    this.setSnapshot(scope, { tabs, activeId: current.activeId });
+  }
+
   setTerminalTitle(scope: string, terminalId: string, shellPath: string): void {
     const current = this.getSnapshot(scope);
     if (!current.tabs.some((tab) => tab.id === terminalId)) return;
@@ -148,14 +263,18 @@ class DockStore {
   // 仅供测试重置内存快照。
   resetForTests(): void {
     this.snapshots.clear();
+    this.hydratedScopes.clear();
     this.terminalShells.clear();
+    terminalPanelRequested = false;
   }
 
   private openSingleton(scope: string, kind: "file" | "browser", id: string): string {
     const current = this.getSnapshot(scope);
     if (!current.tabs.some((tab) => tab.id === id)) {
-      const title = kind === "file" ? "Files" : "Browser";
-      this.setSnapshot(scope, { tabs: [...current.tabs, { id, kind, title }], activeId: id });
+      this.setSnapshot(scope, {
+        tabs: [...current.tabs, { id, kind, title: "" }],
+        activeId: id,
+      });
     } else {
       this.setSnapshot(scope, { tabs: current.tabs, activeId: id });
     }
@@ -174,6 +293,7 @@ class DockStore {
 
   private setSnapshot(scope: string, next: DockScopeSnapshot): void {
     this.snapshots.set(scope, next);
+    savePersistedTabs(scope, next);
     for (const listener of [...this.listeners]) listener();
   }
 }

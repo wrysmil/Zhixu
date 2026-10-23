@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from nanobot.agent.tools.base import Tool, ToolResult, tool_parameters
 from nanobot.agent.tools.context import current_request_context
+from nanobot.agent.tools.execution import current_tool_call_id
 from nanobot.agent.tools.schema import (
     BooleanSchema,
     NumberSchema,
@@ -140,6 +141,14 @@ class SpawnTool(Tool):
         # 只在真的要按档案跑时才传 agent_id：省略时保持旧调用形状，
         # 第三方替身 / 子类若还没跟上新签名也不会被这一个可选参数打爆。
         extra: dict[str, Any] = {} if agent is None else {"agent_id": agent}
+        invocation_id = None
+        if hasattr(self._manager, "create_execution"):
+            invocation_id = await self._manager.create_execution(
+                request_ctx, parent_tool_call_id=current_tool_call_id() or "",
+                label=label, agent_id=agent, wait=wait,
+            )
+            if invocation_id is not None:
+                extra["invocation_id"] = invocation_id
 
         # 后台路径的失败要等任务跑完才通过 announce 回到 LLM 那儿，模型会先
         # 收到一句「started」然后等上几十秒才知道白等。这里在派发前预检，把
@@ -147,6 +156,8 @@ class SpawnTool(Tool):
         if agent is not None and hasattr(self._manager, "_prepare_agent"):
             prep = self._manager._prepare_agent(agent)  # type: ignore[attr-defined]
             if prep.rejected:
+                if invocation_id is not None:
+                    await self._manager.reject_execution(invocation_id)
                 return ToolResult.error(prep.error or "Error: Agent 档案无效")
 
         return await method(

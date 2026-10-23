@@ -237,3 +237,117 @@ def test_file_preview_empty_scope_param_falls_back_to_session_scope(
 
     assert without_scope.status_code in {403, 404}
     assert empty_scope.status_code == without_scope.status_code
+
+
+# -- GET /api/workspace/files/search + /api/sessions/{key}/files/search --------
+
+
+@pytest.mark.asyncio
+async def test_workspace_files_route_honors_show_hidden(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _make_workspace(tmp_path)
+    (workspace / ".env").write_text("SECRET=1", encoding="utf-8")
+    monkeypatch.setattr("nanobot.webui.workspace_files.get_media_dir", lambda: tmp_path / "media")
+    scope = default_workspace_scope(workspace, restrict_to_workspace=True)
+    handler = _handler(_controller(scope))
+
+    hidden_resp = await handler._dispatch_misc_routes(
+        None,
+        _request("/api/workspace/files?scope=default"),
+        "/api/workspace/files",
+    )
+    shown_resp = await handler._dispatch_misc_routes(
+        None,
+        _request("/api/workspace/files?scope=default&show_hidden=1"),
+        "/api/workspace/files",
+    )
+
+    assert hidden_resp is not None and hidden_resp.status_code == 200
+    assert shown_resp is not None and shown_resp.status_code == 200
+    hidden_names = {entry["name"] for entry in json.loads(hidden_resp.body)["entries"]}
+    shown = {entry["name"]: entry for entry in json.loads(shown_resp.body)["entries"]}
+    assert ".env" not in hidden_names
+    assert shown[".env"]["hidden"] is True
+
+
+@pytest.mark.asyncio
+async def test_workspace_search_route_returns_hits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _make_workspace(tmp_path)
+    monkeypatch.setattr("nanobot.webui.workspace_files.get_media_dir", lambda: tmp_path / "media")
+    scope = default_workspace_scope(workspace, restrict_to_workspace=True)
+    handler = _handler(_controller(scope))
+
+    response = await handler._dispatch_misc_routes(
+        None,
+        _request("/api/workspace/files/search?scope=default&q=root"),
+        "/api/workspace/files/search",
+    )
+
+    assert response is not None and response.status_code == 200
+    payload = json.loads(response.body)
+    assert payload["query"] == "root"
+    assert any(
+        hit["display_path"].replace("\\", "/") == "a.md" for hit in payload["results"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_workspace_search_route_rejects_empty_query(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _make_workspace(tmp_path)
+    monkeypatch.setattr("nanobot.webui.workspace_files.get_media_dir", lambda: tmp_path / "media")
+    scope = default_workspace_scope(workspace, restrict_to_workspace=True)
+    handler = _handler(_controller(scope))
+
+    response = await handler._dispatch_misc_routes(
+        None,
+        _request("/api/workspace/files/search?scope=default&q="),
+        "/api/workspace/files/search",
+    )
+
+    assert response is not None and response.status_code == 400
+    assert json.loads(response.body) == {"error": "invalid_query"}
+
+
+@pytest.mark.asyncio
+async def test_workspace_search_route_without_default_workspace_returns_404(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "not-created"
+    scope = default_workspace_scope(missing, restrict_to_workspace=True)
+    handler = _handler(_controller(scope))
+
+    response = await handler._dispatch_misc_routes(
+        None,
+        _request("/api/workspace/files/search?scope=default&q=x"),
+        "/api/workspace/files/search",
+    )
+
+    assert response is not None and response.status_code == 404
+    assert json.loads(response.body) == {"error": "no_default_workspace"}
+
+
+@pytest.mark.asyncio
+async def test_session_search_route_returns_hits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _make_workspace(tmp_path)
+    monkeypatch.setattr("nanobot.webui.workspace_files.get_media_dir", lambda: tmp_path / "media")
+    scope = default_workspace_scope(workspace, restrict_to_workspace=True)
+    handler = _handler(_controller(scope))
+    path = f"/api/sessions/{quote(_SESSION_KEY, safe='')}/files/search?q=root"
+
+    response = await handler._dispatch_session_routes(_request(path), path.split("?")[0])
+
+    assert response is not None and response.status_code == 200
+    payload = json.loads(response.body)
+    assert payload["results"]
+    assert payload["results"][0]["display_path"].replace("\\", "/") == "a.md"

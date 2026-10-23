@@ -209,7 +209,7 @@ export function AutomationsSettings({
           {tx("settings.automations.loading", "Loading automations...")}
         </div>
       ) : filtered.length && selectedJob ? (
-        <section className="grid min-h-0 overflow-hidden rounded-panel bg-settings-surface xl:grid-cols-[minmax(16rem,18rem)_minmax(0,1fr)] xl:items-stretch">
+        <section className="assistant-panel grid min-h-0 overflow-hidden xl:grid-cols-[minmax(16rem,18rem)_minmax(0,1fr)] xl:items-stretch">
           <aside className="flex min-h-0 flex-col overflow-hidden border-b border-border/35 bg-settings-surface xl:border-b-0 xl:border-r">
             <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3">
               <h2 className="text-[13px] font-semibold tracking-[-0.01em] text-foreground/85">
@@ -245,7 +245,7 @@ export function AutomationsSettings({
           />
         </section>
       ) : (
-        <div className="rounded-panel bg-settings-surface px-5 py-12 text-center text-[13px] text-muted-foreground">
+        <div className="assistant-empty px-5 py-12 text-[13px] text-muted-foreground">
           <div>
             {jobs.length
               ? tx("settings.automations.noMatches", "No automations match this view.")

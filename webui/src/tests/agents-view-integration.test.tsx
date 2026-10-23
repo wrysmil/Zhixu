@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AgentsView } from "@/components/settings/agents/AgentsView";
@@ -53,6 +53,17 @@ const agent: AgentProfile = {
   updatedAt: "2026-09-01T00:00:00Z",
 };
 
+const commander: AgentProfile = {
+  ...agent,
+  id: "commander",
+  name: "知序指挥官",
+  description: "默认主 Agent",
+  type: "system",
+  categoryId: "general",
+  icon: "lucide:compass",
+  color: "#D97706",
+};
+
 const catalog = { tools: [], skills: [], models: [], mcpServers: [], categories: [] };
 
 describe("agents 编辑提示词", () => {
@@ -61,6 +72,37 @@ describe("agents 编辑提示词", () => {
     listAgents.mockResolvedValue({ agents: [agent] });
     loadAgentCatalog.mockResolvedValue(catalog);
     saveAgent.mockImplementation(async (_t: unknown, a: AgentProfile) => ({ agent: a }));
+  });
+
+  it("pins the default agent first and marks it", async () => {
+    listAgents.mockResolvedValue({ agents: [agent, commander] });
+    render(<AgentsView />);
+
+    const rows = await screen.findAllByRole("group");
+    expect(rows[0]).toHaveTextContent("知序指挥官");
+    expect(within(rows[0]).getByText("Default agent")).toBeVisible();
+    expect(within(rows[1]).queryByText("Default agent")).toBeNull();
+  });
+
+  it("默认以卡片视图打开", async () => {
+    listAgents.mockResolvedValue({ agents: [agent, commander] });
+    render(<AgentsView />);
+
+    await screen.findByText("代码审查");
+    expect(screen.getByRole("button", { name: "Cards" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "List" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("shows every agent in the tree view when no sub-agent hierarchy is configured", async () => {
+    const user = userEvent.setup();
+    listAgents.mockResolvedValue({ agents: [agent, commander] });
+    render(<AgentsView />);
+
+    await user.click(await screen.findByRole("button", { name: "Tree" }));
+
+    expect(await screen.findByText("知序指挥官")).toBeVisible();
+    expect(screen.getByText("代码审查")).toBeVisible();
+    expect(screen.queryByText("No agents to show")).toBeNull();
   });
 
   it("改完提示词保存时必须打到后端 save", async () => {
@@ -92,6 +134,7 @@ describe("agents 编辑提示词", () => {
     render(<AgentsView />);
 
     await user.click(await screen.findByText("代码审查"));
+    await user.click(screen.getByRole("tab", { name: "Tools & skills" }));
     // 折叠时组内条目不渲染（预览栏的清单不算，用 role 区分）
     expect(screen.queryByRole("checkbox", { name: /read_file/ })).toBeNull();
 
@@ -114,6 +157,75 @@ describe("agents 编辑提示词", () => {
 
     const back = (await screen.findByLabelText("System prompt")) as HTMLTextAreaElement;
     expect(back.value).toBe("FOCUS_MODE");
+  });
+
+  it("跨分区编辑保留职责草稿与未展示的能力字段", async () => {
+    const user = userEvent.setup();
+    const savedProfile: AgentProfile = {
+      ...agent,
+      tools: { mode: "exclude", entries: ["shell"] },
+      skills: { mode: "include", entries: ["review-style"] },
+      subAgents: { mode: "include", entries: ["research-assistant"] },
+      modelId: "retired-model",
+    };
+    listAgents.mockResolvedValue({ agents: [savedProfile] });
+    render(<AgentsView />);
+
+    await user.click(await screen.findByText("代码审查"));
+    const prompt = await screen.findByLabelText("System prompt");
+    await user.clear(prompt);
+    await user.type(prompt, "KEEP_MY_DRAFT");
+    await user.click(screen.getByRole("tab", { name: "Tools & skills" }));
+    await user.click(screen.getByRole("tab", { name: "Model & more" }));
+    expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("retired-model");
+    expect(screen.getByText("Saved model is currently unavailable", { exact: false })).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Identity & role" }));
+    expect(screen.getByLabelText("System prompt")).toHaveValue("KEEP_MY_DRAFT");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(saveAgent).toHaveBeenCalledTimes(1));
+    expect(saveAgent.mock.calls[0][1]).toMatchObject({
+      prompt: "KEEP_MY_DRAFT",
+      tools: savedProfile.tools,
+      skills: savedProfile.skills,
+      subAgents: savedProfile.subAgents,
+      modelId: savedProfile.modelId,
+    });
+  });
+
+  it("切换分区后仍展示必填错误，并可返回名称输入", async () => {
+    const user = userEvent.setup();
+    render(<AgentsView />);
+    await user.click(await screen.findByText("代码审查"));
+    await user.clear(await screen.findByLabelText("Name"));
+    await user.click(screen.getByRole("tab", { name: "Tools & skills" }));
+
+    const error = screen.getByRole("button", { name: "Enter a name to continue." });
+    expect(error).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    await user.click(error);
+    expect(screen.getByRole("tab", { name: "Identity & role" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByLabelText("Name")).toBeVisible();
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+    expect(saveAgent).not.toHaveBeenCalled();
+  });
+
+  it("展开指令按 Escape 先收起编辑器，不触发丢弃草稿", async () => {
+    const user = userEvent.setup();
+    render(<AgentsView />);
+    await user.click(await screen.findByText("代码审查"));
+    await user.click(await screen.findByRole("button", { name: "Expand" }));
+    const prompt = await screen.findByLabelText("System prompt");
+    await user.clear(prompt);
+    await user.type(prompt, "ESCAPE_KEEPS_DRAFT");
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByLabelText("System prompt")).toHaveValue("ESCAPE_KEEPS_DRAFT");
+    expect(screen.getByRole("button", { name: "Save" })).toBeVisible();
   });
 
   it("system 档案不给删除入口 —— 后端对它一律返 409", async () => {

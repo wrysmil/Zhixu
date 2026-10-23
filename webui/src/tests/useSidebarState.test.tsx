@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { useSidebarState } from "@/hooks/useSidebarState";
-import type { NanobotClient } from "@/lib/nanobot-client";
+import type { ZhixuClient } from "@/lib/zhixu-client";
 import type { SidebarStatePayload } from "@/lib/types";
 import { ClientProvider } from "@/providers/ClientProvider";
 
@@ -28,7 +28,7 @@ describe("useSidebarState", () => {
         };
       },
       setSidebarState,
-    } as unknown as NanobotClient;
+    } as unknown as ZhixuClient;
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
       status: 200,

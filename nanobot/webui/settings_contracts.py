@@ -15,6 +15,8 @@ class SettingsRequest:
     query: QueryParams
     payload: dict[str, Any] | None = None
     local_browser: bool = False
+    # 发起请求的已认证连接当前挂着的聊天；由服务端从连接推导，空集合意味着无法证明归属。
+    caller_chats: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

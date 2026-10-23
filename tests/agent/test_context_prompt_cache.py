@@ -246,7 +246,7 @@ def test_template_memory_md_is_skipped(tmp_path) -> None:
 
     # This block is produced only when populated long-term memory is injected.
     assert "# Memory\n\n## Long-term Memory" not in prompt
-    assert "This file is automatically updated by nanobot" not in prompt
+    assert "This file is automatically updated by Zhixu" not in prompt
 
 
 def test_customized_memory_md_is_injected(tmp_path, monkeypatch) -> None:

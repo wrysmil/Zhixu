@@ -1,6 +1,6 @@
-# Nanobot Python SDK: Run an AI Agent from Python
+# Zhixu Python SDK: Run an AI Agent from Python
 
-This guide shows when to use the Nanobot Python SDK instead of calling a model
+This guide shows when to use the Zhixu Python SDK instead of calling a model
 directly. The SDK runs the same agent runtime used by the CLI: model routing,
 tools, workspace access, session history, memory, streaming events, and runtime
 helpers.
@@ -18,7 +18,7 @@ workflow runners, and integrations that need direct access to agent sessions,
 memory, hooks, runtime state, or structured run results.
 
 Use the OpenAI-compatible API instead when another language or process should
-call nanobot over HTTP.
+call Zhixu over HTTP.
 
 ## Install
 
@@ -67,9 +67,9 @@ asyncio.run(main())
   config loaded.
 - Use explicit `config_path` and `workspace` when scripts run from services.
 
-## Related nanobot docs
+## Related Zhixu docs
 
-- [Nanobot Python SDK](../python-sdk.md)
+- [Zhixu Python SDK](../python-sdk.md)
 - [OpenAI-Compatible API](../openai-api.md)
 - [Configuration](../configuration.md)
 - [Concepts](../concepts.md)

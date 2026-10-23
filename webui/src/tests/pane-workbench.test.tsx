@@ -55,7 +55,6 @@ function WorkbenchHarness({
       splitRatios={tab.splitRatios}
       showLayoutControl
       onActivatePane={setActivePaneKey}
-      onAddPane={vi.fn()}
       onLayoutChange={(layout) => setState((current) => (
         setWorkbenchLayout(current, tabKey, layout)
       ))}
@@ -98,7 +97,6 @@ function BspWorkbenchHarness() {
       splitRatios={[]}
       showLayoutControl
       onActivatePane={vi.fn()}
-      onAddPane={vi.fn()}
       onLayoutChange={vi.fn()}
       onPaneOrderChange={vi.fn()}
       onSplitRatiosChange={vi.fn()}
@@ -319,7 +317,6 @@ describe("PaneWorkbench", () => {
       layout: "columns" as const,
       showLayoutControl: false,
       onActivatePane: vi.fn(),
-      onAddPane: vi.fn(),
       onLayoutChange: vi.fn(),
       onPaneOrderChange: vi.fn(),
       renderPane: (pane: { title: string }) => <span>{pane.title}</span>,
@@ -379,7 +376,6 @@ describe("PaneWorkbench", () => {
       layout: "bsp" as const,
       showLayoutControl: true,
       onActivatePane: vi.fn(),
-      onAddPane: vi.fn(),
       onLayoutChange: vi.fn(),
       onPaneOrderChange: vi.fn(),
       renderPane: (pane: { key: string; title: string }, context: {
@@ -401,27 +397,6 @@ describe("PaneWorkbench", () => {
     expect(screen.queryByTestId("workbench-pane-gamma")).not.toBeInTheDocument();
   });
 
-  it("explains why the desktop add-pane control is disabled", () => {
-    render(
-      <PaneWorkbench
-        panes={[{ key: "alpha", title: "Alpha" }]}
-        activePaneKey="alpha"
-        layout="columns"
-        showLayoutControl={false}
-        addPaneDisabled
-        addPaneDisabledLabel="Maximum 4 panes"
-        onActivatePane={vi.fn()}
-        onAddPane={vi.fn()}
-        onLayoutChange={vi.fn()}
-        onPaneOrderChange={vi.fn()}
-        renderPane={(_pane, context) => context.headerActions}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: "Add pane" }))
-      .toHaveAttribute("title", "Maximum 4 panes");
-  });
-
   it("insets the shared composer host while the session rail is open", () => {
     const view = (composerRailInset?: string) => (
       <PaneWorkbench
@@ -431,7 +406,6 @@ describe("PaneWorkbench", () => {
         showLayoutControl={false}
         composerRailInset={composerRailInset}
         onActivatePane={vi.fn()}
-        onAddPane={vi.fn()}
         onLayoutChange={vi.fn()}
         onPaneOrderChange={vi.fn()}
         renderPane={() => null}
@@ -440,13 +414,66 @@ describe("PaneWorkbench", () => {
 
     const { rerender } = render(view());
     const host = screen.getByTestId("workbench-composer-host");
-    expect(host.style.marginRight).toBe("");
+    const footer = host.parentElement as HTMLElement;
+    expect(footer.style.paddingRight).toBe("");
 
     rerender(view("19rem"));
-    expect(host.style.marginRight).toBe("19rem");
+    // 让位挂在 footer 的 padding 上，宿主宽度才能和消息列共用同一条中线；
+    // 挂在 margin-right 上会让宿主被二次居中、整体右移半个 rail。
+    expect(footer.style.paddingRight).toBe("calc(19rem + 1rem)");
+    expect(host.style.marginRight).toBe("");
+    expect(host.className).not.toMatch(/\bw-full\b/);
 
     rerender(view());
-    expect(host.style.marginRight).toBe("");
+    expect(footer.style.paddingRight).toBe("");
+  });
+
+  it("follows the active pane rail width and removes the footer for an inline welcome composer", () => {
+    render(<PaneWorkbench
+      panes={[{ key: "alpha", title: "Alpha" }]} activePaneKey="alpha"
+      layout="columns" showLayoutControl={false} onActivatePane={vi.fn()}
+      onLayoutChange={vi.fn()} onPaneOrderChange={vi.fn()}
+      renderPane={(_pane, context) => <>
+        <button onClick={() => context.onComposerRailInsetChange?.(520)}>Widen rail</button>
+        <button onClick={() => context.onComposerPlacementChange?.("inline")}>Show welcome</button>
+      </>}
+    />);
+    fireEvent.click(screen.getByRole("button", { name: "Widen rail" }));
+    const footer = screen.getByTestId("workbench-composer-host").parentElement;
+    expect((footer as HTMLElement).style.paddingRight).toBe("calc(520px + 1rem)");
+    fireEvent.click(screen.getByRole("button", { name: "Show welcome" }));
+    expect(footer).toHaveAttribute("hidden");
+  });
+
+  it("drops the rail inset while the rail is hidden on narrow viewports", () => {
+    // rail 本身是 `hidden md:flex`：<768px 时它不存在，输入区就不该被 19rem 白让位。
+    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
+      matches: query.includes("max-width: 767px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+
+    render(
+      <PaneWorkbench
+        panes={[{ key: "alpha", title: "Alpha" }]}
+        activePaneKey="alpha"
+        layout="columns"
+        showLayoutControl={false}
+        composerRailInset="19rem"
+        onActivatePane={vi.fn()}
+        onLayoutChange={vi.fn()}
+        onPaneOrderChange={vi.fn()}
+        renderPane={() => null}
+      />,
+    );
+
+    const host = screen.getByTestId("workbench-composer-host");
+    expect((host.parentElement as HTMLElement).style.paddingRight).toBe("");
   });
 
   it("fills the workbench through alternating binary splits", () => {

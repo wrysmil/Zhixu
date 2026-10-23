@@ -1,5 +1,5 @@
 {
-  "description": "Use Mira from Signal messages.",
+  "description": "Use 知序 from Signal messages.",
   "requirements": "signal-cli HTTP daemon, phone number, allowlist",
   "setup": {
     "docsLabel": "Open Signal setup",

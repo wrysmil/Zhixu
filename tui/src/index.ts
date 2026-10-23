@@ -1,4 +1,4 @@
-import { NanobotTui, sessionExitMessage, type AppOptions } from "./app"
+import { ZhixuTui, sessionExitMessage, type AppOptions } from "./app"
 
 // Keep in sync with _TUI_DETACH_EXIT_CODE in nanobot/cli/tui_launcher.py.
 const TUI_DETACH_EXIT_CODE = 90
@@ -46,7 +46,7 @@ const options: AppOptions = {
   },
 }
 
-let app: NanobotTui | undefined
+let app: ZhixuTui | undefined
 let shuttingDown = false
 
 const shutdown = (code = 0) => {
@@ -69,6 +69,6 @@ process.once("unhandledRejection", (error) => {
   process.stderr.write(`${error instanceof Error ? error.stack || error.message : String(error)}\n`)
 })
 
-app = await NanobotTui.create(options)
+app = await ZhixuTui.create(options)
 if (shuttingDown) app.stop()
 else await app.start()

@@ -24,7 +24,7 @@ from nanobot.bus.queue import MessageBus
 from nanobot.channels.dingtalk.runtime import (
     DingTalkChannel,
     DingTalkConfig,
-    NanobotDingTalkHandler,
+    ZhixuDingTalkHandler,
 )
 
 
@@ -250,7 +250,7 @@ async def test_group_send_uses_group_messages_api() -> None:
         "token",
         "group:conv123",
         "sampleMarkdown",
-        {"text": "hello", "title": "Nanobot Reply"},
+        {"text": "hello", "title": "知序回复"},
     )
 
     assert ok is True
@@ -366,7 +366,7 @@ async def test_handler_uses_voice_recognition_text_when_text_is_empty(monkeypatc
         DingTalkConfig(client_id="app", client_secret="secret", allow_from=["user1"]),
         bus,
     )
-    handler = NanobotDingTalkHandler(channel)
+    handler = ZhixuDingTalkHandler(channel)
 
     class _FakeChatbotMessage:
         text = None
@@ -409,7 +409,7 @@ async def test_handler_retrieves_background_message_failure(monkeypatch) -> None
         DingTalkConfig(client_id="app", client_secret="secret", allow_from=["user1"]),
         bus,
     )
-    handler = NanobotDingTalkHandler(channel)
+    handler = ZhixuDingTalkHandler(channel)
     failure = RuntimeError("inbound dispatch failed")
     mock_logger = MagicMock()
     channel.logger = mock_logger
@@ -465,7 +465,7 @@ async def test_handler_processes_file_message(monkeypatch) -> None:
         DingTalkConfig(client_id="app", client_secret="secret", allow_from=["user1"]),
         bus,
     )
-    handler = NanobotDingTalkHandler(channel)
+    handler = ZhixuDingTalkHandler(channel)
 
     class _FakeFileChatbotMessage:
         text = None
@@ -514,7 +514,7 @@ async def test_handler_does_not_spawn_message_task_after_stop_during_download(
         DingTalkConfig(client_id="app", client_secret="secret", allow_from=["user1"]),
         MessageBus(),
     )
-    handler = NanobotDingTalkHandler(channel)
+    handler = ZhixuDingTalkHandler(channel)
     download_started = asyncio.Event()
     release_download = asyncio.Event()
     message_task_started = asyncio.Event()
@@ -599,7 +599,7 @@ async def test_handler_richtext_keeps_formatted_segments(monkeypatch) -> None:
         DingTalkConfig(client_id="app", client_secret="secret", allow_from=["user1"]),
         bus,
     )
-    handler = NanobotDingTalkHandler(channel)
+    handler = ZhixuDingTalkHandler(channel)
 
     fake_msg = _rich_text_message([
         {"type": "bold", "text": "Title"},
@@ -629,7 +629,7 @@ async def test_handler_richtext_all_formatted_not_dropped(monkeypatch) -> None:
         DingTalkConfig(client_id="app", client_secret="secret", allow_from=["user1"]),
         bus,
     )
-    handler = NanobotDingTalkHandler(channel)
+    handler = ZhixuDingTalkHandler(channel)
 
     fake_msg = _rich_text_message([{"type": "bold", "text": "Important"}])
     monkeypatch.setattr(dingtalk_module, "ChatbotMessage", fake_msg)
@@ -655,7 +655,7 @@ async def test_handler_richtext_item_with_text_and_download(monkeypatch) -> None
         DingTalkConfig(client_id="app", client_secret="secret", allow_from=["user1"]),
         bus,
     )
-    handler = NanobotDingTalkHandler(channel)
+    handler = ZhixuDingTalkHandler(channel)
 
     fake_msg = _rich_text_message([
         {"text": "see attached", "downloadCode": "abc123", "fileName": "report.xlsx"},
@@ -1176,7 +1176,7 @@ async def test_send_batch_message_propagates_transport_error() -> None:
             "token",
             "user123",
             "sampleMarkdown",
-            {"text": "hello", "title": "Nanobot Reply"},
+            {"text": "hello", "title": "知序回复"},
         )
 
     # The POST was attempted exactly once

@@ -33,6 +33,7 @@ from nanobot.session.webui_turns import (
     mark_websocket_turn_transcript_persistence_failed,
     websocket_turn_transcript_persistence_failed,
 )
+from nanobot.teams.events import project_run_snapshot
 from nanobot.webui.gateway_services import GatewayServices
 from nanobot.webui.http_utils import (
     normalize_config_path as _normalize_config_path,
@@ -180,7 +181,7 @@ class WebSocketConfig(Base):
       nanobot and shares the asyncio loop, use a thread or async HTTP client for GET—do not call
       blocking ``urllib`` or synchronous ``httpx`` from inside a coroutine.
     - ``token_issue_secret``: If non-empty, token requests must send ``Authorization: Bearer <secret>`` or
-      ``X-Nanobot-Auth: <secret>``.
+      ``X-Zhixu-Auth: <secret>``.
     - ``public_ws_url``: Optional public WebSocket endpoint returned by WebUI bootstrap instead of
       deriving one from proxy request headers. Its path must match ``path``.
     - ``websocket_requires_token``: If True, the handshake must include a valid token (static or issued and not expired).
@@ -397,7 +398,12 @@ class WebSocketChannel(BaseChannel):
         self._webui_request_tasks = self._commands.request_tasks
         self._webui_request_operations = self._commands.request_operations
         self._webui_request_locks = self._commands.request_locks
-        self._outbound = WebUIOutboundProjector(self, self._session_projection)
+        self._outbound = WebUIOutboundProjector(
+            self,
+            self._session_projection,
+            team_hydration=self._team_run_snapshots,
+            subagent_hydration=self._subagent_execution_snapshots,
+        )
 
         self._stream_text_buffers: dict[tuple[str, str], list[str]] = {}
         self._reasoning_text_buffers: dict[tuple[str, str], list[str]] = {}
@@ -428,6 +434,49 @@ class WebSocketChannel(BaseChannel):
 
     async def webui_hydrate(self, chat_id: str) -> None:
         await self._hydrate_after_subscribe(chat_id)
+
+    async def _team_run_snapshots(self, chat_id: str) -> list[dict[str, Any]]:
+        """重连补发未收口的团队运行；历史运行由前端按需查询，不一次性推全部。
+
+        ``finished_at`` 为空等价于非终态（``TeamRunSnapshot`` 的构造不变式保证）。
+        """
+        service = self.gateway.team_service
+        if service is None:
+            return []
+        page = await asyncio.to_thread(service.repository.list_runs, chat_id)
+        return [
+            project_run_snapshot(run)
+            for run in page["runs"]
+            if getattr(run, "finished_at", None) is None
+        ]
+
+    async def _subagent_execution_snapshots(self, chat_id: str) -> dict[str, Any]:
+        """Replay the same list-shaped snapshot the GET endpoint returns.
+
+        Storage failures are observational degradation only: a missing ledger or
+        a failed read yields an empty page and never interrupts the main stream.
+        """
+        operations = self.gateway.subagent_execution_operations
+        if operations is None:
+            return {
+                "executions": [],
+                "nextCursor": None,
+                "serverNow": "",
+            }
+        try:
+            return await asyncio.to_thread(
+                operations.list_executions,
+                chat_id=chat_id,
+            )
+        except Exception:
+            self.logger.exception(
+                "subagent execution snapshot unavailable for chat {}", chat_id,
+            )
+            return {
+                "executions": [],
+                "nextCursor": None,
+                "serverNow": "",
+            }
 
     async def webui_send_event(
         self,
@@ -1554,3 +1603,23 @@ class WebSocketChannel(BaseChannel):
         raw = json.dumps(body, ensure_ascii=False)
         for connection in conns:
             await self._safe_send_to(connection, raw, label=" turn_model_updated ")
+
+    async def send_writing_event(
+        self,
+        chat_id: str,
+        name: str,
+        body: dict[str, Any],
+    ) -> None:
+        """Fan out one writing-collaboration frame to *chat_id*'s subscribers.
+
+        帧形状由契约 §5 固定：``{"event": <event_name>, "chat_id": <协作会话>, ...body}``。
+        协作状态已落在写作库，重连靠 ``writing.collab.get`` 快照，因此这里**不**做
+        transcript 持久化（与团队事件同构）。
+        """
+        conns = list(self._subs.get(chat_id, ()))
+        if not conns:
+            return
+        frame: dict[str, Any] = {"event": name, "chat_id": chat_id, **body}
+        raw = json.dumps(frame, ensure_ascii=False)
+        for connection in conns:
+            await self._safe_send_to(connection, raw, label=f" {name} ")

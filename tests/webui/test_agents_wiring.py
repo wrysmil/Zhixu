@@ -283,11 +283,18 @@ async def test_router_serves_agents_list_over_get(tmp_path: Path) -> None:
     assert response is not None
     assert response.status_code == 200
     body = json.loads(response.body)
+    # 写作团队五档案（契约 §7）已并入出厂目录，列表接口如实多返回五项。
     assert sorted(a["id"] for a in body["agents"]) == [
         "code-reviewer",
+        "commander",
         "general-assistant",
         "ops-runner",
         "researcher",
+        "writing-architect",
+        "writing-author",
+        "writing-editor",
+        "writing-researcher",
+        "writing-reviewer",
     ]
 
 

@@ -1,7 +1,7 @@
-# Build a WhatsApp AI Agent with nanobot
+# Build a WhatsApp AI Agent with Zhixu
 
-This guide connects nanobot to WhatsApp through the `whatsapp` channel. The
-channel links as a WhatsApp device and uses the same nanobot agent runtime,
+This guide connects Zhixu to WhatsApp through the `whatsapp` channel. The
+channel links as a WhatsApp device and uses the same Zhixu agent runtime,
 tools, memory, and workspace as the CLI and WebUI.
 
 ## What this guide builds
@@ -13,7 +13,7 @@ tools, memory, and workspace as the CLI and WebUI.
 
 ## Prerequisites
 
-- A working local nanobot reply:
+- A working local Zhixu reply:
 
 ```bash
 nanobot agent -m "Hello!"
@@ -22,7 +22,7 @@ nanobot agent -m "Hello!"
 - A WhatsApp account that can link a new device.
 - A machine that can keep `nanobot gateway` running.
 
-## Install nanobot
+## Install Zhixu
 
 ```bash
 python -m pip install nanobot-ai
@@ -94,7 +94,7 @@ workspace as your local CLI check.
 - If QR linking fails, rerun `nanobot channels login whatsapp`.
 - If you are migrating from the old bridge, remove `bridgeUrl` and
   `bridgeToken`, then re-login.
-- If a sender appears as a LID instead of a phone number, let nanobot learn the
+- If a sender appears as a LID instead of a phone number, let Zhixu learn the
   mapping at runtime or use `lidMappings` in the full reference.
 - If a first private message returns a pairing code, approve it before testing
   normal replies.

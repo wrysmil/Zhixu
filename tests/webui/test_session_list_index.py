@@ -19,6 +19,7 @@ from nanobot.session.history_visibility import HIDDEN_HISTORY_META
 from nanobot.session.manager import SessionManager
 from nanobot.session.model_selection import SESSION_MODEL_PRESET_METADATA_KEY
 from nanobot.session.recovery import RECOVERY_METADATA_KEY
+from nanobot.teams.binding import SESSION_TEAM_BINDING_KEY
 
 
 @pytest.fixture(autouse=True)
@@ -88,6 +89,50 @@ def test_webui_session_list_surfaces_pending_recovery_state(tmp_path: Path) -> N
         "recovery_id": "recovery-123",
         "reason": "uncertain_tool_state",
         "attempts": 1,
+    }
+
+
+def test_webui_session_list_indexes_the_team_binding(tmp_path: Path) -> None:
+    manager = SessionManager(tmp_path)
+    bound = manager.get_or_create("websocket:team-bound")
+    bound.add_message("user", "research this")
+    bound.metadata[SESSION_TEAM_BINDING_KEY] = {
+        "teamId": "content-team",
+        "teamRevision": 3,
+        "teamName": "内容团队",
+    }
+    manager.save(bound)
+    manager.save(manager.get_or_create("websocket:plain"))
+
+    rows = {row["key"]: row for row in list_webui_sessions(manager)}
+
+    assert rows["websocket:team-bound"]["team_binding"] == {
+        "teamId": "content-team",
+        "teamRevision": 3,
+        "teamName": "内容团队",
+    }
+    # 已有会话没有该字段一律按普通聊天解释（契约 §4）。
+    assert rows["websocket:plain"]["team_binding"] is None
+
+    # 首条消息之后才落地的绑定，要在下一次列表刷新里出现。
+    late = manager.get_or_create("websocket:late-binding")
+    late.add_message("user", "hello")
+    manager.save(late)
+    refreshed = {row["key"]: row for row in list_webui_sessions(manager)}
+    assert refreshed["websocket:late-binding"]["team_binding"] is None
+
+    late.metadata[SESSION_TEAM_BINDING_KEY] = {
+        "teamId": "second-team",
+        "teamRevision": 1,
+        "teamName": "第二个团队",
+    }
+    manager.save(late)
+
+    again = {row["key"]: row for row in list_webui_sessions(manager)}
+    assert again["websocket:late-binding"]["team_binding"] == {
+        "teamId": "second-team",
+        "teamRevision": 1,
+        "teamName": "第二个团队",
     }
 
 

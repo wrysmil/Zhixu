@@ -28,7 +28,14 @@ interface WorkspaceFileTreeProps {
    * fetcher to the workspace endpoint). Defaults to the session-anchored
    * listing when omitted.
    */
-  fetchDirectory?: (token: string, path: string | null) => Promise<SessionDirectoryPayload>;
+  fetchDirectory?: (
+    token: string,
+    path: string | null,
+    showHidden: boolean,
+  ) => Promise<SessionDirectoryPayload>;
+  showHidden?: boolean;
+  refreshToken?: number;
+  collapseToken?: number;
 }
 
 export function WorkspaceFileTree({
@@ -36,6 +43,9 @@ export function WorkspaceFileTree({
   getToken,
   onOpenFilePreview,
   fetchDirectory,
+  showHidden = false,
+  refreshToken = 0,
+  collapseToken = 0,
 }: WorkspaceFileTreeProps) {
   const { t } = useTranslation();
   const [nodes, setNodes] = useState<Record<string, NodeState>>({});
@@ -48,8 +58,14 @@ export function WorkspaceFileTree({
       setNodes((current) => ({ ...current, [nodeKey]: { status: "loading" } }));
       try {
         const payload = fetchDirectory
-          ? await fetchDirectory(getTokenRef.current(), path)
-          : await fetchSessionDirectory(getTokenRef.current(), sessionKey ?? "", path);
+          ? await fetchDirectory(getTokenRef.current(), path, showHidden)
+          : await fetchSessionDirectory(
+              getTokenRef.current(),
+              sessionKey ?? "",
+              path,
+              "",
+              showHidden,
+            );
         setNodes((current) => ({
           ...current,
           [nodeKey]: {
@@ -62,14 +78,18 @@ export function WorkspaceFileTree({
         setNodes((current) => ({ ...current, [nodeKey]: { status: "error" } }));
       }
     },
-    [sessionKey, fetchDirectory],
+    [sessionKey, fetchDirectory, showHidden],
   );
 
   useEffect(() => {
     setNodes({});
     setExpanded({});
     void load(null, ROOT_KEY);
-  }, [load]);
+  }, [load, refreshToken]);
+
+  useEffect(() => {
+    if (collapseToken > 0) setExpanded({});
+  }, [collapseToken]);
 
   const onToggleDir = (entry: SessionDirectoryEntry) => {
     const willOpen = !expanded[entry.path];
@@ -131,7 +151,11 @@ export function WorkspaceFileTree({
                   aria-expanded={Boolean(expanded[entry.path])}
                   onClick={() => onToggleDir(entry)}
                   title={entry.display_path}
-                  className="flex w-full min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left text-[12px] text-muted-foreground hover:bg-muted/45 hover:text-foreground"
+                  data-hidden={entry.hidden ? "true" : undefined}
+                  className={cn(
+                    "flex w-full min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left text-[12px] text-muted-foreground hover:bg-muted/45 hover:text-foreground",
+                    entry.hidden && "opacity-60",
+                  )}
                 >
                   <ChevronRight
                     className={cn(
@@ -159,7 +183,11 @@ export function WorkspaceFileTree({
                 onClick={() => onOpenFilePreview?.(entry.path)}
                 disabled={!onOpenFilePreview}
                 title={entry.display_path}
-                className="flex w-full min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left text-[12px] text-muted-foreground enabled:hover:bg-muted/45 enabled:hover:text-foreground disabled:cursor-default"
+                data-hidden={entry.hidden ? "true" : undefined}
+                className={cn(
+                  "flex w-full min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left text-[12px] text-muted-foreground enabled:hover:bg-muted/45 enabled:hover:text-foreground disabled:cursor-default",
+                  entry.hidden && "opacity-60",
+                )}
               >
                 <ChevronRight className="h-3 w-3 shrink-0 opacity-0" aria-hidden />
                 <File className="h-3 w-3 shrink-0 opacity-50" aria-hidden />

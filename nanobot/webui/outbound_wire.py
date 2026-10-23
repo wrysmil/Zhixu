@@ -14,6 +14,8 @@ from nanobot.bus.outbound_events import (
     TurnEndEvent,
 )
 from nanobot.events import AgentEvent
+from nanobot.subagent_executions.events import project_execution_event
+from nanobot.teams.events import TeamRunUpdateEvent
 from nanobot.webui.metadata import WEBUI_TURN_METADATA_KEY
 
 
@@ -60,6 +62,47 @@ class ContextCompactionWirePayload(_ChatWirePayload):
     phase: Literal["started", "succeeded", "failed", "cancelled"]
 
 
+@dataclass(frozen=True)
+class SubagentExecutionWireEvent(AgentEvent):
+    """One already-recorded execution event awaiting WebUI projection."""
+
+    data: dict[str, Any]
+
+
+class TeamEventWirePayload(TypedDict):
+    # 契约 §6 的运行更新帧：``data`` 是白名单投影后的 TeamEvent，``turn_id`` 用它自己的
+    # turnId（一条运行的事件属于开始它的那一轮，不跟当前轮走）。
+    event: Literal["team_event"]
+    type: Literal["team_event"]
+    chat_id: str
+    turn_id: str
+    data: dict[str, Any]
+
+
+class TeamSnapshotWirePayload(TypedDict):
+    # 重连补发的运行快照：前端先收快照再按 seq 补拉，两条路都必须带 lastSeq。
+    event: Literal["team_snapshot"]
+    type: Literal["team_snapshot"]
+    chat_id: str
+    turn_id: str
+    data: dict[str, Any]
+
+
+class SubagentExecutionEventWirePayload(TypedDict):
+    event: Literal["subagent_execution_event"]
+    type: Literal["subagent_execution_event"]
+    chat_id: str
+    turn_id: str
+    data: dict[str, Any]
+
+
+class SubagentExecutionSnapshotWirePayload(TypedDict):
+    event: Literal["subagent_execution_snapshot"]
+    type: Literal["subagent_execution_snapshot"]
+    chat_id: str
+    data: dict[str, Any]
+
+
 TerminalWireStatus: TypeAlias = Literal["ok", "already_running", "limit_reached", "error"]
 TerminalOutputStream: TypeAlias = Literal["stdout", "stderr"]
 
@@ -86,6 +129,15 @@ class TerminalOutputWirePayload(TypedDict):
     data: str
 
 
+class TerminalSnapshotWirePayload(TypedDict):
+    event: Literal["terminal_snapshot"]
+    type: Literal["terminal_snapshot"]
+    terminal_id: str
+    seq: int
+    data: str
+    truncated: bool
+
+
 class TerminalExitWirePayload(TypedDict):
     event: Literal["terminal_exit"]
     type: Literal["terminal_exit"]
@@ -107,7 +159,9 @@ class TerminalListResultWirePayload(TypedDict):
 
 
 WebUIWirePayload: TypeAlias = (
-    RetryStatusWirePayload | ContextCompactionWirePayload | RecoveryStateWirePayload | TurnEndWirePayload
+    RetryStatusWirePayload | ContextCompactionWirePayload | RecoveryStateWirePayload
+    | TurnEndWirePayload | TeamEventWirePayload | TeamSnapshotWirePayload
+    | SubagentExecutionEventWirePayload | SubagentExecutionSnapshotWirePayload
 )
 WebUIWirePersistence: TypeAlias = Literal[
     "transient",
@@ -149,6 +203,61 @@ def encode_context_compaction(
     return payload
 
 
+def encode_team_event(chat_id: str, event: TeamRunUpdateEvent) -> TeamEventWirePayload:
+    """Project one persisted team update onto its frame; the payload is already allowlisted."""
+    data = dict(event.payload)
+    return {
+        "event": "team_event",
+        "type": "team_event",
+        "chat_id": chat_id,
+        "turn_id": str(data.get("turnId") or ""),
+        "data": data,
+    }
+
+
+def encode_team_snapshot(chat_id: str, run: Mapping[str, Any]) -> TeamSnapshotWirePayload:
+    """Project one run snapshot onto the reconnect frame."""
+    return {
+        "event": "team_snapshot",
+        "type": "team_snapshot",
+        "chat_id": chat_id,
+        "turn_id": str(run.get("turnId") or ""),
+        "data": dict(run),
+    }
+
+
+def encode_subagent_execution_event(
+    chat_id: str,
+    event: SubagentExecutionWireEvent,
+) -> SubagentExecutionEventWirePayload | None:
+    """Project one realtime execution event, ignoring unknown schemas safely."""
+    data = project_execution_event(event.data)
+    if data is None:
+        return None
+    if data.get("chatId") != chat_id:
+        return None
+    return {
+        "event": "subagent_execution_event",
+        "type": "subagent_execution_event",
+        "chat_id": chat_id,
+        "turn_id": str(data.get("parentTurnId") or ""),
+        "data": data,
+    }
+
+
+def encode_subagent_execution_snapshot(
+    chat_id: str,
+    snapshot: Mapping[str, Any],
+) -> SubagentExecutionSnapshotWirePayload:
+    """Encode the list-shaped hydrate snapshot used before seq catch-up."""
+    return {
+        "event": "subagent_execution_snapshot",
+        "type": "subagent_execution_snapshot",
+        "chat_id": chat_id,
+        "data": dict(snapshot),
+    }
+
+
 @dataclass(frozen=True)
 class NotificationProjection:
     """Allowlisted public payload and its durability policy."""
@@ -172,6 +281,9 @@ def project_notification(
         )
     if isinstance(event, RetryStatusEvent):
         return NotificationProjection(encode_retry_status(chat_id, event, metadata))
+    if isinstance(event, TeamRunUpdateEvent):
+        # 团队事件不进 transcript：状态已经落在 teams/state.db，重连靠快照 + 按 seq 补拉。
+        return NotificationProjection(encode_team_event(chat_id, event))
     if isinstance(event, RecoveryStateEvent):
         return NotificationProjection(encode_recovery_state(chat_id, event))
     return None
@@ -275,6 +387,24 @@ def encode_terminal_output(
         "data": data,
     }
     return payload
+
+
+def encode_terminal_snapshot(
+    *,
+    terminal_id: str,
+    seq: int,
+    data: str,
+    truncated: bool,
+) -> TerminalSnapshotWirePayload:
+    """Bounded tail replay sent to the chat that just took the terminal over."""
+    return {
+        "event": "terminal_snapshot",
+        "type": "terminal_snapshot",
+        "terminal_id": terminal_id,
+        "seq": int(seq),
+        "data": data,
+        "truncated": bool(truncated),
+    }
 
 
 def encode_terminal_exit(

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import re
+import stat
+import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
@@ -12,6 +15,7 @@ from nanobot.security.workspace_access import WorkspaceScope
 from nanobot.security.workspace_policy import WorkspaceBoundaryError, resolve_allowed_path
 
 MAX_FILE_PREVIEW_BYTES = 384 * 1024
+MAX_FILE_SAVE_BYTES = 4 * 1024 * 1024
 
 
 class WebUIFilePreviewError(ValueError):
@@ -58,6 +62,51 @@ def file_preview_payload(
         "content": content,
         "size": resolved.stat().st_size,
         "truncated": truncated,
+    }
+
+
+def file_save_payload(
+    raw_path: str | None,
+    content: Any,
+    *,
+    scope: WorkspaceScope,
+    max_bytes: int = MAX_FILE_SAVE_BYTES,
+) -> dict[str, Any]:
+    """Overwrite a workspace text file with editor content, atomically."""
+
+    if not isinstance(content, str):
+        raise WebUIFilePreviewError(400, "missing content")
+    encoded = content.encode("utf-8")
+    if len(encoded) > max_bytes:
+        raise WebUIFilePreviewError(413, "content is too large to save")
+
+    resolved = _resolve_preview_path(raw_path, scope=scope)
+    temp_path: Path | None = None
+    try:
+        mode = stat.S_IMODE(resolved.stat().st_mode)
+        with tempfile.NamedTemporaryFile(
+            "wb",
+            dir=resolved.parent,
+            prefix=f".{resolved.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temp_path = Path(handle.name)
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temp_path, mode)
+        os.replace(temp_path, resolved)
+    except OSError as e:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+        raise WebUIFilePreviewError(500, "failed to save file") from e
+
+    return {
+        "path": str(resolved),
+        "display_path": _display_path(resolved, scope.project_path),
+        "language": _language_for_path(resolved),
+        "size": len(encoded),
     }
 
 

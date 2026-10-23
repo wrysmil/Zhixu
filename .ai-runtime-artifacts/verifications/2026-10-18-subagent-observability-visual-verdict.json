@@ -1,0 +1,20 @@
+{
+  "artifact": "visual-verdict",
+  "created_at": "2026-10-18",
+  "scope": "design-preview-only",
+  "iteration": 4,
+  "verdict": "pass_for_design_review",
+  "evidence": [
+    "CUA browser: theme task menu, native keyboard switching from research to verify",
+    "2026-10-18-subagent-observability-preview/task-menu-final-narrow.png",
+    "User screenshot codex-clipboard-a55f4d4b-27bb-4942-b7e8-3422a4993737.png"
+  ],
+  "findings": [
+    "主题菜单、两行任务身份、状态和勾选在窄屏截图中清楚可见。",
+    "预览交互回归7/7，退出码0。",
+    "实际浏览器确认：键盘选择后焦点回触发器；Escape仅关菜单；展开菜单仍能关闭详情。",
+    "完整设备矩阵及真实Agent链路未实施，不纳入此设计预览的通过声明。"
+  ],
+  "next_revision": null,
+  "product_feature_acceptance": "pending_implementation"
+}

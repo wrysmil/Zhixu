@@ -13,8 +13,6 @@ const SETTINGS_SECTION_KEYS: SettingsSectionKey[] = [
   "automations",
   "skills",
   "agents",
-  "memory",
-  "identity",
   "runtime",
   "advanced",
 ];
@@ -36,7 +34,7 @@ function decodeRouteSegment(encoded: string): string | null {
   }
 }
 
-const CAPABILITY_VIEWS = ["apps", "automations", "skills", "agents"] as const;
+const CAPABILITY_VIEWS = ["apps", "automations", "skills", "agents", "teams"] as const;
 
 /**
  * Pure hash parser shared by the live App and the static preview. It never
@@ -57,6 +55,9 @@ export function parseWorkspaceHash(rawHash: string): WorkspaceRoute {
   if (path === "/new") return { view: "chat", chatKey: null };
 
   if (path === "/settings") return { view: "settings", chatKey, settingsSection };
+
+  if (path === "/memory") return { view: "memory", chatKey };
+  if (path === "/identity") return { view: "identity", chatKey };
 
   for (const capability of CAPABILITY_VIEWS) {
     if (path === `/${capability}`) {
@@ -113,7 +114,7 @@ export function settingsSectionForView(
   view: WorkspaceRoute["view"],
   section?: SettingsSectionKey,
 ): SettingsSectionKey {
-  if (view === "apps" || view === "automations" || view === "skills" || view === "agents") {
+  if (view === "apps" || view === "automations" || view === "skills" || view === "agents" || view === "teams") {
     return view;
   }
   return section ?? "overview";

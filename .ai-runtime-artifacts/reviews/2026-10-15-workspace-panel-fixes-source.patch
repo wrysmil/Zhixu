@@ -1,0 +1,1686 @@
+diff --git a/nanobot/webui/inbound_commands.py b/nanobot/webui/inbound_commands.py
+index 8d4420b..63cdcd4 100644
+--- a/nanobot/webui/inbound_commands.py
++++ b/nanobot/webui/inbound_commands.py
+@@ -651,16 +651,21 @@ class WebUICommandRouter:
+             )
+             await self._publish_terminal(chat_id, connection, payload)
+             return
+-        bridge = self._terminal_bridge()
+-        session_key = webui_session_key(chat_id)
+-        result = await bridge.start(
+-            terminal_id=terminal_id,
+-            scope=scope,
+-            chat_id=chat_id,
+-            session_key=session_key,
+-            publisher=self._terminal_publisher(chat_id),
+-            shell=raw_shell if isinstance(raw_shell, str) else None,
+-        )
++        try:
++            bridge = self._terminal_bridge()
++            result = await bridge.start(
++                terminal_id=terminal_id,
++                scope=scope,
++                chat_id=chat_id,
++                session_key=webui_session_key(chat_id),
++                publisher=self._terminal_publisher(chat_id),
++                shell=raw_shell if isinstance(raw_shell, str) else None,
++            )
++        except Exception:
++            # Keep the connection alive and identify the failed request so its
++            # tab can leave "starting" without exposing subprocess internals.
++            logger.exception("webui terminal start failed for {}", terminal_id)
++            result = {"status": "error", "message": "terminal_start_failed"}
+         payload = encode_terminal_started(
+             terminal_id=terminal_id,
+             shell=str(result.get("shell") or ""),
+diff --git a/nanobot/webui/outbound_wire.py b/nanobot/webui/outbound_wire.py
+index 6024cf7..ffc02d3 100644
+--- a/nanobot/webui/outbound_wire.py
++++ b/nanobot/webui/outbound_wire.py
+@@ -98,6 +98,7 @@ class TerminalListEntryWire(TypedDict):
+     status: Literal["running", "exited"]
+     shell: str
+     cwd: str
++    session_key: NotRequired[str]
+ 
+ 
+ class TerminalListResultWirePayload(TypedDict):
+diff --git a/nanobot/webui/pty_terminal.py b/nanobot/webui/pty_terminal.py
+index 3e941b3..591aad0 100644
+--- a/nanobot/webui/pty_terminal.py
++++ b/nanobot/webui/pty_terminal.py
+@@ -98,6 +98,7 @@ def _set_pty_size(fd: int, rows: int, cols: int) -> None:
+ @dataclass
+ class _ExitedMeta:
+     chat_id: str
++    session_key: str
+     shell: str
+     cwd: str
+     deadline: float
+@@ -314,6 +315,7 @@ class PtyTerminalBridge:
+                     "status": "exited" if exited else "running",
+                     "shell": terminal.shell,
+                     "cwd": terminal.cwd,
++                    "session_key": terminal.session_key,
+                 }
+             )
+         now = time.monotonic()
+@@ -327,6 +329,7 @@ class PtyTerminalBridge:
+                         "status": "exited",
+                         "shell": meta.shell,
+                         "cwd": meta.cwd,
++                        "session_key": meta.session_key,
+                     }
+                 )
+         return entries
+@@ -426,6 +429,7 @@ class PtyTerminalBridge:
+         self._terminals.pop(terminal.terminal_id, None)
+         self._exited[terminal.terminal_id] = _ExitedMeta(
+             chat_id=terminal.chat_id,
++            session_key=terminal.session_key,
+             shell=terminal.shell,
+             cwd=terminal.cwd,
+             deadline=time.monotonic() + EXITED_GRACE_S,
+@@ -509,7 +513,11 @@ class TerminalSupervisor:
+         self._owner: dict[str, str] = {}
+ 
+     def _live_count(self) -> int:
+-        return len(self._pty._terminals) + len(self._pipe._terminals)  # pyright: ignore[reportPrivateUsage]
++        return sum(
++            len(bridge._terminals)  # pyright: ignore[reportPrivateUsage]
++            for bridge in (self._pty, self._pipe)
++            if bridge is not None
++        )
+ 
+     def _route(self, terminal_id: str) -> Any | None:
+         name = self._owner.get(terminal_id)
+diff --git a/nanobot/webui/terminal_bridge.py b/nanobot/webui/terminal_bridge.py
+index d69c941..68f1ba9 100644
+--- a/nanobot/webui/terminal_bridge.py
++++ b/nanobot/webui/terminal_bridge.py
+@@ -277,8 +277,8 @@ class WebuiTerminalBridge:
+         )
+         self._poll_interval_s = max(float(poll_interval_s), 0.01)
+         self._terminals: dict[str, _ShellTerminal] = {}
+-        # id -> (chat_id, shell, cwd, deadline) grace metadata, mirrors PtyTerminalBridge.
+-        self._exited: dict[str, tuple[str, str, str, float]] = {}
++        # id -> (chat_id, shell, cwd, deadline, session_key) grace metadata.
++        self._exited: dict[str, tuple[str, str, str, float, str]] = {}
+         self._closed = False
+ 
+     # -- public API ---------------------------------------------------------
+@@ -492,11 +492,12 @@ class WebuiTerminalBridge:
+                     "status": "exited" if exited else "running",
+                     "shell": terminal.shell,
+                     "cwd": terminal.cwd,
++                    "session_key": terminal.session_key,
+                 }
+             )
+         now = time.monotonic()
+         for terminal_id, entry in list(self._exited.items()):
+-            chat, shell_name, cwd, deadline = entry
++            chat, shell_name, cwd, deadline, session_key = entry
+             if deadline < now:
+                 self._exited.pop(terminal_id, None)
+             elif chat in wanted:
+@@ -506,6 +507,7 @@ class WebuiTerminalBridge:
+                         "status": "exited",
+                         "shell": shell_name,
+                         "cwd": cwd,
++                        "session_key": session_key,
+                     }
+                 )
+         return entries
+@@ -679,13 +681,14 @@ class WebuiTerminalBridge:
+         terminal.finalized = True
+         self._terminals.pop(terminal.terminal_id, None)
+         now = time.monotonic()
+-        for stale in [key for key, (_, _, _, deadline) in self._exited.items() if deadline < now]:
++        for stale in [key for key, (_, _, _, deadline, _) in self._exited.items() if deadline < now]:
+             self._exited.pop(stale, None)
+         self._exited[terminal.terminal_id] = (
+             terminal.chat_id,
+             terminal.shell,
+             terminal.cwd,
+             now + EXITED_GRACE_S,
++            terminal.session_key,
+         )
+         task = terminal.poll_task
+         if task is not None and task is not asyncio.current_task() and not task.done():
+diff --git a/tests/test_webui_terminal.py b/tests/test_webui_terminal.py
+index 515654a..395f9ee 100644
+--- a/tests/test_webui_terminal.py
++++ b/tests/test_webui_terminal.py
+@@ -1172,3 +1172,73 @@ async def test_start_rejects_bad_shell_name_before_bridge(tmp_path: Path) -> Non
+         assert started[-1]["message"] == "shell_unavailable"
+     finally:
+         await router.close()
++
++
++@pytest.mark.parametrize("restricted", [False, True])
++async def test_supervisor_without_pty_starts_writes_and_enforces_limit(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, restricted: bool
++) -> None:
++    """Windows must keep a working pipe terminal when no PTY bridge exists."""
++    from nanobot.webui import pty_terminal
++
++    monkeypatch.setattr(pty_terminal, "PTY_SUPPORTED", False)
++    manager = ExecSessionManager(max_sessions=1, idle_timeout=1800)
++    bridge = pty_terminal.create_terminal_bridge(manager, max_terminals=1)
++    scope = default_workspace_scope(tmp_path, restrict_to_workspace=restricted)
++    collector = Collector()
++    start_fields = {
++        "scope": scope,
++        "chat_id": "chat1",
++        "session_key": "websocket:chat1",
++        "publisher": collector,
++    }
++    try:
++        result = await bridge.start(terminal_id="pipe-only", **start_fields)
++        assert result["status"] == "ok"
++        assert result["pty"] is False
++        assert bridge.owner_chat("pipe-only") == "chat1"
++        assert bridge.list_visible({"chat1"})[0]["session_key"] == "websocket:chat1"
++
++        takeover = await bridge.start(terminal_id="pipe-only", **start_fields)
++        assert takeover["status"] == "already_running"
++        overflow = await bridge.start(terminal_id="overflow", **start_fields)
++        assert overflow["status"] == "limit_reached"
++
++        assert await bridge.write(terminal_id="pipe-only", data="echo PIPE_ONLY_OK\n") is None
++        await _wait_until(lambda: "PIPE_ONLY_OK" in collector.text("terminal_output"))
++        assert await bridge.kill(terminal_id="pipe-only") is None
++        assert len(collector.of("terminal_exit")) == 1
++        assert bridge.list_visible({"chat1"})[0]["session_key"] == "websocket:chat1"
++    finally:
++        await bridge.aclose()
++
++
++async def test_router_reports_unexpected_start_failure_for_the_requested_terminal(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    router, transport, bridge, connection = _make_fake_bridge_router(tmp_path)
++
++    async def fail_start(**kwargs: Any) -> dict[str, Any]:
++        raise RuntimeError("private subprocess details")
++
++    monkeypatch.setattr(bridge, "start", fail_start)
++    try:
++        await router.dispatch(
++            connection,
++            "client-1",
++            {"type": "terminal_start", "terminal_id": "term-1"},
++        )
++        assert transport.of("terminal_started") == [
++            {
++                "event": "terminal_started",
++                "type": "terminal_started",
++                "terminal_id": "term-1",
++                "shell": "",
++                "cwd": str(tmp_path.resolve()),
++                "status": "error",
++                "message": "terminal_start_failed",
++                "pty": False,
++            }
++        ]
++    finally:
++        await router.close()
+diff --git a/tests/test_webui_terminal_shells.py b/tests/test_webui_terminal_shells.py
+index c6fb8a9..608fae9 100644
+--- a/tests/test_webui_terminal_shells.py
++++ b/tests/test_webui_terminal_shells.py
+@@ -23,10 +23,17 @@ def _request(path: str) -> SimpleNamespace:
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_shells_route_lists_whitelisted_installed_shells(monkeypatch):
++@pytest.mark.parametrize(
++    ("is_windows", "shell", "shell_path"),
++    [(False, "zsh", "/bin/zsh"), (True, "cmd", "C:/Windows/System32/cmd.exe")],
++)
++async def test_shells_route_lists_whitelisted_installed_shells(
++    monkeypatch, is_windows, shell, shell_path
++):
++    monkeypatch.setattr("nanobot.webui.pty_terminal._IS_WINDOWS", is_windows)
+     monkeypatch.setattr(
+         "nanobot.webui.pty_terminal.shutil.which",
+-        lambda name: "/bin/zsh" if name == "zsh" else None,
++        lambda name: shell_path if name == shell else None,
+     )
+     monkeypatch.setattr("nanobot.webui.pty_terminal.os.environ.get", lambda key, **k: None)
+     handler = _handler(True)
+@@ -36,8 +43,8 @@ async def test_shells_route_lists_whitelisted_installed_shells(monkeypatch):
+     )
+     assert response is not None and response.status_code == 200
+     payload = json.loads(response.body)
+-    assert [entry["id"] for entry in payload["shells"]] == ["zsh"]
+-    assert payload["default"] == "zsh"
++    assert [entry["id"] for entry in payload["shells"]] == [shell]
++    assert payload["default"] == shell
+     for entry in payload["shells"]:
+         assert set(entry) == {"id", "label", "path"}
+ 
+diff --git a/webui/src/App.tsx b/webui/src/App.tsx
+index 22ce603..6d6173a 100644
+--- a/webui/src/App.tsx
++++ b/webui/src/App.tsx
+@@ -19,11 +19,10 @@ import { channelUiPresentation } from "@/channel-plugins/registry";
+ import { Sidebar } from "@/components/Sidebar";
+ import { PROJECTS_SECTION_KEY, type SidebarDeleteItem } from "@/components/ChatList";
+ import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
+-import { resolveDockShortcut } from "@/lib/dock-shortcuts";
++import { DOCK_OPEN_EVENT, resolveDockShortcut } from "@/lib/dock-shortcuts";
+ import type { SettingsSectionKey } from "@/components/settings/SettingsView";
+ import { ThreadShell } from "@/components/thread/ThreadShell";
+ import { PaneWorkbench } from "@/components/workbench/PaneWorkbench";
+-import { SESSION_WORKBENCH_RAIL_WIDTH } from "@/components/workbench/SessionWorkbench";
+ import { WorkbenchTabBar } from "@/components/workbench/WorkbenchTabBar";
+ import {
+   MAX_WORKBENCH_PANES,
+@@ -1927,6 +1926,7 @@ function Shell({
+         const scope = activeKey ?? HOME_DOCK_SCOPE;
+         if (dockSection === "file") dockStore.openFile(scope);
+         else dockStore.openBrowser(scope);
++        window.dispatchEvent(new CustomEvent(DOCK_OPEN_EVENT, { detail: { scope } }));
+         return;
+       }
+       const plainCommandK =
+@@ -2381,10 +2381,10 @@ function Shell({
+     workbenchPaneSessions,
+   ]);
+   const renderedActivePaneKey = activeKey ?? renderedWorkbenchPanes[0].key;
+-  const [paneWorkbenchOpen, setPaneWorkbenchOpen] = useState<Record<string, boolean>>({});
+-  const onPaneWorkbenchOpenChange = useCallback((paneKey: string, open: boolean) => {
+-    setPaneWorkbenchOpen((current) => (
+-      current[paneKey] === open ? current : { ...current, [paneKey]: open }
++  const [paneWorkbenchRailWidths, setPaneWorkbenchRailWidths] = useState<Record<string, number>>({});
++  const onPaneWorkbenchRailWidthChange = useCallback((paneKey: string, width: number) => {
++    setPaneWorkbenchRailWidths((current) => (
++      current[paneKey] === width ? current : { ...current, [paneKey]: width }
+     ));
+   }, []);
+   const renderedWorkbenchLayout = paneChromeEnabled && activeTabState
+@@ -2777,8 +2777,8 @@ function Shell({
+                         setWorkbenchSplitRatios(current, activeTabKey, splitRatios)
+                       ));
+                     }}
+-                    composerRailInset={paneWorkbenchOpen[renderedActivePaneKey]
+-                      ? SESSION_WORKBENCH_RAIL_WIDTH
++                    composerRailInset={paneWorkbenchRailWidths[renderedActivePaneKey]
++                      ? `${paneWorkbenchRailWidths[renderedActivePaneKey]}px`
+                       : undefined}
+                     renderPane={(pane, context) => {
+                       if (!paneChromeEnabled) {
+@@ -2874,7 +2874,7 @@ function Shell({
+                           settingsSnapshot={settingsSnapshot}
+                           onOpenModelSettings={onOpenModelSettings}
+                           skills={skills}
+-                          onWorkbenchOpenChange={(open) => onPaneWorkbenchOpenChange(pane.key, open)}
++                          onWorkbenchRailWidthChange={(width) => onPaneWorkbenchRailWidthChange(pane.key, width)}
+                         />
+                       );
+                     }}
+@@ -2883,6 +2883,7 @@ function Shell({
+                 {view === "chat" && activeKey === null && !mobileWorkbench ? (
+                   <Suspense fallback={null}>
+                     <StartDock
++                      defaultCollapsed
+                       scope={HOME_DOCK_SCOPE}
+                       sessionKey={null}
+                       getToken={getToken}
+diff --git a/webui/src/components/dock/DockFileTab.tsx b/webui/src/components/dock/DockFileTab.tsx
+index 1688924..aac8a79 100644
+--- a/webui/src/components/dock/DockFileTab.tsx
++++ b/webui/src/components/dock/DockFileTab.tsx
+@@ -65,7 +65,7 @@ function DockFilePreview({
+     <div
+       data-testid="dock-file-preview"
+       aria-label={t("filePreview.aria", { defaultValue: "File preview" })}
+-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border/50 bg-background/70"
++      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border/50 bg-background/70"
+     >
+       <div className="flex h-8 shrink-0 items-center gap-2 border-b border-border/40 px-2" title={path}>
+         <span
+@@ -171,7 +171,7 @@ export function DockFileTab({
+   const openPreview = onOpenFilePreview ?? setPreviewPath;
+ 
+   const renderTree = () => (
+-    <div className="flex min-h-0 flex-1 flex-col gap-2">
++    <div className="flex min-h-0 min-w-0 flex-1 gap-2 overflow-hidden">
+       {previewPath && !onOpenFilePreview ? (
+         <DockFilePreview
+           getToken={getToken}
+@@ -180,6 +180,12 @@ export function DockFileTab({
+           onClose={() => setPreviewPath(null)}
+         />
+       ) : null}
++      <div
++        data-testid="dock-file-tree"
++        className={previewPath && !onOpenFilePreview
++          ? "min-h-0 min-w-0 w-[38%] max-w-[14rem] shrink-0 overflow-auto border-l border-border/40 pl-2 scrollbar-thin"
++          : "min-h-0 min-w-0 flex-1 overflow-auto scrollbar-thin"}
++      >
+       {homeAnchored ? (
+         <WorkspaceFileTree
+           getToken={getToken}
+@@ -193,6 +199,7 @@ export function DockFileTab({
+           onOpenFilePreview={openPreview}
+         />
+       )}
++      </div>
+     </div>
+   );
+ 
+@@ -200,7 +207,7 @@ export function DockFileTab({
+     return (
+       <div
+         data-scope={scope}
+-        className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto px-3 py-2 scrollbar-thin"
++        className="flex h-full min-h-0 min-w-0 flex-col gap-2 overflow-hidden px-3 py-2"
+       >
+         {renderTree()}
+       </div>
+@@ -256,7 +263,7 @@ export function DockFileTab({
+   return (
+     <div
+       data-scope={scope}
+-      className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto px-3 py-2 scrollbar-thin"
++      className="flex h-full min-h-0 min-w-0 flex-col gap-2 overflow-hidden px-3 py-2"
+     >
+       {renderTree()}
+     </div>
+diff --git a/webui/src/components/dock/StartDock.tsx b/webui/src/components/dock/StartDock.tsx
+index 20bcd78..fd1306a 100644
+--- a/webui/src/components/dock/StartDock.tsx
++++ b/webui/src/components/dock/StartDock.tsx
+@@ -27,6 +27,7 @@ import { TerminalSurface } from "@/components/workbench/TerminalSurface";
+ import { defaultGenerateTerminalId } from "@/components/workbench/terminal-shared";
+ import { useTerminalStore } from "@/hooks/useNanobotStream";
+ import { fetchTerminalShells, type TerminalShellsPayload } from "@/lib/api";
++import { DOCK_OPEN_EVENT, type DockOpenDetail } from "@/lib/dock-shortcuts";
+ import {
+   dockStore,
+   dockTerminalTitle,
+@@ -82,6 +83,7 @@ const CARD_SPECS: CardSpec[] = [
+ export interface StartDockProps {
+   /** 宿主形态：rail = 首页独立右坞；embedded = SessionWorkbench 内嵌（Task 10），不渲染自身 aside 与折叠按钮。 */
+   variant?: "rail" | "embedded";
++  defaultCollapsed?: boolean;
+   /** dock scope：首页为 HOME_DOCK_SCOPE，会话页为 `websocket:<chat_id>`（Task 10）。 */
+   scope: string;
+   sessionKey: string | null;
+@@ -92,6 +94,7 @@ export interface StartDockProps {
+ 
+ export function StartDock({
+   variant = "rail",
++  defaultCollapsed = false,
+   scope,
+   sessionKey,
+   getToken,
+@@ -102,7 +105,7 @@ export function StartDock({
+   const { client } = useClient();
+   const snapshot = useDockTabs(scope);
+   const { store: terminalStore, terminals } = useTerminalStore();
+-  const [collapsed, setCollapsed] = useState(false);
++  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+   const [plusOpen, setPlusOpen] = useState(false);
+   const [shellSubOpen, setShellSubOpen] = useState(false);
+   const [shells, setShells] = useState<TerminalShellsPayload | null>(null);
+@@ -112,6 +115,14 @@ export function StartDock({
+   // 后续 terminal_list_result 不得复活它们；terminal id 为 uuid，不会跨页复用。
+   const closedTerminalIdsRef = useRef(new Set<string>());
+ 
++  useEffect(() => {
++    const revealDock = (event: Event) => {
++      if ((event as CustomEvent<DockOpenDetail>).detail?.scope === scope) setCollapsed(false);
++    };
++    window.addEventListener(DOCK_OPEN_EVENT, revealDock);
++    return () => window.removeEventListener(DOCK_OPEN_EVENT, revealDock);
++  }, [scope]);
++
+   useEffect(() => {
+     let cancelled = false;
+     fetchTerminalShells(getToken())
+@@ -136,9 +147,15 @@ export function StartDock({
+   useEffect(() => {
+     return client.onTerminalEvent((event: TerminalEvent) => {
+       if (event.event !== "terminal_list_result") return;
++      // A connection can stay attached to several chats. Inventory entries
++      // must only restore into their owning dock, including while tools hide.
++      const ownerSessionKey = sessionKey
++        ?? (client.defaultChatId ? `websocket:${client.defaultChatId}` : null);
+       for (const entry of event.terminals) {
+         if (entry.status !== "running") continue;
+         if (closedTerminalIdsRef.current.has(entry.terminal_id)) continue;
++        const knownOwner = terminalStore.getState().byId[entry.terminal_id]?.sessionKey;
++        if (!ownerSessionKey || (entry.session_key ?? knownOwner) !== ownerSessionKey) continue;
+         const current = dockStore.getSnapshot(scope);
+         if (current.tabs.some((tab) => tab.id === entry.terminal_id)) continue;
+         if (dockStore.persistedTerminals(scope).some((item) => item.id === entry.terminal_id)) {
+@@ -147,7 +164,7 @@ export function StartDock({
+         dockStore.openTerminal(scope, entry.terminal_id, entry.shell);
+       }
+     });
+-  }, [client, scope]);
++  }, [client, scope, sessionKey, terminalStore]);
+ 
+   // 标题跟随：活动终端 terminal_started 回报 shell 后刷新 tab 标题（spec §3.1）。
+   const activeTab = snapshot.tabs.find((tab) => tab.id === snapshot.activeId)
+@@ -418,6 +435,7 @@ export function StartDock({
+         <div className="flex min-h-0 flex-1 flex-col">
+           {activeTab && activeTab.kind === "file" ? (
+             <DockFileTab
++              key={scope}
+               scope={scope}
+               sessionKey={sessionKey}
+               getToken={getToken}
+@@ -438,7 +456,7 @@ export function StartDock({
+       <div
+         data-testid="start-dock"
+         aria-label={t("startPanel.title", { defaultValue: "Start" })}
+-        className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border-t border-border/40 bg-muted/20"
++        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-muted/20"
+       >
+         {shellInner}
+       </div>
+@@ -449,7 +467,7 @@ export function StartDock({
+     <aside
+       data-testid="start-dock"
+       aria-label={t("startPanel.title", { defaultValue: "Start" })}
+-      className="hidden w-dock shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 md:flex xl:w-dockXl"
++      className="hidden w-dock min-w-0 max-w-[55%] shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 md:flex xl:w-dockXl"
+     >
+       {shellInner}
+     </aside>
+diff --git a/webui/src/components/thread/ThreadShell.tsx b/webui/src/components/thread/ThreadShell.tsx
+index 53dc5df..ea5ba15 100644
+--- a/webui/src/components/thread/ThreadShell.tsx
++++ b/webui/src/components/thread/ThreadShell.tsx
+@@ -45,6 +45,7 @@ import {
+ } from "@/lib/mcp-preset-events";
+ import type { CanonicalRunSnapshot, StreamError } from "@/lib/nanobot-client";
+ import { inferProviderFromModelName, providerDisplayLabel } from "@/lib/provider-brand";
++import { DOCK_OPEN_EVENT, type DockOpenDetail } from "@/lib/dock-shortcuts";
+ import type {
+   ChatSummary,
+   RoundUsage,
+@@ -427,6 +428,7 @@ interface ThreadShellProps {
+   onOpenModelSettings?: () => void;
+   skills?: SkillSummary[];
+   onWorkbenchOpenChange?: (open: boolean) => void;
++  onWorkbenchRailWidthChange?: (width: number) => void;
+   draftSeed?: { text: string; token: number } | null;
+   onDraftSeedConsumed?: () => void;
+ }
+@@ -732,6 +734,7 @@ export function ThreadShell({
+   onOpenModelSettings,
+   skills = [],
+   onWorkbenchOpenChange,
++  onWorkbenchRailWidthChange,
+   draftSeed = null,
+   onDraftSeedConsumed,
+ }: ThreadShellProps) {
+@@ -804,15 +807,41 @@ export function ThreadShell({
+   const [filePreviewClosing, setFilePreviewClosing] = useState(false);
+   const [filePreviewWidth, setFilePreviewWidth] = useState(FILE_PREVIEW_DEFAULT_WIDTH);
+   const [workbenchOpen, setWorkbenchOpen] = useState(() => {
++    const defaultOpen = window.innerWidth >= 1024;
+     try {
+-      return window.localStorage.getItem("mira.workbench.open") === "1";
++      const preference = window.localStorage.getItem("mira.workbench.open");
++      return preference === null ? defaultOpen : preference === "1";
+     } catch {
+-      return false;
++      return defaultOpen;
+     }
+   });
++  const [toolsRequest, setToolsRequest] = useState<{ scope: string; sequence: number } | null>(null);
++  useEffect(() => {
++    const revealTools = (event: Event) => {
++      const scope = (event as CustomEvent<DockOpenDetail>).detail?.scope;
++      if (!scope || scope !== historyKey) return;
++      setWorkbenchOpen(true);
++      setToolsRequest((current) => ({ scope, sequence: (current?.sequence ?? 0) + 1 }));
++    };
++    window.addEventListener(DOCK_OPEN_EVENT, revealTools);
++    return () => window.removeEventListener(DOCK_OPEN_EVENT, revealTools);
++  }, [historyKey]);
+   const [quotedContext, setQuotedContext] = useState<string | null>(null);
+   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
+   const shellRef = useRef<HTMLElement | null>(null);
++  const [workbenchOverlay, setWorkbenchOverlay] = useState(window.innerWidth < 1024);
++  useLayoutEffect(() => {
++    const shell = shellRef.current;
++    if (!shell) return;
++    const updateOverlay = () => {
++      const width = shell.getBoundingClientRect().width;
++      if (width > 0) setWorkbenchOverlay(width < 720);
++    };
++    updateOverlay();
++    const observer = new ResizeObserver(updateOverlay);
++    observer.observe(shell);
++    return () => observer.disconnect();
++  }, []);
+   const composerSurfaceRef = useRef<HTMLDivElement | null>(null);
+   const filePreviewWidthRef = useRef(FILE_PREVIEW_DEFAULT_WIDTH);
+   const filePreviewCloseTimerRef = useRef<number | null>(null);
+@@ -1813,7 +1842,7 @@ export function ThreadShell({
+   ) : null;
+ 
+   return (
+-    <section ref={shellRef} className="relative flex min-h-0 flex-1 overflow-hidden">
++    <section ref={shellRef} data-testid="thread-shell" className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+         {hideHeaderTitle && inlineHandle && !temporary && session?.handle ? (
+           <div
+@@ -1863,11 +1892,15 @@ export function ThreadShell({
+       </div>
+       {workbenchOpen && session ? (
+         <SessionWorkbench
++          key={historyKey}
+           model={workbenchModel}
+           onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
+           onCollapse={() => setWorkbenchOpen(false)}
+           sessionKey={historyKey ?? null}
+           getToken={getToken}
++          overlay={workbenchOverlay}
++          onRailWidthChange={onWorkbenchRailWidthChange}
++          openToolsSignal={toolsRequest?.scope === historyKey ? toolsRequest.sequence : 0}
+         />
+       ) : null}
+       {headerPortalTarget && headerActive
+diff --git a/webui/src/components/workbench/PaneWorkbench.tsx b/webui/src/components/workbench/PaneWorkbench.tsx
+index cd6d604..e44b5e8 100644
+--- a/webui/src/components/workbench/PaneWorkbench.tsx
++++ b/webui/src/components/workbench/PaneWorkbench.tsx
+@@ -687,7 +687,7 @@ export function PaneWorkbench({
+   return (
+     <section
+       aria-label={t("workbench.aria", { defaultValue: "Conversation workbench" })}
+-      className="flex h-full min-h-0 flex-col overflow-hidden bg-background"
++      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+     >
+       <TooltipProvider delayDuration={500} skipDelayDuration={100}>
+         {chrome ? (
+@@ -698,7 +698,7 @@ export function PaneWorkbench({
+             />
+           </header>
+         ) : null}
+-        <div className="relative min-h-0 flex-1 bg-background">
++        <div className="relative min-h-0 min-w-0 flex-1 bg-background">
+           <div
+             ref={gridRef}
+             data-testid="pane-grid"
+@@ -835,11 +835,16 @@ export function PaneWorkbench({
+         {chrome ? (
+           <footer className="shrink-0 bg-background px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4">
+             <div
+-              ref={setComposerPortalTarget}
+-              data-testid="workbench-composer-host"
+-              className="mx-auto w-full max-w-[58rem]"
+-              style={composerRailInset ? { marginRight: composerRailInset } : undefined}
+-            />
++              data-testid="workbench-composer-available"
++              className="min-w-0"
++              style={composerRailInset ? { paddingRight: composerRailInset } : undefined}
++            >
++              <div
++                ref={setComposerPortalTarget}
++                data-testid="workbench-composer-host"
++                className="mx-auto w-full min-w-0 max-w-[58rem]"
++              />
++            </div>
+           </footer>
+         ) : null}
+       </TooltipProvider>
+diff --git a/webui/src/components/workbench/SessionWorkbench.tsx b/webui/src/components/workbench/SessionWorkbench.tsx
+index 5f77813..2e16a13 100644
+--- a/webui/src/components/workbench/SessionWorkbench.tsx
++++ b/webui/src/components/workbench/SessionWorkbench.tsx
+@@ -1,8 +1,9 @@
+-import { useCallback, useState, type ReactNode } from "react";
++import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+ import { useTranslation } from "react-i18next";
+ import {
+   ChevronRight,
+   PanelRightClose,
++  PanelRightOpen,
+   Search,
+   Wrench,
+ } from "lucide-react";
+@@ -15,15 +16,15 @@ import {
+ } from "./session-workbench-model";
+ import { cn } from "@/lib/utils";
+ 
+-// Mirrors the rail's literal `w-[19rem]` below (Tailwind can't see dynamic classes).
+-export const SESSION_WORKBENCH_RAIL_WIDTH = "19rem";
+-
+ interface SessionWorkbenchProps {
+   model: SessionWorkbenchModel;
+   onOpenFilePreview?: (path: string) => void;
+   onCollapse: () => void;
+   sessionKey?: string | null;
+   getToken?: () => string;
++  overlay?: boolean;
++  onRailWidthChange?: (width: number) => void;
++  openToolsSignal?: number;
+ }
+ 
+ function formatUpdatedAt(ms: number | null, language: string): string {
+@@ -94,18 +95,53 @@ export function SessionWorkbench({
+   onCollapse,
+   sessionKey,
+   getToken,
++  overlay = false,
++  onRailWidthChange,
++  openToolsSignal = 0,
+ }: SessionWorkbenchProps) {
+   const { t, i18n } = useTranslation();
+   const updated = formatUpdatedAt(model.updatedAtMs, i18n.language);
+   const hasIntegrations = model.mcpUsed.length > 0 || model.cliUsed.length > 0;
+   // StartDock 以 getToken 引用为壳列表拉取依赖；这里保持跨渲染稳定。
+   const dockGetToken = useCallback(() => getToken?.() ?? "", [getToken]);
++  const [toolsOpen, setToolsOpen] = useState(false);
++  const [toolsMounted, setToolsMounted] = useState(false);
++  useEffect(() => {
++    if (openToolsSignal === 0) return;
++    setToolsMounted(true);
++    setToolsOpen(true);
++  }, [openToolsSignal]);
++  const railRef = useRef<HTMLElement | null>(null);
++  const onRailWidthChangeRef = useRef(onRailWidthChange);
++  onRailWidthChangeRef.current = onRailWidthChange;
++
++  useLayoutEffect(() => {
++    const rail = railRef.current;
++    if (!rail) return;
++    const reportWidth = () => {
++      onRailWidthChangeRef.current?.(overlay ? 0 : rail.getBoundingClientRect().width);
++    };
++    reportWidth();
++    const observer = new ResizeObserver(reportWidth);
++    observer.observe(rail);
++    return () => {
++      observer.disconnect();
++      onRailWidthChangeRef.current?.(0);
++    };
++  }, [overlay, toolsOpen]);
+ 
+   return (
+     <aside
++      ref={railRef}
+       data-testid="session-workbench"
++      data-mode={toolsOpen ? "tools" : "workspace"}
++      data-overlay={overlay ? "true" : "false"}
+       aria-label={t("workbench.title", { defaultValue: "Workbench" })}
+-      className="relative flex w-[19rem] shrink-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20"
++      className={cn(
++        "flex min-h-0 min-w-0 max-w-full shrink-0 flex-col overflow-hidden border-l border-border/60 bg-background",
++        toolsOpen ? "w-[36rem]" : "w-[19rem]",
++        overlay ? "absolute inset-y-0 right-0 z-30 shadow-lg" : "relative max-w-[55%]",
++      )}
+     >
+       <header className="flex h-9 shrink-0 items-center gap-2 border-b border-border/40 px-3">
+         <span className="text-[12.5px] font-semibold text-foreground/85">
+@@ -119,17 +155,31 @@ export function SessionWorkbench({
+             })}
+           </span>
+         ) : null}
++        <button
++          type="button"
++          aria-label={toolsOpen
++            ? t("workbench.showWorkspace", { defaultValue: "Show workspace" })
++            : t("workbench.expandTools", { defaultValue: "Expand sidebar tools" })}
++          aria-expanded={toolsOpen}
++          onClick={() => {
++            setToolsMounted(true);
++            setToolsOpen((value) => !value);
++          }}
++          className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
++        >
++          <PanelRightOpen className="h-3.5 w-3.5" aria-hidden />
++        </button>
+         <button
+           type="button"
+           aria-label={t("workbench.collapse", { defaultValue: "Collapse workbench" })}
+           onClick={onCollapse}
+-          className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
++          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
+         >
+           <PanelRightClose className="h-3.5 w-3.5" aria-hidden />
+         </button>
+       </header>
+ 
+-      <div className="max-h-[45%] min-h-0 shrink overflow-y-auto scrollbar-thin">
++      <div hidden={toolsOpen} className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-thin", toolsOpen && "hidden")}>
+         <Section
+           title={t("workbench.overview", { defaultValue: "Overview" })}
+           defaultOpen
+@@ -269,15 +319,18 @@ export function SessionWorkbench({
+         </Section>
+       </div>
+ 
+-      {/* 与首页同源的标签式右坞（embedded）：文件/浏览器/终端统一在此，scope=会话 key，
+-          标签与接管清单按 scope 独立持久化；预览仍上抛宿主外置面板。 */}
+-      <StartDock
+-        variant="embedded"
+-        scope={sessionKey ?? HOME_DOCK_SCOPE}
+-        sessionKey={sessionKey ?? null}
+-        getToken={dockGetToken}
+-        onOpenFilePreview={onOpenFilePreview}
+-      />
++      {/* 保留同一位置的工具组件，切换摘要不丢失预览或终端状态。
++          https://react.dev/learn/preserving-and-resetting-state */}
++      {toolsMounted ? (
++        <div hidden={!toolsOpen} className={cn("min-h-0 min-w-0 flex-1 flex-col", toolsOpen ? "flex" : "hidden")}>
++          <StartDock
++            variant="embedded"
++            scope={sessionKey ?? HOME_DOCK_SCOPE}
++            sessionKey={sessionKey ?? null}
++            getToken={dockGetToken}
++          />
++        </div>
++      ) : null}
+     </aside>
+   );
+ }
+diff --git a/webui/src/components/workbench/terminal-shared.ts b/webui/src/components/workbench/terminal-shared.ts
+index 9cb3696..6183261 100644
+--- a/webui/src/components/workbench/terminal-shared.ts
++++ b/webui/src/components/workbench/terminal-shared.ts
+@@ -21,8 +21,22 @@ export function failureLabel(
+   if (message === "limit_reached" || message === "terminal_limit_reached") {
+     return t("startPanel.terminalLimit", { defaultValue: "Terminal limit reached (max 8)" });
+   }
+-  // 契约 v2：shell 白名单在本机缺失 / PTY 启动失败走同一兜底文案。
+-  if (message === "shell_unavailable" || message === "terminal_start_failed") {
++  if (message === "terminal_start_failed") {
++    return t("startPanel.terminalStartFailed", {
++      defaultValue: "The terminal could not start. Open a new one to retry.",
++    });
++  }
++  if (message === "terminal_start_timeout") {
++    return t("startPanel.terminalStartTimeout", {
++      defaultValue: "Terminal startup timed out. Open a new one to retry.",
++    });
++  }
++  if (message === "terminal_connection_lost") {
++    return t("startPanel.terminalConnectionLost", {
++      defaultValue: "Connection lost while starting the terminal. Reconnect and try again.",
++    });
++  }
++  if (message === "shell_unavailable") {
+     return t("startPanel.shellUnavailable", {
+       defaultValue: "This shell is not installed on the host.",
+     });
+diff --git a/webui/src/hooks/useNanobotStream.ts b/webui/src/hooks/useNanobotStream.ts
+index 4a22fbc..c420acd 100644
+--- a/webui/src/hooks/useNanobotStream.ts
++++ b/webui/src/hooks/useNanobotStream.ts
+@@ -1676,6 +1676,7 @@ export function createTerminalStore(): TerminalStore {
+             if (removedIds.has(entry.terminal_id)) continue;
+             upsert(entry.terminal_id, (record) => ({
+               ...record,
++              sessionKey: entry.session_key ?? record.sessionKey,
+               status: record.status === "starting" || record.status === "failed"
+                 ? (entry.status === "exited" ? "exited" : "running")
+                 : record.status,
+diff --git a/webui/src/i18n/locales/en/common.json b/webui/src/i18n/locales/en/common.json
+index a77354f..d431e3f 100644
+--- a/webui/src/i18n/locales/en/common.json
++++ b/webui/src/i18n/locales/en/common.json
+@@ -1543,6 +1543,8 @@
+     "title": "Workbench",
+     "open": "Open workbench",
+     "collapse": "Collapse workbench",
++    "expandTools": "Expand sidebar tools",
++    "showWorkspace": "Show workspace",
+     "updatedAt": "Updated {{time}}",
+     "overview": "Overview",
+     "emptyOverview": "No summary yet",
+@@ -1609,6 +1611,9 @@
+     "terminalTab": "Terminal",
+     "terminalClose": "Close terminal",
+     "terminalStarting": "Starting terminal…",
++    "terminalStartFailed": "The terminal could not start. Open a new one to retry.",
++    "terminalStartTimeout": "Terminal startup timed out. Open a new one to retry.",
++    "terminalConnectionLost": "Connection lost while starting the terminal. Reconnect and try again.",
+     "terminalExit": "Exited with code {{code}}",
+     "terminalExpired": "Session expired",
+     "terminalGone": "This terminal is no longer available. Open a new one.",
+diff --git a/webui/src/i18n/locales/es/common.json b/webui/src/i18n/locales/es/common.json
+index adbbec2..bdb7321 100644
+--- a/webui/src/i18n/locales/es/common.json
++++ b/webui/src/i18n/locales/es/common.json
+@@ -1552,6 +1552,12 @@
+     "terminalTab": "Terminal",
+     "terminalClose": "Cerrar terminal",
+     "terminalStarting": "Iniciando terminal…",
++    "terminalStartFailed": "No se pudo iniciar la terminal. Abre una nueva para reintentarlo.",
++    "terminalStartTimeout": "Se agotó el tiempo de inicio de la terminal. Abre una nueva para reintentarlo.",
++    "terminalConnectionLost": "Se perdió la conexión al iniciar la terminal. Vuelve a conectarte y reinténtalo.",
++    "terminalStartFailed": "No se pudo iniciar la terminal. Abre una nueva para reintentarlo.",
++    "terminalStartTimeout": "Se agotó el tiempo de inicio de la terminal. Abre una nueva para reintentarlo.",
++    "terminalConnectionLost": "Se perdió la conexión al iniciar la terminal. Vuelve a conectarte y reinténtalo.",
+     "terminalExit": "Terminó con código {{code}}",
+     "terminalExpired": "Sesión caducada",
+     "terminalGone": "Esta terminal ya no está disponible. Abre una nueva.",
+diff --git a/webui/src/i18n/locales/fr/common.json b/webui/src/i18n/locales/fr/common.json
+index fadc73d..0efc3c4 100644
+--- a/webui/src/i18n/locales/fr/common.json
++++ b/webui/src/i18n/locales/fr/common.json
+@@ -1552,6 +1552,12 @@
+     "terminalTab": "Terminal",
+     "terminalClose": "Fermer le terminal",
+     "terminalStarting": "Démarrage du terminal…",
++    "terminalStartFailed": "Le terminal n'a pas pu démarrer. Ouvrez-en un nouveau pour réessayer.",
++    "terminalStartTimeout": "Le démarrage du terminal a expiré. Ouvrez-en un nouveau pour réessayer.",
++    "terminalConnectionLost": "Connexion perdue pendant le démarrage du terminal. Reconnectez-vous et réessayez.",
++    "terminalStartFailed": "Le terminal n'a pas pu démarrer. Ouvrez-en un nouveau pour réessayer.",
++    "terminalStartTimeout": "Le démarrage du terminal a expiré. Ouvrez-en un nouveau pour réessayer.",
++    "terminalConnectionLost": "Connexion perdue pendant le démarrage du terminal. Reconnectez-vous et réessayez.",
+     "terminalExit": "Terminé avec le code {{code}}",
+     "terminalExpired": "Session expirée",
+     "terminalGone": "Ce terminal n'est plus disponible. Ouvrez-en un nouveau.",
+diff --git a/webui/src/i18n/locales/id/common.json b/webui/src/i18n/locales/id/common.json
+index 1e89e3f..0f0d0c4 100644
+--- a/webui/src/i18n/locales/id/common.json
++++ b/webui/src/i18n/locales/id/common.json
+@@ -1552,6 +1552,12 @@
+     "terminalTab": "Terminal",
+     "terminalClose": "Tutup terminal",
+     "terminalStarting": "Menyiapkan terminal…",
++    "terminalStartFailed": "Terminal tidak dapat dimulai. Buka terminal baru untuk mencoba lagi.",
++    "terminalStartTimeout": "Waktu memulai terminal habis. Buka terminal baru untuk mencoba lagi.",
++    "terminalConnectionLost": "Koneksi terputus saat memulai terminal. Sambungkan kembali dan coba lagi.",
++    "terminalStartFailed": "Terminal tidak dapat dimulai. Buka terminal baru untuk mencoba lagi.",
++    "terminalStartTimeout": "Waktu memulai terminal habis. Buka terminal baru untuk mencoba lagi.",
++    "terminalConnectionLost": "Koneksi terputus saat memulai terminal. Sambungkan kembali dan coba lagi.",
+     "terminalExit": "Keluar dengan kode {{code}}",
+     "terminalExpired": "Sesi kedaluwarsa",
+     "terminalGone": "Terminal ini tidak lagi tersedia. Buka yang baru.",
+diff --git a/webui/src/i18n/locales/ja/common.json b/webui/src/i18n/locales/ja/common.json
+index 47016b8..38d04d9 100644
+--- a/webui/src/i18n/locales/ja/common.json
++++ b/webui/src/i18n/locales/ja/common.json
+@@ -1552,6 +1552,12 @@
+     "terminalTab": "ターミナル",
+     "terminalClose": "ターミナルを閉じる",
+     "terminalStarting": "ターミナルを起動しています…",
++    "terminalStartFailed": "ターミナルを起動できませんでした。新しく開いて再試行してください。",
++    "terminalStartTimeout": "ターミナルの起動がタイムアウトしました。新しく開いて再試行してください。",
++    "terminalConnectionLost": "ターミナルの起動中に接続が切れました。再接続してから再試行してください。",
++    "terminalStartFailed": "ターミナルを起動できませんでした。新しく開いて再試行してください。",
++    "terminalStartTimeout": "ターミナルの起動がタイムアウトしました。新しく開いて再試行してください。",
++    "terminalConnectionLost": "ターミナルの起動中に接続が切れました。再接続してから再試行してください。",
+     "terminalExit": "終了コード {{code}}",
+     "terminalExpired": "セッションは期限切れです",
+     "terminalGone": "このターミナルは利用できません。新しく開いてください。",
+diff --git a/webui/src/i18n/locales/ko/common.json b/webui/src/i18n/locales/ko/common.json
+index 667d5c0..90a7df5 100644
+--- a/webui/src/i18n/locales/ko/common.json
++++ b/webui/src/i18n/locales/ko/common.json
+@@ -1552,6 +1552,12 @@
+     "terminalTab": "터미널",
+     "terminalClose": "터미널 닫기",
+     "terminalStarting": "터미널 시작 중…",
++    "terminalStartFailed": "터미널을 시작할 수 없습니다. 새 터미널을 열어 다시 시도하세요.",
++    "terminalStartTimeout": "터미널 시작 시간이 초과되었습니다. 새 터미널을 열어 다시 시도하세요.",
++    "terminalConnectionLost": "터미널 시작 중 연결이 끊어졌습니다. 다시 연결한 후 시도하세요.",
++    "terminalStartFailed": "터미널을 시작할 수 없습니다. 새 터미널을 열어 다시 시도하세요.",
++    "terminalStartTimeout": "터미널 시작 시간이 초과되었습니다. 새 터미널을 열어 다시 시도하세요.",
++    "terminalConnectionLost": "터미널 시작 중 연결이 끊어졌습니다. 다시 연결한 후 시도하세요.",
+     "terminalExit": "종료 코드 {{code}}",
+     "terminalExpired": "세션이 만료되었습니다",
+     "terminalGone": "이 터미널을 더 이상 사용할 수 없습니다. 새로 여세요.",
+diff --git a/webui/src/i18n/locales/pt-BR/common.json b/webui/src/i18n/locales/pt-BR/common.json
+index e25e78d..1d947ec 100644
+--- a/webui/src/i18n/locales/pt-BR/common.json
++++ b/webui/src/i18n/locales/pt-BR/common.json
+@@ -1552,6 +1552,12 @@
+     "terminalTab": "Terminal",
+     "terminalClose": "Fechar terminal",
+     "terminalStarting": "Iniciando terminal…",
++    "terminalStartFailed": "Não foi possível iniciar o terminal. Abra um novo para tentar novamente.",
++    "terminalStartTimeout": "O início do terminal excedeu o tempo limite. Abra um novo para tentar novamente.",
++    "terminalConnectionLost": "A conexão foi perdida ao iniciar o terminal. Reconecte e tente novamente.",
++    "terminalStartFailed": "Não foi possível iniciar o terminal. Abra um novo para tentar novamente.",
++    "terminalStartTimeout": "O início do terminal excedeu o tempo limite. Abra um novo para tentar novamente.",
++    "terminalConnectionLost": "A conexão foi perdida ao iniciar o terminal. Reconecte e tente novamente.",
+     "terminalExit": "Encerrado com código {{code}}",
+     "terminalExpired": "Sessão expirada",
+     "terminalGone": "Este terminal não está mais disponível. Abra um novo.",
+diff --git a/webui/src/i18n/locales/vi/common.json b/webui/src/i18n/locales/vi/common.json
+index e1ddf00..6a8985d 100644
+--- a/webui/src/i18n/locales/vi/common.json
++++ b/webui/src/i18n/locales/vi/common.json
+@@ -1552,6 +1552,12 @@
+     "terminalTab": "Terminal",
+     "terminalClose": "Đóng terminal",
+     "terminalStarting": "Đang khởi động terminal…",
++    "terminalStartFailed": "Không thể khởi động terminal. Hãy mở terminal mới để thử lại.",
++    "terminalStartTimeout": "Khởi động terminal đã hết thời gian chờ. Hãy mở terminal mới để thử lại.",
++    "terminalConnectionLost": "Mất kết nối khi khởi động terminal. Hãy kết nối lại và thử lại.",
++    "terminalStartFailed": "Không thể khởi động terminal. Hãy mở terminal mới để thử lại.",
++    "terminalStartTimeout": "Khởi động terminal đã hết thời gian chờ. Hãy mở terminal mới để thử lại.",
++    "terminalConnectionLost": "Mất kết nối khi khởi động terminal. Hãy kết nối lại và thử lại.",
+     "terminalExit": "Thoát với mã {{code}}",
+     "terminalExpired": "Phiên đã hết hạn",
+     "terminalGone": "Terminal này không còn khả dụng. Hãy mở cái mới.",
+diff --git a/webui/src/i18n/locales/zh-CN/common.json b/webui/src/i18n/locales/zh-CN/common.json
+index 99a300d..f3090ad 100644
+--- a/webui/src/i18n/locales/zh-CN/common.json
++++ b/webui/src/i18n/locales/zh-CN/common.json
+@@ -1543,6 +1543,8 @@
+     "title": "工作台",
+     "open": "打开工作台",
+     "collapse": "收起工作台",
++    "expandTools": "展开侧栏工具",
++    "showWorkspace": "返回工作区",
+     "updatedAt": "更新于 {{time}}",
+     "overview": "概览",
+     "emptyOverview": "暂无摘要",
+@@ -1609,6 +1611,9 @@
+     "terminalTab": "终端",
+     "terminalClose": "关闭终端",
+     "terminalStarting": "终端启动中…",
++    "terminalStartFailed": "终端启动失败，请重新打开终端。",
++    "terminalStartTimeout": "终端启动超时，请重新打开终端。",
++    "terminalConnectionLost": "启动终端时连接已断开，请连接后重新打开终端。",
+     "terminalExit": "退出码 {{code}}",
+     "terminalExpired": "会话已过期",
+     "terminalGone": "该终端已不可用，请新建一个。",
+diff --git a/webui/src/i18n/locales/zh-TW/common.json b/webui/src/i18n/locales/zh-TW/common.json
+index ee0b5e2..cddcbba 100644
+--- a/webui/src/i18n/locales/zh-TW/common.json
++++ b/webui/src/i18n/locales/zh-TW/common.json
+@@ -1552,6 +1552,9 @@
+     "terminalTab": "終端機",
+     "terminalClose": "關閉終端機",
+     "terminalStarting": "終端機啟動中…",
++    "terminalStartFailed": "終端機啟動失敗，請重新開啟終端機。",
++    "terminalStartTimeout": "終端機啟動逾時，請重新開啟終端機。",
++    "terminalConnectionLost": "啟動終端機時連線已中斷，請連線後重新開啟終端機。",
+     "terminalExit": "結束碼 {{code}}",
+     "terminalExpired": "工作階段已過期",
+     "terminalGone": "該終端機已無法使用，請另開一個。",
+@@ -2086,6 +2089,8 @@
+     "title": "對話工作台",
+     "open": "展開工作台",
+     "collapse": "收合工作台",
++    "expandTools": "展開側欄工具",
++    "showWorkspace": "返回工作區",
+     "updatedAt": "更新於 {{time}}",
+     "overview": "概覽",
+     "emptyOverview": "尚無摘要",
+diff --git a/webui/src/lib/dock-shortcuts.ts b/webui/src/lib/dock-shortcuts.ts
+index c1735d7..b5c56da 100644
+--- a/webui/src/lib/dock-shortcuts.ts
++++ b/webui/src/lib/dock-shortcuts.ts
+@@ -4,6 +4,12 @@
+ // terminal 标签不接快捷键。纯函数，只判定修饰键语义，便于脱离 App 测试。
+ export type DockShortcutSection = "file" | "browser";
+ 
++/** Explicit user intent to reveal the dock, including a previously focused tab. */
++export const DOCK_OPEN_EVENT = "nanobot:open-dock";
++export interface DockOpenDetail {
++  scope: string;
++}
++
+ /** Pure shortcut resolver so the ⌘P/⌘T mapping stays testable outside App. */
+ export function resolveDockShortcut(
+   event: globalThis.KeyboardEvent,
+diff --git a/webui/src/lib/nanobot-client.ts b/webui/src/lib/nanobot-client.ts
+index ab32d75..7cb16d0 100644
+--- a/webui/src/lib/nanobot-client.ts
++++ b/webui/src/lib/nanobot-client.ts
+@@ -220,6 +220,7 @@ export class NanobotClient {
+   private runStatusHandlers = new Set<RunStatusHandler>();
+   private errorHandlers = new Set<ErrorHandler>();
+   private terminalEventHandlers = new Set<(event: TerminalEvent) => void>();
++  private pendingTerminalStarts = new Map<string, ReturnType<typeof setTimeout>>();
+   // chat_id -> handlers listening on it
+   private chatHandlers = new Map<string, Set<EventHandler>>();
+   /** Inbound frames received while no subscriber is registered (e.g. user switched away). */
+@@ -1088,6 +1089,10 @@ export class NanobotClient {
+     shell?: string | null,
+   ): void {
+     if (!TERMINAL_ID_PATTERN.test(terminalId)) return;
++    this.settleTerminalStart(terminalId);
++    this.pendingTerminalStarts.set(terminalId, setTimeout(() => {
++      this.failTerminalStarts([terminalId], "terminal_start_timeout");
++    }, 15_000));
+     this.queueSend({
+       type: "terminal_start",
+       terminal_id: terminalId,
+@@ -1119,6 +1124,10 @@ export class NanobotClient {
+ 
+   terminalKill(terminalId: string): void {
+     if (!TERMINAL_ID_PATTERN.test(terminalId)) return;
++    this.settleTerminalStart(terminalId);
++    this.sendQueue = this.sendQueue.filter((frame) => (
++      frame.type !== "terminal_start" || frame.terminal_id !== terminalId
++    ));
+     this.queueSend({ type: "terminal_kill", terminal_id: terminalId });
+   }
+ 
+@@ -1155,9 +1164,37 @@ export class NanobotClient {
+   private setStatus(status: ConnectionStatus): void {
+     if (this.status_ === status) return;
+     this.status_ = status;
++    if (status === "closed" || status === "error" || status === "reconnecting") {
++      this.failTerminalStarts([...this.pendingTerminalStarts.keys()], "terminal_connection_lost");
++    }
+     for (const handler of this.statusHandlers) handler(status);
+   }
+ 
++  private settleTerminalStart(terminalId: string): void {
++    const timer = this.pendingTerminalStarts.get(terminalId);
++    if (timer !== undefined) clearTimeout(timer);
++    this.pendingTerminalStarts.delete(terminalId);
++  }
++
++  private emitTerminalEvent(event: TerminalEvent): void {
++    if (event.event === "terminal_list_result") {
++      for (const entry of event.terminals) this.settleTerminalStart(entry.terminal_id);
++    } else if (event.terminal_id) {
++      this.settleTerminalStart(event.terminal_id);
++    }
++    for (const handler of [...this.terminalEventHandlers]) handler(event);
++  }
++
++  private failTerminalStarts(terminalIds: string[], detail: string): void {
++    const failedIds = new Set(terminalIds);
++    this.sendQueue = this.sendQueue.filter((frame) => (
++      frame.type !== "terminal_start" || !failedIds.has(frame.terminal_id)
++    ));
++    for (const terminalId of terminalIds) {
++      this.emitTerminalEvent({ event: "error", terminal_id: terminalId, detail });
++    }
++  }
++
+   private clearRunStatusesForReconnect(): void {
+     if (this.runStartedAtByChatId.size === 0) return;
+     const chatIds = [...this.runStartedAtByChatId.keys()];
+@@ -1205,9 +1242,7 @@ export class NanobotClient {
+     // contract events and terminal-scoped error frames to terminal
+     // subscribers before the chat pipeline sees them.
+     if (isTerminalFrameTarget(parsed)) {
+-      for (const handler of [...this.terminalEventHandlers]) {
+-        handler(parsed as unknown as TerminalEvent);
+-      }
++      this.emitTerminalEvent(parsed as unknown as TerminalEvent);
+       return;
+     }
+ 
+diff --git a/webui/src/lib/types.ts b/webui/src/lib/types.ts
+index 45feed6..3643b39 100644
+--- a/webui/src/lib/types.ts
++++ b/webui/src/lib/types.ts
+@@ -1617,6 +1617,8 @@ export interface TerminalListEntry {
+   status: "running" | "exited";
+   shell: string;
+   cwd: string;
++  /** Owning session; absent on older gateways. */
++  session_key?: string;
+ }
+ 
+ export type TerminalEvent =
+diff --git a/webui/src/tests/app-layout.test.tsx b/webui/src/tests/app-layout.test.tsx
+index 2d3362e..629f550 100644
+--- a/webui/src/tests/app-layout.test.tsx
++++ b/webui/src/tests/app-layout.test.tsx
+@@ -568,10 +568,8 @@ describe("App layout", () => {
+ 
+     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+     expect(await screen.findByTestId("start-dock")).toBeInTheDocument();
+-    expect(await screen.findByTestId("dock-launcher")).toBeInTheDocument();
+-    expect(screen.getByTestId("dock-card-files")).toBeInTheDocument();
+-    expect(screen.getByTestId("dock-card-browser")).toBeInTheDocument();
+-    expect(screen.getByTestId("dock-card-terminal")).toBeInTheDocument();
++    expect(screen.queryByTestId("dock-launcher")).not.toBeInTheDocument();
++    expect(screen.getByRole("button", { name: "Expand the start panel" })).toBeInTheDocument();
+ 
+     // Task 9 承接项：恢复旧「intercepts ⌘P」用例的拦截语义（spec B2 focus-or-open）。
+     const event = new window.KeyboardEvent("keydown", {
+@@ -583,6 +581,10 @@ describe("App layout", () => {
+     act(() => window.dispatchEvent(event));
+     expect(event.defaultPrevented).toBe(true);
+     expect(dockStore.getSnapshot(HOME_DOCK_SCOPE).activeId).toBe("file");
++    expect(await screen.findByTestId("dock-tab-file")).toBeVisible();
++
++    fireEvent.click(screen.getByRole("button", { name: "Collapse the start panel" }));
++    expect(screen.queryByTestId("dock-tab-file")).not.toBeInTheDocument();
+ 
+     // 再按 = 聚焦不重复；文件标签天然单例。
+     const again = new window.KeyboardEvent("keydown", {
+@@ -592,6 +594,7 @@ describe("App layout", () => {
+       cancelable: true,
+     });
+     act(() => window.dispatchEvent(again));
++    expect(await screen.findByTestId("dock-tab-file")).toBeVisible();
+     expect(
+       dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs.filter((tab) => tab.kind === "file"),
+     ).toHaveLength(1);
+@@ -623,10 +626,46 @@ describe("App layout", () => {
+     act(() => window.dispatchEvent(event));
+     expect(event.defaultPrevented).toBe(true);
+     expect(dockStore.getSnapshot("websocket:existing-chat").activeId).toBe("file");
++    expect(await screen.findByTestId("dock-tab-file")).toBeVisible();
+     // scope 隔离：不误开首页 dock 的标签。
+     expect(dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs).toHaveLength(0);
+   });
+ 
++  it("uses the measured workspace and tool rail width for the shared composer", async () => {
++    mockSessions = [{
++      key: "websocket:rail-size",
++      channel: "websocket",
++      chatId: "rail-size",
++      createdAt: null,
++      updatedAt: null,
++      preview: "Rail size",
++    }];
++    localStorage.setItem("mira.workbench.open", "1");
++    window.history.replaceState(null, "", `#/chat/${encodeURIComponent("websocket:rail-size")}`);
++    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
++    const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
++      if (this.dataset.testid === "session-workbench") {
++        return { width: this.dataset.mode === "tools" ? 576 : 304 } as DOMRect;
++      }
++      return originalBounds.call(this);
++    });
++    const view = render(<App />);
++    try {
++      const available = await screen.findByTestId("workbench-composer-available");
++      await waitFor(() => expect(available.style.paddingRight).toBe("304px"));
++      fireEvent.click(screen.getByRole("button", { name: "Expand sidebar tools" }));
++      await waitFor(() => expect(available.style.paddingRight).toBe("576px"));
++      fireEvent.click(screen.getByRole("button", { name: "Show workspace" }));
++      await waitFor(() => expect(available.style.paddingRight).toBe("304px"));
++      fireEvent.click(screen.getByRole("button", { name: "Collapse workbench" }));
++      await waitFor(() => expect(available.style.paddingRight).toBe(""));
++    } finally {
++      view.unmount();
++      bounds.mockRestore();
++      localStorage.removeItem("mira.workbench.open");
++    }
++  });
++
+   it("keeps a just-created topic route while the session list catches up", async () => {
+     render(<App />);
+ 
+diff --git a/webui/src/tests/nanobot-client.test.ts b/webui/src/tests/nanobot-client.test.ts
+index 8596efc..4936322 100644
+--- a/webui/src/tests/nanobot-client.test.ts
++++ b/webui/src/tests/nanobot-client.test.ts
+@@ -1,6 +1,7 @@
+ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+ 
+ import { NanobotClient } from "@/lib/nanobot-client";
++import { createTerminalStore } from "@/hooks/useNanobotStream";
+ import type { SidebarStatePayload } from "@/lib/types";
+ 
+ /**
+@@ -71,6 +72,78 @@ afterEach(() => {
+ });
+ 
+ describe("NanobotClient", () => {
++  it("fails only pending terminal starts when their socket disconnects", () => {
++    const client = new NanobotClient({
++      url: "ws://test", reconnect: false,
++      socketFactory: (url) => new FakeSocket(url) as unknown as WebSocket,
++    });
++    const store = createTerminalStore();
++    const detach = store.attach((handler) => client.onTerminalEvent(handler));
++    client.connect();
++    const socket = lastSocket();
++    socket.fakeOpen();
++    store.beginCreate("running", null);
++    client.terminalStart("running");
++    socket.fakeMessage({
++      event: "terminal_started", terminal_id: "running", shell: "cmd", cwd: "C:/project", status: "ok",
++    });
++    store.beginCreate("pending", null);
++    client.terminalStart("pending");
++
++    socket.fakeCloseWithCode(1006);
++
++    expect(store.getState().byId.pending).toMatchObject({
++      status: "failed", message: "terminal_connection_lost",
++    });
++    expect(store.getState().byId.running?.status).toBe("running");
++    detach();
++  });
++
++  it("times out unsent terminal starts and removes them from the reconnect queue", () => {
++    const client = new NanobotClient({
++      url: "ws://test", reconnect: false,
++      socketFactory: (url) => new FakeSocket(url) as unknown as WebSocket,
++    });
++    const store = createTerminalStore();
++    const detach = store.attach((handler) => client.onTerminalEvent(handler));
++    client.connect();
++    store.beginCreate("pending", null);
++    client.terminalStart("pending");
++
++    vi.advanceTimersByTime(15_000);
++
++    expect(store.getState().byId.pending).toMatchObject({
++      status: "failed", message: "terminal_start_timeout",
++    });
++    lastSocket().fakeOpen();
++    expect(lastSocket().sent).toHaveLength(0);
++    client.close();
++    detach();
++  });
++
++  it("clears a terminal start timeout once a correlated reply arrives", () => {
++    const client = new NanobotClient({
++      url: "ws://test", reconnect: false,
++      socketFactory: (url) => new FakeSocket(url) as unknown as WebSocket,
++    });
++    const store = createTerminalStore();
++    const detach = store.attach((handler) => client.onTerminalEvent(handler));
++    client.connect();
++    const socket = lastSocket();
++    socket.fakeOpen();
++    store.beginCreate("pending", null);
++    client.terminalStart("pending");
++    socket.fakeMessage({
++      event: "terminal_started", terminal_id: "pending", shell: "cmd", cwd: "C:/project", status: "ok",
++    });
++
++    vi.advanceTimersByTime(15_000);
++
++    expect(store.getState().byId.pending?.status).toBe("running");
++    client.close();
++    detach();
++  });
++
+   it("reconciles simultaneous client submissions to the gateway-owned turn", () => {
+     const client = new NanobotClient({
+       url: "ws://test",
+diff --git a/webui/src/tests/pane-workbench.test.tsx b/webui/src/tests/pane-workbench.test.tsx
+index 6d837dd..fa0016e 100644
+--- a/webui/src/tests/pane-workbench.test.tsx
++++ b/webui/src/tests/pane-workbench.test.tsx
+@@ -440,13 +440,15 @@ describe("PaneWorkbench", () => {
+ 
+     const { rerender } = render(view());
+     const host = screen.getByTestId("workbench-composer-host");
+-    expect(host.style.marginRight).toBe("");
++    const available = screen.getByTestId("workbench-composer-available");
++    expect(available.style.paddingRight).toBe("");
+ 
+     rerender(view("19rem"));
+-    expect(host.style.marginRight).toBe("19rem");
++    expect(available.style.paddingRight).toBe("19rem");
++    expect(host.style.marginRight).toBe("");
+ 
+     rerender(view());
+-    expect(host.style.marginRight).toBe("");
++    expect(available.style.paddingRight).toBe("");
+   });
+ 
+   it("fills the workbench through alternating binary splits", () => {
+diff --git a/webui/src/tests/session-workbench.test.tsx b/webui/src/tests/session-workbench.test.tsx
+index 7b8dab2..fd654f1 100644
+--- a/webui/src/tests/session-workbench.test.tsx
++++ b/webui/src/tests/session-workbench.test.tsx
+@@ -137,6 +137,10 @@ async function waitForShells() {
+   await waitFor(() => expect(mocks.fetchTerminalShells).toHaveBeenCalled());
+ }
+ 
++function openTools() {
++  fireEvent.click(screen.getByRole("button", { name: "Expand sidebar tools" }));
++}
++
+ beforeEach(() => {
+   sessionStorage.clear();
+   dockStore.resetForTests();
+@@ -155,8 +159,57 @@ beforeEach(() => {
+ });
+ 
+ describe("SessionWorkbench embedded StartDock", () => {
++  it("reports the measured rail width when workspace changes to tools", () => {
++    const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
++      return { width: this.dataset.mode === "tools" ? 576 : 304 } as DOMRect;
++    });
++    const onRailWidthChange = vi.fn();
++    try {
++      const view = renderWorkbench({ onRailWidthChange });
++      expect(onRailWidthChange).toHaveBeenLastCalledWith(304);
++      openTools();
++      expect(onRailWidthChange).toHaveBeenLastCalledWith(576);
++      view.unmount();
++      expect(onRailWidthChange).toHaveBeenLastCalledWith(0);
++    } finally {
++      bounds.mockRestore();
++    }
++  });
++
++  it("reserves no composer space for a narrow overlay", () => {
++    const onRailWidthChange = vi.fn();
++    renderWorkbench({ overlay: true, onRailWidthChange });
++    expect(onRailWidthChange).toHaveBeenLastCalledWith(0);
++    openTools();
++    expect(onRailWidthChange).toHaveBeenLastCalledWith(0);
++    expect(screen.getByTestId("session-workbench")).toHaveAttribute("data-overlay", "true");
++  });
++
++  it("shows workspace information first and opens tools as a separate full-height mode", () => {
++    const { client } = renderWorkbench({ model: { ...emptyModel, summary: "Workspace summary" } });
++    expect(screen.getByText("Workspace summary")).toBeVisible();
++    expect(screen.queryByTestId("start-dock")).not.toBeInTheDocument();
++
++    openTools();
++    expect(screen.getByTestId("dock-launcher")).toBeVisible();
++    expect(screen.getByText("Workspace summary")).not.toBeVisible();
++    fireEvent.click(screen.getByTestId("dock-card-terminal"));
++    const terminalId = client.terminalStart.mock.calls[0][0] as string;
++    const surface = screen.getByTestId(`terminal-surface-${terminalId}`);
++
++    fireEvent.click(screen.getByRole("button", { name: "Show workspace" }));
++    expect(screen.getByText("Workspace summary")).toBeVisible();
++    expect(surface).not.toBeVisible();
++    expect(client.terminalKill).not.toHaveBeenCalled();
++    openTools();
++    expect(screen.getByTestId(`terminal-surface-${terminalId}`)).toBe(surface);
++    expect(surface).toBeVisible();
++    expect(client.terminalStart).toHaveBeenCalledTimes(1);
++  });
++
+   it("session dock replaces the three inline sections with one tabbed dock", async () => {
+     const { client } = renderWorkbench({ sessionKey: "websocket:chat-7" });
++    openTools();
+     expect(screen.getByTestId("start-dock")).toBeInTheDocument();
+     expect(client.terminalList).toHaveBeenCalled();
+     // 三个旧 Section 头（Files / New terminal / Browser）不复存在；
+@@ -176,6 +229,7 @@ describe("SessionWorkbench embedded StartDock", () => {
+ 
+   it("embedded variant renders inside the workbench without the rail collapse button", () => {
+     renderWorkbench();
++    openTools();
+     expect(screen.getByTestId("session-workbench")).toBeInTheDocument();
+     expect(screen.getByTestId("start-dock")).toBeInTheDocument();
+     expect(screen.queryByRole("button", { name: /Collapse the start panel/i })).toBeNull();
+@@ -185,17 +239,20 @@ describe("SessionWorkbench embedded StartDock", () => {
+ 
+   it("dock tabs are isolated per session scope", () => {
+     const view = renderWorkbench({ sessionKey: "websocket:chat-a" });
++    openTools();
+     fireEvent.click(screen.getByTestId("dock-card-browser"));
+     expect(screen.getByTestId("dock-tab-browser")).toBeInTheDocument();
+     view.unmount();
+ 
+     renderWorkbench({ sessionKey: "websocket:chat-b" });
++    openTools();
+     expect(screen.queryByTestId("dock-tab-browser")).toBeNull();
+     expect(screen.getByTestId("dock-launcher")).toBeInTheDocument();
+   });
+ 
+   it("persisted takeover terminals are scoped per session key", async () => {
+     const first = renderWorkbench({ sessionKey: "websocket:chat-a" });
++    openTools();
+     await waitForShells();
+     fireEvent.click(screen.getByTestId("dock-card-terminal"));
+     const id = first.client.terminalStart.mock.calls[0][0] as string;
+@@ -207,22 +264,31 @@ describe("SessionWorkbench embedded StartDock", () => {
+     dockStore.resetForTests();
+ 
+     const second = renderWorkbench({ sessionKey: "websocket:chat-b" });
++    openTools();
+     expect(screen.queryByTestId(`dock-takeover-${id}`)).toBeNull();
+     // 同 scope 重新挂载：接管横幅按会话 scope 的持久化清单出现（与首页行为一致）。
+     second.unmount();
+     renderWorkbench({ sessionKey: "websocket:chat-a" });
++    openTools();
+     const banner = screen.getByTestId(`dock-takeover-${id}`);
+     expect(banner).toHaveTextContent(">. zsh");
+     // 与首页 rail 行为一致：无标签时接管横幅与启动器空态共存。
+     expect(screen.getByTestId("dock-launcher")).toBeInTheDocument();
+   });
+ 
+-  it("file tab previews route through the session scoped callback", async () => {
++  it("previews clicked files beside the right-hand tree within the session tools", async () => {
+     const onOpenFilePreview = vi.fn();
+     renderWorkbench({ sessionKey: "websocket:chat-7", onOpenFilePreview });
++    openTools();
+     fireEvent.click(screen.getByTestId("dock-card-files"));
+     expect(await screen.findByText("README.md")).toBeInTheDocument();
+     fireEvent.click(screen.getByRole("button", { name: /README\.md/ }));
+-    await waitFor(() => expect(onOpenFilePreview).toHaveBeenCalledWith("README.md"));
++    const preview = await screen.findByTestId("dock-file-preview");
++    const tree = screen.getByTestId("dock-file-tree");
++    expect(preview.parentElement).toBe(tree.parentElement);
++    expect(preview.compareDocumentPosition(tree) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
++    expect(await screen.findByText("# Hello")).toBeVisible();
++    expect(mocks.fetchFilePreview).toHaveBeenCalledWith("tok", "websocket:chat-7", "README.md", "", null);
++    expect(onOpenFilePreview).not.toHaveBeenCalled();
+   });
+ });
+diff --git a/webui/src/tests/start-dock.test.tsx b/webui/src/tests/start-dock.test.tsx
+index 306aec5..cff32f2 100644
+--- a/webui/src/tests/start-dock.test.tsx
++++ b/webui/src/tests/start-dock.test.tsx
+@@ -7,6 +7,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+ import { beforeEach, describe, expect, it, vi } from "vitest";
+ 
+ import { StartDock } from "@/components/dock/StartDock";
++import { getTerminalStore } from "@/hooks/useNanobotStream";
+ import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
+ import type { TerminalEvent } from "@/lib/types";
+ import { ClientProvider } from "@/providers/ClientProvider";
+@@ -149,7 +150,9 @@ function startedEvent(
+ }
+ 
+ function listResultEvent(
+-  terminals: Array<{ terminal_id: string; status: "running" | "exited"; shell: string }>,
++  terminals: Array<{
++    terminal_id: string; status: "running" | "exited"; shell: string; session_key?: string;
++  }>,
+ ): TerminalEvent {
+   return {
+     event: "terminal_list_result",
+@@ -284,11 +287,11 @@ describe("StartDock tab close (terminal_kill + tombstone)", () => {
+ 
+ describe("StartDock live terminal restore", () => {
+   it("restores running terminals from terminal_list_result as titled tabs", () => {
+-    const client = renderDock();
++    const client = renderDock({ scope: "websocket:chat1", sessionKey: "websocket:chat1" });
+     expect(client.terminalList).toHaveBeenCalled();
+     client.emit(listResultEvent([
+-      { terminal_id: "remote-1", status: "running", shell: "/bin/bash" },
+-      { terminal_id: "remote-2", status: "exited", shell: "/bin/zsh" },
++      { terminal_id: "remote-1", status: "running", shell: "/bin/bash", session_key: "websocket:chat1" },
++      { terminal_id: "remote-2", status: "exited", shell: "/bin/zsh", session_key: "websocket:chat1" },
+     ]));
+     expect(screen.getByTestId("dock-tab-remote-1")).toHaveTextContent(">. bash");
+     expect(screen.queryByTestId("dock-tab-remote-2")).toBeNull();
+@@ -296,6 +299,38 @@ describe("StartDock live terminal restore", () => {
+     expect(client.terminalStart).not.toHaveBeenCalled();
+   });
+ 
++  it("restores only terminals owned by each dock session on a shared connection", () => {
++    const client = makeFakeClient();
++    render(
++      <ClientProvider client={client as never} token="tok">
++        <StartDock variant="embedded" scope="websocket:chat-a" sessionKey="websocket:chat-a" getToken={() => "tok"} />
++        <StartDock variant="embedded" scope="websocket:chat-b" sessionKey="websocket:chat-b" getToken={() => "tok"} />
++      </ClientProvider>,
++    );
++    client.emit(listResultEvent([
++      { terminal_id: "terminal-a", status: "running", shell: "cmd", session_key: "websocket:chat-a" },
++      { terminal_id: "terminal-b", status: "running", shell: "cmd", session_key: "websocket:chat-b" },
++      { terminal_id: "legacy-unknown", status: "running", shell: "cmd" },
++    ]));
++    expect(dockStore.getSnapshot("websocket:chat-a").tabs.map((tab) => tab.id)).toEqual(["terminal-a"]);
++    expect(dockStore.getSnapshot("websocket:chat-b").tabs.map((tab) => tab.id)).toEqual(["terminal-b"]);
++  });
++
++  it("uses known session ownership to restore legacy entries without importing unknown ids", () => {
++    const client = renderDock({ scope: "websocket:chat-b", sessionKey: "websocket:chat-b" });
++    const terminalStore = getTerminalStore(client as never);
++    act(() => {
++      terminalStore.beginCreate("known-a", "websocket:chat-a");
++      terminalStore.beginCreate("known-b", "websocket:chat-b");
++    });
++    client.emit(listResultEvent([
++      { terminal_id: "known-a", status: "running", shell: "cmd" },
++      { terminal_id: "known-b", status: "running", shell: "cmd" },
++      { terminal_id: "legacy-unknown", status: "running", shell: "cmd" },
++    ]));
++    expect(dockStore.getSnapshot("websocket:chat-b").tabs.map((tab) => tab.id)).toEqual(["known-b"]);
++  });
++
+   it("leaves persisted takeover candidates to the banner instead of auto-restoring them", () => {
+     sessionStorage.setItem(TAKEOVER_KEY, JSON.stringify([{ id: "term-old", shell: "/bin/zsh" }]));
+     const client = renderDock();
+@@ -347,6 +382,13 @@ describe("StartDock reuses TerminalSurface for the pty flag", () => {
+ });
+ 
+ describe("StartDock collapse rail", () => {
++  it("can start with tools collapsed and reveal them only after expanding", () => {
++    renderDock({ defaultCollapsed: true });
++    expect(screen.queryByTestId("dock-launcher")).not.toBeInTheDocument();
++    fireEvent.click(screen.getByRole("button", { name: "Expand the start panel" }));
++    expect(screen.getByTestId("dock-launcher")).toBeVisible();
++  });
++
+   it("collapses to a rail and re-expands keeping the start-dock testid", () => {
+     renderDock();
+     fireEvent.click(screen.getByRole("button", { name: /Collapse/i }));
+diff --git a/webui/src/tests/terminal-store.test.ts b/webui/src/tests/terminal-store.test.ts
+index 2d6996a..b69269c 100644
+--- a/webui/src/tests/terminal-store.test.ts
++++ b/webui/src/tests/terminal-store.test.ts
+@@ -103,6 +103,18 @@ describe("createTerminalStore ghost-tab tombstone", () => {
+ });
+ 
+ describe("createTerminalStore error frames", () => {
++  it("retains the owning session from terminal inventory entries", () => {
++    const store = createTerminalStore();
++    store.applyEvent({
++      event: "terminal_list_result",
++      terminals: [{
++        terminal_id: "remote-a", status: "running", shell: "cmd", cwd: "C:/project",
++        session_key: "websocket:chat-a",
++      }],
++    } as TerminalEvent);
++    expect(store.getState().byId["remote-a"]?.sessionKey).toBe("websocket:chat-a");
++  });
++
+   it("surfaces an error frame on a running terminal record", () => {
+     const store = createTerminalStore();
+     openTerminal(store, "term-1");
+diff --git a/webui/src/tests/terminal-surface.test.tsx b/webui/src/tests/terminal-surface.test.tsx
+index 90fc3f7..327e054 100644
+--- a/webui/src/tests/terminal-surface.test.tsx
++++ b/webui/src/tests/terminal-surface.test.tsx
+@@ -337,13 +337,24 @@ describe("TerminalSurface (line mode, migrated from TerminalSection)", () => {
+     );
+   });
+ 
+-  it("maps terminal_start_failed to the same shell fallback label", () => {
++  it("describes a startup failure without claiming the shell is missing", () => {
+     const { client } = setup();
+     client.emit(startedEvent(TERMINAL_ID, "error", "terminal_start_failed"));
+     expect(screen.getByRole("alert")).toHaveTextContent(
+-      "This shell is not installed on the host.",
++      "The terminal could not start. Open a new one to retry.",
+     );
+   });
++
++  it.each([
++    ["terminal_connection_lost", "Connection lost while starting the terminal. Reconnect and try again."],
++    ["terminal_start_timeout", "Terminal startup timed out. Open a new one to retry."],
++  ])("shows a readable failure for %s instead of remaining in startup", (detail, label) => {
++    const { client, store } = setup();
++    act(() => store.beginCreate(TERMINAL_ID, null));
++    client.emit(errorEvent(TERMINAL_ID, detail));
++    expect(screen.getByRole("alert")).toHaveTextContent(label);
++    expect(screen.queryByText("Starting terminal…")).not.toBeInTheDocument();
++  });
+ });
+ 
+ /**
+diff --git a/webui/src/tests/thread-shell.test.tsx b/webui/src/tests/thread-shell.test.tsx
+index 2e2ba78..303caa7 100644
+--- a/webui/src/tests/thread-shell.test.tsx
++++ b/webui/src/tests/thread-shell.test.tsx
+@@ -424,6 +424,8 @@ function settingsWithFastPreset(): SettingsPayload {
+ 
+ describe("ThreadShell", () => {
+   beforeEach(() => {
++    // These chat lifecycle tests exercise the conversation without a mirrored workspace summary.
++    localStorage.setItem("mira.workbench.open", "0");
+     vi.stubGlobal(
+       "fetch",
+       vi.fn().mockResolvedValue({
+@@ -4260,6 +4262,65 @@ describe("ThreadShell", () => {
+     expect(screen.getByRole("button", { name: "Stop response" })).toBeInTheDocument();
+   });
+ 
++  it.each([
++    { width: 1440, preference: null, visible: true },
++    { width: 390, preference: null, visible: false },
++    { width: 390, preference: "1", visible: true },
++    { width: 1440, preference: "0", visible: false },
++  ])("defaults to workspace information without covering a new narrow window: $width / $preference", async ({ width, preference, visible }) => {
++    const originalWidth = window.innerWidth;
++    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
++    if (preference === null) localStorage.removeItem("mira.workbench.open");
++    else localStorage.setItem("mira.workbench.open", preference);
++    const view = render(wrap(makeClient(), <ThreadShell
++      session={session("rail-default")}
++      title="Rail default"
++      onToggleSidebar={() => {}}
++    />));
++    try {
++      await screen.findByLabelText("Message input");
++      const rail = screen.queryByTestId("session-workbench");
++      expect(Boolean(rail)).toBe(visible);
++      if (visible) {
++        expect(rail).toHaveAttribute("data-mode", "workspace");
++        expect(rail).toHaveAttribute("data-overlay", width < 1024 ? "true" : "false");
++      }
++      expect(screen.queryByTestId("start-dock")).not.toBeInTheDocument();
++    } finally {
++      view.unmount();
++      localStorage.removeItem("mira.workbench.open");
++      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
++    }
++  });
++
++  it("switches the rail to an overlay when its pane becomes narrow", async () => {
++    const resizeObserver = stubThreadResizeObserver();
++    localStorage.setItem("mira.workbench.open", "1");
++    const view = render(wrap(makeClient(), <ThreadShell
++      session={session("rail-responsive")}
++      title="Responsive rail"
++      onToggleSidebar={() => {}}
++    />));
++    try {
++      await screen.findByLabelText("Message input");
++      const shell = screen.getByTestId("thread-shell");
++      const observer = resizeObserver.observers.find((item) => item.elements.includes(shell));
++      expect(observer).toBeDefined();
++      const bounds = vi.spyOn(shell, "getBoundingClientRect");
++      bounds.mockReturnValue({ width: 1000 } as DOMRect);
++      act(() => observer!.callback([], observer as unknown as ResizeObserver));
++      expect(screen.getByTestId("session-workbench")).toHaveAttribute("data-overlay", "false");
++      bounds.mockReturnValue({ width: 650 } as DOMRect);
++      act(() => observer!.callback([], observer as unknown as ResizeObserver));
++      expect(screen.getByTestId("session-workbench")).toHaveAttribute("data-overlay", "true");
++      bounds.mockRestore();
++    } finally {
++      view.unmount();
++      resizeObserver.restore();
++      localStorage.removeItem("mira.workbench.open");
++    }
++  });
++
+   it("reports session rail open state to the pane host", async () => {
+     window.localStorage.setItem("mira.workbench.open", "1");
+     const client = makeClient();

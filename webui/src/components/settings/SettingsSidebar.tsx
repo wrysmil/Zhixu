@@ -1,11 +1,9 @@
 import { useRef } from "react";
 import {
   Activity,
-  Brain,
   Check,
   ChevronDown,
   ChevronLeft,
-  FileText,
   Globe2,
   ImageIcon,
   LogOut,
@@ -41,8 +39,6 @@ const SETTINGS_NAV_ITEMS: Array<{ key: SettingsSectionKey; icon: LucideIcon; fal
   { key: "voice", icon: Mic, fallback: "Voice" },
   { key: "browser", icon: Globe2, fallback: "Web" },
   { key: "channels", icon: MessageCircle, fallback: "Channels" },
-  { key: "memory", icon: Brain, fallback: "Memory" },
-  { key: "identity", icon: FileText, fallback: "Identity" },
   { key: "runtime", icon: Server, fallback: "System" },
   { key: "advanced", icon: ShieldCheck, fallback: "Security" },
 ];
@@ -52,6 +48,7 @@ export function standaloneSectionTitle(section: SettingsSectionKey): string {
   if (section === "automations") return "Automations";
   if (section === "skills") return "Skills";
   if (section === "agents") return "Agents";
+  if (section === "teams") return "Teams";
   return SETTINGS_NAV_ITEMS.find((item) => item.key === section)?.fallback ?? "Settings";
 }
 
@@ -80,7 +77,7 @@ export function SettingsSidebar({
   return (
     <aside
       className={cn(
-        "flex w-full shrink-0 flex-col bg-settings-surface px-3 pb-2 lg:w-[17rem] lg:px-3 lg:pb-4",
+        "flex w-full shrink-0 flex-col bg-settings-surface px-3 pb-2 lg:w-[17rem] lg:border-r lg:border-border/70 lg:px-3 lg:pb-4",
         hostChromeInset ? "pt-10 lg:pt-10" : "pt-4 lg:pt-4",
       )}
     >

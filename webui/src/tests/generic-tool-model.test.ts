@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { redactActivityText } from "@/components/thread/activity/activity-text";
 import {
+  canGroupGenericToolRuns,
   describeGenericToolRun,
   parseGenericToolTrace,
   type GenericToolStatus,
@@ -47,6 +48,20 @@ describe("generic tool activity semantics", () => {
     ["error", "Could not generate image"],
   ] as const)("uses human status copy for %s tools", (status, label) => {
     expect(describeRun('generate_image({"prompt":"private"})', status).label).toBe(label);
+  });
+
+  it("keeps spawn call ids as opaque association keys without grouping by title", () => {
+    const first = parseGenericToolTrace(
+      'spawn({"label":"Same label","task":"private one"})',
+    )!;
+    const second = parseGenericToolTrace(
+      'spawn({"label":"Same label","task":"private two"})',
+    )!;
+
+    expect(canGroupGenericToolRuns(
+      { trace: first, status: "running", toolCallId: "call-1" },
+      { trace: second, status: "running", toolCallId: "call-2" },
+    )).toBe(true);
   });
 
   it("groups searches over collected sources without exposing absolute paths", () => {

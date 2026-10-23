@@ -10,6 +10,7 @@ import {
   INLINE_TOKEN_HIGHLIGHT_COLOR,
   InlineTokenHighlight,
 } from "@/components/InlineTokenHighlight";
+import type { AgentProfile } from "@/lib/agents/types";
 import type { CliAppInfo, McpPresetInfo, SessionMention } from "@/lib/types";
 
 type SkillReferenceSegment =
@@ -49,6 +50,7 @@ function splitUserMessageSegments(
   cliApps: CliAppInfo[],
   mcpPresets: McpPresetInfo[],
   sessionMentions: SessionMention[],
+  agents: AgentProfile[],
 ): UserMessageSegment[] {
   const segments: UserMessageSegment[] = [];
   for (const segment of splitCapabilityMentionSegments(
@@ -56,6 +58,7 @@ function splitUserMessageSegments(
     cliApps,
     mcpPresets,
     sessionMentions,
+    agents,
   )) {
     if (segment.kind === "text") {
       segments.push(...splitSkillReferenceSegments(segment.text));
@@ -71,14 +74,16 @@ export function UserMessageText({
   cliApps,
   mcpPresets,
   sessionMentions = [],
+  agents = [],
 }: {
   text: string;
   cliApps: CliAppInfo[];
   mcpPresets: McpPresetInfo[];
   sessionMentions?: SessionMention[];
+  agents?: AgentProfile[];
 }) {
   const { t } = useTranslation();
-  const segments = splitUserMessageSegments(text, cliApps, mcpPresets, sessionMentions);
+  const segments = splitUserMessageSegments(text, cliApps, mcpPresets, sessionMentions, agents);
   return (
     <>
       {segments.map((segment, index) => {

@@ -1,12 +1,12 @@
-# How to Configure Web Search for a nanobot AI Agent
+# How to Configure Web Search for a Zhixu AI Agent
 
-nanobot includes built-in web search and web fetch tools. Search uses
+Zhixu includes built-in web search and web fetch tools. Search uses
 DuckDuckGo by default and can be configured for API-backed or self-hosted
 providers.
 
 ## What you will build
 
-- web tools enabled in nanobot
+- web tools enabled in Zhixu
 - one search provider selected in the WebUI or `config.json`
 - optional web fetch settings for page reading
 
@@ -95,7 +95,7 @@ in the WebUI or logs.
 - If fetch is blocked, inspect the target URL and SSRF whitelist.
 - If a proxy changes network behavior, verify `NO_PROXY` and proxy settings.
 
-## Related nanobot docs
+## Related Zhixu docs
 
 - [Configuration: Web Tools](../configuration.md#web-tools)
 - [Security](../configuration.md#security)

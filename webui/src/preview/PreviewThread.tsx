@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import { MessageBubble } from "@/components/MessageBubble";
 import { ThreadFrame } from "@/components/thread/ThreadFrame";
+import { ThreadWelcome } from "@/components/thread/ThreadWelcome";
 import { ThreadComposer } from "@/components/thread/ThreadComposer";
 import type { ModelPresetOption } from "@/components/thread/ModelPresetBadge";
-import type { SendAttachment } from "@/hooks/useNanobotStream";
+import type { SendAttachment } from "@/hooks/useZhixuStream";
 import type { UIMessage, WorkspaceScopePayload } from "@/lib/types";
 import { PREVIEW_DEFAULT_SCOPE } from "@/preview/fixtures";
 
@@ -45,6 +46,8 @@ export function PreviewThread({
   const { t } = useTranslation();
   const [messages, setMessages] = useState<UIMessage[]>(() => chatKey ? DEMO_MESSAGES : []);
   const [modelPreset, setModelPreset] = useState(PREVIEW_MODELS[0].name);
+  const [draftSeed, setDraftSeed] = useState<{ text: string; token: number; mode: "append" } | null>(null);
+  const draftTokenRef = useRef(0);
   const [reasoningEffort, setReasoningEffort] = useState("medium");
   const [localScope, setLocalScope] = useState(workspaceScope);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -64,7 +67,7 @@ export function PreviewThread({
   }, []);
 
   const header = useMemo(() => (
-    <div className="flex h-14 items-center gap-2 px-4">
+    <div className="agent-thread-header flex h-14 items-center gap-2 px-5 sm:px-8">
       <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-foreground">
         {t("workspace.nav.assistant", { defaultValue: "助手" })}
       </h1>
@@ -75,9 +78,11 @@ export function PreviewThread({
   ), [t]);
 
   const composer = (
-    <div className="w-full px-4 py-4 sm:px-6">
+    <div className="preview-composer-wrap w-full px-4 py-4 sm:px-6">
       <ThreadComposer
         onSend={send}
+        draftSeed={draftSeed}
+        onDraftSeedConsumed={() => setDraftSeed(null)}
         inputAriaLabel={t("thread.composer.inputAria")}
         placeholder={t(messages.length ? "thread.composer.placeholderThread" : "thread.composer.placeholderHero")}
         variant={messages.length ? "thread" : "hero"}
@@ -102,13 +107,17 @@ export function PreviewThread({
 
   if (messages.length === 0) {
     return (
-      <div className="flex h-full min-w-0 flex-col bg-background">
+      <div className="agent-thread-shell flex h-full min-w-0 flex-col bg-background">
         <header className="shrink-0 border-b border-border/70">{header}</header>
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto pb-16">
-          <h2 className="mb-5 px-6 text-center text-[26px] font-semibold tracking-tight text-foreground">
-            {t("thread.empty.greetings.workOn")}
-          </h2>
-          {composer}
+        <div className="agent-preview-welcome min-h-0 flex-1 overflow-y-auto">
+          <div className="agent-preview-welcome-content">
+            <ThreadWelcome onChoosePrompt={(text) => {
+              draftTokenRef.current += 1;
+              setDraftSeed({ text, token: draftTokenRef.current, mode: "append" });
+            }} />
+            {composer}
+            <p className="thread-welcome-footnote">{t("workspace.preview.badge")}</p>
+          </div>
         </div>
       </div>
     );
@@ -116,7 +125,7 @@ export function PreviewThread({
 
   return (
     <ThreadFrame header={header} composer={composer}>
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
+      <div ref={scrollRef} className="agent-preview-transcript min-h-0 flex-1 overflow-y-auto px-4 py-8">
         <div className="mx-auto flex w-full max-w-[800px] flex-col gap-5">
           {messages.map((message) => <MessageBubble key={message.id} message={message} showCopyAction={false} />)}
         </div>

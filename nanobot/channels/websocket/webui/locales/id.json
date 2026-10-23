@@ -1,5 +1,5 @@
 {
-  "description": "Gunakan Mira dari ruang kerja browser lokal.",
+  "description": "Gunakan 知序 dari ruang kerja browser lokal.",
   "requirements": "Gateway lokal dan token WebSocket",
   "setup": {
     "docsLabel": "Buka panduan WebSocket",
@@ -7,7 +7,7 @@
     "tryIt": "Buka WebUI dan kirim pesan singkat.",
     "summary": "Ruang kerja browser memerlukan WebSocket yang disiapkan oleh perintah nanobot webui.",
     "steps": [
-      "Mulai Mira dengan perintah webui.",
+      "Mulai 知序 dengan perintah webui.",
       "Buka URL lokal yang ditampilkan di terminal.",
       "Biarkan WebSocket aktif saat menggunakan ruang kerja browser."
     ]

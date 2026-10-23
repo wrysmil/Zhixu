@@ -15,7 +15,7 @@ import {
 } from "@opentui/core/testing"
 
 import {
-  NanobotTui,
+  ZhixuTui,
   sessionExitMessage,
   terminalModelFailureLine,
   type AppOptions,
@@ -132,14 +132,14 @@ function client(
   }
 }
 
-const mount = (setup: TestRendererSetup, sent: string[] = []) => NanobotTui.mount(
+const mount = (setup: TestRendererSetup, sent: string[] = []) => ZhixuTui.mount(
   setup.renderer,
   options,
   client(sent),
   new MockTreeSitterClient({ autoResolveTimeout: 0 }),
 )
 
-describe("NanobotTui layout", () => {
+describe("ZhixuTui layout", () => {
   let setup: TestRendererSetup | undefined
 
   afterEach(() => {
@@ -365,7 +365,7 @@ describe("NanobotTui layout", () => {
       recordSend(content, messageOptions)
       return `image-turn-${sent.length}`
     }
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       transport,
@@ -459,7 +459,7 @@ describe("NanobotTui layout", () => {
       dispose: async () => undefined,
     }
     setup = await createRenderer({ width: 72, height: 20, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       client(),
@@ -536,7 +536,7 @@ describe("NanobotTui layout", () => {
       dispose: async () => undefined,
     }
     setup = await createRenderer({ width: 72, height: 20, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       client(sent),
@@ -565,7 +565,7 @@ describe("NanobotTui layout", () => {
       dispose: async () => undefined,
     }
     setup = await createRenderer({ width: 72, height: 20, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       client(sent),
@@ -610,7 +610,7 @@ describe("NanobotTui layout", () => {
       dispose: async () => { disposed = true },
     }
     setup = await createRenderer({ width: 72, height: 20, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       client(),
@@ -633,7 +633,7 @@ describe("NanobotTui layout", () => {
     const sent: string[] = []
     const sentOptions: MessageOptions[] = []
     setup = await createRenderer({ width: 88, height: 24, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       client(sent, [], [], sentOptions),
@@ -956,7 +956,7 @@ describe("NanobotTui layout", () => {
     setup = await createRenderer({ width: 80, height: 24, screenMode: "alternate-screen" })
     const sent: string[] = []
     const sentOptions: MessageOptions[] = []
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       client(sent, [], [], sentOptions),
@@ -1004,7 +1004,7 @@ describe("NanobotTui layout", () => {
     const attached: string[] = []
     const newChats: string[] = []
     const transport = client([], attached, newChats)
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "secret" },
       transport,
@@ -1076,7 +1076,7 @@ describe("NanobotTui layout", () => {
         activeChatId = chatId
       },
     }
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "secret" },
       transport,
@@ -1161,7 +1161,7 @@ describe("NanobotTui layout", () => {
       }
       return new Response("{}")
     }) as typeof fetch
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       {
         ...options,
@@ -1224,7 +1224,7 @@ describe("NanobotTui layout", () => {
 
   test("returns a default-following chat to the canonical default preset", async () => {
     setup = await createRenderer({ width: 96, height: 20, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, model: "openai/gpt-5.6", modelPreset: "Codex" },
       client(),
@@ -1256,7 +1256,7 @@ describe("NanobotTui layout", () => {
       })))
     }) as typeof fetch
     const sent: string[] = []
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "secret" },
       client(sent),
@@ -1321,7 +1321,7 @@ describe("NanobotTui layout", () => {
       return new Response(JSON.stringify({ sessions: [] }))
     }) as typeof fetch
     setup = await createRenderer({ width: 96, height: 24, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "secret" },
       client(sent, [], [], [], [], scopes),
@@ -1436,7 +1436,7 @@ describe("NanobotTui layout", () => {
     }) as typeof fetch
     const attached: string[] = []
     setup = await createRenderer({ width: 96, height: 24, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "secret" },
       client([], attached),
@@ -1491,7 +1491,7 @@ describe("NanobotTui layout", () => {
       }
       return new Promise((resolve) => { deferredResolve = resolve })
     }
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       recoveryClient,
@@ -1662,7 +1662,7 @@ describe("NanobotTui layout", () => {
       })
     }) as typeof fetch
     const sent: string[] = []
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "secret" },
       client(sent),
@@ -1708,7 +1708,7 @@ describe("NanobotTui layout", () => {
         resolveFetch = resolve
       })
     }) as typeof fetch
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "secret" },
       client(),
@@ -1758,7 +1758,7 @@ describe("NanobotTui layout", () => {
         archived_summary_at: "2026-08-13T10:00:00Z",
       })))
     }) as typeof fetch
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "secret" },
       client(),
@@ -1909,7 +1909,7 @@ describe("NanobotTui layout", () => {
           : { has_more_before: true, before_cursor: "older-page" },
       })))
     }) as typeof fetch
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "secret", chatId: "chat" },
       client(),
@@ -2106,7 +2106,7 @@ describe("NanobotTui layout", () => {
 
   test("renders fenced plain text from light-theme history", async () => {
     setup = await createRenderer({ width: 100, height: 30, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, theme: "light" },
       client(),
@@ -2241,7 +2241,7 @@ describe("NanobotTui layout", () => {
 
   test("distinguishes the composer with a quiet focus edge", async () => {
     setup = await createRenderer({ width: 72, height: 20, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, theme: "light" },
       client(),
@@ -2279,7 +2279,7 @@ describe("NanobotTui layout", () => {
 
   test("uses asymmetric roles instead of chat bubbles", async () => {
     setup = await createRenderer({ width: 72, height: 24, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, theme: "dark" },
       client(),
@@ -2347,7 +2347,7 @@ describe("NanobotTui layout", () => {
 
   test("keeps an explicit theme stable when the terminal reports another mode", async () => {
     setup = await createRenderer({ width: 72, height: 20, screenMode: "alternate-screen" })
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, theme: "light" },
       client(),
@@ -2376,7 +2376,7 @@ describe("NanobotTui layout", () => {
     Object.defineProperty(setup.renderer, "themeMode", { configurable: true, value: "light" })
     const transport = client()
     transport.connect = () => { connected = true }
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       transport,
@@ -2400,7 +2400,7 @@ describe("NanobotTui layout", () => {
     Object.defineProperty(setup.renderer, "themeMode", { configurable: true, value: null })
     const transport = client()
     transport.connect = () => { connected = true }
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       transport,
@@ -2918,7 +2918,7 @@ describe("NanobotTui layout", () => {
       elapsedMs: 3_500,
       health: "unreachable",
     })
-    expect(ui.status.plainText).toBe("Nanobot is taking longer to respond…")
+    expect(ui.status.plainText).toBe("Zhixu is taking longer to respond…")
     expect(ui.status.plainText).not.toContain("Unable")
 
     ui.handleStatus("error", "gateway bootstrap failed: HTTP 401", {
@@ -2926,7 +2926,7 @@ describe("NanobotTui layout", () => {
       attempt: 9,
       elapsedMs: 3_800,
     })
-    expect(ui.status.plainText).toBe("Nanobot unavailable · restart nanobot")
+    expect(ui.status.plainText).toBe("Zhixu unavailable · restart nanobot")
     expect(ui.status.plainText).not.toContain("gateway")
     expect(ui.status.plainText).not.toContain("127.0.0.1")
     expect(ui.status.plainText).not.toContain("HTTP")
@@ -3035,7 +3035,7 @@ describe("NanobotTui layout", () => {
     globalThis.fetch = (() => new Promise<Response>((resolve) => {
       resolveFetch = resolve
     })) as unknown as typeof fetch
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "token", chatId: "chat" },
       client(),
@@ -3070,7 +3070,7 @@ describe("NanobotTui layout", () => {
     globalThis.fetch = (() => new Promise<Response>((resolve) => {
       resolveFetch = resolve
     })) as unknown as typeof fetch
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "token", chatId: "chat" },
       client(),
@@ -3117,7 +3117,7 @@ describe("NanobotTui layout", () => {
         resolveReconnect = resolve
       })
     }) as unknown as typeof fetch
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, apiUrl: "http://nanobot.test", apiToken: "token", chatId: "chat" },
       client(sent),
@@ -3210,7 +3210,7 @@ describe("NanobotTui layout", () => {
     const exited: string[] = []
     const transport = client()
     transport.close = () => { closed = true }
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       {
         ...options,
@@ -3237,7 +3237,7 @@ describe("NanobotTui layout", () => {
     let closed = false
     const transport = client()
     transport.close = () => { closed = true }
-    NanobotTui.mount(
+    ZhixuTui.mount(
       setup.renderer,
       options,
       transport,
@@ -3257,7 +3257,7 @@ describe("NanobotTui layout", () => {
     let closed = false
     const transport = client()
     transport.close = () => { closed = true }
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       transport,
@@ -3278,7 +3278,7 @@ describe("NanobotTui layout", () => {
     let closed = false
     const transport = client(sent)
     transport.close = () => { closed = true }
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       transport,
@@ -3310,7 +3310,7 @@ describe("NanobotTui layout", () => {
     let closed = false
     const transport = client(sent)
     transport.close = () => { closed = true }
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       {
         ...options,
@@ -3343,7 +3343,7 @@ describe("NanobotTui layout", () => {
     setup = await createRenderer({ width: 72, height: 20, screenMode: "alternate-screen" })
     let detached = false
     const transport = { ...client(), activeChatId: "" }
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       { ...options, onDetach: (chatId) => {
         expect(chatId).toBeUndefined()
@@ -3362,7 +3362,7 @@ describe("NanobotTui layout", () => {
   })
 })
 
-describe("NanobotTui with a Herdr pane title reporter", () => {
+describe("ZhixuTui with a Herdr pane title reporter", () => {
   test("keeps the full terminal experience while reporting task titles", async () => {
     const setup = await createTestRenderer({ width: 80, height: 22, screenMode: "alternate-screen" })
     const titles: string[] = []
@@ -3371,7 +3371,7 @@ describe("NanobotTui with a Herdr pane title reporter", () => {
       reportTitle(title) { titles.push(title) },
       release() { released = true },
     }
-    const app = NanobotTui.mount(
+    const app = ZhixuTui.mount(
       setup.renderer,
       options,
       client(),

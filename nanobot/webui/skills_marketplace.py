@@ -20,6 +20,7 @@ import httpx
 from nanobot.agent.skills import SkillsLoader
 from nanobot.security.network import PinnedDNSAsyncTransport
 from nanobot.security.workspace_policy import WorkspaceBoundaryError, require_path_within
+from nanobot.webui.skills_api import is_builtin_skill, protected_write_message
 
 _PROVIDER_ALL = "all"
 _PROVIDER_SKILLS_SH = "skills_sh"
@@ -339,8 +340,18 @@ async def install_marketplace_skill(
     provider: str = _PROVIDER_SKILLS_SH,
     version: str = "",
 ) -> dict[str, Any]:
-    """Install one normalized marketplace result into ``<workspace>/skills``."""
+    """Install one normalized marketplace result into ``<workspace>/skills``.
+
+    创作空间内置 Skill 的名字是受保护身份（契约 §4）：同名导入若被允许，工作区副本会
+    遮蔽内置目录里的同名技能，运行记录也会把来源显示成 ``workspace``。这里在任何
+    网络 / 子进程动作之前拒绝，且拒绝行为对两个 provider 一致。
+    """
     selected = _valid_provider(provider, allow_all=False)
+    if is_builtin_skill(skill_id):
+        raise SkillsMarketplaceError(
+            protected_write_message("skill", skill_id),
+            status=409,
+        )
     if selected == _PROVIDER_SKILLHUB:
         return await _install_skillhub_skill(skill_id, version, workspace_path)
     return await _install_skills_sh_skill(source, skill_id, workspace_path)

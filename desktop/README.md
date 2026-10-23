@@ -1,6 +1,6 @@
-# Mira 桌面版（desktop/）
+# 知序 桌面版（desktop/）
 
-Mira 是 Agent-With-Memory（nanobot 引擎）的桌面客户端品牌名：Electron 壳直接复用
+「知序」是 Agent-With-Memory（nanobot 引擎）的桌面客户端品牌名：Electron 壳直接复用
 `webui/` 的构建产物，不改动、不替代 WebUI —— 两者并存。
 
 页面风格参考 Hope Agent（shiwenwen/hope-agent）：白底浅色、标准窗口边框、
@@ -18,18 +18,18 @@ Windows NSIS 安装包。
   port/tokenIssueSecret），复用或拉起 `nanobot gateway`，等待 `/health` 就绪后
   加载 `http://127.0.0.1:<port>/#/?bootstrapSecret=…`
 - `preload.cjs` — 暴露 `window.mira`（contextIsolation + sandbox）
-- `boot.html` — 启动/错误页（Mira 品牌 splash，带重试）
-- `assets/icon.png` — 应用图标（1024px，Mira 品牌）
+- `boot.html` — 启动/错误页（知序 splash，带重试）
+- `assets/icon.png` — 应用图标（1024px，知序品牌）
 
 ## 使用
 
 ```bash
 cd desktop
 npm install            # 首次安装 electron（国内可设 ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/）
-npm start              # 生产模式：自动拉起 gateway 并打开 Mira
+npm start              # 生产模式：自动拉起 gateway 并打开知序
 npm run dev            # 开发模式：加载 vite dev server（默认 http://localhost:5173，可用 MIRA_WEBUI_URL 覆盖）
 npm run smoke          # 无后端冒烟：只验证壳能启动
-npm run dist           # 打 Windows NSIS 安装包（release/Mira-Setup-x.y.z.exe）
+npm run dist           # 打 Windows NSIS 安装包（release/知序-Setup-x.y.z.exe）
 ```
 
 ## 环境变量

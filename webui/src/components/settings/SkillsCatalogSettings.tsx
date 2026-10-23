@@ -98,7 +98,7 @@ export function SkillsCatalogSettings({ skills }: { skills: SkillSummary[] }) {
       />
 
       {view === "installed" ? (
-        <section className="overflow-hidden rounded-panel bg-settings-surface">
+        <section className="assistant-panel overflow-hidden">
           <div className="flex flex-col gap-3 px-4 pb-2 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:max-w-[320px]">
               <Search
@@ -169,7 +169,7 @@ export function SkillsCatalogSettings({ skills }: { skills: SkillSummary[] }) {
               ))}
             </div>
           ) : (
-            <div className="px-3 py-12 text-center text-sm text-muted-foreground">
+            <div className="assistant-empty m-3">
               {t("settings.skills.noMatching", {
                 defaultValue: "No matching skills.",
               })}
@@ -638,7 +638,7 @@ function RequirementsSection({
           <p className="mt-1 text-[12px] leading-5 text-muted-foreground">
             {t("settings.skills.setupDescription", {
               defaultValue:
-                "Install the missing dependency on the machine running Mira, then check again.",
+                "Install the missing dependency on the machine running 知序, then check again.",
             })}
           </p>
         </div>

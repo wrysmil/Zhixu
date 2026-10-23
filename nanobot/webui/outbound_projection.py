@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Protocol, TypeAlias
 
 from loguru import logger
 
@@ -21,16 +21,22 @@ from nanobot.bus.outbound_events import (
     TurnEndEvent,
     TurnModelUpdatedEvent,
     UserInputEvent,
+    WritingEvent,
 )
 from nanobot.session.webui_turns import clear_websocket_turn_if_current
+from nanobot.teams.events import TeamRunUpdateEvent
 from nanobot.webui.metadata import (
     WEBSOCKET_TURN_OWNER_METADATA_KEY,
     WEBUI_SYSTEM_COMMAND_TURN_PREFIX,
     WEBUI_TURN_METADATA_KEY,
 )
 from nanobot.webui.outbound_wire import (
+    SubagentExecutionWireEvent,
     WebUIWirePayload,
     WebUIWirePersistence,
+    encode_subagent_execution_event,
+    encode_subagent_execution_snapshot,
+    encode_team_snapshot,
     encode_turn_end,
     project_notification,
 )
@@ -39,6 +45,10 @@ from nanobot.webui.session_projection import WebUISessionProjection
 
 if TYPE_CHECKING:
     from websockets.asyncio.server import ServerConnection
+
+# 重连时要补发的运行快照：调用方负责已经过白名单投影，返回的是 run 的 wire dict。
+TeamHydrationProvider: TypeAlias = Callable[[str], Awaitable[list[dict[str, Any]]]]
+SubagentHydrationProvider: TypeAlias = Callable[[str], Awaitable[dict[str, Any]]]
 
 
 class WebUIOutboundTransport(Protocol):
@@ -108,6 +118,15 @@ class WebUIOutboundTransport(Protocol):
         metadata: dict[str, Any] | None = None,
     ) -> None: ...
 
+    async def send_writing_event(
+        self,
+        chat_id: str,
+        name: str,
+        body: dict[str, Any],
+    ) -> None:
+        """Fan out one authored writing-collaboration frame (``event`` = *name*)."""
+        ...
+
     async def send_projected_message(
         self,
         msg: OutboundMessage,
@@ -122,9 +141,14 @@ class WebUIOutboundProjector:
         self,
         transport: WebUIOutboundTransport,
         session_projection: WebUISessionProjection,
+        team_hydration: TeamHydrationProvider | None = None,
+        subagent_hydration: SubagentHydrationProvider | None = None,
     ) -> None:
         self._transport = transport
         self._session_projection = session_projection
+        # 团队快照来自 gateway 的那一份 TeamService：投影层不认识存储，只认已投影的 run。
+        self._team_hydration = team_hydration
+        self._subagent_hydration = subagent_hydration
 
     async def hydrate(self, chat_id: str) -> None:
         """Replay reconnect state through the existing stable wire operations."""
@@ -143,6 +167,20 @@ class WebUIOutboundProjector:
             )
         for question in pending_for_chat(chat_id):
             await self._transport.send_question_requested(chat_id, question)
+        if self._team_hydration is not None:
+            for run in await self._team_hydration(chat_id):
+                await self._transport.send_payload(
+                    chat_id,
+                    encode_team_snapshot(chat_id, run),
+                    persistence="transient",
+                )
+        if self._subagent_hydration is not None:
+            snapshot = await self._subagent_hydration(chat_id)
+            await self._transport.send_payload(
+                chat_id,
+                encode_subagent_execution_snapshot(chat_id, snapshot),
+                persistence="transient",
+            )
 
     async def send(self, msg: OutboundMessage) -> None:
         event = msg.event
@@ -156,6 +194,23 @@ class WebUIOutboundProjector:
             )
             return
 
+        if isinstance(event, WritingEvent):
+            # 一个分支覆盖三种协作事件：帧名由 event_name 决定，载荷是已经白名单的 body
+            # （契约 §5）。状态已落在写作库，重连靠 writing.collab.get 快照，不进 transcript。
+            conns = list(self._transport.webui_subscribers(msg.chat_id))
+            if conns:
+                await self._transport.send_writing_event(msg.chat_id, event.event_name, event.body)
+            return
+        if isinstance(event, SubagentExecutionWireEvent):
+            conns = list(self._transport.webui_subscribers(msg.chat_id))
+            payload = encode_subagent_execution_event(msg.chat_id, event)
+            if conns and payload is not None:
+                await self._transport.send_payload(
+                    msg.chat_id,
+                    payload,
+                    persistence="transient",
+                )
+            return
         conns = list(self._transport.webui_subscribers(msg.chat_id))
         if not conns:
             quiet_events = (
@@ -168,6 +223,9 @@ class WebUIOutboundProjector:
                 GoalStateSyncEvent,
                 QuestionRequestedEvent,
                 ContextCompactionEvent,
+                TeamRunUpdateEvent,
+                WritingEvent,
+                SubagentExecutionWireEvent,
             )
             log = (
                 logger.debug

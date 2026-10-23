@@ -1,4 +1,4 @@
-# nanobot Documentation
+# Zhixu Documentation
 
 Use these docs to get a working agent first, then open a task guide only when you need the next capability. Source-level design and extension details are kept in the contributor section.
 
@@ -14,7 +14,7 @@ Repository docs follow the current source tree and can be newer than the latest 
 
 The recommended first-run path is:
 
-1. Install nanobot.
+1. Install Zhixu.
 2. Let the installer open `nanobot webui` on a fresh local desktop.
 3. Configure a provider and model in **Settings → Models**.
 4. Send `Hello!` before configuring anything else.
@@ -37,14 +37,14 @@ Pick the row that matches what you want to accomplish next:
 | Generate images | [Image Generation](./image-generation.md) |
 | Schedule work or create a local trigger | [Automations](./automations.md) |
 | Understand and manage long-term memory | [Memory](./memory.md) |
-| Run nanobot continuously | [Deployment](./deployment.md) |
+| Run Zhixu continuously | [Deployment](./deployment.md) |
 | Run separate bots or workspaces | [Multiple Instances](./multiple-instances.md) |
-| Call nanobot from Python | [Python SDK](./python-sdk.md) |
+| Call Zhixu from Python | [Python SDK](./python-sdk.md) |
 | Expose an OpenAI-compatible endpoint | [OpenAI-Compatible API](./openai-api.md) |
 
 For shorter, outcome-focused walkthroughs, browse the [task guide index](./guides/README.md).
 
-## Operate nanobot
+## Operate Zhixu
 
 | Need | Read |
 |---|---|
@@ -69,11 +69,11 @@ Use reference pages to look up an exact option after you know what you are tryin
 | OpenAI-compatible HTTP routes and payloads | [OpenAI-Compatible API](./openai-api.md) |
 | Runtime self-inspection and tuning | [My Tool](./my-tool.md) |
 
-Configuration examples are usually snippets to merge into `~/.nanobot/config.json`, not complete replacement files. The docs use camelCase because nanobot writes config that way. Keep real API keys, bot tokens, and passwords out of issues and public logs.
+Configuration examples are usually snippets to merge into `~/.nanobot/config.json`, not complete replacement files. The docs use camelCase because Zhixu writes config that way. Keep real API keys, bot tokens, and passwords out of issues and public logs.
 
 ## Extend or Contribute
 
-These pages explain implementation and extension points. You do not need them to install or operate nanobot.
+These pages explain implementation and extension points. You do not need them to install or operate Zhixu.
 
 | Goal | Read |
 |---|---|
@@ -82,4 +82,4 @@ These pages explain implementation and extension points. You do not need them to
 | Add a channel package | [Channel Package Guide](./channel-package-guide.md) |
 | Build the WebUI source | [WebUI Development](../webui/README.md) |
 
-If a command or screen no longer matches these docs, please [open an issue](https://github.com/HKUDS/nanobot/issues) with your nanobot version, operating system, and the page that needs correction.
+If a command or screen no longer matches these docs, please [open an issue](https://github.com/HKUDS/nanobot/issues) with your Zhixu version, operating system, and the page that needs correction.

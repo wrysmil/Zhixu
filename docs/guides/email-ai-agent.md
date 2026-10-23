@@ -1,18 +1,18 @@
-# Build an Email AI Agent with nanobot
+# Build an Email AI Agent with Zhixu
 
-This guide turns nanobot into an email AI agent that polls IMAP for accepted
+This guide turns Zhixu into an email AI agent that polls IMAP for accepted
 messages and replies through SMTP.
 
 ## What this guide builds
 
-- a dedicated mailbox for nanobot
+- a dedicated mailbox for Zhixu
 - IMAP and SMTP credentials in `config.json`
 - an allowed sender list
 - a gateway process that polls and replies
 
 ## Prerequisites
 
-- A working local nanobot reply:
+- A working local Zhixu reply:
 
 ```bash
 nanobot agent -m "Hello!"
@@ -22,7 +22,7 @@ nanobot agent -m "Hello!"
 - IMAP and SMTP access. For Gmail, use an app password rather than your account
   password.
 
-## Install nanobot
+## Install Zhixu
 
 ```bash
 python -m pip install nanobot-ai

@@ -27,6 +27,7 @@ import {
 } from "@/components/thread/promptNavigation";
 import { cn } from "@/lib/utils";
 import type { CliAppInfo, McpPresetInfo, RetryStatus, SlashCommand, UIMessage } from "@/lib/types";
+import type { AgentProfile } from "@/lib/agents/types";
 
 export interface ThreadViewportHandle {
   jumpToUserPrompt: (promptId: string) => void;
@@ -42,6 +43,9 @@ interface ThreadViewportProps {
   retryStatus?: RetryStatus | null;
   composer?: ReactNode;
   emptyState?: ReactNode;
+  /** Rendered below the hero composer — the demo keeps shortcuts and resume rows
+   *  under the input rather than above it. */
+  emptyStateBelow?: ReactNode;
   scrollToBottomSignal?: number;
   activeTurnId?: string | null;
   activeTurnStartedHere?: boolean;
@@ -50,6 +54,7 @@ interface ThreadViewportProps {
   showScrollToBottomButton?: boolean;
   cliApps?: CliAppInfo[];
   mcpPresets?: McpPresetInfo[];
+  agents?: AgentProfile[];
   slashCommands?: SlashCommand[];
   forkBoundaryMessageCount?: number | null;
   hasMoreBefore?: boolean;
@@ -225,6 +230,7 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
   retryStatus = null,
   composer,
   emptyState,
+  emptyStateBelow,
   scrollToBottomSignal = 0,
   activeTurnId = null,
   activeTurnStartedHere = false,
@@ -233,6 +239,7 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
   showScrollToBottomButton = true,
   cliApps = [],
   mcpPresets = [],
+  agents = [],
   slashCommands = [],
   forkBoundaryMessageCount = null,
   hasMoreBefore = false,
@@ -884,6 +891,7 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
                   hiddenUserMessageCount={hiddenUserMessageCount}
                   cliApps={cliApps}
                   mcpPresets={mcpPresets}
+                  agents={agents}
                   slashCommands={slashCommands}
                   forkBoundaryMessageCount={visibleForkBoundaryMessageCount}
                   onOpenFilePreview={onOpenFilePreview}
@@ -900,12 +908,21 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
               data-testid="thread-empty-region"
               className={cn(
                 "row-start-1 flex min-h-0 min-w-0 w-full items-center justify-center",
-                hasComposer && "sm:items-end sm:pb-8",
+                hasComposer && "sm:items-end sm:pb-2",
               )}
             >
               {emptyState}
             </div>
           )}
+
+          {!hasMessages && emptyStateBelow ? (
+            <div
+              data-testid="thread-empty-below"
+              className="row-start-3 flex min-h-0 w-full min-w-0 justify-center"
+            >
+              {emptyStateBelow}
+            </div>
+          ) : null}
 
           {hasComposer ? (
             <div
@@ -955,17 +972,15 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
           {hasComposer ? (
             <div
               aria-hidden
-              className="thread-layout-spacer row-start-3 min-h-0 overflow-hidden"
+              className={cn(
+                "thread-layout-spacer min-h-0 overflow-hidden",
+                emptyStateBelow && !hasMessages ? "row-start-4" : "row-start-3",
+              )}
             />
           ) : null}
         </div>
         {!hasMessages ? <div ref={bottomRef} aria-hidden className="h-px" /> : null}
       </div>
-
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-3 bg-gradient-to-b from-background to-transparent"
-      />
 
       {hasMessages ? (
         <PromptRail

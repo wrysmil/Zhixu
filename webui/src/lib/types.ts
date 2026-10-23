@@ -1,5 +1,9 @@
 import type { ContextCompaction, NotificationEvent, RecoveryState, RetryStatus as WireRetryStatus } from "../../../packages/client-events/notifications";
+import type { TeamBinding } from "./teams/types";
 export type { RecoveryState, RecoveryStatus } from "../../../packages/client-events/notifications";
+/** Chat-level team binding is part of the wire protocol, so it re-exports the
+ * single domain definition instead of duplicating a second shape. */
+export type { TeamBinding } from "./teams/types";
 
 type Role = "user" | "assistant" | "tool" | "system";
 
@@ -398,6 +402,8 @@ export interface ChatSummary {
   workspaceScope?: WorkspaceScopePayload | null;
   /** Stable, server-owned @handle for this session. */
   handle?: SessionHandle | null;
+  /** Server-confirmed team binding; absent or null means an ordinary chat. */
+  teamBinding?: TeamBinding | null;
 }
 
 export type WorkspaceAccessMode = "restricted" | "full";
@@ -970,7 +976,7 @@ export interface CliAppsPayload {
   };
 }
 
-export interface NanobotFeatureInfo {
+export interface ZhixuFeatureInfo {
   name: string;
   display_name: string;
   capabilities?: string[];
@@ -985,7 +991,7 @@ export interface NanobotFeatureInfo {
   config_values?: Record<string, string>;
   configured_fields?: string[];
   setup?: ChannelSetupContract;
-  instances?: NanobotChannelInstanceInfo[];
+  instances?: ZhixuChannelInstanceInfo[];
   installed: boolean;
   ready: boolean;
   status: "enabled" | "missing_dependency" | "not_enabled" | string;
@@ -1007,7 +1013,7 @@ export interface ChannelSetupContract {
   official_url?: string;
 }
 
-export interface NanobotChannelInstanceInfo {
+export interface ZhixuChannelInstanceInfo {
   id: string;
   name: string;
   display_name?: string;
@@ -1023,8 +1029,8 @@ export interface NanobotChannelInstanceInfo {
 
 export type ChannelRuntimeStatus = "running" | "starting" | "failed" | "stopped" | string;
 
-export interface NanobotFeaturesPayload {
-  features: NanobotFeatureInfo[];
+export interface ZhixuFeaturesPayload {
+  features: ZhixuFeatureInfo[];
   enabled_count: number;
   requires_restart?: boolean;
   last_action?: {
@@ -1201,14 +1207,14 @@ export interface ChannelConnectPayload {
   expires_at_ms?: number;
   app_id?: string;
   account?: string;
-  nanobot_features?: NanobotFeaturesPayload;
+  zhixu_features?: ZhixuFeaturesPayload;
 }
 
 export interface ChannelConfigurePayload {
   name: string;
   saved: boolean;
   saved_keys?: string[];
-  nanobot_features?: NanobotFeaturesPayload;
+  zhixu_features?: ZhixuFeaturesPayload;
 }
 
 export interface ModelConfigurationCreate {
@@ -1354,6 +1360,7 @@ export type InboundEvent =
       recovery_state?: RecoveryState;
       usage?: TurnUsage;
       reasoning_effort?: string | null;
+      team_binding?: TeamBinding | null;
     }
   | {
       event: "message_accepted";
@@ -1473,6 +1480,20 @@ export type InboundEvent =
       chat_id: string;
       goal_state: GoalStateWsPayload;
     }
+  | ({
+      /** 团队运行增量；载荷由 `@/lib/teams/events` 的 parseTeamFrame 解析。 */
+      event: "team_event";
+      chat_id: string;
+      turn_id: string;
+      data: unknown;
+    } & InboundTurnMetadata)
+  | ({
+      /** 重连补发：整份运行快照，不是增量。 */
+      event: "team_snapshot";
+      chat_id: string;
+      turn_id: string;
+      data: unknown;
+    } & InboundTurnMetadata)
   | {
       event: "question_requested";
       chat_id: string;
@@ -1484,7 +1505,10 @@ export type InboundEvent =
       scope?: "metadata" | "thread" | string;
       workspace_scope?: WorkspaceScopePayload;
       reasoning_effort?: string | null;
+      team_binding?: TeamBinding | null;
     }
+  | ({ event: "writing_session" } & WritingSessionInfo)
+  | WritingChangedEvent
   | {
       event: "sidebar_state_updated";
       state: SidebarStatePayload;
@@ -1527,6 +1551,60 @@ export type InboundEvent =
 export interface OutboundMedia {
   data_url: string;
   name?: string;
+}
+
+/** 服务端为「文章 ↔ 创作团队会话」发放的稳定身份（契约 §1.2）。 */
+export interface WritingSessionInfo {
+  article_id: string;
+  chat_id: string;
+  session_key: string;
+  team_id: string;
+  team_revision: number;
+  team_name: string;
+  revision: number;
+  digest: string;
+}
+
+export interface WritingSelectionContext {
+  text: string;
+  /** Python 码点区间；前端 UTF-16 坐标必须先换算（A-T09）。 */
+  start: number;
+  end: number;
+  prefix?: string;
+  suffix?: string;
+}
+
+export type WritingTask =
+  | "ask"
+  | "rewrite"
+  | "expand"
+  | "condense"
+  | "outline"
+  | "material"
+  | "draft";
+
+/** 每条消息携带的写作上下文；服务端据此绑定团队、校验成员并注入工具。 */
+export interface WritingSendContext {
+  article_id: string;
+  revision: number;
+  digest: string;
+  member_id?: string;
+  task?: WritingTask;
+  selection?: WritingSelectionContext;
+}
+
+/** 写作工具提交后的旁路推送；客户端只用它同步文章，不当作 turn 事件。 */
+export interface WritingChangedEvent {
+  event: "writing_changed";
+  chat_id: string;
+  article_id: string;
+  revision: number;
+  digest: string;
+  change_id: string;
+  kind: string;
+  actor?: string | null;
+  /** 服务端按团队成员档案解析的显示名；缺省时前端回退到 actor id。 */
+  actor_name?: string | null;
 }
 
 export interface OutboundCliAppMention {
@@ -1583,12 +1661,21 @@ export interface FilePreviewPayload {
   truncated: boolean;
 }
 
+export interface FileSavePayload {
+  path: string;
+  display_path: string;
+  language: string;
+  size: number;
+}
+
 export interface SessionDirectoryEntry {
   name: string;
   path: string;
   display_path: string;
   is_dir: boolean;
   size: number;
+  /** True for dot-prefixed names and node_modules; only surfaced with show_hidden. */
+  hidden?: boolean;
 }
 
 export interface SessionDirectoryPayload {
@@ -1598,6 +1685,25 @@ export interface SessionDirectoryPayload {
   parent_path: string | null;
   entries: SessionDirectoryEntry[];
   truncated: boolean;
+}
+
+export interface WorkspaceSearchHit {
+  name: string;
+  path: string;
+  display_path: string;
+  /** 1-based for content hits; 0 for a file-name hit. */
+  line: number;
+  column: number;
+  snippet: string;
+  match: string;
+  hidden: boolean;
+}
+
+export interface WorkspaceSearchPayload {
+  query: string;
+  results: WorkspaceSearchHit[];
+  truncated: boolean;
+  scanned_files: number;
 }
 
 /** Contract §1.2 (2026-10-11 home-start-panel): the four host→client terminal
@@ -1638,12 +1744,31 @@ export type TerminalEvent =
       stream: TerminalOutputStreamName;
       data: string;
     }
+  | {
+      event: "terminal_snapshot";
+      terminal_id: string;
+      seq: number;
+      data: string;
+      truncated: boolean;
+    }
   | { event: "terminal_exit"; terminal_id: string; exit_code: number | null }
   | { event: "terminal_list_result"; terminals: TerminalListEntry[] }
   | { event: "error"; terminal_id?: string; detail?: string; reason?: string };
 
+/** Local choice for a brand-new chat. The server resolves the revision when it is
+ * omitted and the resulting binding is only ever read back from ``team_binding``. */
+export interface NewChatTeam {
+  teamId: string;
+  teamRevision?: number | null;
+}
+
 export type Outbound =
-  | { type: "new_chat"; workspace_scope?: WorkspaceScopePayload }
+  | {
+      type: "new_chat";
+      workspace_scope?: WorkspaceScopePayload;
+      team_id?: string;
+      team_revision?: number;
+    }
   | { type: "new_temporary_chat" }
   | {
       type: "webui_request";
@@ -1652,6 +1777,7 @@ export type Outbound =
       payload: Record<string, unknown>;
     }
   | { type: "fork_chat"; source_chat_id: string; before_user_index: number; title?: string }
+  | { type: "bind_writing_session"; article_id: string }
   | { type: "attach"; chat_id: string }
   | { type: "set_sidebar_state"; state: SidebarStatePayload }
   | { type: "discard_temporary_chat"; chat_id: string }
@@ -1672,9 +1798,12 @@ export type Outbound =
       cli_apps?: OutboundCliAppMention[];
       mcp_presets?: OutboundMcpPresetMention[];
       session_mentions?: SessionMention[];
+      /** Agent profile id requested via ``@agent``; only trusted WebUI clients may set it. */
+      agent?: string;
       quoted_context?: string;
       workspace_scope?: WorkspaceScopePayload;
       turn_id?: string;
+      writing?: WritingSendContext;
       /** Marks messages sent by the embedded WebUI, without changing the
        * generic websocket protocol for other clients. */
       webui?: true;

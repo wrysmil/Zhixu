@@ -1,0 +1,51 @@
+.appearance-editor .appearance-select {
+  min-width: 10.5rem;
+  max-width: 100%;
+  height: 2.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-control, 0.5rem);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+}
+.appearance-editor :is(button, select, input):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+.appearance-modes { display: flex; min-width: 0; gap: 0.75rem; }
+.appearance-mode { position: relative; display: grid; gap: 0.375rem; cursor: pointer; text-align: center; }
+.appearance-mode input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.appearance-mode-picture { display: flex; width: 5rem; height: 3.5rem; overflow: hidden; border: 1px solid #d4d4d4; border-radius: 0.625rem; background: #fff; box-shadow: 0 1px 2px #0000000d; }
+.appearance-mode input:checked + .appearance-mode-picture { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
+.appearance-mode input:focus-visible + .appearance-mode-picture { outline: 2px solid hsl(var(--ring)); outline-offset: 4px; }
+.appearance-mini-sidebar { width: 22%; border-right: 1px solid #dedede; background: #f3f3f3; }
+.appearance-mini-content { display: flex; flex: 1; flex-direction: column; gap: 0.3rem; padding: 0.6rem; }
+.appearance-mini-content i { height: 2px; width: 90%; background: #d7d7d7; }
+.appearance-mini-content i:first-child { background: hsl(var(--primary)); }
+.appearance-mini-content i:nth-child(2) { width: 65%; }
+.appearance-mini-content b { align-self: flex-end; width: 50%; height: 3px; margin-top: 0.25rem; background: hsl(var(--primary)); }
+.appearance-mode-dark { background: #202020; border-color: #444; }
+.appearance-mode-dark .appearance-mini-sidebar { background: #303030; border-color: #444; }
+.appearance-mode-dark .appearance-mini-content i:not(:first-child) { background: #616161; }
+.appearance-mode-system { background: linear-gradient(90deg, #fff 50%, #202020 50%); }
+.appearance-mode-label { font-size: 0.6875rem; color: hsl(var(--muted-foreground)); }
+.appearance-mode input:checked ~ .appearance-mode-label { color: hsl(var(--foreground)); font-weight: 600; }
+.appearance-color-controls { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+.appearance-color-input { display: flex; align-items: center; width: 9rem; gap: 0.5rem; border: 1px solid hsl(var(--border)); border-radius: 2rem; padding: 0 0.6rem; background: hsl(var(--background)); }
+.appearance-color-input input[type="color"] { padding: 0; width: 1.25rem; height: 1.25rem; border: 0; background: transparent; cursor: pointer; flex-shrink: 0; }
+.appearance-color-input input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.appearance-color-input input[type="color"]::-webkit-color-swatch { border: 1px solid #80808040; border-radius: 50%; }
+.appearance-color-input input[type="color"]::-moz-color-swatch { border: 1px solid #80808040; border-radius: 50%; }
+.appearance-color-input .appearance-hex { width: 6rem; height: 2.125rem; min-width: 0; border: 0; padding: 0; box-shadow: none; background: transparent; font-family: var(--font-code); font-size: 0.75rem; }
+.appearance-reset-color { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; color: hsl(var(--muted-foreground)); }
+.appearance-reset-color:hover:not(:disabled) { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.appearance-reset-color:disabled { opacity: 0.3; cursor: default; }
+.appearance-font-control { display: grid; width: min(18rem, 100%); gap: 0.5rem; }
+.appearance-recovery { color: var(--appearance-safe-foreground, hsl(var(--foreground))); }
+.appearance-reset { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.25rem; padding: 0.375rem 0.625rem; border: 1px solid currentColor; border-radius: 0.5rem; font-size: 0.75rem; cursor: pointer; }
+@media (max-width: 639px) {
+  .appearance-color-controls { justify-content: flex-start; }
+  .appearance-mode-picture { width: 4.5rem; }
+  .appearance-editor .appearance-select { width: 100%; }
+}

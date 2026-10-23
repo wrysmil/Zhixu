@@ -10,7 +10,6 @@ import {
   writeDraft,
   type LocalArticleDraft,
 } from "@/lib/writing-draft-cache";
-import type { Article } from "@/components/creative/types";
 import { preloadMarkdownText } from "@/components/MarkdownText";
 
 function jsonResponse(body: unknown, status = 200): Response {

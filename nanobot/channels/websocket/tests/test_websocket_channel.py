@@ -741,7 +741,7 @@ def test_issue_route_secret_matches_bearer_and_header() -> None:
     secret = "my-secret"
     bearer_headers = Headers([("Authorization", "Bearer my-secret")])
     assert _issue_route_secret_matches(bearer_headers, secret) is True
-    x_headers = Headers([("X-Nanobot-Auth", "my-secret")])
+    x_headers = Headers([("X-Zhixu-Auth", "my-secret")])
     assert _issue_route_secret_matches(x_headers, secret) is True
     wrong = Headers([("Authorization", "Bearer other")])
     assert _issue_route_secret_matches(wrong, secret) is False
@@ -829,6 +829,44 @@ async def test_webui_message_envelope_marks_inbound_metadata(bus: MagicMock) -> 
         "turn_seq": 1,
     }
     assert isinstance(lines[0].get("created_at_ms"), int)
+
+
+@pytest.mark.asyncio
+async def test_webui_message_without_client_turn_id_registers_matching_turn_id(
+    bus: MagicMock,
+) -> None:
+    """无客户端 ``turn_id`` 时，turn registry 的 turn_id 必须与元数据一致。
+
+    ``WebuiTurnRoutePolicy`` 用「registry 里的 turn_id == 元数据 turn_id」判定
+    「这条入站消息自己登记过 owner」。若入站层把 ``None`` 登进 registry、却把
+    服务端补发的 turn_id 写进元数据，策略就会另发一个**未登记**的 owner；
+    turn_end 清它时找不到，owner 永久残留 → 会话一直是「回答中」而
+    ``/stop`` 只会回 "No active task to stop."。
+    """
+    channel = _ch(bus)
+    conn = MagicMock()
+    conn.remote_address = ("127.0.0.1", 50123)
+    chat_id = "chat-minted-turn"
+
+    try:
+        await channel._dispatch_envelope(
+            conn,
+            "webui-client",
+            {
+                "type": "message",
+                "chat_id": chat_id,
+                "content": "hello",
+                "webui": True,
+            },
+        )
+
+        msg = bus.publish_inbound.await_args.args[0]
+        turn_id = msg.metadata[WEBUI_TURN_METADATA_KEY]
+        owner = msg.metadata[WEBSOCKET_TURN_OWNER_METADATA_KEY]
+        assert isinstance(turn_id, str) and turn_id
+        assert wth._WEBSOCKET_ACTIVE_TURNS[chat_id][owner].turn_id == turn_id
+    finally:
+        wth.clear_websocket_turns(chat_id)
 
 
 @pytest.mark.asyncio
@@ -1034,6 +1072,7 @@ async def test_authenticated_webui_request_returns_correlated_success(bus: Magic
         conn,
         "settings.provider.update",
         {"provider": "openrouter", "apiKey": "secret"},
+        caller_chats=(),
     )
     assert json.loads(conn.send.await_args.args[0]) == {
         "event": "webui_response",
@@ -1056,6 +1095,8 @@ async def test_webui_mutations_preserve_request_and_response_order(bus: MagicMoc
         _connection: object,
         action: str,
         _payload: dict[str, object],
+        *,
+        caller_chats: tuple[str, ...] = (),
     ) -> Any:
         dispatch_order.append(action)
         if action == "settings.provider.update":
@@ -1115,7 +1156,13 @@ async def test_webui_request_survives_disconnect_and_preserves_reconnect_order(
     release = asyncio.Event()
     dispatch_order: list[str] = []
 
-    async def mutate(_connection: object, action: str, _payload: dict[str, Any]) -> Any:
+    async def mutate(
+        _connection: object,
+        action: str,
+        _payload: dict[str, Any],
+        *,
+        caller_chats: tuple[str, ...] = (),
+    ) -> Any:
         dispatch_order.append(action)
         if action == "automation.run":
             started.set()
@@ -4405,7 +4452,7 @@ async def test_settings_api_returns_safe_subset_and_updates_whitelist(
         assert saved.model_presets["Codex"].model == "openai/gpt-5.5"
         assert saved.model_presets["Codex"].provider == "openai"
         assert saved.agents.defaults.timezone == "Asia/Shanghai"
-        assert saved.agents.defaults.bot_name == "nanobot"
+        assert saved.agents.defaults.bot_name == "知序"
         assert saved.agents.defaults.bot_icon == "🐈"
         assert saved.agents.defaults.tool_hint_max_length == 120
         assert saved.providers.openrouter.api_key == "sk-or-next"
@@ -4599,7 +4646,7 @@ async def test_bootstrap_exposes_native_surface(bus: MagicMock) -> None:
     try:
         response = await _http_get(
             f"http://127.0.0.1:{port}/webui/bootstrap",
-            headers={"X-Nanobot-Auth": "native-secret"},
+            headers={"X-Zhixu-Auth": "native-secret"},
         )
         assert response.status_code == 200
         body = response.json()

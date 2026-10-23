@@ -1,5 +1,5 @@
 {
-  "description": "Use Mira from WhatsApp conversations.",
+  "description": "Use 知序 from WhatsApp conversations.",
   "requirements": "WhatsApp connection setup and gateway",
   "setup": {
     "primaryAction": "Connect WhatsApp",

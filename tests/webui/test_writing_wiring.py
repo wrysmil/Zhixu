@@ -22,8 +22,7 @@ import pytest
 from websockets.datastructures import Headers
 from websockets.http11 import Response
 
-from nanobot.webui import settings_routes, ws_http
-from nanobot.webui import writing_routes
+from nanobot.webui import settings_routes, writing_routes
 from nanobot.webui.gateway_services import build_gateway_services, build_writing_operations
 from nanobot.webui.http_utils import http_json_response
 from nanobot.webui.settings_contracts import SettingsRequest
@@ -31,8 +30,8 @@ from nanobot.webui.settings_routes import (
     _SETTINGS_MUTATION_PATHS,
     _SYSTEM_ROUTES,
     _WRITING_MUTATION_PATHS,
-    _null_writing_operations,
     WebUISettingsRouter,
+    _null_writing_operations,
 )
 from nanobot.webui.settings_services import WebUISettingsServices
 from nanobot.webui.writing_routes import (
@@ -53,6 +52,7 @@ EXPECTED_WRITE_ROUTES = {
     "/api/writing/articles/save": "article.save",
     "/api/writing/articles/duplicate": "article.duplicate",
     "/api/writing/articles/delete": "article.delete",
+    "/api/writing/articles/undo": "writing.undo_change",
 }
 
 EXPECTED_SYSTEM_ROUTES = {**EXPECTED_READ_ROUTES, **EXPECTED_WRITE_ROUTES}
@@ -65,6 +65,7 @@ EXPECTED_WS_ACTIONS = {
     "article.save": "/api/writing/articles/save",
     "article.duplicate": "/api/writing/articles/duplicate",
     "article.delete": "/api/writing/articles/delete",
+    "writing.undo_change": "/api/writing/articles/undo",
 }
 
 
@@ -78,8 +79,14 @@ def test_routes_are_registered(path: str, action: str) -> None:
 
 
 def test_system_routes_has_exactly_the_expected_writing_entries() -> None:
-    assert {path for path in _SYSTEM_ROUTES if "/api/writing" in path} == set(
-        EXPECTED_SYSTEM_ROUTES
+    """写作域七条路径逐字锁定；``/api/writing/collab*`` 属于协作域（另一套动作名）。"""
+    article_paths = {
+        path for path in _SYSTEM_ROUTES if path.startswith("/api/writing/articles")
+    }
+    assert article_paths == set(EXPECTED_SYSTEM_ROUTES)
+    assert {path for path in _SYSTEM_ROUTES if "/api/writing" in path} == (
+        set(EXPECTED_SYSTEM_ROUTES)
+        | {path for path in _SYSTEM_ROUTES if "/api/writing/collab" in path}
     )
 
 
@@ -130,9 +137,9 @@ def test_ws_action_maps_to_http_path(action: str, path: str) -> None:
 
 
 def test_ws_action_names_match_frontend_contract() -> None:
-    assert {a for a in _WEBUI_MUTATION_PATHS if a.startswith("article.")} == set(
-        EXPECTED_WS_ACTIONS
-    )
+    assert {a for a in _WEBUI_MUTATION_PATHS if a.startswith("article.")} == {
+        action for action in EXPECTED_WS_ACTIONS if action.startswith("article.")
+    }
 
 
 def test_unregistered_ws_action_is_404() -> None:
@@ -142,7 +149,7 @@ def test_unregistered_ws_action_is_404() -> None:
 
 
 def test_ws_mutation_actions_are_exactly_the_write_actions() -> None:
-    """契约 §5：只有四个写动作有 WS 翻译，读动作不进入 mutation 通道。
+    """契约 §5：只有写动作有 WS 翻译，读动作不进入 mutation 通道。
 
     ``WRITING_MUTATION_ACTION_NAMES``（handler 侧）与 ``_WEBUI_MUTATION_PATHS``
     （传输侧）必须同一口径，否则前端能提交一个 handler 不认的动作名。
@@ -395,3 +402,114 @@ async def test_router_plain_get_on_write_path_is_405(tmp_path: Path) -> None:
         assert json.loads(response.body)["error"] == (
             "WebUI mutations require an authenticated WebSocket"
         )
+
+
+# ---- R7: 协作域（WU-09）也在这三张表里 --------------------------------------
+
+
+def test_collab_actions_are_registered_in_all_three_tables(tmp_path: Path) -> None:
+    """协作域 9 个动作同样受三表锁定：路径漏一条即 404，写路径漏白名单即裸改库。
+
+    协作域自己的逐条断言在 ``test_writing_collab_wiring.py``；这里只做「没被
+    新增文件绕开既有三表」的回归锁。
+    """
+    from nanobot.webui import writing_collab_routes
+    from nanobot.webui.gateway_services import build_writing_collab_operations
+    from nanobot.webui.settings_routes import _WRITING_COLLAB_MUTATION_PATHS
+
+    read_routes = {
+        "/api/writing/collab": "writing.collab.get",
+        "/api/writing/collab/artifact": "writing.artifact.get",
+    }
+    write_routes = {
+        "/api/writing/collab/start": "writing.start",
+        "/api/writing/collab/reply": "writing.reply",
+        "/api/writing/collab/confirm": "writing.confirm",
+        "/api/writing/collab/cancel": "writing.cancel",
+        "/api/writing/collab/retry": "writing.retry",
+        "/api/writing/collab/apply": "writing.apply",
+        "/api/writing/collab/undo": "writing.undo",
+    }
+    expected_routes = {**read_routes, **write_routes}
+    for path, action in expected_routes.items():
+        assert _SYSTEM_ROUTES.get(path) == action, path
+        assert WebUISettingsRouter._route(path) == ("system", action), path
+    # 动作名集合与 path 集合是两回事：这里比的是「路由表里这 9 条的 action」。
+    assert {_SYSTEM_ROUTES[path] for path in expected_routes} == (
+        writing_collab_routes.WRITING_COLLAB_ACTION_NAMES
+    )
+    assert expected_routes == writing_collab_routes.WRITING_COLLAB_ROUTE_PATHS
+    assert writing_collab_routes.WRITING_COLLAB_MUTATION_PATHS == frozenset(write_routes)
+    assert _WRITING_COLLAB_MUTATION_PATHS == frozenset(write_routes)
+    for path in read_routes:
+        assert not WebUISettingsRouter.is_mutation_path(path), path
+    for path, action in write_routes.items():
+        assert WebUISettingsRouter.is_mutation_path(path), path
+        assert _WEBUI_MUTATION_PATHS.get(action) == path, path
+        assert GatewayHTTPHandler._webui_mutation_path(action, {}) == path, path
+
+    ops = build_writing_collab_operations(workspace_id="default", workspace_path=tmp_path)
+    assert callable(ops.get_collaboration)
+    assert ops.get_collaboration(article_id="missing")["collaboration"] is None
+
+
+@pytest.mark.asyncio
+async def test_router_serves_collab_reads_and_blocks_collab_writes(tmp_path: Path) -> None:
+    """协作读走认证 HTTP GET；协作写 HTTP 直连 405（契约 §3）。"""
+    from nanobot.webui.gateway_services import build_writing_collab_operations
+
+    router = WebUISettingsRouter(
+        settings=WebUISettingsServices.create(tmp_path / "config.json"),
+        writing_operations=None,
+        writing_collab_operations=build_writing_collab_operations(
+            workspace_id="default", workspace_path=tmp_path,
+        ),
+        **WS_BASE_ARGS,
+    )
+    read = await router.dispatch(
+        None, _get("/api/writing/collab?article_id=a-1"), "/api/writing/collab",
+    )
+    assert read is not None and read.status_code == 200
+    assert json.loads(read.body)["collaboration"] is None
+
+    for path in (
+        "/api/writing/collab/start", "/api/writing/collab/reply",
+        "/api/writing/collab/confirm", "/api/writing/collab/cancel",
+        "/api/writing/collab/retry", "/api/writing/collab/apply",
+        "/api/writing/collab/undo",
+    ):
+        blocked = await router.dispatch(None, _get(path), path)
+        assert blocked is not None, path
+        assert blocked.status_code == 405, path
+
+
+def test_gateway_seeds_builtin_writing_team(tmp_path: Path, monkeypatch) -> None:
+    """网关装配即播种内置创作团队；再次播种幂等，不会生成第二个同名团队。"""
+    from unittest.mock import MagicMock
+
+    from nanobot.channels.websocket.runtime import WebSocketConfig
+    from nanobot.webui.gateway_services import seed_writing_team
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    services = build_gateway_services(
+        config=WebSocketConfig(),
+        bus=MagicMock(),
+        session_manager=None,
+        static_dist_path=None,
+        workspace_path=tmp_path,
+        default_restrict_to_workspace=False,
+        config_path=tmp_path / "config.json",
+        runtime_model_name=None,
+        runtime_surface="browser",
+        runtime_capabilities_overrides=None,
+    )
+    team_id = services.writing_team_id
+    assert team_id
+    assert services.writing_sessions is not None
+    definition = services.team_service.repository.get_team(team_id)
+    assert definition.name == "创作团队"
+    assert definition.leader_agent_id == "writing-editor"
+
+    assert seed_writing_team(services.team_service) == team_id
+    teams = services.team_service.repository.list_teams()["teams"]
+    assert [item["id"] for item in teams if item["name"] == "创作团队"] == [team_id]

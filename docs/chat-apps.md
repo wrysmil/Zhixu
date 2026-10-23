@@ -1,20 +1,20 @@
 # Chat Apps for Self-Hosted AI Agents
 
-Connect nanobot to Telegram, Discord, Slack, WeChat, Email, Mattermost, and
+Connect Zhixu to Telegram, Discord, Slack, WeChat, Email, Mattermost, and
 other chat platforms. This page is the full chat-channel reference. If you want
 a focused setup path for one platform, start with a guide:
 
 | Platform | Guide |
 |---|---|
-| Telegram | [Build a Telegram AI Agent with nanobot](./guides/telegram-ai-agent.md) |
-| Discord | [Build a Discord AI Agent with nanobot](./guides/discord-ai-agent.md) |
-| Slack | [Build a Slack AI Agent with nanobot](./guides/slack-ai-agent.md) |
-| Feishu | [Build a Feishu AI Agent with nanobot](./guides/feishu-ai-agent.md) |
-| WhatsApp | [Build a WhatsApp AI Agent with nanobot](./guides/whatsapp-ai-agent.md) |
-| WeChat | [Build a WeChat AI Agent with nanobot](./guides/wechat-ai-agent.md) |
-| QQ | [Build a QQ AI Agent with nanobot](./guides/qq-ai-agent.md) |
-| Email | [Build an Email AI Agent with nanobot](./guides/email-ai-agent.md) |
-| Mattermost | [Build a Mattermost AI Agent with nanobot](./guides/mattermost-ai-agent.md) |
+| Telegram | [Build a Telegram AI Agent with Zhixu](./guides/telegram-ai-agent.md) |
+| Discord | [Build a Discord AI Agent with Zhixu](./guides/discord-ai-agent.md) |
+| Slack | [Build a Slack AI Agent with Zhixu](./guides/slack-ai-agent.md) |
+| Feishu | [Build a Feishu AI Agent with Zhixu](./guides/feishu-ai-agent.md) |
+| WhatsApp | [Build a WhatsApp AI Agent with Zhixu](./guides/whatsapp-ai-agent.md) |
+| WeChat | [Build a WeChat AI Agent with Zhixu](./guides/wechat-ai-agent.md) |
+| QQ | [Build a QQ AI Agent with Zhixu](./guides/qq-ai-agent.md) |
+| Email | [Build an Email AI Agent with Zhixu](./guides/email-ai-agent.md) |
+| Mattermost | [Build a Mattermost AI Agent with Zhixu](./guides/mattermost-ai-agent.md) |
 
 Want to build your own channel? See the [Channel Package Guide](./channel-package-guide.md).
 
@@ -34,7 +34,7 @@ For normal local setup, let the WebUI write and validate the channel config:
 2. Open **Settings → Channels**.
 3. Search for the platform and open its setup panel.
 4. Follow the credential fields or QR flow. The screen tells you which platform-side token, permission, account, or URL it needs.
-5. Let nanobot install the optional channel support when prompted.
+5. Let Zhixu install the optional channel support when prompted.
 6. Restart from the WebUI if it reports that a restart is required.
 7. Send a private test message. If the channel returns a pairing code, approve the pending request in the WebUI and send the message again.
 
@@ -46,7 +46,7 @@ The sections below explain what each chat platform requires and provide manual c
 
 > [!NOTE]
 > If you are upgrading from a version where chat app SDKs were installed by default,
-> enable the channel in the same Python environment so nanobot installs its
+> enable the channel in the same Python environment so Zhixu installs its
 > manifest-declared dependencies:
 >
 > ```bash
@@ -56,7 +56,7 @@ The sections below explain what each chat platform requires and provide manual c
 > Replace `<channel>` with names such as `telegram`, `slack`, `feishu`,
 > `dingtalk`, `matrix`, `qq`, `napcat`, `weixin`, `wecom`, or `msteams`.
 > To turn a channel off later, run `nanobot plugins disable <channel>`.
-> nanobot keeps the saved settings, but stops loading that channel after the
+> Zhixu keeps the saved settings, but stops loading that channel after the
 > next restart.
 
 ## Manual Setup Pattern
@@ -70,7 +70,7 @@ Every chat app uses the same shape:
 3. Merge that platform's JSON snippet into `~/.nanobot/config.json`.
 4. Prefer pairing for DM-capable channels: omit `allowFrom`, let the first DM receive a pairing code, then approve it with `/pairing approve <code>`.
 5. For channels without pairing, such as Email, keep access narrow with `allowFrom` or the platform-specific allow list.
-6. Check that nanobot can see the configured channel:
+6. Check that Zhixu can see the configured channel:
 
 ```bash
 nanobot channels status
@@ -84,7 +84,7 @@ nanobot gateway
 
 8. Send a test DM. If the bot returns a pairing code, approve it and send the message again. In group chats, follow that channel's `groupPolicy` behavior: many channels default to mention-only, while Matrix and WhatsApp default to open group replies.
 
-If `nanobot channels status` does not show the channel as enabled, the config snippet is in the wrong place, the channel name is misspelled, or the config file you edited is not the one nanobot is reading. If the channel is enabled but messages do not arrive, run `nanobot gateway --verbose` and compare the platform-side credentials, event permissions, and allow lists.
+If `nanobot channels status` does not show the channel as enabled, the config snippet is in the wrong place, the channel name is misspelled, or the config file you edited is not the one Zhixu is reading. If the channel is enabled but messages do not arrive, run `nanobot gateway --verbose` and compare the platform-side credentials, event permissions, and allow lists.
 
 > `allowFrom: ["*"]` bypasses pairing and allows anyone who can reach that channel to talk to the bot. Use it only when that is intentional, or temporarily while testing in a private sandbox.
 
@@ -117,7 +117,7 @@ If `nanobot channels status` does not show the channel as enabled, the config sn
    **Advanced** and add an HTTP or SOCKS proxy.
 4. Save and enable Telegram, then send the bot a direct message.
 
-The configuration badge means nanobot found a saved token. The live connection
+The configuration badge means Zhixu found a saved token. The live connection
 check is separate, so a temporary Telegram or proxy outage does not make an
 existing configuration disappear. Saved tokens and proxy URLs remain masked.
 
@@ -179,7 +179,7 @@ nanobot gateway
 
 **Webhook mode (optional)**
 
-Telegram uses long polling by default. To receive updates through a webhook, expose a public HTTPS URL that forwards to nanobot's local listener and set `mode` to `webhook`:
+Telegram uses long polling by default. To receive updates through a webhook, expose a public HTTPS URL that forwards to Zhixu's local listener and set `mode` to `webhook`:
 
 ```json
 {
@@ -200,9 +200,9 @@ Telegram uses long polling by default. To receive updates through a webhook, exp
 }
 ```
 
-> `webhookSecretToken` is required in webhook mode. Do not expose the local webhook listener directly to the public internet without a reverse proxy or tunnel in front of it. TLS/Host policy is handled by your proxy; nanobot only listens on `webhookListenHost:webhookListenPort` and validates Telegram's webhook secret token. `webhookMaxConnections` defaults to `4`; nanobot still serializes Telegram updates per conversation before forwarding them to the agent.
+> `webhookSecretToken` is required in webhook mode. Do not expose the local webhook listener directly to the public internet without a reverse proxy or tunnel in front of it. TLS/Host policy is handled by your proxy; Zhixu only listens on `webhookListenHost:webhookListenPort` and validates Telegram's webhook secret token. `webhookMaxConnections` defaults to `4`; Zhixu still serializes Telegram updates per conversation before forwarding them to the agent.
 >
-> `webhookUrl` is the public HTTPS URL registered with Telegram. `webhookPath` is the local path nanobot listens on. They often use the same path, but may differ when a reverse proxy or tunnel rewrites the request path.
+> `webhookUrl` is the public HTTPS URL registered with Telegram. `webhookPath` is the local path Zhixu listens on. They often use the same path, but may differ when a reverse proxy or tunnel rewrites the request path.
 
 </details>
 
@@ -219,15 +219,15 @@ nanobot plugins enable mochat
 
 Without these dependencies, Mochat still works through HTTP polling.
 
-**1. Ask nanobot to set up Mochat for you**
+**1. Ask Zhixu to set up Mochat for you**
 
-Simply send this message to nanobot (replace `xxx@xxx` with your real email):
+Simply send this message to Zhixu (replace `xxx@xxx` with your real email):
 
 ```
 Read https://raw.githubusercontent.com/HKUDS/MoChat/refs/heads/main/skills/nanobot/skill.md and register on MoChat. My Email account is xxx@xxx Bind me as your owner and DM me on MoChat.
 ```
 
-nanobot will automatically register, configure `~/.nanobot/config.json`, and connect to Mochat.
+Zhixu will automatically register, configure `~/.nanobot/config.json`, and connect to Mochat.
 
 **2. Restart gateway**
 
@@ -235,7 +235,7 @@ nanobot will automatically register, configure `~/.nanobot/config.json`, and con
 nanobot gateway
 ```
 
-That's it — nanobot handles the rest!
+That's it — Zhixu handles the rest!
 
 <br>
 
@@ -455,7 +455,7 @@ nanobot gateway
 
 **Optional: static LID mappings**
 
-Modern WhatsApp can deliver a sender's LID instead of their phone number. nanobot
+Modern WhatsApp can deliver a sender's LID instead of their phone number. Zhixu
 learns LID to phone mappings at runtime when both identifiers are present, but you
 can also seed mappings up front so the phone number resolves from the
 very first message:
@@ -487,7 +487,7 @@ nanobot channels login feishu
 # Use --force to create/sign in with a new bot
 ```
 
-Open the printed URL or scan the QR code with Feishu/Lark on your phone. If the optional `qrcode` package is installed, nanobot shows a terminal QR code; otherwise it prints the login URL. nanobot writes `appId`, `appSecret`, `domain`, and `enabled` under `channels.feishu` in the active config file. Use `--config <path>` to update a non-default config.
+Open the printed URL or scan the QR code with Feishu/Lark on your phone. If the optional `qrcode` package is installed, Zhixu shows a terminal QR code; otherwise it prints the login URL. Zhixu writes `appId`, `appSecret`, `domain`, and `enabled` under `channels.feishu` in the active config file. Use `--config <path>` to update a non-default config.
 
 If QR login is unavailable for your account, use manual setup below.
 
@@ -498,10 +498,10 @@ If QR login is unavailable for your account, use manual setup below.
 - Create a new app → Enable **Bot** capability
 - **Permissions**:
   - `im:message` (send messages) and `im:message.p2p_msg:readonly` (receive messages)
-  - **Streaming replies** (default in nanobot): add **`cardkit:card:write`** (often labeled **Create and update cards** in the Feishu developer console). Required for CardKit entities and streamed assistant text. Older apps may not have it yet — open **Permission management**, enable the scope, then **publish** a new app version if the console requires it.
+  - **Streaming replies** (default in Zhixu): add **`cardkit:card:write`** (often labeled **Create and update cards** in the Feishu developer console). Required for CardKit entities and streamed assistant text. Older apps may not have it yet — open **Permission management**, enable the scope, then **publish** a new app version if the console requires it.
   - If you **cannot** add `cardkit:card:write`, set `"streaming": false` under `channels.feishu` (see below). The bot still works; replies use normal interactive cards without token-by-token streaming.
 - **Events**: Add `im.message.receive_v1` (receive messages)
-  - Select **Long Connection** mode (requires running nanobot first to establish connection)
+  - Select **Long Connection** mode (requires running Zhixu first to establish connection)
 - Get **App ID** and **App Secret** from "Credentials & Basic Info"
 - Publish the app
 
@@ -530,7 +530,7 @@ If QR login is unavailable for your account, use manual setup below.
 
 > `streaming` defaults to `true`. Use `false` if your app does not have **`cardkit:card:write`** (see permissions above).
 > `encryptKey` and `verificationToken` are optional for Long Connection mode.
-> `allowFrom`: Add your open_id (find it in nanobot logs when you message the bot). Use `["*"]` to allow all users.
+> `allowFrom`: Add your open_id (find it in Zhixu logs when you message the bot). Use `["*"]` to allow all users.
 > `groupPolicy`: `"mention"` (default — respond only when @mentioned), `"open"` (respond to all group messages). Private chats always respond.
 > `reactEmoji`: Emoji for "processing" status (default: `OnIt`). See [available emojis](https://open.larkoffice.com/document/server-docs/im-v1/message-reaction/emojis-introduce).
 > `doneEmoji`: Optional emoji for "completed" status (e.g., `DONE`, `OK`, `HEART`). When set, bot adds this reaction after removing `reactEmoji`.
@@ -571,7 +571,7 @@ nanobot plugins enable qq
 
 **3. Configure**
 
-> - `allowFrom`: Add your openid (find it in nanobot logs when you message the bot). Use `["*"]` for public access.
+> - `allowFrom`: Add your openid (find it in Zhixu logs when you message the bot). Use `["*"]` for public access.
 > - `msgFormat`: Optional. Use `"plain"` (default) for maximum compatibility with legacy QQ clients, or `"markdown"` for richer formatting on newer clients.
 > - For production: submit a review in the bot console and publish. See [QQ Bot Docs](https://bot.q.qq.com/wiki/) for the full publishing flow.
 
@@ -719,9 +719,9 @@ nanobot plugins enable slack
 - **App Home**: Scroll to **Show Tabs** → Enable **Messages Tab** → Check **"Allow users to send Slash commands and messages from the messages tab"**
 - **Install App**: Click **Install to Workspace** → Authorize → copy the **Bot Token** (`xoxb-...`)
 
-> `files:read` is required to read files users send to nanobot. `files:write` is required for nanobot to send images, videos, and other file uploads. If you add either scope later, reinstall the Slack app to the workspace and restart nanobot so it uses the updated bot token.
+> `files:read` is required to read files users send to Zhixu. `files:write` is required for Zhixu to send images, videos, and other file uploads. If you add either scope later, reinstall the Slack app to the workspace and restart Zhixu so it uses the updated bot token.
 
-**3. Configure nanobot**
+**3. Configure Zhixu**
 
 ```json
 {
@@ -756,7 +756,7 @@ DM the bot directly or @mention it in a channel — it should respond!
 <details>
 <summary><b>Email</b></summary>
 
-Give nanobot its own email account. It polls **IMAP** for incoming mail and replies via **SMTP** — like a personal email assistant.
+Give Zhixu its own email account. It polls **IMAP** for incoming mail and replies via **SMTP** — like a personal email assistant.
 
 **1. Get credentials (Gmail example)**
 - Create a dedicated Gmail account for your bot (e.g. `my-nanobot@gmail.com`)
@@ -837,10 +837,10 @@ nanobot plugins enable weixin
 }
 ```
 
-> - `allowFrom`: Add the sender ID you see in nanobot logs for your WeChat account. Use `["*"]` to allow all users.
-> - `token`: Optional. If omitted, log in interactively and nanobot will save the token for you.
-> - `routeTag`: Optional. When your upstream Weixin deployment requires request routing, nanobot will send it as the `SKRouteTag` header.
-> - `stateDir`: Optional. Defaults to nanobot's runtime directory for Weixin state.
+> - `allowFrom`: Add the sender ID you see in Zhixu logs for your WeChat account. Use `["*"]` to allow all users.
+> - `token`: Optional. If omitted, log in interactively and Zhixu will save the token for you.
+> - `routeTag`: Optional. When your upstream Weixin deployment requires request routing, Zhixu will send it as the `SKRouteTag` header.
+> - `stateDir`: Optional. Defaults to Zhixu's runtime directory for Weixin state.
 > - `pollTimeout`: Optional long-poll timeout in seconds.
 
 **3. Login**
@@ -946,7 +946,7 @@ Create or reuse a Microsoft Teams / Azure bot app registration. Set the bot mess
 ```
 
 > - `replyInThread: true` replies to the triggering Teams activity when a stored `activity_id` is available.
-> - `mentionOnlyResponse` controls what Nanobot receives when a user sends only a bot mention (`<at>Nanobot</at>`). Set to `""` to ignore mention-only messages.
+> - `mentionOnlyResponse` controls what Zhixu receives when a user sends only a bot mention (`<at>知序</at>`). Set to `""` to ignore mention-only messages.
 > - `validateInboundAuth: true` enables inbound Bot Framework bearer-token validation (signature, issuer, audience, lifetime, `serviceUrl`). This is the safe default for public deployments. Only set it to `false` for local development or tightly controlled testing.
 > - `refTtlDays` (default `30`) controls how old stored conversation refs can be before they are pruned.
 > - `pruneWebChatRefs` (default `true`) drops refs with `webchat.botframework.com` service URLs.

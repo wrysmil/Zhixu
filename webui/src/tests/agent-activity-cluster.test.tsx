@@ -410,6 +410,47 @@ describe("AgentActivityCluster", () => {
     await waitFor(() => expect(marker).toHaveClass("animate-in"));
   });
 
+  it("expands the full reasoning text while thinking and collapses it once done", () => {
+    const liveReasoning: UIMessage = {
+      id: "r-expand",
+      role: "assistant",
+      content: "",
+      reasoning: "step one\nstep two\nstep three",
+      reasoningStreaming: true,
+      isStreaming: true,
+      createdAt: 1,
+    };
+    const { rerender } = render(
+      <AgentActivityCluster
+        messages={[liveReasoning]}
+        isTurnStreaming
+        hasBodyBelow
+      />,
+    );
+
+    const toggle = screen.getByTestId("activity-step-details-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("activity-step-detail")).toHaveTextContent("step two");
+
+    rerender(
+      <AgentActivityCluster
+        messages={[{
+          ...liveReasoning,
+          reasoningStreaming: false,
+          isStreaming: false,
+        }]}
+        isTurnStreaming={false}
+        hasBodyBelow
+      />,
+    );
+
+    expect(screen.getByTestId("activity-step-details-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByTestId("activity-step-detail")).not.toBeInTheDocument();
+  });
+
   it("briefly shows completed activity, then auto-collapses before the answer", () => {
     vi.useFakeTimers();
     const liveReasoning: UIMessage = {
@@ -647,7 +688,7 @@ describe("AgentActivityCluster", () => {
 
   it("renders file edit diffs and responds to preference changes", () => {
     localStorage.setItem(
-      "nanobot-webui.settings-preferences",
+      "zhixu-webui.settings-preferences",
       JSON.stringify({ fileEditDisplayMode: "diff" }),
     );
 
@@ -701,13 +742,13 @@ describe("AgentActivityCluster", () => {
       });
       expect(screen.getByTestId("file-edit-diff")).toBeInTheDocument();
     } finally {
-      localStorage.removeItem("nanobot-webui.settings-preferences");
+      localStorage.removeItem("zhixu-webui.settings-preferences");
     }
   });
 
   it("renders folded separators between separated file edit hunks", () => {
     localStorage.setItem(
-      "nanobot-webui.settings-preferences",
+      "zhixu-webui.settings-preferences",
       JSON.stringify({ fileEditDisplayMode: "diff" }),
     );
 
@@ -758,13 +799,13 @@ describe("AgentActivityCluster", () => {
       expect(screen.getByText("return newSecond;")).toBeInTheDocument();
       expect(screen.getByTestId("activity-file-reference")).toHaveTextContent("src/app.tsx");
     } finally {
-      localStorage.removeItem("nanobot-webui.settings-preferences");
+      localStorage.removeItem("zhixu-webui.settings-preferences");
     }
   });
 
   it("keeps long file edit diffs collapsed until opened", () => {
     localStorage.setItem(
-      "nanobot-webui.settings-preferences",
+      "zhixu-webui.settings-preferences",
       JSON.stringify({ fileEditDisplayMode: "diff" }),
     );
     const lines = Array.from({ length: 165 }, (_, index) => `line-${index + 1}`);
@@ -836,13 +877,13 @@ describe("AgentActivityCluster", () => {
       expect(toggle).toHaveAttribute("aria-expanded", "false");
       expect(screen.queryByTestId("file-edit-diff")).not.toBeInTheDocument();
     } finally {
-      localStorage.removeItem("nanobot-webui.settings-preferences");
+      localStorage.removeItem("zhixu-webui.settings-preferences");
     }
   });
 
   it("does not mount collapsed file edit diffs until opened", () => {
     localStorage.setItem(
-      "nanobot-webui.settings-preferences",
+      "zhixu-webui.settings-preferences",
       JSON.stringify({ fileEditDisplayMode: "collapsed_diff" }),
     );
 
@@ -893,13 +934,13 @@ describe("AgentActivityCluster", () => {
       expect(screen.getByTestId("file-edit-diff")).toBeInTheDocument();
       expect(screen.getByText("return <New />;")).toBeInTheDocument();
     } finally {
-      localStorage.removeItem("nanobot-webui.settings-preferences");
+      localStorage.removeItem("zhixu-webui.settings-preferences");
     }
   });
 
   it("offers the file preview entry point when a diff payload is truncated", () => {
     localStorage.setItem(
-      "nanobot-webui.settings-preferences",
+      "zhixu-webui.settings-preferences",
       JSON.stringify({ fileEditDisplayMode: "diff" }),
     );
     const onOpenFilePreview = vi.fn();
@@ -950,7 +991,7 @@ describe("AgentActivityCluster", () => {
 
       expect(onOpenFilePreview).toHaveBeenCalledWith("/repo/src/app.tsx");
     } finally {
-      localStorage.removeItem("nanobot-webui.settings-preferences");
+      localStorage.removeItem("zhixu-webui.settings-preferences");
     }
   });
 
@@ -1858,7 +1899,7 @@ describe("AgentActivityCluster", () => {
 
   it("keeps repeated edits for the same path as separate actions", () => {
     localStorage.setItem(
-      "nanobot-webui.settings-preferences",
+      "zhixu-webui.settings-preferences",
       JSON.stringify({ fileEditDisplayMode: "diff" }),
     );
     try {
@@ -1942,7 +1983,7 @@ describe("AgentActivityCluster", () => {
       expect(screen.getAllByText("+6").length).toBeGreaterThan(0);
       expect(screen.getAllByText("-6").length).toBeGreaterThan(0);
     } finally {
-      localStorage.removeItem("nanobot-webui.settings-preferences");
+      localStorage.removeItem("zhixu-webui.settings-preferences");
     }
   });
 

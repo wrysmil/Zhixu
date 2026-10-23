@@ -178,7 +178,7 @@ export function installSettingsViewTestHooks() {
 
   afterEach(() => {
     cleanup();
-    localStorage.removeItem("nanobot-webui.settings-preferences");
+    localStorage.removeItem("zhixu-webui.settings-preferences");
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });

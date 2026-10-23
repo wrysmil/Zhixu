@@ -370,3 +370,67 @@ def test_catalog_mcp_servers_are_not_persisted_into_profiles(tmp_path: Path) -> 
 
     assert "mcpServers" not in saved
     assert "mcpServers" not in json.dumps(saved, ensure_ascii=False)
+
+
+def test_delete_rejects_agent_referenced_by_an_active_team(tmp_path: Path) -> None:
+    """契约 §3：被未归档团队引用的档案不能删，错误里要给出团队 id。"""
+    from nanobot.webui.agents_api import agents_save
+
+    agents_save(tmp_path, dict(PROFILE_WIRE, id="writer", name="写作"))
+    with pytest.raises(WebUISettingsError) as excinfo:
+        agents_api.agents_delete(
+            tmp_path, "writer", team_reference_lookup=lambda _id: ["content-team"]
+        )
+    assert excinfo.value.status == 409
+    assert excinfo.value.message.startswith("AGENT_IN_USE_BY_TEAM")
+    assert "content-team" in excinfo.value.message
+
+
+def test_delete_still_works_without_any_team_data(tmp_path: Path) -> None:
+    """没注入引用查询、或注入了但查不到：现有删除行为必须保持一致（契约 §3）。"""
+    from nanobot.webui.agents_api import agents_save
+
+    agents_save(tmp_path, dict(PROFILE_WIRE, id="writer", name="写作"))
+    assert agents_api.agents_delete(tmp_path, "writer") == {"id": "writer"}
+    agents_save(tmp_path, dict(PROFILE_WIRE, id="writer2", name="写作2"))
+    assert agents_api.agents_delete(
+        tmp_path, "writer2", team_reference_lookup=lambda _id: []
+    ) == {"id": "writer2"}
+
+
+# ------------------------------------------- 内置保护业务码（F4：不丢 code）
+
+
+def test_builtin_agent_protection_code_is_carried_to_the_error_body(tmp_path: Path) -> None:
+    """存储层异常携带 ``BUILTIN_RESOURCE_PROTECTED``，API 错误体必须把它透出（F4）。
+
+    契约 §4 + agent-team 契约 §3「失败码放固定前缀」：口径与
+    ``teams_routes.translate`` 一致 —— ``<CODE> <原文>``。
+    """
+    from nanobot.agents.store import AgentStore, AgentStoreError, protected_write_message
+    from nanobot.writing.builtin import BUILTIN_RESOURCE_PROTECTED
+
+    # 异常对象自己带码：这里断言的是真实对象，不是本用例硬编码的字符串。
+    with pytest.raises(AgentStoreError) as store_error:
+        AgentStore(tmp_path).delete_profile("writing-editor")
+    assert store_error.value.code == BUILTIN_RESOURCE_PROTECTED
+
+    with pytest.raises(WebUISettingsError) as api_error:
+        agents_api.agents_delete(tmp_path, "writing-editor")
+    assert api_error.value.status == 409
+    assert api_error.value.message == (
+        f"{BUILTIN_RESOURCE_PROTECTED} {protected_write_message('agent', 'writing-editor')}"
+    )
+
+    with pytest.raises(WebUISettingsError) as reset_error:
+        agents_api.agents_reset(tmp_path, "writing-editor")
+    assert reset_error.value.status == 409
+    assert reset_error.value.message.startswith(BUILTIN_RESOURCE_PROTECTED)
+
+
+def test_ordinary_agent_errors_keep_an_unprefixed_message(tmp_path: Path) -> None:
+    """没有业务码的错误不得被加上前缀：口径只对带码的拒绝路径生效。"""
+    with pytest.raises(WebUISettingsError) as excinfo:
+        agents_api.agents_delete(tmp_path, "code-reviewer")
+    assert excinfo.value.status == 409
+    assert excinfo.value.message == "系统预设「code-reviewer」不可删除，可重置或隐藏"

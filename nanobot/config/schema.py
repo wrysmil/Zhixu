@@ -203,7 +203,7 @@ class AgentDefaults(Base):
     reasoning_effort: str | None = None  # low / medium / high / xhigh / max / adaptive / none — LLM thinking effort; None preserves the provider default
     timezone: str = "UTC"  # Effective IANA timezone, e.g. "Asia/Shanghai"
     timezone_mode: Literal["auto", "manual"] = "auto"
-    bot_name: str = "nanobot"  # Display name shown in CLI prompts (e.g. "{name} is thinking...")
+    bot_name: str = "知序"  # Display name shown in CLI prompts (e.g. "{name} is thinking...")
     bot_icon: str = "🐈"  # Short icon (emoji or text) shown next to the bot name in CLI; "" to omit
     unified_session: bool = False  # Share one session across all channels (single-user multi-device)
     disabled_skills: list[str] = Field(default_factory=list)  # Skill names to exclude from loading (e.g. ["summarize", "skill-creator"])
@@ -271,10 +271,21 @@ class AgentDefaults(Base):
         return value
 
 
+class TeamsConfig(Base):
+    """Agent Team 功能开关。
+
+    ``enabled=false`` 只关闭**新**团队运行（gateway 侧返回 503 ``TEAMS_DISABLED``），
+    已持久化的运行/事件仍可读——拒绝逻辑属于运行入口（WU-05/06），这里只提供配置面。
+    """
+
+    enabled: bool = True
+
+
 class AgentsConfig(Base):
     """Agent configuration."""
 
     defaults: AgentDefaults = Field(default_factory=AgentDefaults)
+    teams: TeamsConfig = Field(default_factory=TeamsConfig)
 
 
 class ProviderConfig(Base):

@@ -10,11 +10,14 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol, cast
 
 from loguru import logger
 from websockets.asyncio.server import ServerConnection
 
+from nanobot.agents.catalog import is_valid_agent_id
+from nanobot.agents.store import AgentStore, AgentStoreError
 from nanobot.bus.events import INBOUND_META_USER_SHELL
 from nanobot.command.builtin import USER_SHELL_COMMAND, builtin_command_starts_agent_turn
 from nanobot.runtime_context import (
@@ -35,12 +38,18 @@ from nanobot.session.webui_turns import (
     websocket_turn_id,
     websocket_turn_wall_started_at,
 )
+from nanobot.teams.binding import SESSION_TEAM_BINDING_KEY, TeamBindingExpired
+from nanobot.teams.models import TeamBinding
 from nanobot.utils.helpers import safe_filename
 from nanobot.webui.cli_apps_api import normalize_cli_app_mentions
 from nanobot.webui.forking import handle_webui_fork_chat
 from nanobot.webui.gateway_services import GatewayServices
 from nanobot.webui.mcp_presets_api import normalize_mcp_preset_mentions
-from nanobot.webui.metadata import WEBSOCKET_TURN_OWNER_METADATA_KEY
+from nanobot.webui.metadata import (
+    AGENT_PROFILE_METADATA_KEY,
+    WEBSOCKET_TURN_OWNER_METADATA_KEY,
+    WEBUI_TURN_METADATA_KEY,
+)
 from nanobot.webui.outbound_wire import (
     encode_terminal_list_result,
     encode_terminal_started,
@@ -57,13 +66,76 @@ from nanobot.webui.session_identity import (
     webui_session_key,
 )
 from nanobot.webui.sidebar_state import write_webui_sidebar_state
+from nanobot.webui.teams_routes import translate
 from nanobot.webui.temporary_chats import TemporaryChatError
 from nanobot.webui.transcription_ws import webui_transcription_event
+from nanobot.writing.repository import ArticleNotFound
+from nanobot.writing.run_extension import WRITING_CONTEXT_KEY
 
 _WEBUI_REQUEST_CACHE_TTL_S = 5 * 60.0
 _WEBUI_REQUEST_CACHE_MAX = 256
 _TERMINAL_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _MAX_TERMINAL_WRITE_CHARS = 64_000
+_MAX_TEAM_ID_CHARS = 128
+_MAX_ARTICLE_ID_CHARS = 128
+# 选区只作为本轮提示上下文，不参与写入区间；仍然要限长，避免把整篇正文塞进 metadata。
+_MAX_SELECTION_CHARS = 20_000
+_MAX_SELECTION_CONTEXT_CHARS = 2_000
+_WRITING_TASKS = frozenset({
+    "ask", "rewrite", "expand", "condense", "outline", "material", "draft",
+})
+
+# 动作名只是白名单表的键，未登记一律 404；所以这里放行 camelCase 段（契约 §5 的
+# teamRuns.cancel / teamTasks.cancel），不放宽别的：仍不许空格、斜杠或超过 128 字符。
+_WEBUI_ACTION_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9_.]{0,127}")
+
+
+def is_webui_mutation_action(action: object) -> bool:
+    return isinstance(action, str) and _WEBUI_ACTION_RE.fullmatch(action) is not None
+
+
+def _team_selection(envelope: dict[str, Any]) -> tuple[str | None, int | None, str | None]:
+    """读 ``new_chat`` 的团队选择，返回 ``(team_id, team_revision, 非法提示)``。
+
+    没带 team_id 就是普通聊天（契约 §4）；省略 team_revision 时交服务端解析最新修订。
+    这里只做形状检查——团队是否存在、能不能用由服务端准入检查决定，客户端说的不算。
+    """
+    raw_id = envelope.get("team_id")
+    if raw_id is None:
+        return None, None, None
+    if not isinstance(raw_id, str):
+        return None, None, "TEAM_INVALID team_id must be a string"
+    team_id = raw_id.strip()
+    if not team_id or len(team_id) > _MAX_TEAM_ID_CHARS:
+        return None, None, "TEAM_INVALID team_id must be a non-empty id"
+    raw_revision = envelope.get("team_revision")
+    if raw_revision is None:
+        return team_id, None, None
+    if isinstance(raw_revision, bool) or not isinstance(raw_revision, int) or raw_revision < 1:
+        return None, None, "TEAM_INVALID team_revision must be a positive integer"
+    return team_id, raw_revision, None
+
+
+def normalize_agent_selection(
+    raw: object,
+    workspace: Path,
+) -> tuple[str | None, str | None]:
+    """归一化消息信封里的 ``agent``，返回 ``(agent_id, 拒绝码)``。
+
+    id 必须是合法档案名且在该工作区真实存在；客户端说了不算，避免把任意
+    字符串带进运行时的档案查找路径。拒绝码直接作为 WebUI ``error`` 事件
+    的 ``detail`` 回给前端。
+    """
+    if not isinstance(raw, str):
+        return None, "invalid_agent"
+    agent_id = raw.strip()
+    if not agent_id or not is_valid_agent_id(agent_id):
+        return None, "invalid_agent"
+    try:
+        AgentStore(workspace).get_profile(agent_id)
+    except AgentStoreError:
+        return None, "agent_not_found"
+    return agent_id, None
 
 
 @dataclass(frozen=True)
@@ -151,6 +223,7 @@ class WebUICommandRouter:
         self._workspaces = gateway.workspaces
         self._temporary_chats = gateway.temporary_chats
         self._session_projection = gateway.session_projection
+        self._team_bindings = gateway.team_bindings
         self._webui_connections = gateway.endpoint.webui_connections
         self._session_access = (
             WebuiSessionAccess(gateway.session_manager)
@@ -293,6 +366,71 @@ class WebUICommandRouter:
             )
             return None
 
+    async def _stage_team_binding(
+        self,
+        connection: ServerConnection,
+        chat_id: str,
+        *,
+        team_id: str,
+        team_revision: int | None,
+    ) -> TeamBinding | None:
+        """服务端暂存新聊天的团队绑定；失败时回契约错误码，聊天不会建成。
+
+        只暂存不落盘（契约 §4 的懒创建）：绑定要等首条消息写进会话元数据后才启动 Leader。
+        """
+        store = self._team_bindings
+        if store is None:
+            await self._transport.webui_send_event(
+                connection,
+                "error",
+                detail="TEAMS_DISABLED team support is not wired",
+            )
+            return None
+        try:
+            return await asyncio.to_thread(
+                store.stage,
+                chat_id=chat_id,
+                team_id=team_id,
+                revision=team_revision,
+            )
+        except Exception as exc:  # 领域异常 → 契约 §4 错误码；内部细节只进日志
+            status, message = translate(exc)
+            logger.warning("team staging failed for a new chat: {} {}", status, message)
+            await self._transport.webui_send_event(connection, "error", detail=message)
+            return None
+
+    async def _reject_expired_team_binding(
+        self,
+        connection: ServerConnection,
+        chat_id: str,
+    ) -> bool:
+        """空聊天重连时暂存已失效 → 报 ``TEAM_BINDING_EXPIRED`` 要求重选（契约 §4）。
+
+        只认「暂存过、但已过期」这一种状态：普通聊天从来没暂存过，已经绑定的会话在首条
+        消息时就取走了暂存，两者都不该收到这个错误，也就都不该被它拦住。
+        """
+        store = self._team_bindings
+        if store is None:
+            return False
+        expired = store.expired_binding(chat_id)
+        if expired is None:
+            return False
+        await self._transport.webui_send_event(
+            connection,
+            "error",
+            detail=f"TEAM_BINDING_EXPIRED chat_id={chat_id}",
+            chat_id=chat_id,
+            team_name=expired.team_name,
+        )
+        return True
+
+    async def _claim_team_binding(self, chat_id: str) -> TeamBinding | None:
+        """取走本聊天待生效的绑定；过期时抛出 ``TeamBindingExpired`` 由调用方拦住消息。"""
+        store = self._team_bindings
+        if store is None:
+            return None
+        return await asyncio.to_thread(store.claim, chat_id)
+
     async def dispatch(
         self,
         connection: ServerConnection,
@@ -306,6 +444,14 @@ class WebUICommandRouter:
             return
         if command_type == "new_chat":
             new_id = str(uuid.uuid4())
+            team_id, team_revision, team_rejection = _team_selection(envelope)
+            if team_rejection is not None:
+                await self._transport.webui_send_event(
+                    connection,
+                    "error",
+                    detail=team_rejection,
+                )
+                return
             scope = await self.workspace_scope_or_error(
                 connection,
                 lambda: self._workspaces.scope_for_new_chat(
@@ -316,12 +462,26 @@ class WebUICommandRouter:
             if scope is None:
                 return
             self._workspaces.stage_scope(new_id, scope)
+            binding: TeamBinding | None = None
+            if team_id is not None:
+                binding = await self._stage_team_binding(
+                    connection,
+                    new_id,
+                    team_id=team_id,
+                    team_revision=team_revision,
+                )
+                if binding is None:
+                    # 准入不过就什么都不建：留下的草稿范围会被下一条普通消息误用。
+                    self._workspaces.discard_draft_scope(webui_session_key(new_id))
+                    return
             self._transport.webui_attach(connection, new_id)
+            fields = self._session_projection.attach_fields(webui_session_key(new_id))
+            fields["team_binding"] = binding.to_dict() if binding is not None else None
             await self._transport.webui_send_event(
                 connection,
                 "attached",
                 chat_id=new_id,
-                **self._session_projection.attach_fields(webui_session_key(new_id)),
+                **fields,
             )
             await self._transport.webui_send_event(
                 connection,
@@ -329,6 +489,7 @@ class WebUICommandRouter:
                 chat_id=new_id,
                 scope="metadata",
                 workspace_scope=scope.payload(),
+                team_binding=fields["team_binding"],
             )
             await self._transport.webui_hydrate(new_id)
             return
@@ -351,6 +512,9 @@ class WebUICommandRouter:
             return
         if command_type == "fork_chat":
             await handle_webui_fork_chat(self, connection, envelope)
+            return
+        if command_type == "bind_writing_session":
+            await self._handle_bind_writing_session(connection, envelope)
             return
         if command_type == "discard_temporary_chat":
             chat_id = envelope.get("chat_id")
@@ -389,6 +553,8 @@ class WebUICommandRouter:
                     detail=exc.detail,
                     chat_id=chat_id,
                 )
+                return
+            if await self._reject_expired_team_binding(connection, chat_id):
                 return
             self._transport.webui_attach(connection, chat_id)
             await self._transport.webui_send_event(
@@ -803,6 +969,81 @@ class WebUICommandRouter:
             **{key: value for key, value in payload.items() if key != "event"},
         )
 
+    async def _handle_bind_writing_session(
+        self,
+        connection: ServerConnection,
+        envelope: dict[str, Any],
+    ) -> None:
+        """文章 → 服务端会话绑定（契约 §1.2）：客户端只说文章 id。
+
+        幂等：同一篇文章重复绑定返回同一 ``chat_id``；已存在会话时补齐 metadata。
+        绑定会话的团队身份由服务端写入，首条消息到达前就已确定。
+        """
+        if connection not in self._webui_connections:
+            await self._transport.webui_send_event(connection, "error", detail="access_denied")
+            return
+        article_id = envelope.get("article_id")
+        if (
+            not isinstance(article_id, str)
+            or not article_id.strip()
+            or len(article_id.strip()) > _MAX_ARTICLE_ID_CHARS
+        ):
+            await self._transport.webui_send_event(
+                connection, "error", detail="invalid article_id"
+            )
+            return
+        binder = self.gateway.writing_sessions
+        if binder is None:
+            await self._transport.webui_send_event(
+                connection, "error", detail="writing_session_unavailable"
+            )
+            return
+        try:
+            bound = await asyncio.to_thread(binder.bind, article_id.strip())
+        except ArticleNotFound:
+            await self._transport.webui_send_event(
+                connection, "error", detail="article not found"
+            )
+            return
+        except Exception:  # noqa: BLE001 - 内部细节只进日志，客户端拿到稳定错误码
+            logger.exception("writing session bind failed for article {}", article_id)
+            await self._transport.webui_send_event(
+                connection, "error", detail="writing_session_unavailable"
+            )
+            return
+        try:
+            scope = self._workspaces.scope_for_session_key(bound.session_key)
+        except WorkspaceScopeError as exc:
+            await self._transport.webui_send_event(
+                connection,
+                "error",
+                detail="workspace_scope_rejected",
+                reason=exc.message,
+            )
+            return
+        self._transport.webui_attach(connection, bound.chat_id)
+        await self._transport.webui_send_event(
+            connection,
+            "writing_session",
+            **bound.to_dict(),
+        )
+        fields = self._session_projection.attach_fields(bound.session_key)
+        await self._transport.webui_send_event(
+            connection,
+            "attached",
+            chat_id=bound.chat_id,
+            **fields,
+        )
+        await self._transport.webui_send_event(
+            connection,
+            "session_updated",
+            chat_id=bound.chat_id,
+            scope="metadata",
+            workspace_scope=scope.payload(),
+            team_binding=fields.get("team_binding"),
+        )
+        await self._transport.webui_hydrate(bound.chat_id)
+
     async def _handle_question_answer(
         self,
         connection: ServerConnection,
@@ -894,6 +1135,140 @@ class WebUICommandRouter:
         except KeyError:
             preset = config.resolve_preset(None)
         return reasoning_effort_values_for(preset.provider, preset.model)
+
+    async def _validate_writing_context(
+        self,
+        chat_id: str,
+        raw: Any,
+        *,
+        trusted: bool,
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """校验发送帧里的 ``writing``：绑定、版本、团队成员与选区形状。
+
+        返回 ``(metadata, error)``；任何一项不满足都拒绝整条消息。``revision``/``digest``
+        用的是作者发请求前刷新的文章版本，库已经前进时按契约 §6 报版本冲突，绝不
+        用旧版本覆盖新内容。
+        """
+        if not trusted:
+            return None, "writing_article_unbound"
+        binder = self.gateway.writing_sessions
+        service = self.gateway.team_service
+        if binder is None or service is None or not isinstance(raw, dict):
+            return None, "writing_article_unbound"
+        payload = cast(dict[str, Any], raw)
+        article_id = payload.get("article_id")
+        revision = payload.get("revision")
+        digest = payload.get("digest")
+        if not isinstance(article_id, str) or not article_id.strip():
+            return None, "invalid_writing_context"
+        if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+            return None, "invalid_writing_context"
+        if not isinstance(digest, str) or not digest.strip():
+            return None, "invalid_writing_context"
+        try:
+            bound = await asyncio.to_thread(binder.resolve, article_id.strip())
+        except ArticleNotFound:
+            return None, "article not found"
+        except Exception:  # noqa: BLE001 - 读不到绑定就当作未绑定
+            logger.exception("writing session lookup failed for article {}", article_id)
+            return None, "writing_article_unbound"
+        if bound is None or bound.session_key != webui_session_key(chat_id):
+            return None, "writing_article_unbound"
+        if bound.article_revision != revision or bound.article_digest != digest:
+            return None, (
+                f"article_conflict current_revision={bound.article_revision}"
+                f" article_id={bound.article_id}"
+            )
+
+        member_id = payload.get("member_id")
+        if member_id not in (None, ""):
+            if not isinstance(member_id, str):
+                return None, "invalid_writing_context"
+            try:
+                detail = await asyncio.to_thread(
+                    service.get_team_detail,
+                    bound.team_id,
+                    revision=bound.team_revision,
+                )
+            except Exception:  # noqa: BLE001 - 团队修订不可读 → 无法确认点名
+                logger.exception(
+                    "writing team roster lookup failed for team {} revision {}",
+                    bound.team_id,
+                    bound.team_revision,
+                )
+                return None, "writing_permission_denied"
+            snapshot_raw = detail.get("snapshot")
+            snapshot = (
+                cast(dict[str, Any], snapshot_raw)
+                if isinstance(snapshot_raw, dict)
+                else {}
+            )
+            leader_raw = snapshot.get("leader")
+            leader = (
+                cast(dict[str, Any], leader_raw) if isinstance(leader_raw, dict) else {}
+            )
+            roster = {str(leader.get("id") or "")}
+            members_raw = snapshot.get("members")
+            for raw_entry in cast(list[Any], members_raw) if isinstance(members_raw, list) else []:
+                entry = cast(dict[str, Any], raw_entry) if isinstance(raw_entry, dict) else None
+                member_raw = entry.get("member") if entry is not None else None
+                member = (
+                    cast(dict[str, Any], member_raw)
+                    if isinstance(member_raw, dict)
+                    else None
+                )
+                if member is not None and isinstance(member.get("memberId"), str):
+                    roster.add(member["memberId"])
+            if member_id not in roster:
+                return None, "writing_permission_denied"
+
+        task = payload.get("task")
+        if task not in (None, ""):
+            if not isinstance(task, str) or task not in _WRITING_TASKS:
+                return None, "invalid_writing_context"
+
+        selection = payload.get("selection")
+        normalized_selection: dict[str, Any] | None = None
+        if selection is not None:
+            if not isinstance(selection, dict):
+                return None, "invalid_writing_context"
+            selection_map = cast(dict[str, Any], selection)
+            text = selection_map.get("text")
+            start = selection_map.get("start")
+            end = selection_map.get("end")
+            if not isinstance(text, str) or not text:
+                return None, "invalid_writing_context"
+            if len(text) > _MAX_SELECTION_CHARS:
+                return None, "invalid_writing_context"
+            if (
+                isinstance(start, bool)
+                or not isinstance(start, int)
+                or isinstance(end, bool)
+                or not isinstance(end, int)
+                or start < 0
+                or end <= start
+            ):
+                return None, "invalid_writing_context"
+            normalized_selection = {"text": text, "start": start, "end": end}
+            for key in ("prefix", "suffix"):
+                value = selection_map.get(key)
+                if isinstance(value, str) and value:
+                    if len(value) > _MAX_SELECTION_CONTEXT_CHARS:
+                        return None, "invalid_writing_context"
+                    normalized_selection[key] = value
+
+        context: dict[str, Any] = {
+            "article_id": bound.article_id,
+            "revision": revision,
+            "digest": digest,
+        }
+        if isinstance(member_id, str) and member_id:
+            context["member_id"] = member_id
+        if isinstance(task, str) and task:
+            context["task"] = task
+        if normalized_selection is not None:
+            context["selection"] = normalized_selection
+        return context, None
 
     async def _dispatch_message(
         self,
@@ -1032,6 +1407,39 @@ class WebUICommandRouter:
             metadata["webui"] = True
             metadata.update(self._transcripts.client_turn_metadata(envelope.get("turn_id")))
         trusted_webui = metadata.get("webui") is True and connection in self._webui_connections
+        # Agent 选择只对完成过 WebUI 握手的连接开放：档案能决定本回合的提示词、
+        # 工具与模型，不能由任意通道在 metadata 里随手指定。校验通过后由主循环
+        # 消费同一个 id，前端展示的与真正执行的是同一份。
+        if trusted_webui and envelope.get("agent") is not None:
+            selected_agent, rejection = await asyncio.to_thread(
+                normalize_agent_selection,
+                envelope.get("agent"),
+                scope.project_path,
+            )
+            if rejection is not None:
+                await self._transport.webui_send_event(
+                    connection,
+                    "error",
+                    detail=rejection,
+                    **rejection_fields,
+                )
+                return
+            if selected_agent is not None:
+                metadata[AGENT_PROFILE_METADATA_KEY] = selected_agent
+        raw_writing = envelope.get("writing")
+        if raw_writing is not None:
+            writing_context, rejection = await self._validate_writing_context(
+                chat_id, raw_writing, trusted=trusted_webui
+            )
+            if rejection is not None:
+                await self._transport.webui_send_event(
+                    connection,
+                    "error",
+                    detail=rejection,
+                    **rejection_fields,
+                )
+                return
+            metadata[WRITING_CONTEXT_KEY] = writing_context
         is_user_shell = (
             trusted_webui
             and envelope.get("user_shell") is True
@@ -1061,10 +1469,36 @@ class WebUICommandRouter:
             if session_mentions:
                 metadata["session_mentions"] = session_mentions
         metadata[WORKSPACE_SCOPE_METADATA_KEY] = scope.metadata()
+        # 团队绑定在发布这条消息之前取走：Leader 装配和会话落盘读同一份，「先普通回答、
+        # 再变团队」就没有窗口（契约 §4）。取不到绑定的普通聊天照原样跑。
+        # 只有完成过 WebUI 握手的连接才能取暂存：别的通道即便把 team_binding 塞进自己
+        # 的 metadata 也没有服务端暂存可消费，注入面在这里就被关掉了。
+        if trusted_webui:
+            try:
+                team_binding = await self._claim_team_binding(chat_id)
+            except TeamBindingExpired as exc:
+                await self._transport.webui_send_event(
+                    connection,
+                    "error",
+                    detail=str(exc),
+                    **rejection_fields,
+                )
+                return
+            if team_binding is not None:
+                metadata[SESSION_TEAM_BINDING_KEY] = team_binding.to_dict()
         is_webui = metadata.get("webui") is True
         queued_owner = None
         if is_webui and not is_user_shell and builtin_command_starts_agent_turn(content):
-            queued_owner = register_queued_websocket_turn_if_idle(chat_id, turn_id)
+            # 登记用的 turn_id 必须和元数据里最终生效的那个一致：WebuiTurnRoutePolicy 靠
+            # 这个相等关系确认「入站层已经为这条消息登记过 owner」。客户端没带 turn_id 时
+            # 元数据里是上面补发的服务端 id，这里若仍传原始的 None，策略会另发一个**未登记**
+            # 的 owner，turn_end 清它时找不到 → owner 永久残留，会话一直显示「回答中」，
+            # 点停止只会得到 "No active task to stop."。
+            registered_turn_id = metadata.get(WEBUI_TURN_METADATA_KEY)
+            queued_owner = register_queued_websocket_turn_if_idle(
+                chat_id,
+                registered_turn_id if isinstance(registered_turn_id, str) else None,
+            )
             if queued_owner is not None:
                 metadata[WEBSOCKET_TURN_OWNER_METADATA_KEY] = queued_owner
 
@@ -1177,10 +1611,7 @@ class WebUICommandRouter:
 
         action = envelope.get("action")
         payload = envelope.get("payload")
-        if not isinstance(action, str) or re.fullmatch(
-            r"[a-z][a-z0-9_.]{0,127}",
-            action,
-        ) is None:
+        if not is_webui_mutation_action(action):
             await self.send_webui_response(
                 connection,
                 request_id,
@@ -1219,15 +1650,17 @@ class WebUICommandRouter:
             )
             return
         if operation is None:
+            # 上面 is_webui_mutation_action 已经把 action 收紧成 str。
+            action_name = cast(str, action)
             operation_task = asyncio.create_task(
                 self.execute_webui_request(
                     connection,
-                    action,
+                    action_name,
                     cast(dict[str, Any], payload),
                 )
             )
             new_operation = WebUIRequestOperation(
-                action=action,
+                action=action_name,
                 payload_digest=payload_digest,
                 task=operation_task,
             )
@@ -1329,6 +1762,8 @@ class WebUICommandRouter:
                     connection,
                     action,
                     payload,
+                    # 会话身份由服务端从连接推导，绝不信 payload 里自称的 chatId。
+                    caller_chats=self._transport.webui_connection_chats(connection),
                 )
                 status = response.status_code
                 body = bytes(response.body).decode("utf-8", errors="replace").strip()

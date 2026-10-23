@@ -22,16 +22,32 @@ class WritingServices:
     Construction is cheap and idempotent (the schema is created with
     ``CREATE ... IF NOT EXISTS``), so the gateway can build one instance per
     workspace at startup.
+
+    ``database`` 是可选的：旧的测试替身只传 repository 时仍然可用，
+    依赖数据库的入口（撤销变更）在没有它时返回 503。
     """
 
     workspace_id: str
     repository: ArticleRepository
+    database: WritingDatabase | None = None
 
     @classmethod
     def for_workspace(
-        cls, workspace_id: str, workspace_path: Path | str
+        cls,
+        workspace_id: str,
+        workspace_path: Path | str,
+        *,
+        database: WritingDatabase | None = None,
     ) -> "WritingServices":
-        """Build a ready-to-use services instance for the given workspace path."""
-        database = WritingDatabase(Path(workspace_path))
-        database.ensure_schema()
-        return cls(workspace_id=workspace_id, repository=ArticleRepository(database))
+        """Build a ready-to-use services instance for the given workspace path.
+
+        ``database`` 可由装配层共享同一个 ``WritingDatabase``（写作会话绑定与团队
+        扩展也用同一个实例），让进程内的 SQLite 写锁只有一把。
+        """
+        shared = database if database is not None else WritingDatabase(Path(workspace_path))
+        shared.ensure_schema()
+        return cls(
+            workspace_id=workspace_id,
+            repository=ArticleRepository(shared),
+            database=shared,
+        )

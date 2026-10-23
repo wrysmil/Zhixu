@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import cast
 
 from nanobot.agents.catalog import (
+    DEFAULT_MAIN_AGENT_ID,
     DEFAULT_TOOL_CATEGORY,
     FACTORY_AGENT_CATEGORIES,
     FACTORY_PROFILES,
@@ -195,3 +196,231 @@ def test_ops_runner_preset_ships_the_shell_tool() -> None:
     assert ops.tools.mode == "include"
     assert "exec" in ops.tools.entries
     assert "execute_command" not in ops.tools.entries
+
+
+# -- 写作出厂档案 ---------------------------------------------------------------
+#
+# 「创作团队」的五个角色是内置资产投影（契约 §7）的认领依据：投影层按 logical_id
+# 去找 physical id，id 或 skill 名写错一个字都不会报错，只会静默地永远认领不到。
+# 所以这把清单逐字钉成断言，而不是靠「看起来差不多」。
+
+WRITING_PROFILE_IDS: tuple[str, ...] = (
+    "writing-editor",
+    "writing-researcher",
+    "writing-architect",
+    "writing-author",
+    "writing-reviewer",
+)
+
+# 契约 §7 Skill→角色 配套表，条目与顺序都照抄。
+WRITING_SKILLS_BY_PROFILE: dict[str, list[str]] = {
+    "writing-editor": ["article-brief", "article-review"],
+    "writing-researcher": ["article-research"],
+    "writing-architect": ["article-outline"],
+    "writing-author": ["article-draft", "article-rewrite", "article-expand"],
+    "writing-reviewer": ["article-review"],
+}
+
+# 写作角色一律只读：写文件、跑命令、发布、安装、碰凭据的工具一个都不许进白名单。
+_FORBIDDEN_WRITING_TOOLS: frozenset[str] = frozenset({
+    "write_file", "edit_file", "apply_patch", "exec", "exec_session",
+    "run_cli_app", "spawn", "cron", "generate_image",
+})
+
+_WEB_TOOLS: frozenset[str] = frozenset({"web_search", "web_fetch"})
+
+
+def test_writing_profiles_registered() -> None:
+    for agent_id in WRITING_PROFILE_IDS:
+        factory = factory_for(agent_id)
+        assert factory is not None, f"{agent_id} 未注册为出厂档案"
+        assert factory.id == agent_id
+
+
+def test_writing_profiles_are_system_category_writing() -> None:
+    for agent_id in WRITING_PROFILE_IDS:
+        profile = factory_for(agent_id)
+        assert profile is not None
+        assert profile.type == "system"
+        assert profile.category_id == "writing"
+        assert profile.name.strip()
+        assert profile.description.strip()
+        assert profile.prompt.strip(), f"{agent_id} 的 prompt 不能为空"
+        assert len(profile.prompt) >= 80, (
+            f"{agent_id} 的 prompt 只有 {len(profile.prompt)} 字，不足 80"
+        )
+        profile.validate()
+
+
+def test_writing_profiles_skills_whitelist() -> None:
+    for agent_id, expected in WRITING_SKILLS_BY_PROFILE.items():
+        profile = factory_for(agent_id)
+        assert profile is not None
+        assert profile.skills.mode == "include"
+        assert profile.skills.entries == expected, agent_id
+
+
+def test_writing_profiles_tools_whitelist() -> None:
+    real = _real_tool_names()
+    for agent_id in WRITING_PROFILE_IDS:
+        profile = factory_for(agent_id)
+        assert profile is not None
+        assert profile.tools.mode == "include"
+        entries = set(profile.tools.entries)
+        assert entries, f"{agent_id} 的工具白名单不能为空"
+        forbidden = entries & _FORBIDDEN_WRITING_TOOLS
+        assert not forbidden, f"{agent_id} 白名单混入越权工具：{sorted(forbidden)}"
+        assert entries <= real, f"{agent_id} 含非真实工具名：{sorted(entries - real)}"
+        if agent_id == "writing-researcher":
+            assert entries >= _WEB_TOOLS
+        else:
+            # 检索归研究员：其余角色只读作者已给的素材，不自己上网。
+            assert not (entries & _WEB_TOOLS), f"{agent_id} 不该直接检索外部来源"
+
+
+def test_writing_profiles_ids_unique() -> None:
+    ids = [p.id for p in FACTORY_PROFILES]
+    assert len(ids) == len(set(ids))
+    assert len(WRITING_PROFILE_IDS) == len(set(WRITING_PROFILE_IDS))
+    existing_ids = {"general-assistant", "code-reviewer", "researcher", "ops-runner"}
+    assert set(WRITING_PROFILE_IDS) <= set(ids)
+    assert not (set(WRITING_PROFILE_IDS) & existing_ids), "写作档案 id 与既有档案冲突"
+    writing_ids = {p.id for p in FACTORY_PROFILES if p.category_id == "writing"}
+    assert set(WRITING_PROFILE_IDS) <= writing_ids
+
+
+# -- 出厂子 Agent 的提示词 -----------------------------------------------------
+#
+# 这四个档案此前 prompt 为空。空 prompt 不只是少一段人设：``subagent.py`` 的
+# ``_build_subagent_prompt`` 遇到空 prompt 时连「你是X」这句身份行都不拼，于是选中
+# 它们与不选档案的唯一差别只剩工具数量——档案名和描述只活在 UI 上。
+#
+# 按组分节断言而不是统一四段式：commander 面向用户、创作角色面向主编，强行同名只会
+# 让文本为了过断言去凑小节名。
+
+_SUBAGENT_ONLY_PROFILE_IDS: tuple[str, ...] = (
+    "general-assistant", "code-reviewer", "researcher", "ops-runner",
+)
+
+# 「# 回报格式」是这批档案的核心：子 Agent 的产出会被回注进主 Agent 的上下文，
+# 没有约定的结构，派活方就无从核对它到底做没做到（spec §4.1 第 2 点）。
+_SUBAGENT_PROMPT_SECTIONS: tuple[str, ...] = ("# 你要做", "# 回报格式", "# 边界")
+
+# 白名单是提示词里所有「你不许做」的硬边界来源，逐档案钉死确切集合：
+# 写了 exec 的档案才允许谈执行纪律，只有读能力的档案不许在别处被当成能落盘。
+_SUBAGENT_PROMPT_TOOL_SETS: dict[str, set[str]] = {
+    "general-assistant": {"read_file", "list_dir"},
+    "code-reviewer": {"read_file", "list_dir", "grep", "find_files"},
+    "researcher": {"read_file", "list_dir", "web_search", "web_fetch"},
+    "ops-runner": {"read_file", "list_dir", "exec"},
+}
+
+
+def test_subagent_factory_prompts_are_written() -> None:
+    for agent_id in _SUBAGENT_ONLY_PROFILE_IDS:
+        profile = factory_for(agent_id)
+        assert profile is not None, f"{agent_id} 未注册为出厂档案"
+        assert profile.prompt.strip(), f"{agent_id} 的出厂 prompt 不能为空"
+        assert len(profile.prompt) >= 80, (
+            f"{agent_id} 的 prompt 只有 {len(profile.prompt)} 字，不足 80"
+        )
+        for section in _SUBAGENT_PROMPT_SECTIONS:
+            assert section in profile.prompt, f"{agent_id} 缺少小节 {section}"
+        profile.validate()
+
+
+def test_subagent_factory_tool_sets_match_their_prompts() -> None:
+    for agent_id, expected in _SUBAGENT_PROMPT_TOOL_SETS.items():
+        profile = factory_for(agent_id)
+        assert profile is not None
+        assert profile.tools.mode == "include", agent_id
+        assert set(profile.tools.entries) == expected, agent_id
+
+
+def test_subagent_prompts_do_not_claim_capabilities_the_profile_lacks() -> None:
+    """只有 ops-runner 能谈执行；带写能力的档案一个都不许声称自己有。"""
+    for agent_id in _SUBAGENT_ONLY_PROFILE_IDS:
+        profile = factory_for(agent_id)
+        assert profile is not None
+        entries = set(profile.tools.entries)
+        if agent_id != "ops-runner":
+            assert "exec" not in entries, agent_id
+        if "write_file" not in entries:
+            # 没有写文件工具却教模型「改完记得落盘」，就是让模型去撞不存在的工具。
+            assert "落盘" not in profile.prompt, agent_id
+
+
+def test_writing_factory_prompts_carry_a_delivery_section() -> None:
+    """创作团队角色的提示词已有职责与边界，补的是与主编汇总对接的交付结构。"""
+    for agent_id in WRITING_PROFILE_IDS:
+        profile = factory_for(agent_id)
+        assert profile is not None
+        for section in ("# 输入", "# 你要做", "# 交付", "# 边界"):
+            assert section in profile.prompt, f"{agent_id} 缺少小节 {section}"
+
+
+def test_commander_factory_prompt_structure_is_pinned() -> None:
+    """commander 的文本本轮不动，只锁结构不被后续批次误删。"""
+    profile = factory_for(DEFAULT_MAIN_AGENT_ID)
+    assert profile is not None
+    for section in ("# 你要做", "# 派活纪律", "# 边界"):
+        assert section in profile.prompt, f"commander 缺少小节 {section}"
+
+
+def test_general_assistant_description_matches_its_narrow_tools() -> None:
+    """描述不能再写「能力对齐全局配置」：白名单只有读文件与列目录。
+
+    ``catalog.py`` 已注明默认窄工具集是刻意的最小权限起步，所以修的是描述而不是
+    放宽工具。描述会进身份行给模型读，与实际能力相反就等于在教它撞墙。
+    """
+    profile = factory_for("general-assistant")
+    assert profile is not None
+    assert "对齐全局" not in profile.description
+    assert profile.description.strip()
+
+
+# --------------------------------------------------------------- 主管（Leader）纪律
+
+#: 普通聊天路径下会「派活」的出厂档案。团队路径不在此列——它的纪律由
+#: ``teams/leader.py`` 的渲染段固定提供，档案里再写一遍只会稀释主管层。
+_LEADER_PROFILE_IDS = (DEFAULT_MAIN_AGENT_ID,)
+
+
+def test_leader_factory_prompts_teach_the_handoff() -> None:
+    """默认主管档案的出厂 prompt 要教「怎么交接」，不只声明「可以派活」。
+
+    普通聊天没有团队段可注入，所以这套纪律只能写在档案里。缺了它，指挥官会把
+    子 Agent 的原话直接转给用户。
+    """
+    for agent_id in _LEADER_PROFILE_IDS:
+        profile = factory_for(agent_id)
+        assert profile is not None
+        for cue in ("简报", "没看到", "不要预测", "核对"):
+            assert cue in profile.prompt, f"{agent_id} 的出厂提示词缺少交接纪律：{cue}"
+
+
+def test_team_leader_profile_defers_discipline_to_the_team_section() -> None:
+    """团队 Leader 的档案**不**重复委派纪律：真实渲染里两遍同理会挤掉有效内容。
+
+    ``render_role_prompt`` 每个团队回合都固定注入「主管的做事方式」，档案只要写好
+    这个团队特有的职责与边界。
+    """
+    editor = factory_for("writing-editor")
+    assert editor is not None
+    for duplicated in ("简报", "不委派理解", "不要预测"):
+        assert duplicated not in editor.prompt, f"writing-editor 与主管渲染段重复：{duplicated}"
+    assert "team_dispatch" in editor.prompt, "派活入口仍要点名：Team 模式下 spawn 被隐藏"
+
+
+def test_leader_factory_prompts_name_the_right_dispatch_tool() -> None:
+    """派活入口不能写错：Team 模式下 ``spawn`` 被隐藏，默认主 Agent 那边才用它。
+
+    给指挥官写 ``team_dispatch`` 会让普通聊天喊一个不存在的工具；给主编写
+    ``spawn`` 等于教它绕过成员白名单（契约 §5）。
+    """
+    commander = factory_for("commander")
+    editor = factory_for("writing-editor")
+    assert commander is not None and editor is not None
+    assert "spawn" in commander.prompt
+    assert "team_dispatch" not in commander.prompt
+    assert "team_dispatch" in editor.prompt

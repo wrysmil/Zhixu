@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, Suspense, lazy } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageSquareMore, Plus, Search } from "lucide-react";
+import { MessageSquareMore, Moon, Plus, Search, Sun } from "lucide-react";
 
 import { WorkspaceNavigation } from "@/components/workspace/WorkspaceNavigation";
 import { ChatList } from "@/components/ChatList";
@@ -19,6 +19,7 @@ import { PREVIEW_DEFAULT_SCOPE, previewCapabilityCopy, previewSessions } from "@
 import type { WebUIMutationTransport } from "@/lib/api";
 import type { ChatSummary, SidebarProjectEntry, WorkspaceScopePayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ThemeProvider, useTheme } from "@/hooks/useTheme";
 
 const CreativeWorkspace = lazy(() => import("@/components/creative/CreativeWorkspace"));
 
@@ -39,13 +40,31 @@ const PREVIEW_NO_TRANSPORT: WebUIMutationTransport = {
  * copy, and an explicit "interface preview" badge is always visible.
  */
 export default function PreviewApp() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const appearance = useTheme({ persist: false });
+  const darkPreview = appearance.theme === "dark";
+  const themeLabel = i18n.resolvedLanguage?.startsWith("zh")
+    ? darkPreview ? "切换为浅色主题" : "切换为深色主题"
+    : darkPreview ? "Switch to light theme" : "Switch to dark theme";
   const [route, setRoute] = useState<WorkspaceRoute>(() =>
     parseWorkspaceHash(window.location.hash),
   );
-  const [collapsed, setCollapsed] = useState(() => window.matchMedia("(max-width: 767px)").matches);
+  const narrowQuery = "(max-width: 767px)";
+  const [collapsed, setCollapsed] = useState(() => window.matchMedia(narrowQuery).matches);
+  const [narrow, setNarrow] = useState(() => window.matchMedia(narrowQuery).matches);
   const [workspaceScope, setWorkspaceScope] = useState(PREVIEW_DEFAULT_SCOPE);
   const [projects, setProjects] = useState<SidebarProjectEntry[]>([]);
+
+  useEffect(() => {
+    const media = window.matchMedia(narrowQuery);
+    const sync = () => setNarrow(media.matches);
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (narrow) setCollapsed(true);
+  }, [narrow]);
 
   const selectWorkspace = useCallback((scope: WorkspaceScopePayload) => {
     setWorkspaceScope(scope);
@@ -65,6 +84,7 @@ export default function PreviewApp() {
   const navigate = useCallback((next: WorkspaceRoute) => {
     const hash = workspaceRouteHash(next);
     setRoute(next);
+    if (narrow) setCollapsed(true);
     // Preserve the `?preview=1` query by assigning only the hash fragment.
     if (window.location.hash !== hash) {
       window.location.hash = hash;
@@ -72,19 +92,30 @@ export default function PreviewApp() {
   }, []);
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden bg-background text-foreground">
+    <ThemeProvider theme={appearance.theme} appearance={appearance}>
+    <div className="preview-app-shell relative flex h-[100dvh] w-full overflow-hidden bg-background text-foreground">
       <div
         className={cn(
           "shrink-0 border-r border-sidebar-border",
-          route.view === "chat" && !collapsed ? "w-[312px]" : "w-16",
+          route.view === "chat" && !collapsed ? "w-[264px]" : "w-rail",
+          narrow && route.view === "chat" && !collapsed &&
+            "absolute inset-y-0 left-0 z-30 shadow-[0_0_0_100vmax_rgb(0_0_0/0.28)]",
         )}
       >
         <WorkspaceNavigation
           activeView={route.view}
+          activeSettingsSection={route.settingsSection}
           collapsed={collapsed}
           preview
           onNavigate={navigate}
           onToggleCollapsed={() => setCollapsed((value) => !value)}
+          footerAction={
+            <button type="button" aria-label={themeLabel} title={themeLabel}
+              onClick={appearance.toggle}
+              className="host-no-drag flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors duration-150 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              {darkPreview ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
+            </button>
+          }
           connectionStatus={
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <span
@@ -101,13 +132,26 @@ export default function PreviewApp() {
         />
       </div>
 
+      {narrow && route.view === "chat" && !collapsed ? (
+        <button
+          type="button"
+          aria-label={t("sidebar.close", { defaultValue: "Close sidebar" })}
+          onClick={() => setCollapsed(true)}
+          className="absolute inset-0 z-20 cursor-default"
+        />
+      ) : null}
+
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {route.view === "chat" ? (
           <PreviewThread key={route.chatKey ?? "new"} chatKey={route.chatKey}
             workspaceScope={workspaceScope} onWorkspaceScopeChange={selectWorkspace}
             onManageModels={() => navigate({ view: "settings", settingsSection: "models" })} />
         ) : route.view === "settings" ? (
-          <PreviewSettings />
+          <PreviewSettings key={route.settingsSection ?? "overview"} initialSection={
+            route.settingsSection === "apps" || route.settingsSection === "agents"
+              || route.settingsSection === "skills" || route.settingsSection === "automations" || route.settingsSection === "teams"
+              ? "overview" : route.settingsSection
+          } onSectionChange={(settingsSection) => navigate({ view: "settings", settingsSection })} />
         ) : route.view === "apps" ||
           route.view === "agents" ||
           route.view === "skills" ||
@@ -132,6 +176,7 @@ export default function PreviewApp() {
         )}
       </main>
     </div>
+    </ThemeProvider>
   );
 }
 

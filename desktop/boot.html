@@ -3,125 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mira</title>
+    <title>知序</title>
     <style>
-      html,
-      body {
-        height: 100%;
-        margin: 0;
-      }
-      body {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #ffffff;
-        color: #121212;
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto,
-          "PingFang SC", "Microsoft YaHei", sans-serif;
-      }
-      @media (prefers-color-scheme: dark) {
-        body {
-          background: #121212;
-          color: #f5f5f5;
-        }
-        p {
-          color: rgba(245, 245, 245, 0.62);
-        }
-        button {
-          background: #212121;
-          color: #f5f5f5;
-          border-color: rgba(245, 245, 245, 0.14);
-        }
-        button:hover {
-          background: #2b2b2b;
-        }
-      }
-      .card {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 18px;
-        max-width: 520px;
-        padding: 0 24px;
-        text-align: center;
-      }
-      .mark {
-        width: 88px;
-        height: 88px;
-        animation: breathe 1.8s ease-in-out infinite;
-      }
+      html, body { height: 100%; margin: 0; }
+      body { display: flex; align-items: center; justify-content: center;
+        background: #ffffff; color: #121212;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI",
+          "Microsoft YaHei", "Noto Sans SC", system-ui, Roboto, sans-serif; }
+      .card { display: flex; flex-direction: column; align-items: center; gap: 18px;
+        max-width: 520px; padding: 0 24px; text-align: center; }
+      .mark { width: 88px; height: 88px; animation: breathe 1.8s ease-in-out infinite;
+        object-fit: contain; }
       @keyframes breathe {
-        0%,
-        100% {
-          transform: scale(0.97);
-          opacity: 0.85;
-        }
-        50% {
-          transform: scale(1);
-          opacity: 1;
-        }
+        0%, 100% { transform: scale(0.97); opacity: 0.85; }
+        50% { transform: scale(1); opacity: 1; }
       }
-      h1 {
-        font-size: 22px;
-        font-weight: 650;
-        margin: 0;
-        letter-spacing: 0.2px;
-      }
-      p {
-        margin: 0;
-        font-size: 14px;
-        line-height: 1.7;
-        color: rgba(18, 18, 18, 0.62);
-        white-space: pre-wrap;
-      }
-      button {
-        display: none;
-        border: 1px solid rgba(18, 18, 18, 0.12);
-        background: #fafafa;
-        color: #121212;
-        border-radius: 12px;
-        padding: 8px 22px;
-        font-size: 14px;
-        cursor: pointer;
-      }
-      button:hover {
-        background: #ededed;
-      }
-      button.visible {
-        display: inline-block;
-      }
+      h1 { font-size: 22px; font-weight: 650; margin: 0; letter-spacing: 0.2px; }
+      p { margin: 0; font-size: 14px; line-height: 1.7; color: rgba(18, 18, 18, 0.62);
+        white-space: pre-wrap; }
+      button { display: none; border: 1px solid rgba(18, 18, 18, 0.12);
+        background: #fafafa; color: #121212; border-radius: 12px;
+        padding: 8px 22px; font-size: 14px; cursor: pointer; }
+      button:hover { background: #ededed; }
+      button.visible { display: inline-block; }
     </style>
   </head>
   <body>
     <div class="card">
-      <svg class="mark" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs>
-          <linearGradient id="miraBootGrad" x1="50" y1="12" x2="50" y2="96" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stop-color="#4f46e5" />
-            <stop offset="1" stop-color="#8b5cf6" />
-          </linearGradient>
-          <clipPath id="miraBootClip">
-            <circle cx="50" cy="56" r="37" />
-          </clipPath>
-        </defs>
-        <path fill="url(#miraBootGrad)" d="M26 33 Q14 16 24 12 Q31 9 44 24 Z" />
-        <path fill="url(#miraBootGrad)" d="M74 33 Q86 16 76 12 Q69 9 56 24 Z" />
-        <circle cx="50" cy="56" r="37" fill="url(#miraBootGrad)" />
-        <g clip-path="url(#miraBootClip)">
-          <path fill="#4338ca" d="M44 44 Q50 41 56 44 Q55 53 50 58 Q45 53 44 44 Z" />
-          <circle cx="33" cy="40" r="18" fill="#ffffff" />
-          <circle cx="67" cy="40" r="18" fill="#ffffff" />
-          <path fill="#ffffff" d="M16 52 Q11 74 31 87 Q19 70 16 52 Z" />
-          <path fill="#ffffff" d="M84 52 Q89 74 69 87 Q81 70 84 52 Z" />
-        </g>
-        <circle cx="33" cy="40" r="10.5" fill="#f9a825" />
-        <circle cx="67" cy="40" r="10.5" fill="#f9a825" />
-        <circle cx="29.5" cy="35.5" r="3" fill="#ffffff" />
-        <circle cx="63.5" cy="35.5" r="3" fill="#ffffff" />
-        <path fill="#f9a825" d="M50 67 Q51.8 74.2 59 76 Q51.8 77.8 50 85 Q48.2 77.8 41 76 Q48.2 74.2 50 67 Z" />
-      </svg>
-      <h1>Mira</h1>
+      <img class="mark" src="assets/icon.png" alt="" aria-hidden="true" draggable="false" />
+      <h1>知序</h1>
       <p id="status">正在启动…</p>
       <button id="retry" type="button">重试</button>
     </div>

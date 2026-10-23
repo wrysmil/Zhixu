@@ -1,5 +1,5 @@
 {
-  "description": "Use Mira from Discord servers and DMs.",
+  "description": "Use 知序 from Discord servers and DMs.",
   "requirements": "Discord bot token, permissions, gateway",
   "setup": {
     "docsLabel": "Open Discord setup",

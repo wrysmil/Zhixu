@@ -1,18 +1,18 @@
-# Build a WeChat AI Agent with nanobot
+# Build a WeChat AI Agent with Zhixu
 
-This guide connects nanobot to WeChat through the `weixin` channel. The channel
+This guide connects Zhixu to WeChat through the `weixin` channel. The channel
 uses HTTP long polling with QR-code login through the supported upstream API.
 
 ## What this guide builds
 
-- the `weixin` channel enabled in nanobot
+- the `weixin` channel enabled in Zhixu
 - a QR-code login session
 - one pairing-approved WeChat sender
 - a running gateway for message delivery
 
 ## Prerequisites
 
-- A working local nanobot reply:
+- A working local Zhixu reply:
 
 ```bash
 nanobot agent -m "Hello!"
@@ -20,7 +20,7 @@ nanobot agent -m "Hello!"
 
 - A WeChat account that can complete QR-code login.
 
-## Install nanobot
+## Install Zhixu
 
 ```bash
 python -m pip install nanobot-ai
@@ -91,7 +91,7 @@ and reply.
 - If a first private message returns a pairing code, that is expected. Approve
   the code before testing normal agent replies.
 - If messages are denied without a pairing code, check gateway logs for whether
-  WeChat provided the context token required for nanobot to reply.
+  WeChat provided the context token required for Zhixu to reply.
 - If polling disconnects, restart the gateway and check network reachability to
   the upstream service.
 

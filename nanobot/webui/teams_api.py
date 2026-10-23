@@ -1,0 +1,234 @@
+"""Agent Team 的传输无关绑定层：把 TeamService 接成 settings handler 需要的 operations。
+
+与 ``agents_api.py`` 同分层：本模块不认 HTTP 也不认 WebSocket，只负责「领域服务 →
+动作入口」和「档案存储 → 服务层视图」两段适配。gateway 装配时调一次
+:func:`build_team_operations`，测试可以直接拿内存替身喂 handler。
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import replace
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from nanobot.agents.models import AgentProfile
+from nanobot.agents.store import AgentStore, AgentStoreError
+from nanobot.teams.database import TeamDatabase
+from nanobot.teams.repository import TeamRepository
+from nanobot.teams.runs import TeamRunController
+from nanobot.teams.service import CrossSessionForbidden, ProfileRecord, TeamService
+from nanobot.webui.settings_contracts import WebUISettingsError
+from nanobot.webui.teams_routes import TeamSettingsOperations
+
+if TYPE_CHECKING:  # pragma: no cover - 只在类型检查期解析（导入纪律见 _builtin_registry）
+    from nanobot.writing.builtin import BuiltinAssetRegistry
+
+
+def require_caller_session(chat_id: str, caller_chats: tuple[str, ...]) -> None:
+    """按 chatId 列运行前先过会话访问检查（契约 §5 的「会话访问检查」→ 403）。
+
+    ``chat_id`` 来自客户端查询串，``caller_chats`` 是服务端从连接推导的：推导不出身份
+    （普通 HTTP GET）时不拦，那条路的边界是工作空间；能推导时必须命中。
+    """
+    if not caller_chats:
+        return
+    if chat_id in caller_chats:
+        return
+    raise CrossSessionForbidden("chat is not attached to the calling session")
+
+
+class AgentProfileDirectory:
+    """把 ``AgentStore`` 压成服务层需要的最小档案视图（契约 §1：只冻结约束）。
+
+    ``description`` / ``icon`` / ``color`` 这类展示字段**故意不搬**：它们进快照等于
+    把档案文案冻在每一次运行里，档案改了历史运行还显示旧句子。凭据字段更不可能过来。
+    """
+
+    def __init__(self, store: AgentStore) -> None:
+        self._store = store
+
+    def get(self, agent_id: str) -> ProfileRecord | None:
+        try:
+            profile = self._store.get_profile(agent_id)
+        except AgentStoreError as error:
+            if error.status == 404:
+                # 「没有这个档案」是服务层要的回答：翻译成 TEAM_MEMBER_UNAVAILABLE。
+                return None
+            # 非法 id 走到这里说明团队记录本身坏了，不能当成「查无此人」。
+            raise
+        return _record_of(profile)
+
+
+def _record_of(profile: AgentProfile) -> ProfileRecord:
+    return ProfileRecord(
+        id=profile.id,
+        name=profile.name,
+        prompt=profile.prompt,
+        model_id=profile.model_id,
+        tools=profile.tools,
+        skills=profile.skills,
+        sub_agents=profile.sub_agents,
+        hidden=profile.hidden,
+        updated_at=profile.updated_at,
+    )
+
+
+def build_service(workspace: Path, *, enabled: bool = True) -> TeamService:
+    """装配一个按 workspace 绑定的 :class:`TeamService`。
+
+    库路径只由 workspace 推导（契约 §2）：调用方不能指定 DB 路径，否则上游一个
+    透传参数的 bug 就能读到别的工作空间的数据。
+
+    **内置保护必须在这里接线**（安全审查 F1）：不注入 ``builtin_registry`` 时
+    ``TeamService._require_team_writable`` 恒为 no-op，任意已认证客户端都能覆盖 /
+    归档内置团队的逻辑 id。内置团队记录的**播种与迁移**另有不受保护的内部路径
+    （:meth:`TeamService.ensure_builtin_team`，allocator 协议），不会被本守卫自锁。
+    """
+    repository = TeamRepository(TeamDatabase(Path(workspace)))
+    return TeamService(
+        repository,
+        AgentProfileDirectory(AgentStore(Path(workspace))),
+        enabled=enabled,
+        builtin_registry=_builtin_registry(Path(workspace)),
+    )
+
+
+def _builtin_registry(workspace: Path) -> BuiltinAssetRegistry:
+    """构造内置资产登记处（惰引入：见 ``nanobot/agents/store.py`` 的导入纪律说明）。
+
+    ``writing_builtin_assets`` 属于写作 schema（契约 §7），写入口要按「逻辑 id →
+    物理 id」的登记表判断内置记录是否落在后缀物理 id 上，因此这里幂等补一次
+    schema——与 ``nanobot/webui/writing_services.py`` 对同一个库做的是同一件事。
+    """
+    from nanobot.writing.builtin import BuiltinAssetRegistry
+    from nanobot.writing.database import WritingDatabase
+
+    database = WritingDatabase(Path(workspace))
+    database.ensure_schema()
+    return BuiltinAssetRegistry(database)
+
+
+def claim_team_writer(service: TeamService) -> dict[str, list[str]]:
+    """抢下本 workspace 的团队调度权并做启动清理（契约 §6）。
+
+    抢不到说明已经有另一个 gateway 在调度同一个 workspace：这个进程**不**改写那些
+    运行，只把 ``writer_owned`` 关掉，之后所有新运行准入都会拿到 503。
+    """
+    if not service.repository.hold_writer():
+        service.writer_owned = False
+        return {"interruptedRuns": [], "prunedRuns": []}
+    return service.recover_after_restart()
+
+
+def build_team_operations(service: TeamService) -> TeamSettingsOperations:
+    """领域服务 → handler operations。同步入口：路由层已经用 ``asyncio.to_thread`` 包过。
+
+    写成带标注的具名闭包而不是 ``lambda **kw``：关键字写错要立刻在调用点炸出来，
+    而不是在 ``Callable[...]`` 的宽松签名下变成运行时 ``TypeError``。
+    """
+
+    def list_teams(*, limit: int, cursor: str | None) -> dict[str, Any]:
+        return service.list_teams(limit=limit, cursor=cursor)
+
+    def get_detail(*, team_id: str, revision: int | None) -> dict[str, Any]:
+        return service.get_team_detail(team_id, revision=revision)
+
+    def list_revisions(*, team_id: str) -> dict[str, Any]:
+        return service.list_revisions(team_id)
+
+    def save_team(
+        *, payload: dict[str, Any], expected_revision: int | None, request_id: str
+    ) -> dict[str, Any]:
+        return service.save_team(
+            payload, expected_revision=expected_revision, request_id=request_id
+        )
+
+    def archive_team(*, team_id: str, expected_revision: int, request_id: str) -> dict[str, Any]:
+        return service.archive_team(
+            team_id, expected_revision=expected_revision, request_id=request_id
+        )
+
+    def clone_team(*, team_id: str, name: str, request_id: str) -> dict[str, Any]:
+        return service.clone_team(team_id, name=name, request_id=request_id)
+
+    def list_runs(
+        *, chat_id: str, limit: int, cursor: str | None, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        require_caller_session(chat_id, caller_chats)
+        return service.list_runs(chat_id, limit=limit, cursor=cursor)
+
+    def run_detail(
+        *, run_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        return service.get_run(run_id, caller_chats=caller_chats)
+
+    def run_events(
+        *, run_id: str, after_seq: int, limit: int, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        service.require_run_session(run_id, caller_chats)
+        return service.run_events(run_id, after_seq=after_seq, limit=limit)
+
+    async def control_refused(**_kwargs: Any) -> dict[str, Any]:
+        """没有执行栈（CLI/测试构造的 gateway）时的控制入口：响亮 503。
+
+        读动作只需要 service + 磁盘，取消/重试却需要 :class:`TeamScheduler` 的活句柄，
+        所以由 :func:`with_team_controller` 在装配执行栈之后替换掉这三条。
+        """
+        raise WebUISettingsError("team run control is not wired", status=503)
+
+    return TeamSettingsOperations(
+        list_teams=list_teams,
+        get_detail=get_detail,
+        list_revisions=list_revisions,
+        save_team=save_team,
+        archive_team=archive_team,
+        clone_team=clone_team,
+        list_runs=list_runs,
+        run_detail=run_detail,
+        run_events=run_events,
+        cancel_run=control_refused,
+        cancel_task=control_refused,
+        retry_run=control_refused,
+    )
+
+
+def with_team_controller(
+    operations: TeamSettingsOperations,
+    controller: TeamRunController,
+) -> TeamSettingsOperations:
+    """把三个控制动作接到真实控制器上（装配层调用一次）。"""
+
+    async def cancel_run(
+        *, run_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        return await controller.cancel_run(run_id, caller_chats=caller_chats)
+
+    async def cancel_task(
+        *, run_id: str, task_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        return await controller.cancel_task(run_id, task_id, caller_chats=caller_chats)
+
+    async def retry_run(
+        *, run_id: str, request_id: str, caller_chats: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        return await controller.retry_run(
+            run_id, request_id=request_id, caller_chats=caller_chats
+        )
+
+    return replace(
+        operations, cancel_run=cancel_run, cancel_task=cancel_task, retry_run=retry_run
+    )
+
+
+def team_reference_lookup(workspace: Path) -> Callable[[str], list[str]]:
+    """给 Agent 删除动作用：返回引用该档案的**未归档**团队 id 列表（契约 §3）。
+
+    只读，不建库；库不存在时返回「没有引用」，因为「从没用过团队」是合法状态。
+    """
+    repository = TeamRepository(TeamDatabase(Path(workspace)))
+
+    def _lookup(agent_id: str) -> list[str]:
+        return repository.teams_referencing_profile(agent_id)
+
+    return _lookup

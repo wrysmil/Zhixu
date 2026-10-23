@@ -1,18 +1,18 @@
-# Connect Telegram to nanobot
+# Connect Telegram to Zhixu
 
-This guide connects one Telegram bot to nanobot. Messages sent to that bot use
-your normal nanobot model, tools, memory, and workspace.
+This guide connects one Telegram bot to Zhixu. Messages sent to that bot use
+your normal Zhixu model, tools, memory, and workspace.
 
 ## What this guide builds
 
 - a Telegram bot created through BotFather
-- the `telegram` channel enabled in nanobot
-- a running nanobot gateway
+- the `telegram` channel enabled in Zhixu
+- a running Zhixu gateway
 - one pairing-approved Telegram account
 
 ## Prerequisites
 
-- A working nanobot CLI reply:
+- A working Zhixu CLI reply:
 
 ```bash
 nanobot agent -m "Hello!"
@@ -21,7 +21,7 @@ nanobot agent -m "Hello!"
 - A Telegram account.
 - A bot token from `@BotFather`.
 
-## Install nanobot
+## Install Zhixu
 
 ```bash
 python -m pip install nanobot-ai

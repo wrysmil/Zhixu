@@ -1,12 +1,13 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CLEAR_SCREEN } from "@/components/workbench/terminal-shared";
 import {
   TerminalSurface,
   type TerminalEmulator,
 } from "@/components/workbench/TerminalSurface";
-import { getTerminalStore } from "@/hooks/useNanobotStream";
-import { NanobotClient } from "@/lib/nanobot-client";
+import { getTerminalStore } from "@/hooks/useZhixuStream";
+import { ZhixuClient } from "@/lib/zhixu-client";
 import type { TerminalEvent } from "@/lib/types";
 import { ClientProvider } from "@/providers/ClientProvider";
 
@@ -16,7 +17,9 @@ import { ClientProvider } from "@/providers/ClientProvider";
  * resize frames and line-mode fallback without a real renderer in jsdom.
  */
 interface RecordedTerminal extends TerminalEmulator {
+  updateAppearance: ReturnType<typeof vi.fn>;
   writes: string[];
+  selection: string;
   dataHandler: ((data: string) => void) | null;
   resizeHandler: ((size: { cols: number; rows: number }) => void) | null;
   dataSubscription: { dispose: ReturnType<typeof vi.fn> };
@@ -28,7 +31,12 @@ function makeFakeTerminal(): RecordedTerminal {
   const dataSubscription = { dispose: vi.fn() };
   const resizeSubscription = { dispose: vi.fn() };
   const instance: RecordedTerminal = {
+    updateAppearance: vi.fn(),
     writes: [],
+    selection: "",
+    getSelection() {
+      return instance.selection;
+    },
     dataHandler: null,
     resizeHandler: null,
     dataSubscription,
@@ -136,6 +144,30 @@ function errorEvent(id: string, detail: string) {
 
 const TERMINAL_ID = "term-1";
 
+describe("TerminalSurface appearance", () => {
+  it.each([true, false])("updates the existing emulator in PTY=%s without replaying output", (pty) => {
+    const { client, instances, latest, unmount } = setup();
+    client.emit(startedEvent(TERMINAL_ID, "ok", undefined, pty));
+    client.emit(outputEvent(TERMINAL_ID, 1, "retained output\n"));
+    const emulator = latest()!;
+    expect(emulator.updateAppearance).toHaveBeenCalledTimes(1);
+    const written = [...emulator.writes];
+    const fitted = emulator.fit.mock.calls.length;
+
+    act(() => window.dispatchEvent(new Event("zhixu-webui.appearance-applied")));
+    expect(emulator.updateAppearance).toHaveBeenCalledTimes(2);
+    expect(emulator.fit.mock.calls.length).toBe(fitted + 1);
+    expect(instances).toHaveLength(1);
+    expect(emulator.writes).toEqual(written);
+    expect(client.terminalStart).not.toHaveBeenCalled();
+    expect(client.terminalKill).not.toHaveBeenCalled();
+
+    unmount();
+    window.dispatchEvent(new Event("zhixu-webui.appearance-applied"));
+    expect(emulator.updateAppearance).toHaveBeenCalledTimes(2);
+  });
+});
+
 function setup(options: { terminalId?: string; sessionKey?: string | null } = {}) {
   const terminalId = options.terminalId ?? TERMINAL_ID;
   const client = makeFakeClient();
@@ -156,7 +188,7 @@ function setup(options: { terminalId?: string; sessionKey?: string | null } = {}
     );
   let utils = renderSurface();
   const latest = (): RecordedTerminal | undefined => instances.at(-1);
-  const store = () => getTerminalStore(client as unknown as NanobotClient);
+  const store = () => getTerminalStore(client as unknown as ZhixuClient);
   return {
     client,
     instances,
@@ -346,8 +378,66 @@ describe("TerminalSurface (line mode, migrated from TerminalSection)", () => {
   });
 });
 
+describe("TerminalSurface toolbar and replay", () => {
+  it("replaces the buffer when terminal_snapshot lands", () => {
+    const { client, latest } = setup();
+    client.emit(startedEvent(TERMINAL_ID, "ok", undefined, true));
+    client.emit(outputEvent(TERMINAL_ID, 1, "old\n"));
+    client.emit({
+      event: "terminal_snapshot",
+      type: "terminal_snapshot",
+      terminal_id: TERMINAL_ID,
+      seq: 1,
+      data: "restored\n",
+      truncated: true,
+    } as unknown as TerminalEvent);
+
+    const emulator = latest()!;
+    expect(emulator.writes).toContain(CLEAR_SCREEN);
+    expect(emulator.writes.at(-1)).toBe("restored\n");
+    expect(screen.getByText(/truncated/i)).toBeInTheDocument();
+  });
+
+  it("clears buffered output from the toolbar", () => {
+    const { client, latest } = setup();
+    client.emit(startedEvent(TERMINAL_ID, "ok", undefined, true));
+    client.emit(outputEvent(TERMINAL_ID, 1, "hello\n"));
+    fireEvent.click(screen.getByTestId(`terminal-clear-${TERMINAL_ID}`));
+    expect(latest()!.writes.at(-1)).toBe(CLEAR_SCREEN);
+  });
+
+  it("copies the xterm selection when present", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const { client, latest } = setup();
+    client.emit(startedEvent(TERMINAL_ID, "ok", undefined, true));
+    latest()!.selection = "selected text";
+    fireEvent.click(screen.getByTestId(`terminal-copy-${TERMINAL_ID}`));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("selected text"));
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
+
+  it("pastes clipboard text into a PTY terminal", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { readText: vi.fn().mockResolvedValue("echo hi\n") },
+    });
+    const { client } = setup();
+    client.emit(startedEvent(TERMINAL_ID, "ok", undefined, true));
+    fireEvent.click(screen.getByTestId(`terminal-paste-${TERMINAL_ID}`));
+    await waitFor(() =>
+      expect(client.terminalWrite).toHaveBeenCalledWith(TERMINAL_ID, "echo hi\n"),
+    );
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
+});
+
 /**
- * Transport-layer checks on the real NanobotClient with a scripted socket
+ * Transport-layer checks on the real ZhixuClient with a scripted socket
  * (migrated from terminal-section.test.tsx + contract v2 shell/resize frames):
  * the outbound frames match contract v2 §4.2 and the inbound events
  * (plus terminal-scoped error frames) reach ``onTerminalEvent`` subscribers.
@@ -393,13 +483,13 @@ class FakeSocket {
   }
 }
 
-describe("NanobotClient terminal channel", () => {
-  let client: NanobotClient;
+describe("ZhixuClient terminal channel", () => {
+  let client: ZhixuClient;
   let socket: FakeSocket;
 
   beforeEach(() => {
     FakeSocket.instances = [];
-    client = new NanobotClient({
+    client = new ZhixuClient({
       url: "ws://test",
       reconnect: false,
       socketFactory: () => new FakeSocket() as unknown as WebSocket,

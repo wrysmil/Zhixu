@@ -8,8 +8,8 @@ message's explicit ``event`` field rather than in reserved metadata flags.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
-from typing import Any
+from dataclasses import dataclass, field, replace
+from typing import Any, ClassVar
 
 from nanobot.bus.events import OutboundMessage
 from nanobot.events import AgentEvent
@@ -116,6 +116,49 @@ class TurnModelUpdatedEvent(AgentEvent):
     model_preset: str | None = None
     context_window_tokens: int | None = None
     fallback: bool = False
+
+
+@dataclass(frozen=True)
+class WritingEvent(AgentEvent):
+    """创作空间协作事件基类：帧名由 ``event_name`` 决定，载荷是已经白名单过的 body。
+
+    ``body`` 是 ``{event_name, chat_id}`` 之外的帧字段（契约 §5）——投影层不解释它，
+    只把 ``{"event": event_name, "chat_id": msg.chat_id, **body}`` 交给
+    ``send_writing_event``。三个子类只差一个 ``event_name``，所以**一个**
+    ``isinstance(event, WritingEvent)`` 分支就能覆盖全部三种帧。
+    """
+
+    #: 稳定帧名（契约 §5：``writing_collab`` / ``writing_artifact`` / ``writing_handoff``）。
+    event_name: ClassVar[str] = ""
+    body: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class WritingCollabEvent(WritingEvent):
+    """协作状态跃迁：``{collaboration_id, status, stage, active_batch_id, version, seq}``。"""
+
+    event_name: ClassVar[str] = "writing_collab"
+
+
+@dataclass(frozen=True)
+class WritingArtifactEvent(WritingEvent):
+    """产物交付：``{collaboration_id, artifact_id, kind, version, summary}``。"""
+
+    event_name: ClassVar[str] = "writing_artifact"
+
+
+@dataclass(frozen=True)
+class WritingHandoffEvent(WritingEvent):
+    """作者交接：``{collaboration_id, handoff_id, kind, artifact_id, artifact_version, status}``。"""
+
+    event_name: ClassVar[str] = "writing_handoff"
+
+
+@dataclass(frozen=True)
+class WritingChangedEvent(WritingEvent):
+    """团队写作工具已提交字段变更：``{article_id, revision, digest, change_id, kind, actor}``。"""
+
+    event_name: ClassVar[str] = "writing_changed"
 
 
 def outbound_message_for_event(

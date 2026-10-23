@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import { channelTranslator } from "@/channel-plugins/i18n";
 import { ChannelQrConnectFlow } from "@/components/settings/channels/ChannelQrConnectFlow";
-import type { NanobotFeaturesPayload } from "@/lib/types";
+import type { ZhixuFeaturesPayload } from "@/lib/types";
 
 export function FeishuConnectFlow({
   token,
@@ -17,7 +17,7 @@ export function FeishuConnectFlow({
   mode?: "replace" | "create";
   idleLabel?: string;
   connectRequestId?: number;
-  onFeaturesUpdate: (payload: NanobotFeaturesPayload) => void;
+  onFeaturesUpdate: (payload: ZhixuFeaturesPayload) => void;
 }) {
   const { t } = useTranslation();
   const tx = channelTranslator(t, "feishu");

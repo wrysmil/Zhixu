@@ -39,9 +39,9 @@ describe("index.html", () => {
 
     expect(themeColor?.content).toBe("#ffffff");
     expect(themeColor?.dataset.themeColorLight).toBe("#ffffff");
-    expect(themeColor?.dataset.themeColorDark).toBe("#121212");
-    expect(lightBodyBackground).toBe("#ffffff");
-    expect(darkBodyBackground).toBe("#121212");
+    expect(themeColor?.dataset.themeColorDark).toBe("#111621");
+    expect(lightBodyBackground).toBe("hsl(var(--background, 0 0% 100%))");
+    expect(darkBodyBackground).toBe("hsl(var(--background, 220 24% 8%))");
     expect(manifest.background_color).toBe("#ffffff");
     expect(manifest.theme_color).toBe("#ffffff");
     expect(manifest.color_scheme_dark?.background_color).toBe("#121212");

@@ -1,4 +1,4 @@
-const CACHE_PREFIX = "nanobot-static-";
+const CACHE_PREFIX = "zhixu-static-";
 const CACHE_NAME = `${CACHE_PREFIX}v2`;
 const ASSET_MANIFEST_PATH = "/asset-manifest.json";
 const PRECACHE = ["/", "/manifest.json", ASSET_MANIFEST_PATH];
@@ -6,12 +6,11 @@ const NETWORK_FIRST_STATIC_PATHS = new Set([
   "/",
   "/manifest.json",
   ASSET_MANIFEST_PATH,
-  "/brand/mira_apple_touch.png",
-  "/brand/mira_favicon_32.png",
-  "/brand/mira_icon_192.png",
-  "/brand/mira_icon_512.png",
-  "/brand/mira_icon_maskable.png",
-  "/brand/mira_mark.svg",
+  "/brand/zhixu_apple_touch.png",
+  "/brand/zhixu_favicon_32.png",
+  "/brand/zhixu_icon_192.png",
+  "/brand/zhixu_icon_512.png",
+  "/brand/zhixu_icon_maskable.png",
 ]);
 
 function responseMayBeCached(response) {

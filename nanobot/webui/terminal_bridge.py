@@ -54,7 +54,9 @@ from nanobot.webui.outbound_wire import (
     TerminalOutputStream,
     encode_terminal_exit,
     encode_terminal_output,
+    encode_terminal_snapshot,
 )
+from nanobot.webui.terminal_scrollback import TerminalScrollback
 
 _IS_WINDOWS = sys.platform == "win32"
 
@@ -238,6 +240,7 @@ class _ShellTerminal:
     finalized: bool = False
     closing: str | None = None
     poll_task: asyncio.Task[None] | None = None
+    scrollback: TerminalScrollback = field(default_factory=TerminalScrollback)
 
 
 class WebuiTerminalBridge:
@@ -312,6 +315,17 @@ class WebuiTerminalBridge:
             existing.chat_id = chat_id
             existing.session_key = session_key
             existing.last_activity = time.monotonic()
+            snapshot, truncated = existing.scrollback.snapshot()
+            if snapshot:
+                await self._publish(
+                    existing,
+                    encode_terminal_snapshot(
+                        terminal_id=existing.terminal_id,
+                        seq=existing.seq,
+                        data=snapshot,
+                        truncated=truncated,
+                    ),
+                )
             return {
                 **base,
                 "shell": existing.shell,
@@ -736,6 +750,7 @@ class WebuiTerminalBridge:
         text: str,
     ) -> None:
         for chunk in split_output_chunks(text):
+            terminal.scrollback.append(chunk)
             terminal.seq += 1
             await self._publish(
                 terminal,

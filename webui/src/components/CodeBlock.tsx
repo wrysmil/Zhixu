@@ -27,17 +27,7 @@ interface HighlightedCodeProps {
   wrapLongLines: boolean;
 }
 
-const CODE_FONT_STACK = [
-  '"JetBrains Mono"',
-  '"SFMono-Regular"',
-  '"SF Mono"',
-  '"Fira Code"',
-  '"Cascadia Code"',
-  '"Source Code Pro"',
-  "Menlo",
-  "Consolas",
-  "monospace",
-].join(", ");
+const CODE_FONT_STACK = "var(--font-code)";
 
 const ANSI_LANGUAGES = new Set(["ansi", "ansi-output"]);
 
@@ -80,6 +70,7 @@ const LazyHighlightedCode = lazy(async () => {
           style={transparentTheme}
           customStyle={{
             background: "transparent",
+            color: "hsl(var(--foreground))",
             margin: 0,
             padding: chrome === "none" ? "0.75rem 1rem" : "1rem 3.5rem 1rem 1.25rem",
             fontFamily: CODE_FONT_STACK,
@@ -90,13 +81,14 @@ const LazyHighlightedCode = lazy(async () => {
           codeTagProps={{
             style: {
               background: "transparent",
+              color: "hsl(var(--foreground))",
               fontFamily: CODE_FONT_STACK,
             },
           }}
           lineNumberStyle={{
             minWidth: "2.6em",
             paddingRight: "1.15rem",
-            color: isDark ? "rgba(212, 212, 216, 0.45)" : "rgba(63, 63, 70, 0.68)",
+            color: "hsl(var(--muted-foreground) / 0.65)",
             fontFamily: CODE_FONT_STACK,
             userSelect: "none",
           }}

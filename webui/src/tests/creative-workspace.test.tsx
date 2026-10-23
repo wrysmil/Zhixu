@@ -9,7 +9,6 @@ import {
   DRAFT_STORAGE_KEY,
   writeDraft,
 } from "@/lib/writing-draft-cache";
-import type { Article } from "@/components/creative/types";
 import { preloadMarkdownText } from "@/components/MarkdownText";
 
 // A3.1 起演示数据只能经 preview 入口进入正式工作区（A-T11），真实挂载点不再有任何
@@ -46,23 +45,44 @@ describe("CreativeWorkspace (preview entry)", () => {
 
   it("rejects blank title on new article", async () => {
     renderPreview();
-    const btn = screen.getByRole("button", { name: /新建/ });
+    const btn = screen.getByRole("button", { name: "Create draft" });
     fireEvent.click(btn);
     await waitFor(() =>
-      expect(screen.getByText("请输入文章主题")).toBeInTheDocument(),
+      expect(screen.getByText("Enter an article title")).toBeInTheDocument(),
     );
   });
 
   it("creates a new article and enters editor", async () => {
     renderPreview();
-    const textarea = screen.getByPlaceholderText(/想讲清楚什么问题/) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "我的新文章" } });
-    fireEvent.click(screen.getByRole("button", { name: /新建/ }));
+    const titleInput = screen.getByRole("textbox", { name: "Article title" });
+    fireEvent.change(titleInput, { target: { value: "我的新文章" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
     await waitFor(() =>
       expect(screen.getByTestId("article-editor")).toBeInTheDocument(),
     );
     expect(screen.getByTestId("article-editor-title").textContent).toBe("我的新文章");
     expect(screen.getByLabelText("正文编辑")).toBeInTheDocument();
+  });
+
+  // B01（plan Task 13 / 2026-10-17-writing-browser-v2.md:41-51）：预览写通道已经把新文章
+  // 插进内存集合，`handleCreate` 再 prepend 一次 → 列表出现两张同 id 的卡。
+  it("test_create_once_returns_single_card", async () => {
+    renderPreview();
+    const titleInput = screen.getByRole("textbox", { name: "Article title" });
+    fireEvent.change(titleInput, { target: { value: "只出现一次的文章" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("article-editor")).toBeInTheDocument(),
+    );
+
+    // 回到列表：新建的卡必须只有一张（列表更新责任唯一）。
+    fireEvent.click(screen.getByLabelText("Back"));
+    await waitFor(() =>
+      expect(screen.getByText("只出现一次的文章")).toBeInTheDocument(),
+    );
+    expect(screen.getAllByText("只出现一次的文章")).toHaveLength(1);
+    // 演示库 3 篇 + 新建 1 篇 = 4 张卡（重复插入时会变成 5 张）。
+    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(4);
   });
 
   it("filters articles by status", async () => {
@@ -83,12 +103,12 @@ describe("CreativeWorkspace (preview entry)", () => {
 
   it("searches and shows empty result", async () => {
     renderPreview();
-    const search = screen.getByLabelText(/搜索标题或摘要/);
+    const search = screen.getByLabelText("Search titles or summaries");
     fireEvent.change(search, { target: { value: "不存在的文章" } });
     await waitFor(() =>
       expect(screen.getByTestId("article-list-empty")).toBeInTheDocument(),
     );
-    expect(screen.getByText("没有符合条件的文章")).toBeInTheDocument();
+    expect(screen.getByText("No articles match your filters")).toBeInTheDocument();
   });
 
   it("keeps the saved body when navigating back to list and reopening", async () => {
@@ -206,7 +226,7 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
       jsonResponse(listBody([summaryRow()])),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const requestMutation = vi.fn(async (action: string, payload: Record<string, unknown>) => {
+    const requestMutation = vi.fn<(action: string, payload: Record<string, unknown>) => Promise<unknown>>(async (action) => {
       if (action === "article.delete") return { deleted_article_id: "srv-1", revision: 4 };
       throw new Error(`unexpected action ${action}`);
     });
@@ -242,7 +262,7 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
     await waitFor(() => expect(screen.getByText("文章标题")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("delete-article-srv-1"));
     expect(screen.getByTestId("delete-dirty-warning")).toBeInTheDocument();
-    expect(screen.getByTestId("delete-dirty-warning").textContent).toContain("未保存");
+    expect(screen.getByTestId("delete-dirty-warning").textContent).toContain("unsaved changes");
     vi.unstubAllGlobals();
   });
 
@@ -265,7 +285,7 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
       jsonResponse(listBody([summaryRow()])),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const requestMutation = vi.fn(async (action: string, payload: Record<string, unknown>) => {
+    const requestMutation = vi.fn<(action: string, payload: Record<string, unknown>) => Promise<unknown>>(async (action) => {
       if (action === "article.duplicate") {
         return { article: wireArticle({ id: "srv-copy", title: "文章标题（副本）", revision: 1 }) };
       }
@@ -295,6 +315,11 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
       if (url.includes("/articles/get")) {
         return jsonResponse({ article: wireArticle() });
       }
+      // 创作搭档面板挂载后会读一次协作快照（WU-13 起编辑器右栏真的在跑）：它不是列表
+      // 刷新，必须单独吃掉，否则会顶掉下面按次数断言的 list 语义。
+      if (url.includes("/api/writing/collab")) {
+        return jsonResponse({ collaboration: null, artifacts: [], handoffs: [], suggestions: [] });
+      }
       listCalls += 1;
       // 删除触发了一次刷新（reloadKey++），第二次以后返回空。
       return jsonResponse(listCalls > 1 ? listBody([]) : listBody([summaryRow()]));
@@ -320,20 +345,20 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
 
   it("late-arriving save after delete does not resurrect the article (A-02)", async () => {
     let resolveSave: ((value: unknown) => void) | null = null;
-    let listCalls = 0;
+    // 用「删除是否已经发生」驱动列表语义，而不是数请求次数：创作搭档面板挂载后
+    // 编辑器会多发几次读请求（WU-13），按次数计数的桩会被这些无关请求顶掉。
+    let deleted = false;
     const fetchMock = vi.fn(async (input: unknown) => {
       const url = String(input);
       if (url.includes("/articles/get")) {
         return jsonResponse({ article: wireArticle() });
       }
-      // 三次 list fetch 的语义：①挂载 ②force 离开编辑器 ③删除后刷新；
-      // 第三次才返回空列表，与「deleting the article also clears its cached
-      // recovery draft」用例的「删除触发了一次刷新（reloadKey++）」注释对齐。
-      listCalls += 1;
-      return jsonResponse(listCalls > 2 ? listBody([]) : listBody([summaryRow()]));
+      // 删除前一直返回那一行；删除触发的刷新（reloadKey++）才返回空列表，与
+      // 「deleting the article also clears its cached recovery draft」用例语义一致。
+      return jsonResponse(deleted ? listBody([]) : listBody([summaryRow()]));
     });
     vi.stubGlobal("fetch", fetchMock);
-    const requestMutation = vi.fn(async (action: string, payload: Record<string, unknown>) => {
+    const requestMutation = vi.fn<(action: string, payload: Record<string, unknown>) => Promise<unknown>>(async (action) => {
       if (action === "article.save") {
         // 第一条 save 立即被服务端 409 拒绝（语义：服务端在 user 点 Back 之前
         // 已经删除了文章），让 tryLeave 走 blocked 分支并弹出 A3.6 离开守卫。
@@ -345,7 +370,10 @@ describe("CreativeWorkspace delete + duplicate (A3.8 / A-02)", () => {
         void pending;
         throw new ApiError(409, "article_conflict current_revision=3 article_id=srv-1");
       }
-      if (action === "article.delete") return { deleted_article_id: "srv-1", revision: 4 };
+      if (action === "article.delete") {
+        deleted = true;
+        return { deleted_article_id: "srv-1", revision: 4 };
+      }
       throw new Error(`unexpected action ${action}`);
     });
     renderWorkspace({ requestMutation } as unknown as WebUIMutationTransport);

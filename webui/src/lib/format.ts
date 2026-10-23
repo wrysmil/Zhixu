@@ -55,12 +55,45 @@ function isLowInformationTitlePreview(text: string): boolean {
 }
 
 /** Truncate the first user message into a chat title. */
-export function deriveTitle(preview: string | undefined, fallback: string): string {
+export function deriveTitle(
+  preview: string | undefined,
+  fallback: string,
+  date?: string | null,
+): string {
   if (!preview) return fallback;
-  const oneLine = visibleSessionPreview(preview).replace(/\s+/g, " ").trim();
+  const oneLine = visibleSessionPreview(preview)
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/^\s*(?:[@#>*_~-]+\s*)+/, "")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s:：,，.。;；!！?？~～-]+/, "")
+    .replace(/[\s:：,，.。;；]+$/, "")
+    .trim();
   if (!oneLine) return fallback;
-  if (isLowInformationTitlePreview(oneLine)) return fallback;
-  return oneLine.length > 60 ? `${oneLine.slice(0, 57)}…` : oneLine;
+  if (isLowInformationTitlePreview(oneLine) || isLowSignalTitle(oneLine)) {
+    const stamped = date ? formatShortDate(date) : "";
+    return stamped ? `${fallback} · ${stamped}` : fallback;
+  }
+  return oneLine.length > 24 ? `${oneLine.slice(0, 23)}…` : oneLine;
+}
+
+/** Bare digits or a couple of latin letters ("454", "wew") carry no title value. */
+function isLowSignalTitle(text: string): boolean {
+  const compact = text.replace(/\s+/g, "");
+  if (/^\d+$/.test(compact)) return true;
+  return /^[\x20-\x7E]+$/.test(compact) && compact.length <= 3;
+}
+
+function formatShortDate(value: string): string {
+  const parsed = parseDate(value);
+  if (!parsed) return "";
+  try {
+    return new Intl.DateTimeFormat(currentLocale(), {
+      month: "numeric",
+      day: "numeric",
+    }).format(parsed);
+  } catch {
+    return "";
+  }
 }
 
 /** Loose ISO-or-epoch parser; returns ``null`` for missing/invalid input. */

@@ -108,12 +108,12 @@ ready-to-run `nanobot agent --session ...` command for the current session.
 ## Session Storage and Rollback
 
 Session JSONL files live under `<config-dir>/sessions/<workspace-id>/`, outside the
-agent-readable workspace. On the first upgraded start, nanobot safely migrates existing
-`<workspace>/sessions/*.jsonl` files after verifying an atomic copy. Stop every old nanobot
+agent-readable workspace. On the first upgraded start, Zhixu safely migrates existing
+`<workspace>/sessions/*.jsonl` files after verifying an atomic copy. Stop every old Zhixu
 process that uses the workspace before upgrading; old and new binaries must not write the
 same session concurrently.
 
-To prepare a downgrade, stop nanobot and copy the current sessions back to the path understood
+To prepare a downgrade, stop Zhixu and copy the current sessions back to the path understood
 by older releases:
 
 ```bash
@@ -123,11 +123,11 @@ nanobot sessions restore-workspace --config ./bot-a/config.json --workspace ./bo
 The command never deletes the external store and refuses to overwrite a different existing
 workspace file. Back up both the config directory and workspace before changing versions.
 
-Interactive mode uses nanobot's native TypeScript terminal UI. It talks to the same local gateway as the WebUI, so streaming, tool progress, and WebSocket sessions share one protocol instead of maintaining a second agent loop. If no gateway is running, either client starts it on demand. The TUI paints immediately while the local gateway starts, then obtains fresh bootstrap credentials and connects in the background. Exiting one TUI or WebUI launcher releases only that client; the last interactive launcher stops the on-demand gateway. A small gateway watchdog also reclaims an on-demand process if its last client crashes. `/detach` promotes the shared gateway to persistent background mode before closing the TUI, so active agent work continues without a connected client. An explicit `nanobot gateway --background` starts or promotes the gateway the same way before opening a client. `nanobot gateway restart` restarts a detached gateway without changing that lifetime; restart an attached foreground gateway in its owning terminal. `nanobot gateway stop` ends either mode.
+Interactive mode uses Zhixu's native TypeScript terminal UI. It talks to the same local gateway as the WebUI, so streaming, tool progress, and WebSocket sessions share one protocol instead of maintaining a second agent loop. If no gateway is running, either client starts it on demand. The TUI paints immediately while the local gateway starts, then obtains fresh bootstrap credentials and connects in the background. Exiting one TUI or WebUI launcher releases only that client; the last interactive launcher stops the on-demand gateway. A small gateway watchdog also reclaims an on-demand process if its last client crashes. `/detach` promotes the shared gateway to persistent background mode before closing the TUI, so active agent work continues without a connected client. An explicit `nanobot gateway --background` starts or promotes the gateway the same way before opening a client. `nanobot gateway restart` restarts a detached gateway without changing that lifetime; restart an attached foreground gateway in its owning terminal. `nanobot gateway stop` ends either mode.
 
 The default `--theme auto` mode paints first with the terminal's default background, probes the real foreground and background colors asynchronously, and follows supported live appearance changes. Use `--theme light` or `--theme dark` when a terminal or multiplexer does not report its colors reliably. The model preset and workspace access labels above the composer can be clicked to open their selectors; arrow keys, `Enter`, and `Esc` provide the same controls without a mouse. Access changes still pass through the gateway's local-trust and active-turn policy checks.
 
-`Enter` sends the current message. While nanobot is working, `Enter` sends immediately, `Tab` waits until the current response is finished, and `Option+Up` on macOS (`Alt+Up` on Windows/Linux) returns the latest waiting message to the composer. Press `Shift+Enter` to add a newline; `Ctrl+J` is the universal fallback when a terminal cannot distinguish modified Enter keys. `Alt+Enter` and `Ctrl+Enter` are also accepted when distinguishable. Use `Up`/`Down` at the composer edge to recall prompts from the current saved session. Large pastes appear as a compact placeholder in the composer but are sent unchanged. Type `/` to discover nanobot commands and terminal navigation in one palette, or type `@` to complete installed apps, configured MCP servers, and saved sessions. Use the arrow keys to choose an item and `Tab` to complete it. `/sessions` opens a searchable conversation picker, `/new-chat` preserves the current conversation and starts another one, and `/branch` forks from a completed reply. `/diff` opens a read-only unified diff for the newest turn; use `Left`/`Right` to switch edits and `Esc` to close it. The core `/new` command retains its cross-channel behavior and resets the current chat. `Ctrl+C` copies a selection, stops a running turn, clears a non-empty composer, or exits when idle. Use `PageUp`/`PageDown` to scroll, `Ctrl+Home`/`Ctrl+End` to jump to the transcript edges, and `Ctrl+O` to expand or collapse long tool traces. When you leave the bottom, the TUI shows a scrollbar and a `Ctrl+End` hint until you return. The footer reports provider token/cache usage when available. Selections copy through OSC 52 when the terminal supports it. The transcript reflows when the terminal is resized, and exiting restores the previous screen.
+`Enter` sends the current message. While Zhixu is working, `Enter` sends immediately, `Tab` waits until the current response is finished, and `Option+Up` on macOS (`Alt+Up` on Windows/Linux) returns the latest waiting message to the composer. Press `Shift+Enter` to add a newline; `Ctrl+J` is the universal fallback when a terminal cannot distinguish modified Enter keys. `Alt+Enter` and `Ctrl+Enter` are also accepted when distinguishable. Use `Up`/`Down` at the composer edge to recall prompts from the current saved session. Large pastes appear as a compact placeholder in the composer but are sent unchanged. Type `/` to discover Zhixu commands and terminal navigation in one palette, or type `@` to complete installed apps, configured MCP servers, and saved sessions. Use the arrow keys to choose an item and `Tab` to complete it. `/sessions` opens a searchable conversation picker, `/new-chat` preserves the current conversation and starts another one, and `/branch` forks from a completed reply. `/diff` opens a read-only unified diff for the newest turn; use `Left`/`Right` to switch edits and `Esc` to close it. The core `/new` command retains its cross-channel behavior and resets the current chat. `Ctrl+C` copies a selection, stops a running turn, clears a non-empty composer, or exits when idle. Use `PageUp`/`PageDown` to scroll, `Ctrl+Home`/`Ctrl+End` to jump to the transcript edges, and `Ctrl+O` to expand or collapse long tool traces. When you leave the bottom, the TUI shows a scrollbar and a `Ctrl+End` hint until you return. The footer reports provider token/cache usage when available. Selections copy through OSC 52 when the terminal supports it. The transcript reflows when the terminal is resized, and exiting restores the previous screen.
 
 Packaged releases fetch a version-matched, checksummed terminal archive for macOS (Apple Silicon and Intel), Linux (x64 and ARM64), or Windows x64 on first use. The cache keeps the executable together with its licenses, third-party notices, source offer, relinking instructions, and corresponding TUI source. Windows ARM64 currently falls back to the classic prompt because the Bun runtime disables the FFI required by OpenTUI on that platform. Set `NANOBOT_TUI_NO_DOWNLOAD=1` or pass `--classic` to keep the Python-only path. A local source install requires Bun and runs its own `tui/` source while the original checkout remains available; it never silently falls back to a release binary.
 
@@ -243,7 +243,7 @@ Triggers are managed in the WebUI Automations view instead of through separate
 rename, delete, search, and copy the command for each trigger.
 
 For webhooks or other external systems, run your own small service and have it
-call this CLI after it decides what message nanobot should receive.
+call this CLI after it decides what message Zhixu should receive.
 
 See [Automations](./automations.md) for the broader automation model, WebUI
 management, and delivery behavior.
@@ -307,13 +307,13 @@ See [`chat-apps.md`](./chat-apps.md) for channel-specific setup.
 
 ## Optional Features
 
-Use these commands when you want nanobot to add or remove a built-in capability
+Use these commands when you want Zhixu to add or remove a built-in capability
 without hand-editing JSON. Enabling may install the support package first.
 Disabling is for channels such as Telegram, Matrix, or Slack; it keeps your
 saved settings and turns the channel off.
 
 The `plugins` command name is retained for compatibility, but these entries are
-nanobot runtime support packages, not the user-invokable tools shown in WebUI
+Zhixu runtime support packages, not the user-invokable tools shown in WebUI
 Apps. They cannot be attached to a chat turn with `@`.
 
 | Feature name | What it enables |
@@ -347,7 +347,7 @@ remain accepted as no-op compatibility aliases.
 | `nanobot provider login xai-grok --set-main` | Authenticate an eligible X Premium / Grok subscription and select Grok 4.6; hosted X Search is enabled for models that advertise support |
 | `nanobot provider login github-copilot --set-main` | Authenticate GitHub Copilot and select its current default model |
 | `nanobot provider logout openai-codex` | Remove OpenAI Codex OAuth state |
-| `nanobot provider logout xai-grok --config <path>` | Remove the selected nanobot instance's xAI OAuth state |
+| `nanobot provider logout xai-grok --config <path>` | Remove the selected Zhixu instance's xAI OAuth state |
 | `nanobot provider logout github-copilot` | Remove GitHub Copilot OAuth state |
 
 See [`providers.md`](./providers.md#oauth-providers) for when OAuth providers need explicit provider/model selection.

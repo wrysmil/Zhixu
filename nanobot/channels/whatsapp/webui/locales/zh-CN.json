@@ -1,5 +1,5 @@
 {
-  "description": "在 WhatsApp 会话中使用 Mira。",
+  "description": "在 WhatsApp 会话中使用 知序。",
   "requirements": "WhatsApp 连接配置和网关",
   "setup": {
     "primaryAction": "连接 WhatsApp",

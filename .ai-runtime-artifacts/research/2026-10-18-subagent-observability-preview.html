@@ -1,0 +1,251 @@
+<div id="zx-agent-observer" class="viz-carousel" aria-label="子 Agent 调用详情设计比较" data-previous-label="上个方案" data-next-label="下个方案">
+  <style>
+    #zx-agent-observer { color-scheme: light dark; --zx-paper: light-dark(#faf9f5, #202520); --zx-panel: light-dark(#ffffff, #252b26); --zx-ink: light-dark(#25352e, #e2e9e3); --zx-secondary: light-dark(#66746b, #b2bfb5); --zx-line: light-dark(#dfe5dd, #414d43); --zx-green: light-dark(#286347, #92c6a3); --zx-soft: light-dark(#eaf2e8, #344738); --zx-error: light-dark(#a13b32, #f1aaa0); --zx-error-bg: light-dark(#fff0ed, #432d2b); --zx-bubble: light-dark(#edf0e9, #344035); font: 14px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; color: var(--zx-ink); }
+    #zx-agent-observer * { box-sizing: border-box; }
+    #zx-agent-observer [hidden] { display: none !important; }
+    #zx-agent-observer .zx-window { min-height: 650px; background: var(--zx-paper); border: 1px solid var(--zx-line); border-radius: 14px; overflow: hidden; }
+    #zx-agent-observer .zx-top { min-height: 56px; padding: 14px 20px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--zx-line); background: var(--zx-panel); }
+    #zx-agent-observer .zx-brand { color: var(--zx-green); font-weight: 600; }
+    #zx-agent-observer .zx-top small { margin-left: auto; color: var(--zx-secondary); }
+    #zx-agent-observer .zx-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 42%); min-height: 593px; }
+    #zx-agent-observer .zx-layout[data-surface="workbench"] { grid-template-columns: minmax(0, 1fr) 250px; }
+    #zx-agent-observer .zx-chat { min-width: 0; display: flex; flex-direction: column; gap: 22px; padding: 30px 28px 20px; }
+    #zx-agent-observer .zx-user { align-self: flex-end; background: var(--zx-bubble); border-radius: 16px 16px 4px 16px; padding: 12px 16px; max-width: 88%; }
+    #zx-agent-observer p { margin: 0; }
+    #zx-agent-observer .zx-copy { max-width: 44em; }
+    #zx-agent-observer .zx-label { color: var(--zx-secondary); font-size: 12px; }
+    #zx-agent-observer .zx-calls { display: grid; gap: 8px; }
+    #zx-agent-observer button, #zx-agent-observer select, #zx-agent-observer textarea { font: inherit; color: inherit; }
+    #zx-agent-observer button { background: transparent; border: 0; }
+    #zx-agent-observer .zx-call { display: grid; grid-template-columns: 26px minmax(0, 1fr) 18px; gap: 10px; width: 100%; text-align: left; padding: 12px; border: 1px solid var(--zx-line); border-radius: 10px; background: var(--zx-panel); }
+    #zx-agent-observer .zx-call[aria-expanded="true"] { background: var(--zx-soft); border-color: var(--zx-green); }
+    #zx-agent-observer .zx-call:hover { background: var(--zx-soft); }
+    #zx-agent-observer .zx-call-title { display: block; font-weight: 500; overflow-wrap: anywhere; }
+    #zx-agent-observer .zx-call-meta { display: block; color: var(--zx-secondary); font-size: 12px; margin-top: 3px; }
+    #zx-agent-observer .zx-icon { color: var(--zx-green); display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; }
+    #zx-agent-observer svg { width: 17px; height: 17px; }
+    #zx-agent-observer .zx-state { color: var(--zx-green); font-size: 12px; }
+    #zx-agent-observer .zx-error-text { color: var(--zx-error); }
+    #zx-agent-observer .zx-link { text-align: left; color: var(--zx-green); text-decoration: underline; text-underline-offset: 3px; padding: 0; }
+    #zx-agent-observer .zx-file-row { display: flex; gap: 8px; align-items: center; }
+    #zx-agent-observer .zx-composer { margin-top: auto; padding-top: 28px; }
+    #zx-agent-observer textarea { width: 100%; min-height: 80px; resize: vertical; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--zx-line); background: var(--zx-panel); }
+    #zx-agent-observer .zx-composer-note { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--zx-secondary); font-size: 12px; }
+    #zx-agent-observer .zx-pane { min-width: 0; border-left: 1px solid var(--zx-line); background: var(--zx-panel); }
+    #zx-agent-observer .zx-pane-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 18px 14px; border-bottom: 1px solid var(--zx-line); }
+    #zx-agent-observer .zx-pane-head strong { display: block; font-weight: 500; }
+    #zx-agent-observer .zx-close { min-width: 38px; min-height: 38px; border: 1px solid var(--zx-line); border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+    #zx-agent-observer .zx-pane-body { padding: 18px; display: grid; gap: 21px; }
+    #zx-agent-observer .zx-picker-wrap { position: relative; }
+    #zx-agent-observer .zx-picker-trigger { width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 12px; border: 1px solid var(--zx-line); border-radius: 10px; background: var(--zx-panel); text-align: left; }
+    #zx-agent-observer .zx-picker-trigger[aria-expanded="true"] { border-color: var(--zx-green); }
+    #zx-agent-observer .zx-picker-copy { display: grid; gap: 2px; min-width: 0; flex: 1; }
+    #zx-agent-observer .zx-picker-copy strong { font-weight: 500; }
+    #zx-agent-observer .zx-picker-copy small { color: var(--zx-secondary); font-size: 12px; overflow-wrap: anywhere; }
+    #zx-agent-observer .zx-chevron { color: var(--zx-secondary); }
+    #zx-agent-observer .zx-task-menu { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; right: 0; padding: 5px; border: 1px solid var(--zx-line); border-radius: 12px; background: var(--zx-panel); box-shadow: 0 10px 24px light-dark(#24382a1a, #00000040); }
+    #zx-agent-observer .zx-task-option { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; padding: 11px 10px; border-radius: 8px; }
+    #zx-agent-observer .zx-task-option[aria-checked="true"], #zx-agent-observer .zx-task-option:hover { background: var(--zx-soft); }
+    #zx-agent-observer .zx-task-option:focus-visible { outline: 2px solid var(--zx-green); outline-offset: -2px; }
+    #zx-agent-observer .zx-task-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+    #zx-agent-observer .zx-menu-status { color: var(--zx-secondary); font-size: 12px; font-weight: 400; }
+    #zx-agent-observer .zx-menu-status[data-running="true"] { color: var(--zx-green); }
+    #zx-agent-observer .zx-menu-status[data-failed="true"] { color: var(--zx-error); }
+    #zx-agent-observer .zx-selected-mark { width: 18px; flex-shrink: 0; color: var(--zx-green); text-align: center; }
+    #zx-agent-observer .zx-section-name { color: var(--zx-secondary); font-size: 12px; margin-bottom: 7px; }
+    #zx-agent-observer .zx-timeline { list-style: none; margin: 0; padding: 0; }
+    #zx-agent-observer .zx-timeline li { display: grid; grid-template-columns: 18px minmax(0, 1fr) 38px; gap: 8px; padding: 8px 0; align-items: baseline; }
+    #zx-agent-observer .zx-mark { color: var(--zx-green); }
+    #zx-agent-observer .zx-time { text-align: right; color: var(--zx-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+    #zx-agent-observer .zx-result { padding: 13px 14px; background: var(--zx-soft); border-radius: 9px; }
+    #zx-agent-observer .zx-alert { padding: 10px 12px; border-radius: 8px; color: var(--zx-error); background: var(--zx-error-bg); font-size: 12px; }
+    #zx-agent-observer .zx-code { white-space: pre-wrap; overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: 12px; margin: 0; }
+    #zx-agent-observer .zx-workbench { padding: 18px; }
+    #zx-agent-observer .zx-workbench p { margin-top: 15px; }
+    #zx-agent-observer .zx-inline-layout { min-height: 593px; padding: 30px clamp(18px, 6vw, 90px) 20px; display: flex; flex-direction: column; gap: 22px; }
+    #zx-agent-observer .zx-inline { border-left: 1px solid var(--zx-line); padding-left: 16px; }
+    #zx-agent-observer .zx-inline summary { color: var(--zx-green); padding: 8px 0; }
+    #zx-agent-observer .zx-inline-content { padding: 6px 8px 12px 20px; }
+    @media (max-width: 959px) {
+      #zx-agent-observer .zx-window { min-height: 735px; }
+      #zx-agent-observer .zx-layout, #zx-agent-observer .zx-layout[data-surface="workbench"] { display: block; min-height: 678px; }
+      #zx-agent-observer .zx-layout:not([data-surface="workbench"]) .zx-chat { display: none; }
+      #zx-agent-observer .zx-layout[data-surface="workbench"] .zx-pane { display: none; }
+      #zx-agent-observer .zx-chat { min-height: 678px; padding: 23px 18px; }
+      #zx-agent-observer .zx-pane { border-left: 0; min-height: 678px; }
+      #zx-agent-observer .zx-close, #zx-agent-observer .zx-link { min-height: 44px; min-width: 44px; }
+      #zx-agent-observer .zx-inline-layout { min-height: 678px; }
+      #zx-agent-observer .zx-top { padding: 14px 16px; }
+      #zx-agent-observer textarea { font-size: 16px; }
+    }
+  </style>
+  <section data-variant="侧栏详情" aria-label="侧栏详情方案">
+    <div class="zx-window" data-product="sidebar" aria-label="知序 · 子 Agent 调用">
+      <header class="zx-top"><span class="zx-brand">知序</span><span>金价资料核对</span><small>示例会话</small></header>
+      <div class="zx-layout" data-surface="execution">
+        <main class="zx-chat">
+          <p class="zx-user">调用子 Agent 查看近期金价，并核对来源。</p>
+          <p class="zx-copy">我已把资料查询交给调研助手，另由校对助手核对报价日期与单位。</p>
+          <div class="zx-calls" aria-label="本轮子 Agent 调用">
+            <button type="button" class="zx-call cursor-interaction" data-open="research" aria-controls="zx-execution-pane" aria-expanded="true"><span class="zx-icon"><i data-lucide="bot" aria-hidden="true"></i></span><span><span class="zx-call-title">调研助手 · 查询近期金价</span><span class="zx-call-meta" data-research-meta>运行中 · 29 秒</span><span class="zx-call-meta" data-research-action>正在搜索网页 · 已完成 2 次工具调用</span></span><span aria-hidden="true">›</span></button>
+            <button type="button" class="zx-call cursor-interaction" data-open="verify" aria-controls="zx-execution-pane" aria-expanded="false"><span class="zx-icon"><i data-lucide="scan-check" aria-hidden="true"></i></span><span><span class="zx-call-title">校对助手 · 核对日期与单位</span><span class="zx-call-meta">排队中 · 等待 8 秒</span></span><span aria-hidden="true">›</span></button>
+          </div>
+          <p class="zx-label" role="status" data-parent-status>主 Agent 正在等待调研结果</p>
+          <div class="zx-file-row"><i data-lucide="file-text" aria-hidden="true"></i><button type="button" class="zx-link cursor-interaction" data-open-file>sources.md</button><span class="zx-label">来源清单</span></div>
+          <div class="zx-composer"><textarea aria-label="消息草稿" placeholder="继续补充要求…"></textarea><div class="zx-composer-note"><span>详情关闭后，任务仍会继续</span><span>设计示例</span></div></div>
+        </main>
+        <aside class="zx-pane" id="zx-execution-pane" aria-label="子 Agent 执行详情"></aside>
+      </div>
+    </div>
+  </section>
+  <section data-variant="消息内展开" aria-label="消息内展开方案" hidden>
+    <div class="zx-window" data-product="inline" aria-label="知序 · 消息内展开比较">
+      <header class="zx-top"><span class="zx-brand">知序</span><span>金价资料核对</span><small>示例会话</small></header>
+      <main class="zx-inline-layout">
+        <p class="zx-user">调用子 Agent 查看近期金价，并核对来源。</p>
+        <p>我已把资料查询交给调研助手，另由校对助手核对报价日期与单位。</p>
+        <div class="zx-inline">
+          <details open><summary class="cursor-interaction">调研助手 · 查询近期金价 · <span data-inline-status>运行中 29 秒</span></summary><div class="zx-inline-content"><p class="zx-label">任务：查询公开资料，保留报价日期与单位。</p><ol class="zx-timeline"><li><span class="zx-mark">✓</span><span>准备任务</span><span class="zx-time">0秒</span></li><li><span class="zx-mark">✓</span><span>搜索网页 · 已完成</span><span class="zx-time">8秒</span></li><li><span class="zx-mark">✓</span><span>核对来源 · 已完成</span><span class="zx-time">18秒</span></li><li><span class="zx-mark">○</span><span data-inline-action>搜索补充资料 · 运行中</span><span class="zx-time">29秒</span></li></ol></div></details>
+          <details><summary class="cursor-interaction">校对助手 · 核对日期与单位 · 排队中</summary><div class="zx-inline-content zx-label">正在等待可用执行名额，尚未调用工具。</div></details>
+        </div>
+        <p class="zx-label">主 Agent 的最终汇总将出现在执行过程之后。</p>
+        <div class="zx-composer"><textarea aria-label="比较方案消息草稿" placeholder="继续补充要求…"></textarea></div>
+      </main>
+    </div>
+  </section>
+  <script>
+    (() => {
+      const root = document.getElementById("zx-agent-observer");
+      const product = root.querySelector('[data-product="sidebar"]');
+      const layout = product.querySelector('.zx-layout');
+      const pane = product.querySelector('.zx-pane');
+      const saved = window.openai && window.openai.widgetState;
+      const privateState = saved && saved.privateContent;
+      const state = { scenario: "运行中", connected: true, selected: "research", surface: "execution" };
+      if (privateState && typeof privateState === "object") {
+        if (["运行中", "已完成", "失败"].includes(privateState.scenario)) state.scenario = privateState.scenario;
+        if (typeof privateState.connected === "boolean") state.connected = privateState.connected;
+        if (["research", "verify"].includes(privateState.selected)) state.selected = privateState.selected;
+        if (["execution", "workbench", "file"].includes(privateState.surface)) state.surface = privateState.surface;
+      }
+      let lastTrigger = product.querySelector('[data-open="research"]');
+      let pickerOpen = false;
+      const small = () => window.matchMedia('(max-width: 959px)').matches;
+      const persist = () => {
+        if (window.openai && typeof window.openai.setWidgetState === "function") {
+          window.openai.setWidgetState({ modelContent: { design: "聊天状态＋右侧详情", scenario: state.scenario }, privateContent: { ...state } }).catch(() => {});
+        }
+      };
+      const researchMeta = () => state.scenario === "运行中" ? "运行中 · 29 秒" : state.scenario === "已完成" ? "已完成 · 用时 34 秒" : "失败 · 用时 3 秒";
+      function pickerMarkup() {
+        const items = [
+          { id: 'research', name: '调研助手', title: '查询近期金价', status: state.scenario },
+          { id: 'verify', name: '校对助手', title: '核对日期与单位', status: '排队中' }
+        ];
+        const selected = items.find(item => item.id === state.selected);
+        return '<div class="zx-picker-wrap"><div class="zx-section-name">本轮子任务</div><button type="button" class="zx-picker-trigger cursor-interaction" data-picker-toggle aria-haspopup="menu" aria-controls="zx-task-menu" aria-expanded="' + pickerOpen + '" aria-label="切换子任务，当前' + selected.name + '"><span class="zx-icon"><i data-lucide="bot" aria-hidden="true"></i></span><span class="zx-picker-copy"><strong>' + selected.name + '</strong><small>' + selected.title + '</small></span><span class="zx-chevron" aria-hidden="true">⌄</span></button><div class="zx-task-menu" id="zx-task-menu" role="menu" aria-label="切换子任务"' + (pickerOpen ? '' : ' hidden') + '>' + items.map(item => '<button type="button" role="menuitemradio" aria-checked="' + (item.id === state.selected) + '" class="zx-task-option cursor-interaction" data-task-choice="' + item.id + '"><span class="zx-picker-copy"><span class="zx-task-heading"><strong>' + item.name + '</strong><span class="zx-menu-status" data-running="' + (item.status === '运行中') + '" data-failed="' + (item.status === '失败') + '">' + item.status + '</span></span><small>' + item.title + '</small></span><span class="zx-selected-mark" aria-hidden="true">' + (item.id === state.selected ? '✓' : '') + '</span></button>').join('') + '</div></div>';
+      }
+      function render(focusPanel = false) {
+        layout.dataset.surface = state.surface;
+        const verify = state.selected === "verify";
+        const active = state.surface === "execution";
+        product.querySelector('[data-research-meta]').textContent = researchMeta();
+        product.querySelector('[data-research-action]').textContent = state.scenario === "运行中" ? "正在搜索网页 · 已完成 2 次工具调用" : state.scenario === "已完成" ? "资料已整理，等待主 Agent 汇总" : "所选模型不可用";
+        product.querySelector('[data-parent-status]').textContent = !state.connected ? "连接已断开，状态待同步" : state.scenario === "运行中" ? "主 Agent 正在等待调研结果" : state.scenario === "已完成" ? "子任务已完成，主 Agent 正在汇总" : "调研失败，主 Agent 将处理失败原因";
+        product.querySelectorAll('[data-open]').forEach(button => button.setAttribute('aria-expanded', String(active && button.dataset.open === state.selected)));
+        root.querySelector('[data-inline-status]').textContent = researchMeta();
+        root.querySelector('[data-inline-action]').textContent = state.scenario === "运行中" ? "搜索补充资料 · 运行中" : state.scenario === "已完成" ? "整理来源 · 已完成" : "模型不可用 · 失败";
+        pane.setAttribute('role', state.surface !== "workbench" && small() ? 'dialog' : 'complementary');
+        if (state.surface !== "workbench" && small()) pane.setAttribute('aria-modal', 'true');
+        else pane.removeAttribute('aria-modal');
+        if (state.surface === "workbench") {
+          pane.setAttribute('aria-label', '会话工作台');
+          pane.innerHTML = '<div class="zx-pane-head"><strong>会话工作台</strong></div><div class="zx-workbench"><span class="zx-section-name">当前任务</span><p>查询近期金价，核对日期与单位。</p><p class="zx-label">2 个子 Agent 调用</p><p class="zx-label">点击聊天中的调用记录查看进度。</p></div>';
+        } else if (state.surface === "file") {
+          pane.setAttribute('aria-label', '来源文件预览');
+          pane.innerHTML = '<div class="zx-pane-head"><div><strong>sources.md</strong><button type="button" class="zx-link cursor-interaction" data-back>返回执行详情</button></div><button type="button" class="zx-close cursor-interaction" data-close aria-label="关闭文件预览">×</button></div><div class="zx-pane-body"><pre class="zx-code"># 来源清单\n\n任务：查询公开报价资料\n检查：报价日期、计价单位、来源链接\n\n此处为设计示例内容。</pre></div>';
+        } else {
+          pane.setAttribute('aria-label', '子 Agent 执行详情');
+          const title = verify ? '校对助手' : '调研助手';
+          const task = verify ? '核对日期与单位' : '查询近期金价';
+          const status = verify ? '排队中 · 等待 8 秒' : researchMeta();
+          let content;
+          if (verify) content = '<div><div class="zx-section-name">执行过程</div><p>等待可用执行名额</p><p class="zx-label">尚未调用工具。排队时长与运行耗时分别记录。</p></div>';
+          else if (state.scenario === "失败") content = '<div class="zx-alert" role="alert">所选模型不可用，请在模型设置中检查配置。</div><div><div class="zx-section-name">执行过程</div><ol class="zx-timeline"><li><span class="zx-mark">✓</span><span>创建调用</span><span class="zx-time">0秒</span></li><li><span class="zx-error-text">×</span><span>模型初始化失败</span><span class="zx-time">3秒</span></li></ol></div>';
+          else content = '<div><div class="zx-section-name">执行过程</div><ol class="zx-timeline"><li><span class="zx-mark">✓</span><span>准备任务</span><span class="zx-time">0秒</span></li><li><span class="zx-mark">✓</span><span>搜索网页 · 已完成</span><span class="zx-time">8秒</span></li><li><span class="zx-mark">✓</span><span>核对来源 · 已完成</span><span class="zx-time">18秒</span></li><li><span class="zx-mark">' + (state.scenario === "已完成" ? '✓' : '○') + '</span><span>' + (state.scenario === "已完成" ? '整理资料 · 已完成' : '搜索补充资料 · 运行中') + '</span><span class="zx-time">' + (state.scenario === "已完成" ? '34秒' : '29秒') + '</span></li></ol></div>' + (state.scenario === "已完成" ? '<div class="zx-result"><div class="zx-section-name">子 Agent 结果</div><p>已整理公开资料及来源，报价日期与单位已分别标注，等待主 Agent 汇总。</p></div>' : '');
+          pane.innerHTML = '<div class="zx-pane-head"><div><span class="zx-label">执行详情</span><strong>' + title + ' · ' + task + '</strong><span class="zx-state' + (!verify && state.scenario === "失败" ? ' zx-error-text' : '') + '">' + status + '</span></div><button type="button" class="zx-close cursor-interaction" data-close aria-label="关闭执行详情">×</button></div><div class="zx-pane-body">' + (!state.connected ? '<div class="zx-alert" role="status">连接已断开，以下为最后同步的状态。</div>' : '') + pickerMarkup() + '<div><div class="zx-section-name">任务说明</div><p>' + (verify ? '核对资料中的日期和计价单位，指出不一致处。' : '查询公开资料，保留报价日期、单位及可核对的来源。') + '</p></div>' + content + '<div class="zx-label">' + (verify ? '调用 #demo-b' : '调用 #demo-a') + ' · 示例数据</div></div>';
+        }
+        if (globalThis.lucide) lucide.createIcons({ attrs: { width: 16, height: 16 } });
+        if (focusPanel && small()) {
+          const target = pane.querySelector('[data-close]');
+          if (target) target.focus();
+        }
+      }
+      function closePanel() { pickerOpen = false; state.surface = "workbench"; render(); persist(); if (lastTrigger) lastTrigger.focus(); }
+      product.addEventListener('click', event => {
+        const button = event.target.closest('button');
+        if (!button) return;
+        if (button.hasAttribute('data-open')) { lastTrigger = button; pickerOpen = false; state.selected = button.dataset.open; state.surface = "execution"; render(true); persist(); }
+        else if (button.hasAttribute('data-close')) closePanel();
+        else if (button.hasAttribute('data-picker-toggle')) { pickerOpen = !pickerOpen; render(); pane.querySelector('[data-picker-toggle]').focus(); }
+        else if (button.hasAttribute('data-task-choice')) { state.selected = button.dataset.taskChoice; pickerOpen = false; render(); pane.querySelector('[data-picker-toggle]').focus(); persist(); }
+        else if (button.hasAttribute('data-open-file')) { lastTrigger = button; pickerOpen = false; state.surface = "file"; render(true); persist(); }
+        else if (button.hasAttribute('data-back')) { state.surface = "execution"; render(true); persist(); }
+      });
+      document.addEventListener('pointerdown', event => {
+        if (pickerOpen && !event.target.closest('.zx-picker-wrap')) {
+          pickerOpen = false;
+          const menu = pane.querySelector('.zx-task-menu');
+          const trigger = pane.querySelector('[data-picker-toggle]');
+          if (menu) menu.hidden = true;
+          if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        }
+      });
+      pane.addEventListener('keydown', event => {
+        if (event.target.matches('[data-picker-toggle]') && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
+          event.preventDefault(); pickerOpen = true; render();
+          const choices = [...pane.querySelectorAll('[data-task-choice]')];
+          choices[event.key === 'ArrowUp' ? choices.length - 1 : 0].focus(); return;
+        }
+        if (pickerOpen) {
+          if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); pickerOpen = false; render(); pane.querySelector('[data-picker-toggle]').focus(); return; }
+          if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+            event.preventDefault(); const choices = [...pane.querySelectorAll('[data-task-choice]')];
+            const current = choices.indexOf(document.activeElement);
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? choices.length - 1 : event.key === 'ArrowDown' ? (current + 1) % choices.length : (current - 1 + choices.length) % choices.length;
+            choices[next].focus(); return;
+          }
+          if (event.key === 'Tab') { pickerOpen = false; render(); pane.querySelector('[data-picker-toggle]').focus(); }
+        }
+        if (event.key === 'Escape') { event.preventDefault(); closePanel(); }
+        if (event.key === 'Tab' && small()) {
+          const controls = [...pane.querySelectorAll('button,select,a[href],input,textarea')].filter(element => !element.disabled && element.getClientRects().length > 0);
+          const first = controls[0], last = controls[controls.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }
+      });
+      window.matchMedia('(max-width: 959px)').addEventListener('change', () => render());
+      window.addEventListener('openai:set_globals', event => {
+        const next = event.detail && event.detail.globals && event.detail.globals.widgetState;
+        const value = next && next.privateContent;
+        if (!value || typeof value !== 'object') return;
+        let changed = false;
+        const apply = (key, valid) => {
+          if (valid && state[key] !== value[key]) { state[key] = value[key]; changed = true; }
+        };
+        apply('scenario', ["运行中", "已完成", "失败"].includes(value.scenario));
+        apply('connected', typeof value.connected === "boolean");
+        apply('selected', ["research", "verify"].includes(value.selected));
+        apply('surface', ["execution", "workbench", "file"].includes(value.surface));
+        if (changed) render();
+      });
+      render();
+      if (globalThis.Tweak) {
+        const tweak = new Tweak({ container: product, onChange: () => { render(); persist(); } });
+        tweak.addSelect(state, "scenario", { label: "示例执行状态", options: ["运行中", "已完成", "失败"] });
+        tweak.addToggle(state, "connected", { label: "连接正常" });
+      }
+    })();
+  </script>
+</div>

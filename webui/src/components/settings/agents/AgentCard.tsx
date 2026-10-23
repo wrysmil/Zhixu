@@ -1,13 +1,15 @@
 import { useTranslation } from "react-i18next";
 import { Brain, FolderTree, Sparkles } from "lucide-react";
 
-import { Badge } from "@/components/settings/agents/shared";
+import { Badge, DefaultMainAgentBadge } from "@/components/settings/agents/shared";
 import { RowMenu } from "@/components/settings/agents/AgentRow";
-import type {
-  AgentProfile,
-  ModelDescriptor,
-  SkillDescriptor,
-  ToolDescriptor,
+import { AgentGlyph } from "@/components/ui/agent-glyph";
+import {
+  isDefaultMainAgent,
+  type AgentProfile,
+  type ModelDescriptor,
+  type SkillDescriptor,
+  type ToolDescriptor,
 } from "@/lib/agents/types";
 import { AGENT_CATEGORY_LABEL_KEY } from "@/lib/agents/i18n";
 import { breakdown, describeCapability, describeSubAgents } from "@/lib/agents/summary";
@@ -67,12 +69,17 @@ export function AgentCard({
   const subAgentText = describeSubAgents(breakdown(agent.subAgents, selectableAgentIds), t);
   const modelLabel = models.find((model) => model.id === agent.modelId)?.label ?? null;
   const categoryKey = agent.categoryId ? AGENT_CATEGORY_LABEL_KEY[agent.categoryId] : null;
+  const isDefault = isDefaultMainAgent(agent);
 
   return (
     <div
+      // 与 AgentRow 同语义：一张卡是一个档案的完整描述，读屏与测试都能按组取到它，
+      // 不必关心当前是卡片还是列表视图。
+      role="group"
       className={cn(
-        "group flex flex-col rounded-panel border border-border/50 bg-settings-surface p-4 transition-all duration-200",
-        "hover:border-border hover:shadow-md hover:-translate-y-0.5",
+        "group flex flex-col rounded-panel border border-border bg-card p-4 transition-[border-color,box-shadow] duration-200 ease-out",
+        "hover:border-primary/30 hover:shadow-sm",
+        isDefault && "border-amber-300/70 bg-amber-50/45 ring-1 ring-amber-300/50 hover:border-amber-400/70 dark:border-amber-700/40 dark:bg-amber-950/15 dark:ring-amber-700/40",
         dimmed && "opacity-60",
       )}
     >
@@ -82,7 +89,7 @@ export function AgentCard({
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-[22px]"
           style={{ backgroundColor: `${agent.color}1a` }}
         >
-          {agent.icon}
+          <AgentGlyph icon={agent.icon} size={22} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -106,6 +113,7 @@ export function AgentCard({
       </div>
 
       <div className="mt-2.5 flex flex-wrap items-center gap-1">
+        {isDefault ? <DefaultMainAgentBadge /> : null}
         {agent.type === "system" ? (
           <Badge tone="info">{t("settings.agents.basics.systemPreset", "系统预设")}</Badge>
         ) : null}

@@ -2,6 +2,87 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Page-specific artwork and identity colors stay intact; interface surfaces use
+   the active palette whenever the user leaves the original Zhixu theme. */
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) {
+  --inline-token-highlight: hsl(var(--accent-foreground));
+  --temporary-control-active: hsl(var(--accent-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.teams-surface, .team-editor) {
+  --team-ink: hsl(var(--foreground));
+  --team-muted: hsl(var(--muted-foreground));
+  --team-line: hsl(var(--border));
+  --team-paper: hsl(var(--card));
+  --team-tint: hsl(var(--accent));
+  --team-accent: hsl(var(--accent-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.teams-heading-icon, .teams-empty, .teams-guide, .team-editor-head, .team-editor-footer) {
+  background: linear-gradient(120deg, hsl(var(--card)), hsl(var(--accent) / 0.5));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-card, .team-candidate, .team-member-config, .team-formation-person) {
+  background: linear-gradient(115deg, hsl(var(--card)), hsl(var(--secondary) / 0.55));
+  border-color: hsl(var(--border));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-card:hover, .team-candidate:hover, .team-member-config:focus-within, .team-formation-person:hover:not(:disabled), .team-formation-person.is-leader) {
+  border-color: hsl(var(--primary) / 0.65);
+  box-shadow: 0 3px 12px hsl(var(--foreground) / 0.035);
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-leader-seat, .team-candidate:has(input:checked)) {
+  background: linear-gradient(115deg, hsl(var(--accent)), hsl(var(--card)));
+  border-color: hsl(var(--primary) / 0.55);
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-formation {
+  background: radial-gradient(circle at 90% 10%, hsl(var(--primary) / 0.1), transparent 70%), radial-gradient(hsl(var(--muted-foreground) / 0.16) 0.75px, transparent 0.75px), hsl(var(--secondary));
+  background-size: auto, 16px 16px, auto;
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-editor :is(input, textarea, select) {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-editor input:focus-visible, .team-editor textarea:focus-visible, .team-editor select:focus-visible, .team-remove-member:focus-visible, .team-formation-person:focus-visible) {
+  outline-color: hsl(var(--ring));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-completion-step.is-complete {
+  color: hsl(var(--accent-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-completion-step.is-complete > span {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-section-number {
+  color: hsl(var(--muted-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-remove-member:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-formation-empty, .team-formation-members) {
+  border-color: hsl(var(--border));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-formation-connector, .team-progress-track),
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-formation-members .team-formation-person::before {
+  background: hsl(var(--border));
+}
+
+html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-track > span {
+  background: hsl(var(--primary));
+}
+
 @supports (content-visibility: auto) {
   .apps-catalog-row {
     content-visibility: auto;
@@ -9,42 +90,61 @@
   }
 }
 
-/* Neutral graphite surfaces, with indigo reserved for selection and focus. */
+/* White canvas, near-white tiers and a low-saturation blue accent: an AI
+   workbench rather than a paper page. Surfaces are intentionally whiter than
+   the old grey-blue wash; colour lives in the type scale and the accent. */
 @layer base {
   :root {
     color-scheme: light;
-    --background: 240 6.67% 97.06%;
-    --foreground: 231.43 9.86% 13.92%;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    --font-code: "JetBrains Mono", "SFMono-Regular", "SF Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+    --font-display: var(--font-ui);
+    --background: 0 0% 100%;
+    --foreground: 220 9% 11%;
     --card: 0 0% 100%;
     --card-foreground: var(--foreground);
     --popover: 0 0% 100%;
     --popover-foreground: var(--foreground);
-    --primary: 231.43 8.64% 15.88%;
+    --primary: 220 9% 11%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 10.34% 94.31%;
+    --secondary: 220 10% 96%;
     --secondary-foreground: var(--foreground);
-    --muted: 240 10.34% 94.31%;
-    --muted-foreground: 230 5.77% 40.78%;
-    --accent: 245 50% 95.29%;
-    --accent-foreground: 241.57 50.66% 55.49%;
+    --muted: 220 10% 96%;
+    --muted-foreground: 220 6% 44%;
+    --accent: 220 10% 96%;
+    --accent-foreground: 220 9% 11%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 230 11.54% 89.8%;
+    --border: 220 10% 90%;
     --input: var(--border);
-    --ring: var(--accent-foreground);
+    --ring: var(--foreground);
     /* Tier below --background: the window shell behind panels. */
-    --surface-app: 240 10.34% 94.31%;
+    --surface-app: 220 10% 97%;
+    /* Window canvas behind the inset content card (wrapped shell). */
+    --app-canvas: 220 10% 95%;
     /* Tiered sidebar/inspector surface, separated by a hairline. */
     --surface-panel: 0 0% 100%;
     --border-soft: var(--border);
-    --inline-token-highlight: #5754c7;
+    --inline-token-highlight: #1a1c1f;
     --usage-token: 29 86% 56%;
     --session-handle-lightness: 0.5;
     --session-handle-chroma: 0.12;
-    --temporary-control-active: #5754c7;
+    --temporary-control-active: #1a1c1f;
     --temporary-accent: var(--accent-foreground);
     --temporary-foreground: var(--accent-foreground);
     --temporary-border: var(--accent-foreground);
+    /* Graphite scale: one neutral ramp for ink, surfaces and selected states so
+       the interface reads as white + grey with a single near-black accent. */
+    --tone-violet: 220 8% 40%;
+    --tone-violet-soft: 220 10% 96%;
+    --text-strong: 220 9% 11%;
+    --text-body: 220 7% 26%;
+    --text-soft: 220 6% 44%;
+    --text-display: 220 9% 11%;
+    /* Selected navigation: tinted surface + readable ink, never "white on white". */
+    --nav-active-bg: 220 8% 89%;
+    --nav-active-fg: 220 9% 11%;
+    --nav-active-ring: 220 8% 85%;
     --radius: 0.5rem;
     /* Shared shape scale: controls and repeated panels 8px, composer 16px. */
     --radius-mark: 0.25rem;
@@ -56,20 +156,20 @@
     --radius-prominent: 1rem;
     --radius-pill: 9999px;
 
-    /* Mira UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
+    /* 知序 UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
     --rail-w: 54px;
-    --chat-col-w: 220px;
-    --dock-w: 336px;
-    --dock-w-xl: 384px;
+    --chat-col-w: 264px;
+    --dock-w: 360px;
+    --dock-w-xl: 420px;
     --dock-header-h: 40px;
     --browser-toolbar-h: 36px;
     --terminal-font-size: 12.5px;
-    --hero-text-size: 30px;
-    --hero-composer-max-w: 44rem;
-    --sidebar: 240 10.34% 94.31%;
+    --hero-text-size: 26px;
+    --hero-composer-max-w: min(44rem, 100%);
+    --sidebar: 220 10% 94%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);
-    --sidebar-accent: 240 8% 91%;
+    --sidebar-accent: 220 10% 91%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
     --settings-canvas: var(--background);
@@ -80,39 +180,49 @@
 
   .dark {
     color-scheme: dark;
-    --background: 228 9.8% 10%;
-    --foreground: 230 20% 94.12%;
-    --card: 231.43 9.86% 13.92%;
+    --background: 220 10% 8%;
+    --foreground: 220 8% 92%;
+    --card: 220 8% 11%;
     --card-foreground: var(--foreground);
-    --popover: 231.43 9.86% 13.92%;
+    --popover: 220 8% 12%;
     --popover-foreground: var(--foreground);
-    --primary: var(--foreground);
-    --primary-foreground: 231.43 9.86% 13.92%;
-    --secondary: 230 10% 18%;
+    --primary: 220 8% 92%;
+    --primary-foreground: 220 10% 8%;
+    --secondary: 220 8% 16%;
     --secondary-foreground: var(--foreground);
-    --muted: 230 10% 18%;
-    --muted-foreground: 230.77 7.6% 66.47%;
-    --accent: 244.8 23.36% 20.98%;
-    --accent-foreground: 242.34 77.78% 80.59%;
+    --muted: 220 8% 16%;
+    --muted-foreground: 220 6% 62%;
+    --accent: 220 8% 16%;
+    --accent-foreground: 220 8% 92%;
     --destructive: 0 62% 55%;
     --destructive-foreground: 0 0% 98%;
-    --border: 230 10.71% 21.96%;
+    --border: 220 8% 18%;
     --input: var(--border);
-    --ring: var(--accent-foreground);
-    --surface-app: 228 9.8% 10%;
-    --surface-panel: 231.43 9.86% 13.92%;
+    --ring: var(--foreground);
+    --surface-app: 220 9% 9%;
+    --app-canvas: 220 9% 8%;
+    --surface-panel: 220 8% 12%;
     --border-soft: var(--border);
-    --inline-token-highlight: #aaa7f4;
+    --inline-token-highlight: #e9eaec;
     --session-handle-lightness: 0.75;
     --session-handle-chroma: 0.11;
-    --temporary-control-active: #aaa7f4;
+    --temporary-control-active: #e9eaec;
     --temporary-accent: var(--accent-foreground);
     --temporary-foreground: var(--accent-foreground);
     --temporary-border: var(--accent-foreground);
-    --sidebar: 230 9.68% 12.16%;
+    --tone-violet: 220 6% 62%;
+    --tone-violet-soft: 220 8% 18%;
+    --text-strong: 220 8% 95%;
+    --text-body: 220 8% 80%;
+    --text-soft: 220 6% 62%;
+    --text-display: 220 8% 92%;
+    --nav-active-bg: 220 8% 18%;
+    --nav-active-fg: 220 8% 92%;
+    --nav-active-ring: 220 8% 26%;
+    --sidebar: 220 9% 10%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);
-    --sidebar-accent: 230 10% 18%;
+    --sidebar-accent: 220 16% 16%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
     --settings-canvas: var(--background);
@@ -120,16 +230,16 @@
     --scrollbar-thumb: hsl(var(--muted-foreground) / 0.28);
     --scrollbar-thumb-hover: hsl(var(--muted-foreground) / 0.44);
 
-    /* Mira UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
+    /* 知序 UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
     --rail-w: 54px;
-    --chat-col-w: 220px;
-    --dock-w: 336px;
-    --dock-w-xl: 384px;
+    --chat-col-w: 264px;
+    --dock-w: 360px;
+    --dock-w-xl: 420px;
     --dock-header-h: 40px;
     --browser-toolbar-h: 36px;
     --terminal-font-size: 12.5px;
-    --hero-text-size: 30px;
-    --hero-composer-max-w: 44rem;
+    --hero-text-size: 26px;
+    --hero-composer-max-w: min(44rem, 100%);
   }
 }
 
@@ -147,10 +257,6 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     overflow: hidden;
-  }
-
-  html:lang(zh) body {
-    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif;
   }
 
   :where(button, a, input, textarea, select, [tabindex]):focus-visible {
@@ -265,6 +371,47 @@
     }
   }
 
+  /* Wrapped shell: the window canvas stays a flat tier around an inset content
+     card. The tint belongs to `.workbench-canvas` only. */
+  .app-shell-canvas {
+    background-color: hsl(var(--app-canvas));
+  }
+
+  .app-shell-card {
+    background-color: hsl(var(--background));
+  }
+
+  /* Two-pane shell: the sidebar runs full height and stays flat; the content
+     surface floats above the canvas as an inset rounded card. */
+  @media (min-width: 1024px) {
+    .app-shell-panel {
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .app-shell-card {
+      border: 1px solid hsl(var(--border) / 0.7);
+      border-radius: var(--radius-prominent);
+      box-shadow:
+        0 1px 2px hsl(var(--foreground) / 0.04),
+        0 18px 40px -28px hsl(var(--foreground) / 0.28);
+    }
+
+    .dark .app-shell-card {
+      border-color: hsl(var(--border) / 0.8);
+      box-shadow:
+        0 1px 2px hsl(0 0% 0% / 0.35),
+        0 20px 44px -30px hsl(0 0% 0% / 0.65);
+    }
+  }
+
+  /* Side-panel launcher: flat surface, the cards carry all the structure. */
+  .dock-launcher-surface {
+    background-color: hsl(var(--surface-panel));
+    background-image: none;
+  }
+
   .host-drag-region {
     -webkit-app-region: drag;
   }
@@ -291,7 +438,6 @@
 
   .host-sidebar-glass {
     background: hsl(var(--sidebar));
-    border-right: 1px solid hsl(var(--border-soft));
   }
 
   .dark .host-window-shell {
@@ -329,6 +475,23 @@
     --tw-prose-bold: hsl(var(--foreground));
     --tw-prose-lead: hsl(var(--foreground));
     line-height: var(--cjk-line-height);
+  }
+
+  /* The creative partner column is only 340–480px wide, so its conversation
+     runs one step tighter than the main thread instead of wrapping into a wall. */
+  .writing-chat-compact .markdown-content {
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .writing-chat-compact [data-session-message] {
+    font-size: 12px;
+  }
+
+  .writing-chat-compact p[data-user-message-text] {
+    padding: 0.3125rem 0.625rem;
+    font-size: 12px;
+    line-height: 1.65;
   }
 
   .markdown-content .contains-task-list {
@@ -395,7 +558,7 @@
     background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: streaming-text-sheen-ltr 2.8s ease-in-out infinite;
+    animation: streaming-text-sheen-ltr 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
   }
   .dark .streaming-text-sheen::after {
     background-image: linear-gradient(
@@ -444,18 +607,21 @@
    * Keep the transcript and composer visually continuous. The scrollport owns
    * the fade because overflow clips its contents before an adjacent overlay
    * can soften the edge. The matching in-flow gap keeps the last line fully
-   * visible once the user reaches the bottom.
+   * visible once the user reaches the bottom. Both edges fade with a mask, not
+   * a painted layer, so the canvas tint stays continuous underneath.
    */
   .thread-message-viewport {
     -webkit-mask-image: linear-gradient(
       to bottom,
-      #000 0,
+      transparent 0,
+      #000 0.75rem,
       #000 calc(100% - var(--thread-composer-fade-height)),
       transparent 100%
     );
     mask-image: linear-gradient(
       to bottom,
-      #000 0,
+      transparent 0,
+      #000 0.75rem,
       #000 calc(100% - var(--thread-composer-fade-height)),
       transparent 100%
     );
@@ -464,7 +630,7 @@
     height: var(--thread-composer-fade-height);
   }
   .thread-composer-dock {
-    background: hsl(var(--background));
+    background: transparent;
   }
 
   @keyframes composer-status-strip-enter {
@@ -563,7 +729,7 @@
       transition:
         grid-template-rows var(--composer-workspace-drawer-duration)
           cubic-bezier(0.4, 0, 0.2, 1),
-        opacity var(--composer-workspace-drawer-duration) ease-in-out;
+        opacity var(--composer-workspace-drawer-duration) cubic-bezier(0.22, 1, 0.36, 1);
     }
     .composer-workspace-drawer-content {
       transform: translateY(-6px);
@@ -626,7 +792,7 @@
     }
   }
   .goal-shell-glow {
-    animation: goal-shell-glow-breathe 4.8s ease-in-out infinite;
+    animation: goal-shell-glow-breathe 4.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
   }
   @keyframes goal-shell-glow-breathe-dark {
     0%,
@@ -1030,4 +1196,613 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   .workspace-navigation button {
     transition: none;
   }
+}
+
+
+/* Flat white canvas: no ambient tint anywhere, so nested boxes cannot restart a
+   gradient at their own origin and leave seams. */
+.workbench-canvas {
+  background-image: none;
+}
+
+.bg-card,
+.bg-settings-surface,
+.thread-composer-surface {
+  background-image: none;
+}
+
+.workspace-navigation-rail {
+  background: hsl(var(--sidebar));
+}
+
+.workspace-nav-label {
+  display: block;
+  max-width: 44px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+  font-size: 9px;
+  line-height: 12px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+/* Sidebar group labels ("Projects", "Topics") join the indigo label voice so
+   the rail is not a wall of near-black text. */
+.sidebar-group-label {
+  color: hsl(var(--muted-foreground) / 0.85);
+  letter-spacing: 0.015em;
+}
+
+.brand-image {
+  display: block;
+  max-width: 100%;
+}
+
+.dark .brand-image {
+  filter: brightness(0) invert(0.92);
+}
+
+.workspace-navigation-rail .brand-image {
+  width: 2.5rem;
+  height: auto;
+}
+
+.workspace-nav-item[aria-current="page"] {
+  color: hsl(var(--nav-active-fg));
+  background: hsl(var(--nav-active-bg));
+  box-shadow: inset 0 0 0 1px hsl(var(--nav-active-ring) / 0.9);
+}
+
+.workspace-nav-item[aria-current="page"] .workspace-nav-label {
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------------
+   AI workbench page system.
+
+   One shared vocabulary for the assistant home, memory, identity and every
+   capability page: page header, illustration slot, toolbar, content panel and
+   status chip. The classes only read semantic tokens, so the appearance editor
+   and the dark theme keep working without per-page overrides.
+--------------------------------------------------------------------------- */
+.assistant-page {
+  width: 100%;
+  min-width: 0;
+  max-width: 1120px;
+  margin-inline: auto;
+  padding: 1.75rem 1.75rem 3rem;
+}
+
+.assistant-page[data-width="wide"] {
+  max-width: 1240px;
+}
+
+.assistant-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.assistant-page-heading-group {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.assistant-page-kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.assistant-page-kicker::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: hsl(var(--muted-foreground));
+}
+
+.assistant-page-heading {
+  margin: 0;
+  color: hsl(var(--text-strong));
+  font-family: var(--font-ui);
+  font-size: clamp(1.125rem, 1rem + 0.4vw, 1.375rem);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.assistant-page-description {
+  max-width: 64ch;
+  margin: 0;
+  color: hsl(var(--text-body));
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.assistant-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.125rem;
+}
+
+.assistant-page-illustration {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 96px;
+}
+
+.assistant-page-illustration[data-size="compact"] {
+  width: 80px;
+}
+
+.assistant-page-illustration[data-size="home"] {
+  width: 128px;
+}
+
+.assistant-page-illustration img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.dark .assistant-page-illustration img {
+  opacity: 0.9;
+  filter: saturate(0.86) brightness(0.95);
+}
+
+.assistant-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.assistant-toolbar-search {
+  position: relative;
+  flex: 1 1 14rem;
+  min-width: 10rem;
+  max-width: 22rem;
+}
+
+.assistant-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.assistant-panel {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-panel);
+  background: hsl(var(--card));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.03);
+}
+
+.assistant-panel-subtle {
+  border-color: hsl(var(--border) / 0.8);
+  background: hsl(var(--secondary) / 0.55);
+  box-shadow: none;
+}
+
+.assistant-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.8);
+}
+
+.assistant-section-title {
+  margin: 0;
+  color: hsl(var(--foreground) / 0.9);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.assistant-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.375rem;
+  padding-inline: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-pill);
+  background: hsl(var(--secondary));
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.assistant-status-chip[data-tone="primary"] {
+  border-color: hsl(var(--primary) / 0.22);
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--accent-foreground));
+}
+
+.assistant-status-chip[data-tone="success"] {
+  border-color: hsl(152 42% 82%);
+  background: hsl(152 48% 95%);
+  color: hsl(158 52% 26%);
+}
+
+.assistant-status-chip[data-tone="warn"] {
+  border-color: hsl(34 74% 82%);
+  background: hsl(36 82% 95%);
+  color: hsl(28 62% 30%);
+}
+
+.assistant-status-chip[data-tone="danger"] {
+  border-color: hsl(var(--destructive) / 0.24);
+  background: hsl(var(--destructive) / 0.08);
+  color: hsl(var(--destructive));
+}
+
+.dark .assistant-status-chip[data-tone="success"] {
+  border-color: hsl(152 30% 30%);
+  background: hsl(152 32% 16%);
+  color: hsl(150 46% 74%);
+}
+
+.dark .assistant-status-chip[data-tone="warn"] {
+  border-color: hsl(34 40% 30%);
+  background: hsl(34 36% 16%);
+  color: hsl(34 62% 76%);
+}
+
+.assistant-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1.5rem;
+  border: 1px dashed hsl(var(--border));
+  border-radius: var(--radius-panel);
+  background: hsl(var(--secondary) / 0.4);
+  text-align: center;
+}
+
+/* The assistant landing keeps a single small mascot; it sits beside the copy,
+   never behind it, so the first prompt stays the loudest element. */
+/* The landing is split across the composer: intro above it, shortcuts and resume
+   rows below. Both halves share one column so the composer lands on the same axis. */
+.thread-welcome,
+.thread-welcome-intro-block,
+.thread-welcome-extras-block {
+  width: 100%;
+  max-width: var(--hero-composer-max-w);
+  min-width: 0;
+  margin-inline: auto;
+  text-align: left;
+}
+
+.thread-welcome,
+.thread-welcome-intro-block {
+  animation: workspace-arrive 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.thread-welcome {
+  padding-top: clamp(1.15rem, 3vh, 2.5rem);
+}
+
+.thread-welcome-intro-block {
+  padding-top: clamp(0.5rem, 2.2vh, 1.75rem);
+}
+
+/* One calm welcome row: copy and a low, horizontal scene share a centre line. */
+.thread-welcome-intro {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(9rem, 26%, 11.5rem);
+  min-height: 9rem;
+  align-items: center;
+  gap: 2rem;
+  padding-block: 0.375rem 0.75rem;
+}
+
+.thread-welcome-copy {
+  min-width: 0;
+  padding: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.thread-welcome-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.7rem;
+  color: hsl(var(--muted-foreground));
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.thread-welcome-eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: hsl(var(--text-strong) / 0.45);
+}
+
+.thread-welcome-title {
+  margin: 0 0 0.625rem;
+  max-width: 40rem;
+  text-wrap: balance;
+  font-family: var(--font-ui);
+  font-size: clamp(1.65rem, 1.45rem + 0.5vw, 2rem);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  white-space: normal;
+  color: hsl(var(--text-strong));
+}
+
+.thread-welcome-description {
+  max-width: 32rem;
+  margin: 0;
+  color: hsl(var(--text-body));
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.thread-welcome-illustration {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.thread-welcome-illustration > img {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.dark .thread-welcome-illustration > img {
+  opacity: 0.9;
+  filter: saturate(0.86) brightness(0.95);
+}
+
+.thread-welcome-starters {
+  margin-top: 1.75rem;
+}
+
+.thread-welcome-starters-label {
+  margin-bottom: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.thread-welcome-chips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.thread-welcome-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--card));
+  color: hsl(var(--text-body));
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease-out,
+    background-color 140ms ease-out,
+    color 140ms ease-out,
+    box-shadow 140ms ease-out,
+    transform 140ms ease-out;
+}
+
+.thread-welcome-chip > svg {
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+}
+
+.thread-welcome-chip:hover {
+  transform: translateY(-1px);
+  border-color: hsl(var(--text-strong) / 0.22);
+  background: hsl(var(--card));
+  color: hsl(var(--text-strong));
+  box-shadow: 0 2px 6px hsl(var(--text-strong) / 0.06);
+}
+
+.thread-welcome-chip:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.5);
+  outline-offset: 2px;
+}
+
+.agent-preview-welcome-content {
+  width: 100%;
+  max-width: 58rem;
+  margin-inline: auto;
+  padding: clamp(1.75rem, 4vw, 3.25rem) clamp(1.25rem, 4vw, 3rem) 2rem;
+}
+
+.agent-preview-welcome-content .preview-composer-wrap {
+  padding: 1.75rem 0 0;
+}
+
+.thread-welcome-footnote {
+  margin-top: 1rem;
+  color: hsl(var(--muted-foreground) / 0.8);
+  font-size: 10px;
+}
+
+/* Shell-level right-edge action: the dock keeps a slot for it so the control
+   never covers the panel header, and never shifts when the panel opens. */
+[data-shell-right-action] [data-testid="start-dock"] > header {
+  padding-right: 2.75rem;
+}
+/* The landing block (greeting → composer → shortcuts) is centred as one unit:
+   the trailing spacer collapses to zero and the grid distributes the remaining
+   space above and below it instead of pinning the block to the top. */
+.agent-thread-shell .thread-layout[data-layout="hero"] {
+  max-width: 58rem;
+  padding: clamp(1rem, 3vh, 2.25rem) clamp(1.25rem, 4vw, 3rem) 2rem;
+  grid-template-rows: auto auto auto 0;
+  align-content: center;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] > [data-testid="thread-empty-region"] {
+  align-items: flex-start;
+  justify-content: center;
+  padding-bottom: 0.25rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] > [data-testid="thread-empty-below"] {
+  align-items: flex-start;
+  justify-content: center;
+  padding-bottom: 0.5rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] > [data-testid="thread-composer-dock"] {
+  align-self: start;
+}
+
+/* Project / team / environment read as quiet metadata above the composer,
+   matching the demo's single-line "按任务选择项目与模型" hint. */
+[data-testid="composer-context-tabs"] {
+  color: hsl(var(--muted-foreground) / 0.9);
+  font-size: 11.5px;
+}
+
+[data-testid="composer-context-tabs"] button,
+[data-testid="composer-context-tabs"] [role="button"],
+[data-testid="composer-context-tabs"] [role="combobox"] {
+  color: hsl(var(--muted-foreground) / 0.9);
+  font-size: 11.5px;
+}
+
+[data-testid="composer-context-tabs"] svg {
+  opacity: 0.66;
+}
+
+.thread-composer-surface {
+  border-color: hsl(var(--border));
+  border-radius: 1.3125rem;
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.03), 0 8px 24px -20px hsl(var(--foreground) / 0.28);
+}
+
+/* Hero composer keeps a roomier writing area, closer to the demo's three-line box. */
+.thread-composer-surface.max-w-heroComposer textarea {
+  min-height: 5.25rem;
+}
+
+.thread-composer-surface:focus-within {
+  border-color: hsl(var(--primary) / 0.42);
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.07);
+}
+
+.agent-thread-header {
+  background: hsl(var(--card));
+}
+
+.agent-thread-header h1 {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.agent-preview-transcript > div {
+  max-width: 48rem;
+}
+
+@keyframes workspace-arrive {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Wide screens: the demo artboard is 960px wide, so the compact column would read
+   as a small island on a real desktop. Scale one step up instead of centring a
+   narrow strip in a sea of empty canvas. */
+@media (min-width: 1280px) {
+  .thread-welcome-chips { gap: 0.625rem; }
+}
+
+@media (max-width: 900px) {
+  .assistant-page { padding: 1.35rem 1.25rem 2.5rem; }
+  .assistant-page-illustration { width: 88px; }
+  .assistant-page-illustration[data-size="home"] { width: 112px; }
+}
+
+@media (max-width: 767px) {
+  .thread-welcome-intro {
+    grid-template-columns: minmax(0, 1fr) 6.5rem;
+    min-height: 7.5rem;
+    gap: 1rem;
+  }
+  .thread-welcome-illustration,
+  .thread-welcome-illustration > img { width: 100%; }
+  .thread-welcome-title { font-size: 1.5rem; max-width: 100%; white-space: normal; }
+  .thread-welcome-description { font-size: 14px; }
+  .thread-welcome-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.375rem; }
+  .thread-welcome-chip { padding: 0.55rem 0.7rem; font-size: 13px; }
+  .assistant-page { padding: 1.15rem 0.9375rem 2rem; }
+  .assistant-page-header { gap: 0.75rem; padding-bottom: 0.875rem; }
+  .assistant-page-illustration { width: 72px; }
+  .assistant-page-illustration[data-size="home"] { width: 96px; }
+  .assistant-toolbar-search { max-width: none; }
+  .agent-preview-welcome-content,
+  .agent-thread-shell .thread-layout[data-layout="hero"] {
+    padding: 2.25rem 1.1rem 1.5rem;
+  }
+  .agent-preview-welcome-content .preview-composer-wrap { padding-top: 1.75rem; }
+}
+
+@media (max-width: 560px) {
+  .thread-welcome-intro { grid-template-columns: minmax(0, 1fr); min-height: 7rem; }
+  .thread-welcome-illustration { display: none; }
+  .thread-welcome-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .thread-welcome-chip { justify-content: flex-start; }
+  .assistant-page-illustration { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-welcome { animation: none; }
+  .thread-welcome-chip { transition: none; }
+  .thread-welcome-chip:hover { transform: none; }
 }

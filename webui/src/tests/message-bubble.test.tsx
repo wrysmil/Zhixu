@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { MessageBubble } from "@/components/MessageBubble";
@@ -10,6 +10,27 @@ import type {
   SlashCommand,
   UIMessage,
 } from "@/lib/types";
+import type { AgentProfile } from "@/lib/agents/types";
+
+const AGENTS: AgentProfile[] = [
+  {
+    id: "commander",
+    name: "知序指挥官",
+    description: "接住用户请求",
+    type: "system",
+    customized: false,
+    categoryId: "general",
+    icon: "lucide:compass",
+    color: "#D97706",
+    prompt: "",
+    modelId: null,
+    tools: { mode: "all", entries: [] },
+    skills: { mode: "all", entries: [] },
+    subAgents: { mode: "all", entries: [] },
+    hidden: false,
+    updatedAt: "2026-10-18T00:00:00.000Z",
+  },
+];
 
 const CLI_APPS: CliAppInfo[] = [
   {
@@ -570,10 +591,11 @@ describe("MessageBubble", () => {
     expect(token).toHaveTextContent("@zoom");
     expect(token).toHaveAttribute("title", "CLI app: Zoom");
     expect(token).toHaveClass("font-[550]");
-    expect(token.className).not.toContain("rounded");
-    expect(token.className).not.toContain("px-");
+    expect(token).toHaveClass("rounded-full");
+    expect(token).toHaveClass("bg-foreground/[0.055]");
     expect(token.getAttribute("style")).toContain("color: #0B5CFF");
     expect(token.getAttribute("style")).not.toContain("text-shadow");
+    expect(token.querySelector(".text-transparent")).toBeNull();
     expect(screen.getByTestId("message-cli-mention-logo-zoom")).toBeInTheDocument();
     expect(screen.queryByTestId("message-cli-mention-krita")).not.toBeInTheDocument();
     expect(screen.getByText(/not @krita/)).toBeInTheDocument();
@@ -634,8 +656,7 @@ describe("MessageBubble", () => {
 
     const token = screen.getByTestId("message-cli-mention-drawio");
     expect(token).toHaveTextContent("@drawio");
-    expect(token.className).not.toContain("rounded");
-    expect(token.className).not.toContain("px-");
+    expect(token.className).toContain("rounded-full");
     expect(token.getAttribute("style")).toContain("color: #F08705");
     expect(screen.getByTestId("message-cli-mention-logo-drawio")).toBeInTheDocument();
   });
@@ -655,6 +676,45 @@ describe("MessageBubble", () => {
     expect(token).toHaveAttribute("title", "MCP server: Browserbase");
     expect(token.getAttribute("style")).toContain("color: #111827");
     expect(screen.getByTestId("message-mcp-mention-logo-browserbase")).toBeInTheDocument();
+  });
+
+  it("renders agent mentions as identity chips in sent user messages", () => {
+    const message: UIMessage = {
+      id: "u-agent",
+      role: "user",
+      content: "交给 @commander 处理",
+      createdAt: Date.now(),
+    };
+
+    render(<MessageBubble message={message} agents={AGENTS} />);
+
+    const token = screen.getByTestId("message-agent-mention-commander");
+    expect(token).toHaveTextContent("@commander");
+    expect(token.className).toContain("rounded-full");
+    expect(token.getAttribute("style")).toContain("color: #D97706");
+    expect(token.querySelector(".text-transparent")).toBeNull();
+    expect(token.querySelector("svg")).toBeNull();
+    expect(
+      screen.queryByTestId("message-agent-mention-glyph-commander"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("colors the @ prefix with the mention identity instead of muted gray", () => {
+    const message: UIMessage = {
+      id: "u-agent-at",
+      role: "user",
+      content: "交给 @commander 处理",
+      createdAt: Date.now(),
+    };
+
+    render(<MessageBubble message={message} agents={AGENTS} />);
+
+    const at = screen.getByTestId("message-agent-mention-commander")
+      .querySelector("[data-mention-at]");
+    expect(at).not.toBeNull();
+    expect(at!.textContent).toBe("@");
+    expect(at!.className).toContain("opacity-60");
+    expect(at!.className).not.toContain("text-muted-foreground");
   });
 
   it("renders persisted session mentions inside sent user messages", () => {
@@ -876,7 +936,7 @@ describe("MessageBubble", () => {
     expect(screen.queryByText("Code")).not.toBeInTheDocument();
   });
 
-  it("renders streaming reasoning as one compact activity line", () => {
+  it("renders streaming reasoning as one compact line that already exposes its full text", () => {
     const message: UIMessage = {
       id: "a-reasoning-streaming",
       role: "assistant",
@@ -888,12 +948,16 @@ describe("MessageBubble", () => {
 
     const { container } = render(<MessageBubble message={message} />);
 
-    const preview = screen.getByText("Step 1: parse intent. Step 2: compute.");
+    const line = screen.getByTestId("activity-line");
+    const preview = within(line).getByText("Step 1: parse intent. Step 2: compute.");
     expect(preview).toBeInTheDocument();
     expect(container.querySelector(".reasoning-sheen-stripe")).not.toBeInTheDocument();
     expect(preview).toHaveClass("streaming-text-sheen");
     expect(preview).toHaveAttribute(
       "data-sheen-text",
+      "Step 1: parse intent. Step 2: compute.",
+    );
+    expect(screen.getByTestId("activity-step-detail")).toHaveTextContent(
       "Step 1: parse intent. Step 2: compute.",
     );
     expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();

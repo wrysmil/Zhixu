@@ -1,5 +1,206 @@
 {
+  "appearance": {
+    "previewOnly": "仅供预览，外观调整仅在本次会话生效，不会修改已保存的偏好。",
+    "visualStyle": "视觉风格",
+    "mode": "模式",
+    "system": "跟随系统",
+    "light": "浅色",
+    "dark": "深色",
+    "theme": "主题",
+    "zhixu": "知序",
+    "graphite": "石墨",
+    "ocean": "海蓝",
+    "sand": "暖砂",
+    "custom": "自定义",
+    "editingDark": "正在编辑：深色配色",
+    "editingLight": "正在编辑：浅色配色",
+    "accent": "强调色",
+    "background": "背景",
+    "foreground": "文字",
+    "chooseColor": "选择{{label}}颜色",
+    "resetColor": "恢复{{label}}主题值",
+    "invalidColor": "请输入 HEX 颜色，例如 #0169CC 或 #09C。",
+    "uiFont": "界面字体",
+    "codeFont": "代码字体",
+    "font_system": "系统默认",
+    "font_sans": "无衬线",
+    "font_serif": "衬线",
+    "font_custom": "自定义本机字体",
+    "font_default": "默认等宽",
+    "font_consolas": "Consolas",
+    "font_cascadia": "Cascadia Code",
+    "font_jetbrains": "JetBrains Mono",
+    "fontFamily": "{{label}}名称",
+    "invalidFont": "请输入单个字体家族名称，不含样式分隔符。",
+    "fontFallback": "使用此设备已安装的字体。字体或字符不可用时，自动使用回退字体。",
+    "lowContrast": "文字与背景对比度偏低（{{ratio}}:1），建议调整文字或背景颜色。",
+    "storageError": "本次已生效，无法保存到此设备。",
+    "preview": "效果预览",
+    "sampleTitle": "让想法有序生长 · Make room for ideas",
+    "sampleBody": "颜色与字体将应用到整个界面。0123456789",
+    "sampleButton": "继续",
+    "sampleInput": "记录一个新想法…",
+    "sampleInputLabel": "示例输入框",
+    "instant": "修改即时生效，并自动保存在此设备。",
+    "reset": "恢复默认外观"
+  },
   "creative": {
+    "title": "創作空間",
+    "new_placeholder": "為這篇文章取個標題",
+    "create_btn": "建立草稿",
+    "creating_btn": "建立中…",
+    "search_placeholder": "搜尋標題或摘要",
+    "status_filter": "依狀態篩選",
+    "empty_template": "空白寫作",
+    "selected_template": "已選範本：{{name}}",
+    "title_hint": "先取個暫定標題，之後隨時修改。",
+    "library_hint": "從上次停下的地方繼續。",
+    "empty_action": "寫第一篇文章",
+    "clear_filters": "清除篩選",
+    "dismiss": "知道了",
+    "no_summary": "尚無摘要",
+    "revision_label": "版本 {{revision}}",
+    "duplicate": "複製",
+    "delete": "刪除",
+    "edit_article": "編輯文章",
+    "confirm_delete": "確認刪除這篇文章？",
+    "confirm_delete_body": "「{{title}}」將被移除，此操作無法復原。",
+    "cancel": "取消",
+    "confirm": "確定",
+    "loadFailed": "文章清單載入失敗",
+    "retry": "重試",
+    "no_match": "沒有符合條件的文章",
+    "empty": "從這裡開始你的第一篇文章",
+    "createFailed": "建立文章失敗，請再試一次。",
+    "title_required": "請輸入文章標題",
+    "duplicateFailed": "複製文章失敗",
+    "deleteFailed": "刪除文章失敗",
+    "note_storage": "預覽內容僅在本次造訪保留，重新整理前請匯出草稿。",
+    "confirm_delete_dirty": "這篇文章還有未儲存的修改，刪除後本地復原稿也會被清除。",
+    "partner": {
+      "ui": {
+        "after": "修改後",
+        "angles": "切入角度",
+        "before": "修改前",
+        "busy": "處理中…",
+        "copyRewrite": "複製改寫",
+        "dismissMaterial": "從本次選取中移除",
+        "empty": "還沒有回傳結果。",
+        "errorUnknown": "寫作夥伴無法處理這個要求，請再試一次。",
+        "failed": "此項目失敗，請再試一次。",
+        "handoffUnknown": "等待你的決定",
+        "inputLabel": "傳訊息給編輯",
+        "insertIntoArticle": "插入正文",
+        "insertSection": "插入本節",
+        "issues": "待處理問題",
+        "materials": "素材",
+        "modelGlobalDefault": "本文還沒單獨設定模型——目前沿用全域預設（{{preset}}）。",
+        "modelSetup": "選擇模型",
+        "modelSwitchApplied": "已切換為 {{preset}}，只對之後新建的批次生效。",
+        "modelSwitchFailed": "模型切換失敗，請再試一次。",
+        "modelSwitchNotApplied": "伺服器仍在使用 {{preset}}，本次切換未生效。",
+        "modelSwitchPending": "正在切換模型…",
+        "modelSwitchRequested": "模型切換已送出，只對之後新建的批次生效。",
+        "modelSwitchUnsupported": "目前連線不支援切換模型。",
+        "modelUnknownPreset": "此模型 preset 已無法使用，請重新選擇。",
+        "nextStep": "下一步",
+        "nextStepUnknown": "開啟協作過程查看下一步",
+        "noProgress": "這篇文章目前沒有執行中的任務。",
+        "outlineConfirm": "儲存大綱並繼續",
+        "outlinePoint": "大綱要點",
+        "pending": "等待你的決定",
+        "plan": "計畫",
+        "quickTasks": "快速任務",
+        "rejectRewrite": "拒絕",
+        "replaceArticle": "取代空白草稿",
+        "retry": "重試",
+        "retryRewrite": "換一種改寫",
+        "sections": "小節",
+        "send": "傳送給團隊",
+        "showFewerIssues": "收合",
+        "showMoreIssues": "再顯示 {{count}} 則",
+        "stop": "停止",
+        "stopping": "正在停止…",
+        "untitled": "未命名文章",
+        "viewAndInsert": "查看並插入",
+        "viewMaterials": "查看素材",
+        "viewOutline": "查看大綱",
+        "toggle": "創作搭檔"
+      },
+      "title": "寫作夥伴",
+      "builtinBadge": "內建",
+      "process": {
+        "toggle": "查看協作過程"
+      },
+      "input": {
+        "placeholder": "保留我的語氣；把第 2 節寫得更具體…"
+      },
+      "requirements": {
+        "toggle": "本文的要求"
+      },
+      "stage": {
+        "idle": "閒置",
+        "queued": "排隊中",
+        "running": "進行中",
+        "waiting_author": "等待你確認",
+        "completed": "已完成",
+        "failed": "失敗",
+        "cancelled": "已取消",
+        "interrupted": "已中斷"
+      },
+      "action": {
+        "start_full": "啟動完整流程",
+        "ideate": "尋找選題角度",
+        "research": "調研",
+        "outline": "產生大綱",
+        "draft": "撰寫初稿",
+        "rewrite_selection": "改寫選取內容",
+        "review_all": "全文審閱",
+        "reply": "回覆"
+      },
+      "artifact": {
+        "brief": "選題簡報",
+        "material_list": "素材清單",
+        "outline": "大綱",
+        "draft": "初稿",
+        "rewrite": "改寫",
+        "review": "審閱"
+      },
+      "artifactAction": {
+        "useAngle": "採用這個角度",
+        "addMaterial": "加入素材",
+        "writeFromOutline": "依大綱撰寫",
+        "insertDraft": "插入初稿",
+        "applyRewrite": "套用改寫",
+        "viewIssues": "查看問題"
+      },
+      "handoff": {
+        "outline_confirm": "大綱已就緒，確認後繼續",
+        "materials_request": "還需要更多素材",
+        "final_accept": "終稿已就緒，確認後結束"
+      },
+      "progress": {
+        "researching": "調研中",
+        "outlining": "整理大綱",
+        "drafting": "撰寫初稿中",
+        "reviewing": "審閱中",
+        "waitingAuthor": "等待你確認",
+        "stopped": "已停止"
+      },
+      "error": {
+        "selectionRequired": "請先選取一段文字",
+        "versionConflict": "文章已變更，請重新載入後再試。",
+        "notPending": "此項目已不再等待你處理。",
+        "serviceUnavailable": "寫作服務暫時無法使用，請稍後再試。",
+        "requestTooLarge": "要求內容過大，請精簡後再試。"
+      },
+      "next": {
+        "writeFromOutline": "依此大綱撰寫",
+        "insertToArticle": "插入正文",
+        "viewChanges": "查看變更",
+        "addMaterials": "補充素材"
+      }
+    },
     "headline": "今天，想寫點什麼？",
     "hero_description": "一段程式碼、一次實作、一個新理解，都可以是一篇文章的開始。",
     "topic_label": "文章主題",
@@ -92,33 +293,57 @@
       "tech-explainer": {
         "name": "技術解析",
         "desc": "把複雜概念，解釋清楚",
-        "outline": ["問題從哪裡來", "核心概念與原理", "用一個例子說明", "適用範圍與限制", "我的理解"]
+        "outline": [
+          "問題從哪裡來",
+          "核心概念與原理",
+          "用一個例子說明",
+          "適用範圍與限制",
+          "我的理解"
+        ]
       },
       "source-reading": {
         "name": "原始碼閱讀",
         "desc": "沿著呼叫鏈，讀懂設計",
-        "outline": ["這次想讀懂什麼", "入口與呼叫鏈", "關鍵實作", "設計取捨", "自己的理解"]
+        "outline": [
+          "這次想讀懂什麼",
+          "入口與呼叫鏈",
+          "關鍵實作",
+          "設計取捨",
+          "自己的理解"
+        ]
       },
       "practice-retro": {
         "name": "實踐復盤",
         "desc": "記錄過程，也記錄取捨",
-        "outline": ["背景與目標", "我是怎麼做的", "問題與排查", "結果與不足", "下一次怎麼改"]
+        "outline": [
+          "背景與目標",
+          "我是怎麼做的",
+          "問題與排查",
+          "結果與不足",
+          "下一次怎麼改"
+        ]
       },
       "learning-summary": {
         "name": "學習總結",
         "desc": "把新知識，變成自己的理解",
-        "outline": ["帶著什麼問題學習", "關鍵知識", "動手驗證", "理解發生什麼變化", "還有哪些問題"]
+        "outline": [
+          "帶著什麼問題學習",
+          "關鍵知識",
+          "動手驗證",
+          "理解發生什麼變化",
+          "還有哪些問題"
+        ]
       }
     }
   },
   "app": {
-    "brand": "Mira",
+    "brand": "知序",
     "loading": {
-      "connecting": "正在連線到 Mira…",
-      "boot": "正在載入 Mira…"
+      "connecting": "正在連線到 知序…",
+      "boot": "正在載入 知序…"
     },
     "error": {
-      "title": "無法連線到 Mira",
+      "title": "無法連線到 知序",
       "gatewayHint": "請確認閘道已啟動（`nanobot gateway`），並且目前頁面與閘道在同一台機器上開啟。"
     },
     "auth": {
@@ -136,8 +361,8 @@
     },
     "system": {
       "section": "系統",
-      "restartHint": "重新啟動 Mira 以套用執行階段變更。",
-      "restart": "重新啟動 Mira",
+      "restartHint": "重新啟動 知序 以套用執行階段變更。",
+      "restart": "重新啟動 知序",
       "restarting": "正在重新啟動…",
       "restartEngine": "重新啟動引擎",
       "restartingEngine": "正在重新啟動引擎…"
@@ -146,11 +371,11 @@
       "completed": "重新啟動已完成，耗時 {{seconds}} 秒。"
     },
     "documentTitle": {
-      "base": "Mira",
-      "chat": "{{title}} · Mira"
+      "base": "知序",
+      "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "Mira Web UI —— 與你的 Mira 工作區對話。"
+      "description": "知序 Web UI —— 與你的 知序 工作區對話。"
     },
     "pairing": {
       "title": "配對聊天使用者",
@@ -218,7 +443,9 @@
       "automations": "自動任務",
       "skills": "技能",
       "memory": "記憶",
-      "identity": "身分"
+      "identity": "身分",
+      "agents": "智慧助理",
+      "teams": "團隊"
     },
     "sections": {
       "interface": "介面",
@@ -247,7 +474,7 @@
       "language": "語言",
       "provider": "供應商",
       "model": "模型",
-      "restart": "重新啟動 Mira",
+      "restart": "重新啟動 知序",
       "configPath": "設定檔路徑",
       "activePreset": "目前預設",
       "gateway": "閘道",
@@ -323,7 +550,7 @@
       "selectedModelValue": "由選取的模型決定。",
       "brandLogos": "在設定中顯示第三方供應商與 CLI 圖示。",
       "browserNotifications": "僅在頁面位於背景時通知，預設關閉。",
-      "cliAppsCatalog": "只安裝 Mira 可在本機執行的應用程式專用 CLI 轉接器；不會改動原生應用程式。",
+      "cliAppsCatalog": "只安裝 知序 可在本機執行的應用程式專用 CLI 轉接器；不會改動原生應用程式。",
       "cliAppsFilter": "依應用程式、類別或功能搜尋。",
       "logs": "開啟原生引擎日誌資料夾。",
       "diagnostics": "匯出一份簡短的執行階段報告，以供疑難排解。",
@@ -373,11 +600,11 @@
       "loadError": "無法載入設定",
       "unsaved": "有未儲存的變更。",
       "upToDate": "已是最新。",
-      "savedRestart": "已儲存。重新啟動 Mira 後生效。",
+      "savedRestart": "已儲存。重新啟動 知序 後生效。",
       "restartAfterSaving": "請先儲存變更，準備就緒後再重新啟動。",
       "savedRestartApply": "已儲存。準備就緒後即可重新啟動。",
       "imageProviderRestart": "已儲存圖片供應商變更。準備就緒後即可重新啟動。",
-      "hostRestartAfterSaving": "儲存變更後，Mira 將重新啟動引擎。",
+      "hostRestartAfterSaving": "儲存變更後，知序 將重新啟動引擎。",
       "hostRestartPending": "已儲存。準備就緒後將重新啟動引擎。",
       "hostApiUnavailable": "主機操作僅能在原生應用程式中使用。",
       "logsOpened": "已開啟日誌資料夾。",
@@ -401,7 +628,7 @@
       "exporting": "正在匯出…"
     },
     "byok": {
-      "description": "使用自備的供應商金鑰。Mira 會從目前的設定檔讀取這些值，只有已設定的供應商可用於模型預設。",
+      "description": "使用自備的供應商金鑰。知序 會從目前的設定檔讀取這些值，只有已設定的供應商可用於模型預設。",
       "configured": "已設定",
       "notConfigured": "未設定",
       "configuredSection": "已設定",
@@ -599,7 +826,7 @@
       "empty": "沒有符合此篩選條件的 CLI 應用程式。",
       "readyTitle": "@{{name}} 已就緒",
       "readyStatus": "就緒",
-      "readyPrompt": "請 Mira 使用 @{{name}} 完成這項任務。",
+      "readyPrompt": "請 知序 使用 @{{name}} 完成這項任務。",
       "readyTry": "試用 @{{name}}",
       "readyCopied": "已複製",
       "openChat": "開啟聊天",
@@ -649,7 +876,7 @@
       "saveCustom": "儲存 MCP",
       "configImport": "匯入 mcp.json",
       "importConfig": "匯入",
-      "restartRequired": "重新啟動 Mira 以連線更新後的 MCP 工具。",
+      "restartRequired": "重新啟動 知序 以連線更新後的 MCP 工具。",
       "toolsFound": "{{count}} 個工具",
       "loading": "正在載入 MCP 預設…",
       "empty": "沒有符合此篩選條件的 MCP 預設。",
@@ -677,14 +904,14 @@
       "preparingSignIn": "正在準備安全登入…",
       "openSignInToContinue": "開啟登入頁面以繼續。",
       "finishSignInInBrowser": "請在瀏覽器視窗中完成登入。",
-      "manualCallbackRequired": "完成登入後，將回呼 URL 貼到 Mira。",
+      "manualCallbackRequired": "完成登入後，將回呼 URL 貼到 知序。",
       "manualCallbackHelp": "授權後，localhost 頁面將無法開啟。請複製網址列中的完整 URL 並貼到這裡。",
       "finishingConnection": "正在完成連線…",
       "activatingTools": "正在啟用工具…",
       "connected": "已連線。",
       "connectionFailed": "連線失敗。",
       "connectionCancelled": "已取消連線。",
-      "reloadFailed": "已登入，但 Mira 無法連接這些工具。請嘗試重新啟動 Mira。",
+      "reloadFailed": "已登入，但 知序 無法連接這些工具。請嘗試重新啟動 知序。",
       "oauthFailed": "無法連線，請重新登入。",
       "statusMissingDependency": "需要相依項",
       "statusComingSoon": "即將推出",
@@ -737,7 +964,7 @@
     "api": {
       "title": "API 伺服器",
       "openaiCompatible": "OpenAI 相容 API",
-      "description": "讓 SDK 與其他智能體透過本機 /v1 端點連線 Mira。",
+      "description": "讓 SDK 與其他智能體透過本機 /v1 端點連線 知序。",
       "start": "啟動 API 伺服器",
       "starting": "正在啟動…",
       "stop": "停止",
@@ -757,15 +984,15 @@
     },
     "observability": {
       "title": "可觀測性",
-      "configured": "Mira 已偵測到追蹤憑證。",
-      "environment": "設定 LANGFUSE_SECRET_KEY 和 LANGFUSE_PUBLIC_KEY 後重新啟動 Mira。",
+      "configured": "知序 已偵測到追蹤憑證。",
+      "environment": "設定 LANGFUSE_SECRET_KEY 和 LANGFUSE_PUBLIC_KEY 後重新啟動 知序。",
       "enable": "啟用追蹤支援"
     },
     "legal": {
       "thirdPartyBrands": "產品名稱、Logo 與品牌均為各自擁有者的財產。僅供識別之用，不代表任何形式的背書。"
     },
     "apps": {
-      "description": "將工具新增至 Mira，再於聊天中使用 @ 指定工具。",
+      "description": "將工具新增至 知序，再於聊天中使用 @ 指定工具。",
       "cliLabel": "應用程式",
       "mcpLabel": "MCP",
       "channelLabel": "通訊管道",
@@ -788,21 +1015,21 @@
       "browseApps": "瀏覽應用程式",
       "browseIntegrations": "瀏覽 MCP 工具",
       "emptyIntegrationsHint": "可在下方新增自訂 MCP 伺服器。",
-      "restartRequired": "重新啟動 Mira 以套用更新後的應用程式與 MCP 工具。"
+      "restartRequired": "重新啟動 知序 以套用更新後的應用程式與 MCP 工具。"
     },
     "channels": {
-      "description": "將聊天應用程式、電子郵件與 WebUI 連線至 Mira。",
+      "description": "將聊天應用程式、電子郵件與 WebUI 連線至 知序。",
       "caption": "已啟用 {{enabled}} 個 · 共 {{total}} 個通訊管道",
       "searchPlaceholder": "搜尋通訊管道",
       "backToChannels": "所有通訊管道",
       "catalog": "通訊管道",
       "loading": "正在載入通訊管道…",
       "empty": "沒有符合條件的通訊管道。",
-      "restartRequired": "重新啟動 Mira 以套用更新後的通訊管道支援。",
+      "restartRequired": "重新啟動 知序 以套用更新後的通訊管道支援。",
       "requires": "需要：{{requirements}}",
       "setUp": "設定",
       "setupGuide": "設定指南",
-      "setupSummary": "啟用此通訊管道只會開啟 Mira 的支援功能。請新增平台憑證，然後重新啟動 Mira。",
+      "setupSummary": "啟用此通訊管道只會開啟 知序 的支援功能。請新增平台憑證，然後重新啟動 知序。",
       "configKeys": "設定欄位",
       "enable": "啟用通訊管道",
       "disable": "停用通訊管道",
@@ -857,7 +1084,7 @@
         "unsupported": "手動設定"
       }
     },
-    "nanobotFeatures": {
+    "zhixuFeatures": {
       "enabled": "已啟用",
       "enable": "啟用",
       "disable": "停用",
@@ -865,7 +1092,7 @@
       "missingDependency": "缺少支援套件",
       "installSupport": "安裝支援套件",
       "installConfirmTitle": "安裝 {{name}} 的支援套件？",
-      "installConfirmDescription": "Mira 將安裝 {{name}} 所需的元件並啟用支援。要繼續嗎？",
+      "installConfirmDescription": "知序 將安裝 {{name}} 所需的元件並啟用支援。要繼續嗎？",
       "installConfirmAction": "安裝並啟用",
       "websocketRequired": "WebUI 需要此功能",
       "channelDisabled": "通訊管道已停用",
@@ -1009,7 +1236,7 @@
       "signedInAs": "已使用 {{account}} 登入",
       "signInHelp": "請從這臺裝置登入；系統不會將 API 金鑰儲存在設定中。",
       "remoteSignInHelp": "點擊「登入」在你的電腦上開啟 xAI，完成登入後貼上頁面顯示的授權碼。",
-      "codexRemoteSignInHelp": "請在此瀏覽器中登入，然後將完整的 localhost 回呼 URL 貼回 Mira。",
+      "codexRemoteSignInHelp": "請在此瀏覽器中登入，然後將完整的 localhost 回呼 URL 貼回 知序。",
       "signInRequired": "需要登入",
       "signInBeforeSaving": "請先登入此供應商，再儲存模型預設。",
       "signedIn": "已登入",
@@ -1017,9 +1244,9 @@
       "proxyLabel": "網路代理",
       "proxySaveBeforeSignIn": "請先儲存代理變更再登入。",
       "saveProxy": "儲存代理",
-      "localCodeHelp": "請在瀏覽器中完成登入。Mira 通常會自動完成；若未自動完成，請將授權碼貼到下方。",
+      "localCodeHelp": "請在瀏覽器中完成登入。知序 通常會自動完成；若未自動完成，請將授權碼貼到下方。",
       "remoteCodeHelp": "點擊「登入」在你的電腦上開啟 xAI。完成登入後，請將 xAI 顯示的授權碼貼到下方。",
-      "localCallbackHelp": "請在瀏覽器中完成登入。Mira 通常會自動完成；若未自動完成，請複製網址列中的完整 localhost 回呼 URL 並貼到下方。",
+      "localCallbackHelp": "請在瀏覽器中完成登入。知序 通常會自動完成；若未自動完成，請複製網址列中的完整 localhost 回呼 URL 並貼到下方。",
       "remoteCallbackHelp": "請在此瀏覽器中開啟 ChatGPT 並完成登入。當 localhost 頁面無法開啟時，請複製網址列中的完整 URL 並貼到下方。",
       "authorizationCode": "授權碼",
       "callbackUrl": "完整回呼 URL",
@@ -1062,7 +1289,7 @@
       "deleteConfirmAction": "刪除技能",
       "instructionsTitle": "技能說明",
       "setupRequired": "需要設定",
-      "setupDescription": "請在執行 Mira 的裝置上安裝缺少的相依套件，然後重新檢查。",
+      "setupDescription": "請在執行 知序 的裝置上安裝缺少的相依套件，然後重新檢查。",
       "copySetupCommand": "複製設定指令",
       "checkAgain": "重新檢查",
       "marketplaceSearchFailed": "暫時無法搜尋技能市集。",
@@ -1120,6 +1347,8 @@
       "languageAuto": "自動"
     },
     "memory": {
+      "pageEyebrow": "記憶中心",
+      "pageSubtitle": "智慧助理在對話中整理的長期資訊與對話片段。開啟總開關後會自動抽取；關閉後仍可檢視與管理。",
       "tabSemantic": "語意記憶",
       "tabEpisode": "情節",
       "tabsLabel": "記憶分類",
@@ -1219,12 +1448,125 @@
       "mdModalDiffCurrent": "目前 MEMORY.md",
       "mdModalDiffCurrentPlaceholder": "（MEMORY.md 不存在或為空）",
       "masterToggleTitle": "自動抽取與檢索記憶",
-      "masterToggleDescription": "開啟後，Mira 會在對話中抽取事實並在下一輪檢索相關記憶。熱生效——無需重新啟動。",
+      "masterToggleDescription": "開啟後，知序 會在對話中抽取事實並在下一輪檢索相關記憶。熱生效——無需重新啟動。",
       "masterToggleAria": "記憶抽取開關",
       "masterToggleOn": "已開啟",
       "masterToggleOff": "已關閉"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "身分 · Identity",
+          "title": "讓 Agent 用你想要的方式說話",
+          "subtitle": "從一張個性卡片開始，再用幾個簡單問題補充細節。下面看到的就是 Agent 之後會怎麼開口。"
+        },
+        "stepsAria": "身分設定步驟",
+        "step": {
+          "vibe": {
+            "label": "個性卡片",
+            "hint": "選取後會自動填好後面的表單"
+          },
+          "voice": {
+            "label": "稱呼與語氣",
+            "hint": "空白處會自動跳過"
+          },
+          "rules": {
+            "label": "底線與備註",
+            "hint": "告訴它什麼不能做"
+          },
+          "advanced": {
+            "label": "進階 Markdown",
+            "hint": "直接編輯身分檔案"
+          }
+        },
+        "gallery": {
+          "active": "已選用",
+          "reload": "重新載入",
+          "use": "使用這個個性"
+        },
+        "preview": {
+          "yourAgent": "你的助理",
+          "live": "即時預覽",
+          "samplePrompt": "幫我把這個月的工作週報寫成三段。",
+          "activeRule": "已套用規則：",
+          "hint": "以上是目前設定下 Agent 的開場白預覽，儲存後立即生效。"
+        },
+        "advanced": {
+          "toggle": "進階模式：直接編輯原始 Markdown",
+          "note": "只有當預設與表單都不夠用時才需要來這裡。手動修改會立即生效，但表單再次儲存時會依上面的結構重寫。",
+          "rawAria": "原始 Markdown",
+          "reload": "從磁碟重新載入"
+        },
+        "form": {
+          "nameLabel": "Agent 該怎麼稱呼你",
+          "namePlaceholder": "例如：小明、營運組",
+          "roleLabel": "Agent 主要幫你做什麼",
+          "rolePlaceholder": "例如：把一週的會議整理成可讀週報；歸納客戶回饋裡的高頻問題",
+          "toneLabel": "說話的調子",
+          "toneHint": "選最貼近的那個",
+          "langLabel": "預設用什麼語言回覆",
+          "rulesLabel": "希望它遵守的底線",
+          "rulesHint": "一行一條，最多 6 條",
+          "rulesPlaceholder": "不在合約裡直接產生金額\n不向未登入的使用者提及後台路徑\n沒把握就明說 '我不確定'，不裝懂",
+          "notesLabel": "還想告訴它的事（可選）",
+          "notesPlaceholder": "公司名、行話縮寫、忌諱詞等都可以寫在這裡"
+        },
+        "tone": {
+          "friendly": {
+            "label": "友善",
+            "description": "親切、鼓勵、共情"
+          },
+          "professional": {
+            "label": "專業",
+            "description": "正式、克制、有理有據"
+          },
+          "concise": {
+            "label": "簡短",
+            "description": "先給結論再展開"
+          },
+          "detailed": {
+            "label": "詳細",
+            "description": "完整推理過程與邊界"
+          }
+        },
+        "replyLang": {
+          "groupAria": "回覆語言",
+          "auto": {
+            "label": "跟隨你",
+            "description": "用你提問的語言回覆"
+          },
+          "zh": {
+            "label": "中文",
+            "description": "所有回覆都使用中文"
+          },
+          "en": {
+            "label": "English",
+            "description": "所有回覆都使用英文"
+          }
+        },
+        "footer": {
+          "back": "上一步",
+          "next": "下一步",
+          "unsaved": "有未儲存的修改",
+          "upToDate": "已是最新",
+          "discard": "還原修改",
+          "saved": "已儲存",
+          "save": "儲存設定"
+        },
+        "error": {
+          "loadFailed": "部分內容無法載入",
+          "saveFailed": "儲存失敗"
+        },
+        "toast": {
+          "saved": "身分設定已儲存，已立即生效"
+        },
+        "persona": {
+          "default": "未啟用預設",
+          "cardTitle": "Agent 在使用的預設",
+          "cardNone": "未啟用，保留預設 SOUL",
+          "cardHint": "點選上方任一個性卡片都會同步切換到這個預設。"
+        }
+      },
       "groupCore": "核心檔案",
       "groupPersonas": "人格範本",
       "warningBanner": "身分檔案是 Agent 的核心人格與行為基礎。不當修改可能導致 Agent 行為異常、喪失關鍵能力或產生不可預期的回復。如果你不確定某項修改的影響，建議先備份原檔案。",
@@ -1288,7 +1630,141 @@
       "noPersona": "不使用",
       "personaSwitchFailed": "切換人格失敗"
     },
+    "teams": {
+      "workspaceEyebrow": "AGENT TEAMS",
+      "myTeams": "我的團隊",
+      "emptyEyebrow": "一起，把事情做好",
+      "emptyTitle": "讓各有所長的 Agent，成為一支團隊。",
+      "emptyDescription": "隊長負責分工和彙整，成員按各自職責完成任務。選好搭檔，讓一個目標有人安排，也有人落實。",
+      "buildFirst": "組建第一支團隊",
+      "illustrationAlt": "一位隊長與研究、程式設計、檢查 Agent 組成的小隊",
+      "noDescription": "為共同的目標，各展所長。",
+      "assemblySubtitle": "選好隊長，邀請成員，讓每位 Agent 都有明確分工。",
+      "editorSubtitle": "從既有的 Agent 設定檔裡選一位隊長和至多 8 位成員。",
+      "setupSteps": "組隊步驟",
+      "stepIdentity": "確定目標",
+      "stepLeader": "安排隊長",
+      "stepMembers": "成員就位",
+      "identitySection": "這支團隊做什麼",
+      "leaderSection": "誰來帶領團隊",
+      "oneLeader": "1 位隊長",
+      "leaderExplanation": "隊長接收你的目標，把任務分給成員，再整理最終結果。",
+      "promotedNotice": "{{name}} 已成為隊長，並從成員席位移出。",
+      "membersSection": "讓成員各展所長",
+      "searchAgents": "搜尋 Agent 名稱或專長",
+      "permissionHint": "隊長設定檔尚未允許委派給此成員",
+      "agentProfile": "Agent 設定檔",
+      "noAgentMatches": "沒有相符的 Agent，試試其他關鍵字。",
+      "memberResponsibility": "在這個團隊負責",
+      "memberMinimum": "至少加入 1 位成員。職責只在本團隊生效，不會改動 Agent 原始設定檔。",
+      "advancedSettings": "協作約定與工作方式",
+      "rosterCount": "1 位隊長 · {{count}} 位成員",
+      "rosterCount_one": "1 位隊長 · {{count}} 位成員",
+      "rosterCount_other": "1 位隊長 · {{count}} 位成員",
+      "rosterPrompt": "從一個目標開始，組成你的 Agent 團隊。",
+      "errorRoleLength": "成員職責不能超過 {{max}} 字",
+      "errorInstructionsLength": "協作約定不能超過 {{max}} 字",
+      "formationLabel": "團隊關係預覽",
+      "formationTitle": "你的團隊正在成形",
+      "untitled": "一支新團隊",
+      "goalPrompt": "把一個目標，交給各有所長的 Agent。",
+      "receiveGoal": "接收你的目標",
+      "focusLeader": "選擇或更換隊長",
+      "chooseLeaderSeat": "等待一位隊長",
+      "leaderJob": "分派任務，整理結果",
+      "focusMember": "編輯 {{name}} 的職責",
+      "emptySeats": "加入成員後，他們會出現在這裡。至少需要 1 位成員。",
+      "summaryFlow": "成員執行後，由隊長彙整交付",
+      "formationReady": "基本設定已就緒",
+      "formationProgress": "團隊準備進度",
+      "previewHint": "點擊隊長或成員，可直接調整設定。",
+      "name": "團隊名稱",
+      "namePlaceholder": "例如：內容團隊",
+      "description": "團隊說明",
+      "descriptionPlaceholder": "一句話說明這支團隊做什麼。",
+      "instructions": "協作約定",
+      "instructionsPlaceholder": "誰先做什麼、交付標準是什麼。",
+      "leader": "隊長",
+      "leaderPlaceholder": "選擇一個 Agent 設定檔",
+      "leaderLine": "隊長：{{name}}",
+      "members": "成員",
+      "pickMember": "選擇 {{name}} 為成員",
+      "rolePlaceholder": "本團隊職責",
+      "roleAria": "{{name}} 在本團隊的職責",
+      "removeMember": "移除 {{name}}",
+      "noAgents": "還沒有可用的 Agent 設定檔",
+      "maxConcurrency": "最多並行",
+      "concurrencyHint": "同時執行的成員數上限（最多 {{max}}）",
+      "concurrency": "最多並行 {{count}} 項",
+      "errorName": "請填寫團隊名稱",
+      "errorNameLength": "團隊名稱不能超過 {{max}} 字",
+      "errorLeader": "請選擇隊長",
+      "errorMembers": "至少選擇 1 個成員",
+      "errorMembersMax": "成員最多 {{max}} 個",
+      "errorDuplicate": "成員不能重複",
+      "errorLeaderIsMember": "隊長不能同時作為成員",
+      "errorLeaderExcludes": "隊長設定檔不允許委派：{{ids}}",
+      "errorRole": "每位成員都要填寫本團隊職責",
+      "errorConcurrency": "最多並行需在 {{min}}–{{max}} 之間",
+      "title": "團隊",
+      "create": "建立團隊",
+      "search": "搜尋團隊",
+      "saved": "已儲存",
+      "noMatch": "沒有相符的團隊，換個關鍵字試試。",
+      "emptyHint": "先建立 Agent 設定檔，再從中組建團隊。",
+      "edit": "編輯",
+      "duplicate": "複製",
+      "copySuffix": "副本",
+      "archive": "封存",
+      "archiveTitle": "封存團隊",
+      "archiveBody": "封存後不能再發起新的團隊執行，已有聊天會繼續使用它綁定的修訂，歷史執行仍可查看。",
+      "showArchived": "顯示封存",
+      "hideArchived": "隱藏封存",
+      "unarchive": "取消封存",
+      "unarchiveTitle": "取消封存這支團隊？",
+      "unarchiveBody": "取消封存後，這支團隊可以重新發起執行，並因此產生一個新修訂。",
+      "allArchived": "所有團隊都已封存，開啟「顯示封存」就能看到它們。",
+      "workspaceSubtitle": "把各有所長的 Agent 編成一支團隊：隊長拆解目標並分派任務，成員各自執行。適合需要多步協作的事。",
+      "archived": "已封存",
+      "conflict": "團隊已被其他變更更新，請重新載入後再儲存（你的草稿已保留）。",
+      "createTitle": "建立團隊",
+      "editTitle": "編輯團隊",
+      "save": "儲存",
+      "cancel": "取消",
+      "revisionNote": "目前修訂 v{{revision}}；儲存後產生 v{{next}}"
+    },
     "agents": {
+      "workspace": {
+        "identity": "職責與身分",
+        "capabilities": "工具與技能",
+        "more": "模型與更多",
+        "subtitle": "先寫清職責，再為它選擇合適的能力。",
+        "identityHint": "給它一個明確的角色，以及做事的方法。",
+        "capabilitiesHint": "依需求選擇可執行的操作和可參考的做事方法。",
+        "moreHint": "選擇模型，整理設定檔的分類與外觀。",
+        "toolsHint": "允許它執行的操作，例如讀取檔案、搜尋網頁。",
+        "skillsHint": "完成某類任務時可參考的做事方法。",
+        "profileDetails": "設定檔資訊",
+        "summary": "設定摘要",
+        "summaryToggle": "查看設定摘要",
+        "unnamed": "尚未填寫名稱",
+        "noDescription": "用一句話說明它負責什麼。",
+        "noSkills": "未新增技能",
+        "noTools": "未選擇工具",
+        "selectedCount": "已啟用 {{count}} 項",
+        "remaining": "等 {{count}} 項",
+        "unavailableModel": "原模型目前無法使用",
+        "globalModel": "跟隨全域模型",
+        "promptHint": "寫清它負責什麼、如何完成任務，以及結果怎麼交付。",
+        "promptLimit": "工作指令不能超過 {{count}} 字。",
+        "nameRequired": "請先填寫名稱。",
+        "idRequired": "Agent 識別碼不能為空。",
+        "description": "一句話說明",
+        "modelMissing": "原模型目前無法使用",
+        "modelMissingHint": "保留原模型設定。你可以選擇其他模型，或改為跟隨全域。",
+        "selectionIncludeHint": "只啟用勾選項目。切換選擇方式會清空目前選擇。",
+        "selectionExcludeHint": "勾選表示啟用，取消勾選表示排除。切換選擇方式會清空目前選擇。"
+      },
       "basics": {
         "appearance": "圖示與顏色",
         "category": "分類",
@@ -1302,6 +1778,7 @@
         "namePlaceholder": "例如：SEO 寫手",
         "noCategory": "未分類",
         "systemPreset": "系統預設",
+        "defaultMainAgent": "預設主 Agent",
         "updatedAt": "上次修改 {{time}}"
       },
       "capability": {
@@ -1381,6 +1858,9 @@
         "include": "僅所選"
       },
       "model": {
+        "label": "模型",
+        "auto": "跟隨全域模型",
+        "autoHint": "此 Agent 跟隨全域模型設定。",
         "context": "上下文",
         "toolUse": "支援工具呼叫",
         "vision": "支援視覺"
@@ -1574,6 +2054,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "前往",
     "browserEmptyHint": "輸入網址開始瀏覽。",
+    "browserNewTab": "新分頁",
     "browserFrameTitle": "內嵌瀏覽器頁面",
     "browserError_scheme": "只能開啟 http/https 網址。",
     "browserError_private": "不允許存取私網或本地網路網址。",
@@ -1584,12 +2065,31 @@
     "tabBrowser": "瀏覽器",
     "plusAria": "新增標籤",
     "newTerminal": "新終端機",
+    "openTerminal": "開啟終端面板",
     "shellChoices": "選擇 shell",
     "takeoverRunning": "執行中的終端機",
     "takeoverAction": "點擊接管",
     "takeoverHint": "按 Enter 重繪畫面",
     "closeTab": "關閉標籤",
-    "platformDefaultShell": "平台預設 shell"
+    "platformDefaultShell": "平台預設 shell",
+    "renameTab": "重新命名分頁",
+    "copyOutput": "複製輸出",
+    "clearOutput": "清除終端機",
+    "pasteInput": "貼上",
+    "browserWindow": "在瀏覽器視窗開啟",
+    "showHidden": "顯示隱藏檔案",
+    "hideHidden": "隱藏隱藏檔案",
+    "refresh": "重新整理",
+    "collapseAll": "全部收合",
+    "search": "搜尋檔案",
+    "searchPlaceholder": "搜尋檔案名稱與內容",
+    "searching": "搜尋中…",
+    "noMatches": "沒有符合結果",
+    "searchTruncated": "僅顯示部分結果",
+    "searchFailed": "搜尋失敗",
+    "copied": "已複製",
+    "historyTruncated": "較早的輸出已被截斷",
+    "terminalTheme": "切換終端明暗"
   },
   "plusMenu": {
     "groupAdd": "新增",
@@ -1607,6 +2107,49 @@
     "back": "返回"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "子 Agent 執行詳情",
+      "genericAgent": "通用 Agent",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "暫無執行詳情",
+      "close": "關閉執行詳情",
+      "reload": "重新載入",
+      "taskSwitcher": "切換子 Agent 任務",
+      "call": "呼叫 {{id}}",
+      "instruction": "任務說明",
+      "process": "執行過程",
+      "result": "子 Agent 結果",
+      "truncated": "內容已截斷",
+      "noActivities": "暫無公開活動。",
+      "connectionStale": "連線已中斷，狀態待同步",
+      "historyLimited": "部分較早活動已過期",
+      "activitySummary": "{{action}} · 已完成 {{count}} 次工具呼叫",
+      "activitySummaryNoAction": "已完成 {{count}} 次工具呼叫",
+      "status": {
+        "queued": "排隊中",
+        "running": "執行中",
+        "succeeded": "已完成",
+        "failed": "失敗",
+        "cancelled": "已停止",
+        "interrupted": "已中斷"
+      },
+      "parameters": "執行參數",
+      "toolOutput": "輸出摘要",
+      "detailToggle": "檢視參數與輸出摘要",
+      "phase": {
+        "preparing": "準備中",
+        "model": "產生回覆",
+        "tools": "呼叫工具",
+        "finalizing": "收尾中"
+      },
+      "activityStatus": {
+        "running": "執行中",
+        "succeeded": "已完成",
+        "failed": "失敗",
+        "cancelled": "已停止",
+        "interrupted": "已中斷"
+      }
+    },
     "activity": {
       "viewDetails": "檢視詳細資訊",
       "hideDetails": "隱藏",
@@ -1656,7 +2199,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "設計應用程式圖示",
-          "prompt": "請為 Mira 產生一個簡潔的 1:1 應用程式圖示：友善的機器人、簡約向量風格、柔和的藍白配色，不含文字。"
+          "prompt": "請為 知序 產生一個簡潔的 1:1 應用程式圖示：友善的機器人、簡約向量風格、柔和的藍白配色，不含文字。"
         },
         "sticker": {
           "title": "製作貼圖",
@@ -1711,6 +2254,46 @@
         "local": "等待觸發",
         "none": "沒有下次執行"
       }
+    },
+    "teamProgress": {
+      "title": "團隊進度",
+      "leader": "Leader",
+      "leaderAction": {
+        "planning": "規劃中",
+        "waiting": "等待成員",
+        "reviewing": "審閱中",
+        "summarizing": "彙整中",
+        "idle": "待命"
+      },
+      "status": {
+        "running": "進行中",
+        "cancelling": "正在停止…",
+        "completed": "已完成",
+        "partial": "部分完成",
+        "failed": "失敗",
+        "cancelled": "已停止",
+        "interrupted": "已中斷"
+      },
+      "taskStatus": {
+        "pending": "待派單",
+        "queued": "排隊中",
+        "running": "執行中",
+        "cancelling": "正在停止…",
+        "succeeded": "已完成",
+        "failed": "失敗",
+        "cancelled": "已停止",
+        "blocked": "被阻塞",
+        "interrupted": "已中斷"
+      },
+      "stop": "停止團隊",
+      "stopping": "正在停止…",
+      "retry": "重試失敗任務",
+      "retryHint": "重試會重新執行失敗的任務，可能重複既有副作用。",
+      "cancelTask": "停止此任務",
+      "noTasks": "本輪由 Leader 直接處理。",
+      "resyncing": "正在同步團隊狀態…",
+      "artifacts": "產出：{{names}}",
+      "memberFallback": "成員 {{memberId}}"
     },
     "composer": {
       "menu": {
@@ -1857,7 +2440,7 @@
             "description": "取消這個對話中正在執行的智能體回合。"
           },
           "restart": {
-            "title": "重新啟動 Mira",
+            "title": "重新啟動 知序",
             "description": "重新啟動目前的 bot 處理程序。"
           },
           "status": {
@@ -1935,16 +2518,20 @@
       "mentions": {
         "ariaLabel": "提及",
         "label": "應用程式",
+        "agentGroup": "智能體",
         "cliGroup": "CLI 應用程式",
         "mcpGroup": "MCP 伺服器",
-        "sessionGroup": "Mira 對話",
+        "sessionGroup": "知序 對話",
+        "agentBadge": "智能體",
+        "defaultAgentBadge": "預設主 Agent",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "由 @{{name}} 接管本輪",
         "cliDescription": "將 @{{name}} 作為本機 CLI 應用程式使用",
         "mcpDescription": "將 @{{name}} 作為 MCP 伺服器使用",
         "cliTitle": "CLI 應用程式：{{name}}",
         "mcpTitle": "MCP 伺服器：{{name}}",
-        "sessionBadge": "Mira 對話",
+        "sessionBadge": "知序 對話",
         "sessionDescription": "引用先前的對話 @{{name}}"
       },
       "workspace": {
@@ -1955,6 +2542,20 @@
         "defaultShort": "預設",
         "full": "完整存取權",
         "fullShort": "完整"
+      },
+      "team": {
+        "aria": "團隊選擇",
+        "select": "選擇團隊",
+        "none": "不使用團隊",
+        "empty": "還沒有可用的團隊",
+        "bound": "已綁定 {{name}}（修訂 {{revision}}）",
+        "chip": "團隊：{{name}}",
+        "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "目前 Agent：{{name}}",
+        "empty": "還沒有可用的 Agent",
+        "defaultTag": "預設"
       }
     },
     "scrollToBottom": "捲動到底部",
@@ -2072,9 +2673,16 @@
     "close": "關閉檔案預覽",
     "loading": "正在載入預覽…",
     "failed": "無法預覽這個檔案。",
-    "routeMissing": "檔案預覽需要最新版本的閘道。請重新啟動 Mira 閘道後再試一次。",
+    "routeMissing": "檔案預覽需要最新版本的閘道。請重新啟動 知序 閘道後再試一次。",
     "resize": "調整檔案預覽寬度",
-    "truncated": "檔案較大，因此預覽內容已截斷。"
+    "pickFile": "選擇檔案後在這裡預覽。",
+    "truncated": "檔案較大，因此預覽內容已截斷。",
+    "edit": "編輯檔案",
+    "save": "儲存檔案",
+    "cancel": "取消編輯",
+    "saved": "已儲存",
+    "saveFailed": "儲存失敗，請重試。",
+    "editTruncated": "檔案過大，無法在此編輯。"
   },
   "code": {
     "fallbackLanguage": "程式碼",
@@ -2084,8 +2692,7 @@
   },
   "workbench": {
     "title": "對話工作台",
-    "open": "展開工作台",
-    "collapse": "收合工作台",
+    "tools": "工具側邊欄",
     "updatedAt": "更新於 {{time}}",
     "overview": "概覽",
     "emptyOverview": "尚無摘要",
@@ -2154,6 +2761,14 @@
       "title": "工作區未變更",
       "body": "閘道拒絕了此專案或存取模式。請選擇現有專案或其他存取模式，然後再試一次。"
     },
+    "teamBindingExpired": {
+      "title": "團隊未生效",
+      "body": "這個空對話的團隊選擇已過期。請重新選擇團隊後再送出第一則訊息。"
+    },
+    "teamUnavailable": {
+      "title": "團隊不可用",
+      "body": "該團隊已歸檔，或其引用的 Agent 設定檔已遭移除。請換一個團隊，或改為普通對話送出。"
+    },
     "turnRejected": {
       "title": "訊息未傳送",
       "body": "閘道拒絕了這則訊息。請檢查內容或附件後再試一次。"
@@ -2193,7 +2808,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "助手",
-      "creative": "創作"
+      "creative": "創作",
+      "more": "更多",
+      "groups": {
+        "workspace": "工作區",
+        "ai": "AI 設定",
+        "personal": "個人"
+      }
     },
     "preview": {
       "badge": "介面預覽 · 範例內容"
@@ -2216,5 +2837,9 @@
     "creative": {
       "comingSoon": "創作模組即將上線。"
     }
+  },
+  "toast": {
+    "saved": "已儲存",
+    "saveFailed": "儲存失敗：{{message}}"
   }
 }

@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
   type Ref,
 } from "react";
 
@@ -42,6 +43,7 @@ import {
   Sparkles,
   Square,
   SquarePen,
+  Star,
   Target,
   Trash2,
   Undo2,
@@ -51,6 +53,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
 import {
   floatingItemClassName,
   floatingSurfaceElevationClassName,
@@ -91,8 +94,9 @@ import { useLogoFallback } from "@/hooks/useLogoFallback";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { getRuntimeHost } from "@/lib/runtime";
 import { projectNameFromPath, scopeWithAccessMode } from "@/lib/workspace";
-import type { AgentProfile } from "@/lib/agents/types";
-import type { SendAttachment, SendOptions } from "@/hooks/useNanobotStream";
+import { AgentChip, resolveSessionAgent } from "@/components/thread/AgentPicker";
+import { DEFAULT_MAIN_AGENT_ID, isDefaultMainAgent, type AgentProfile } from "@/lib/agents/types";
+import type { SendAttachment, SendOptions } from "@/hooks/useZhixuStream";
 import { useVoiceRecorder, type VoiceRecorderErrorKey } from "@/hooks/useVoiceRecorder";
 import type {
   CliAppInfo,
@@ -223,6 +227,9 @@ interface ThreadComposerProps {
   sessions?: ChatSummary[];
   skills?: SkillSummary[];
   agents?: AgentProfile[];
+  /** 会话默认接管者（默认主 Agent）；草稿里的 ``@档案`` 本轮优先于它。 */
+  agentSelectionId?: string | null;
+  onAgentSelectionChange?: (agentId: string) => void;
   onStop?: () => void;
   surfaceRef?: Ref<HTMLDivElement>;
   onTranscribeAudio?: (dataUrl: string, options?: { durationMs?: number }) => Promise<string>;
@@ -236,14 +243,16 @@ interface ThreadComposerProps {
   workspaceError?: string | null;
   onPickWorkspaceFolder?: () => Promise<string | null>;
   onWorkspaceScopeChange?: (scope: WorkspaceScopePayload) => void;
+  /** Team chip rendered next to the project picker; the caller decides when it applies. */
+  teamPickerSlot?: ReactNode;
   pendingQueueKey?: string | null;
   transcriptionProvider?: string | null;
   ingressLimits?: WebUIIngressLimits | null;
   quotedContext?: string | null;
   focusRequest?: number;
   onQuotedContextChange?: (text: string | null) => void;
-  /** One-shot text seeded from outside (e.g. the workspace home input). */
-  draftSeed?: { text: string; token: number } | null;
+  /** One-shot text from outside. Suggestions can append without losing a draft. */
+  draftSeed?: { text: string; token: number; mode?: "append" } | null;
   onDraftSeedConsumed?: () => void;
 }
 
@@ -344,6 +353,7 @@ type MentionCandidate = {
   displayName: string;
 } & (
   | { kind: "session"; mention: SessionMention }
+  | { kind: "agent"; agent: AgentProfile }
   | {
       kind: "cli" | "mcp";
       brandColor: string | null;
@@ -391,6 +401,17 @@ function sessionMentionOptions(sessions: ChatSummary[]): SessionMention[] {
       title: session.title?.trim() || session.preview.trim(),
     }];
   });
+}
+
+/** 文本中最后一个生效的 ``@agent`` 决定本轮接管者；队列里的旧草稿也能据此恢复。 */
+function agentMentionId(text: string, agents: AgentProfile[]): string | null {
+  if (!text.includes("@") || agents.length === 0) return null;
+  const segments = splitCapabilityMentionSegments(text, [], [], [], agents);
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index];
+    if (segment.kind === "agent") return segment.agent.id;
+  }
+  return null;
 }
 
 interface SlashPaletteCommand {
@@ -932,6 +953,8 @@ export function ThreadComposer({
   sessions = [],
   skills = [],
   agents = [],
+  agentSelectionId = null,
+  onAgentSelectionChange,
   onStop,
   surfaceRef,
   onTranscribeAudio,
@@ -944,6 +967,7 @@ export function ThreadComposer({
   workspaceError = null,
   onPickWorkspaceFolder,
   onWorkspaceScopeChange,
+  teamPickerSlot = null,
   pendingQueueKey = null,
   transcriptionProvider = null,
   ingressLimits = null,
@@ -999,7 +1023,8 @@ export function ThreadComposer({
     && !!onWorkspaceScopeChange
     && workspaceControls?.can_change_project !== false;
   const showProjectPicker = projectPickerAvailable && !workspaceControlsHidden;
-  const showContextTabs = showProjectPicker || !!runtimeHostname;
+  const showTeamPicker = !!teamPickerSlot;
+  const showContextTabs = showProjectPicker || showTeamPicker || !!runtimeHostname;
 
   useEffect(() => {
     secondEnterPromptIdRef.current = null;
@@ -1285,8 +1310,14 @@ export function ThreadComposer({
     [sessions],
   );
   const mentionSegments = useMemo(
-    () => splitCapabilityMentionSegments(value, cliApps, mcpPresets, selectedSessionMentions),
-    [cliApps, mcpPresets, selectedSessionMentions, value],
+    () => splitCapabilityMentionSegments(
+      value,
+      cliApps,
+      mcpPresets,
+      selectedSessionMentions,
+      agents,
+    ),
+    [agents, cliApps, mcpPresets, selectedSessionMentions, value],
   );
   const sessionDragInsertion = sessionDragPreview
     ? mentionInsertion(
@@ -1302,6 +1333,7 @@ export function ThreadComposer({
         cliApps,
         mcpPresets,
         [...selectedSessionMentions, sessionDragPreview.mention],
+        agents,
       )
     : mentionSegments;
   const activeSessionMentions = useMemo(() => {
@@ -1314,6 +1346,20 @@ export function ThreadComposer({
   }, [mentionSegments]);
   const filteredMentionCandidates = useMemo<MentionCandidate[]>(() => {
     if (!cliAppMention) return [];
+    const agentCandidates: MentionCandidate[] = agents
+      .filter((agent) => !agent.hidden)
+      .filter((agent) => [
+        agent.id,
+        agent.name,
+        agent.description,
+      ].join(" ").toLowerCase().includes(cliAppMention.query))
+      .sort((a, b) => Number(a.id !== DEFAULT_MAIN_AGENT_ID) - Number(b.id !== DEFAULT_MAIN_AGENT_ID))
+      .map((agent) => ({
+        kind: "agent",
+        name: agent.id,
+        displayName: agent.name,
+        agent,
+      }));
     const sessionCandidates: MentionCandidate[] = availableSessionMentions
       .filter((mention) => (
         activeSessionMentions.length < SESSION_MENTIONS_LIMIT
@@ -1377,9 +1423,10 @@ export function ThreadComposer({
         initials: mcpPresetInitials(preset),
       }));
     const groups = [
-      { candidates: sessionCandidates, reserved: 4 },
-      { candidates: cliCandidates, reserved: 2 },
-      { candidates: mcpCandidates, reserved: 2 },
+      { candidates: agentCandidates, reserved: agentCandidates.length },
+      { candidates: sessionCandidates, reserved: 3 },
+      { candidates: cliCandidates, reserved: 1 },
+      { candidates: mcpCandidates, reserved: 1 },
     ];
     let remaining = 8;
     const counts = groups.map(({ candidates, reserved }) => {
@@ -1387,13 +1434,14 @@ export function ThreadComposer({
       remaining -= count;
       return count;
     });
-    for (const index of [0, 1, 2]) {
+    for (const index of [1, 2, 3]) {
+      if (remaining <= 0) break;
       const extra = Math.min(remaining, groups[index].candidates.length - counts[index]);
       counts[index] += extra;
       remaining -= extra;
     }
     return groups.flatMap(({ candidates }, index) => candidates.slice(0, counts[index]));
-  }, [activeSessionMentions, availableSessionMentions, cliAppMention, cliApps, mcpPresets]);
+  }, [activeSessionMentions, agents, availableSessionMentions, cliAppMention, cliApps, mcpPresets]);
 
   const showCliAppMenu = filteredMentionCandidates.length > 0;
   const showAnyPalette = showSlashMenu || showCliAppMenu;
@@ -1416,6 +1464,42 @@ export function ThreadComposer({
       return [segment.preset];
     });
   }, [mentionSegments]);
+  const activeAgent = useMemo(() => {
+    for (let index = mentionSegments.length - 1; index >= 0; index -= 1) {
+      const segment = mentionSegments[index];
+      if (segment.kind === "agent") return segment.agent;
+    }
+    return null;
+  }, [mentionSegments]);
+  const sessionAgent = useMemo(
+    () => resolveSessionAgent(agents, agentSelectionId ?? DEFAULT_MAIN_AGENT_ID),
+    [agentSelectionId, agents],
+  );
+  // 胶囊显示的是「本轮实际生效的档案」：草稿里有 @ 指定时以草稿为准。
+  const effectiveAgent = activeAgent ?? sessionAgent;
+  const effectiveAgentId = effectiveAgent?.id ?? null;
+
+  const handleAgentPick = useCallback(
+    (agentId: string) => {
+      onAgentSelectionChange?.(agentId);
+      // 草稿里的 @ 指定对本轮有效；改选后必须同步改写最后一段 @，
+      // 否则胶囊显示（生效值）会和文本里的指定互相矛盾。
+      if (!activeAgent) return;
+      let offset = 0;
+      let target: { start: number; end: number } | null = null;
+      for (const segment of mentionSegments) {
+        if (segment.kind === "agent") {
+          target = { start: offset, end: offset + segment.text.length };
+        }
+        offset += segment.text.length;
+      }
+      if (!target) return;
+      const next = `${value.slice(0, target.start)}@${agentId}${value.slice(target.end)}`;
+      setValue(next);
+      setCursorPosition(next.length);
+    },
+    [activeAgent, agentSelectionId, mentionSegments, onAgentSelectionChange, value],
+  );
   const [slashPaletteLayout, setSlashPaletteLayout] = useState<SlashPaletteLayout>({
     placement: "above",
     maxHeight: SLASH_PALETTE_MAX_HEIGHT_PX,
@@ -1533,13 +1617,16 @@ export function ThreadComposer({
     consumedDraftSeedTokenRef.current = draftSeed.token;
     if (disabled) return;
     secondEnterPromptIdRef.current = null;
-    setValue(draftSeed.text);
-    setCursorPosition(draftSeed.text.length);
+    const seededValue = draftSeed.mode === "append" && value.length > 0
+      ? `${value}\n${draftSeed.text}`
+      : draftSeed.text;
+    setValue(seededValue);
+    setCursorPosition(seededValue.length);
     setSlashMenuDismissed(false);
     setCliAppMenuDismissed(false);
     resizeTextarea();
     onDraftSeedConsumed?.();
-  }, [disabled, draftSeed, onDraftSeedConsumed, resizeTextarea]);
+  }, [disabled, draftSeed, onDraftSeedConsumed, resizeTextarea, value]);
 
   const appendTranscription = useCallback((text: string) => {
     const transcript = text.trim();
@@ -1960,11 +2047,13 @@ export function ThreadComposer({
       secondEnterPromptIdRef.current = null;
       const text = prompt.text.trim();
       const queuedImages = queuedImagesToSendImages(prompt.images);
+      const queuedAgentId = agentMentionId(text, agents) ?? sessionAgent?.id ?? null;
       setQueuedPrompts((items) => items.filter((item) => item.id !== prompt.id));
       if (text || queuedImages?.length) {
         const options: SendOptions | undefined = (
           prompt.quotedContext
           || prompt.sessionMentions?.length
+          || queuedAgentId
           || isStreaming
         )
           ? {
@@ -1972,6 +2061,7 @@ export function ThreadComposer({
               ...(prompt.sessionMentions?.length
                 ? { sessionMentions: prompt.sessionMentions }
                 : {}),
+              ...(queuedAgentId ? { agentId: queuedAgentId } : {}),
               ...(isStreaming ? { continueActiveTurn: true } : {}),
             }
           : undefined;
@@ -1979,7 +2069,7 @@ export function ThreadComposer({
       }
       requestAnimationFrame(() => textareaRef.current?.focus());
     },
-    [isStreaming, onSend],
+    [agents, isStreaming, onSend, sessionAgent],
   );
 
   const sendNextQueuedPrompt = useCallback(() => {
@@ -1991,14 +2081,18 @@ export function ThreadComposer({
     }
     setQueuedPrompts((items) => items.filter((item) => item.id !== nextPrompt.id));
     const queuedImages = queuedImagesToSendImages(nextPrompt.images);
+    const queuedAgentId = agentMentionId(nextPrompt.text, agents) ?? sessionAgent?.id ?? null;
     const options: SendOptions | undefined = (
-      nextPrompt.quotedContext || nextPrompt.sessionMentions?.length
+      nextPrompt.quotedContext
+      || nextPrompt.sessionMentions?.length
+      || queuedAgentId
     )
       ? {
           ...(nextPrompt.quotedContext ? { quotedContext: nextPrompt.quotedContext } : {}),
           ...(nextPrompt.sessionMentions?.length
             ? { sessionMentions: nextPrompt.sessionMentions }
             : {}),
+          ...(queuedAgentId ? { agentId: queuedAgentId } : {}),
         }
       : undefined;
     if (queuedImages?.length && options) onSend(nextPrompt.text.trim(), queuedImages, options);
@@ -2006,7 +2100,7 @@ export function ThreadComposer({
     else if (options) onSend(nextPrompt.text.trim(), undefined, options);
     else onSend(nextPrompt.text.trim());
     requestAnimationFrame(() => textareaRef.current?.focus());
-  }, [onSend, queuedPrompts]);
+  }, [agents, onSend, queuedPrompts, sessionAgent]);
 
   useEffect(() => {
     const wasStreaming = wasStreamingRef.current;
@@ -2062,6 +2156,7 @@ export function ThreadComposer({
       attachedCliApps.length > 0
       || attachedMcpPresets.length > 0
       || activeSessionMentions.length > 0
+      || effectiveAgentId
       || normalizedQuotedContext
         ? {
             ...(attachedCliApps.length > 0 ? { cliApps: attachedCliApps } : {}),
@@ -2069,6 +2164,7 @@ export function ThreadComposer({
             ...(activeSessionMentions.length > 0
               ? { sessionMentions: activeSessionMentions }
               : {}),
+            ...(effectiveAgentId ? { agentId: effectiveAgentId } : {}),
             ...(normalizedQuotedContext ? { quotedContext: normalizedQuotedContext } : {}),
           }
         : undefined;
@@ -2076,7 +2172,8 @@ export function ThreadComposer({
       payload === undefined
       && attachedCliApps.length === 0
       && attachedMcpPresets.length === 0
-      && activeSessionMentions.length === 0;
+      && activeSessionMentions.length === 0
+      && activeAgent === null;
     const slashLifecycle = hasPlainTextCommandPayload
       ? slashCommandLifecycle(content, slashCommands)
       : null;
@@ -2129,6 +2226,7 @@ export function ThreadComposer({
     }
     if (result !== false) finishSend();
   }, [
+    activeAgent,
     activeCliMentionApps,
     activeMcpPresetMentions,
     activeSessionMentions,
@@ -2293,10 +2391,10 @@ export function ThreadComposer({
     "w-full resize-none bg-transparent",
     isHero
       ? cn(
-          "min-h-[78px] px-4 text-[16px] leading-6 sm:px-5",
+          "min-h-[78px] px-4 text-[15px] leading-6 sm:px-5",
           relaxedHeroInput ? "pb-2 pt-[27px]" : "pb-1.5 pt-4",
         )
-      : "min-h-[50px] px-3.5 pb-1.5 pt-3 text-[16px] leading-5 sm:px-4",
+      : "min-h-[50px] px-3.5 pb-1.5 pt-3 text-[15px] leading-5 sm:px-4",
   );
 
   return (
@@ -2368,6 +2466,7 @@ export function ThreadComposer({
               onChange={onWorkspaceScopeChange}
             />
           ) : null}
+          {teamPickerSlot}
           {runtimeHostname ? (
             <RuntimeEnvChip hostname={runtimeHostname} scope={workspaceScope} />
           ) : null}
@@ -2378,8 +2477,8 @@ export function ThreadComposer({
         className={cn(
           "thread-composer-surface group/composer relative mx-auto flex w-full flex-col overflow-visible transition-all duration-200",
           isHero
-            ? "max-w-heroComposer rounded-prominent border border-border/80 bg-card focus-within:border-ring/50"
-            : "max-w-[49.5rem] rounded-prominent border border-border/80 bg-card focus-within:border-ring/50",
+            ? "max-w-heroComposer rounded-prominent border border-border/60 bg-card focus-within:border-ring/50"
+            : "max-w-[49.5rem] rounded-prominent border border-border/60 bg-card focus-within:border-ring/50",
           interactionDisabled && "opacity-60",
           sessionDragPreview && "ring-1 ring-primary/25",
           isDragging && "ring-2 ring-primary/40 motion-reduce:ring-0 motion-reduce:border-primary",
@@ -2467,7 +2566,6 @@ export function ThreadComposer({
           {hasMentionDecorations ? (
             <ComposerCliMentionOverlay
               segments={displayMentionSegments}
-              isHero={isHero}
               className={inputTextClasses}
               ghostRange={sessionDragInsertion
                 ? { start: sessionDragInsertion.tokenStart, end: sessionDragInsertion.tokenEnd }
@@ -2587,6 +2685,15 @@ export function ThreadComposer({
               isHero ? "gap-1.5" : "gap-2",
             )}
           >
+            {!voiceRecorder.isRecording ? (
+              <AgentChip
+                agent={effectiveAgent}
+                agents={agents}
+                onPick={handleAgentPick}
+                disabled={interactionDisabled}
+                isHero={isHero}
+              />
+            ) : null}
             {modelLabel && !voiceRecorder.isRecording ? (
               <ModelPresetBadge
                 label={modelLabel}
@@ -2674,12 +2781,12 @@ export function ThreadComposer({
               }
               onClick={showStopButton ? handleStop : modelNeedsSetup ? onModelBadgeClick : undefined}
               className={cn(
-                "thread-composer-action touch-target rounded-full transition-transform",
+                "thread-composer-action touch-target rounded-full transition-transform duration-150 ease-out",
                 showStopButton
                   ? "border border-border/70 bg-card text-foreground/85 shadow-[0_3px_10px_rgba(15,23,42,0.08)] hover:bg-muted/65 hover:text-foreground disabled:text-muted-foreground/50"
                   : isHero
-                    ? "border border-foreground bg-foreground text-background shadow-[0_4px_12px_rgba(15,23,42,0.20)] hover:bg-foreground/90 disabled:border-foreground disabled:bg-foreground disabled:text-background"
-                    : "border border-foreground bg-foreground text-background shadow-[0_3px_10px_rgba(15,23,42,0.18)] hover:bg-foreground/90 disabled:border-foreground disabled:bg-foreground disabled:text-background",
+                    ? "border border-primary bg-primary text-primary-foreground shadow-[0_4px_12px_hsl(var(--primary)/0.24)] hover:bg-primary/90 disabled:border-primary disabled:bg-primary disabled:text-primary-foreground"
+                    : "border border-primary bg-primary text-primary-foreground shadow-[0_3px_10px_hsl(var(--primary)/0.22)] hover:bg-primary/90 disabled:border-primary disabled:bg-primary disabled:text-primary-foreground",
                 isHero ? "h-8 w-8" : "h-9 w-9",
                 (canSend || canOpenModelSettings || showStopButton) && "hover:scale-[1.03] active:scale-95",
               )}
@@ -2886,12 +2993,10 @@ function QueuedPromptRow({
 
 function ComposerCliMentionOverlay({
   segments,
-  isHero,
   className,
   ghostRange,
 }: {
   segments: CapabilityMentionSegment[];
-  isHero: boolean;
   className: string;
   ghostRange?: { start: number; end: number } | null;
 }) {
@@ -2920,7 +3025,6 @@ function ComposerCliMentionOverlay({
             <CapabilityMentionToken
               segment={segment}
               variant="composer"
-              isHero={isHero}
             />
           </span>
         );
@@ -2977,14 +3081,16 @@ function CliAppMentionPalette({
     layout.maxHeight - SLASH_PALETTE_CHROME_PX,
   );
   const listRef = useSelectedOptionScroll(selectedIndex);
-  const groupedCandidates = (["session", "cli", "mcp"] as const)
+  const groupedCandidates = (["agent", "session", "cli", "mcp"] as const)
     .map((kind) => ({
       kind,
-      label: kind === "session"
-        ? t("thread.composer.mentions.sessionGroup")
-        : kind === "cli"
-          ? t("thread.composer.mentions.cliGroup")
-          : t("thread.composer.mentions.mcpGroup"),
+      label: kind === "agent"
+        ? t("thread.composer.mentions.agentGroup", { defaultValue: "智能体" })
+        : kind === "session"
+          ? t("thread.composer.mentions.sessionGroup")
+          : kind === "cli"
+            ? t("thread.composer.mentions.cliGroup")
+            : t("thread.composer.mentions.mcpGroup"),
       items: candidates
         .map((candidate, index) => ({ candidate, index }))
         .filter(({ candidate }) => candidate.kind === kind),
@@ -3011,16 +3117,29 @@ function CliAppMentionPalette({
             {group.items.map(({ candidate, index }) => {
               const selected = index === selectedIndex;
               const name = candidate.name;
-              const typeLabel = candidate.kind === "cli"
-                ? t("thread.composer.mentions.cliBadge")
-                : candidate.kind === "mcp"
-                  ? t("thread.composer.mentions.mcpBadge")
-                  : t("thread.composer.mentions.sessionBadge");
-              const ariaDescription = candidate.kind === "cli"
-                ? t("thread.composer.mentions.cliDescription", { name })
-                : candidate.kind === "mcp"
-                  ? t("thread.composer.mentions.mcpDescription", { name })
-                  : t("thread.composer.mentions.sessionDescription", { name });
+              const isDefaultAgent = candidate.kind === "agent"
+                && isDefaultMainAgent(candidate.agent);
+              const typeLabel = candidate.kind === "agent"
+                ? isDefaultAgent
+                  ? t("thread.composer.mentions.defaultAgentBadge", {
+                      defaultValue: "Default agent",
+                    })
+                  : t("thread.composer.mentions.agentBadge", { defaultValue: "Agent" })
+                : candidate.kind === "cli"
+                  ? t("thread.composer.mentions.cliBadge")
+                  : candidate.kind === "mcp"
+                    ? t("thread.composer.mentions.mcpBadge")
+                    : t("thread.composer.mentions.sessionBadge");
+              const ariaDescription = candidate.kind === "agent"
+                ? t("thread.composer.mentions.agentDescription", {
+                    name,
+                    defaultValue: "由 @{{name}} 接管本轮",
+                  })
+                : candidate.kind === "cli"
+                  ? t("thread.composer.mentions.cliDescription", { name })
+                  : candidate.kind === "mcp"
+                    ? t("thread.composer.mentions.mcpDescription", { name })
+                    : t("thread.composer.mentions.sessionDescription", { name });
               return (
                 <button
                   key={`${candidate.kind}-${name}`}
@@ -3039,7 +3158,9 @@ function CliAppMentionPalette({
                     "flex min-h-10 w-full items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors",
                     selected
                       ? "bg-foreground/[0.055] text-foreground"
-                      : "text-foreground/90 hover:bg-foreground/[0.04]",
+                      : isDefaultAgent
+                        ? "bg-amber-500/[0.05] text-foreground/90 hover:bg-amber-500/[0.09]"
+                        : "text-foreground/90 hover:bg-foreground/[0.04]",
                   )}
                 >
                   <MentionCandidateLogo candidate={candidate} selected={selected} />
@@ -3054,12 +3175,19 @@ function CliAppMentionPalette({
                   {candidate.kind !== "session" ? (
                     <span
                       className={cn(
-                        "ml-2 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-normal",
-                        candidate.kind === "cli"
-                          ? "bg-orange-500/10 text-orange-600 dark:text-orange-300"
-                          : "bg-sky-500/10 text-sky-600 dark:text-sky-300",
+                        "ml-2 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-normal",
+                        isDefaultAgent
+                          ? "bg-amber-500 text-white shadow-sm"
+                          : candidate.kind === "agent"
+                            ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                            : candidate.kind === "cli"
+                              ? "bg-orange-500/10 text-orange-600 dark:text-orange-300"
+                              : "bg-sky-500/10 text-sky-600 dark:text-sky-300",
                       )}
                     >
+                      {isDefaultAgent ? (
+                        <Star className="h-3 w-3 fill-current" aria-hidden />
+                      ) : null}
                       {typeLabel}
                     </span>
                   ) : null}
@@ -3080,15 +3208,28 @@ function MentionCandidateLogo({
   candidate: MentionCandidate;
   selected: boolean;
 }) {
-  const color = candidate.kind === "session"
-    ? candidate.mention.id
-      ? sessionHandleColor(candidate.mention.id)
-      : INLINE_TOKEN_HIGHLIGHT_COLOR
-    : candidate.brandColor || INLINE_TOKEN_HIGHLIGHT_COLOR;
-  const rawLogoUrl = candidate.kind === "session" ? null : candidate.logoUrl;
+  const color = candidate.kind === "agent"
+    ? candidate.agent.color || INLINE_TOKEN_HIGHLIGHT_COLOR
+    : candidate.kind === "session"
+      ? candidate.mention.id
+        ? sessionHandleColor(candidate.mention.id)
+        : INLINE_TOKEN_HIGHLIGHT_COLOR
+      : candidate.brandColor || INLINE_TOKEN_HIGHLIGHT_COLOR;
+  const rawLogoUrl =
+    candidate.kind === "session" || candidate.kind === "agent" ? null : candidate.logoUrl;
   const logoUrls = useMemo(() => logoFallbackUrls(rawLogoUrl), [rawLogoUrl]);
   const { logoUrl, onLogoError, onLogoLoad } = useLogoFallback(logoUrls);
 
+  if (candidate.kind === "agent") {
+    return (
+      <span
+        className="flex h-5 w-5 shrink-0 items-center justify-center"
+        style={{ color }}
+      >
+        <AgentGlyph icon={candidate.agent.icon} size={16} />
+      </span>
+    );
+  }
   if (candidate.kind === "session") {
     return (
       <span

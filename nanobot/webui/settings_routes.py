@@ -26,6 +26,9 @@ from nanobot.webui import settings_capabilities as capability_domain
 from nanobot.webui import settings_contracts as contracts
 from nanobot.webui import settings_models as model_domain
 from nanobot.webui import settings_system as system_domain
+from nanobot.webui import subagent_execution_routes as subagent_execution_domain
+from nanobot.webui import teams_routes as teams_domain
+from nanobot.webui import writing_collab_routes as writing_collab_domain
 from nanobot.webui import writing_routes as writing_domain
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.cli_apps_api import cli_apps_action, cli_apps_payload
@@ -38,11 +41,6 @@ from nanobot.webui.mcp_presets_api import (
     mcp_presets_settings_action,
 )
 from nanobot.webui.memory_routes import MemorySettingsOperations
-from nanobot.webui.nanobot_features_api import (
-    nanobot_feature_instance_target,
-    nanobot_features_action,
-    nanobot_features_payload,
-)
 from nanobot.webui.settings_api import (
     complete_oauth_provider,
     create_model_configuration,
@@ -72,11 +70,20 @@ from nanobot.webui.settings_contracts import (
     WebUISettingsError,
 )
 from nanobot.webui.settings_services import WebUISettingsServices
+from nanobot.webui.subagent_execution_routes import SubagentExecutionSettingsOperations
+from nanobot.webui.teams_routes import TeamSettingsOperations
 from nanobot.webui.version_check import check_for_update
+from nanobot.webui.writing_collab_routes import WritingCollabSettingsOperations
 from nanobot.webui.writing_routes import WritingSettingsOperations
+from nanobot.webui.zhixu_features_api import (
+    zhixu_feature_instance_target,
+    zhixu_features_action,
+    zhixu_features_payload,
+)
 
 _WEBUI_MUTATION_PAYLOAD_ATTR = "_nanobot_webui_mutation_payload"
 _WEBUI_MUTATION_REQUEST_ATTR = "_nanobot_webui_mutation_request"
+_WEBUI_MUTATION_CALLER_ATTR = "_nanobot_webui_mutation_caller_chats"
 _CHANNEL_CONNECT_ACTIONS = frozenset({"start", "poll", "cancel"})
 _MCP_OAUTH_CALLBACK_URL_MAX_BYTES = 8 * 1024
 _MCP_RELOAD_TIMEOUT_SECONDS = 15.0
@@ -141,9 +148,9 @@ _SYSTEM_ROUTES = {
     "/api/settings/cli-apps/update": "cli-update",
     "/api/settings/cli-apps/uninstall": "cli-uninstall",
     "/api/settings/cli-apps/test": "cli-test",
-    "/api/settings/nanobot-features": "features-list",
-    "/api/settings/nanobot-features/enable": "features-enable",
-    "/api/settings/nanobot-features/disable": "features-disable",
+    "/api/settings/zhixu-features": "features-list",
+    "/api/settings/zhixu-features/enable": "features-enable",
+    "/api/settings/zhixu-features/disable": "features-disable",
     "/api/settings/channels/validate": "channel-validate",
     "/api/settings/channels/configure": "channel-configure",
     "/api/settings/pairing": "pairing-list",
@@ -183,6 +190,20 @@ _SYSTEM_ROUTES = {
     "/api/settings/agents/delete": "agents-delete",
     "/api/settings/agents/reset": "agents-reset",
     "/api/settings/agents/visibility": "agents-visibility",
+    # Agent Team（契约 §3）：读走认证 HTTP，写走 WS 白名单，动作名与 TS 客户端逐字一致。
+    "/api/settings/teams": "teams-list",
+    "/api/settings/teams/detail": "teams-detail",
+    "/api/settings/teams/revisions": "teams-revisions",
+    "/api/settings/teams/save": "teams-save",
+    "/api/settings/teams/archive": "teams-archive",
+    "/api/settings/teams/clone": "teams-clone",
+    # 运行查询/控制（契约 §5）：三个读走认证 HTTP，三个写走 WS 白名单。
+    "/api/team-runs": "team-runs-list",
+    "/api/team-runs/detail": "team-run-detail",
+    "/api/team-runs/events": "team-run-events",
+    "/api/team-runs/cancel": "team-run-cancel",
+    "/api/team-tasks/cancel": "team-task-cancel",
+    "/api/team-runs/retry": "team-run-retry",
     # 写作域两套动作名统一取点号（契约 §4）：article.list 既是 WS 动作名也是
     # 领域动作名。写路径同样要在这里登记，最终仍经 _route() 落到 writing handler。
     "/api/writing/articles": "article.list",
@@ -191,6 +212,10 @@ _SYSTEM_ROUTES = {
     "/api/writing/articles/save": "article.save",
     "/api/writing/articles/duplicate": "article.duplicate",
     "/api/writing/articles/delete": "article.delete",
+    "/api/writing/articles/undo": "writing.undo_change",
+    # 协作域（契约 §3）：两个读走认证 HTTP GET，七个写走 WS 白名单；九个动作名
+    # 同样取点号并逐字登记，漏一条即 404。
+    **writing_collab_domain.WRITING_COLLAB_ROUTE_PATHS,
     **{
         path: f"mcp-{action}"
         for path, action in _MCP_PRESET_ACTIONS_BY_PATH.items()
@@ -222,13 +247,29 @@ _AGENTS_MUTATION_PATHS = frozenset({
     "/api/settings/agents/visibility",
 })
 
+# 契约 §3：团队写动作（保存/归档/复制）全部 WS-only；三个读路径不在其中。
+_TEAMS_MUTATION_PATHS = frozenset({
+    "/api/settings/teams/save",
+    "/api/settings/teams/archive",
+    "/api/settings/teams/clone",
+    # 契约 §5：运行级控制同样是写动作，只走已认证 WS 的 requestMutation。
+    "/api/team-runs/cancel",
+    "/api/team-tasks/cancel",
+    "/api/team-runs/retry",
+})
+
 # 契约 §5：四条写作写路径全部 WS-only，HTTP 直连必须被 405 拒掉。
 _WRITING_MUTATION_PATHS = frozenset({
     "/api/writing/articles/create",
     "/api/writing/articles/save",
     "/api/writing/articles/duplicate",
     "/api/writing/articles/delete",
+    "/api/writing/articles/undo",
 })
+
+# 契约 §3：协作域七条写路径同样 WS-only；两个读路径不在其中。path→action 的唯一
+# 真相源是 writing_collab_routes，这里只做别名，防止两处手抄漂移。
+_WRITING_COLLAB_MUTATION_PATHS = writing_collab_domain.WRITING_COLLAB_MUTATION_PATHS
 
 _SETTINGS_MUTATION_PATHS = frozenset({
     "/api/settings/update",
@@ -252,8 +293,8 @@ _SETTINGS_MUTATION_PATHS = frozenset({
     "/api/settings/cli-apps/update",
     "/api/settings/cli-apps/uninstall",
     "/api/settings/cli-apps/test",
-    "/api/settings/nanobot-features/enable",
-    "/api/settings/nanobot-features/disable",
+    "/api/settings/zhixu-features/enable",
+    "/api/settings/zhixu-features/disable",
     "/api/settings/channels/validate",
     "/api/settings/channels/configure",
     "/api/settings/pairing/approve",
@@ -265,7 +306,9 @@ _SETTINGS_MUTATION_PATHS = frozenset({
     *_MEMORY_MUTATION_PATHS,
     *_IDENTITY_MUTATION_PATHS,
     *_AGENTS_MUTATION_PATHS,
+    *_TEAMS_MUTATION_PATHS,
     *_WRITING_MUTATION_PATHS,
+    *_WRITING_COLLAB_MUTATION_PATHS,
 })
 
 
@@ -274,6 +317,17 @@ def _mutation_payload(request: WsRequest) -> dict[str, Any] | None:
     if not isinstance(payload, dict):
         return None
     return cast(dict[str, Any], payload)
+
+
+def _mutation_caller_chats(request: WsRequest) -> tuple[str, ...]:
+    """这次 mutation 的调用方挂在哪些聊天上；没经过 WS 的入口一律空集合。
+
+    空集合不表示「随便」，而表示**无法证明归属**——需要归属的域（团队运行控制）必须因此拒绝。
+    """
+    chats = getattr(request, _WEBUI_MUTATION_CALLER_ATTR, None)
+    if not isinstance(chats, tuple):
+        return ()
+    return tuple(chat for chat in cast(tuple[Any, ...], chats) if isinstance(chat, str) and chat)
 
 
 def _query_value(value: Any) -> str:
@@ -372,6 +426,59 @@ def _null_writing_operations() -> WritingSettingsOperations:
         save_article=_unavailable,
         duplicate_article=_unavailable,
         delete_article=_unavailable,
+        undo_change=_unavailable,
+    )
+
+
+def _null_writing_collab_operations() -> WritingCollabSettingsOperations:
+    """协作域未装配时的兜底：可读的 503（契约 §4 ``writing collaboration service
+    is not configured``），而不是 dispatch 深处的一次 AttributeError。"""
+
+    def _unavailable(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise WebUISettingsError(
+            "writing collaboration service is not configured", status=503,
+        )
+
+    async def _async_unavailable(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise WebUISettingsError(
+            "writing collaboration service is not configured", status=503,
+        )
+
+    return WritingCollabSettingsOperations(
+        get_collaboration=_unavailable,
+        get_artifact=_unavailable,
+        start=_async_unavailable,
+        reply=_async_unavailable,
+        confirm=_unavailable,
+        cancel=_async_unavailable,
+        retry=_async_unavailable,
+        apply=_unavailable,
+        undo=_unavailable,
+    )
+
+
+def _null_team_operations() -> TeamSettingsOperations:
+    """gateway 还没注入 TeamService 时的兜底：响亮的 503，而不是 dispatch 深处的一次 AttributeError。"""
+
+    def _unavailable(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise WebUISettingsError("team service is not configured", status=503)
+
+    async def _async_unavailable(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise WebUISettingsError("team service is not configured", status=503)
+
+    return TeamSettingsOperations(
+        list_teams=_unavailable,
+        get_detail=_unavailable,
+        list_revisions=_unavailable,
+        save_team=_unavailable,
+        archive_team=_unavailable,
+        clone_team=_unavailable,
+        list_runs=_unavailable,
+        run_detail=_unavailable,
+        run_events=_unavailable,
+        cancel_run=_async_unavailable,
+        cancel_task=_async_unavailable,
+        retry_run=_async_unavailable,
     )
 
 
@@ -398,7 +505,10 @@ class WebUISettingsRouter:
         memory_operations: MemorySettingsOperations | None = None,
         identity_operations: IdentitySettingsOperations | None = None,
         agents_operations: AgentSettingsOperations | None = None,
+        team_operations: TeamSettingsOperations | None = None,
         writing_operations: WritingSettingsOperations | None = None,
+        writing_collab_operations: WritingCollabSettingsOperations | None = None,
+        subagent_execution_operations: SubagentExecutionSettingsOperations | None = None,
     ) -> None:
         self.settings = settings
         self.bus = bus
@@ -440,6 +550,34 @@ class WebUISettingsRouter:
             if writing_operations is not None
             else _null_writing_operations()
         )
+        self._writing_collab = writing_collab_domain.WritingCollabSettingsHandler(
+            writing_collab_operations
+            if writing_collab_operations is not None
+            else _null_writing_collab_operations()
+        )
+        self._teams = teams_domain.TeamSettingsHandler(
+            team_operations if team_operations is not None else _null_team_operations()
+        )
+        self._subagent_executions = subagent_execution_domain.SubagentExecutionSettingsHandler(
+            subagent_execution_operations
+            if subagent_execution_operations is not None
+            else subagent_execution_domain.build_subagent_execution_operations(None)
+        )
+        if subagent_execution_operations is not None:
+            self._runtime_capabilities["subagentExecutionEventsV1"] = True
+
+    def configure_subagent_execution_operations(
+        self,
+        operations: SubagentExecutionSettingsOperations | None,
+    ) -> None:
+        """Attach the workspace ledger after GatewayHTTPHandler construction."""
+        self._subagent_executions = subagent_execution_domain.SubagentExecutionSettingsHandler(
+            operations
+            if operations is not None
+            else subagent_execution_domain.build_subagent_execution_operations(None)
+        )
+        if operations is not None:
+            self._runtime_capabilities["subagentExecutionEventsV1"] = True
 
     async def dispatch(
         self,
@@ -478,6 +616,8 @@ class WebUISettingsRouter:
             return await asyncio.to_thread(self._handle_settings_usage)
 
         domain, action = route
+        if domain == "subagent" and str(getattr(request, "method", "GET")).upper() != "GET":
+            return self._error_response(405, "subagent execution queries require GET")
         domain_request = self._domain_request(
             connection,
             request,
@@ -519,10 +659,37 @@ class WebUISettingsRouter:
             result = await asyncio.to_thread(
                 lambda: self._agents.handle(action, domain_request),
             )
+        elif action in writing_collab_domain.WRITING_COLLAB_CONTROL_ACTION_NAMES:
+            # 协作控制动作要在事件循环上叫停/叫醒在场批次句柄，包进 to_thread 就永远
+            # 叫不醒（与 teams 控制动作同构，契约 §3）。
+            result = await self._writing_collab.handle_control(action, domain_request)
         elif action in writing_domain.WRITING_ACTION_NAMES:
             # 写作域同样是 stdlib sqlite3 + threading.Lock（阻塞），不能跑在事件循环里。
             result = await asyncio.to_thread(
                 lambda: self._writing.handle(action, domain_request),
+            )
+        elif action in writing_collab_domain.WRITING_COLLAB_ACTION_NAMES:
+            # 协作域的其余动作是阻塞 SQLite 短事务，走 to_thread（契约 §2）。
+            result = await asyncio.to_thread(
+                lambda: self._writing_collab.handle(action, domain_request),
+            )
+        elif action in teams_domain.TEAMS_CONTROL_ACTION_NAMES:
+            # 取消/重试要在事件循环上叫醒在场的 TeamRunHandle，包进 to_thread 就永远
+            # 叫不醒了（见 nanobot/teams/runs.py）。
+            result = await self._teams.handle_control(action, domain_request)
+        elif action in teams_domain.TEAMS_ACTION_NAMES:
+            # 团队域同样是阻塞 SQLite，短事务走 to_thread（契约 §2）。
+            result = await asyncio.to_thread(
+                lambda: self._teams.handle(action, domain_request),
+            )
+        elif action in subagent_execution_domain.SUBAGENT_EXECUTION_ACTION_NAMES:
+            # 执行账本同样是阻塞 SQLite；HTTP 适配器只做只读短事务。
+            matched = subagent_execution_domain.match_route(path)
+            invocation_id = matched[1] if matched is not None else None
+            result = await asyncio.to_thread(
+                lambda: self._subagent_executions.handle(
+                    action, domain_request, invocation_id=invocation_id,
+                ),
             )
         else:
             channel_connect = _channel_connect_route(path)
@@ -551,6 +718,8 @@ class WebUISettingsRouter:
             return "capabilities", action
         if action := _SYSTEM_ROUTES.get(path):
             return "system", action
+        if matched := subagent_execution_domain.match_route(path):
+            return "subagent", matched[0]
         if _channel_connect_route(path) is not None:
             return "system", "channel-connect"
         return None
@@ -576,6 +745,7 @@ class WebUISettingsRouter:
                 if needs_local_browser
                 else False
             ),
+            caller_chats=_mutation_caller_chats(request),
         )
 
     def _authorized(self, request: WsRequest) -> bool:
@@ -667,7 +837,7 @@ class WebUISettingsRouter:
             update_image=update_image_generation_settings,
             update_transcription=update_transcription_settings,
             update_network=update_network_safety_settings,
-            nanobot_features_action=nanobot_features_action,
+            zhixu_features_action=zhixu_features_action,
             api_runtime=self._api_runtime,
             reload_image=lambda: request_image_generation_reload(self.bus),
         )
@@ -676,9 +846,9 @@ class WebUISettingsRouter:
         return system_domain.SystemSettingsOperations(
             cli_apps_payload=cli_apps_payload,
             cli_apps_action=cli_apps_action,
-            nanobot_features_payload=nanobot_features_payload,
-            nanobot_features_action=nanobot_features_action,
-            nanobot_feature_instance_target=nanobot_feature_instance_target,
+            zhixu_features_payload=zhixu_features_payload,
+            zhixu_features_action=zhixu_features_action,
+            zhixu_feature_instance_target=zhixu_feature_instance_target,
             validate_channel_config=validate_channel_config,
             load_channel_plugin=load_channel_plugin,
             list_pending=list_pending,
@@ -755,10 +925,10 @@ class WebUISettingsRouter:
         system_domain.assign_channel_config_value
     )
 
-    def _nanobot_features_payload(self) -> dict[str, Any]:
-        return nanobot_features_payload(config_path=self.settings.config.path)
+    def _zhixu_features_payload(self) -> dict[str, Any]:
+        return zhixu_features_payload(config_path=self.settings.config.path)
 
-    def _nanobot_features_action(
+    def _zhixu_features_action(
         self,
         action: str,
         query: QueryParams,
@@ -766,7 +936,7 @@ class WebUISettingsRouter:
         allow_install: bool = True,
     ) -> dict[str, Any]:
         return self.settings.mutate(
-            nanobot_features_action,
+            zhixu_features_action,
             action,
             query,
             allow_install=allow_install,

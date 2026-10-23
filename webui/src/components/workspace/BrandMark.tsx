@@ -1,20 +1,21 @@
 import { cn } from "@/lib/utils";
 
-/** Generated folded-loop mark, adapted to the shell's light and dark themes. */
+/** A lightweight typographic mark that stays legible in both rail widths. */
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <img
-      src="/brand/zhixu-logo.png"
-      alt=""
-      aria-hidden="true"
-      width={40}
-      height={40}
-      draggable={false}
-      decoding="async"
+    <span
+      aria-label="知序 Zhixu"
       className={cn(
-        "shrink-0 object-contain dark:[filter:invert(1)_hue-rotate(180deg)_brightness(1.15)]",
+        "inline-flex select-none items-center whitespace-nowrap text-[13px] leading-none",
         className,
       )}
-    />
+      style={{
+        fontFamily: '"Century Gothic", "Avenir Next", Futura, "Segoe UI Variable Display", sans-serif',
+        fontWeight: 600,
+        letterSpacing: "0.015em",
+      }}
+    >
+      ZhiXu~
+    </span>
   );
 }

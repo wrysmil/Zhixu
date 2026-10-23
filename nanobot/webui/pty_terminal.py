@@ -35,7 +35,11 @@ from loguru import logger
 
 from nanobot.agent.tools.shell import ExecTool, ExecToolConfig
 from nanobot.security.workspace_access import WorkspaceScope
-from nanobot.webui.outbound_wire import encode_terminal_exit, encode_terminal_output
+from nanobot.webui.outbound_wire import (
+    encode_terminal_exit,
+    encode_terminal_output,
+    encode_terminal_snapshot,
+)
 from nanobot.webui.terminal_bridge import (
     DEFAULT_MAX_TERMINALS,
     DEFAULT_TERMINAL_IDLE_TIMEOUT_S,
@@ -44,6 +48,7 @@ from nanobot.webui.terminal_bridge import (
     TerminalEventPublisher,
     split_output_chunks,
 )
+from nanobot.webui.terminal_scrollback import TerminalScrollback
 
 _IS_WINDOWS = sys.platform == "win32"
 try:
@@ -121,6 +126,7 @@ class _PtyTerminal:
     reader_added: bool = False
     feed_task: asyncio.Task[None] | None = None
     exit_task: asyncio.Task[None] | None = None
+    scrollback: TerminalScrollback = field(default_factory=TerminalScrollback)
 
 
 class PtyTerminalBridge:
@@ -189,6 +195,17 @@ class PtyTerminalBridge:
             existing.chat_id = chat_id
             existing.session_key = session_key
             existing.last_activity = time.monotonic()
+            snapshot, truncated = existing.scrollback.snapshot()
+            if snapshot:
+                await self._publish(
+                    existing,
+                    encode_terminal_snapshot(
+                        terminal_id=existing.terminal_id,
+                        seq=existing.seq,
+                        data=snapshot,
+                        truncated=truncated,
+                    ),
+                )
             return {
                 **base,
                 "shell": existing.shell,
@@ -380,6 +397,7 @@ class PtyTerminalBridge:
                 if text is None:
                     break
                 for chunk in split_output_chunks(text):
+                    terminal.scrollback.append(chunk)
                     terminal.seq += 1
                     await self._publish(
                         terminal,
@@ -509,7 +527,11 @@ class TerminalSupervisor:
         self._owner: dict[str, str] = {}
 
     def _live_count(self) -> int:
-        return len(self._pty._terminals) + len(self._pipe._terminals)  # pyright: ignore[reportPrivateUsage]
+        return sum(
+            len(bridge._terminals)  # pyright: ignore[reportPrivateUsage]
+            for bridge in (self._pty, self._pipe)
+            if bridge is not None
+        )
 
     def _route(self, terminal_id: str) -> Any | None:
         name = self._owner.get(terminal_id)

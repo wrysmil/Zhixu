@@ -44,7 +44,7 @@ import { useLogoFallback } from "@/hooks/useLogoFallback";
 import { providerBrand } from "@/lib/provider-brand";
 import { cn } from "@/lib/utils";
 import type {
-  NanobotFeaturesPayload,
+  ZhixuFeaturesPayload,
   ProviderOAuthAuthorizationRequired,
   SettingsPayload,
 } from "@/lib/types";
@@ -645,7 +645,7 @@ function ProviderAdvancedOptions({
 
 export function ProvidersSettings({
   settings,
-  nanobotFeatures,
+  zhixuFeatures,
   featureAction,
   capabilityError,
   expandedProvider,
@@ -668,7 +668,7 @@ export function ProvidersSettings({
   isRestarting,
 }: {
   settings: SettingsPayload;
-  nanobotFeatures: NanobotFeaturesPayload | null;
+  zhixuFeatures: ZhixuFeaturesPayload | null;
   featureAction: string | null;
   capabilityError: string | null;
   expandedProvider: string | null;
@@ -773,7 +773,7 @@ export function ProvidersSettings({
         ? "azure"
         : null;
     const supportFeature = supportName
-      ? (nanobotFeatures?.features ?? []).find((feature) => feature.name === supportName)
+      ? (zhixuFeatures?.features ?? []).find((feature) => feature.name === supportName)
       : null;
     return (
       <div key={provider.name} className="divide-y divide-border/45">
@@ -839,7 +839,7 @@ export function ProvidersSettings({
                         : provider.name === "openai_codex" && remoteBrowserAccess
                           ? tx(
                               "settings.oauth.codexRemoteSignInHelp",
-                              "Sign in through this browser, then paste the full localhost callback URL back into Mira.",
+                              "Sign in through this browser, then paste the full localhost callback URL back into 知序.",
                             )
                           : provider.name === "xai_grok" && remoteBrowserAccess
                           ? tx(

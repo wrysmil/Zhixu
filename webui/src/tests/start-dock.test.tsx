@@ -7,7 +7,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StartDock } from "@/components/dock/StartDock";
-import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
+import { HOME_DOCK_SCOPE, dockStore, requestDockTerminalPanel } from "@/lib/dock-store";
 import type { TerminalEvent } from "@/lib/types";
 import { ClientProvider } from "@/providers/ClientProvider";
 
@@ -25,8 +25,12 @@ vi.mock("@/lib/api", async (importOriginal) => {
 // xterm 在 happy-dom 下不做真实渲染：桩掉构造器即可验证 dock→surface 的接线。
 vi.mock("@xterm/xterm", () => ({
   Terminal: class FakeXterm {
+    options: Record<string, unknown>;
     cols = 80;
     rows = 24;
+    constructor(options: Record<string, unknown>) {
+      this.options = { ...options };
+    }
     open() {}
     write() {}
     scrollToBottom() {}
@@ -77,6 +81,19 @@ const shellsPayload = {
 };
 
 const TAKEOVER_KEY = `nanobot.dock.terminals.${HOME_DOCK_SCOPE}`;
+
+it("lets the home dock grow from its left edge without changing terminal scope", async () => {
+  const client = makeFakeClient();
+  render(<ClientProvider client={client as never} getToken={() => "tok"}>
+    <StartDock scope={HOME_DOCK_SCOPE} sessionKey={null} getToken={() => "tok"} />
+  </ClientProvider>);
+  await waitFor(() => expect(mocks.fetchTerminalShells).toHaveBeenCalled());
+  const separator = screen.getByRole("separator", { name: "Resize tools sidebar" });
+  const width = Number(separator.getAttribute("aria-valuenow"));
+  fireEvent.keyDown(separator, { key: "ArrowLeft" });
+  expect(Number(separator.getAttribute("aria-valuenow"))).toBe(width + 32);
+  expect(client.terminalStart).not.toHaveBeenCalled();
+});
 
 interface FakeClient {
   terminalStart: ReturnType<typeof vi.fn>;
@@ -129,7 +146,10 @@ function renderDock(props: Partial<React.ComponentProps<typeof StartDock>> = {})
 // + 菜单的 shell 子菜单据此渲染。
 async function waitForShells() {
   await waitFor(() => expect(mocks.fetchTerminalShells).toHaveBeenCalledWith("tok"));
-  
+  // 让已 resolve 的 shells 请求把 state 提交完，避免紧随其后的点击读到 null。
+  await act(async () => {
+    await Promise.resolve();
+  });
 }
 
 function startedEvent(
@@ -214,6 +234,22 @@ describe("StartDock launcher empty state", () => {
     const id = client.terminalStart.mock.calls[0][0] as string;
     expect(client.terminalStart).toHaveBeenCalledWith(id, null, null);
     expect(screen.getByTestId(`dock-tab-${id}`)).toHaveTextContent(">. terminal");
+  });
+
+  it("opens a terminal when the header button or ⌘J requests the panel", async () => {
+    const client = renderDock();
+    await waitForShells();
+    act(() => requestDockTerminalPanel());
+    const id = client.terminalStart.mock.calls[0][0] as string;
+    expect(client.terminalStart).toHaveBeenCalledWith(id, null, null);
+    expect(screen.getByTestId(`terminal-surface-${id}`)).toBeInTheDocument();
+    expect(screen.queryByTestId("dock-launcher")).toBeNull();
+  });
+
+  it("consumes a terminal request issued before the dock mounted", () => {
+    requestDockTerminalPanel();
+    const client = renderDock();
+    expect(client.terminalStart).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -346,13 +382,67 @@ describe("StartDock reuses TerminalSurface for the pty flag", () => {
   });
 });
 
-describe("StartDock collapse rail", () => {
-  it("collapses to a rail and re-expands keeping the start-dock testid", () => {
-    renderDock();
+describe("StartDock collapse", () => {
+  it("hands the collapse to the host instead of leaving an orphan rail", () => {
+    const onCollapse = vi.fn();
+    renderDock({ onCollapse });
     fireEvent.click(screen.getByRole("button", { name: /Collapse/i }));
-    expect(screen.queryByTestId("dock-launcher")).toBeNull();
-    expect(screen.getByTestId("start-dock")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Expand/i }));
-    expect(screen.getByTestId("dock-launcher")).toBeInTheDocument();
+    // 收起 = 宿主卸载整条坞；组件内部再留一个 40px 竖条会和头部开关各说各话。
+    expect(onCollapse).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the collapse button available to the session overlay host", () => {
+    renderDock({ variant: "embedded", onCollapse: vi.fn() });
+    expect(screen.getByRole("button", { name: /Collapse/i })).toBeInTheDocument();
+  });
+
+  it("renders no collapse affordance when the host owns the toggle", () => {
+    // 首页由顶栏 start-dock-toggle 收起，坞内不再出现第二个开关。
+    renderDock();
+    expect(screen.queryByRole("button", { name: /Collapse/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("StartDock tab shell v1.2", () => {
+  it("renames a tab on double click", () => {
+    renderDock();
+    fireEvent.click(screen.getByTestId("dock-card-files"));
+    fireEvent.doubleClick(screen.getByTestId("dock-tab-file"));
+    const input = screen.getByTestId("dock-tab-rename-file");
+    fireEvent.change(input, { target: { value: "Docs" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByTestId("dock-tab-file")).toHaveTextContent("Docs");
+    expect(
+      dockStore.getSnapshot(HOME_DOCK_SCOPE).tabs[0].customTitle,
+    ).toBe("Docs");
+  });
+
+  it("closes a tab with the middle mouse button", () => {
+    renderDock();
+    fireEvent.click(screen.getByTestId("dock-card-files"));
+    fireEvent(
+      screen.getByTestId("dock-tab-file"),
+      new MouseEvent("auxclick", { bubbles: true, button: 1 }),
+    );
+    expect(screen.queryByTestId("dock-tab-file")).toBeNull();
+  });
+
+  it("keeps inactive panels mounted without stealing focus", async () => {
+    const client = renderDock();
+    await waitForShells();
+    fireEvent.click(screen.getByTestId("dock-card-files"));
+    expect(await screen.findByText("README.md")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("dock-plus-button"));
+    fireEvent.click(screen.getByTestId("dock-plus-terminal"));
+    fireEvent.click(await screen.findByTestId("dock-shell-zsh"));
+    const id = client.terminalStart.mock.calls[0][0] as string;
+
+    expect(screen.getByTestId("dock-panel-file")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByTestId(`dock-panel-${id}`)).toHaveAttribute("aria-hidden", "false");
+    expect(screen.getByText("README.md")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("dock-tab-file"));
+    expect(screen.getByTestId("dock-panel-file")).toHaveAttribute("aria-hidden", "false");
   });
 });

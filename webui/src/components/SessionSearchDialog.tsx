@@ -164,7 +164,11 @@ export function SessionSearchDialog({
                 {sessionResults.map((session, index) => {
                   const title = titleOverrides[session.key]?.trim() ||
                     session.title?.trim() ||
-                    deriveTitle(session.preview, t("chat.newChat"));
+                    deriveTitle(
+                      session.preview,
+                      t("chat.newChat"),
+                      session.updatedAt ?? session.createdAt,
+                    );
                   const preview = visibleSessionPreview(session.preview);
                   const showPreview =
                     preview.length > 0 &&

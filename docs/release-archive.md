@@ -1,6 +1,6 @@
 # Release Archive
 
-This page keeps release and daily update history outside the README so the project homepage can stay focused on what nanobot is, what it can do, and how to start.
+This page keeps release and daily update history outside the README so the project homepage can stay focused on what Zhixu is, what it can do, and how to start.
 
 For tagged releases, see [GitHub Releases](https://github.com/HKUDS/nanobot/releases).
 

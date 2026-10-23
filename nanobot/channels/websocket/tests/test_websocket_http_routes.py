@@ -1030,7 +1030,7 @@ async def test_cli_apps_routes_require_token_and_return_payload(
 
 
 @pytest.mark.asyncio
-async def test_nanobot_feature_routes_require_token_and_enable(
+async def test_zhixu_feature_routes_require_token_and_enable(
     bus: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1040,14 +1040,14 @@ async def test_nanobot_feature_routes_require_token_and_enable(
     channel = _ch(bus, session_manager=_seed_session(tmp_path), port=29916)
     server_task = asyncio.create_task(channel.start())
     try:
-        deny = await _http_get("http://127.0.0.1:29916/api/settings/nanobot-features")
+        deny = await _http_get("http://127.0.0.1:29916/api/settings/zhixu-features")
         assert deny.status_code == 401
 
         token = channel.gateway.tokens.issue_api_token(300)
         auth = {"Authorization": f"Bearer {token}"}
 
         catalog = await _http_get(
-            "http://127.0.0.1:29916/api/settings/nanobot-features",
+            "http://127.0.0.1:29916/api/settings/zhixu-features",
             headers=auth,
         )
         assert catalog.status_code == 200
@@ -1093,7 +1093,7 @@ async def test_nanobot_feature_routes_require_token_and_enable(
 
 
 @pytest.mark.asyncio
-async def test_nanobot_feature_route_reports_live_channel_failure(
+async def test_zhixu_feature_route_reports_live_channel_failure(
     bus: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1128,7 +1128,7 @@ async def test_nanobot_feature_route_reports_live_channel_failure(
     try:
         token = channel.gateway.tokens.issue_api_token(300)
         response = await _http_get(
-            "http://127.0.0.1:29946/api/settings/nanobot-features",
+            "http://127.0.0.1:29946/api/settings/zhixu-features",
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -1229,7 +1229,7 @@ async def test_pairing_routes_require_token_and_approve_or_deny(
 
 
 @pytest.mark.asyncio
-async def test_nanobot_feature_remote_install_requires_opt_in(
+async def test_zhixu_feature_remote_install_requires_opt_in(
     bus: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1272,7 +1272,7 @@ async def test_nanobot_feature_remote_install_requires_opt_in(
 
 
 @pytest.mark.asyncio
-async def test_nanobot_feature_local_install_allowed_by_default(
+async def test_zhixu_feature_local_install_allowed_by_default(
     bus: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1301,7 +1301,7 @@ async def test_nanobot_feature_local_install_allowed_by_default(
 
 
 @pytest.mark.asyncio
-async def test_nanobot_feature_channel_action_can_apply_without_restart(
+async def test_zhixu_feature_channel_action_can_apply_without_restart(
     bus: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1418,7 +1418,7 @@ async def test_feishu_connect_routes_write_config_and_hot_reload(
         },
     )
     monkeypatch.setattr(
-        "nanobot.webui.settings_routes.nanobot_features_action",
+        "nanobot.webui.settings_routes.zhixu_features_action",
         lambda _action, _query, *, allow_install=True, config_path=None: {
             "features": [{
                 "name": "feishu",
@@ -1477,7 +1477,7 @@ async def test_feishu_connect_routes_write_config_and_hot_reload(
     assert body["instance_id"] == "default"
     assert "app_secret" not in body
     assert calls == [("enable", "feishu", "default")]
-    assert body["nanobot_features"]["requires_restart"] is False
+    assert body["zhixu_features"]["requires_restart"] is False
     data = json.loads(config_path.read_text(encoding="utf-8"))
     assert data["channels"]["feishu"]["instances"][0]["id"] == "default"
     assert data["channels"]["feishu"]["instances"][0]["appId"] == "cli_app"
@@ -1502,7 +1502,7 @@ def test_feishu_connect_create_appends_instance(
                 "feishu": {
                     "instances": [{
                         "id": "default",
-                        "name": "nanobot",
+                        "name": "知序",
                         "enabled": True,
                         "appId": "cli_default",
                         "appSecret": "default-secret",
@@ -1613,7 +1613,7 @@ async def test_channel_configure_route_saves_discord_config_and_hot_reloads(
             "last_action": {"ok": True, "message": "Enabled channel 'discord'", "enabled": True},
         }
 
-    monkeypatch.setattr("nanobot.webui.settings_routes.nanobot_features_action", fake_feature_action)
+    monkeypatch.setattr("nanobot.webui.settings_routes.zhixu_features_action", fake_feature_action)
     calls: list[tuple[str, str, str]] = []
 
     async def channel_feature_action(action: str, name: str, instance_id: str) -> dict[str, Any]:
@@ -1653,7 +1653,7 @@ async def test_channel_configure_route_saves_discord_config_and_hot_reloads(
     assert body["name"] == "discord"
     assert "discord-token" not in response.text
     assert calls == [("enable", "discord", "default")]
-    assert body["nanobot_features"]["requires_restart"] is False
+    assert body["zhixu_features"]["requires_restart"] is False
     data = json.loads(config_path.read_text(encoding="utf-8"))
     assert data["channels"]["discord"] == {
         "token": "discord-token",
@@ -1707,7 +1707,7 @@ async def test_channel_configure_route_preserves_existing_channel_values(
     assert body["saved_keys"] == ["channels.discord.allowChannels"]
     discord = next(
         feature
-        for feature in body["nanobot_features"]["features"]
+        for feature in body["zhixu_features"]["features"]
         if feature["name"] == "discord"
     )
     assert discord["configured"] is True
@@ -1803,7 +1803,7 @@ async def test_channel_configure_route_saves_mattermost_setup(
 
 
 @pytest.mark.asyncio
-async def test_nanobot_feature_loopback_reverse_proxy_install_requires_opt_in(
+async def test_zhixu_feature_loopback_reverse_proxy_install_requires_opt_in(
     bus: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1849,7 +1849,7 @@ async def test_nanobot_feature_loopback_reverse_proxy_install_requires_opt_in(
 
 
 @pytest.mark.asyncio
-async def test_nanobot_feature_remote_enable_without_install_is_allowed(
+async def test_zhixu_feature_remote_enable_without_install_is_allowed(
     bus: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1879,7 +1879,7 @@ async def test_nanobot_feature_remote_enable_without_install_is_allowed(
 
 
 @pytest.mark.asyncio
-async def test_nanobot_feature_remote_disable_does_not_need_install_policy(
+async def test_zhixu_feature_remote_disable_does_not_need_install_policy(
     bus: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3659,7 +3659,7 @@ def test_wildcard_ipv6_without_auth_raises(bus: MagicMock) -> None:
 def test_wildcard_ipv6_with_secret_is_valid(bus: MagicMock) -> None:
     channel = _ch(bus, host="::", tokenIssueSecret="s3cret")
     resp = channel.gateway.http._handle_bootstrap(
-        _REMOTE, _FakeReq({"X-Nanobot-Auth": "s3cret"})
+        _REMOTE, _FakeReq({"X-Zhixu-Auth": "s3cret"})
     )
     assert resp.status_code == 200
 
@@ -3838,7 +3838,7 @@ def test_bootstrap_accepts_remote_with_valid_secret(bus: MagicMock) -> None:
 def test_bootstrap_accepts_x_nanobot_auth_header(bus: MagicMock) -> None:
     channel = _ch(bus, host="0.0.0.0", tokenIssueSecret="s3cret")
     resp = channel.gateway.http._handle_bootstrap(
-        _REMOTE, _FakeReq({"X-Nanobot-Auth": "s3cret"})
+        _REMOTE, _FakeReq({"X-Zhixu-Auth": "s3cret"})
     )
     assert resp.status_code == 200
 

@@ -1,11 +1,212 @@
 {
+  "appearance": {
+    "previewOnly": "Preview only. Appearance changes stay in this session and do not change your saved preferences.",
+    "visualStyle": "Visual style",
+    "mode": "Mode",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+    "theme": "Theme",
+    "zhixu": "Zhixu",
+    "graphite": "Graphite",
+    "ocean": "Ocean",
+    "sand": "Warm sand",
+    "custom": "Custom",
+    "editingDark": "Editing dark colors",
+    "editingLight": "Editing light colors",
+    "accent": "Accent",
+    "background": "Background",
+    "foreground": "Text",
+    "chooseColor": "Choose {{label}} color",
+    "resetColor": "Restore {{label}} theme value",
+    "invalidColor": "Enter a HEX color, such as #0169CC or #09C.",
+    "uiFont": "Interface font",
+    "codeFont": "Code font",
+    "font_system": "System default",
+    "font_sans": "Sans serif",
+    "font_serif": "Serif",
+    "font_custom": "Custom local font",
+    "font_default": "Default monospace",
+    "font_consolas": "Consolas",
+    "font_cascadia": "Cascadia Code",
+    "font_jetbrains": "JetBrains Mono",
+    "fontFamily": "{{label}} family name",
+    "invalidFont": "Use a single font family name without style punctuation.",
+    "fontFallback": "Use a font installed on this device. Missing fonts or characters use the fallback fonts.",
+    "lowContrast": "Low contrast ({{ratio}}:1). Try a darker text color or a lighter background.",
+    "storageError": "Applied for this session, but could not save to this device.",
+    "preview": "Preview",
+    "sampleTitle": "让想法有序生长 · Make room for ideas",
+    "sampleBody": "Your colors and fonts apply across the interface. 0123456789",
+    "sampleButton": "Continue",
+    "sampleInput": "A new idea…",
+    "sampleInputLabel": "Example input",
+    "instant": "Changes apply immediately and save on this device.",
+    "reset": "Restore default appearance"
+  },
   "creative": {
+    "title": "Creative space",
+    "new_placeholder": "Give this article a title",
+    "create_btn": "Create draft",
+    "creating_btn": "Creating…",
+    "search_placeholder": "Search titles or summaries",
+    "status_filter": "Filter by status",
+    "empty_template": "Blank article",
+    "selected_template": "Selected template: {{name}}",
+    "title_hint": "A working title is enough. You can change it later.",
+    "library_hint": "Pick up where you left off.",
+    "empty_action": "Write your first article",
+    "clear_filters": "Clear filters",
+    "dismiss": "Dismiss",
+    "no_summary": "No summary yet",
+    "revision_label": "Version {{revision}}",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "edit_article": "Edit article",
+    "confirm_delete": "Delete this article?",
+    "confirm_delete_body": "“{{title}}” will be removed. This cannot be undone.",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "loadFailed": "Could not load articles",
+    "retry": "Retry",
+    "no_match": "No articles match your filters",
+    "empty": "Your first article starts here",
+    "createFailed": "Could not create the article. Please try again.",
+    "title_required": "Enter an article title",
+    "duplicateFailed": "Could not duplicate the article",
+    "deleteFailed": "Could not delete the article",
+    "note_storage": "Preview articles are kept only for this visit. Export your draft before refreshing.",
+    "confirm_delete_dirty": "This article has unsaved changes. Deleting it also removes the local recovery draft.",
+    "partner": {
+      "ui": {
+        "after": "After",
+        "angles": "Angles",
+        "before": "Before",
+        "busy": "Working…",
+        "copyRewrite": "Copy rewrite",
+        "dismissMaterial": "Remove from this selection",
+        "empty": "Nothing has come back yet.",
+        "errorUnknown": "The writing partner could not handle that. Try again.",
+        "failed": "This item failed. Try again.",
+        "handoffUnknown": "Waiting for your decision",
+        "inputLabel": "Message the editor",
+        "insertIntoArticle": "Insert into article",
+        "insertSection": "Insert this section",
+        "issues": "Issues to handle",
+        "materials": "Materials",
+        "modelGlobalDefault": "Not set for this article yet — using the global default ({{preset}}).",
+        "modelSetup": "Choose a model",
+        "modelSwitchApplied": "Switched to {{preset}} — only new batches will use it.",
+        "modelSwitchFailed": "Couldn't switch the model. Try again.",
+        "modelSwitchNotApplied": "The server is still using {{preset}} — the switch did not take effect.",
+        "modelSwitchPending": "Switching model…",
+        "modelSwitchRequested": "Model switch submitted; it applies to batches started from now on.",
+        "modelSwitchUnsupported": "This connection can't switch models.",
+        "modelUnknownPreset": "That model preset is no longer available. Pick another one.",
+        "nextStep": "Next step",
+        "nextStepUnknown": "Open the collaboration process for the next step",
+        "noProgress": "No task is running for this article.",
+        "outlineConfirm": "Save outline and continue",
+        "outlinePoint": "Outline point",
+        "pending": "Waiting for your decision",
+        "plan": "Plan",
+        "quickTasks": "Quick tasks",
+        "rejectRewrite": "Reject",
+        "replaceArticle": "Replace the empty draft",
+        "retry": "Try again",
+        "retryRewrite": "Try another rewrite",
+        "sections": "Sections",
+        "send": "Send to the team",
+        "showFewerIssues": "Show fewer",
+        "showMoreIssues": "Show {{count}} more",
+        "stop": "Stop",
+        "stopping": "Stopping…",
+        "untitled": "Untitled article",
+        "viewAndInsert": "View and insert",
+        "viewMaterials": "View materials",
+        "viewOutline": "View outline",
+        "toggle": "Writing partner"
+      },
+      "title": "Writing partner",
+      "builtinBadge": "Built-in",
+      "process": {
+        "toggle": "View collaboration process"
+      },
+      "input": {
+        "placeholder": "Keep my voice; make section 2 more concrete…"
+      },
+      "requirements": {
+        "toggle": "This article's requirements"
+      },
+      "stage": {
+        "idle": "Idle",
+        "queued": "Queued",
+        "running": "Running",
+        "waiting_author": "Waiting for you",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "interrupted": "Interrupted"
+      },
+      "action": {
+        "start_full": "Run the full pipeline",
+        "ideate": "Find an angle",
+        "research": "Research",
+        "outline": "Build an outline",
+        "draft": "Write a draft",
+        "rewrite_selection": "Rewrite selection",
+        "review_all": "Review everything",
+        "reply": "Reply"
+      },
+      "artifact": {
+        "brief": "Brief",
+        "material_list": "Materials",
+        "outline": "Outline",
+        "draft": "Draft",
+        "rewrite": "Rewrite",
+        "review": "Review"
+      },
+      "artifactAction": {
+        "useAngle": "Use this angle",
+        "addMaterial": "Add material",
+        "writeFromOutline": "Write from outline",
+        "insertDraft": "Insert draft",
+        "applyRewrite": "Apply rewrite",
+        "viewIssues": "View issues"
+      },
+      "handoff": {
+        "outline_confirm": "Outline ready — confirm to continue",
+        "materials_request": "More materials needed",
+        "final_accept": "Final result ready — accept to finish"
+      },
+      "progress": {
+        "researching": "Researching",
+        "outlining": "Outlining",
+        "drafting": "Drafting",
+        "reviewing": "Reviewing",
+        "waitingAuthor": "Waiting for you",
+        "stopped": "Stopped"
+      },
+      "error": {
+        "selectionRequired": "Select some text first",
+        "versionConflict": "The article changed. Reload and try again.",
+        "notPending": "This item is no longer waiting for you.",
+        "serviceUnavailable": "The writing service is unavailable. Try again later.",
+        "requestTooLarge": "That request is too large. Shorten it and try again."
+      },
+      "next": {
+        "writeFromOutline": "Write from this outline",
+        "insertToArticle": "Insert into article",
+        "viewChanges": "View changes",
+        "addMaterials": "Add materials"
+      }
+    },
     "headline": "What would you like to write today?",
-    "hero_description": "A piece of code, a hands-on project, a new insight — every article begins somewhere.",
-    "topic_label": "Article topic",
-    "input_hint": "Start with your own materials and ideas",
-    "template_heading": "Start with a familiar format",
-    "template_hint": "A template is only a starting point",
+    "hero_description": "Start with an idea, or pick up an article in progress.",
+    "topic_label": "Article title",
+    "input_hint": "Add materials and develop your article in the editor after creating a draft.",
+    "template_heading": "Choose a starting outline",
+    "template_hint": "Templates only set up an outline. You can change it at any time.",
     "library_heading": "My articles",
     "new_article": "Write a new article",
     "sample_label": "Sample",
@@ -92,33 +293,57 @@
       "tech-explainer": {
         "name": "Tech Explainer",
         "desc": "Explain a complex concept clearly",
-        "outline": ["Where the problem comes from", "Core concepts and principles", "Illustrate with an example", "Scope and limits", "My understanding"]
+        "outline": [
+          "Where the problem comes from",
+          "Core concepts and principles",
+          "Illustrate with an example",
+          "Scope and limits",
+          "My understanding"
+        ]
       },
       "source-reading": {
         "name": "Source Reading",
         "desc": "Follow the call chain to understand the design",
-        "outline": ["What I want to understand", "Entry point and call chain", "Key implementation", "Design trade-offs", "My own understanding"]
+        "outline": [
+          "What I want to understand",
+          "Entry point and call chain",
+          "Key implementation",
+          "Design trade-offs",
+          "My own understanding"
+        ]
       },
       "practice-retro": {
         "name": "Practice Retrospective",
         "desc": "Record the process and the trade-offs",
-        "outline": ["Background and goal", "How I did it", "Problems and debugging", "Results and gaps", "What I will change next time"]
+        "outline": [
+          "Background and goal",
+          "How I did it",
+          "Problems and debugging",
+          "Results and gaps",
+          "What I will change next time"
+        ]
       },
       "learning-summary": {
         "name": "Learning Summary",
         "desc": "Turn new knowledge into your own understanding",
-        "outline": ["What question I learned with", "Key knowledge", "Hands-on verification", "How my understanding changed", "Remaining questions"]
+        "outline": [
+          "What question I learned with",
+          "Key knowledge",
+          "Hands-on verification",
+          "How my understanding changed",
+          "Remaining questions"
+        ]
       }
     }
   },
   "app": {
-    "brand": "Mira",
+    "brand": "知序",
     "loading": {
-      "connecting": "Connecting to Mira…",
-      "boot": "Loading Mira…"
+      "connecting": "Connecting to 知序…",
+      "boot": "Loading 知序…"
     },
     "error": {
-      "title": "Couldn't reach Mira",
+      "title": "Couldn't reach 知序",
       "gatewayHint": "Make sure the gateway is running (`nanobot gateway`) and that this page is open on the same machine."
     },
     "auth": {
@@ -136,8 +361,8 @@
     },
     "system": {
       "section": "System",
-      "restartHint": "Restart Mira to apply runtime changes.",
-      "restart": "Restart Mira",
+      "restartHint": "Restart 知序 to apply runtime changes.",
+      "restart": "Restart 知序",
       "restarting": "Restarting...",
       "restartEngine": "Restart engine",
       "restartingEngine": "Restarting engine..."
@@ -146,11 +371,11 @@
       "completed": "Restart completed in {{seconds}}s."
     },
     "documentTitle": {
-      "base": "Mira",
-      "chat": "{{title}} · Mira"
+      "base": "知序",
+      "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "Mira web UI — chat with your Mira workspace."
+      "description": "知序 web UI — chat with your 知序 workspace."
     },
     "pairing": {
       "title": "Pair a chat user",
@@ -218,7 +443,112 @@
       "automations": "Automations",
       "skills": "Skills",
       "memory": "Memory",
-      "identity": "Identity"
+      "identity": "Identity",
+      "agents": "Agents",
+      "teams": "Teams"
+    },
+    "teams": {
+      "workspaceEyebrow": "Agent teams",
+      "myTeams": "My teams",
+      "emptyEyebrow": "Better, together",
+      "emptyTitle": "Different strengths. One team.",
+      "emptyDescription": "The Leader delegates tasks and brings results together. Members complete the work according to their roles.",
+      "buildFirst": "Build your first team",
+      "illustrationAlt": "A coordinator Agent with research, coding, and review teammates",
+      "noDescription": "Different strengths, working toward one goal.",
+      "assemblySubtitle": "Choose a Leader, bring in teammates, and give everyone a clear role.",
+      "setupSteps": "Team setup steps",
+      "stepIdentity": "Set a goal",
+      "stepLeader": "Choose a Leader",
+      "stepMembers": "Build the team",
+      "identitySection": "What will this team do?",
+      "leaderSection": "Who will lead the team?",
+      "oneLeader": "1 Leader",
+      "leaderExplanation": "The Leader receives your goal, delegates tasks, and brings the results together.",
+      "promotedNotice": "{{name}} is now the Leader and has been removed from the member seats.",
+      "membersSection": "Bring in the right strengths",
+      "searchAgents": "Search Agent names or strengths",
+      "permissionHint": "The Leader profile does not allow this member yet",
+      "agentProfile": "Agent profile",
+      "noAgentMatches": "No matching Agents. Try another keyword.",
+      "memberResponsibility": "Responsible for in this team",
+      "memberMinimum": "Add at least 1 member. Team roles do not change the original Agent profiles.",
+      "advancedSettings": "Collaboration and working preferences",
+      "rosterCount": "1 Leader · {{count}} members",
+      "rosterCount_one": "1 Leader · {{count}} member",
+      "rosterCount_other": "1 Leader · {{count}} members",
+      "rosterPrompt": "Start with a goal. Build your Agent team around it.",
+      "errorRoleLength": "Member roles must be at most {{max}} characters",
+      "errorInstructionsLength": "Collaboration notes must be at most {{max}} characters",
+      "formationLabel": "Team structure preview",
+      "formationTitle": "Your team is taking shape",
+      "untitled": "A new team",
+      "goalPrompt": "One shared goal. Agents with different strengths.",
+      "receiveGoal": "Receives your goal",
+      "focusLeader": "Choose or change the Leader",
+      "chooseLeaderSeat": "Waiting for a Leader",
+      "leaderJob": "Delegates and brings results together",
+      "focusMember": "Edit {{name}}'s role",
+      "emptySeats": "Your members will appear here. Add at least 1 teammate.",
+      "summaryFlow": "Members work; the Leader brings results together",
+      "formationReady": "Basic setup is ready",
+      "formationProgress": "Team setup progress",
+      "previewHint": "Click the Leader or a member to edit their settings.",
+      "name": "Team name",
+      "namePlaceholder": "e.g. Content team",
+      "description": "What this team does",
+      "descriptionPlaceholder": "One line describing the team's job.",
+      "instructions": "Collaboration notes",
+      "instructionsPlaceholder": "Who does what first, and what counts as done.",
+      "leader": "Leader",
+      "leaderPlaceholder": "Pick an Agent profile",
+      "leaderLine": "Leader: {{name}}",
+      "members": "Members",
+      "pickMember": "Add {{name}} as a member",
+      "rolePlaceholder": "Role in this team",
+      "roleAria": "{{name}}'s role in this team",
+      "removeMember": "Remove {{name}}",
+      "noAgents": "No Agent profiles to pick from yet",
+      "maxConcurrency": "Max parallel members",
+      "concurrencyHint": "How many members may run at once (max {{max}})",
+      "concurrency": "Up to {{count}} in parallel",
+      "errorName": "Enter a team name",
+      "errorNameLength": "Team name must be at most {{max}} characters",
+      "errorLeader": "Pick a Leader",
+      "errorMembers": "Pick at least 1 member",
+      "errorMembersMax": "A team can have at most {{max}} members",
+      "errorDuplicate": "The same member cannot be added twice",
+      "errorLeaderIsMember": "The Leader cannot also be a member",
+      "errorLeaderExcludes": "The Leader profile does not allow delegating to: {{ids}}",
+      "errorRole": "Every member needs a role in this team",
+      "errorConcurrency": "Max parallel members must be between {{min}} and {{max}}",
+      "title": "Teams",
+      "create": "New team",
+      "search": "Search teams",
+      "saved": "Saved",
+      "noMatch": "No matching teams. Try another keyword.",
+      "emptyHint": "Create an Agent profile first, then build a team from it.",
+      "edit": "Edit",
+      "duplicate": "Duplicate",
+      "copySuffix": "Copy",
+      "archive": "Archive",
+      "archiveTitle": "Archive this team?",
+      "archiveBody": "Archiving stops new team runs. Existing chats keep using the revision they are bound to, and past runs stay readable.",
+      "showArchived": "Show archived",
+      "hideArchived": "Hide archived",
+      "unarchive": "Unarchive",
+      "unarchiveTitle": "Unarchive this team?",
+      "unarchiveBody": "Unarchiving lets this team start new runs again, which adds a new revision.",
+      "allArchived": "All teams are archived. Turn on “Show archived” to see them.",
+      "workspaceSubtitle": "Turn your Agent profiles into a team: the Leader splits the goal and hands out tasks, members carry them out. Best for work that takes several hands.",
+      "archived": "Archived",
+      "conflict": "This team was changed elsewhere. Reload before saving — your draft is kept.",
+      "createTitle": "Create team",
+      "editTitle": "Edit team",
+      "editorSubtitle": "Pick one Leader and up to 8 members from your Agent profiles.",
+      "save": "Save",
+      "cancel": "Cancel",
+      "revisionNote": "Current revision v{{revision}}; saving creates v{{next}}"
     },
     "agents": {
       "create": "New agent",
@@ -233,7 +563,7 @@
       "deleteTitle": "Delete “{{name}}”?",
       "deleteBody": "This cannot be undone. Existing sessions are not affected.",
       "mode": {
-        "all": "All",
+        "all": "All available",
         "include": "Only selected",
         "exclude": "Exclude selected"
       },
@@ -248,7 +578,7 @@
         "enabledCount": "{{count}} enabled",
         "locked": "Required",
         "empty": "No matches",
-        "allModeHint": "Currently set to “All” — the list below is read-only. Switch to “Only selected” to pick individual items.",
+        "allModeHint": "All available items are enabled. Switch to “Only selected” to choose individual items.",
         "selectGroup": "Select all",
         "clearGroup": "Clear"
       },
@@ -259,6 +589,9 @@
         "modeLabel": "Search skills"
       },
       "model": {
+        "label": "Model",
+        "auto": "Follow global model",
+        "autoHint": "This agent follows the global model setting.",
         "context": "context",
         "vision": "Vision",
         "toolUse": "Tool use"
@@ -281,6 +614,7 @@
         "noCategory": "Uncategorized",
         "appearance": "Icon and colour",
         "systemPreset": "System preset",
+        "defaultMainAgent": "Default agent",
         "custom": "Custom",
         "hidden": "Hidden",
         "updatedAt": "Updated {{time}}"
@@ -315,6 +649,37 @@
         "discardTitle": "Discard unsaved changes?",
         "discardBody": "Closing now will not save this edit.",
         "discard": "Discard changes"
+      },
+      "workspace": {
+        "identity": "Identity & role",
+        "capabilities": "Tools & skills",
+        "more": "Model & more",
+        "subtitle": "Define its role, then choose what it can use.",
+        "identityHint": "Give it a clear role and instructions to follow.",
+        "capabilitiesHint": "Choose the actions it can take and the guidance it can follow.",
+        "moreHint": "Choose a model and organize its profile.",
+        "toolsHint": "Actions it may perform, such as reading files or searching the web.",
+        "skillsHint": "Guidance it can refer to for specific tasks.",
+        "profileDetails": "Profile details",
+        "summary": "Configuration summary",
+        "summaryToggle": "Show configuration summary",
+        "unnamed": "Name not set",
+        "noDescription": "Add a sentence about what it does.",
+        "noSkills": "No skills added",
+        "noTools": "No tools selected",
+        "selectedCount": "{{count}} enabled",
+        "remaining": "and {{count}} more",
+        "unavailableModel": "Original model unavailable",
+        "globalModel": "Follow global model",
+        "promptHint": "Describe its responsibilities, how it should work, and what it should deliver.",
+        "promptLimit": "Instructions must be within {{count}} characters.",
+        "nameRequired": "Enter a name to continue.",
+        "idRequired": "Agent ID is required.",
+        "description": "One-line description",
+        "modelMissing": "Saved model is currently unavailable",
+        "modelMissingHint": "The saved model is preserved. Choose another model or follow the global setting.",
+        "selectionIncludeHint": "Only checked items are enabled. Changing the selection mode clears its entries.",
+        "selectionExcludeHint": "Checked items are enabled; unchecked items are excluded. Changing the selection mode clears its entries."
       },
       "tree": {
         "empty": "No agents to show"
@@ -462,7 +827,7 @@
       "language": "Language",
       "provider": "Provider",
       "model": "Model",
-      "restart": "Restart Mira",
+      "restart": "Restart 知序",
       "configPath": "Config path",
       "activePreset": "Active preset",
       "gateway": "Gateway",
@@ -535,7 +900,7 @@
       "defaultImageSize": "Size hint sent to providers that support it.",
       "maxImagesPerTurn": "Upper bound for one generate_image request.",
       "timezone": "Used for schedules and time-aware replies.",
-      "cliAppsCatalog": "Install only the app-specific CLI adapters Mira can run locally; native apps stay untouched.",
+      "cliAppsCatalog": "Install only the app-specific CLI adapters 知序 can run locally; native apps stay untouched.",
       "cliAppsFilter": "Search by app, category, or capability.",
       "localServiceAccess": "Allow Full Access shell commands to reach localhost services.",
       "webuiDefaultAccess": "Used by web chats without a project-specific permission.",
@@ -581,7 +946,7 @@
       "readyStatus": "Ready",
       "readyTry": "Try @{{name}}",
       "readyCopied": "Copied",
-      "readyPrompt": "Ask Mira to use @{{name}} for this task.",
+      "readyPrompt": "Ask 知序 to use @{{name}} for this task.",
       "openChat": "Open chat",
       "unsupported": "Unsupported",
       "unavailable": "Unavailable",
@@ -625,7 +990,7 @@
       "saveCustom": "Save MCP",
       "configImport": "Import mcp.json",
       "importConfig": "Import",
-      "restartRequired": "Restart Mira to connect updated MCP tools.",
+      "restartRequired": "Restart 知序 to connect updated MCP tools.",
       "toolsFound": "{{count}} tools",
       "loading": "Loading MCP presets...",
       "empty": "No MCP presets match this filter.",
@@ -653,14 +1018,14 @@
       "preparingSignIn": "Preparing secure sign-in…",
       "openSignInToContinue": "Open the sign-in page to continue.",
       "finishSignInInBrowser": "Finish signing in in the browser window.",
-      "manualCallbackRequired": "Finish signing in, then paste the callback URL into Mira.",
+      "manualCallbackRequired": "Finish signing in, then paste the callback URL into 知序.",
       "manualCallbackHelp": "After approving access, the localhost page will not load. Copy its full URL from the address bar and paste it here.",
       "finishingConnection": "Finishing connection…",
       "activatingTools": "Activating tools…",
       "connected": "Connected.",
       "connectionFailed": "Connection failed.",
       "connectionCancelled": "Connection cancelled.",
-      "reloadFailed": "Signed in, but Mira could not connect the tools. Try restarting Mira.",
+      "reloadFailed": "Signed in, but 知序 could not connect the tools. Try restarting 知序.",
       "oauthFailed": "Unable to connect. Try signing in again.",
       "statusMissingDependency": "Needs dependency",
       "statusComingSoon": "Coming soon",
@@ -747,11 +1112,11 @@
       "loadError": "Could not load settings",
       "unsaved": "Unsaved changes.",
       "upToDate": "Up to date.",
-      "savedRestart": "Saved. Restart Mira to apply.",
+      "savedRestart": "Saved. Restart 知序 to apply.",
       "restartAfterSaving": "Save changes, then restart when ready.",
       "savedRestartApply": "Saved. Restart when ready.",
       "imageProviderRestart": "Image provider changes saved. Restart when ready.",
-      "hostRestartAfterSaving": "Save changes and Mira will restart its engine.",
+      "hostRestartAfterSaving": "Save changes and 知序 will restart its engine.",
       "hostRestartPending": "Saved. Restarting engine when ready.",
       "hostApiUnavailable": "Host actions are only available inside the native app.",
       "logsOpened": "Opened logs folder.",
@@ -775,7 +1140,7 @@
       "exporting": "Exporting..."
     },
     "byok": {
-      "description": "Bring your own provider keys. Mira reads these values from the current config and only configured providers can be used in model presets.",
+      "description": "Bring your own provider keys. 知序 reads these values from the current config and only configured providers can be used in model presets.",
       "configured": "Configured",
       "notConfigured": "Not configured",
       "configuredSection": "Configured",
@@ -922,12 +1287,12 @@
     },
     "observability": {
       "title": "Observability",
-      "configured": "Tracing credentials are available to Mira.",
-      "environment": "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY, then restart Mira.",
+      "configured": "Tracing credentials are available to 知序.",
+      "environment": "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY, then restart 知序.",
       "enable": "Enable tracing support"
     },
     "apps": {
-      "description": "Add tools to Mira, then @ them in chat.",
+      "description": "Add tools to 知序, then @ them in chat.",
       "cliLabel": "App",
       "mcpLabel": "MCP",
       "channelLabel": "Channel",
@@ -950,21 +1315,21 @@
       "browseApps": "Browse apps",
       "browseIntegrations": "Browse MCP tools",
       "emptyIntegrationsHint": "Add a custom MCP server below.",
-      "restartRequired": "Restart Mira to apply updated apps and MCP tools."
+      "restartRequired": "Restart 知序 to apply updated apps and MCP tools."
     },
     "channels": {
-      "description": "Connect chat apps, email, and WebUI to Mira.",
+      "description": "Connect chat apps, email, and WebUI to 知序.",
       "caption": "{{enabled}} running · {{total}} channels",
       "searchPlaceholder": "Search channels",
       "backToChannels": "All channels",
       "catalog": "Channels",
       "loading": "Loading Channels...",
       "empty": "No channels match this filter.",
-      "restartRequired": "Restart Mira to apply updated channel support.",
+      "restartRequired": "Restart 知序 to apply updated channel support.",
       "requires": "Requires: {{requirements}}",
       "setUp": "Set up",
       "setupGuide": "Setup guide",
-      "setupSummary": "Enable only turns on Mira support. Add the platform credentials, then restart Mira.",
+      "setupSummary": "Enable only turns on 知序 support. Add the platform credentials, then restart 知序.",
       "configKeys": "Config keys",
       "enable": "Enable channel",
       "disable": "Disable channel",
@@ -1019,7 +1384,7 @@
         "unsupported": "Manual setup"
       }
     },
-    "nanobotFeatures": {
+    "zhixuFeatures": {
       "enabled": "Enabled",
       "enable": "Enable",
       "disable": "Disable",
@@ -1027,7 +1392,7 @@
       "missingDependency": "Support missing",
       "installSupport": "Install support",
       "installConfirmTitle": "Install support for {{name}}?",
-      "installConfirmDescription": "Mira will add what {{name}} needs, then turn it on. Continue?",
+      "installConfirmDescription": "知序 will add what {{name}} needs, then turn it on. Continue?",
       "installConfirmAction": "Install and enable",
       "websocketRequired": "Required for WebUI",
       "channelDisabled": "Channel is disabled",
@@ -1171,7 +1536,7 @@
       "signedInAs": "Signed in as {{account}}",
       "signInHelp": "Sign in from this device; no API key is stored in config.",
       "remoteSignInHelp": "Select Sign in to open xAI on your computer, then paste the authorization code shown after login.",
-      "codexRemoteSignInHelp": "Sign in through this browser, then paste the full localhost callback URL back into Mira.",
+      "codexRemoteSignInHelp": "Sign in through this browser, then paste the full localhost callback URL back into 知序.",
       "signInRequired": "Sign in required",
       "signInBeforeSaving": "Sign in before saving this provider in the preset.",
       "signedIn": "Signed in",
@@ -1179,9 +1544,9 @@
       "proxyLabel": "Network proxy",
       "proxySaveBeforeSignIn": "Save proxy changes before signing in.",
       "saveProxy": "Save proxy",
-      "localCodeHelp": "Complete sign-in in your browser. Mira usually finishes automatically; if it does not, paste the authorization code below.",
+      "localCodeHelp": "Complete sign-in in your browser. 知序 usually finishes automatically; if it does not, paste the authorization code below.",
       "remoteCodeHelp": "Select Sign in to open xAI on your computer. After signing in, paste the authorization code shown by xAI below.",
-      "localCallbackHelp": "Complete sign-in in your browser. Mira usually finishes automatically; if it does not, copy the full localhost callback URL from the address bar and paste it below.",
+      "localCallbackHelp": "Complete sign-in in your browser. 知序 usually finishes automatically; if it does not, copy the full localhost callback URL from the address bar and paste it below.",
       "remoteCallbackHelp": "Open ChatGPT in this browser and finish signing in. When the localhost page fails to load, copy the full URL from the address bar and paste it below.",
       "authorizationCode": "Authorization code",
       "callbackUrl": "Full callback URL",
@@ -1224,7 +1589,7 @@
       "deleteConfirmAction": "Delete skill",
       "instructionsTitle": "Skill instructions",
       "setupRequired": "Setup required",
-      "setupDescription": "Install the missing dependency on the machine running Mira, then check again.",
+      "setupDescription": "Install the missing dependency on the machine running 知序, then check again.",
       "copySetupCommand": "Copy setup command",
       "checkAgain": "Check again",
       "marketplaceSearchFailed": "Could not search skill marketplaces.",
@@ -1282,6 +1647,119 @@
       "languageAuto": "Auto"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "Identity",
+          "title": "Make the agent sound like you want",
+          "subtitle": "Pick a vibe, answer a few quick questions, and see exactly how the agent will greet you next time."
+        },
+        "stepsAria": "Identity setup steps",
+        "step": {
+          "vibe": {
+            "label": "Vibe",
+            "hint": "Selecting one fills the form for you"
+          },
+          "voice": {
+            "label": "Name & tone",
+            "hint": "Empty entries are skipped"
+          },
+          "rules": {
+            "label": "Rules & notes",
+            "hint": "What it must not do"
+          },
+          "advanced": {
+            "label": "Advanced",
+            "hint": "Edit the identity file directly"
+          }
+        },
+        "gallery": {
+          "active": "Active",
+          "reload": "Reload preset",
+          "use": "Use this vibe"
+        },
+        "preview": {
+          "yourAgent": "Your Agent",
+          "live": "Live preview",
+          "samplePrompt": "Draft my monthly recap as three short sections.",
+          "activeRule": "Active rule: ",
+          "hint": "How the agent opens after your changes. Saving makes it live."
+        },
+        "advanced": {
+          "toggle": "Advanced: edit raw Markdown",
+          "note": "Only reach for this when the presets and form cannot express what you want. Edits here apply immediately but the form view will rewrite the file on next save.",
+          "rawAria": "Raw Markdown",
+          "reload": "Reload from disk"
+        },
+        "form": {
+          "nameLabel": "How should the agent call you?",
+          "namePlaceholder": "e.g. Marketing team, Alex",
+          "roleLabel": "What does the agent mainly help you with?",
+          "rolePlaceholder": "e.g. turn weekly meetings into a readable recap; group customer feedback into themes",
+          "toneLabel": "Tone of voice",
+          "toneHint": "Pick the closest",
+          "langLabel": "Default reply language",
+          "rulesLabel": "Lines the agent should not cross",
+          "rulesHint": "One per line, up to 6",
+          "rulesPlaceholder": "Never invent contract numbers\nDon't quote internal paths to anonymous users\nSay 'I don't know' rather than guess",
+          "notesLabel": "Anything else worth remembering?",
+          "notesPlaceholder": "Company name, jargon, words to avoid…"
+        },
+        "tone": {
+          "friendly": {
+            "label": "Friendly",
+            "description": "Warm, encouraging, empathetic"
+          },
+          "professional": {
+            "label": "Professional",
+            "description": "Formal, measured, well-reasoned"
+          },
+          "concise": {
+            "label": "Concise",
+            "description": "Answer first, then expand"
+          },
+          "detailed": {
+            "label": "Detailed",
+            "description": "Full reasoning and edge cases"
+          }
+        },
+        "replyLang": {
+          "groupAria": "Reply language",
+          "auto": {
+            "label": "Follow you",
+            "description": "Reply in the language you ask in"
+          },
+          "zh": {
+            "label": "Chinese",
+            "description": "Always reply in Chinese"
+          },
+          "en": {
+            "label": "English",
+            "description": "All replies in English"
+          }
+        },
+        "footer": {
+          "back": "Back",
+          "next": "Next",
+          "unsaved": "Unsaved changes",
+          "upToDate": "Up to date",
+          "discard": "Discard",
+          "saved": "Saved",
+          "save": "Save"
+        },
+        "error": {
+          "loadFailed": "Some content could not load",
+          "saveFailed": "Save failed"
+        },
+        "toast": {
+          "saved": "Identity saved — live now"
+        },
+        "persona": {
+          "default": "Default",
+          "cardTitle": "Active persona",
+          "cardNone": "Default SOUL, no preset enabled",
+          "cardHint": "Clicking a vibe card above also switches this preset."
+        }
+      },
       "groupCore": "Core files",
       "groupPersonas": "Personas",
       "warningBanner": "Identity files define your Agent's core personality and behavior. Improper edits may cause the agent to misbehave, lose capabilities, or produce unexpected replies. If unsure, back up the original first.",
@@ -1346,6 +1824,8 @@
       "personaSwitchFailed": "Failed to switch persona"
     },
     "memory": {
+      "pageEyebrow": "Memory center",
+      "pageSubtitle": "Long-term facts and conversation excerpts the agent keeps across sessions. Toggle automatic extraction here, or just browse and curate what's already there.",
       "tabSemantic": "Semantic memory",
       "tabEpisode": "Episodes",
       "tabsLabel": "Memory sections",
@@ -1424,7 +1904,7 @@
       "errorContentRequired": "Content is required",
       "metaLine": "{{type}} · {{priority}} · {{importance}}",
       "masterToggleTitle": "Memory auto extraction & retrieval",
-      "masterToggleDescription": "When on, Mira extracts facts from chats and retrieves relevant memories on the next turn. Hot-takes-effect — no restart needed.",
+      "masterToggleDescription": "When on, 知序 extracts facts from chats and retrieves relevant memories on the next turn. Hot-takes-effect — no restart needed.",
       "masterToggleAria": "Toggle memory extraction",
       "masterToggleOn": "On",
       "masterToggleOff": "Off",
@@ -1541,8 +2021,7 @@
   },
   "workbench": {
     "title": "Workbench",
-    "open": "Open workbench",
-    "collapse": "Collapse workbench",
+    "tools": "Tools sidebar",
     "updatedAt": "Updated {{time}}",
     "overview": "Overview",
     "emptyOverview": "No summary yet",
@@ -1631,6 +2110,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "Go",
     "browserEmptyHint": "Enter an address to start browsing.",
+    "browserNewTab": "New tab",
     "browserFrameTitle": "Embedded browser page",
     "browserError_scheme": "Only http/https addresses can be opened here.",
     "browserError_private": "Private or local-network addresses are not allowed.",
@@ -1641,12 +2121,31 @@
     "tabBrowser": "Browser",
     "plusAria": "New tab",
     "newTerminal": "New terminal",
+    "openTerminal": "Open terminal panel",
     "shellChoices": "Choose shell",
     "takeoverRunning": "Running terminal",
     "takeoverAction": "Take over",
     "takeoverHint": "Press Enter to redraw",
     "closeTab": "Close tab",
-    "platformDefaultShell": "Platform default"
+    "platformDefaultShell": "Platform default",
+    "renameTab": "Rename tab",
+    "copyOutput": "Copy output",
+    "clearOutput": "Clear terminal",
+    "pasteInput": "Paste",
+    "browserWindow": "Open in browser window",
+    "showHidden": "Show hidden files",
+    "hideHidden": "Hide hidden files",
+    "refresh": "Refresh",
+    "collapseAll": "Collapse all",
+    "search": "Search files",
+    "searchPlaceholder": "Search file names and contents",
+    "searching": "Searching…",
+    "noMatches": "No matches",
+    "searchTruncated": "Showing partial results",
+    "searchFailed": "Search failed",
+    "copied": "Copied",
+    "historyTruncated": "Earlier output was truncated",
+    "terminalTheme": "Toggle terminal theme"
   },
   "plusMenu": {
     "groupAdd": "Add",
@@ -1664,6 +2163,49 @@
     "back": "Back"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "Sub-agent execution",
+      "genericAgent": "General Agent",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "No execution details",
+      "close": "Close execution details",
+      "reload": "Reload",
+      "taskSwitcher": "Switch sub-agent task",
+      "call": "Call {{id}}",
+      "instruction": "Task",
+      "process": "Execution",
+      "result": "Sub-agent result",
+      "truncated": "Content truncated",
+      "noActivities": "No public activity yet.",
+      "connectionStale": "Connection lost, state is waiting to sync",
+      "historyLimited": "Some earlier activity has expired",
+      "activitySummary": "{{action}} · {{count}} tool calls completed",
+      "activitySummaryNoAction": "{{count}} tool calls completed",
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "succeeded": "Done",
+        "failed": "Failed",
+        "cancelled": "Stopped",
+        "interrupted": "Interrupted"
+      },
+      "parameters": "Parameters",
+      "toolOutput": "Output",
+      "detailToggle": "Show parameters and output",
+      "phase": {
+        "preparing": "Preparing",
+        "model": "Generating",
+        "tools": "Using tools",
+        "finalizing": "Finalizing"
+      },
+      "activityStatus": {
+        "running": "Running",
+        "succeeded": "Done",
+        "failed": "Failed",
+        "cancelled": "Stopped",
+        "interrupted": "Interrupted"
+      }
+    },
     "activity": {
       "viewDetails": "View details",
       "hideDetails": "Hide",
@@ -1713,7 +2255,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "Design an app icon",
-          "prompt": "Generate a clean 1:1 app icon for Mira: friendly robot, simple vector style, soft blue and white palette, no text."
+          "prompt": "Generate a clean 1:1 app icon for 知序: friendly robot, simple vector style, soft blue and white palette, no text."
         },
         "sticker": {
           "title": "Make a sticker",
@@ -1768,6 +2310,46 @@
         "local": "Waiting for trigger",
         "none": "No next run"
       }
+    },
+    "teamProgress": {
+      "title": "Team progress",
+      "leader": "Leader",
+      "leaderAction": {
+        "planning": "planning",
+        "waiting": "waiting for members",
+        "reviewing": "reviewing",
+        "summarizing": "summarizing",
+        "idle": "idle"
+      },
+      "status": {
+        "running": "Running",
+        "cancelling": "Stopping…",
+        "completed": "Completed",
+        "partial": "Partially completed",
+        "failed": "Failed",
+        "cancelled": "Stopped",
+        "interrupted": "Interrupted"
+      },
+      "taskStatus": {
+        "pending": "Not dispatched",
+        "queued": "Queued",
+        "running": "Running",
+        "cancelling": "Stopping…",
+        "succeeded": "Done",
+        "failed": "Failed",
+        "cancelled": "Stopped",
+        "blocked": "Blocked",
+        "interrupted": "Interrupted"
+      },
+      "stop": "Stop team",
+      "stopping": "Stopping…",
+      "retry": "Retry failed tasks",
+      "retryHint": "Retry re-runs the failed tasks and may repeat existing side effects.",
+      "cancelTask": "Stop this task",
+      "noTasks": "The Leader handled this turn directly.",
+      "resyncing": "Syncing team state…",
+      "artifacts": "Artifacts: {{names}}",
+      "memberFallback": "Member {{memberId}}"
     },
     "composer": {
       "menu": {
@@ -1924,7 +2506,7 @@
             "description": "Cancel the active agent turn for this chat."
           },
           "restart": {
-            "title": "Restart Mira",
+            "title": "Restart 知序",
             "description": "Restart the bot process in place."
           },
           "status": {
@@ -1976,16 +2558,20 @@
       "mentions": {
         "ariaLabel": "Mentions",
         "label": "Apps",
+        "agentGroup": "Agents",
         "cliGroup": "CLI apps",
         "mcpGroup": "MCP services",
-        "sessionGroup": "Mira conversations",
+        "sessionGroup": "知序 conversations",
+        "agentBadge": "Agent",
+        "defaultAgentBadge": "Default agent",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "Takes over this turn via @{{name}}",
         "cliDescription": "Use @{{name}} as a local CLI app",
         "mcpDescription": "Use @{{name}} as an MCP server",
         "cliTitle": "CLI app: {{name}}",
         "mcpTitle": "MCP server: {{name}}",
-        "sessionBadge": "Mira conversation",
+        "sessionBadge": "知序 conversation",
         "sessionDescription": "Reference @{{name}} as a previous chat"
       },
       "encoding": "Encoding…",
@@ -2012,6 +2598,20 @@
         "defaultShort": "Default",
         "full": "Full Access",
         "fullShort": "Full"
+      },
+      "team": {
+        "aria": "Choose team",
+        "select": "Select team",
+        "none": "No team",
+        "empty": "No teams available yet",
+        "bound": "Bound to {{name}} (revision {{revision}})",
+        "chip": "Team: {{name}}",
+        "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "Current agent: {{name}}",
+        "empty": "No agents available yet",
+        "defaultTag": "Default"
       }
     },
     "scrollToBottom": "Scroll to bottom",
@@ -2129,9 +2729,16 @@
     "close": "Close file preview",
     "loading": "Loading preview...",
     "failed": "Could not preview this file.",
-    "routeMissing": "File preview needs the latest gateway. Restart Mira gateway and try again.",
+    "routeMissing": "File preview needs the latest gateway. Restart 知序 gateway and try again.",
     "resize": "Resize file preview",
-    "truncated": "Preview is truncated because this file is large."
+    "pickFile": "Pick a file to preview it here.",
+    "truncated": "Preview is truncated because this file is large.",
+    "edit": "Edit file",
+    "save": "Save file",
+    "cancel": "Cancel editing",
+    "saved": "Saved",
+    "saveFailed": "Could not save this file.",
+    "editTruncated": "Large files cannot be edited here."
   },
   "code": {
     "fallbackLanguage": "code",
@@ -2153,6 +2760,14 @@
     "workspaceScopeRejected": {
       "title": "Workspace was not changed",
       "body": "The gateway rejected this project or access mode. Choose an existing project or a different access mode, then try again."
+    },
+    "teamBindingExpired": {
+      "title": "Team was not attached",
+      "body": "The team choice for this empty chat expired. Pick the team again before sending the first message."
+    },
+    "teamUnavailable": {
+      "title": "Team is not available",
+      "body": "This team was archived, or an agent profile it references was removed. Choose another team, or send the message as an ordinary chat."
     },
     "turnRejected": {
       "title": "Message was not sent",
@@ -2193,7 +2808,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "Assistant",
-      "creative": "Creative"
+      "creative": "Creative",
+      "more": "More",
+      "groups": {
+        "workspace": "Workspace",
+        "ai": "AI configuration",
+        "personal": "Personal"
+      }
     },
     "preview": {
       "badge": "Interface preview · sample content"
@@ -2216,5 +2837,9 @@
     "creative": {
       "comingSoon": "Creative module is coming soon."
     }
+  },
+  "toast": {
+    "saved": "Saved",
+    "saveFailed": "Save failed: {{message}}"
   }
 }

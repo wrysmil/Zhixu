@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 
 import {
-  NanobotClient,
+  ZhixuClient,
   GatewayConnectionError,
   connectionEndpoint,
   fetchAvailableSkills,
@@ -70,7 +70,7 @@ describe("gateway protocol", () => {
         "http://nanobot.test",
         "tui-42",
       )
-      expect(headers?.get("X-Nanobot-Auth")).toBe("bootstrap-secret")
+      expect(headers?.get("X-Zhixu-Auth")).toBe("bootstrap-secret")
       expect(connection).toEqual({
         wsUrl: "ws://nanobot.test/ws?mode=local&token=socket+token&client_id=tui-42",
         apiUrl: "http://nanobot.test",
@@ -185,7 +185,7 @@ describe("gateway protocol", () => {
     try {
       const connections: string[] = []
       let healthChecks = 0
-      const client = new NanobotClient({
+      const client = new ZhixuClient({
         resolveConnection: () => new Promise((resolve) => { resolveConnection = resolve }),
         checkHealth: async () => {
           healthChecks += 1
@@ -228,7 +228,7 @@ describe("gateway protocol", () => {
     })
 
     try {
-      const client = new NanobotClient({
+      const client = new ZhixuClient({
         resolveConnection: async () => {
           attempts += 1
           if (attempts === 1) throw new Error("gateway is still starting")
@@ -271,7 +271,7 @@ describe("gateway protocol", () => {
       },
     )
     globalThis.fetch = (() => Promise.reject(refused)) as unknown as typeof fetch
-    const client = new NanobotClient({
+    const client = new ZhixuClient({
       resolveConnection: () => fetchGatewayConnection(
         bootstrapUrl,
         bootstrapSecret,
@@ -327,7 +327,7 @@ describe("gateway protocol", () => {
         }
       },
     })
-    const client = new NanobotClient({
+    const client = new ZhixuClient({
       resolveConnection: async () => {
         attempts += 1
         if (!available) {
@@ -382,7 +382,7 @@ describe("gateway protocol", () => {
   test("reports a permanent bootstrap rejection without retrying", async () => {
     let attempts = 0
     const statuses: string[] = []
-    const client = new NanobotClient({
+    const client = new ZhixuClient({
       resolveConnection: async () => {
         attempts += 1
         throw new GatewayConnectionError("gateway bootstrap failed: HTTP 401", false)
@@ -436,7 +436,7 @@ describe("gateway protocol", () => {
 
     try {
       const events: InboundEvent[] = []
-      const client = new NanobotClient({
+      const client = new ZhixuClient({
         url: "ws://nanobot.test/ws",
         chatId: "terminal",
         initialWorkspaceScope: {
@@ -526,7 +526,7 @@ describe("gateway protocol", () => {
     })
 
     try {
-      const client = new NanobotClient({
+      const client = new ZhixuClient({
         url: "ws://nanobot.test/ws",
         initialWorkspaceScope: {
           project_path: "/tmp/launch-project",
@@ -631,7 +631,7 @@ describe("gateway protocol", () => {
     try {
       const statuses: string[] = []
       const events: InboundEvent[] = []
-      const client = new NanobotClient({
+      const client = new ZhixuClient({
         url: "ws://nanobot.test/ws",
         onEvent: (event) => events.push(event),
         onStatus: (status, detail) => statuses.push(`${status}:${detail || ""}`),
@@ -720,7 +720,7 @@ describe("gateway protocol", () => {
     })
     const events: InboundEvent[] = []
     const statuses: string[] = []
-    const client = new NanobotClient({
+    const client = new ZhixuClient({
       url: "ws://nanobot.test/ws",
       onEvent: (event) => events.push(event),
       onStatus: (status, detail) => statuses.push(`${status}:${detail || ""}`),
@@ -770,7 +770,7 @@ describe("gateway protocol", () => {
     try {
       const events: InboundEvent[] = []
       const statuses: string[] = []
-      const client = new NanobotClient({
+      const client = new ZhixuClient({
         url: "ws://nanobot.test/ws",
         onEvent: (event) => events.push(event),
         onStatus: (status, detail) => statuses.push(`${status}:${detail || ""}`),
@@ -821,7 +821,7 @@ describe("gateway protocol", () => {
     try {
       const events: InboundEvent[] = []
       const statuses: string[] = []
-      const client = new NanobotClient({
+      const client = new ZhixuClient({
         url: "ws://nanobot.test/ws",
         onEvent: (event) => events.push(event),
         onStatus: (status, detail) => statuses.push(`${status}:${detail || ""}`),
@@ -902,7 +902,7 @@ describe("gateway protocol", () => {
         detail?: string
         info?: ConnectionStatusInfo
       }> = []
-      const client = new NanobotClient({
+      const client = new ZhixuClient({
         url: "ws://nanobot.test/ws",
         reconnectDelayMs: 1,
         onEvent: () => undefined,
@@ -956,7 +956,7 @@ describe("gateway protocol", () => {
 
     try {
       const statuses: string[] = []
-      const client = new NanobotClient({
+      const client = new ZhixuClient({
         url: "ws://nanobot.test/ws",
         onEvent: () => undefined,
         onStatus: (status, detail) => statuses.push(`${status}:${detail || ""}`),

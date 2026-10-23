@@ -1,12 +1,12 @@
 # Channel Package Guide
 
-Use this guide to add a self-contained channel package to the nanobot repository. A channel is part of nanobot when its package lives at `nanobot/channels/<channel>/`; there is no separate external channel-plugin path.
+Use this guide to add a self-contained channel package to the Zhixu repository. A channel is part of Zhixu when its package lives at `nanobot/channels/<channel>/`; there is no separate external channel-plugin path.
 
-> **Breaking change:** nanobot no longer discovers the `nanobot.channels` Python entry-point group. Move an entry-point implementation into `nanobot/channels/<channel>/` with a package-owned manifest, runtime, tests, and optional WebUI contribution.
+> **Breaking change:** Zhixu no longer discovers the `nanobot.channels` Python entry-point group. Move an entry-point implementation into `nanobot/channels/<channel>/` with a package-owned manifest, runtime, tests, and optional WebUI contribution.
 
 ## How It Works
 
-When `nanobot gateway` starts, nanobot scans the packages under `nanobot/channels/` and loads each dependency-free `ChannelPlugin` descriptor from `manifest.py`.
+When `nanobot gateway` starts, Zhixu scans the packages under `nanobot/channels/` and loads each dependency-free `ChannelPlugin` descriptor from `manifest.py`.
 
 If a matching config section has `"enabled": true`, the channel is instantiated and started.
 
@@ -187,7 +187,7 @@ Edit `~/.nanobot/config.json`:
 }
 ```
 
-nanobot always loads the dependency-free descriptor during discovery. When the WebUI gateway starts, it installs missing requirements for enabled channels before importing their runtimes. It also installs them when a channel is enabled from the CLI or WebUI. Status, configuration, and disable operations do not need the runtime. Single-instance and multi-instance channels use the same activation rules.
+Zhixu always loads the dependency-free descriptor during discovery. When the WebUI gateway starts, it installs missing requirements for enabled channels before importing their runtimes. It also installs them when a channel is enabled from the CLI or WebUI. Status, configuration, and disable operations do not need the runtime. Single-instance and multi-instance channels use the same activation rules.
 
 ### 3. Run & Test
 
@@ -458,11 +458,11 @@ Multi-instance adapters return `ChannelInstanceSpec` objects and preserve their 
 - settings instance summaries are generated from `instance_specs()` and `ChannelPlugin.setup`. They contain the authoritative `enabled` and `configured` state plus secret-safe `config_values` and `configured_fields` for the generic instance editor;
 - the management adapter's `feature_instances()` may return `None` or presentation overrides containing an `id` plus `name`, `display_name`, or `avatar_url`. It cannot override runtime state or the configuration snapshot.
 
-`ChannelInstanceSpec` contains only `instance_id` and the instance config; nanobot derives its runtime name through the adapter. Single-instance plugins keep ownership of their entire config, including a field named `instances`. Only plugins whose management spec sets `multi_instance=True` opt into instance expansion.
+`ChannelInstanceSpec` contains only `instance_id` and the instance config; Zhixu derives its runtime name through the adapter. Single-instance plugins keep ownership of their entire config, including a field named `instances`. Only plugins whose management spec sets `multi_instance=True` opt into instance expansion.
 
 The package/config section name owns every runtime produced from that section. Class inheritance does not transfer runtime ownership to another package.
 
-Return a concrete iterable or generator from the adapter's `instance_specs()`; nanobot materializes and validates it before constructing any runtime. Raise an exception for malformed persisted data rather than silently changing instance identity. Keep network-backed metadata refresh behind the runtime's `refresh_feature_metadata()` so feature GET requests remain dependency-free and read-only.
+Return a concrete iterable or generator from the adapter's `instance_specs()`; Zhixu materializes and validates it before constructing any runtime. Raise an exception for malformed persisted data rather than silently changing instance identity. Keep network-backed metadata refresh behind the runtime's `refresh_feature_metadata()` so feature GET requests remain dependency-free and read-only.
 
 For package layout, WebUI ownership, and localization rules, see [Channel Package Requirements](#channel-package-requirements).
 
@@ -485,7 +485,7 @@ class OutboundMessage:
     event: object | None # typed runtime/UI event; usually inspect with isinstance()
 ```
 
-Runtime/UI semantics live on `msg.event`. Plugin-authored outbound messages should use typed events instead of legacy metadata flags such as `_progress`, `_stream_delta`, `_stream_end`, `_reasoning_delta`, `_turn_end`, or `_goal_status`. nanobot still accepts those old flags as a compatibility bridge for existing in-process extensions, but new plugin code should not add fresh dependencies on them.
+Runtime/UI semantics live on `msg.event`. Plugin-authored outbound messages should use typed events instead of legacy metadata flags such as `_progress`, `_stream_delta`, `_stream_end`, `_reasoning_delta`, `_turn_end`, or `_goal_status`. Zhixu still accepts those old flags as a compatibility bridge for existing in-process extensions, but new plugin code should not add fresh dependencies on them.
 
 ## Streaming Support
 
@@ -593,7 +593,7 @@ When `streaming` is `false` (default) or omitted, only `send()` is called — no
 
 ## Progress, Tool Hints, and Reasoning
 
-Besides normal assistant text, nanobot can emit low-emphasis trace blocks. These are intended for UI affordances like status rows, collapsible "used tools" groups, or reasoning/thinking blocks. Platforms that do not have a good place for them can ignore them safely.
+Besides normal assistant text, Zhixu can emit low-emphasis trace blocks. These are intended for UI affordances like status rows, collapsible "used tools" groups, or reasoning/thinking blocks. Platforms that do not have a good place for them can ignore them safely.
 
 ### Progress and Tool Hints
 

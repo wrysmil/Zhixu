@@ -294,7 +294,16 @@ def issue_route_secret_matches(headers: Any, configured_secret: str) -> bool:
     if authorization and authorization.lower().startswith("bearer "):
         supplied = authorization[7:].strip()
         return hmac.compare_digest(supplied, configured_secret)
-    header_token = headers.get("X-Nanobot-Auth") or headers.get("x-nanobot-auth")
+    # Dual-read: X-Zhixu-Auth is current, X-Nanobot-Auth is the legacy name
+    # kept for backwards compatibility with older clients. Drop the legacy
+    # branch together with the phase-2/phase-3 compatibility code, >=1 major
+    # version after this rename ships.
+    header_token = (
+        headers.get("X-Zhixu-Auth")
+        or headers.get("x-zhixu-auth")
+        or headers.get("X-Nanobot-Auth")
+        or headers.get("x-nanobot-auth")
+    )
     if not header_token:
         return False
     return hmac.compare_digest(header_token.strip(), configured_secret)

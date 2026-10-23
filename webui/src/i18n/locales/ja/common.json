@@ -1,5 +1,206 @@
 {
+  "appearance": {
+    "previewOnly": "Preview only. Appearance changes stay in this session and do not change your saved preferences.",
+    "visualStyle": "Visual style",
+    "mode": "Mode",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+    "theme": "Theme",
+    "zhixu": "Zhixu",
+    "graphite": "Graphite",
+    "ocean": "Ocean",
+    "sand": "Warm sand",
+    "custom": "Custom",
+    "editingDark": "Editing dark colors",
+    "editingLight": "Editing light colors",
+    "accent": "Accent",
+    "background": "Background",
+    "foreground": "Text",
+    "chooseColor": "Choose {{label}} color",
+    "resetColor": "Restore {{label}} theme value",
+    "invalidColor": "Enter a HEX color, such as #0169CC or #09C.",
+    "uiFont": "Interface font",
+    "codeFont": "Code font",
+    "font_system": "System default",
+    "font_sans": "Sans serif",
+    "font_serif": "Serif",
+    "font_custom": "Custom local font",
+    "font_default": "Default monospace",
+    "font_consolas": "Consolas",
+    "font_cascadia": "Cascadia Code",
+    "font_jetbrains": "JetBrains Mono",
+    "fontFamily": "{{label}} family name",
+    "invalidFont": "Use a single font family name without style punctuation.",
+    "fontFallback": "Use a font installed on this device. Missing fonts or characters use the fallback fonts.",
+    "lowContrast": "Low contrast ({{ratio}}:1). Try a darker text color or a lighter background.",
+    "storageError": "Applied for this session, but could not save to this device.",
+    "preview": "Preview",
+    "sampleTitle": "让想法有序生长 · Make room for ideas",
+    "sampleBody": "Your colors and fonts apply across the interface. 0123456789",
+    "sampleButton": "Continue",
+    "sampleInput": "A new idea…",
+    "sampleInputLabel": "Example input",
+    "instant": "Changes apply immediately and save on this device.",
+    "reset": "Restore default appearance"
+  },
   "creative": {
+    "title": "創作スペース",
+    "new_placeholder": "記事のタイトルを入力",
+    "create_btn": "下書きを作成",
+    "creating_btn": "作成中…",
+    "search_placeholder": "タイトルや要約を検索",
+    "status_filter": "ステータスで絞り込む",
+    "empty_template": "白紙から書く",
+    "selected_template": "選択中のテンプレート：{{name}}",
+    "title_hint": "仮のタイトルで大丈夫です。後から変更できます。",
+    "library_hint": "前回の続きから始めましょう。",
+    "empty_action": "最初の記事を書く",
+    "clear_filters": "絞り込みを解除",
+    "dismiss": "閉じる",
+    "no_summary": "要約はまだありません",
+    "revision_label": "バージョン {{revision}}",
+    "duplicate": "複製",
+    "delete": "削除",
+    "edit_article": "記事を編集",
+    "confirm_delete": "この記事を削除しますか？",
+    "confirm_delete_body": "「{{title}}」を削除します。この操作は取り消せません。",
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "loadFailed": "記事一覧を読み込めませんでした",
+    "retry": "再試行",
+    "no_match": "条件に一致する記事はありません",
+    "empty": "ここから最初の記事を始めましょう",
+    "createFailed": "記事を作成できませんでした。再試行してください。",
+    "title_required": "記事のタイトルを入力してください",
+    "duplicateFailed": "記事を複製できませんでした",
+    "deleteFailed": "記事を削除できませんでした",
+    "note_storage": "プレビューの記事は今回の閲覧中のみ保持されます。再読み込み前に下書きをエクスポートしてください。",
+    "confirm_delete_dirty": "この記事には未保存の変更があります。削除するとローカルの復元用下書きも失われます。",
+    "partner": {
+      "ui": {
+        "after": "変更後",
+        "angles": "切り口",
+        "before": "変更前",
+        "busy": "処理中…",
+        "copyRewrite": "書き直しをコピー",
+        "dismissMaterial": "この選択から外す",
+        "empty": "まだ結果が返っていません。",
+        "errorUnknown": "執筆パートナーが処理できませんでした。もう一度お試しください。",
+        "failed": "この項目は失敗しました。もう一度お試しください。",
+        "handoffUnknown": "あなたの判断待ち",
+        "inputLabel": "編集者にメッセージ",
+        "insertIntoArticle": "本文に挿入",
+        "insertSection": "この節を挿入",
+        "issues": "対応が必要な指摘",
+        "materials": "素材",
+        "modelGlobalDefault": "この記事にはまだモデルが設定されていません——グローバル既定（{{preset}}）を使用します。",
+        "modelSetup": "モデルを選択",
+        "modelSwitchApplied": "{{preset}} に切り替えました——以降に作成されるバッチにのみ適用されます。",
+        "modelSwitchFailed": "モデルを切り替えられませんでした。もう一度お試しください。",
+        "modelSwitchNotApplied": "サーバーはまだ {{preset}} を使用しています——切り替えは反映されませんでした。",
+        "modelSwitchPending": "モデルを切り替えています…",
+        "modelSwitchRequested": "モデルの切り替えを送信しました。以降に開始するバッチに適用されます。",
+        "modelSwitchUnsupported": "この接続ではモデルを切り替えられません。",
+        "modelUnknownPreset": "このモデル preset は利用できません。別のものを選択してください。",
+        "nextStep": "次のステップ",
+        "nextStepUnknown": "連携プロセスを開いて次のステップへ",
+        "noProgress": "この記事で実行中のタスクはありません。",
+        "outlineConfirm": "構成を保存して続行",
+        "outlinePoint": "構成の要点",
+        "pending": "あなたの判断待ち",
+        "plan": "計画",
+        "quickTasks": "クイックタスク",
+        "rejectRewrite": "却下",
+        "replaceArticle": "空の下書きを置き換える",
+        "retry": "再試行",
+        "retryRewrite": "別の書き直しを試す",
+        "sections": "セクション",
+        "send": "チームに送信",
+        "showFewerIssues": "折りたたむ",
+        "showMoreIssues": "さらに{{count}}件表示",
+        "stop": "停止",
+        "stopping": "停止中…",
+        "untitled": "無題の記事",
+        "viewAndInsert": "確認して挿入",
+        "viewMaterials": "素材を表示",
+        "viewOutline": "構成を表示",
+        "toggle": "執筆パートナー"
+      },
+      "title": "執筆パートナー",
+      "builtinBadge": "組み込み",
+      "process": {
+        "toggle": "連携プロセスを表示"
+      },
+      "input": {
+        "placeholder": "私の文体は保ったまま、第2節をもっと具体的に…"
+      },
+      "requirements": {
+        "toggle": "この記事の要件"
+      },
+      "stage": {
+        "idle": "待機中",
+        "queued": "待機列",
+        "running": "実行中",
+        "waiting_author": "あなたの確認待ち",
+        "completed": "完了",
+        "failed": "失敗",
+        "cancelled": "キャンセル済み",
+        "interrupted": "中断"
+      },
+      "action": {
+        "start_full": "全工程を実行",
+        "ideate": "切り口を探す",
+        "research": "調査する",
+        "outline": "構成を作る",
+        "draft": "初稿を書く",
+        "rewrite_selection": "選択範囲を書き直す",
+        "review_all": "全体を校閲",
+        "reply": "返信"
+      },
+      "artifact": {
+        "brief": "企画メモ",
+        "material_list": "素材一覧",
+        "outline": "構成",
+        "draft": "初稿",
+        "rewrite": "書き直し",
+        "review": "校閲"
+      },
+      "artifactAction": {
+        "useAngle": "この切り口を使う",
+        "addMaterial": "素材を追加",
+        "writeFromOutline": "構成から執筆",
+        "insertDraft": "初稿を挿入",
+        "applyRewrite": "書き直しを適用",
+        "viewIssues": "指摘を表示"
+      },
+      "handoff": {
+        "outline_confirm": "構成ができました。確認して続行",
+        "materials_request": "素材の追加が必要です",
+        "final_accept": "最終稿ができました。承認して完了"
+      },
+      "progress": {
+        "researching": "調査中",
+        "outlining": "構成を検討中",
+        "drafting": "執筆中",
+        "reviewing": "校閲中",
+        "waitingAuthor": "あなたの確認待ち",
+        "stopped": "停止"
+      },
+      "error": {
+        "selectionRequired": "先にテキストを選択してください",
+        "versionConflict": "記事が更新されました。再読み込みしてやり直してください。",
+        "notPending": "この項目はもうあなたの対応を待っていません。",
+        "serviceUnavailable": "執筆サービスを利用できません。しばらくしてからお試しください。",
+        "requestTooLarge": "リクエストが大きすぎます。短くしてやり直してください。"
+      },
+      "next": {
+        "writeFromOutline": "この構成で執筆",
+        "insertToArticle": "本文に挿入",
+        "viewChanges": "変更を表示",
+        "addMaterials": "素材を追加"
+      }
+    },
     "headline": "今日は何を書きますか？",
     "hero_description": "コード、実践、新しい気づき。どれも記事の出発点になります。",
     "topic_label": "記事のテーマ",
@@ -92,33 +293,57 @@
       "tech-explainer": {
         "name": "技術解説",
         "desc": "複雑な概念をやさしく説明する",
-        "outline": ["問題はどこから来るか", "核心の概念と原理", "例で説明する", "適用範囲と制約", "自分の理解"]
+        "outline": [
+          "問題はどこから来るか",
+          "核心の概念と原理",
+          "例で説明する",
+          "適用範囲と制約",
+          "自分の理解"
+        ]
       },
       "source-reading": {
         "name": "ソース読解",
         "desc": "呼び出しチェーンを辿って設計を読み解く",
-        "outline": ["今回読み解きたいこと", "エントリーポイントと呼び出しチェーン", "主要な実装", "設計のトレードオフ", "自分の理解"]
+        "outline": [
+          "今回読み解きたいこと",
+          "エントリーポイントと呼び出しチェーン",
+          "主要な実装",
+          "設計のトレードオフ",
+          "自分の理解"
+        ]
       },
       "practice-retro": {
         "name": "実践の振り返り",
         "desc": "過程も取舍も記録する",
-        "outline": ["背景と目標", "どう進めたか", "問題と調査", "結果と不足", "次はどう変えるか"]
+        "outline": [
+          "背景と目標",
+          "どう進めたか",
+          "問題と調査",
+          "結果と不足",
+          "次はどう変えるか"
+        ]
       },
       "learning-summary": {
         "name": "学習まとめ",
         "desc": "新しい知識を自分の理解に変える",
-        "outline": ["どんな問いで学んだか", "主要な知識", "手を動かして検証", "理解はどう変わったか", "まだ残る問い"]
+        "outline": [
+          "どんな問いで学んだか",
+          "主要な知識",
+          "手を動かして検証",
+          "理解はどう変わったか",
+          "まだ残る問い"
+        ]
       }
     }
   },
   "app": {
-    "brand": "Mira",
+    "brand": "知序",
     "loading": {
-      "connecting": "Mira に接続中…",
-      "boot": "Mira を読み込み中…"
+      "connecting": "知序 に接続中…",
+      "boot": "知序 を読み込み中…"
     },
     "error": {
-      "title": "Mira に接続できませんでした",
+      "title": "知序 に接続できませんでした",
       "gatewayHint": "gateway（`nanobot gateway`）が起動しており、このページが同じマシン上で開かれていることを確認してください。"
     },
     "auth": {
@@ -136,8 +361,8 @@
     },
     "system": {
       "section": "システム",
-      "restartHint": "実行時の変更を適用するには Mira を再起動します。",
-      "restart": "Mira を再起動",
+      "restartHint": "実行時の変更を適用するには 知序 を再起動します。",
+      "restart": "知序 を再起動",
       "restarting": "再起動中...",
       "restartEngine": "エンジンを再起動",
       "restartingEngine": "エンジンを再起動中..."
@@ -146,11 +371,11 @@
       "completed": "{{seconds}} 秒で再起動が完了しました。"
     },
     "documentTitle": {
-      "base": "Mira",
-      "chat": "{{title}} · Mira"
+      "base": "知序",
+      "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "Mira Web UI — Mira ワークスペースと会話します。"
+      "description": "知序 Web UI — 知序 ワークスペースと会話します。"
     },
     "pairing": {
       "title": "チャットユーザーをペアリング",
@@ -218,7 +443,9 @@
       "automations": "自動タスク",
       "skills": "スキル",
       "memory": "記憶",
-      "identity": "アイデンティティ"
+      "identity": "アイデンティティ",
+      "agents": "エージェント",
+      "teams": "チーム"
     },
     "sections": {
       "interface": "インターフェース",
@@ -247,7 +474,7 @@
       "language": "言語",
       "provider": "プロバイダー",
       "model": "モデル",
-      "restart": "Mira を再起動",
+      "restart": "知序 を再起動",
       "configPath": "設定パス",
       "activePreset": "アクティブなプリセット",
       "gateway": "ゲートウェイ",
@@ -323,7 +550,7 @@
       "selectedModelValue": "選択したモデルによって設定されます。",
       "brandLogos": "設定で第三者プロバイダーと CLI のロゴを表示します。",
       "browserNotifications": "このページがバックグラウンドにある場合のみ通知します。既定ではオフです。",
-      "cliAppsCatalog": "Mira がローカルで実行できるアプリ CLI アダプターだけをインストールします。ネイティブアプリは変更しません。",
+      "cliAppsCatalog": "知序 がローカルで実行できるアプリ CLI アダプターだけをインストールします。ネイティブアプリは変更しません。",
       "cliAppsFilter": "アプリ、カテゴリ、機能で検索します。",
       "logs": "ネイティブエンジンのログフォルダーを開きます。",
       "diagnostics": "サポート用の小さなランタイムレポートを書き出します。",
@@ -373,11 +600,11 @@
       "loadError": "設定を読み込めませんでした",
       "unsaved": "未保存の変更があります。",
       "upToDate": "最新です。",
-      "savedRestart": "保存しました。反映するには Mira を再起動してください。",
+      "savedRestart": "保存しました。反映するには 知序 を再起動してください。",
       "restartAfterSaving": "変更を保存してから、準備ができたら再起動してください。",
       "savedRestartApply": "保存しました。準備ができたら再起動してください。",
       "imageProviderRestart": "画像プロバイダーの変更を保存しました。準備ができたら再起動してください。",
-      "hostRestartAfterSaving": "保存すると Mira がエンジンを再起動します。",
+      "hostRestartAfterSaving": "保存すると 知序 がエンジンを再起動します。",
       "hostRestartPending": "保存しました。準備ができたらエンジンを再起動します。",
       "hostApiUnavailable": "ホスト操作はネイティブアプリ内でのみ利用できます。",
       "logsOpened": "ログフォルダーを開きました。",
@@ -401,7 +628,7 @@
       "exporting": "書き出しています..."
     },
     "byok": {
-      "description": "自分のプロバイダーキーを使います。Mira は現在の設定から値を読み込み、設定済みのプロバイダーだけをモデルプリセットで使用できます。",
+      "description": "自分のプロバイダーキーを使います。知序 は現在の設定から値を読み込み、設定済みのプロバイダーだけをモデルプリセットで使用できます。",
       "configured": "設定済み",
       "notConfigured": "未設定",
       "configuredSection": "設定済み",
@@ -649,7 +876,7 @@
       "saveCustom": "MCP を保存",
       "configImport": "mcp.json をインポート",
       "importConfig": "インポート",
-      "restartRequired": "更新された MCP ツールに接続するには Mira を再起動してください。",
+      "restartRequired": "更新された MCP ツールに接続するには 知序 を再起動してください。",
       "toolsFound": "{{count}} 個のツール",
       "loading": "MCP プリセットを読み込み中...",
       "empty": "この条件に一致する MCP プリセットはありません。",
@@ -677,14 +904,14 @@
       "preparingSignIn": "安全なサインインを準備しています…",
       "openSignInToContinue": "サインインページを開いて続行してください。",
       "finishSignInInBrowser": "ブラウザウィンドウでサインインを完了してください。",
-      "manualCallbackRequired": "サインインを完了し、コールバック URL を Mira に貼り付けてください。",
+      "manualCallbackRequired": "サインインを完了し、コールバック URL を 知序 に貼り付けてください。",
       "manualCallbackHelp": "アクセスを承認すると localhost ページは開きません。アドレスバーから完全な URL をコピーして、ここに貼り付けてください。",
       "finishingConnection": "接続を完了しています…",
       "activatingTools": "ツールを有効にしています…",
       "connected": "接続しました。",
       "connectionFailed": "接続に失敗しました。",
       "connectionCancelled": "接続をキャンセルしました。",
-      "reloadFailed": "サインインしましたが、Mira はツールに接続できませんでした。Mira を再起動してください。",
+      "reloadFailed": "サインインしましたが、知序 はツールに接続できませんでした。知序 を再起動してください。",
       "oauthFailed": "接続できません。もう一度サインインしてください。",
       "statusMissingDependency": "依存関係が必要",
       "statusComingSoon": "近日公開",
@@ -757,15 +984,15 @@
     },
     "observability": {
       "title": "可観測性",
-      "configured": "Mira がトレース認証情報を利用できます。",
-      "environment": "LANGFUSE_SECRET_KEY と LANGFUSE_PUBLIC_KEY を設定して Mira を再起動してください。",
+      "configured": "知序 がトレース認証情報を利用できます。",
+      "environment": "LANGFUSE_SECRET_KEY と LANGFUSE_PUBLIC_KEY を設定して 知序 を再起動してください。",
       "enable": "トレースサポートを有効化"
     },
     "legal": {
       "thirdPartyBrands": "製品名、ロゴ、ブランドはそれぞれの所有者に帰属します。使用は識別のみを目的とし、承認を意味するものではありません。"
     },
     "apps": {
-      "description": "Mira にツールを追加し、チャットで @ を付けて使用できます。",
+      "description": "知序 にツールを追加し、チャットで @ を付けて使用できます。",
       "cliLabel": "アプリ",
       "mcpLabel": "MCP",
       "channelLabel": "チャンネル",
@@ -788,21 +1015,21 @@
       "browseApps": "アプリを見る",
       "browseIntegrations": "MCP ツールを見る",
       "emptyIntegrationsHint": "下からカスタム MCP サーバーを追加できます。",
-      "restartRequired": "更新したアプリと MCP ツールを反映するには Mira を再起動してください。"
+      "restartRequired": "更新したアプリと MCP ツールを反映するには 知序 を再起動してください。"
     },
     "channels": {
-      "description": "Mira をチャットアプリに接続します。サポートのインストールは統合パッケージを追加するだけで、多くのチャンネルでは引き続きトークンやワークスペース設定が必要です。",
+      "description": "知序 をチャットアプリに接続します。サポートのインストールは統合パッケージを追加するだけで、多くのチャンネルでは引き続きトークンやワークスペース設定が必要です。",
       "caption": "{{enabled}} 件有効 · 全 {{total}} チャンネル",
       "searchPlaceholder": "チャンネルを検索",
       "backToChannels": "すべてのチャンネル",
       "catalog": "チャンネル",
       "loading": "チャンネルを読み込み中...",
       "empty": "一致するチャンネルはありません。",
-      "restartRequired": "更新したチャンネルサポートを反映するには Mira を再起動してください。",
+      "restartRequired": "更新したチャンネルサポートを反映するには 知序 を再起動してください。",
       "requires": "必要: {{requirements}}",
       "setUp": "設定",
       "setupGuide": "設定ガイド",
-      "setupSummary": "有効化は Mira 側のサポートをオンにするだけです。プラットフォームの認証情報を追加してから Mira を再起動してください。",
+      "setupSummary": "有効化は 知序 側のサポートをオンにするだけです。プラットフォームの認証情報を追加してから 知序 を再起動してください。",
       "configKeys": "設定キー",
       "enable": "チャンネルを有効化",
       "disable": "チャンネルを無効化",
@@ -857,7 +1084,7 @@
         "unsupported": "手動設定"
       }
     },
-    "nanobotFeatures": {
+    "zhixuFeatures": {
       "enabled": "有効",
       "enable": "有効化",
       "disable": "無効化",
@@ -865,7 +1092,7 @@
       "missingDependency": "サポート不足",
       "installSupport": "サポートをインストール",
       "installConfirmTitle": "{{name}} のサポートをインストールしますか？",
-      "installConfirmDescription": "Mira が {{name}} に必要なものを追加し、その後有効化します。続けますか？",
+      "installConfirmDescription": "知序 が {{name}} に必要なものを追加し、その後有効化します。続けますか？",
       "installConfirmAction": "インストールして有効化",
       "websocketRequired": "WebUI に必須",
       "channelDisabled": "チャンネルは無効",
@@ -1009,7 +1236,7 @@
       "signedInAs": "{{account}} としてサインイン済み",
       "signInHelp": "このデバイスからサインインします。API キーは設定に保存されません。",
       "remoteSignInHelp": "「サインイン」を選択して自分のコンピューターで xAI を開き、サインイン後に表示される認証コードを貼り付けてください。",
-      "codexRemoteSignInHelp": "このブラウザーでサインインし、localhost の完全なコールバック URL を Mira に貼り付けてください。",
+      "codexRemoteSignInHelp": "このブラウザーでサインインし、localhost の完全なコールバック URL を 知序 に貼り付けてください。",
       "signInRequired": "サインインが必要です",
       "signInBeforeSaving": "プリセットを保存する前に、このプロバイダーへサインインしてください。",
       "signedIn": "サインイン済み",
@@ -1017,9 +1244,9 @@
       "proxyLabel": "ネットワークプロキシ",
       "proxySaveBeforeSignIn": "サインイン前にプロキシの変更を保存してください。",
       "saveProxy": "プロキシを保存",
-      "localCodeHelp": "ブラウザーでサインインを完了してください。通常は Mira が自動で完了します。完了しない場合は、認証コードを下に貼り付けてください。",
+      "localCodeHelp": "ブラウザーでサインインを完了してください。通常は 知序 が自動で完了します。完了しない場合は、認証コードを下に貼り付けてください。",
       "remoteCodeHelp": "「サインイン」を選択して自分のコンピューターで xAI を開いてください。サインイン後、xAI に表示された認証コードを下に貼り付けてください。",
-      "localCallbackHelp": "ブラウザーでサインインを完了してください。通常は Mira が自動で完了します。完了しない場合は、アドレスバーから localhost の完全なコールバック URL をコピーして下に貼り付けてください。",
+      "localCallbackHelp": "ブラウザーでサインインを完了してください。通常は 知序 が自動で完了します。完了しない場合は、アドレスバーから localhost の完全なコールバック URL をコピーして下に貼り付けてください。",
       "remoteCallbackHelp": "このブラウザーで ChatGPT を開いてサインインを完了してください。localhost ページを開けない場合は、アドレスバーの完全な URL をコピーして下に貼り付けてください。",
       "authorizationCode": "認証コード",
       "callbackUrl": "完全なコールバック URL",
@@ -1062,7 +1289,7 @@
       "deleteConfirmAction": "スキルを削除",
       "instructionsTitle": "スキルの説明",
       "setupRequired": "セットアップが必要",
-      "setupDescription": "Mira を実行しているマシンに不足している依存関係をインストールしてから、再確認してください。",
+      "setupDescription": "知序 を実行しているマシンに不足している依存関係をインストールしてから、再確認してください。",
       "copySetupCommand": "セットアップコマンドをコピー",
       "checkAgain": "再確認",
       "marketplaceSearchFailed": "スキルマーケットを検索できませんでした。",
@@ -1120,6 +1347,8 @@
       "languageAuto": "自動"
     },
     "memory": {
+      "pageEyebrow": "記憶センター",
+      "pageSubtitle": "エージェントが会話から整理する長期情報と会話の抜粋です。メインスイッチを入れると自動で抽出され、オフにしても既存の記憶は閲覧・管理できます。",
       "tabSemantic": "セマンティック記憶",
       "tabEpisode": "エピソード",
       "tabsLabel": "記憶セクション",
@@ -1225,6 +1454,119 @@
       "masterToggleOff": "オフ"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "アイデンティティ",
+          "title": "エージェントをあなたの話し方に合わせる",
+          "subtitle": "性格カードを選び、いくつかの質問に答えると、次回エージェントがどんなふうに声をかけるかそのまま確認できます。"
+        },
+        "stepsAria": "アイデンティティ設定の手順",
+        "step": {
+          "vibe": {
+            "label": "性格",
+            "hint": "選ぶと後のフォームが自動で入力されます"
+          },
+          "voice": {
+            "label": "呼び方とトーン",
+            "hint": "空欄は自動でスキップします"
+          },
+          "rules": {
+            "label": "制約とメモ",
+            "hint": "何をしてはいけないか伝えます"
+          },
+          "advanced": {
+            "label": "詳細",
+            "hint": "アイデンティティファイルを直接編集"
+          }
+        },
+        "gallery": {
+          "active": "選択中",
+          "reload": "プリセットを再読み込み",
+          "use": "この性格を使う"
+        },
+        "preview": {
+          "yourAgent": "あなたのエージェント",
+          "live": "ライブプレビュー",
+          "samplePrompt": "今月の業務週報を3つの段落にまとめて。",
+          "activeRule": "適用中のルール：",
+          "hint": "変更後、エージェントがこのように会話を始めます。保存すると即座に反映されます。"
+        },
+        "advanced": {
+          "toggle": "詳細設定：生のMarkdownを編集",
+          "note": "プリセットとフォームで表現しきれない場合にのみ使ってください。ここでの編集は即座に反映されますが、フォーム側で保存すると上の構造に書き戻されます。",
+          "rawAria": "生のMarkdown",
+          "reload": "ディスクから再読み込み"
+        },
+        "form": {
+          "nameLabel": "エージェントは何と呼べばいいですか？",
+          "namePlaceholder": "例：マーケティングチーム、Alex",
+          "roleLabel": "エージェントは主に何を手伝いますか？",
+          "rolePlaceholder": "例：週間の会議を読みやすい週報にまとめる；顧客フィードバックをテーマ別に整理する",
+          "toneLabel": "話しぶり",
+          "toneHint": "最も近いものを選んでください",
+          "langLabel": "既定の返信言語",
+          "rulesLabel": "エージェントが越えてはいけない線",
+          "rulesHint": "1行に1つ、最大6件",
+          "rulesPlaceholder": "契約書の金額を捏造しない\n未ログインのユーザーに内部パスを教えない\nわからないことは「わかりません」と言う",
+          "notesLabel": "他に伝えておくことはありますか？",
+          "notesPlaceholder": "会社名、業界用語、避けたい表現など"
+        },
+        "tone": {
+          "friendly": {
+            "label": "親しみやすい",
+            "description": "丁寧で励ましが中心、共感的"
+          },
+          "professional": {
+            "label": "プロフェッショナル",
+            "description": "フォーマルで抑制的、根拠重視"
+          },
+          "concise": {
+            "label": "簡潔",
+            "description": "結論から先に伝える"
+          },
+          "detailed": {
+            "label": "詳細",
+            "description": "推理の全過程と境界条件"
+          }
+        },
+        "replyLang": {
+          "groupAria": "返信言語",
+          "auto": {
+            "label": "相手に合わせる",
+            "description": "質問に使われた言語で回答"
+          },
+          "zh": {
+            "label": "中国語",
+            "description": "常に中国語で回答"
+          },
+          "en": {
+            "label": "英語",
+            "description": "すべての返信を英語にする"
+          }
+        },
+        "footer": {
+          "back": "前へ",
+          "next": "次へ",
+          "unsaved": "未保存の変更があります",
+          "upToDate": "最新です",
+          "discard": "破棄",
+          "saved": "保存済み",
+          "save": "保存"
+        },
+        "error": {
+          "loadFailed": "一部のコンテンツを読み込めませんでした",
+          "saveFailed": "保存に失敗しました"
+        },
+        "toast": {
+          "saved": "アイデンティティを保存しました。即座に有効です"
+        },
+        "persona": {
+          "default": "既定",
+          "cardTitle": "エージェント使用中のプリセット",
+          "cardNone": "既定のSOUL、プリセット無効",
+          "cardHint": "上の性格カードを選ぶと、このプリセットも切り替わります。"
+        }
+      },
       "groupCore": "コアファイル",
       "groupPersonas": "ペルソナ",
       "warningBanner": "アイデンティティファイルはエージェントの中核人格と行動基盤です。不適切な編集は動作異常や能力喪失、予期しない応答を招く可能性があります。影響が不明な場合は先にバックアップしてください。",
@@ -1288,7 +1630,141 @@
       "noPersona": "なし",
       "personaSwitchFailed": "ペルソナの変更に失敗しました"
     },
+    "teams": {
+      "workspaceEyebrow": "エージェントチーム",
+      "myTeams": "マイチーム",
+      "emptyEyebrow": "力を合わせて、より良く",
+      "emptyTitle": "違う強みを、ひとつのチームに。",
+      "emptyDescription": "リーダーがタスクを割り振り、結果をまとめます。メンバーはそれぞれの役割に沿って作業を進めます。",
+      "buildFirst": "最初のチームを作る",
+      "illustrationAlt": "調査・コーディング・レビューの仲間を率いる調整役のエージェント",
+      "noDescription": "違う強みで、ひとつの目標へ。",
+      "assemblySubtitle": "リーダーを選び、仲間を加え、それぞれに明確な役割を与えましょう。",
+      "setupSteps": "チーム編成の手順",
+      "stepIdentity": "目標を決める",
+      "stepLeader": "リーダーを選ぶ",
+      "stepMembers": "チームを組む",
+      "identitySection": "このチームは何をする？",
+      "leaderSection": "誰がチームを率いる？",
+      "oneLeader": "リーダー1名",
+      "leaderExplanation": "リーダーは目標を受け取り、タスクを割り振り、結果をまとめます。",
+      "promotedNotice": "{{name}} がリーダーになり、メンバー枠から外れました。",
+      "membersSection": "適した強みをそろえる",
+      "searchAgents": "エージェント名や強みで検索",
+      "permissionHint": "リーダーのプロフィールでは、このメンバーをまだ許可していません",
+      "agentProfile": "エージェントのプロフィール",
+      "noAgentMatches": "一致するエージェントがありません。別のキーワードをお試しください。",
+      "memberResponsibility": "このチームでの担当",
+      "memberMinimum": "メンバーを1名以上追加してください。チームの役割は元のエージェントプロフィールを変更しません。",
+      "advancedSettings": "連携と作業の好み",
+      "rosterCount": "リーダー1名 · メンバー{{count}}名",
+      "rosterCount_one": "リーダー1名 · メンバー{{count}}名",
+      "rosterCount_other": "リーダー1名 · メンバー{{count}}名",
+      "rosterPrompt": "目標から始めて、そのためのエージェントチームを組みましょう。",
+      "errorRoleLength": "メンバーの役割は{{max}}文字以内にしてください",
+      "errorInstructionsLength": "連携メモは{{max}}文字以内にしてください",
+      "formationLabel": "チーム構成のプレビュー",
+      "formationTitle": "チームが形になってきました",
+      "untitled": "新しいチーム",
+      "goalPrompt": "ひとつの共通目標。それぞれの強みを持つエージェント。",
+      "receiveGoal": "目標を受け取る",
+      "focusLeader": "リーダーを選ぶ・変更する",
+      "chooseLeaderSeat": "リーダー待ち",
+      "leaderJob": "タスクを割り振り、結果をまとめる",
+      "focusMember": "{{name}} の役割を編集",
+      "emptySeats": "ここにメンバーが表示されます。仲間を1名以上追加してください。",
+      "summaryFlow": "メンバーが作業し、リーダーが結果をまとめます",
+      "formationReady": "基本設定は完了",
+      "formationProgress": "チーム編成の進捗",
+      "previewHint": "リーダーまたはメンバーをクリックすると設定を編集できます。",
+      "name": "チーム名",
+      "namePlaceholder": "例：コンテンツチーム",
+      "description": "チームの説明",
+      "descriptionPlaceholder": "このチームが何をするかを一行で。",
+      "instructions": "協業ルール",
+      "instructionsPlaceholder": "誰が何を先にやるか、完了の基準は何か。",
+      "leader": "リーダー",
+      "leaderPlaceholder": "Agent プロファイルを選択",
+      "leaderLine": "リーダー：{{name}}",
+      "members": "メンバー",
+      "pickMember": "{{name}} をメンバーに追加",
+      "rolePlaceholder": "このチームでの役割",
+      "roleAria": "{{name}} のこのチームでの役割",
+      "removeMember": "{{name}} を外す",
+      "noAgents": "利用可能な Agent プロファイルがありません",
+      "maxConcurrency": "同時実行数",
+      "concurrencyHint": "同時に走るメンバー数の上限（最大 {{max}}）",
+      "concurrency": "最大 {{count}} 並列",
+      "errorName": "チーム名を入力してください",
+      "errorNameLength": "チーム名は {{max}} 文字以内です",
+      "errorLeader": "リーダーを選択してください",
+      "errorMembers": "メンバーを少なくとも 1 人選択してください",
+      "errorMembersMax": "メンバーは最大 {{max}} 人です",
+      "errorDuplicate": "同じメンバーを重複して選べません",
+      "errorLeaderIsMember": "リーダーを同時にメンバーにすることはできません",
+      "errorLeaderExcludes": "リーダーのプロファイルが委譲を許可していません：{{ids}}",
+      "errorRole": "各メンバーの役割を入力してください",
+      "errorConcurrency": "同時実行数は {{min}}〜{{max}} の整数です",
+      "title": "チーム",
+      "create": "チームを作成",
+      "search": "チームを検索",
+      "saved": "保存しました",
+      "noMatch": "該当するチームがありません。別のキーワードをお試しください。",
+      "emptyHint": "まず Agent プロファイルを作成し、それからチームを組みましょう。",
+      "edit": "編集",
+      "duplicate": "複製",
+      "copySuffix": "コピー",
+      "archive": "アーカイブ",
+      "archiveTitle": "チームをアーカイブ",
+      "archiveBody": "アーカイブすると新しいチーム実行は始められません。既存のチャットはバインド済みのリビジョンを引き続き使い、過去の実行は閲覧できます。",
+      "showArchived": "アーカイブを表示",
+      "hideArchived": "アーカイブを非表示",
+      "unarchive": "アーカイブを解除",
+      "unarchiveTitle": "このチームのアーカイブを解除しますか？",
+      "unarchiveBody": "アーカイブを解除すると、このチームは再び実行を開始でき、新しいリビジョンが作成されます。",
+      "allArchived": "すべてのチームがアーカイブされています。「アーカイブを表示」をオンにすると確認できます。",
+      "workspaceSubtitle": "得意分野の異なる Agent を 1 つのチームに。リーダーが目標を分解して割り振り、メンバーが実行します。複数人での協力が必要な作業に向いています。",
+      "archived": "アーカイブ済み",
+      "conflict": "チームが他所で変更されました。再読み込みしてから保存してください（下書きは保持されます）。",
+      "createTitle": "チームを作成",
+      "editTitle": "チームを編集",
+      "editorSubtitle": "既存の Agent プロファイルからリーダー 1 人と最大 8 人のメンバーを選びます。",
+      "save": "保存",
+      "cancel": "キャンセル",
+      "revisionNote": "現在のリビジョン v{{revision}}、保存すると v{{next}} が作成されます"
+    },
     "agents": {
+      "workspace": {
+        "identity": "役割とプロフィール",
+        "capabilities": "ツールとスキル",
+        "more": "モデルとその他",
+        "subtitle": "役割を定義し、使えるものを選びます。",
+        "identityHint": "明確な役割と従うべき指示を与えましょう。",
+        "capabilitiesHint": "実行できる操作と参照できるガイドを選びます。",
+        "moreHint": "モデルを選び、プロフィールを整理します。",
+        "toolsHint": "ファイルの読み取りやWeb検索など、実行できる操作。",
+        "skillsHint": "特定のタスクで参照できるガイド。",
+        "profileDetails": "プロフィール詳細",
+        "summary": "設定の概要",
+        "summaryToggle": "設定の概要を表示",
+        "unnamed": "名前が未設定",
+        "noDescription": "何をするのかを一文で追加してください。",
+        "noSkills": "スキルが追加されていません",
+        "noTools": "ツールが選択されていません",
+        "selectedCount": "{{count}}件有効",
+        "remaining": "ほか{{count}}件",
+        "unavailableModel": "元のモデルは利用できません",
+        "globalModel": "グローバルモデルに従う",
+        "promptHint": "担当範囲、進め方、成果物を説明してください。",
+        "promptLimit": "指示は{{count}}文字以内にしてください。",
+        "nameRequired": "続行するには名前を入力してください。",
+        "idRequired": "エージェントIDは必須です。",
+        "description": "一行の説明",
+        "modelMissing": "保存されたモデルは現在利用できません",
+        "modelMissingHint": "保存されたモデルは保持されます。別のモデルを選ぶか、グローバル設定に従ってください。",
+        "selectionIncludeHint": "チェックした項目だけが有効になります。選択方式を変えると内容は消去されます。",
+        "selectionExcludeHint": "チェックした項目が有効、外した項目は除外されます。選択方式を変えると内容は消去されます。"
+      },
       "basics": {
         "appearance": "アイコンと色",
         "category": "カテゴリ",
@@ -1302,6 +1778,7 @@
         "namePlaceholder": "例：SEO ライター",
         "noCategory": "未分類",
         "systemPreset": "システムプリセット",
+        "defaultMainAgent": "デフォルトエージェント",
         "updatedAt": "更新 {{time}}"
       },
       "capability": {
@@ -1381,6 +1858,9 @@
         "include": "選択した項目のみ"
       },
       "model": {
+        "label": "モデル",
+        "auto": "グローバルモデルに従う",
+        "autoHint": "このエージェントはグローバルなモデル設定に従います。",
         "context": "コンテキスト",
         "toolUse": "ツール使用",
         "vision": "ビジョン"
@@ -1574,6 +2054,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "移動",
     "browserEmptyHint": "アドレスを入力して閲覧を開始。",
+    "browserNewTab": "新しいタブ",
     "browserFrameTitle": "埋め込みブラウザページ",
     "browserError_scheme": "http/https のアドレスのみ開けます。",
     "browserError_private": "プライベートまたはローカルネットワークのアドレスは不可です。",
@@ -1584,12 +2065,31 @@
     "tabBrowser": "ブラウザ",
     "plusAria": "新規タブ",
     "newTerminal": "新規ターミナル",
+    "openTerminal": "ターミナルパネルを開く",
     "shellChoices": "shell を選択",
     "takeoverRunning": "実行中のターミナル",
     "takeoverAction": "引き継ぐ",
     "takeoverHint": "Enter キーで画面を再描画",
     "closeTab": "タブを閉じる",
-    "platformDefaultShell": "プラットフォーム既定の shell"
+    "platformDefaultShell": "プラットフォーム既定の shell",
+    "renameTab": "タブ名を変更",
+    "copyOutput": "出力をコピー",
+    "clearOutput": "ターミナルをクリア",
+    "pasteInput": "貼り付け",
+    "browserWindow": "ブラウザーウィンドウで開く",
+    "showHidden": "隠しファイルを表示",
+    "hideHidden": "隠しファイルを非表示",
+    "refresh": "更新",
+    "collapseAll": "すべて折りたたむ",
+    "search": "ファイルを検索",
+    "searchPlaceholder": "ファイル名と内容を検索",
+    "searching": "検索中…",
+    "noMatches": "一致なし",
+    "searchTruncated": "一部の結果のみ表示",
+    "searchFailed": "検索に失敗しました",
+    "copied": "コピーしました",
+    "historyTruncated": "以前の出力は切り捨てられました",
+    "terminalTheme": "ターミナルの明暗を切り替え"
   },
   "plusMenu": {
     "groupAdd": "追加",
@@ -1607,6 +2107,49 @@
     "back": "戻る"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "サブエージェント実行",
+      "genericAgent": "汎用エージェント",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "実行詳細はありません",
+      "close": "実行詳細を閉じる",
+      "reload": "再読み込み",
+      "taskSwitcher": "サブエージェントのタスクを切り替え",
+      "call": "呼び出し {{id}}",
+      "instruction": "タスク",
+      "process": "実行",
+      "result": "サブエージェントの結果",
+      "truncated": "内容は切り詰められました",
+      "noActivities": "公開アクティビティはまだありません。",
+      "connectionStale": "接続が切れました。状態の同期を待っています",
+      "historyLimited": "以前のアクティビティの一部は期限切れです",
+      "activitySummary": "{{action}} · ツール呼び出し {{count}} 件完了",
+      "activitySummaryNoAction": "ツール呼び出し {{count}} 件完了",
+      "status": {
+        "queued": "待機中",
+        "running": "実行中",
+        "succeeded": "完了",
+        "failed": "失敗",
+        "cancelled": "停止",
+        "interrupted": "中断"
+      },
+      "parameters": "実行パラメータ",
+      "toolOutput": "出力",
+      "detailToggle": "パラメータと出力を表示",
+      "phase": {
+        "preparing": "準備中",
+        "model": "生成中",
+        "tools": "ツール使用中",
+        "finalizing": "完了処理中"
+      },
+      "activityStatus": {
+        "running": "実行中",
+        "succeeded": "完了",
+        "failed": "失敗",
+        "cancelled": "停止",
+        "interrupted": "中断"
+      }
+    },
     "activity": {
       "viewDetails": "詳細を見る",
       "hideDetails": "隠す",
@@ -1656,7 +2199,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "アプリアイコンを作る",
-          "prompt": "Mira のクリーンな 1:1 アプリアイコンを生成してください。親しみやすいロボット、シンプルなベクター風、柔らかい青と白の配色、文字なし。"
+          "prompt": "知序 のクリーンな 1:1 アプリアイコンを生成してください。親しみやすいロボット、シンプルなベクター風、柔らかい青と白の配色、文字なし。"
         },
         "sticker": {
           "title": "ステッカーを作る",
@@ -1711,6 +2254,46 @@
         "local": "トリガー待ち",
         "none": "次回実行なし"
       }
+    },
+    "teamProgress": {
+      "title": "チームの進捗",
+      "leader": "リーダー",
+      "leaderAction": {
+        "planning": "計画中",
+        "waiting": "メンバーを待機中",
+        "reviewing": "レビュー中",
+        "summarizing": "集計中",
+        "idle": "待機中"
+      },
+      "status": {
+        "running": "実行中",
+        "cancelling": "停止しています…",
+        "completed": "完了",
+        "partial": "一部完了",
+        "failed": "失敗",
+        "cancelled": "停止済み",
+        "interrupted": "中断"
+      },
+      "taskStatus": {
+        "pending": "未割り当て",
+        "queued": "待機中",
+        "running": "実行中",
+        "cancelling": "停止しています…",
+        "succeeded": "完了",
+        "failed": "失敗",
+        "cancelled": "停止済み",
+        "blocked": "ブロック",
+        "interrupted": "中断"
+      },
+      "stop": "チームを停止",
+      "stopping": "停止しています…",
+      "retry": "失敗したタスクを再実行",
+      "retryHint": "再実行は失敗したタスクをもう一度実行し、既存の副作用が重複する可能性があります。",
+      "cancelTask": "このタスクを停止",
+      "noTasks": "このターンはリーダーが直接対応しました。",
+      "resyncing": "チーム状態を同期しています…",
+      "artifacts": "成果物: {{names}}",
+      "memberFallback": "メンバー {{memberId}}"
     },
     "composer": {
       "menu": {
@@ -1857,7 +2440,7 @@
             "description": "このチャットで実行中のエージェントのターンをキャンセルします。"
           },
           "restart": {
-            "title": "Mira を再起動",
+            "title": "知序 を再起動",
             "description": "bot プロセスをその場で再起動します。"
           },
           "status": {
@@ -1935,16 +2518,20 @@
       "mentions": {
         "ariaLabel": "メンション",
         "label": "アプリ",
+        "agentGroup": "エージェント",
         "cliGroup": "CLI アプリ",
         "mcpGroup": "MCP サービス",
-        "sessionGroup": "Mira の会話",
+        "sessionGroup": "知序 の会話",
+        "agentBadge": "エージェント",
+        "defaultAgentBadge": "デフォルトエージェント",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "@{{name}} がこのターンを担当します",
         "cliDescription": "@{{name}} をローカル CLI アプリとして使用",
         "mcpDescription": "@{{name}} を MCP サーバーとして使用",
         "cliTitle": "CLI アプリ: {{name}}",
         "mcpTitle": "MCP サーバー: {{name}}",
-        "sessionBadge": "Mira の会話",
+        "sessionBadge": "知序 の会話",
         "sessionDescription": "@{{name}} を過去のチャットとして参照"
       },
       "workspace": {
@@ -1955,6 +2542,20 @@
         "defaultShort": "既定",
         "full": "フルアクセス",
         "fullShort": "フル"
+      },
+      "team": {
+        "aria": "チームを選択",
+        "select": "チームを選ぶ",
+        "none": "チームなし",
+        "empty": "利用可能なチームはまだありません",
+        "bound": "{{name}}（リビジョン {{revision}}）にバインド済み",
+        "chip": "チーム：{{name}}",
+        "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "現在のエージェント：{{name}}",
+        "empty": "利用できるエージェントがありません",
+        "defaultTag": "既定"
       }
     },
     "scrollToBottom": "一番下へスクロール",
@@ -2072,9 +2673,16 @@
     "close": "ファイルプレビューを閉じる",
     "loading": "プレビューを読み込み中...",
     "failed": "このファイルをプレビューできませんでした。",
-    "routeMissing": "ファイルプレビューには最新の gateway が必要です。Mira gateway を再起動してから再試行してください。",
+    "routeMissing": "ファイルプレビューには最新の gateway が必要です。知序 gateway を再起動してから再試行してください。",
     "resize": "ファイルプレビューの幅を変更",
-    "truncated": "ファイルが大きいため、プレビューは途中まで表示されています。"
+    "pickFile": "ファイルを選ぶとここに表示されます。",
+    "truncated": "ファイルが大きいため、プレビューは途中まで表示されています。",
+    "edit": "ファイルを編集",
+    "save": "ファイルを保存",
+    "cancel": "編集をキャンセル",
+    "saved": "保存しました",
+    "saveFailed": "このファイルを保存できませんでした。",
+    "editTruncated": "大きすぎるファイルはここで編集できません。"
   },
   "code": {
     "fallbackLanguage": "コード",
@@ -2084,8 +2692,7 @@
   },
   "workbench": {
     "title": "ワークベンチ",
-    "open": "ワークベンチを開く",
-    "collapse": "ワークベンチをたたむ",
+    "tools": "ツールサイドバー",
     "updatedAt": "更新 {{time}}",
     "overview": "概要",
     "emptyOverview": "まだ概要がありません",
@@ -2154,6 +2761,14 @@
       "title": "ワークスペースは変更されませんでした",
       "body": "このプロジェクトまたはアクセスモードはゲートウェイに拒否されました。既存のプロジェクトまたは別のアクセスモードを選択して、もう一度お試しください。"
     },
+    "teamBindingExpired": {
+      "title": "チームは設定されませんでした",
+      "body": "この空のチャットのチーム選択は有効期限切れです。最初のメッセージを送る前にチームを選び直してください。"
+    },
+    "teamUnavailable": {
+      "title": "チームを利用できません",
+      "body": "このチームはアーカイブされたか、参照しているエージェント設定ファイルが削除されました。別のチームを選ぶか、通常のチャットとして送信してください。"
+    },
     "turnRejected": {
       "title": "メッセージは送信されませんでした",
       "body": "ゲートウェイがこのメッセージを拒否しました。本文または添付ファイルを確認して、もう一度お試しください。"
@@ -2193,7 +2808,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "アシスタント",
-      "creative": "クリエイティブ"
+      "creative": "クリエイティブ",
+      "more": "その他",
+      "groups": {
+        "workspace": "ワークスペース",
+        "ai": "AI 設定",
+        "personal": "個人"
+      }
     },
     "preview": {
       "badge": "インターフェースプレビュー · サンプルコンテンツ"
@@ -2216,5 +2837,9 @@
     "creative": {
       "comingSoon": "クリエイティブモジュールはまもなく公開されます。"
     }
+  },
+  "toast": {
+    "saved": "保存しました",
+    "saveFailed": "保存に失敗しました：{{message}}"
   }
 }

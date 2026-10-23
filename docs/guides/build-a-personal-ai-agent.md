@@ -1,4 +1,4 @@
-# How to Build a Personal AI Agent with nanobot
+# How to Build a Personal AI Agent with Zhixu
 
 This guide builds a personal AI agent you can run locally, talk to from the
 terminal or browser, and later connect to chat apps, memory, tools, and
@@ -6,7 +6,7 @@ automations.
 
 ## What you will build
 
-- a configured nanobot install
+- a configured Zhixu install
 - one working model provider
 - one local agent reply
 - a browser WebUI session for ongoing work
@@ -14,13 +14,13 @@ automations.
 ## When to use this
 
 Use this when you want a personal AI agent that you control rather than a hosted
-chat-only interface. nanobot is useful when the agent needs local workspace
+chat-only interface. Zhixu is useful when the agent needs local workspace
 access, tool calls, session history, memory, scheduled work, or chat app
 delivery.
 
 ## Install
 
-Follow [Quick Start](../quick-start.md) to install nanobot using the recommended
+Follow [Quick Start](../quick-start.md) to install Zhixu using the recommended
 method for your operating system and configure one model. Return here after
 you receive the first reply. If terminals and config files are new to you, use
 [Start Without Technical Background](../start-without-technical-background.md)
@@ -70,7 +70,7 @@ sessions for longer work.
 - If the WebUI opens but does not answer, check gateway logs and provider
   credentials.
 
-## Related nanobot docs
+## Related Zhixu docs
 
 - [Quick Start](../quick-start.md)
 - [Concepts](../concepts.md)

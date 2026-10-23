@@ -14,7 +14,7 @@ from rich.console import Console
 from nanobot import __logo__, __version__
 from nanobot.agent.hook import AgentHook, AgentRunHookContext
 from nanobot.agent.hooks import create_file_edit_activity_hook
-from nanobot.agent.loop import AgentLoop
+from nanobot.agent.loop import _MEMORY_WORKSPACE_ID, AgentLoop
 from nanobot.agent.tools.mcp import MCPProvider
 from nanobot.agent.tools.registry import ToolRegistry
 from nanobot.cli import terminal as cli_terminal
@@ -34,20 +34,21 @@ from nanobot.cli.webui_support import (
 )
 from nanobot.config.paths import is_default_workspace
 from nanobot.config.schema import Config
-from nanobot.agent.loop import _MEMORY_WORKSPACE_ID
+from nanobot.gateway.runtime import GatewayInstance
 from nanobot.memory.retrieval import RetrievalEngine
 from nanobot.memory.retrieval.store_adapter import MemoryStoreAdapter
 from nanobot.memory.vector.indexer import MemoryIndexer, set_active_indexer
 from nanobot.memory.vector.store import VectorStore
-from nanobot.webui.memory_services import MemoryServices
-from nanobot.gateway.runtime import GatewayInstance
 from nanobot.security.network import is_loopback_host
 from nanobot.session.keys import UNIFIED_SESSION_KEY, last_channel_from_metadata
+from nanobot.teams.turn import bind_team_turns
 from nanobot.utils.evaluator import evaluate_response, resolve_evaluator_prompt
 from nanobot.utils.helpers import sync_workspace_templates
 from nanobot.webui.build import BuildMode
 from nanobot.webui.dev import WebUIDevError, WebUIDevServer
+from nanobot.webui.memory_services import MemoryServices
 from nanobot.webui.sidebar_state import read_webui_sidebar_state
+from nanobot.writing.collab.runner import converge_collaborations
 
 __all__ = ["_run_gateway"]
 
@@ -407,7 +408,7 @@ def _run_gateway(
         )
         raise typer.Exit(1)
 
-    console.print(f"{__logo__} Starting nanobot gateway version {__version__} on port {port}...")
+    console.print(f"{__logo__} Starting Zhixu gateway version {__version__} on port {port}...")
     _prepare_webui_bundle_for_gateway(
         config,
         mode=webui_bundle_mode,
@@ -789,8 +790,16 @@ def _run_gateway(
         webui_mcp_reload=mcp_provider.reload,
         webui_skill_state_action=_webui_skill_state_action,
         webui_recovery_action=recovery.handle_action,
+        webui_team_host=agent,
         config_path=Path(config_path),
     )
+    # 团队回合装配：gateway 里那份 TeamService 是唯一实例（事件/恢复都要用它），
+    # 这里只把 loop 的两个注入点挂上；没启用 websocket 通道时什么都不做。
+    if channels.webui_gateway is not None:
+        bind_team_turns(agent, channels.webui_gateway.team_turns)
+        # 协作域启动收敛：进程重启后把在途批次标 interrupted（不重放可能产生副作用的
+        # 工具调用），已交付产物一律保留。
+        converge_collaborations(config.workspace_path)
 
     def _pick_heartbeat_target() -> tuple[str, str]:
         """Pick a routable channel/chat target for heartbeat-triggered messages."""

@@ -1,11 +1,212 @@
 {
+  "appearance": {
+    "previewOnly": "仅供预览，外观调整仅在本次会话生效，不会修改已保存的偏好。",
+    "visualStyle": "视觉风格",
+    "mode": "模式",
+    "system": "跟随系统",
+    "light": "浅色",
+    "dark": "深色",
+    "theme": "主题",
+    "zhixu": "知序",
+    "graphite": "石墨",
+    "ocean": "海蓝",
+    "sand": "暖砂",
+    "custom": "自定义",
+    "editingDark": "正在编辑：深色配色",
+    "editingLight": "正在编辑：浅色配色",
+    "accent": "强调色",
+    "background": "背景",
+    "foreground": "文字",
+    "chooseColor": "选择{{label}}颜色",
+    "resetColor": "恢复{{label}}主题值",
+    "invalidColor": "请输入 HEX 颜色，例如 #0169CC 或 #09C。",
+    "uiFont": "界面字体",
+    "codeFont": "代码字体",
+    "font_system": "系统默认",
+    "font_sans": "无衬线",
+    "font_serif": "衬线",
+    "font_custom": "自定义本机字体",
+    "font_default": "默认等宽",
+    "font_consolas": "Consolas",
+    "font_cascadia": "Cascadia Code",
+    "font_jetbrains": "JetBrains Mono",
+    "fontFamily": "{{label}}名称",
+    "invalidFont": "请输入单个字体家族名称，不含样式分隔符。",
+    "fontFallback": "使用此设备已安装的字体。字体或字符不可用时，自动使用回退字体。",
+    "lowContrast": "文字与背景对比度偏低（{{ratio}}:1），建议调整文字或背景颜色。",
+    "storageError": "本次已生效，无法保存到此设备。",
+    "preview": "效果预览",
+    "sampleTitle": "让想法有序生长 · Make room for ideas",
+    "sampleBody": "颜色与字体将应用到整个界面。0123456789",
+    "sampleButton": "继续",
+    "sampleInput": "记录一个新想法…",
+    "sampleInputLabel": "示例输入框",
+    "instant": "修改即时生效，并自动保存在此设备。",
+    "reset": "恢复默认外观"
+  },
   "creative": {
+    "title": "创作空间",
+    "new_placeholder": "给这篇文章起个标题",
+    "create_btn": "创建草稿",
+    "creating_btn": "创建中…",
+    "search_placeholder": "搜索标题或摘要",
+    "status_filter": "状态筛选",
+    "empty_template": "空白写作",
+    "selected_template": "已选模板：{{name}}",
+    "title_hint": "先起个暂定标题，之后随时修改。",
+    "library_hint": "从上次停下的地方继续。",
+    "empty_action": "写第一篇文章",
+    "clear_filters": "清空筛选",
+    "dismiss": "知道了",
+    "no_summary": "暂无摘要",
+    "revision_label": "版本 {{revision}}",
+    "duplicate": "复制",
+    "delete": "删除",
+    "edit_article": "编辑文章",
+    "confirm_delete": "确认删除这篇文章？",
+    "confirm_delete_body": "「{{title}}」将被移除，此操作无法撤销。",
+    "cancel": "取消",
+    "confirm": "确定",
+    "loadFailed": "文章列表加载失败",
+    "retry": "重试",
+    "no_match": "没有符合条件的文章",
+    "empty": "从这里开始你的第一篇文章",
+    "createFailed": "创建文章失败，请重试。",
+    "title_required": "请输入文章标题",
+    "duplicateFailed": "复制文章失败",
+    "deleteFailed": "删除文章失败",
+    "note_storage": "预览内容仅在本次访问内保留，刷新前请导出草稿。",
+    "confirm_delete_dirty": "这篇文章还有未保存的修改，删除后本地恢复稿也会被清掉。",
+    "partner": {
+      "ui": {
+        "after": "修改后",
+        "angles": "切入角度",
+        "before": "修改前",
+        "busy": "处理中…",
+        "copyRewrite": "复制改写",
+        "dismissMaterial": "从本次选择中移除",
+        "empty": "还没有返回结果。",
+        "errorUnknown": "写作搭档无法处理该请求，请重试。",
+        "failed": "该事项失败，请重试。",
+        "handoffUnknown": "等待你的决定",
+        "inputLabel": "给编辑发消息",
+        "insertIntoArticle": "插入正文",
+        "insertSection": "插入本节",
+        "issues": "待处理问题",
+        "materials": "素材",
+        "modelGlobalDefault": "本文还没单独设置模型——当前沿用全局默认（{{preset}}）。",
+        "modelSetup": "选择模型",
+        "modelSwitchApplied": "已切换到 {{preset}}，只对之后新建的批次生效。",
+        "modelSwitchFailed": "模型切换失败，请重试。",
+        "modelSwitchNotApplied": "服务端仍在使用 {{preset}}，本次切换未生效。",
+        "modelSwitchPending": "正在切换模型…",
+        "modelSwitchRequested": "模型切换已提交，只对之后新建的批次生效。",
+        "modelSwitchUnsupported": "当前连接不支持切换模型。",
+        "modelUnknownPreset": "该模型 preset 已不可用，请重新选择。",
+        "nextStep": "下一步",
+        "nextStepUnknown": "打开协作过程查看下一步",
+        "noProgress": "这篇文章当前没有运行中的任务。",
+        "outlineConfirm": "保存提纲并继续",
+        "outlinePoint": "提纲要点",
+        "pending": "等待你的决定",
+        "plan": "计划",
+        "quickTasks": "快捷任务",
+        "rejectRewrite": "拒绝",
+        "replaceArticle": "替换空白草稿",
+        "retry": "重试",
+        "retryRewrite": "换一种改写",
+        "sections": "小节",
+        "send": "发送给团队",
+        "showFewerIssues": "收起",
+        "showMoreIssues": "再显示 {{count}} 条",
+        "stop": "停止",
+        "stopping": "正在停止…",
+        "untitled": "未命名文章",
+        "viewAndInsert": "查看并插入",
+        "viewMaterials": "查看素材",
+        "viewOutline": "查看提纲",
+        "toggle": "创作搭档"
+      },
+      "title": "写作搭档",
+      "builtinBadge": "内置",
+      "process": {
+        "toggle": "查看协作过程"
+      },
+      "input": {
+        "placeholder": "保留我的语气；把第 2 节写得更具体…"
+      },
+      "requirements": {
+        "toggle": "本文的要求"
+      },
+      "stage": {
+        "idle": "空闲",
+        "queued": "排队中",
+        "running": "进行中",
+        "waiting_author": "等待你确认",
+        "completed": "已完成",
+        "failed": "失败",
+        "cancelled": "已取消",
+        "interrupted": "已中断"
+      },
+      "action": {
+        "start_full": "启动完整流程",
+        "ideate": "寻找选题角度",
+        "research": "调研",
+        "outline": "生成提纲",
+        "draft": "写初稿",
+        "rewrite_selection": "改写所选内容",
+        "review_all": "全文审校",
+        "reply": "回复"
+      },
+      "artifact": {
+        "brief": "选题简报",
+        "material_list": "素材清单",
+        "outline": "提纲",
+        "draft": "初稿",
+        "rewrite": "改写",
+        "review": "审校"
+      },
+      "artifactAction": {
+        "useAngle": "采用这个角度",
+        "addMaterial": "加入素材",
+        "writeFromOutline": "按提纲写作",
+        "insertDraft": "插入初稿",
+        "applyRewrite": "应用改写",
+        "viewIssues": "查看问题"
+      },
+      "handoff": {
+        "outline_confirm": "提纲已就绪，确认后继续",
+        "materials_request": "还需要更多素材",
+        "final_accept": "终稿已就绪，确认后结束"
+      },
+      "progress": {
+        "researching": "调研中",
+        "outlining": "梳理提纲",
+        "drafting": "撰写初稿中",
+        "reviewing": "审校中",
+        "waitingAuthor": "等待你确认",
+        "stopped": "已停止"
+      },
+      "error": {
+        "selectionRequired": "请先选中一段文字",
+        "versionConflict": "文章已发生变化，请重新加载后再试。",
+        "notPending": "该事项已不再等待你处理。",
+        "serviceUnavailable": "写作服务暂不可用，请稍后重试。",
+        "requestTooLarge": "请求内容过大，请精简后重试。"
+      },
+      "next": {
+        "writeFromOutline": "按此提纲写作",
+        "insertToArticle": "插入正文",
+        "viewChanges": "查看改动",
+        "addMaterials": "补充素材"
+      }
+    },
     "headline": "今天，想写点什么？",
-    "hero_description": "一段代码、一次实践、一个新理解，都可以是一篇文章的开始。",
-    "topic_label": "文章主题",
-    "input_hint": "以你的素材与观点为起点",
-    "template_heading": "从熟悉的方式开始",
-    "template_hint": "模板只是起点",
+    "hero_description": "从一个想法开始，或继续完成上次的文章。",
+    "topic_label": "文章标题",
+    "input_hint": "创建后可在编辑器中添加素材、整理正文。",
+    "template_heading": "选择一个起始提纲",
+    "template_hint": "模板仅初始化提纲，可随时调整。",
     "library_heading": "我的文章",
     "new_article": "写一篇新文章",
     "sample_label": "示例",
@@ -92,33 +293,57 @@
       "tech-explainer": {
         "name": "技术解析",
         "desc": "把复杂概念，解释清楚",
-        "outline": ["问题从哪里来", "核心概念与原理", "用一个例子说明", "适用范围与限制", "我的理解"]
+        "outline": [
+          "问题从哪里来",
+          "核心概念与原理",
+          "用一个例子说明",
+          "适用范围与限制",
+          "我的理解"
+        ]
       },
       "source-reading": {
         "name": "源码阅读",
         "desc": "沿着调用链，读懂设计",
-        "outline": ["这次想读懂什么", "入口与调用链", "关键实现", "设计取舍", "自己的理解"]
+        "outline": [
+          "这次想读懂什么",
+          "入口与调用链",
+          "关键实现",
+          "设计取舍",
+          "自己的理解"
+        ]
       },
       "practice-retro": {
         "name": "实践复盘",
         "desc": "记录过程，也记录取舍",
-        "outline": ["背景与目标", "我是怎么做的", "问题与排查", "结果与不足", "下一次怎么改"]
+        "outline": [
+          "背景与目标",
+          "我是怎么做的",
+          "问题与排查",
+          "结果与不足",
+          "下一次怎么改"
+        ]
       },
       "learning-summary": {
         "name": "学习总结",
         "desc": "把新知识，变成自己的理解",
-        "outline": ["带着什么问题学习", "关键知识", "动手验证", "理解发生了什么变化", "还有哪些问题"]
+        "outline": [
+          "带着什么问题学习",
+          "关键知识",
+          "动手验证",
+          "理解发生了什么变化",
+          "还有哪些问题"
+        ]
       }
     }
   },
   "app": {
-    "brand": "Mira",
+    "brand": "知序",
     "loading": {
-      "connecting": "正在连接 Mira…",
-      "boot": "正在加载 Mira…"
+      "connecting": "正在连接 知序…",
+      "boot": "正在加载 知序…"
     },
     "error": {
-      "title": "无法连接到 Mira",
+      "title": "无法连接到 知序",
       "gatewayHint": "请确认网关已启动（`nanobot gateway`），并且当前页面与网关运行在同一台机器上。"
     },
     "auth": {
@@ -136,8 +361,8 @@
     },
     "system": {
       "section": "系统",
-      "restartHint": "重启 Mira 以应用运行时更改。",
-      "restart": "重启 Mira",
+      "restartHint": "重启 知序 以应用运行时更改。",
+      "restart": "重启 知序",
       "restarting": "正在重启...",
       "restartEngine": "重启引擎",
       "restartingEngine": "正在重启引擎..."
@@ -146,11 +371,11 @@
       "completed": "重启已完成，用时 {{seconds}} 秒。"
     },
     "documentTitle": {
-      "base": "Mira",
-      "chat": "{{title}} · Mira"
+      "base": "知序",
+      "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "Mira Web UI —— 与你的 Mira 工作区对话。"
+      "description": "知序 Web UI —— 与你的 知序 工作区对话。"
     },
     "pairing": {
       "title": "配对聊天用户",
@@ -218,23 +443,128 @@
       "automations": "自动任务",
       "skills": "技能",
       "memory": "记忆",
-      "identity": "身份"
+      "identity": "身份",
+      "agents": "智能体",
+      "teams": "团队"
+    },
+    "teams": {
+      "workspaceEyebrow": "AGENT TEAMS",
+      "myTeams": "我的团队",
+      "emptyEyebrow": "一起，把事情做好",
+      "emptyTitle": "让各有所长的 Agent，成为一支团队。",
+      "emptyDescription": "队长负责分工和汇总，成员按各自职责完成任务。选好搭档，让一个目标有人安排，也有人落实。",
+      "buildFirst": "组建第一支团队",
+      "illustrationAlt": "一位队长与研究、编码、检查 Agent 组成的小队",
+      "noDescription": "为共同的目标，各展所长。",
+      "assemblySubtitle": "选好队长，邀请成员，让每位 Agent 都有明确分工。",
+      "setupSteps": "组队步骤",
+      "stepIdentity": "确定目标",
+      "stepLeader": "安排队长",
+      "stepMembers": "成员就位",
+      "identitySection": "这支团队做什么",
+      "leaderSection": "谁来带领团队",
+      "oneLeader": "1 位队长",
+      "leaderExplanation": "队长接收你的目标，把任务分给成员，再整理最终结果。",
+      "promotedNotice": "{{name}} 已成为队长，并从成员席位移出。",
+      "membersSection": "让成员各展所长",
+      "searchAgents": "搜索 Agent 名称或专长",
+      "permissionHint": "队长档案尚未允许委派给此成员",
+      "agentProfile": "Agent 档案",
+      "noAgentMatches": "没有匹配的 Agent，试试其他关键词。",
+      "memberResponsibility": "在这个团队负责",
+      "memberMinimum": "至少加入 1 位成员。职责只在本团队生效，不会改动 Agent 原始档案。",
+      "advancedSettings": "协作约定与工作方式",
+      "rosterCount": "1 位队长 · {{count}} 位成员",
+      "rosterCount_one": "1 位队长 · {{count}} 位成员",
+      "rosterCount_other": "1 位队长 · {{count}} 位成员",
+      "rosterPrompt": "从一个目标开始，组成你的 Agent 团队。",
+      "errorRoleLength": "成员职责不能超过 {{max}} 字",
+      "errorInstructionsLength": "协作约定不能超过 {{max}} 字",
+      "formationLabel": "团队关系预览",
+      "formationTitle": "你的团队正在成形",
+      "untitled": "一支新团队",
+      "goalPrompt": "把一个目标，交给各有所长的 Agent。",
+      "receiveGoal": "接收你的目标",
+      "focusLeader": "选择或更换队长",
+      "chooseLeaderSeat": "等待一位队长",
+      "leaderJob": "分派任务，整理结果",
+      "focusMember": "编辑 {{name}} 的职责",
+      "emptySeats": "加入成员后，他们会出现在这里。至少需要 1 位成员。",
+      "summaryFlow": "成员执行后，由队长汇总交付",
+      "formationReady": "基本配置已就绪",
+      "formationProgress": "团队准备进度",
+      "previewHint": "点击队长或成员，可直接调整配置。",
+      "name": "团队名称",
+      "namePlaceholder": "例如：内容团队",
+      "description": "团队说明",
+      "descriptionPlaceholder": "一句话说明这支团队做什么。",
+      "instructions": "协作约定",
+      "instructionsPlaceholder": "谁先做什么、交付标准是什么。",
+      "leader": "队长",
+      "leaderPlaceholder": "选择一个 Agent 档案",
+      "leaderLine": "队长：{{name}}",
+      "members": "成员",
+      "pickMember": "选择 {{name}} 为成员",
+      "rolePlaceholder": "本团队职责",
+      "roleAria": "{{name}} 在本团队的职责",
+      "removeMember": "移除 {{name}}",
+      "noAgents": "还没有可用的 Agent 档案",
+      "maxConcurrency": "最多并行",
+      "concurrencyHint": "同时运行的成员数上限（最多 {{max}}）",
+      "concurrency": "最多并行 {{count}} 项",
+      "errorName": "请填写团队名称",
+      "errorNameLength": "团队名称不能超过 {{max}} 字",
+      "errorLeader": "请选择队长",
+      "errorMembers": "至少选择 1 个成员",
+      "errorMembersMax": "成员最多 {{max}} 个",
+      "errorDuplicate": "成员不能重复",
+      "errorLeaderIsMember": "队长不能同时作为成员",
+      "errorLeaderExcludes": "队长档案不允许委派：{{ids}}",
+      "errorRole": "每位成员都要填写本团队职责",
+      "errorConcurrency": "最多并行需在 {{min}}–{{max}} 之间",
+      "title": "团队",
+      "create": "创建团队",
+      "search": "搜索团队",
+      "saved": "已保存",
+      "noMatch": "没有匹配的团队，换个关键词试试。",
+      "emptyHint": "先创建 Agent 档案，再从中组建团队。",
+      "edit": "编辑",
+      "duplicate": "复制",
+      "copySuffix": "副本",
+      "archive": "归档",
+      "archiveTitle": "归档团队",
+      "archiveBody": "归档后不能再发起新的团队运行，已有聊天会继续使用它绑定的修订，历史运行仍可查看。",
+      "showArchived": "显示归档",
+      "hideArchived": "隐藏归档",
+      "unarchive": "取消归档",
+      "unarchiveTitle": "取消归档这支团队？",
+      "unarchiveBody": "取消归档后，这支团队可以重新发起运行，并因此生成一个新修订。",
+      "allArchived": "所有团队都已归档，打开「显示归档」就能看到它们。",
+      "workspaceSubtitle": "把各有所长的 Agent 编成一支团队：队长拆解目标并分派任务，成员各自执行。适合需要多步协作的事。",
+      "archived": "已归档",
+      "conflict": "团队已被其他改动更新，请重新加载后再保存（你的草稿已保留）。",
+      "createTitle": "创建团队",
+      "editTitle": "编辑团队",
+      "editorSubtitle": "从已有的 Agent 档案里选一位 Leader 和至多 8 位成员。",
+      "save": "保存",
+      "cancel": "取消",
+      "revisionNote": "当前修订 v{{revision}}；保存后生成 v{{next}}"
     },
     "agents": {
-      "create": "新建 Agent",
+      "create": "新建智能体",
       "untitled": "未命名",
       "loading": "加载中…",
-      "empty": "暂无 Agent",
+      "empty": "暂无智能体",
       "search": "搜索名称或描述…",
       "categoryAll": "全部",
       "viewMode": "视图模式",
       "viewTree": "树",
-      "hiddenGroup": "已隐藏的 Agent（{{count}}）",
+      "hiddenGroup": "已隐藏的智能体（{{count}}）",
       "deleteTitle": "删除「{{name}}」？",
-      "deleteBody": "删除后该 Agent 不可恢复，历史会话不受影响。",
+      "deleteBody": "删除后该智能体不可恢复，历史会话不受影响。",
       "mode": {
-        "all": "全部",
-        "include": "仅所选",
+        "all": "全部可用",
+        "include": "只用所选",
         "exclude": "排除所选"
       },
       "section": {
@@ -248,7 +578,7 @@
         "enabledCount": "已启用 {{count}}",
         "locked": "框架依赖",
         "empty": "没有匹配项",
-        "allModeHint": "当前为「全部」，下方仅供查看。切换到「仅所选」即可逐项勾选。",
+        "allModeHint": "已启用全部可用项，下方仅供查看。切换到「只用所选」即可逐项勾选。",
         "selectGroup": "全选",
         "clearGroup": "全不选"
       },
@@ -259,16 +589,19 @@
         "modeLabel": "搜索技能"
       },
       "model": {
+        "label": "模型",
+        "auto": "跟随全局模型",
+        "autoHint": "该智能体跟随全局模型设置。",
         "context": "上下文",
         "vision": "支持视觉",
         "toolUse": "支持工具调用"
       },
       "prompt": {
-        "label": "系统提示词",
-        "placeholder": "描述这个 Agent 的职责、边界与输出风格。可使用 {{name}} 等变量。",
+        "label": "工作指令",
+        "placeholder": "描述这个智能体的职责、边界与输出要求。可使用 {{name}} 等变量。",
         "expand": "展开编辑",
         "collapse": "完成",
-        "expandedTitle": "编辑提示词"
+        "expandedTitle": "编辑工作指令"
       },
       "basics": {
         "id": "ID",
@@ -281,6 +614,7 @@
         "noCategory": "未分类",
         "appearance": "图标与颜色",
         "systemPreset": "系统预设",
+        "defaultMainAgent": "默认主 Agent",
         "custom": "自定义",
         "hidden": "已隐藏",
         "updatedAt": "上次修改 {{time}}"
@@ -305,9 +639,9 @@
         "empty": "没有匹配的图标"
       },
       "editor": {
-        "new": "新建 Agent",
+        "new": "新建智能体",
         "edit": "编辑 · {{name}}",
-        "subtitle": "配置该 Agent 可用的能力、模型与提示词。",
+        "subtitle": "配置该智能体可用的能力、模型与提示词。",
         "reset": "重置为默认",
         "unsaved": "有未保存的修改",
         "saved": "已保存",
@@ -315,6 +649,37 @@
         "discardTitle": "放弃未保存的修改？",
         "discardBody": "关闭后本次编辑不会保存。",
         "discard": "放弃修改"
+      },
+      "workspace": {
+        "identity": "职责与身份",
+        "capabilities": "工具与技能",
+        "more": "模型与更多",
+        "subtitle": "先写清职责，再为它选择合适的能力。",
+        "identityHint": "给它一个明确的角色，以及做事的方法。",
+        "capabilitiesHint": "按需选择可执行的操作和可参考的做事方法。",
+        "moreHint": "选择模型，整理档案的分类与外观。",
+        "toolsHint": "允许它执行的操作，比如读文件、搜索网页。",
+        "skillsHint": "完成某类任务时可参考的做事方法。",
+        "profileDetails": "档案信息",
+        "summary": "配置摘要",
+        "summaryToggle": "查看配置摘要",
+        "unnamed": "尚未填写名称",
+        "noDescription": "用一句话说明它负责什么。",
+        "noSkills": "未添加技能",
+        "noTools": "未选择工具",
+        "selectedCount": "已启用 {{count}} 项",
+        "remaining": "等 {{count}} 项",
+        "unavailableModel": "原模型当前不可用",
+        "globalModel": "跟随全局模型",
+        "promptHint": "写清它负责什么、怎样完成任务，以及结果怎么交付。",
+        "promptLimit": "工作指令不能超过 {{count}} 字。",
+        "nameRequired": "请先填写名称。",
+        "idRequired": "智能体标识不能为空。",
+        "description": "一句话说明",
+        "modelMissing": "原模型当前不可用",
+        "modelMissingHint": "保留原模型设置。你可以选择其他模型，或改为跟随全局。",
+        "selectionIncludeHint": "只启用勾选项。切换选择方式会清空当前选择。",
+        "selectionExcludeHint": "勾选表示启用，取消勾选表示排除。切换选择方式会清空当前选择。"
       },
       "tree": {
         "empty": "没有可显示的智能体"
@@ -330,7 +695,7 @@
       },
       "summary": {
         "all": "全部{{noun}}",
-        "subAgentNoun": "个子 Agent"
+        "subAgentNoun": "个子智能体"
       },
       "category": {
         "general": "通用",
@@ -462,7 +827,7 @@
       "language": "语言",
       "provider": "提供商",
       "model": "模型",
-      "restart": "重启 Mira",
+      "restart": "重启 知序",
       "configPath": "配置路径",
       "activePreset": "当前预设",
       "gateway": "网关",
@@ -535,7 +900,7 @@
       "defaultImageSize": "发送给支持此选项的提供商的尺寸提示。",
       "maxImagesPerTurn": "单次 generate_image 请求可生成的图片上限。",
       "timezone": "用于日程和需要时间感知的回复。",
-      "cliAppsCatalog": "只安装 Mira 可本地运行的应用 CLI 适配器；不会改动原生应用。",
+      "cliAppsCatalog": "只安装 知序 可本地运行的应用 CLI 适配器；不会改动原生应用。",
       "cliAppsFilter": "按应用、类别或能力搜索。",
       "localServiceAccess": "允许完全访问权限下的 shell 命令访问 localhost 服务。",
       "webuiDefaultAccess": "用于没有单独项目权限的 Web 聊天。",
@@ -581,7 +946,7 @@
       "readyStatus": "就绪",
       "readyTry": "试试 @{{name}}",
       "readyCopied": "已复制",
-      "readyPrompt": "让 Mira 在这个任务中使用 @{{name}}。",
+      "readyPrompt": "让 知序 在这个任务中使用 @{{name}}。",
       "openChat": "回到对话",
       "unsupported": "暂不支持",
       "unavailable": "不可用",
@@ -625,7 +990,7 @@
       "saveCustom": "保存 MCP",
       "configImport": "导入 mcp.json",
       "importConfig": "导入",
-      "restartRequired": "重启 Mira 以连接更新后的 MCP 工具。",
+      "restartRequired": "重启 知序 以连接更新后的 MCP 工具。",
       "toolsFound": "{{count}} 个工具",
       "loading": "正在加载 MCP 预设...",
       "empty": "没有匹配的 MCP 预设。",
@@ -653,14 +1018,14 @@
       "preparingSignIn": "正在准备安全登录…",
       "openSignInToContinue": "打开登录页面以继续。",
       "finishSignInInBrowser": "请在浏览器窗口中完成登录。",
-      "manualCallbackRequired": "完成登录后，将回调 URL 粘贴到 Mira。",
+      "manualCallbackRequired": "完成登录后，将回调 URL 粘贴到 知序。",
       "manualCallbackHelp": "授权后，localhost 页面将无法打开。请复制地址栏中的完整 URL 并粘贴到这里。",
       "finishingConnection": "正在完成连接…",
       "activatingTools": "正在启用工具…",
       "connected": "已连接。",
       "connectionFailed": "连接失败。",
       "connectionCancelled": "已取消连接。",
-      "reloadFailed": "已登录，但 Mira 无法连接这些工具。请尝试重启 Mira。",
+      "reloadFailed": "已登录，但 知序 无法连接这些工具。请尝试重启 知序。",
       "oauthFailed": "无法连接，请重新登录。",
       "statusMissingDependency": "缺少依赖",
       "statusComingSoon": "暂不支持",
@@ -747,11 +1112,11 @@
       "loadError": "无法加载设置",
       "unsaved": "有未保存的更改。",
       "upToDate": "已是最新。",
-      "savedRestart": "已保存。重启 Mira 后生效。",
+      "savedRestart": "已保存。重启 知序 后生效。",
       "restartAfterSaving": "保存更改后，在合适时重启。",
       "savedRestartApply": "已保存。准备好后重启。",
       "imageProviderRestart": "图片提供商更改已保存。准备好后重启。",
-      "hostRestartAfterSaving": "保存后 Mira 会重启引擎。",
+      "hostRestartAfterSaving": "保存后 知序 会重启引擎。",
       "hostRestartPending": "已保存。准备好后会重启引擎。",
       "hostApiUnavailable": "宿主操作仅在原生应用中可用。",
       "logsOpened": "已打开日志文件夹。",
@@ -775,7 +1140,7 @@
       "exporting": "正在导出..."
     },
     "byok": {
-      "description": "使用自己的提供商密钥。Mira 会从当前配置读取这些值，只有已配置的提供商才能用于模型预设。",
+      "description": "使用自己的提供商密钥。知序 会从当前配置读取这些值，只有已配置的提供商才能用于模型预设。",
       "configured": "已配置",
       "notConfigured": "未配置",
       "configuredSection": "已配置",
@@ -902,7 +1267,7 @@
     "api": {
       "title": "API 服务",
       "openaiCompatible": "OpenAI 兼容 API",
-      "description": "让 SDK 和其他智能体通过本地 /v1 接口连接 Mira。",
+      "description": "让 SDK 和其他智能体通过本地 /v1 接口连接 知序。",
       "start": "启动 API 服务",
       "starting": "正在启动...",
       "stop": "停止",
@@ -922,12 +1287,12 @@
     },
     "observability": {
       "title": "可观测性",
-      "configured": "Mira 已检测到追踪凭证。",
-      "environment": "设置 LANGFUSE_SECRET_KEY 和 LANGFUSE_PUBLIC_KEY 后重启 Mira。",
+      "configured": "知序 已检测到追踪凭证。",
+      "environment": "设置 LANGFUSE_SECRET_KEY 和 LANGFUSE_PUBLIC_KEY 后重启 知序。",
       "enable": "启用追踪支持"
     },
     "apps": {
-      "description": "将工具接入 Mira，然后在对话中通过 @ 调用。",
+      "description": "将工具接入 知序，然后在对话中通过 @ 调用。",
       "cliLabel": "应用",
       "mcpLabel": "MCP",
       "channelLabel": "渠道",
@@ -950,21 +1315,21 @@
       "browseApps": "浏览应用",
       "browseIntegrations": "浏览 MCP 工具",
       "emptyIntegrationsHint": "可在下方添加自定义 MCP 服务器。",
-      "restartRequired": "重启 Mira 以应用更新后的应用和 MCP 工具。"
+      "restartRequired": "重启 知序 以应用更新后的应用和 MCP 工具。"
     },
     "channels": {
-      "description": "把聊天应用、邮箱和 WebUI 连接到 Mira。",
+      "description": "把聊天应用、邮箱和 WebUI 连接到 知序。",
       "caption": "{{enabled}} 个运行中 · 共 {{total}} 个渠道",
       "searchPlaceholder": "搜索渠道",
       "backToChannels": "所有渠道",
       "catalog": "渠道",
       "loading": "正在加载渠道...",
       "empty": "没有匹配的渠道。",
-      "restartRequired": "重启 Mira 以应用更新后的渠道支持。",
+      "restartRequired": "重启 知序 以应用更新后的渠道支持。",
       "requires": "需要：{{requirements}}",
       "setUp": "设置",
       "setupGuide": "配置指南",
-      "setupSummary": "启用只会开启 Mira 对该渠道的支持。请补充平台凭据，然后重启 Mira。",
+      "setupSummary": "启用只会开启 知序 对该渠道的支持。请补充平台凭据，然后重启 知序。",
       "configKeys": "配置字段",
       "enable": "启用渠道",
       "disable": "禁用渠道",
@@ -1019,7 +1384,7 @@
         "unsupported": "手动配置"
       }
     },
-    "nanobotFeatures": {
+    "zhixuFeatures": {
       "enabled": "已启用",
       "enable": "启用",
       "disable": "禁用",
@@ -1171,7 +1536,7 @@
       "signedInAs": "已登录为 {{account}}",
       "signInHelp": "从这台设备登录；不会在配置中保存 API 密钥。",
       "remoteSignInHelp": "点击“登录”在你的电脑上打开 xAI，完成登录后粘贴页面显示的授权码。",
-      "codexRemoteSignInHelp": "在此浏览器中登录，然后将完整的 localhost 回调 URL 粘贴回 Mira。",
+      "codexRemoteSignInHelp": "在此浏览器中登录，然后将完整的 localhost 回调 URL 粘贴回 知序。",
       "signInRequired": "需要登录",
       "signInBeforeSaving": "请先登录此提供商，再保存模型预设。",
       "signedIn": "已登录",
@@ -1179,9 +1544,9 @@
       "proxyLabel": "网络代理",
       "proxySaveBeforeSignIn": "请先保存代理更改再登录。",
       "saveProxy": "保存代理",
-      "localCodeHelp": "请在浏览器中完成登录。Mira 通常会自动完成；若未自动完成，请将授权码粘贴到下方。",
+      "localCodeHelp": "请在浏览器中完成登录。知序 通常会自动完成；若未自动完成，请将授权码粘贴到下方。",
       "remoteCodeHelp": "点击“登录”在你的电脑上打开 xAI。完成登录后，请将 xAI 显示的授权码粘贴到下方。",
-      "localCallbackHelp": "请在浏览器中完成登录。Mira 通常会自动完成；若未自动完成，请复制地址栏中的完整 localhost 回调 URL 并粘贴到下方。",
+      "localCallbackHelp": "请在浏览器中完成登录。知序 通常会自动完成；若未自动完成，请复制地址栏中的完整 localhost 回调 URL 并粘贴到下方。",
       "remoteCallbackHelp": "在此浏览器中打开 ChatGPT 并完成登录。当 localhost 页面无法打开时，请复制地址栏中的完整 URL 并粘贴到下方。",
       "authorizationCode": "授权码",
       "callbackUrl": "完整回调 URL",
@@ -1224,7 +1589,7 @@
       "deleteConfirmAction": "删除技能",
       "instructionsTitle": "技能说明",
       "setupRequired": "需要设置",
-      "setupDescription": "请在运行 Mira 的设备上安装缺少的依赖，然后重新检查。",
+      "setupDescription": "请在运行 知序 的设备上安装缺少的依赖，然后重新检查。",
       "copySetupCommand": "复制设置命令",
       "checkAgain": "重新检查",
       "marketplaceSearchFailed": "暂时无法搜索技能市场。",
@@ -1282,6 +1647,119 @@
       "languageAuto": "自动"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "身份 · Identity",
+          "title": "让 Agent 用你想要的方式说话",
+          "subtitle": "从一张性格卡片开始，再用几个简单问题补充细节。下面看到的就是 Agent 之后会怎么开口。"
+        },
+        "stepsAria": "身份设定步骤",
+        "step": {
+          "vibe": {
+            "label": "性格卡片",
+            "hint": "选中后会自动填好后面的表单"
+          },
+          "voice": {
+            "label": "称呼与语气",
+            "hint": "空白处会自动跳过"
+          },
+          "rules": {
+            "label": "底线与备注",
+            "hint": "告诉它什么不能做"
+          },
+          "advanced": {
+            "label": "高级 Markdown",
+            "hint": "直接编辑身份文件"
+          }
+        },
+        "gallery": {
+          "active": "已选用",
+          "reload": "重新载入",
+          "use": "使用这个性格"
+        },
+        "preview": {
+          "yourAgent": "你的助手",
+          "live": "实时预览",
+          "samplePrompt": "帮我把这个月的工作周报写成三段。",
+          "activeRule": "已应用规则：",
+          "hint": "以上是当前设定下 Agent 的开场白预览，保存后立即生效。"
+        },
+        "advanced": {
+          "toggle": "高级模式：直接编辑原始 Markdown",
+          "note": "只有当预设和表单都不够用时才需要来这里。手动修改会立即生效，但被表单再次保存时会按上面的结构重写。",
+          "rawAria": "原始 Markdown",
+          "reload": "从磁盘重载"
+        },
+        "form": {
+          "nameLabel": "Agent 怎么称呼你",
+          "namePlaceholder": "例如：小明、运营组",
+          "roleLabel": "Agent 主要帮你做什么",
+          "rolePlaceholder": "例如：把一周的会议整理成可读周报；梳理客户反馈里的高频问题",
+          "toneLabel": "说话的调子",
+          "toneHint": "选最贴近的那个",
+          "langLabel": "默认用什么语言回复",
+          "rulesLabel": "希望它遵守的底线",
+          "rulesHint": "一行一条，最多 6 条",
+          "rulesPlaceholder": "不在合同里直接生成金额\n不向未登录的用户提及后台路径\n没把握就明说 '我不确定'，不装懂",
+          "notesLabel": "还想告诉它的事（可选）",
+          "notesPlaceholder": "公司名、行话缩写、忌讳词等都可以写在这里"
+        },
+        "tone": {
+          "friendly": {
+            "label": "友好",
+            "description": "亲切、鼓励、共情"
+          },
+          "professional": {
+            "label": "专业",
+            "description": "正式、克制、有理有据"
+          },
+          "concise": {
+            "label": "简短",
+            "description": "先给结论再展开"
+          },
+          "detailed": {
+            "label": "详细",
+            "description": "完整推理过程与边界"
+          }
+        },
+        "replyLang": {
+          "groupAria": "回复语言",
+          "auto": {
+            "label": "跟随你",
+            "description": "用你提问的语言回答"
+          },
+          "zh": {
+            "label": "中文",
+            "description": "所有回复都使用中文"
+          },
+          "en": {
+            "label": "English",
+            "description": "所有回复都使用英文"
+          }
+        },
+        "footer": {
+          "back": "上一步",
+          "next": "下一步",
+          "unsaved": "有未保存的改动",
+          "upToDate": "已是最新",
+          "discard": "撤销改动",
+          "saved": "已保存",
+          "save": "保存设定"
+        },
+        "error": {
+          "loadFailed": "部分内容没能加载",
+          "saveFailed": "保存失败"
+        },
+        "toast": {
+          "saved": "身份设定已保存，已立即生效"
+        },
+        "persona": {
+          "default": "未启用预设",
+          "cardTitle": "Agent 在用的预设",
+          "cardNone": "未启用，保留默认 SOUL",
+          "cardHint": "点击上方任意性格卡片都会同步切换到这个预设。"
+        }
+      },
       "groupCore": "核心文件",
       "groupPersonas": "人格模板",
       "warningBanner": "身份文件是 Agent 的核心人格和行为基础。不当修改可能导致 Agent 行为异常、丧失关键能力或产生不可预期的回复。如果你不确定某项修改的影响，建议先备份原文件。",
@@ -1346,6 +1824,8 @@
       "personaSwitchFailed": "切换人格失败"
     },
     "memory": {
+      "pageEyebrow": "记忆中心",
+      "pageSubtitle": "智能体在对话中整理的长期信息和对话片段。打开总开关后会自动抽取；关闭后仍可查看和管理。",
       "tabSemantic": "语义记忆",
       "tabEpisode": "情节",
       "tabsLabel": "记忆分类",
@@ -1424,7 +1904,7 @@
       "errorContentRequired": "内容不能为空",
       "metaLine": "{{type}} · {{priority}} · {{importance}}",
       "masterToggleTitle": "自动抽取与检索记忆",
-      "masterToggleDescription": "开启后，Mira 会在对话中抽取事实并在下一轮检索相关记忆。热生效——无需重启。",
+      "masterToggleDescription": "开启后，知序 会在对话中抽取事实并在下一轮检索相关记忆。热生效——无需重启。",
       "masterToggleAria": "记忆抽取开关",
       "masterToggleOn": "已开启",
       "masterToggleOff": "已关闭",
@@ -1541,8 +2021,7 @@
   },
   "workbench": {
     "title": "工作台",
-    "open": "打开工作台",
-    "collapse": "收起工作台",
+    "tools": "工具侧边栏",
     "updatedAt": "更新于 {{time}}",
     "overview": "概览",
     "emptyOverview": "暂无摘要",
@@ -1631,6 +2110,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "前往",
     "browserEmptyHint": "输入网址开始浏览。",
+    "browserNewTab": "新标签页",
     "browserFrameTitle": "内嵌浏览器页面",
     "browserError_scheme": "只能打开 http/https 地址。",
     "browserError_private": "不允许访问私网或本地网络地址。",
@@ -1641,12 +2121,31 @@
     "tabBrowser": "浏览器",
     "plusAria": "新建标签",
     "newTerminal": "新建终端",
+    "openTerminal": "打开终端面板",
     "shellChoices": "选择 shell",
     "takeoverRunning": "已运行终端",
     "takeoverAction": "点击接管",
     "takeoverHint": "回车重绘画面",
     "closeTab": "关闭标签",
-    "platformDefaultShell": "平台默认 shell"
+    "platformDefaultShell": "平台默认 shell",
+    "renameTab": "重命名标签",
+    "copyOutput": "复制输出",
+    "clearOutput": "清空终端",
+    "pasteInput": "粘贴",
+    "browserWindow": "在浏览器窗口打开",
+    "showHidden": "显示隐藏文件",
+    "hideHidden": "隐藏隐藏文件",
+    "refresh": "刷新",
+    "collapseAll": "全部折叠",
+    "search": "搜索文件",
+    "searchPlaceholder": "搜索文件名与内容",
+    "searching": "搜索中…",
+    "noMatches": "无匹配结果",
+    "searchTruncated": "仅显示部分结果",
+    "searchFailed": "搜索失败",
+    "copied": "已复制",
+    "historyTruncated": "较早的输出已被截断",
+    "terminalTheme": "切换终端明暗"
   },
   "plusMenu": {
     "groupAdd": "添加",
@@ -1664,6 +2163,49 @@
     "back": "返回"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "子 Agent 执行详情",
+      "genericAgent": "通用 Agent",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "暂无执行详情",
+      "close": "关闭执行详情",
+      "reload": "重新加载",
+      "taskSwitcher": "切换子 Agent 任务",
+      "call": "调用 {{id}}",
+      "instruction": "任务说明",
+      "process": "执行过程",
+      "result": "子 Agent 结果",
+      "truncated": "内容已截断",
+      "noActivities": "暂无公开活动。",
+      "connectionStale": "连接已断开，状态待同步",
+      "historyLimited": "部分较早活动已过期",
+      "activitySummary": "{{action}} · 已完成 {{count}} 次工具调用",
+      "activitySummaryNoAction": "已完成 {{count}} 次工具调用",
+      "status": {
+        "queued": "排队中",
+        "running": "运行中",
+        "succeeded": "已完成",
+        "failed": "失败",
+        "cancelled": "已停止",
+        "interrupted": "已中断"
+      },
+      "parameters": "执行参数",
+      "toolOutput": "输出摘要",
+      "detailToggle": "查看参数与输出摘要",
+      "phase": {
+        "preparing": "准备中",
+        "model": "生成回复",
+        "tools": "调用工具",
+        "finalizing": "收尾中"
+      },
+      "activityStatus": {
+        "running": "运行中",
+        "succeeded": "已完成",
+        "failed": "失败",
+        "cancelled": "已停止",
+        "interrupted": "已中断"
+      }
+    },
     "activity": {
       "viewDetails": "查看详情",
       "hideDetails": "收起",
@@ -1713,7 +2255,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "设计应用图标",
-          "prompt": "生成一个干净的 1:1 Mira 应用图标：友好的机器人，简洁矢量风格，蓝白柔和配色，不要文字。"
+          "prompt": "生成一个干净的 1:1 知序 应用图标：友好的机器人，简洁矢量风格，蓝白柔和配色，不要文字。"
         },
         "sticker": {
           "title": "制作贴纸",
@@ -1768,6 +2310,46 @@
         "local": "等待触发",
         "none": "没有下次运行"
       }
+    },
+    "teamProgress": {
+      "title": "团队进度",
+      "leader": "Leader",
+      "leaderAction": {
+        "planning": "规划中",
+        "waiting": "等待成员",
+        "reviewing": "审阅中",
+        "summarizing": "汇总中",
+        "idle": "待命"
+      },
+      "status": {
+        "running": "进行中",
+        "cancelling": "正在停止…",
+        "completed": "已完成",
+        "partial": "部分完成",
+        "failed": "失败",
+        "cancelled": "已停止",
+        "interrupted": "已中断"
+      },
+      "taskStatus": {
+        "pending": "待派单",
+        "queued": "排队中",
+        "running": "执行中",
+        "cancelling": "正在停止…",
+        "succeeded": "已完成",
+        "failed": "失败",
+        "cancelled": "已停止",
+        "blocked": "被阻塞",
+        "interrupted": "已中断"
+      },
+      "stop": "停止团队",
+      "stopping": "正在停止…",
+      "retry": "重试失败任务",
+      "retryHint": "重试会重新执行失败的任务，可能重复已有副作用。",
+      "cancelTask": "停止该任务",
+      "noTasks": "本轮由 Leader 直接处理。",
+      "resyncing": "正在同步团队状态…",
+      "artifacts": "产物：{{names}}",
+      "memberFallback": "成员 {{memberId}}"
     },
     "composer": {
       "menu": {
@@ -1923,7 +2505,7 @@
             "description": "取消这个对话中正在运行的智能体回合。"
           },
           "restart": {
-            "title": "重启 Mira",
+            "title": "重启 知序",
             "description": "原地重启 bot 进程。"
           },
           "status": {
@@ -1975,16 +2557,20 @@
       "mentions": {
         "ariaLabel": "提及",
         "label": "应用",
+        "agentGroup": "智能体",
         "cliGroup": "CLI 应用",
         "mcpGroup": "MCP 服务",
-        "sessionGroup": "Mira 对话",
+        "sessionGroup": "知序 对话",
+        "agentBadge": "智能体",
+        "defaultAgentBadge": "默认主 Agent",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "由 @{{name}} 接管本轮",
         "cliDescription": "使用 @{{name}} 调用本地 CLI",
         "mcpDescription": "使用 @{{name}} 调用 MCP 服务",
         "cliTitle": "CLI 应用：{{name}}",
         "mcpTitle": "MCP 服务：{{name}}",
-        "sessionBadge": "Mira 对话",
+        "sessionBadge": "知序 对话",
         "sessionDescription": "引用历史会话 @{{name}}"
       },
       "encoding": "处理中…",
@@ -2012,6 +2598,20 @@
         "defaultShort": "默认",
         "full": "完全访问权限",
         "fullShort": "完全"
+      },
+      "team": {
+        "aria": "团队选择",
+        "select": "选择团队",
+        "none": "不使用团队",
+        "empty": "还没有可用的团队",
+        "bound": "已绑定 {{name}}（修订 {{revision}}）",
+        "chip": "团队：{{name}}",
+        "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "当前 Agent：{{name}}",
+        "empty": "还没有可用的 Agent",
+        "defaultTag": "默认"
       }
     },
     "scrollToBottom": "滚动到底部",
@@ -2129,9 +2729,16 @@
     "close": "关闭文件预览",
     "loading": "正在加载预览...",
     "failed": "无法预览这个文件。",
-    "routeMissing": "文件预览需要最新的网关。请重启 Mira gateway 后再试。",
+    "routeMissing": "文件预览需要最新的网关。请重启 知序 gateway 后再试。",
     "resize": "调整文件预览宽度",
-    "truncated": "文件较大，当前只显示前半部分预览。"
+    "pickFile": "选择文件后在这里预览。",
+    "truncated": "文件较大，当前只显示前半部分预览。",
+    "edit": "编辑文件",
+    "save": "保存文件",
+    "cancel": "取消编辑",
+    "saved": "已保存",
+    "saveFailed": "保存失败，请重试。",
+    "editTruncated": "文件过大，无法在此编辑。"
   },
   "code": {
     "fallbackLanguage": "代码",
@@ -2153,6 +2760,14 @@
     "workspaceScopeRejected": {
       "title": "工作区未更改",
       "body": "网关拒绝了此项目或访问权限。请选择已存在的项目或其他访问权限，然后重试。"
+    },
+    "teamBindingExpired": {
+      "title": "团队未生效",
+      "body": "这个空聊天的团队选择已过期。请重新选择团队后再发送第一条消息。"
+    },
+    "teamUnavailable": {
+      "title": "团队不可用",
+      "body": "该团队已归档，或它引用的 Agent 档案已被删除。请换一个团队，或按普通聊天发送。"
     },
     "turnRejected": {
       "title": "消息未发送",
@@ -2193,7 +2808,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "助手",
-      "creative": "创作"
+      "creative": "创作",
+      "more": "更多",
+      "groups": {
+        "workspace": "工作区",
+        "ai": "AI 配置",
+        "personal": "个人"
+      }
     },
     "preview": {
       "badge": "界面预览 · 示例内容"
@@ -2216,5 +2837,9 @@
     "creative": {
       "comingSoon": "创作模块即将上线。"
     }
+  },
+  "toast": {
+    "saved": "已保存",
+    "saveFailed": "保存失败：{{message}}"
   }
 }

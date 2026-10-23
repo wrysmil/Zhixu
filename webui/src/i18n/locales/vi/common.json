@@ -1,5 +1,206 @@
 {
+  "appearance": {
+    "previewOnly": "Preview only. Appearance changes stay in this session and do not change your saved preferences.",
+    "visualStyle": "Visual style",
+    "mode": "Mode",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+    "theme": "Theme",
+    "zhixu": "Zhixu",
+    "graphite": "Graphite",
+    "ocean": "Ocean",
+    "sand": "Warm sand",
+    "custom": "Custom",
+    "editingDark": "Editing dark colors",
+    "editingLight": "Editing light colors",
+    "accent": "Accent",
+    "background": "Background",
+    "foreground": "Text",
+    "chooseColor": "Choose {{label}} color",
+    "resetColor": "Restore {{label}} theme value",
+    "invalidColor": "Enter a HEX color, such as #0169CC or #09C.",
+    "uiFont": "Interface font",
+    "codeFont": "Code font",
+    "font_system": "System default",
+    "font_sans": "Sans serif",
+    "font_serif": "Serif",
+    "font_custom": "Custom local font",
+    "font_default": "Default monospace",
+    "font_consolas": "Consolas",
+    "font_cascadia": "Cascadia Code",
+    "font_jetbrains": "JetBrains Mono",
+    "fontFamily": "{{label}} family name",
+    "invalidFont": "Use a single font family name without style punctuation.",
+    "fontFallback": "Use a font installed on this device. Missing fonts or characters use the fallback fonts.",
+    "lowContrast": "Low contrast ({{ratio}}:1). Try a darker text color or a lighter background.",
+    "storageError": "Applied for this session, but could not save to this device.",
+    "preview": "Preview",
+    "sampleTitle": "让想法有序生长 · Make room for ideas",
+    "sampleBody": "Your colors and fonts apply across the interface. 0123456789",
+    "sampleButton": "Continue",
+    "sampleInput": "A new idea…",
+    "sampleInputLabel": "Example input",
+    "instant": "Changes apply immediately and save on this device.",
+    "reset": "Restore default appearance"
+  },
   "creative": {
+    "title": "Không gian sáng tạo",
+    "new_placeholder": "Đặt tiêu đề cho bài viết",
+    "create_btn": "Tạo bản nháp",
+    "creating_btn": "Đang tạo…",
+    "search_placeholder": "Tìm tiêu đề hoặc tóm tắt",
+    "status_filter": "Lọc theo trạng thái",
+    "empty_template": "Bài viết trống",
+    "selected_template": "Mẫu đã chọn: {{name}}",
+    "title_hint": "Chỉ cần tiêu đề tạm. Bạn có thể đổi sau.",
+    "library_hint": "Tiếp tục từ nơi bạn đã dừng.",
+    "empty_action": "Viết bài đầu tiên",
+    "clear_filters": "Xóa bộ lọc",
+    "dismiss": "Đóng",
+    "no_summary": "Chưa có tóm tắt",
+    "revision_label": "Phiên bản {{revision}}",
+    "duplicate": "Nhân bản",
+    "delete": "Xóa",
+    "edit_article": "Chỉnh sửa bài viết",
+    "confirm_delete": "Xóa bài viết này?",
+    "confirm_delete_body": "“{{title}}” sẽ bị xóa. Không thể hoàn tác thao tác này.",
+    "cancel": "Hủy",
+    "confirm": "Xác nhận",
+    "loadFailed": "Không thể tải danh sách bài viết",
+    "retry": "Thử lại",
+    "no_match": "Không có bài viết khớp với bộ lọc",
+    "empty": "Bài viết đầu tiên của bạn bắt đầu từ đây",
+    "createFailed": "Không thể tạo bài viết. Vui lòng thử lại.",
+    "title_required": "Nhập tiêu đề bài viết",
+    "duplicateFailed": "Không thể nhân bản bài viết",
+    "deleteFailed": "Không thể xóa bài viết",
+    "note_storage": "Bài viết xem trước chỉ được lưu trong lần truy cập này. Hãy xuất bản nháp trước khi tải lại.",
+    "confirm_delete_dirty": "Bài viết này có thay đổi chưa lưu. Xóa bài viết cũng sẽ xóa bản nháp khôi phục trên máy.",
+    "partner": {
+      "ui": {
+        "after": "Sau khi sửa",
+        "angles": "Góc tiếp cận",
+        "before": "Trước khi sửa",
+        "busy": "Đang xử lý…",
+        "copyRewrite": "Sao chép bản viết lại",
+        "dismissMaterial": "Bỏ khỏi lựa chọn này",
+        "empty": "Chưa có kết quả nào trả về.",
+        "errorUnknown": "Cộng sự viết bài không xử lý được. Hãy thử lại.",
+        "failed": "Mục này đã thất bại. Hãy thử lại.",
+        "handoffUnknown": "Đang chờ bạn quyết định",
+        "inputLabel": "Nhắn cho biên tập",
+        "insertIntoArticle": "Chèn vào bài viết",
+        "insertSection": "Chèn mục này",
+        "issues": "Vấn đề cần xử lý",
+        "materials": "Tư liệu",
+        "modelGlobalDefault": "Bài viết này chưa có model riêng — đang dùng mặc định toàn cục ({{preset}}).",
+        "modelSetup": "Chọn model",
+        "modelSwitchApplied": "Đã chuyển sang {{preset}} — chỉ các lô mới dùng model này.",
+        "modelSwitchFailed": "Không chuyển được model. Hãy thử lại.",
+        "modelSwitchNotApplied": "Máy chủ vẫn dùng {{preset}} — thay đổi chưa có hiệu lực.",
+        "modelSwitchPending": "Đang chuyển model…",
+        "modelSwitchRequested": "Đã gửi yêu cầu chuyển model; áp dụng cho các lô bắt đầu từ bây giờ.",
+        "modelSwitchUnsupported": "Kết nối này không thể chuyển model.",
+        "modelUnknownPreset": "Preset model đó không còn khả dụng. Hãy chọn preset khác.",
+        "nextStep": "Bước tiếp theo",
+        "nextStepUnknown": "Mở quy trình phối hợp để xem bước tiếp theo",
+        "noProgress": "Không có tác vụ nào đang chạy cho bài viết này.",
+        "outlineConfirm": "Lưu dàn ý và tiếp tục",
+        "outlinePoint": "Ý chính của dàn ý",
+        "pending": "Đang chờ bạn quyết định",
+        "plan": "Kế hoạch",
+        "quickTasks": "Tác vụ nhanh",
+        "rejectRewrite": "Từ chối",
+        "replaceArticle": "Thay thế bản nháp trống",
+        "retry": "Thử lại",
+        "retryRewrite": "Thử bản viết lại khác",
+        "sections": "Mục",
+        "send": "Gửi cho nhóm",
+        "showFewerIssues": "Thu gọn",
+        "showMoreIssues": "Hiện thêm {{count}} mục",
+        "stop": "Dừng",
+        "stopping": "Đang dừng…",
+        "untitled": "Bài viết chưa có tiêu đề",
+        "viewAndInsert": "Xem và chèn",
+        "viewMaterials": "Xem tư liệu",
+        "viewOutline": "Xem dàn ý",
+        "toggle": "Cộng sự viết"
+      },
+      "title": "Cộng sự viết bài",
+      "builtinBadge": "Tích hợp sẵn",
+      "process": {
+        "toggle": "Xem quy trình phối hợp"
+      },
+      "input": {
+        "placeholder": "Giữ nguyên giọng văn của tôi; làm mục 2 cụ thể hơn…"
+      },
+      "requirements": {
+        "toggle": "Yêu cầu của bài viết này"
+      },
+      "stage": {
+        "idle": "Đang chờ",
+        "queued": "Trong hàng đợi",
+        "running": "Đang chạy",
+        "waiting_author": "Đang chờ bạn",
+        "completed": "Hoàn tất",
+        "failed": "Thất bại",
+        "cancelled": "Đã hủy",
+        "interrupted": "Bị ngắt"
+      },
+      "action": {
+        "start_full": "Chạy toàn bộ quy trình",
+        "ideate": "Tìm góc tiếp cận",
+        "research": "Nghiên cứu",
+        "outline": "Tạo dàn ý",
+        "draft": "Viết bản nháp",
+        "rewrite_selection": "Viết lại phần đã chọn",
+        "review_all": "Duyệt toàn bộ",
+        "reply": "Trả lời"
+      },
+      "artifact": {
+        "brief": "Bản tóm tắt ý tưởng",
+        "material_list": "Danh sách tư liệu",
+        "outline": "Dàn ý",
+        "draft": "Bản nháp",
+        "rewrite": "Bản viết lại",
+        "review": "Bản duyệt"
+      },
+      "artifactAction": {
+        "useAngle": "Dùng góc này",
+        "addMaterial": "Thêm tư liệu",
+        "writeFromOutline": "Viết theo dàn ý",
+        "insertDraft": "Chèn bản nháp",
+        "applyRewrite": "Áp dụng bản viết lại",
+        "viewIssues": "Xem vấn đề"
+      },
+      "handoff": {
+        "outline_confirm": "Dàn ý đã xong — xác nhận để tiếp tục",
+        "materials_request": "Cần thêm tư liệu",
+        "final_accept": "Kết quả cuối đã xong — chấp nhận để kết thúc"
+      },
+      "progress": {
+        "researching": "Đang nghiên cứu",
+        "outlining": "Đang lập dàn ý",
+        "drafting": "Đang viết bản nháp",
+        "reviewing": "Đang duyệt",
+        "waitingAuthor": "Đang chờ bạn",
+        "stopped": "Đã dừng"
+      },
+      "error": {
+        "selectionRequired": "Hãy chọn một đoạn văn bản trước",
+        "versionConflict": "Bài viết đã thay đổi. Tải lại rồi thử lại.",
+        "notPending": "Mục này không còn chờ bạn xử lý.",
+        "serviceUnavailable": "Dịch vụ viết bài tạm thời không khả dụng. Hãy thử lại sau.",
+        "requestTooLarge": "Yêu cầu quá lớn. Hãy rút ngắn rồi thử lại."
+      },
+      "next": {
+        "writeFromOutline": "Viết theo dàn ý này",
+        "insertToArticle": "Chèn vào bài viết",
+        "viewChanges": "Xem thay đổi",
+        "addMaterials": "Bổ sung tư liệu"
+      }
+    },
     "headline": "Hôm nay bạn muốn viết gì?",
     "hero_description": "Một đoạn mã, một trải nghiệm thực tế, một ý tưởng mới — đều có thể mở đầu một bài viết.",
     "topic_label": "Chủ đề bài viết",
@@ -92,33 +293,57 @@
       "tech-explainer": {
         "name": "Phân tích kỹ thuật",
         "desc": "Giải thích một khái niệm phức tạp cho rõ",
-        "outline": ["Vấn đề bắt nguồn từ đâu", "Khái niệm và nguyên lý cốt lõi", "Minh họa bằng một ví dụ", "Phạm vi và giới hạn", "Cách tôi hiểu"]
+        "outline": [
+          "Vấn đề bắt nguồn từ đâu",
+          "Khái niệm và nguyên lý cốt lõi",
+          "Minh họa bằng một ví dụ",
+          "Phạm vi và giới hạn",
+          "Cách tôi hiểu"
+        ]
       },
       "source-reading": {
         "name": "Đọc mã nguồn",
         "desc": "Theo chuỗi gọi để hiểu thiết kế",
-        "outline": ["Điều muốn hiểu lần này", "Điểm vào và chuỗi gọi", "Triển khai then chốt", "Đánh đổi thiết kế", "Cách tôi tự hiểu"]
+        "outline": [
+          "Điều muốn hiểu lần này",
+          "Điểm vào và chuỗi gọi",
+          "Triển khai then chốt",
+          "Đánh đổi thiết kế",
+          "Cách tôi tự hiểu"
+        ]
       },
       "practice-retro": {
         "name": "Tổng kết thực hành",
         "desc": "Ghi lại quá trình và cả những lựa chọn",
-        "outline": ["Bối cảnh và mục tiêu", "Tôi đã làm thế nào", "Vấn đề và cách rà soát", "Kết quả và hạn chế", "Lần sau sẽ sửa gì"]
+        "outline": [
+          "Bối cảnh và mục tiêu",
+          "Tôi đã làm thế nào",
+          "Vấn đề và cách rà soát",
+          "Kết quả và hạn chế",
+          "Lần sau sẽ sửa gì"
+        ]
       },
       "learning-summary": {
         "name": "Tổng kết học tập",
         "desc": "Biến kiến thức mới thành hiểu biết của mình",
-        "outline": ["Học với câu hỏi gì", "Kiến thức then chốt", "Tự tay kiểm chứng", "Hiểu biết đã thay đổi ra sao", "Còn những câu hỏi nào"]
+        "outline": [
+          "Học với câu hỏi gì",
+          "Kiến thức then chốt",
+          "Tự tay kiểm chứng",
+          "Hiểu biết đã thay đổi ra sao",
+          "Còn những câu hỏi nào"
+        ]
       }
     }
   },
   "app": {
-    "brand": "Mira",
+    "brand": "知序",
     "loading": {
-      "connecting": "Đang kết nối tới Mira…",
-      "boot": "Đang tải Mira…"
+      "connecting": "Đang kết nối tới 知序…",
+      "boot": "Đang tải 知序…"
     },
     "error": {
-      "title": "Không thể kết nối tới Mira",
+      "title": "Không thể kết nối tới 知序",
       "gatewayHint": "Hãy chắc chắn gateway đang chạy (`nanobot gateway`) và trang này được mở trên cùng máy."
     },
     "auth": {
@@ -136,8 +361,8 @@
     },
     "system": {
       "section": "Hệ thống",
-      "restartHint": "Khởi động lại Mira để áp dụng thay đổi thời gian chạy.",
-      "restart": "Khởi động lại Mira",
+      "restartHint": "Khởi động lại 知序 để áp dụng thay đổi thời gian chạy.",
+      "restart": "Khởi động lại 知序",
       "restarting": "Đang khởi động lại...",
       "restartEngine": "Khởi động lại bộ máy",
       "restartingEngine": "Đang khởi động lại bộ máy..."
@@ -146,11 +371,11 @@
       "completed": "Khởi động lại hoàn tất sau {{seconds}} giây."
     },
     "documentTitle": {
-      "base": "Mira",
-      "chat": "{{title}} · Mira"
+      "base": "知序",
+      "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "Giao diện web Mira — trò chuyện với không gian làm việc Mira của bạn."
+      "description": "Giao diện web 知序 — trò chuyện với không gian làm việc 知序 của bạn."
     },
     "pairing": {
       "title": "Liên kết người dùng chat",
@@ -218,7 +443,9 @@
       "automations": "Tự động hóa",
       "skills": "Kỹ năng",
       "memory": "Bộ nhớ",
-      "identity": "Danh tính"
+      "identity": "Danh tính",
+      "agents": "Agent",
+      "teams": "Nhóm"
     },
     "sections": {
       "interface": "Giao diện",
@@ -247,7 +474,7 @@
       "language": "Ngôn ngữ",
       "provider": "Nhà cung cấp",
       "model": "Mô hình",
-      "restart": "Khởi động lại Mira",
+      "restart": "Khởi động lại 知序",
       "configPath": "Đường dẫn cấu hình",
       "activePreset": "Cấu hình đặt trước đang dùng",
       "gateway": "Cổng",
@@ -323,7 +550,7 @@
       "selectedModelValue": "Được đặt bởi mô hình đã chọn.",
       "brandLogos": "Hiển thị logo nhà cung cấp bên thứ ba và CLI trong Cài đặt.",
       "browserNotifications": "Chỉ thông báo khi trang này ở nền. Mặc định tắt.",
-      "cliAppsCatalog": "Chỉ cài đặt các bộ chuyển đổi CLI ứng dụng mà Mira có thể chạy cục bộ; ứng dụng gốc không bị thay đổi.",
+      "cliAppsCatalog": "Chỉ cài đặt các bộ chuyển đổi CLI ứng dụng mà 知序 có thể chạy cục bộ; ứng dụng gốc không bị thay đổi.",
       "cliAppsFilter": "Tìm theo ứng dụng, danh mục hoặc khả năng.",
       "logs": "Mở thư mục nhật ký của bộ máy gốc.",
       "diagnostics": "Xuất báo cáo thời gian chạy ngắn để hỗ trợ.",
@@ -373,11 +600,11 @@
       "loadError": "Không thể tải cài đặt",
       "unsaved": "Có thay đổi chưa lưu.",
       "upToDate": "Đã cập nhật.",
-      "savedRestart": "Đã lưu. Khởi động lại Mira để áp dụng.",
+      "savedRestart": "Đã lưu. Khởi động lại 知序 để áp dụng.",
       "restartAfterSaving": "Lưu thay đổi, rồi khởi động lại khi sẵn sàng.",
       "savedRestartApply": "Đã lưu. Khởi động lại khi sẵn sàng.",
       "imageProviderRestart": "Đã lưu thay đổi nhà cung cấp ảnh. Khởi động lại khi sẵn sàng.",
-      "hostRestartAfterSaving": "Sau khi lưu, Mira sẽ khởi động lại bộ máy.",
+      "hostRestartAfterSaving": "Sau khi lưu, 知序 sẽ khởi động lại bộ máy.",
       "hostRestartPending": "Đã lưu. Bộ máy sẽ khởi động lại khi sẵn sàng.",
       "hostApiUnavailable": "Các thao tác máy chủ chỉ khả dụng trong ứng dụng gốc.",
       "logsOpened": "Đã mở thư mục nhật ký.",
@@ -401,7 +628,7 @@
       "exporting": "Đang xuất..."
     },
     "byok": {
-      "description": "Dùng khóa nhà cung cấp của riêng bạn. Mira đọc các giá trị này từ cấu hình hiện tại và chỉ nhà cung cấp đã cấu hình mới có thể dùng trong cấu hình mô hình đặt trước.",
+      "description": "Dùng khóa nhà cung cấp của riêng bạn. 知序 đọc các giá trị này từ cấu hình hiện tại và chỉ nhà cung cấp đã cấu hình mới có thể dùng trong cấu hình mô hình đặt trước.",
       "configured": "Đã cấu hình",
       "notConfigured": "Chưa cấu hình",
       "configuredSection": "Đã cấu hình",
@@ -649,7 +876,7 @@
       "saveCustom": "Lưu MCP",
       "configImport": "Nhập mcp.json",
       "importConfig": "Nhập",
-      "restartRequired": "Khởi động lại Mira để kết nối các công cụ MCP đã cập nhật.",
+      "restartRequired": "Khởi động lại 知序 để kết nối các công cụ MCP đã cập nhật.",
       "toolsFound": "{{count}} công cụ",
       "loading": "Đang tải cấu hình đặt trước MCP...",
       "empty": "Không có cấu hình đặt trước MCP nào khớp bộ lọc này.",
@@ -677,14 +904,14 @@
       "preparingSignIn": "Đang chuẩn bị đăng nhập an toàn…",
       "openSignInToContinue": "Mở trang đăng nhập để tiếp tục.",
       "finishSignInInBrowser": "Hoàn tất đăng nhập trong cửa sổ trình duyệt.",
-      "manualCallbackRequired": "Hoàn tất đăng nhập, rồi dán URL callback vào Mira.",
+      "manualCallbackRequired": "Hoàn tất đăng nhập, rồi dán URL callback vào 知序.",
       "manualCallbackHelp": "Sau khi phê duyệt quyền truy cập, trang localhost sẽ không tải được. Hãy sao chép URL đầy đủ từ thanh địa chỉ và dán vào đây.",
       "finishingConnection": "Đang hoàn tất kết nối…",
       "activatingTools": "Đang kích hoạt công cụ…",
       "connected": "Đã kết nối.",
       "connectionFailed": "Kết nối thất bại.",
       "connectionCancelled": "Đã hủy kết nối.",
-      "reloadFailed": "Đã đăng nhập nhưng Mira không thể kết nối các công cụ. Hãy thử khởi động lại Mira.",
+      "reloadFailed": "Đã đăng nhập nhưng 知序 không thể kết nối các công cụ. Hãy thử khởi động lại 知序.",
       "oauthFailed": "Không thể kết nối. Hãy thử đăng nhập lại.",
       "statusMissingDependency": "Cần phụ thuộc",
       "statusComingSoon": "Sắp ra mắt",
@@ -757,15 +984,15 @@
     },
     "observability": {
       "title": "Khả năng quan sát",
-      "configured": "Thông tin xác thực tracing đã sẵn sàng cho Mira.",
-      "environment": "Đặt LANGFUSE_SECRET_KEY và LANGFUSE_PUBLIC_KEY rồi khởi động lại Mira.",
+      "configured": "Thông tin xác thực tracing đã sẵn sàng cho 知序.",
+      "environment": "Đặt LANGFUSE_SECRET_KEY và LANGFUSE_PUBLIC_KEY rồi khởi động lại 知序.",
       "enable": "Bật hỗ trợ tracing"
     },
     "legal": {
       "thirdPartyBrands": "Tên sản phẩm, logo và thương hiệu thuộc về chủ sở hữu tương ứng. Việc sử dụng chỉ nhằm nhận diện và không ngụ ý được xác nhận."
     },
     "apps": {
-      "description": "Thêm công cụ vào Mira, sau đó dùng @ trong cuộc trò chuyện.",
+      "description": "Thêm công cụ vào 知序, sau đó dùng @ trong cuộc trò chuyện.",
       "cliLabel": "Ứng dụng",
       "mcpLabel": "MCP",
       "channelLabel": "Kênh",
@@ -788,21 +1015,21 @@
       "browseApps": "Xem ứng dụng",
       "browseIntegrations": "Xem công cụ MCP",
       "emptyIntegrationsHint": "Thêm máy chủ MCP tùy chỉnh ở bên dưới.",
-      "restartRequired": "Khởi động lại Mira để áp dụng ứng dụng và công cụ MCP đã cập nhật."
+      "restartRequired": "Khởi động lại 知序 để áp dụng ứng dụng và công cụ MCP đã cập nhật."
     },
     "channels": {
-      "description": "Kết nối Mira với các ứng dụng chat. Cài đặt hỗ trợ chỉ thêm gói tích hợp; hầu hết kênh vẫn cần token hoặc cấu hình không gian làm việc.",
+      "description": "Kết nối 知序 với các ứng dụng chat. Cài đặt hỗ trợ chỉ thêm gói tích hợp; hầu hết kênh vẫn cần token hoặc cấu hình không gian làm việc.",
       "caption": "{{enabled}} đã bật · {{total}} kênh",
       "searchPlaceholder": "Tìm kênh",
       "backToChannels": "Tất cả kênh",
       "catalog": "Kênh",
       "loading": "Đang tải kênh...",
       "empty": "Không có kênh nào phù hợp.",
-      "restartRequired": "Khởi động lại Mira để áp dụng hỗ trợ kênh đã cập nhật.",
+      "restartRequired": "Khởi động lại 知序 để áp dụng hỗ trợ kênh đã cập nhật.",
       "requires": "Yêu cầu: {{requirements}}",
       "setUp": "Thiết lập",
       "setupGuide": "Hướng dẫn thiết lập",
-      "setupSummary": "Bật chỉ kích hoạt hỗ trợ của Mira. Thêm thông tin xác thực nền tảng rồi khởi động lại Mira.",
+      "setupSummary": "Bật chỉ kích hoạt hỗ trợ của 知序. Thêm thông tin xác thực nền tảng rồi khởi động lại 知序.",
       "configKeys": "Khóa cấu hình",
       "enable": "Bật kênh",
       "disable": "Tắt kênh",
@@ -857,7 +1084,7 @@
         "unsupported": "Thiết lập thủ công"
       }
     },
-    "nanobotFeatures": {
+    "zhixuFeatures": {
       "enabled": "Đã bật",
       "enable": "Bật",
       "disable": "Tắt",
@@ -865,7 +1092,7 @@
       "missingDependency": "Thiếu gói hỗ trợ",
       "installSupport": "Cài gói hỗ trợ",
       "installConfirmTitle": "Cài hỗ trợ cho {{name}}?",
-      "installConfirmDescription": "Mira sẽ thêm những gì {{name}} cần, rồi bật tính năng này. Tiếp tục?",
+      "installConfirmDescription": "知序 sẽ thêm những gì {{name}} cần, rồi bật tính năng này. Tiếp tục?",
       "installConfirmAction": "Cài và bật",
       "websocketRequired": "Bắt buộc cho WebUI",
       "channelDisabled": "Kênh đang tắt",
@@ -1009,7 +1236,7 @@
       "signedInAs": "Đã đăng nhập bằng {{account}}",
       "signInHelp": "Đăng nhập từ thiết bị này; khóa API không được lưu trong config.",
       "remoteSignInHelp": "Chọn Đăng nhập để mở xAI trên máy tính của bạn, sau đó dán mã ủy quyền được hiển thị sau khi đăng nhập.",
-      "codexRemoteSignInHelp": "Đăng nhập trong trình duyệt này, sau đó dán lại URL callback localhost đầy đủ vào Mira.",
+      "codexRemoteSignInHelp": "Đăng nhập trong trình duyệt này, sau đó dán lại URL callback localhost đầy đủ vào 知序.",
       "signInRequired": "Cần đăng nhập",
       "signInBeforeSaving": "Hãy đăng nhập nhà cung cấp này trước khi lưu cấu hình đặt trước.",
       "signedIn": "Đã đăng nhập",
@@ -1017,9 +1244,9 @@
       "proxyLabel": "Proxy mạng",
       "proxySaveBeforeSignIn": "Hãy lưu thay đổi proxy trước khi đăng nhập.",
       "saveProxy": "Lưu proxy",
-      "localCodeHelp": "Hoàn tất đăng nhập trong trình duyệt. Mira thường tự động hoàn tất; nếu không, hãy dán mã ủy quyền bên dưới.",
+      "localCodeHelp": "Hoàn tất đăng nhập trong trình duyệt. 知序 thường tự động hoàn tất; nếu không, hãy dán mã ủy quyền bên dưới.",
       "remoteCodeHelp": "Chọn Đăng nhập để mở xAI trên máy tính của bạn. Sau khi đăng nhập, hãy dán mã ủy quyền do xAI hiển thị bên dưới.",
-      "localCallbackHelp": "Hoàn tất đăng nhập trong trình duyệt. Mira thường tự động hoàn tất; nếu không, hãy sao chép URL callback localhost đầy đủ từ thanh địa chỉ và dán vào bên dưới.",
+      "localCallbackHelp": "Hoàn tất đăng nhập trong trình duyệt. 知序 thường tự động hoàn tất; nếu không, hãy sao chép URL callback localhost đầy đủ từ thanh địa chỉ và dán vào bên dưới.",
       "remoteCallbackHelp": "Mở ChatGPT trong trình duyệt này và hoàn tất đăng nhập. Khi trang localhost không tải được, hãy sao chép URL đầy đủ từ thanh địa chỉ và dán vào bên dưới.",
       "authorizationCode": "Mã ủy quyền",
       "callbackUrl": "URL callback đầy đủ",
@@ -1062,7 +1289,7 @@
       "deleteConfirmAction": "Xóa kỹ năng",
       "instructionsTitle": "Hướng dẫn kỹ năng",
       "setupRequired": "Cần thiết lập",
-      "setupDescription": "Cài đặt phần phụ thuộc còn thiếu trên máy chạy Mira rồi kiểm tra lại.",
+      "setupDescription": "Cài đặt phần phụ thuộc còn thiếu trên máy chạy 知序 rồi kiểm tra lại.",
       "copySetupCommand": "Sao chép lệnh thiết lập",
       "checkAgain": "Kiểm tra lại",
       "marketplaceSearchFailed": "Không thể tìm kiếm các chợ kỹ năng.",
@@ -1120,6 +1347,8 @@
       "languageAuto": "Tự động"
     },
     "memory": {
+      "pageEyebrow": "Trung tâm bộ nhớ",
+      "pageSubtitle": "Các thông tin dài hạn và đoạn trích hội thoại mà Agent lưu qua nhiều phiên. Bật công tắc chung để tự động trích xuất, hoặc chỉ xem và quản lý những gì đã có.",
       "tabSemantic": "Bộ nhớ ngữ nghĩa",
       "tabEpisode": "Tập",
       "tabsLabel": "Mục bộ nhớ",
@@ -1219,12 +1448,125 @@
       "mdModalDiffCurrent": "MEMORY.md hiện tại",
       "mdModalDiffCurrentPlaceholder": "（MEMORY.md không tồn tại hoặc trống）",
       "masterToggleTitle": "Trích xuất & tìm kiếm trí nhớ tự động",
-      "masterToggleDescription": "Khi bật, Mira trích xuất sự thật từ hội thoại và lấy trí nhớ liên quan ở lượt sau. Hiệu lực ngay — không cần khởi động lại.",
+      "masterToggleDescription": "Khi bật, 知序 trích xuất sự thật từ hội thoại và lấy trí nhớ liên quan ở lượt sau. Hiệu lực ngay — không cần khởi động lại.",
       "masterToggleAria": "Bật/tắt trích xuất trí nhớ",
       "masterToggleOn": "Bật",
       "masterToggleOff": "Tắt"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "Danh tính",
+          "title": "Để Agent nói theo cách bạn muốn",
+          "subtitle": "Chọn một tính cách, trả lời vài câu hỏi nhanh và xem chính xác Agent sẽ chào bạn thế nào lần tới."
+        },
+        "stepsAria": "Các bước thiết lập danh tính",
+        "step": {
+          "vibe": {
+            "label": "Tính cách",
+            "hint": "Chọn xong sẽ tự điền giúp bạn biểu mẫu phía sau"
+          },
+          "voice": {
+            "label": "Cách gọi và giọng điệu",
+            "hint": "Phần để trống sẽ được bỏ qua"
+          },
+          "rules": {
+            "label": "Giới hạn và ghi chú",
+            "hint": "Cho nó biết điều gì không được làm"
+          },
+          "advanced": {
+            "label": "Nâng cao",
+            "hint": "Sửa trực tiếp tệp danh tính"
+          }
+        },
+        "gallery": {
+          "active": "Đang dùng",
+          "reload": "Tải lại preset",
+          "use": "Dùng tính cách này"
+        },
+        "preview": {
+          "yourAgent": "Agent của bạn",
+          "live": "Xem trước trực tiếp",
+          "samplePrompt": "Viết giúp tôi báo cáo tuần tháng này thành ba đoạn.",
+          "activeRule": "Quy tắc đang áp dụng: ",
+          "hint": "Đây là cách Agent mở đầu sau khi bạn thay đổi. Lưu là có hiệu lực ngay."
+        },
+        "advanced": {
+          "toggle": "Nâng cao: sửa Markdown thô",
+          "note": "Chỉ dùng khi preset và biểu mẫu không nói lên điều bạn muốn. Sửa ở đây có hiệu lực ngay, nhưng biểu mẫu sẽ ghi lại tệp theo cấu trúc trên khi lưu.",
+          "rawAria": "Markdown thô",
+          "reload": "Tải lại từ đĩa"
+        },
+        "form": {
+          "nameLabel": "Agent nên gọi bạn là gì?",
+          "namePlaceholder": "vd: Team Marketing, Alex",
+          "roleLabel": "Agent chủ yếu giúp bạn việc gì?",
+          "rolePlaceholder": "vd: biến các cuộc họp tuần thành bản tóm tắt dễ đọc; gom phản hồi khách hàng theo chủ đề",
+          "toneLabel": "Giọng điệu",
+          "toneHint": "Chọn cái gần nhất",
+          "langLabel": "Ngôn ngữ trả lời mặc định",
+          "rulesLabel": "Những giới hạn Agent không được vượt",
+          "rulesHint": "Mỗi dòng một điều, tối đa 6",
+          "rulesPlaceholder": "Không bịa số tiền trong hợp đồng\nKhông nêu đường dẫn nội bộ cho người chưa đăng nhập\nNói 'tôi không biết' thay vì đoán",
+          "notesLabel": "Còn gì nữa đáng nhớ không?",
+          "notesPlaceholder": "Tên công ty, biệt ngữ, từ nên tránh…"
+        },
+        "tone": {
+          "friendly": {
+            "label": "Thân thiện",
+            "description": "Ấm áp, động viên, đồng cảm"
+          },
+          "professional": {
+            "label": "Chuyên nghiệp",
+            "description": "Trang trọng, chừng mực, có căn cứ"
+          },
+          "concise": {
+            "label": "Ngắn gọn",
+            "description": "Trả lời trước, giải thích sau"
+          },
+          "detailed": {
+            "label": "Chi tiết",
+            "description": "Lập luận đầy đủ và các trường hợp biên"
+          }
+        },
+        "replyLang": {
+          "groupAria": "Ngôn ngữ trả lời",
+          "auto": {
+            "label": "Theo bạn",
+            "description": "Trả lời bằng ngôn ngữ bạn hỏi"
+          },
+          "zh": {
+            "label": "Tiếng Trung",
+            "description": "Luôn trả lời bằng tiếng Trung"
+          },
+          "en": {
+            "label": "Tiếng Anh",
+            "description": "Mọi phản hồi bằng tiếng Anh"
+          }
+        },
+        "footer": {
+          "back": "Trước",
+          "next": "Tiếp",
+          "unsaved": "Có thay đổi chưa lưu",
+          "upToDate": "Đã cập nhật",
+          "discard": "Hoàn tác",
+          "saved": "Đã lưu",
+          "save": "Lưu"
+        },
+        "error": {
+          "loadFailed": "Không tải được một số nội dung",
+          "saveFailed": "Lưu thất bại"
+        },
+        "toast": {
+          "saved": "Đã lưu danh tính — có hiệu lực ngay"
+        },
+        "persona": {
+          "default": "Mặc định",
+          "cardTitle": "Preset Agent đang dùng",
+          "cardNone": "SOUL mặc định, chưa bật preset nào",
+          "cardHint": "Nhấp vào thẻ tính cách ở trên cũng chuyển preset này."
+        }
+      },
       "groupCore": "Tệp cốt lõi",
       "groupPersonas": "Nhân cách",
       "warningBanner": "Tệp danh tính định hình nhân cách và hành vi của Agent. Sửa sai có thể gây hành vi bất thường hoặc phản hồi không mong muốn. Nếu chưa chắc, hãy sao lưu trước.",
@@ -1288,7 +1630,141 @@
       "noPersona": "Không dùng",
       "personaSwitchFailed": "Không thể đổi nhân vật"
     },
+    "teams": {
+      "workspaceEyebrow": "Nhóm agent",
+      "myTeams": "Nhóm của tôi",
+      "emptyEyebrow": "Cùng nhau thì tốt hơn",
+      "emptyTitle": "Thế mạnh khác nhau. Một đội duy nhất.",
+      "emptyDescription": "Leader chia việc và tổng hợp kết quả. Các thành viên hoàn thành phần việc theo vai trò của mình.",
+      "buildFirst": "Tạo nhóm đầu tiên",
+      "illustrationAlt": "Một agent điều phối cùng đồng đội nghiên cứu, lập trình và duyệt bài",
+      "noDescription": "Thế mạnh khác nhau, chung một mục tiêu.",
+      "assemblySubtitle": "Chọn Leader, thêm đồng đội và giao cho mỗi người một vai trò rõ ràng.",
+      "setupSteps": "Các bước lập nhóm",
+      "stepIdentity": "Đặt mục tiêu",
+      "stepLeader": "Chọn Leader",
+      "stepMembers": "Lập nhóm",
+      "identitySection": "Nhóm này sẽ làm gì?",
+      "leaderSection": "Ai sẽ dẫn dắt nhóm?",
+      "oneLeader": "1 Leader",
+      "leaderExplanation": "Leader nhận mục tiêu, chia việc và tổng hợp kết quả.",
+      "promotedNotice": "{{name}} giờ là Leader và đã rời khỏi vị trí thành viên.",
+      "membersSection": "Tập hợp đúng thế mạnh",
+      "searchAgents": "Tìm tên hoặc thế mạnh của agent",
+      "permissionHint": "Hồ sơ Leader chưa cho phép thành viên này",
+      "agentProfile": "Hồ sơ agent",
+      "noAgentMatches": "Không có agent phù hợp. Hãy thử từ khóa khác.",
+      "memberResponsibility": "Phụ trách trong nhóm này",
+      "memberMinimum": "Thêm ít nhất 1 thành viên. Vai trò trong nhóm không thay đổi hồ sơ gốc của agent.",
+      "advancedSettings": "Cách phối hợp và làm việc",
+      "rosterCount": "1 Leader · {{count}} thành viên",
+      "rosterCount_one": "1 Leader · {{count}} thành viên",
+      "rosterCount_other": "1 Leader · {{count}} thành viên",
+      "rosterPrompt": "Bắt đầu từ mục tiêu. Lập nhóm agent xoay quanh mục tiêu đó.",
+      "errorRoleLength": "Vai trò thành viên tối đa {{max}} ký tự",
+      "errorInstructionsLength": "Ghi chú phối hợp tối đa {{max}} ký tự",
+      "formationLabel": "Xem trước cấu trúc nhóm",
+      "formationTitle": "Nhóm của bạn đang thành hình",
+      "untitled": "Nhóm mới",
+      "goalPrompt": "Một mục tiêu chung. Những agent với thế mạnh khác nhau.",
+      "receiveGoal": "Nhận mục tiêu của bạn",
+      "focusLeader": "Chọn hoặc đổi Leader",
+      "chooseLeaderSeat": "Đang chờ Leader",
+      "leaderJob": "Chia việc và tổng hợp kết quả",
+      "focusMember": "Sửa vai trò của {{name}}",
+      "emptySeats": "Thành viên sẽ hiện ở đây. Thêm ít nhất 1 đồng đội.",
+      "summaryFlow": "Thành viên làm việc; Leader tổng hợp kết quả",
+      "formationReady": "Thiết lập cơ bản đã xong",
+      "formationProgress": "Tiến độ lập nhóm",
+      "previewHint": "Nhấn vào Leader hoặc thành viên để sửa thiết lập.",
+      "name": "Tên nhóm",
+      "namePlaceholder": "VD: Nhóm nội dung",
+      "description": "Mô tả nhóm",
+      "descriptionPlaceholder": "Một câu cho biết nhóm này làm gì.",
+      "instructions": "Quy ước phối hợp",
+      "instructionsPlaceholder": "Ai làm gì trước, tiêu bàn giao ra sao.",
+      "leader": "Leader",
+      "leaderPlaceholder": "Chọn một hồ sơ Agent",
+      "leaderLine": "Leader: {{name}}",
+      "members": "Thành viên",
+      "pickMember": "Thêm {{name}} làm thành viên",
+      "rolePlaceholder": "Vai trò trong nhóm",
+      "roleAria": "Vai trò của {{name}} trong nhóm này",
+      "removeMember": "Bỏ {{name}}",
+      "noAgents": "Chưa có hồ sơ Agent nào để chọn",
+      "maxConcurrency": "Số chạy song song",
+      "concurrencyHint": "Số thành viên chạy cùng lúc (tối đa {{max}})",
+      "concurrency": "Tối đa {{count}} tác vụ song song",
+      "errorName": "Hãy nhập tên nhóm",
+      "errorNameLength": "Tên nhóm không được quá {{max}} ký tự",
+      "errorLeader": "Hãy chọn Leader",
+      "errorMembers": "Chọn ít nhất 1 thành viên",
+      "errorMembersMax": "Nhóm có tối đa {{max}} thành viên",
+      "errorDuplicate": "Thành viên không được trùng nhau",
+      "errorLeaderIsMember": "Leader không thể đồng thời là thành viên",
+      "errorLeaderExcludes": "Hồ sơ Leader không cho phép ủy quyền cho: {{ids}}",
+      "errorRole": "Mỗi thành viên cần một vai trò trong nhóm",
+      "errorConcurrency": "Số chạy song song phải từ {{min}} đến {{max}}",
+      "title": "Nhóm",
+      "create": "Tạo nhóm",
+      "search": "Tìm nhóm",
+      "saved": "Đã lưu",
+      "noMatch": "Không có nhóm nào khớp, thử từ khóa khác.",
+      "emptyHint": "Hãy tạo hồ sơ Agent trước, rồi lập nhóm từ đó.",
+      "edit": "Sửa",
+      "duplicate": "Nhân bản",
+      "copySuffix": "Bản sao",
+      "archive": "Lưu trữ",
+      "archiveTitle": "Lưu trữ nhóm",
+      "archiveBody": "Sau khi lưu trữ, nhóm không thể bắt đầu chạy mới. Chat đã có vẫn dùng bản ràng buộc và lịch sử chạy vẫn xem được.",
+      "showArchived": "Hiện nhóm đã lưu trữ",
+      "hideArchived": "Ẩn nhóm đã lưu trữ",
+      "unarchive": "Bỏ lưu trữ",
+      "unarchiveTitle": "Bỏ lưu trữ nhóm này?",
+      "unarchiveBody": "Sau khi bỏ lưu trữ, nhóm có thể chạy lại và sẽ tạo một bản mới.",
+      "allArchived": "Tất cả nhóm đều đã lưu trữ. Bật “Hiện nhóm đã lưu trữ” để xem.",
+      "workspaceSubtitle": "Ghép các hồ sơ Agent thành một nhóm: Leader chia mục tiêu và giao việc, thành viên thực hiện. Phù hợp với việc cần nhiều bước phối hợp.",
+      "archived": "Đã lưu trữ",
+      "conflict": "Nhóm đã bị thay đổi ở nơi khác. Hãy tải lại trước khi lưu; bản nháp của bạn vẫn được giữ.",
+      "createTitle": "Tạo nhóm",
+      "editTitle": "Sửa nhóm",
+      "editorSubtitle": "Chọn một Leader và tối đa 8 thành viên từ hồ sơ Agent có sẵn.",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "revisionNote": "Bản hiện tại v{{revision}}; lưu sẽ tạo v{{next}}"
+    },
     "agents": {
+      "workspace": {
+        "identity": "Danh tính và vai trò",
+        "capabilities": "Công cụ và kỹ năng",
+        "more": "Mô hình và mục khác",
+        "subtitle": "Định rõ vai trò, rồi chọn những gì nó được dùng.",
+        "identityHint": "Cho nó một vai trò rõ ràng và chỉ dẫn cần tuân theo.",
+        "capabilitiesHint": "Chọn những thao tác nó được làm và hướng dẫn nó được tham khảo.",
+        "moreHint": "Chọn mô hình và sắp xếp hồ sơ của nó.",
+        "toolsHint": "Những thao tác nó có thể làm, như đọc tệp hay tìm kiếm web.",
+        "skillsHint": "Hướng dẫn nó có thể tham khảo cho từng việc cụ thể.",
+        "profileDetails": "Chi tiết hồ sơ",
+        "summary": "Tóm tắt cấu hình",
+        "summaryToggle": "Xem tóm tắt cấu hình",
+        "unnamed": "Chưa đặt tên",
+        "noDescription": "Thêm một câu về việc nó làm.",
+        "noSkills": "Chưa thêm kỹ năng",
+        "noTools": "Chưa chọn công cụ",
+        "selectedCount": "{{count}} mục đang bật",
+        "remaining": "và {{count}} mục nữa",
+        "unavailableModel": "Mô hình gốc không khả dụng",
+        "globalModel": "Theo mô hình chung",
+        "promptHint": "Mô tả trách nhiệm, cách làm việc và kết quả cần bàn giao.",
+        "promptLimit": "Chỉ dẫn phải trong {{count}} ký tự.",
+        "nameRequired": "Nhập tên để tiếp tục.",
+        "idRequired": "ID agent là bắt buộc.",
+        "description": "Mô tả một dòng",
+        "modelMissing": "Mô hình đã lưu hiện không khả dụng",
+        "modelMissingHint": "Mô hình đã lưu vẫn được giữ. Chọn mô hình khác hoặc theo thiết lập chung.",
+        "selectionIncludeHint": "Chỉ những mục được chọn mới bật. Đổi cách chọn sẽ xóa các mục đã chọn.",
+        "selectionExcludeHint": "Mục được chọn sẽ bật; mục bỏ chọn sẽ bị loại. Đổi cách chọn sẽ xóa các mục đã chọn."
+      },
       "basics": {
         "appearance": "Biểu tượng và màu sắc",
         "category": "Danh mục",
@@ -1302,6 +1778,7 @@
         "namePlaceholder": "ví dụ: Viết nội dung SEO",
         "noCategory": "Chưa phân loại",
         "systemPreset": "Preset hệ thống",
+        "defaultMainAgent": "Tác nhân mặc định",
         "updatedAt": "Cập nhật {{time}}"
       },
       "capability": {
@@ -1381,6 +1858,9 @@
         "include": "Chỉ mục đã chọn"
       },
       "model": {
+        "label": "Mô hình",
+        "auto": "Theo mô hình chung",
+        "autoHint": "Agent này theo thiết lập mô hình chung.",
         "context": "ngữ cảnh",
         "toolUse": "Dùng công cụ",
         "vision": "Thị giác"
@@ -1574,6 +2054,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "Đi",
     "browserEmptyHint": "Nhập địa chỉ để bắt đầu duyệt.",
+    "browserNewTab": "Tab mới",
     "browserFrameTitle": "Trang trình duyệt nhúng",
     "browserError_scheme": "Chỉ mở được địa chỉ http/https ở đây.",
     "browserError_private": "Địa chỉ riêng hoặc mạng nội bộ không được phép.",
@@ -1584,12 +2065,31 @@
     "tabBrowser": "Trình duyệt",
     "plusAria": "Tab mới",
     "newTerminal": "Terminal mới",
+    "openTerminal": "Mở bảng terminal",
     "shellChoices": "Chọn shell",
     "takeoverRunning": "Terminal đang chạy",
     "takeoverAction": "Tiếp quản",
     "takeoverHint": "Nhấn Enter để vẽ lại màn hình",
     "closeTab": "Đóng tab",
-    "platformDefaultShell": "Shell mặc định của máy chủ"
+    "platformDefaultShell": "Shell mặc định của máy chủ",
+    "renameTab": "Đổi tên tab",
+    "copyOutput": "Sao chép đầu ra",
+    "clearOutput": "Xóa terminal",
+    "pasteInput": "Dán",
+    "browserWindow": "Mở trong cửa sổ trình duyệt",
+    "showHidden": "Hiện tệp ẩn",
+    "hideHidden": "Ẩn tệp ẩn",
+    "refresh": "Làm mới",
+    "collapseAll": "Thu gọn tất cả",
+    "search": "Tìm kiếm tệp",
+    "searchPlaceholder": "Tìm theo tên và nội dung tệp",
+    "searching": "Đang tìm…",
+    "noMatches": "Không có kết quả",
+    "searchTruncated": "Chỉ hiển thị một phần kết quả",
+    "searchFailed": "Tìm kiếm thất bại",
+    "copied": "Đã sao chép",
+    "historyTruncated": "Đầu ra trước đó đã bị cắt",
+    "terminalTheme": "Chuyển giao diện terminal"
   },
   "plusMenu": {
     "groupAdd": "Thêm",
@@ -1607,6 +2107,49 @@
     "back": "Quay lại"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "Thực thi tác nhân con",
+      "genericAgent": "Tác nhân tổng quát",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "Không có chi tiết thực thi",
+      "close": "Đóng chi tiết thực thi",
+      "reload": "Tải lại",
+      "taskSwitcher": "Chuyển tác vụ tác nhân con",
+      "call": "Lượt gọi {{id}}",
+      "instruction": "Tác vụ",
+      "process": "Thực thi",
+      "result": "Kết quả tác nhân con",
+      "truncated": "Nội dung đã bị cắt",
+      "noActivities": "Chưa có hoạt động công khai.",
+      "connectionStale": "Mất kết nối, trạng thái đang chờ đồng bộ",
+      "historyLimited": "Một phần hoạt động trước đã hết hạn",
+      "activitySummary": "{{action}} · Đã hoàn thành {{count}} lượt gọi công cụ",
+      "activitySummaryNoAction": "Đã hoàn thành {{count}} lượt gọi công cụ",
+      "status": {
+        "queued": "Đang chờ",
+        "running": "Đang chạy",
+        "succeeded": "Hoàn tất",
+        "failed": "Thất bại",
+        "cancelled": "Đã dừng",
+        "interrupted": "Bị gián đoạn"
+      },
+      "parameters": "Tham số",
+      "toolOutput": "Đầu ra",
+      "detailToggle": "Xem tham số và đầu ra",
+      "phase": {
+        "preparing": "Đang chuẩn bị",
+        "model": "Đang tạo",
+        "tools": "Đang dùng công cụ",
+        "finalizing": "Đang hoàn tất"
+      },
+      "activityStatus": {
+        "running": "Đang chạy",
+        "succeeded": "Hoàn tất",
+        "failed": "Thất bại",
+        "cancelled": "Đã dừng",
+        "interrupted": "Bị gián đoạn"
+      }
+    },
     "activity": {
       "viewDetails": "Xem chi tiết",
       "hideDetails": "Ẩn",
@@ -1656,7 +2199,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "Thiết kế biểu tượng ứng dụng",
-          "prompt": "Tạo một biểu tượng ứng dụng 1:1 gọn gàng cho Mira: robot thân thiện, phong cách vector đơn giản, bảng màu xanh trắng dịu, không có chữ."
+          "prompt": "Tạo một biểu tượng ứng dụng 1:1 gọn gàng cho 知序: robot thân thiện, phong cách vector đơn giản, bảng màu xanh trắng dịu, không có chữ."
         },
         "sticker": {
           "title": "Tạo nhãn dán",
@@ -1711,6 +2254,46 @@
         "local": "Đang chờ kích hoạt",
         "none": "Không có lần chạy tiếp theo"
       }
+    },
+    "teamProgress": {
+      "title": "Tiến độ nhóm",
+      "leader": "Trưởng nhóm",
+      "leaderAction": {
+        "planning": "đang lên kế hoạch",
+        "waiting": "đang chờ thành viên",
+        "reviewing": "đang duyệt",
+        "summarizing": "đang tổng hợp",
+        "idle": "đang chờ"
+      },
+      "status": {
+        "running": "Đang chạy",
+        "cancelling": "Đang dừng…",
+        "completed": "Đã hoàn thành",
+        "partial": "Hoàn thành một phần",
+        "failed": "Thất bại",
+        "cancelled": "Đã dừng",
+        "interrupted": "Bị gián đoạn"
+      },
+      "taskStatus": {
+        "pending": "Chưa giao",
+        "queued": "Trong hàng đợi",
+        "running": "Đang chạy",
+        "cancelling": "Đang dừng…",
+        "succeeded": "Xong",
+        "failed": "Thất bại",
+        "cancelled": "Đã dừng",
+        "blocked": "Bị chặn",
+        "interrupted": "Bị gián đoạn"
+      },
+      "stop": "Dừng nhóm",
+      "stopping": "Đang dừng…",
+      "retry": "Chạy lại tác vụ thất bại",
+      "retryHint": "Chạy lại sẽ thực thi lại các tác vụ thất bại và có thể lặp lại tác dụng phụ đã xảy ra.",
+      "cancelTask": "Dừng tác vụ này",
+      "noTasks": "Trưởng nhóm đã trực tiếp xử lý lượt này.",
+      "resyncing": "Đang đồng bộ trạng thái nhóm…",
+      "artifacts": "Sản phẩm: {{names}}",
+      "memberFallback": "Thành viên {{memberId}}"
     },
     "composer": {
       "menu": {
@@ -1857,7 +2440,7 @@
             "description": "Hủy lượt của tác nhân đang chạy trong cuộc trò chuyện này."
           },
           "restart": {
-            "title": "Khởi động lại Mira",
+            "title": "Khởi động lại 知序",
             "description": "Khởi động lại tiến trình bot tại chỗ."
           },
           "status": {
@@ -1935,16 +2518,20 @@
       "mentions": {
         "ariaLabel": "Đề cập",
         "label": "Ứng dụng",
+        "agentGroup": "Tác nhân",
         "cliGroup": "Ứng dụng CLI",
         "mcpGroup": "Dịch vụ MCP",
-        "sessionGroup": "Cuộc trò chuyện Mira",
+        "sessionGroup": "Cuộc trò chuyện 知序",
+        "agentBadge": "Tác nhân",
+        "defaultAgentBadge": "Tác nhân mặc định",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "@{{name}} sẽ phụ trách lượt này",
         "cliDescription": "Dùng @{{name}} như ứng dụng CLI cục bộ",
         "mcpDescription": "Dùng @{{name}} như máy chủ MCP",
         "cliTitle": "Ứng dụng CLI: {{name}}",
         "mcpTitle": "Máy chủ MCP: {{name}}",
-        "sessionBadge": "Cuộc trò chuyện Mira",
+        "sessionBadge": "Cuộc trò chuyện 知序",
         "sessionDescription": "Tham chiếu @{{name}} như cuộc trò chuyện trước"
       },
       "workspace": {
@@ -1955,6 +2542,20 @@
         "defaultShort": "Mặc định",
         "full": "Toàn quyền truy cập",
         "fullShort": "Toàn quyền"
+      },
+      "team": {
+        "aria": "Chọn nhóm",
+        "select": "Chọn nhóm",
+        "none": "Không dùng nhóm",
+        "empty": "Chưa có nhóm nào khả dụng",
+        "bound": "Đã gắn với {{name}} (bản sửa đổi {{revision}})",
+        "chip": "Nhóm: {{name}}",
+        "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "Agent hiện tại: {{name}}",
+        "empty": "Chưa có agent nào khả dụng",
+        "defaultTag": "Mặc định"
       }
     },
     "scrollToBottom": "Cuộn xuống cuối",
@@ -2072,9 +2673,16 @@
     "close": "Đóng xem trước tệp",
     "loading": "Đang tải bản xem trước...",
     "failed": "Không thể xem trước tệp này.",
-    "routeMissing": "Xem trước tệp cần gateway mới nhất. Hãy khởi động lại Mira gateway rồi thử lại.",
+    "routeMissing": "Xem trước tệp cần gateway mới nhất. Hãy khởi động lại 知序 gateway rồi thử lại.",
     "resize": "Đổi kích thước bản xem trước tệp",
-    "truncated": "Bản xem trước bị cắt vì tệp này lớn."
+    "pickFile": "Chọn một tệp để xem trước ở đây.",
+    "truncated": "Bản xem trước bị cắt vì tệp này lớn.",
+    "edit": "Chỉnh sửa tệp",
+    "save": "Lưu tệp",
+    "cancel": "Hủy chỉnh sửa",
+    "saved": "Đã lưu",
+    "saveFailed": "Không thể lưu tệp này.",
+    "editTruncated": "Tệp quá lớn không thể chỉnh sửa tại đây."
   },
   "code": {
     "fallbackLanguage": "mã",
@@ -2084,8 +2692,7 @@
   },
   "workbench": {
     "title": "Bảng làm việc",
-    "open": "Mở bảng làm việc",
-    "collapse": "Thu gọn bảng làm việc",
+    "tools": "Thanh công cụ bên",
     "updatedAt": "Cập nhật {{time}}",
     "overview": "Tổng quan",
     "emptyOverview": "Chưa có tóm tắt",
@@ -2154,6 +2761,14 @@
       "title": "Không gian làm việc không thay đổi",
       "body": "Gateway đã từ chối dự án hoặc chế độ truy cập này. Chọn dự án hiện có hoặc chế độ truy cập khác rồi thử lại."
     },
+    "teamBindingExpired": {
+      "title": "Chưa gắn nhóm nào",
+      "body": "Lựa chọn nhóm cho cuộc trò chuyện trống này đã hết hạn. Hãy chọn lại nhóm trước khi gửi tin nhắn đầu tiên."
+    },
+    "teamUnavailable": {
+      "title": "Nhóm không khả dụng",
+      "body": "Nhóm này đã được lưu trữ, hoặc hồ sơ agent mà nó tham chiếu đã bị xóa. Hãy chọn nhóm khác, hoặc gửi tin nhắn dưới dạng cuộc trò chuyện thường."
+    },
     "turnRejected": {
       "title": "Tin nhắn chưa được gửi",
       "body": "Gateway đã từ chối tin nhắn này. Hãy kiểm tra nội dung hoặc tệp đính kèm rồi thử lại."
@@ -2193,7 +2808,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "Trợ lý",
-      "creative": "Sáng tạo"
+      "creative": "Sáng tạo",
+      "more": "Thêm",
+      "groups": {
+        "workspace": "Không gian làm việc",
+        "ai": "Cấu hình AI",
+        "personal": "Cá nhân"
+      }
     },
     "preview": {
       "badge": "Xem trước giao diện · nội dung mẫu"
@@ -2216,5 +2837,9 @@
     "creative": {
       "comingSoon": "Module sáng tạo sẽ sớm ra mắt."
     }
+  },
+  "toast": {
+    "saved": "Đã lưu",
+    "saveFailed": "Lưu thất bại: {{message}}"
   }
 }

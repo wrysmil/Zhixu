@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createTerminalStore, type TerminalStore } from "@/hooks/useNanobotStream";
+import { createTerminalStore, type TerminalStore } from "@/hooks/useZhixuStream";
 import type { TerminalEvent } from "@/lib/types";
 
 function started(
@@ -144,6 +144,49 @@ describe("createTerminalStore error frames", () => {
     store.remove("term-2");
     store.applyEvent(detail("term-2", "unknown_terminal"));
     expect(store.getState().byId["term-2"]).toBeUndefined();
+  });
+});
+
+function snapshot(id: string, seq: number, data: string, truncated = false): TerminalEvent {
+  return {
+    event: "terminal_snapshot",
+    type: "terminal_snapshot",
+    terminal_id: id,
+    seq,
+    data,
+    truncated,
+  } as unknown as TerminalEvent;
+}
+
+describe("createTerminalStore terminal_snapshot", () => {
+  it("replaces the buffer and bumps viewEpoch", () => {
+    const store = createTerminalStore();
+    openTerminal(store, "term-1");
+    store.applyEvent(output("term-1", 1, "old\n"));
+    store.applyEvent(snapshot("term-1", 1, "restored\n", true));
+    const record = store.getState().byId["term-1"];
+    expect(record?.lines.map((line) => line.data)).toEqual(["restored\n"]);
+    expect(record?.lastSeq).toBe(1);
+    expect(record?.viewEpoch).toBe(1);
+    expect(record?.historyTruncated).toBe(true);
+  });
+
+  it("drops a stale snapshot that predates already-seen output", () => {
+    const store = createTerminalStore();
+    openTerminal(store, "term-1");
+    store.applyEvent(output("term-1", 5, "newer\n"));
+    store.applyEvent(snapshot("term-1", 4, "older\n"));
+    expect(store.getState().byId["term-1"]?.lines.map((line) => line.data)).toEqual(["newer\n"]);
+  });
+
+  it("clear empties the buffer without resetting the sequence", () => {
+    const store = createTerminalStore();
+    openTerminal(store, "term-1");
+    store.applyEvent(output("term-1", 3, "line\n"));
+    store.clear("term-1");
+    const record = store.getState().byId["term-1"];
+    expect(record?.lines).toEqual([]);
+    expect(record?.lastSeq).toBe(3);
   });
 });
 

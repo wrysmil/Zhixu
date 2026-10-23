@@ -6,8 +6,9 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const http = require("http");
+const { normalizeBrowserWindowUrl } = require("./browser-policy.cjs");
 
-const APP_NAME = "Mira";
+const APP_NAME = "知序";
 const IS_DEV_SHELL = process.env.MIRA_DESKTOP_DEV === "1";
 const SMOKE = process.env.MIRA_SMOKE === "1";
 const WEBUI_DEV_URL = process.env.MIRA_WEBUI_URL || "http://localhost:5173";
@@ -16,6 +17,7 @@ const GATEWAY_WAIT_MS = Number(process.env.MIRA_GATEWAY_TIMEOUT_MS || 45000);
 
 let gatewayProc = null;
 let mainWindow = null;
+let browserWindow = null;
 let bootToken = 0;
 
 function loadChannelConfig() {
@@ -167,6 +169,50 @@ async function boot() {
   await mainWindow.loadURL(webuiUrl(port, secret));
 }
 
+function openBrowserWindow(rawUrl) {
+  const target = normalizeBrowserWindowUrl(rawUrl);
+  if (!target) return false;
+
+  if (browserWindow && !browserWindow.isDestroyed()) {
+    browserWindow.loadURL(target).catch(() => {});
+    browserWindow.show();
+    browserWindow.focus();
+    return true;
+  }
+
+  browserWindow = new BrowserWindow({
+    width: 1100,
+    height: 760,
+    minWidth: 640,
+    minHeight: 420,
+    title: "知序浏览器",
+    autoHideMenuBar: true,
+    backgroundColor: "#ffffff",
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webviewTag: false,
+    },
+  });
+  browserWindow.webContents.setWindowOpenHandler(({ url }) => {
+    const safe = normalizeBrowserWindowUrl(url);
+    if (safe) void shell.openExternal(safe);
+    return { action: "deny" };
+  });
+  browserWindow.webContents.on("will-navigate", (event, url) => {
+    if (!normalizeBrowserWindowUrl(url)) event.preventDefault();
+  });
+  browserWindow.webContents.on("will-attach-webview", (event) => {
+    event.preventDefault();
+  });
+  browserWindow.on("closed", () => {
+    browserWindow = null;
+  });
+  browserWindow.loadURL(target).catch(() => {});
+  return true;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -263,6 +309,9 @@ if (!gotLock) {
       await shell.openExternal(parsed.toString());
       return true;
     });
+    ipcMain.handle("mira:open-browser-window", (_event, targetUrl) =>
+      openBrowserWindow(targetUrl),
+    );
     createWindow();
     boot();
     app.on("activate", () => {

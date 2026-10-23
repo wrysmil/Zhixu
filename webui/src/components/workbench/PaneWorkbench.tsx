@@ -3,7 +3,6 @@ import {
   Grid2X2,
   PanelLeft,
   PanelsTopLeft,
-  Plus,
   Rows2,
   type LucideIcon,
 } from "lucide-react";
@@ -58,6 +57,8 @@ interface PaneRenderContext {
   active: boolean;
   headerPortalTarget: HTMLElement | null | undefined;
   composerPortalTarget: HTMLElement | null | undefined;
+  onComposerRailInsetChange: (width: number) => void;
+  onComposerPlacementChange: (placement: "inline" | "footer") => void;
   headerActions: ReactNode;
 }
 
@@ -67,10 +68,7 @@ interface PaneWorkbenchProps {
   layout: WorkbenchLayout;
   chrome?: boolean;
   showLayoutControl: boolean;
-  addPaneDisabled?: boolean;
-  addPaneDisabledLabel?: string;
   onActivatePane: (key: string) => void;
-  onAddPane: () => void;
   onLayoutChange: (layout: WorkbenchLayout) => void;
   onPaneOrderChange: (paneKeys: string[]) => void;
   splitRatios?: number[];
@@ -161,52 +159,13 @@ function paneInDirection(
   return best?.key ?? null;
 }
 
-function HeaderIconButton({
-  disabled,
-  disabledLabel,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  disabled?: boolean;
-  disabledLabel?: string;
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            disabled={disabled}
-            aria-label={label}
-            title={disabled ? disabledLabel : undefined}
-            onClick={onClick}
-            className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
-          >
-            <Icon className="h-4 w-4" aria-hidden />
-          </Button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{disabled ? disabledLabel ?? label : label}</TooltipContent>
-    </Tooltip>
-  );
-}
-
 export function PaneWorkbench({
   panes,
   activePaneKey,
   layout,
   chrome = true,
   showLayoutControl,
-  addPaneDisabled = false,
-  addPaneDisabledLabel,
   onActivatePane,
-  onAddPane,
   onLayoutChange,
   onPaneOrderChange,
   splitRatios = EMPTY_SPLIT_RATIOS,
@@ -219,6 +178,13 @@ export function PaneWorkbench({
   const effectiveLayout = layout;
   const [headerPortalTarget, setHeaderPortalTarget] = useState<HTMLElement | null>(null);
   const [composerPortalTarget, setComposerPortalTarget] = useState<HTMLElement | null>(null);
+  const [paneComposerLayouts, setPaneComposerLayouts] = useState<Record<string, {
+    railWidth?: number;
+    placement?: "inline" | "footer";
+  }>>({});
+  const activeComposerLayout = paneComposerLayouts[activePaneKey];
+  const activeRailInset = activeComposerLayout?.railWidth === undefined
+    ? composerRailInset : `${activeComposerLayout.railWidth}px`;
   const gridRef = useRef<HTMLDivElement | null>(null);
   const paneRefs = useRef(new Map<string, HTMLElement>());
   const lastRectsRef = useRef(new Map<string, DOMRect>());
@@ -671,34 +637,27 @@ export function PaneWorkbench({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
-      <HeaderIconButton
-        disabled={addPaneDisabled}
-        disabledLabel={addPaneDisabledLabel}
-        icon={Plus}
-        label={t("workbench.addPane", { defaultValue: "Add pane" })}
-        onClick={() => {
-          captureLayout();
-          onAddPane();
-        }}
-      />
     </div>
   ) : null;
 
   return (
     <section
       aria-label={t("workbench.aria", { defaultValue: "Conversation workbench" })}
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-background"
+      className="workbench-canvas flex h-full min-h-0 flex-col overflow-hidden bg-background"
     >
       <TooltipProvider delayDuration={500} skipDelayDuration={100}>
         {chrome ? (
-          <header className="shrink-0 bg-background">
-            <div
-              ref={setHeaderPortalTarget}
-              data-testid="workbench-header-host"
-            />
+          <header className="shrink-0 bg-transparent">
+            <div className="flex items-center">
+              <div
+                ref={setHeaderPortalTarget}
+                data-testid="workbench-header-host"
+                className="min-w-0 flex-1"
+              />
+            </div>
           </header>
         ) : null}
-        <div className="relative min-h-0 flex-1 bg-background">
+        <div className="relative min-h-0 flex-1 bg-transparent">
           <div
             ref={gridRef}
             data-testid="pane-grid"
@@ -725,13 +684,23 @@ export function PaneWorkbench({
                   data-testid={`workbench-pane-${pane.key}`}
                   onPointerDownCapture={(event) => handlePanePointerDown(pane.key, event)}
                   onFocusCapture={(event) => handlePaneFocus(pane.key, event)}
-                  className="workbench-pane relative flex min-h-0 min-w-0 overflow-hidden bg-background"
+                  className="workbench-pane relative flex min-h-0 min-w-0 overflow-hidden bg-transparent"
                   style={layoutGeometry.paneStyles[index]}
                 >
                   {renderPane(pane, {
                     active,
                     headerPortalTarget: chrome ? headerPortalTarget : undefined,
                     composerPortalTarget: chrome ? composerPortalTarget : undefined,
+                    onComposerRailInsetChange: (railWidth) => setPaneComposerLayouts((previous) => (
+                      previous[pane.key]?.railWidth === railWidth ? previous : {
+                        ...previous, [pane.key]: { ...previous[pane.key], railWidth },
+                      }
+                    )),
+                    onComposerPlacementChange: (placement) => setPaneComposerLayouts((previous) => (
+                      previous[pane.key]?.placement === placement ? previous : {
+                        ...previous, [pane.key]: { ...previous[pane.key], placement },
+                      }
+                    )),
                     headerActions,
                   })}
                   {chrome && panes.length > 1 && !compact ? (
@@ -833,12 +802,23 @@ export function PaneWorkbench({
         </div>
 
         {chrome ? (
-          <footer className="shrink-0 bg-background px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4">
+          <footer
+            hidden={activeComposerLayout?.placement === "inline"}
+            className="shrink-0 bg-transparent px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4"
+            // 让位放在 footer 的 padding 上，而不是宿主的 margin-right：宿主的可用宽度
+            // 才是消息列真实的中线基准，两者都等于「聊天区 − rail」。挂在 margin 上会让
+            // 宿主先按 rail 缩一次、再由 mx-auto 二次居中，输入框整体右移约 rail 的一半
+            // （2026-10-20 实测 1736px 下偏 99px）。
+            style={
+              activeRailInset && !compact
+                ? { paddingRight: `calc(${activeRailInset} + 1rem)` }
+                : undefined
+            }
+          >
             <div
               ref={setComposerPortalTarget}
               data-testid="workbench-composer-host"
-              className="mx-auto w-full max-w-[58rem]"
-              style={composerRailInset ? { marginRight: composerRailInset } : undefined}
+              className="mx-auto max-w-[49.5rem]"
             />
           </footer>
         ) : null}

@@ -11,7 +11,10 @@ export type WorkspaceView =
   | "skills"
   | "automations"
   | "apps"
-  | "settings";
+  | "settings"
+  | "memory"
+  | "identity"
+  | "teams";
 
 export interface WorkspaceRoute {
   view: WorkspaceView;
@@ -27,6 +30,7 @@ export interface WorkspaceNavigationSlotContext {
 
 export interface WorkspaceNavigationProps {
   activeView: WorkspaceView;
+  activeSettingsSection?: SettingsSectionKey;
   collapsed: boolean;
   preview: boolean;
   onNavigate: (route: WorkspaceRoute) => void;
@@ -40,6 +44,8 @@ export interface WorkspaceNavigationProps {
     | ReactNode
     | ((ctx: WorkspaceNavigationSlotContext) => ReactNode);
   connectionStatus?: ReactNode;
+  /** Optional caller-owned control below the language picker. */
+  footerAction?: ReactNode;
   /** Marks the "New chat" affordance as the active selection. */
   newChatActive?: boolean;
   /** Highlights the matching capability item as the active page. */

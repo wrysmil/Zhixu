@@ -1,10 +1,10 @@
 # Development
 
-This page collects contributor-facing notes for extending nanobot. User-facing setup and runtime options live in [`configuration.md`](./configuration.md).
+This page collects contributor-facing notes for extending Zhixu. User-facing setup and runtime options live in [`configuration.md`](./configuration.md).
 
 ## Adding an LLM Provider
 
-nanobot uses the provider registry in `nanobot/providers/registry.py` as the source of truth for LLM provider metadata. Most OpenAI-compatible providers need only two changes.
+Zhixu uses the provider registry in `nanobot/providers/registry.py` as the source of truth for LLM provider metadata. Most OpenAI-compatible providers need only two changes.
 
 1. Add a `ProviderSpec` entry to `PROVIDERS`:
 

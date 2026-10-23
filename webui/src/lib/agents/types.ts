@@ -1,5 +1,8 @@
 export type AgentType = "system" | "custom";
 
+/** 未显式 @ 任何 Agent 时接管主回合的系统档案，与后端 catalog 保持一致。 */
+export const DEFAULT_MAIN_AGENT_ID = "commander";
+
 /**
  * How a capability list resolves to a concrete set of ids.
  * "all" ignores entries; "include" keeps only entries; "exclude" drops entries.
@@ -30,6 +33,10 @@ export interface AgentProfile {
   subAgents: AgentSelection;
   hidden: boolean;
   updatedAt: string;
+}
+
+export function isDefaultMainAgent(agent: Pick<AgentProfile, "id">): boolean {
+  return agent.id === DEFAULT_MAIN_AGENT_ID;
 }
 
 export interface AgentCategory {

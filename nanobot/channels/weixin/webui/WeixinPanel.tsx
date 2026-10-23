@@ -24,7 +24,7 @@ import { logoFallbackUrls } from "@/lib/provider-brand";
 import type {
   ChannelRuntimeStatus,
   ChannelSetupContractField,
-  NanobotFeatureInfo,
+  ZhixuFeatureInfo,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useClient } from "@/providers/ClientProvider";
@@ -146,7 +146,7 @@ export function WeixinPanel({
       touchedFieldsRef.current = remainingFields;
       setTouchedFields(remainingFields);
       setSaveState(remainingFields.size ? "idle" : "saved");
-      if (payload.nanobot_features) context.onFeaturesUpdate(payload.nanobot_features);
+      if (payload.zhixu_features) context.onFeaturesUpdate(payload.zhixu_features);
     } catch (err) {
       setSaveError((err as Error).message);
     } finally {
@@ -206,7 +206,7 @@ export function WeixinPanel({
               {displayName}
             </h3>
             <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
-              {channelTx("description", "Use Mira from WeChat conversations.")}
+              {channelTx("description", "Use 知序 from WeChat conversations.")}
             </p>
             {missingSupport && feature.install_supported ? (
               <Button
@@ -222,7 +222,7 @@ export function WeixinPanel({
                 ) : (
                   <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden />
                 )}
-                {tx("settings.nanobotFeatures.installSupport", "Install support")}
+                {tx("settings.zhixuFeatures.installSupport", "Install support")}
               </Button>
             ) : null}
           </div>
@@ -349,7 +349,7 @@ export function WeixinPanel({
 }
 
 function weixinSetupFields(
-  feature: NanobotFeatureInfo,
+  feature: ZhixuFeatureInfo,
   locale: string,
 ): { primary: ChannelConfigField[]; advanced: ChannelConfigField[] } {
   const fields = feature.setup?.fields ?? [];
@@ -494,7 +494,7 @@ function WeixinStatusBadge({
 }
 
 function weixinStatusLabel(
-  feature: NanobotFeatureInfo,
+  feature: ZhixuFeatureInfo,
   tx: (key: string, fallback: string) => string,
 ): string {
   if (feature.runtime_status === "failed") {

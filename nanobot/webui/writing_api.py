@@ -27,6 +27,7 @@ from typing import Any, cast
 
 from nanobot.webui.settings_contracts import WebUISettingsError
 from nanobot.webui.writing_services import WritingServices
+from nanobot.writing import apply as writing_apply
 from nanobot.writing.models import ArticleLimitError
 from nanobot.writing.repository import (
     ArticleConflict,
@@ -72,6 +73,12 @@ def _check_article_id(raw: Any) -> str:
     if len(value) > _MAX_ID_CHARS:
         raise WebUISettingsError("article id is required")
     return value
+
+
+def _check_change_id(raw: Any) -> str:
+    if not isinstance(raw, str) or not raw.strip():
+        raise WebUISettingsError("change_id is required")
+    return raw.strip()
 
 
 def _check_base_revision(raw: Any) -> int:
@@ -217,5 +224,25 @@ def delete_article(
         return _repository(services).delete_article(
             _check_article_id(article_id),
             _check_base_revision(base_revision),
+            client_request_id=_check_client_request_id(client_request_id),
+        )
+
+
+def undo_change(
+    services: WritingServices,
+    *,
+    client_request_id: str,
+    change_id: str,
+    base_revision: int,
+) -> dict[str, Any]:
+    """``writing.undo_change``：只在当前版本仍是该次写入结果时还原字段。"""
+    database = services.database
+    if database is None:
+        raise WebUISettingsError("writing service is not configured", status=503)
+    with _translated():
+        return writing_apply.undo_change(
+            database,
+            change_id=_check_change_id(change_id),
+            base_revision=_check_base_revision(base_revision),
             client_request_id=_check_client_request_id(client_request_id),
         )

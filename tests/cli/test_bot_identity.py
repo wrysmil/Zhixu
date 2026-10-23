@@ -7,10 +7,10 @@ from nanobot.config.schema import AgentDefaults, Config
 
 
 def test_bot_name_and_icon_defaults_preserve_current_branding() -> None:
-    """Default values keep the existing 'nanobot' name and cat icon."""
+    """Default values keep the existing '知序' name and cat icon."""
     defaults = AgentDefaults()
 
-    assert defaults.bot_name == "nanobot"
+    assert defaults.bot_name == "知序"
     assert defaults.bot_icon == "🐈"
 
 

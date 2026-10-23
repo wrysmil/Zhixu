@@ -182,13 +182,23 @@ class SkillsLoader:
     def build_explicit_skill_runtime_context(
         self,
         text: str,
+        *,
+        exclude: set[str] | None = None,
     ) -> RuntimeContextBlock | None:
-        """Load non-always skills explicitly invoked by the current message."""
+        """Load non-always skills explicitly invoked by the current message.
+
+        ``exclude`` 是这一回合不该看到的技能（Team Leader 的档案裁剪）。三个入口
+        （always 段、技能概览、显式 ``$skill``）必须共用同一个集合，否则概览里看不到的
+        技能仍能被 ``$name`` 召唤出来，裁剪形同虚设。
+        """
         skill_names = self.get_explicitly_invoked_skills(text)
         if not skill_names:
             return None
         always_active = set(self.get_always_skills())
-        skill_names = [name for name in skill_names if name not in always_active]
+        hidden = exclude or set()
+        skill_names = [
+            name for name in skill_names if name not in always_active and name not in hidden
+        ]
         content = self.load_skills_for_context(skill_names)
         if not content:
             return None
@@ -316,7 +326,7 @@ class SkillsLoader:
         return content
 
     def _parse_nanobot_metadata(self, raw: object) -> dict[str, Any]:
-        """Extract nanobot/openclaw metadata from a frontmatter field.
+        """Extract zhixu/nanobot/openclaw metadata from a frontmatter field.
 
         ``raw`` may be a dict (already parsed by yaml.safe_load) or a JSON str.
         """
@@ -332,7 +342,13 @@ class SkillsLoader:
         if not isinstance(data, dict):
             return {}
         data_object = cast(dict[str, Any], data)
-        payload = data_object.get("nanobot", data_object.get("openclaw", {}))
+        # Dual fallback: `zhixu` is current, legacy `nanobot` keys from external
+        # skills stay supported for >=1 major version, `openclaw` is upstream.
+        payload = (
+            data_object.get("zhixu")
+            or data_object.get("nanobot")
+            or data_object.get("openclaw", {})
+        )
         return cast(dict[str, Any], payload) if isinstance(payload, dict) else {}
 
     def _check_requirements(self, skill_meta: dict[str, Any]) -> bool:

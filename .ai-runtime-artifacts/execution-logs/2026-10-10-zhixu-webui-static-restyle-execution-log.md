@@ -61,3 +61,16 @@ tier: 2
 ## Next
 
 WU-01 返回并验证后进入 GROUP-2（WU-02A）。
+
+## 2026-10-20 视觉收口批次
+
+- 用户基于独立 Demo 明确授权「应用到当前项目中把」，随后回复「继续」。
+- 本批次只调整真实 WebUI 的表现层：白底、低饱和浅蓝、紧凑页面头部、小尺寸卡通插画；保持聊天、记忆、身份、团队、应用、技能和自动任务的业务逻辑与接口不变。
+- 复用已批准计划中的 WU-03 / WU-04 范围；沿用用户此前「不用 worktree」的执行豁免，在当前 checkout 处理。
+- 工作区基线只有未跟踪的研究、Demo、验证缓存及 `teams/`、`writing/` 目录；本批次不得删除、覆盖或纳入无关文件。
+
+| WU | 负责人 | 文件边界 | 当前状态 |
+| --- | --- | --- | --- |
+| VIS-01 视觉基础层 | `visual_shell` | 插画资源、`globals.css`、`ThreadWelcome.tsx`、`MemoryPage.tsx` | in-progress |
+| VIS-02 能力页面层 | `capability_pages` | Teams / Agents / Identity / Apps / Skills / Automations 展示组件 | in-progress |
+| VIS-03 汇总验收 | Leader | 集成、定向测试、build、浏览器桌面/移动截图 | pending |

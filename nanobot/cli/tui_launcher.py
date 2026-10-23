@@ -471,7 +471,7 @@ def _ensure_gateway(
             return wait_for_ready(status.log_path)
         elif _webui_endpoint_reachable(base_url):
             raise TuiUnavailableError(
-                "the configured gateway port belongs to a different nanobot instance; "
+                "the configured gateway port belongs to a different Zhixu instance; "
                 "stop that instance or use `nanobot agent --classic`"
             )
 

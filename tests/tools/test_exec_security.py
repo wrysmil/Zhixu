@@ -173,7 +173,7 @@ async def test_exec_blocks_chained_internal_url():
     assert "Error" in result
 
 
-# --- #2989: block writes to nanobot internal state files -----------------
+# --- #2989: block writes to Zhixu internal state files -----------------
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,7 @@
 {
-  "name": "Mira",
-  "short_name": "Mira",
-  "description": "Mira AI assistant",
+  "name": "知序",
+  "short_name": "知序",
+  "description": "知序 AI assistant",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -12,26 +12,9 @@
   },
   "orientation": "any",
   "icons": [
-    {
-      "src": "/brand/mira_apple_touch.png?v=2",
-      "sizes": "180x180",
-      "type": "image/png"
-    },
-    {
-      "src": "/brand/mira_icon_192.png?v=2",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/brand/mira_icon_512.png?v=2",
-      "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "/brand/mira_icon_maskable.png?v=2",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "/brand/zhixu_apple_touch.png?v=3", "sizes": "180x180", "type": "image/png" },
+    { "src": "/brand/zhixu_icon_192.png?v=3", "sizes": "192x192", "type": "image/png" },
+    { "src": "/brand/zhixu_icon_512.png?v=3", "sizes": "512x512", "type": "image/png" },
+    { "src": "/brand/zhixu_icon_maskable.png?v=3", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

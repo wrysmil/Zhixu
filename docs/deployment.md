@@ -30,7 +30,7 @@ Restart the deployed process after editing `config.json`. Long-running processes
 
 ## Render
 
-Run nanobot online without managing a server. The blueprint deploys the gateway and bundled WebUI together, with a persistent disk so sessions, memory, and chat history survive restarts.
+Run Zhixu online without managing a server. The blueprint deploys the gateway and bundled WebUI together, with a persistent disk so sessions, memory, and chat history survive restarts.
 
 > [!IMPORTANT]
 > This setup requires a paid Render service because persistent disks are not available on the free tier. During setup, provide `ANTHROPIC_API_KEY` and set `NANOBOT_WEB_TOKEN` to a strong private password (for example, generate one with `openssl rand -hex 32`).
@@ -46,7 +46,7 @@ Run nanobot online without managing a server. The blueprint deploys the gateway 
 3. Create the Blueprint and wait for the service status to become **Live**. The first build can take several minutes.
 4. Open the generated `onrender.com` URL. The **Authentication required** page means the gateway is running: enter the same `NANOBOT_WEB_TOKEN` value to open the WebUI.
 
-The model API key is used by nanobot to call Anthropic. The Web token only protects access to this deployment; do not share it in issues, screenshots, or chat.
+The model API key is used by Zhixu to call Anthropic. The Web token only protects access to this deployment; do not share it in issues, screenshots, or chat.
 
 ### Updates and Data
 
@@ -91,7 +91,7 @@ If deployment fails, open the service **Logs** page first. A missing model key f
 
 ### Cloudflare Tunnel + Cloudflare Access
 
-For a local `cloudflared` process in front of nanobot, Cloudflare Access can
+For a local `cloudflared` process in front of Zhixu, Cloudflare Access can
 authenticate the user before forwarding the request and add
 `Cf-Access-Jwt-Assertion`. Opt in to trusted-proxy no-token mode only when the
 direct TCP peer is the tunnel process and the assertion is non-empty:
@@ -125,9 +125,9 @@ attempt to open its WebSocket directly against the loopback address.
 The assertion header must be generated
 by Cloudflare Access after authentication; routing/client metadata headers such
 as `Host`, `Forwarded`, `X-Forwarded-*`, `X-Real-IP`, and `CF-Connecting-IP`
-are rejected as `assertionHeader` values. Nanobot trusts the assertion but does
+are rejected as `assertionHeader` values. Zhixu trusts the assertion but does
 not cryptographically validate the JWT, so configure the tunnel and Access
-policy carefully and do not expose the nanobot listener directly to untrusted
+policy carefully and do not expose the Zhixu listener directly to untrusted
 clients. Forwarded client headers do not establish proxy trust.
 
 ### Docker Compose
@@ -140,7 +140,7 @@ a comma-separated `NANOBOT_CHANNELS` build argument:
 NANOBOT_CHANNELS=telegram,slack docker compose build
 ```
 
-The image keeps nanobot in a virtual environment owned by its built-in non-root
+The image keeps Zhixu in a virtual environment owned by its built-in non-root
 runtime user (UID 1000). If an enabled channel was not preinstalled, gateway
 startup can therefore install its manifest-declared dependencies. Rebuilding
 with `NANOBOT_CHANNELS` keeps that installation reproducible instead of relying
@@ -264,7 +264,7 @@ nanobot gateway uninstall-service --manager systemd
 The installer writes `~/.config/systemd/user/nanobot-gateway.service`, runs
 `systemctl --user daemon-reload`, enables the unit, and restarts it. It uses the
 current Python executable with `python -m nanobot gateway --foreground`, so the
-service runs in the same environment you used to install nanobot.
+service runs in the same environment you used to install Zhixu.
 
 > **Note:** User services only run while you are logged in. To keep the gateway running after logout, enable lingering:
 >

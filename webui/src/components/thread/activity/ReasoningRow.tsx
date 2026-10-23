@@ -21,6 +21,15 @@ export function ReasoningRow({
     ? t("message.reasoningStreaming", { defaultValue: "Thinking…" })
     : t("message.reasoning", { defaultValue: "Thinking" });
   const preview = compactReasoningPreview(text) || fallback;
+  const detail = text.trim() ? text : undefined;
+  const [expanded, setExpanded] = useState(streaming);
+  const userToggledRef = useRef(false);
+
+  useEffect(() => {
+    if (userToggledRef.current) return;
+    setExpanded(streaming);
+  }, [streaming]);
+
   return (
     <ActivityStep
       marker={<ReasoningMarker streaming={streaming} />}
@@ -29,6 +38,17 @@ export function ReasoningRow({
       label={preview}
       labelClassName="italic text-muted-foreground/78"
       contentClassName="overflow-hidden"
+      detail={detail}
+      detailExpanded={detail ? expanded : undefined}
+      detailFollowBottom={streaming}
+      onDetailExpandedChange={
+        detail
+          ? (open) => {
+            userToggledRef.current = true;
+            setExpanded(open);
+          }
+          : undefined
+      }
       className={className}
     />
   );

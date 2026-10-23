@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { EmojiPicker } from "@/components/ui/emoji-picker";
+import { AgentIconPicker } from "@/components/ui/agent-icon-picker";
 import { Badge, ColorSwatch, FieldLabel } from "@/components/settings/agents/shared";
 import type { AgentCategory, AgentProfile } from "@/lib/agents/types";
 import { categoryById } from "@/lib/agents/types";
@@ -28,18 +28,20 @@ export function BasicsSection({
   categories,
   isNew,
   onChange,
+  variant = "all",
 }: {
   profile: AgentProfile;
   categories: AgentCategory[];
   isNew: boolean;
   onChange: (patch: Partial<AgentProfile>) => void;
+  variant?: "all" | "identity" | "details";
 }) {
   const { t } = useTranslation();
   const category = categoryById(profile.categoryId);
 
   return (
     <div className="space-y-4">
-      <div>
+      {variant !== "identity" ? <div>
         <FieldLabel
           htmlFor="agent-id"
           hint={
@@ -65,9 +67,9 @@ export function BasicsSection({
             />
           ) : null}
         </div>
-      </div>
+      </div> : null}
 
-      <div>
+      {variant !== "details" ? <><div>
         <FieldLabel htmlFor="agent-name">{t("settings.agents.basics.name", "名称")}</FieldLabel>
         <Input
           id="agent-name"
@@ -80,7 +82,7 @@ export function BasicsSection({
 
       <div>
         <FieldLabel htmlFor="agent-description">
-          {t("settings.agents.basics.description", "描述")}
+          {t("settings.agents.workspace.description", "一句话说明")}
         </FieldLabel>
         <Textarea
           id="agent-description"
@@ -92,9 +94,9 @@ export function BasicsSection({
           )}
           className="min-h-[4.5rem] text-[13px]"
         />
-      </div>
+      </div></> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      {variant !== "identity" ? <><div className="grid gap-4 sm:grid-cols-2">
         <div>
           <FieldLabel>{t("settings.agents.basics.category", "分类")}</FieldLabel>
           <DropdownMenu>
@@ -147,7 +149,7 @@ export function BasicsSection({
         <div>
           <FieldLabel>{t("settings.agents.basics.appearance", "图标与颜色")}</FieldLabel>
           <div className="flex items-start gap-2">
-            <EmojiPicker
+            <AgentIconPicker
               value={profile.icon}
               onChange={(icon) => onChange({ icon })}
             />
@@ -170,7 +172,7 @@ export function BasicsSection({
         <span className="ml-auto">
           {t("settings.agents.basics.updatedAt", "上次修改", { time: formatUpdatedAt(profile.updatedAt) })}
         </span>
-      </div>
+      </div></> : null}
     </div>
   );
 }

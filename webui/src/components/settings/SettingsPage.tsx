@@ -1,8 +1,9 @@
 import { ChevronLeft, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { SkillsCatalogSettings } from "@/components/settings/SkillsCatalogSettings";
 import { AgentsView } from "@/components/settings/agents/AgentsView";
-import { IdentityView } from "@/components/settings/identity/IdentityView";
+import { TeamsView } from "@/components/settings/teams/TeamsView";
 import { ImageGenerationSettings } from "@/components/settings/capabilities/ImageGenerationSettings";
 import { AdvancedSettings } from "@/components/settings/capabilities/SecuritySettings";
 import { TranscriptionSettings } from "@/components/settings/capabilities/TranscriptionSettings";
@@ -11,7 +12,6 @@ import {
   ModelPresetDeleteDialog,
   ModelsSettings,
 } from "@/components/settings/models/ModelsSettings";
-import { MemorySection } from "@/components/settings/memory/MemorySection";
 import {
   ProviderOAuthLoginDialog,
   ProvidersSettings,
@@ -20,7 +20,7 @@ import {
 import { AppearanceSettings, OverviewSettings } from "@/components/settings/overview/OverviewSettings";
 import { SettingsSidebar, standaloneSectionTitle } from "@/components/settings/SettingsSidebar";
 import {
-  NanobotFeatureInstallDialog,
+  ZhixuFeatureInstallDialog,
   SettingsGroup,
   SettingsRow,
 } from "@/components/settings/shared/SettingsControls";
@@ -35,6 +35,50 @@ import { RuntimeSettings } from "@/components/settings/system/RuntimeSettings";
 import type { SettingsController } from "@/components/settings/useSettingsController";
 import type { SkillSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+/**
+ * Standalone capability pages get the same compact header as the assistant
+ * pages: kicker-free title, one line of purpose, and a small mascot. Copy is
+ * kept local to the two primary locales so the decorative line never falls back
+ * to an English paragraph in Chinese builds.
+ */
+const STANDALONE_PAGE_COPY: Partial<
+  Record<
+    string,
+    { zh: string; en: string; illustration: string; size: "compact" | "default" }
+  >
+> = {
+  agents: {
+    zh: "为不同的工作定义专属助手：提示词、模型、工具与技能都归它们自己。",
+    en: "Define focused assistants, each with its own prompt, model, tools and skills.",
+    illustration: "/illustrations/zhixu-mascot.webp",
+    size: "compact",
+  },
+  teams: {
+    zh: "把多位 Agent 编成一支队伍，由队长拆解目标并分派任务。",
+    en: "Turn several agents into a team: the leader splits the goal and hands out the work.",
+    illustration: "/illustrations/zhixu-team.webp",
+    size: "default",
+  },
+  apps: {
+    zh: "管理 CLI 与 MCP 工具，让助手在对话中直接调用它们。",
+    en: "Manage the CLI and MCP tools your assistant can call in a conversation.",
+    illustration: "/illustrations/zhixu-toolbox.webp",
+    size: "default",
+  },
+  skills: {
+    zh: "查看已安装技能，或从市场补充新的工作方法。",
+    en: "Review installed skills, or add new ways of working from the marketplace.",
+    illustration: "/illustrations/zhixu-toolbox.webp",
+    size: "compact",
+  },
+  automations: {
+    zh: "让助手按计划自己跑起来：定时提醒、周期汇总与后台任务。",
+    en: "Let the assistant run on a schedule: reminders, recurring digests and background jobs.",
+    illustration: "/illustrations/zhixu-schedule.webp",
+    size: "default",
+  },
+};
 
 interface SettingsPageProps {
   controller: SettingsController;
@@ -59,9 +103,12 @@ export function SettingsPage({
   isRestarting,
   hostChromeInset,
 }: SettingsPageProps) {
+  const { i18n } = useTranslation();
+  const zh = i18n.resolvedLanguage?.startsWith("zh") ?? false;
   const {
     activeSection,
-    applyPayload,
+    // applyPayload was removed when MemorySection moved to the standalone
+    // Memory page; intentionally not destructured here.
     apiService,
     apiServiceAction,
     apiServiceError,
@@ -109,7 +156,7 @@ export function SettingsPage({
     handleMcpPresetAction,
     handleMcpToolsChange,
     handleMigrateModelConfigurations,
-    handleNanobotFeatureAction,
+    handleZhixuFeatureAction,
     handleSaveCustomMcp,
     handleToggleProvider,
     handleWebSearchProviderChange,
@@ -143,11 +190,11 @@ export function SettingsPage({
     modelPresetEditingName,
     modelPresetNameError,
     modelPresetPendingDelete,
-    nanobotFeatureAction,
-    nanobotFeatureConfirm,
-    nanobotFeatures,
-    nanobotFeaturesError,
-    nanobotFeaturesLoading,
+    zhixuFeatureAction,
+    zhixuFeatureConfirm,
+    zhixuFeatures,
+    zhixuFeaturesError,
+    zhixuFeaturesLoading,
     networkSafetyDirty,
     networkSafetyForm,
     networkSafetySaving,
@@ -194,9 +241,9 @@ export function SettingsPage({
     setModelPresetEditingName,
     setModelPresetNameError,
     setModelPresetPendingDelete,
-    setNanobotFeatureConfirm,
-    setNanobotFeatures,
-    setNanobotFeaturesError,
+    setZhixuFeatureConfirm,
+    setZhixuFeatures,
+    setZhixuFeaturesError,
     setNetworkSafetyForm,
     setProviderForms,
     setProviderOAuthDialogError,
@@ -277,9 +324,9 @@ export function SettingsPage({
             />
             <ProvidersSettings
               settings={settings}
-              nanobotFeatures={nanobotFeatures}
-              featureAction={nanobotFeatureAction}
-              capabilityError={nanobotFeaturesError}
+              zhixuFeatures={zhixuFeatures}
+              featureAction={zhixuFeatureAction}
+              capabilityError={zhixuFeaturesError}
               expandedProvider={expandedProvider}
               providerForms={providerForms}
               visibleProviderKeys={visibleProviderKeys}
@@ -371,27 +418,27 @@ export function SettingsPage({
             isRestarting={isRestarting || hostEngineApplying}
             requiresRestartPending={pendingRestartSections.browser}
             olostepFeature={featureCatalog.find((feature) => feature.name === "olostep")}
-            olostepInstalling={nanobotFeatureAction === "enable:olostep"}
-            capabilityError={nanobotFeaturesError}
+            olostepInstalling={zhixuFeatureAction === "enable:olostep"}
+            capabilityError={zhixuFeaturesError}
           />
         );
       case "channels":
         return (
           <ChannelsSettings
             token={token}
-            nanobotFeatures={nanobotFeatures}
-            loading={nanobotFeaturesLoading}
+            zhixuFeatures={zhixuFeatures}
+            loading={zhixuFeaturesLoading}
             query={channelsQuery}
-            actionKey={nanobotFeatureAction}
+            actionKey={zhixuFeatureAction}
             chatAppsDocsUrl={settings.docs?.chat_apps_url}
             showBrandLogos={localPrefs.brandLogos}
-            error={nanobotFeaturesError}
+            error={zhixuFeaturesError}
             requiresRestartPending={pendingRestartSections.runtime}
             onQueryChange={setChannelsQuery}
-            onAction={handleNanobotFeatureAction}
-            onFeaturesUpdate={setNanobotFeatures}
+            onAction={handleZhixuFeatureAction}
+            onFeaturesUpdate={setZhixuFeatures}
             onDismissStatus={() => {
-              setNanobotFeaturesError(null);
+              setZhixuFeaturesError(null);
             }}
             onRestart={restartViaSettingsSurface}
             isRestarting={isRestarting || hostEngineApplying}
@@ -483,15 +530,8 @@ export function SettingsPage({
         return <SkillsCatalogSettings skills={skills} />;
       case "agents":
         return <AgentsView />;
-      case "memory":
-        return (
-          <MemorySection
-            settings={settings}
-            onSettingsChange={applyPayload}
-          />
-        );
-      case "identity":
-        return <IdentityView />;
+      case "teams":
+        return <TeamsView />;
       case "runtime":
         return (
           <RuntimeSettings
@@ -505,9 +545,9 @@ export function SettingsPage({
             apiServiceAction={apiServiceAction}
             apiServiceError={apiServiceError}
             langfuseFeature={featureCatalog.find((feature) => feature.name === "langfuse")}
-            capabilitiesLoading={nanobotFeaturesLoading}
-            capabilityAction={nanobotFeatureAction}
-            capabilityError={nanobotFeaturesError}
+            capabilitiesLoading={zhixuFeaturesLoading}
+            capabilityAction={zhixuFeatureAction}
+            capabilityError={zhixuFeaturesError}
             onApiServiceAction={handleApiServiceAction}
             onInstallCapability={(name) => void installCapabilities([name])}
           />
@@ -530,6 +570,8 @@ export function SettingsPage({
         return null;
     }
   };
+
+  const standaloneCopy = showSidebar ? undefined : STANDALONE_PAGE_COPY[activeSection];
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-settings-canvas lg:flex-row">
@@ -581,13 +623,13 @@ export function SettingsPage({
         onClose={closeProviderOAuthFlow}
       />
 
-      <NanobotFeatureInstallDialog
-        feature={nanobotFeatureConfirm}
-        installing={nanobotFeatureAction === `enable:${nanobotFeatureConfirm?.name ?? ""}`}
+      <ZhixuFeatureInstallDialog
+        feature={zhixuFeatureConfirm}
+        installing={zhixuFeatureAction === `enable:${zhixuFeatureConfirm?.name ?? ""}`}
         onOpenChange={(open) => {
-          if (!open) setNanobotFeatureConfirm(null);
+          if (!open) setZhixuFeatureConfirm(null);
         }}
-        onConfirm={(feature) => handleNanobotFeatureAction("enable", feature.name, true)}
+        onConfirm={(feature) => handleZhixuFeatureAction("enable", feature.name, true)}
       />
 
       <AutomationDeleteDialog
@@ -612,7 +654,6 @@ export function SettingsPage({
         className={cn(
           "min-w-0 flex-1 bg-settings-canvas [scrollbar-gutter:stable]",
           activeSection === "channels" ||
-            activeSection === "identity" ||
             activeSection === "agents"
             ? "overflow-y-auto xl:overflow-hidden"
             : "overflow-y-auto",
@@ -623,35 +664,59 @@ export function SettingsPage({
           data-testid="settings-section-transition"
           data-settings-section={activeSection}
           className={cn(
-            "mx-auto w-full animate-in fade-in-0 slide-in-from-bottom-1 px-4 py-6 duration-200 ease-out",
-            "motion-reduce:animate-none sm:px-8 sm:py-8 lg:py-12",
-            activeSection === "channels" ||
-              activeSection === "identity" ||
-              activeSection === "agents"
+            "mx-auto w-full animate-in fade-in-0 slide-in-from-bottom-1 duration-200 ease-out",
+            "motion-reduce:animate-none",
+            showSidebar ? "px-4 py-6 sm:px-8 sm:py-8 lg:py-12" : "px-4 py-5 sm:px-7 sm:py-6 lg:px-8",
+            activeSection === "channels" || activeSection === "agents"
               ? "max-w-[1240px] xl:px-10"
-              : "max-w-[920px]",
+              : showSidebar
+                ? "max-w-[920px]"
+                : "max-w-[1120px]",
             (activeSection === "channels" ||
-              activeSection === "identity" ||
               activeSection === "agents") &&
               "flex min-h-full flex-col xl:h-full xl:min-h-0",
             hostChromeInset && "pt-[4.25rem] sm:pt-[4.25rem] lg:pt-[4.75rem]",
           )}
         >
           {!showSidebar ? (
-            <div className="mb-7">
+            <div className="mb-5">
               <button
                 type="button"
                 onClick={onBackToChat}
-                className="touch-target mb-4 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground lg:hidden"
+                className="touch-target mb-3 inline-flex items-center gap-1.5 rounded-control px-2 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground lg:hidden"
               >
                 <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
                 {t("settings.backToChat")}
               </button>
-              <h1 className="text-[24px] font-normal leading-tight tracking-normal text-foreground sm:text-[28px]">
-                {t(`settings.nav.${activeSection}`, {
-                  defaultValue: standaloneSectionTitle(activeSection),
-                })}
-              </h1>
+              <header className="assistant-page-header">
+                <div className="assistant-page-heading-group">
+                  <h1 className="assistant-page-heading">
+                    {t(`settings.nav.${activeSection}`, {
+                      defaultValue: standaloneSectionTitle(activeSection),
+                    })}
+                  </h1>
+                  {standaloneCopy ? (
+                    <p className="assistant-page-description">
+                      {zh ? standaloneCopy.zh : standaloneCopy.en}
+                    </p>
+                  ) : null}
+                </div>
+                {standaloneCopy ? (
+                  <div
+                    className="assistant-page-illustration"
+                    data-size={standaloneCopy.size}
+                    aria-hidden
+                  >
+                    <img
+                      src={standaloneCopy.illustration}
+                      alt=""
+                      width={176}
+                      height={150}
+                      draggable={false}
+                    />
+                  </div>
+                ) : null}
+              </header>
             </div>
           ) : null}
 
@@ -671,7 +736,6 @@ export function SettingsPage({
               className={cn(
                 "space-y-5",
                 (activeSection === "channels" ||
-                  activeSection === "identity" ||
                   activeSection === "agents") &&
                   "flex min-h-0 flex-1 flex-col xl:overflow-hidden",
               )}

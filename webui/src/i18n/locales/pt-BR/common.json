@@ -1,5 +1,206 @@
 {
+  "appearance": {
+    "previewOnly": "Preview only. Appearance changes stay in this session and do not change your saved preferences.",
+    "visualStyle": "Visual style",
+    "mode": "Mode",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+    "theme": "Theme",
+    "zhixu": "Zhixu",
+    "graphite": "Graphite",
+    "ocean": "Ocean",
+    "sand": "Warm sand",
+    "custom": "Custom",
+    "editingDark": "Editing dark colors",
+    "editingLight": "Editing light colors",
+    "accent": "Accent",
+    "background": "Background",
+    "foreground": "Text",
+    "chooseColor": "Choose {{label}} color",
+    "resetColor": "Restore {{label}} theme value",
+    "invalidColor": "Enter a HEX color, such as #0169CC or #09C.",
+    "uiFont": "Interface font",
+    "codeFont": "Code font",
+    "font_system": "System default",
+    "font_sans": "Sans serif",
+    "font_serif": "Serif",
+    "font_custom": "Custom local font",
+    "font_default": "Default monospace",
+    "font_consolas": "Consolas",
+    "font_cascadia": "Cascadia Code",
+    "font_jetbrains": "JetBrains Mono",
+    "fontFamily": "{{label}} family name",
+    "invalidFont": "Use a single font family name without style punctuation.",
+    "fontFallback": "Use a font installed on this device. Missing fonts or characters use the fallback fonts.",
+    "lowContrast": "Low contrast ({{ratio}}:1). Try a darker text color or a lighter background.",
+    "storageError": "Applied for this session, but could not save to this device.",
+    "preview": "Preview",
+    "sampleTitle": "让想法有序生长 · Make room for ideas",
+    "sampleBody": "Your colors and fonts apply across the interface. 0123456789",
+    "sampleButton": "Continue",
+    "sampleInput": "A new idea…",
+    "sampleInputLabel": "Example input",
+    "instant": "Changes apply immediately and save on this device.",
+    "reset": "Restore default appearance"
+  },
   "creative": {
+    "title": "Espaço criativo",
+    "new_placeholder": "Dê um título ao seu artigo",
+    "create_btn": "Criar rascunho",
+    "creating_btn": "Criando…",
+    "search_placeholder": "Buscar títulos ou resumos",
+    "status_filter": "Filtrar por status",
+    "empty_template": "Artigo em branco",
+    "selected_template": "Modelo selecionado: {{name}}",
+    "title_hint": "Um título provisório basta. Você pode alterá-lo depois.",
+    "library_hint": "Continue de onde parou.",
+    "empty_action": "Escrever seu primeiro artigo",
+    "clear_filters": "Limpar filtros",
+    "dismiss": "Fechar",
+    "no_summary": "Ainda sem resumo",
+    "revision_label": "Versão {{revision}}",
+    "duplicate": "Duplicar",
+    "delete": "Excluir",
+    "edit_article": "Editar artigo",
+    "confirm_delete": "Excluir este artigo?",
+    "confirm_delete_body": "“{{title}}” será removido. Esta ação não pode ser desfeita.",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "loadFailed": "Não foi possível carregar os artigos",
+    "retry": "Tentar novamente",
+    "no_match": "Nenhum artigo corresponde aos filtros",
+    "empty": "Seu primeiro artigo começa aqui",
+    "createFailed": "Não foi possível criar o artigo. Tente novamente.",
+    "title_required": "Digite um título para o artigo",
+    "duplicateFailed": "Não foi possível duplicar o artigo",
+    "deleteFailed": "Não foi possível excluir o artigo",
+    "note_storage": "Os artigos da prévia são mantidos apenas durante esta visita. Exporte o rascunho antes de atualizar.",
+    "confirm_delete_dirty": "Este artigo tem alterações não salvas. Excluí-lo também remove o rascunho de recuperação local.",
+    "partner": {
+      "ui": {
+        "after": "Depois",
+        "angles": "Ângulos",
+        "before": "Antes",
+        "busy": "Trabalhando…",
+        "copyRewrite": "Copiar reescrita",
+        "dismissMaterial": "Remover desta seleção",
+        "empty": "Nada voltou ainda.",
+        "errorUnknown": "O parceiro de escrita não conseguiu lidar com isso. Tente de novo.",
+        "failed": "Este item falhou. Tente de novo.",
+        "handoffUnknown": "Aguardando sua decisão",
+        "inputLabel": "Enviar mensagem ao editor",
+        "insertIntoArticle": "Inserir no artigo",
+        "insertSection": "Inserir esta seção",
+        "issues": "Problemas a resolver",
+        "materials": "Materiais",
+        "modelGlobalDefault": "Este artigo ainda não tem modelo próprio — usando o padrão global ({{preset}}).",
+        "modelSetup": "Escolher um modelo",
+        "modelSwitchApplied": "Alterado para {{preset}} — apenas os novos lotes vão usá-lo.",
+        "modelSwitchFailed": "Não foi possível trocar o modelo. Tente novamente.",
+        "modelSwitchNotApplied": "O servidor ainda está usando {{preset}} — a troca não teve efeito.",
+        "modelSwitchPending": "Trocando de modelo…",
+        "modelSwitchRequested": "Troca de modelo enviada; vale para os lotes iniciados a partir de agora.",
+        "modelSwitchUnsupported": "Esta conexão não pode trocar de modelo.",
+        "modelUnknownPreset": "Esse preset de modelo não está mais disponível. Escolha outro.",
+        "nextStep": "Próximo passo",
+        "nextStepUnknown": "Abra o processo de colaboração para o próximo passo",
+        "noProgress": "Nenhuma tarefa está em andamento neste artigo.",
+        "outlineConfirm": "Salvar o roteiro e continuar",
+        "outlinePoint": "Ponto do roteiro",
+        "pending": "Aguardando sua decisão",
+        "plan": "Plano",
+        "quickTasks": "Tarefas rápidas",
+        "rejectRewrite": "Rejeitar",
+        "replaceArticle": "Substituir o rascunho vazio",
+        "retry": "Tentar de novo",
+        "retryRewrite": "Tentar outra reescrita",
+        "sections": "Seções",
+        "send": "Enviar para a equipe",
+        "showFewerIssues": "Mostrar menos",
+        "showMoreIssues": "Mostrar mais {{count}}",
+        "stop": "Parar",
+        "stopping": "Parando…",
+        "untitled": "Artigo sem título",
+        "viewAndInsert": "Ver e inserir",
+        "viewMaterials": "Ver materiais",
+        "viewOutline": "Ver o roteiro",
+        "toggle": "Writing partner"
+      },
+      "title": "Parceiro de escrita",
+      "builtinBadge": "Integrado",
+      "process": {
+        "toggle": "Ver o processo de colaboração"
+      },
+      "input": {
+        "placeholder": "Mantenha minha voz; deixe a seção 2 mais concreta…"
+      },
+      "requirements": {
+        "toggle": "Os requisitos deste artigo"
+      },
+      "stage": {
+        "idle": "Inativo",
+        "queued": "Na fila",
+        "running": "Em andamento",
+        "waiting_author": "Aguardando você",
+        "completed": "Concluído",
+        "failed": "Falhou",
+        "cancelled": "Cancelado",
+        "interrupted": "Interrompido"
+      },
+      "action": {
+        "start_full": "Executar o fluxo completo",
+        "ideate": "Buscar um ângulo",
+        "research": "Pesquisar",
+        "outline": "Criar um roteiro",
+        "draft": "Escrever um rascunho",
+        "rewrite_selection": "Reescrever a seleção",
+        "review_all": "Revisar tudo",
+        "reply": "Responder"
+      },
+      "artifact": {
+        "brief": "Briefing",
+        "material_list": "Materiais",
+        "outline": "Roteiro",
+        "draft": "Rascunho",
+        "rewrite": "Reescrita",
+        "review": "Revisão"
+      },
+      "artifactAction": {
+        "useAngle": "Usar este ângulo",
+        "addMaterial": "Adicionar material",
+        "writeFromOutline": "Escrever a partir do roteiro",
+        "insertDraft": "Inserir rascunho",
+        "applyRewrite": "Aplicar reescrita",
+        "viewIssues": "Ver problemas"
+      },
+      "handoff": {
+        "outline_confirm": "Roteiro pronto — confirme para continuar",
+        "materials_request": "Mais materiais necessários",
+        "final_accept": "Resultado final pronto — aceite para concluir"
+      },
+      "progress": {
+        "researching": "Pesquisando",
+        "outlining": "Montando o roteiro",
+        "drafting": "Escrevendo",
+        "reviewing": "Revisando",
+        "waitingAuthor": "Aguardando você",
+        "stopped": "Parado"
+      },
+      "error": {
+        "selectionRequired": "Selecione um texto primeiro",
+        "versionConflict": "O artigo mudou. Recarregue e tente de novo.",
+        "notPending": "Este item não aguarda mais você.",
+        "serviceUnavailable": "O serviço de escrita está indisponível. Tente mais tarde.",
+        "requestTooLarge": "A solicitação é grande demais. Encurte e tente de novo."
+      },
+      "next": {
+        "writeFromOutline": "Escrever a partir deste roteiro",
+        "insertToArticle": "Inserir no artigo",
+        "viewChanges": "Ver alterações",
+        "addMaterials": "Adicionar materiais"
+      }
+    },
     "headline": "O que você gostaria de escrever hoje?",
     "hero_description": "Código, uma experiência prática, uma nova ideia: todo artigo começa de algum lugar.",
     "topic_label": "Tema do artigo",
@@ -92,33 +293,57 @@
       "tech-explainer": {
         "name": "Explicação técnica",
         "desc": "Explicar um conceito complexo com clareza",
-        "outline": ["De onde vem o problema", "Conceitos e princípios centrais", "Ilustrar com um exemplo", "Abrangência e limites", "Minha compreensão"]
+        "outline": [
+          "De onde vem o problema",
+          "Conceitos e princípios centrais",
+          "Ilustrar com um exemplo",
+          "Abrangência e limites",
+          "Minha compreensão"
+        ]
       },
       "source-reading": {
         "name": "Leitura de código",
         "desc": "Seguir a cadeia de chamadas para entender o design",
-        "outline": ["O que quero entender", "Ponto de entrada e cadeia de chamadas", "Implementação principal", "Decisões de design", "Minha própria compreensão"]
+        "outline": [
+          "O que quero entender",
+          "Ponto de entrada e cadeia de chamadas",
+          "Implementação principal",
+          "Decisões de design",
+          "Minha própria compreensão"
+        ]
       },
       "practice-retro": {
         "name": "Retrospectiva prática",
         "desc": "Registrar o processo e as escolhas",
-        "outline": ["Contexto e objetivo", "Como eu fiz", "Problemas e investigação", "Resultados e lacunas", "O que mudar na próxima vez"]
+        "outline": [
+          "Contexto e objetivo",
+          "Como eu fiz",
+          "Problemas e investigação",
+          "Resultados e lacunas",
+          "O que mudar na próxima vez"
+        ]
       },
       "learning-summary": {
         "name": "Resumo de aprendizado",
         "desc": "Transformar novo conhecimento em compreensão própria",
-        "outline": ["Com qual pergunta aprendi", "Conhecimento essencial", "Verificação prática", "Como minha compreensão mudou", "Perguntas restantes"]
+        "outline": [
+          "Com qual pergunta aprendi",
+          "Conhecimento essencial",
+          "Verificação prática",
+          "Como minha compreensão mudou",
+          "Perguntas restantes"
+        ]
       }
     }
   },
   "app": {
-    "brand": "Mira",
+    "brand": "知序",
     "loading": {
-      "connecting": "Conectando-se ao Mira…",
-      "boot": "Carregando Mira…"
+      "connecting": "Conectando-se ao 知序…",
+      "boot": "Carregando 知序…"
     },
     "error": {
-      "title": "Não foi possível conectar-se com o Mira",
+      "title": "Não foi possível conectar-se com o 知序",
       "gatewayHint": "Verifique se o gateway está em execução (`nanobot gateway`) e se esta página está aberta na mesma máquina."
     },
     "auth": {
@@ -136,9 +361,9 @@
     },
     "system": {
       "section": "Sistema",
-      "restartHint": "Reinicie o Mira para aplicar as alterações de tempo de execução.",
-      "restart": "Reiniciar Mira",
-      "restarting": "Reiniciando Mira...",
+      "restartHint": "Reinicie o 知序 para aplicar as alterações de tempo de execução.",
+      "restart": "Reiniciar 知序",
+      "restarting": "Reiniciando 知序...",
       "restartEngine": "Reiniciar motor",
       "restartingEngine": "Reiniciando motor..."
     },
@@ -146,11 +371,11 @@
       "completed": "Reinício concluído em {{seconds}}s."
     },
     "documentTitle": {
-      "base": "Mira",
-      "chat": "{{title}} · Mira"
+      "base": "知序",
+      "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "Interface web do Mira — converse com o seu espaço de trabalho do Mira."
+      "description": "Interface web do 知序 — converse com o seu espaço de trabalho do 知序."
     },
     "pairing": {
       "title": "Vincular usuário do chat",
@@ -218,7 +443,9 @@
       "automations": "Automações",
       "skills": "Habilidades",
       "memory": "Memória",
-      "identity": "Identidade"
+      "identity": "Identidade",
+      "agents": "Agentes",
+      "teams": "Equipes"
     },
     "sections": {
       "interface": "Interface do usuário",
@@ -300,7 +527,7 @@
       "language": "Idioma",
       "provider": "Provedor",
       "model": "Modelo",
-      "restart": "Reiniciar Mira",
+      "restart": "Reiniciar 知序",
       "configPath": "Caminho da configuração",
       "activePreset": "Predefinição ativa",
       "gateway": "Gateway",
@@ -373,7 +600,7 @@
       "defaultImageSize": "Dica de tamanho enviada a provedores compatíveis.",
       "maxImagesPerTurn": "Limite superior para uma requisição de generate_image.",
       "timezone": "Usado para agendamentos e respostas sensíveis ao horário.",
-      "cliAppsCatalog": "Instale apenas os adaptadores CLI de aplicativos que o Mira pode executar localmente; aplicativos nativos permanecem intactos.",
+      "cliAppsCatalog": "Instale apenas os adaptadores CLI de aplicativos que o 知序 pode executar localmente; aplicativos nativos permanecem intactos.",
       "cliAppsFilter": "Busque por aplicativo, categoria ou capacidade.",
       "localServiceAccess": "Permite que comandos shell com acesso completo alcancem serviços locais.",
       "webuiDefaultAccess": "Usado por chats web sem permissão específica de projeto.",
@@ -419,7 +646,7 @@
       "readyStatus": "Pronto",
       "readyTry": "Experimentar @{{name}}",
       "readyCopied": "Copiado",
-      "readyPrompt": "Peça ao Mira para usar @{{name}} nesta tarefa.",
+      "readyPrompt": "Peça ao 知序 para usar @{{name}} nesta tarefa.",
       "openChat": "Abrir conversa",
       "unsupported": "Não compatível",
       "unavailable": "Indisponível",
@@ -463,7 +690,7 @@
       "saveCustom": "Salvar MCP",
       "configImport": "Importar mcp.json",
       "importConfig": "Importar",
-      "restartRequired": "Reinicie o Mira para conectar as ferramentas MCP atualizadas.",
+      "restartRequired": "Reinicie o 知序 para conectar as ferramentas MCP atualizadas.",
       "toolsFound": "{{count}} ferramentas",
       "loading": "Carregando predefinições MCP...",
       "empty": "Nenhuma predefinição MCP corresponde a este filtro.",
@@ -491,14 +718,14 @@
       "preparingSignIn": "Preparando login seguro…",
       "openSignInToContinue": "Abra a página de login para continuar.",
       "finishSignInInBrowser": "Conclua o login na janela do navegador.",
-      "manualCallbackRequired": "Conclua o login e cole a URL de callback no Mira.",
+      "manualCallbackRequired": "Conclua o login e cole a URL de callback no 知序.",
       "manualCallbackHelp": "Depois de autorizar o acesso, a página localhost não será carregada. Copie a URL completa da barra de endereços e cole-a aqui.",
       "finishingConnection": "Finalizando conexão…",
       "activatingTools": "Ativando ferramentas…",
       "connected": "Conectado.",
       "connectionFailed": "Falha na conexão.",
       "connectionCancelled": "Conexão cancelada.",
-      "reloadFailed": "Login concluído, mas o Mira não conseguiu conectar as ferramentas. Tente reiniciar o Mira.",
+      "reloadFailed": "Login concluído, mas o 知序 não conseguiu conectar as ferramentas. Tente reiniciar o 知序.",
       "oauthFailed": "Não foi possível conectar. Tente fazer login novamente.",
       "statusMissingDependency": "Precisa de dependência",
       "statusComingSoon": "Em breve",
@@ -585,11 +812,11 @@
       "loadError": "Não foi possível carregar as configurações",
       "unsaved": "Alterações não salvas.",
       "upToDate": "Atualizado.",
-      "savedRestart": "Salvo. Reinicie o Mira para aplicar.",
+      "savedRestart": "Salvo. Reinicie o 知序 para aplicar.",
       "restartAfterSaving": "Salve as alterações e reinicie quando estiver pronto.",
       "savedRestartApply": "Salvo. Reinicie quando estiver pronto.",
       "imageProviderRestart": "Alterações do provedor de imagem salvas. Reinicie quando estiver pronto.",
-      "hostRestartAfterSaving": "Ao salvar, o Mira reiniciará o motor.",
+      "hostRestartAfterSaving": "Ao salvar, o 知序 reiniciará o motor.",
       "hostRestartPending": "Salvo. O motor será reiniciado quando estiver pronto.",
       "hostApiUnavailable": "As ações do host só estão disponíveis dentro do app nativo.",
       "logsOpened": "Pasta de logs aberta.",
@@ -613,7 +840,7 @@
       "exporting": "Exportando..."
     },
     "byok": {
-      "description": "Traga suas próprias chaves de provedor. O Mira lê esses valores da configuração atual e apenas provedores configurados podem ser usados nas predefinições de modelo.",
+      "description": "Traga suas próprias chaves de provedor. O 知序 lê esses valores da configuração atual e apenas provedores configurados podem ser usados nas predefinições de modelo.",
       "configured": "Configurado",
       "notConfigured": "Não configurado",
       "configuredSection": "Configurados",
@@ -760,12 +987,12 @@
     },
     "observability": {
       "title": "Observabilidade",
-      "configured": "Credenciais de tracing estão disponíveis para o Mira.",
-      "environment": "Defina LANGFUSE_SECRET_KEY e LANGFUSE_PUBLIC_KEY e reinicie o Mira.",
+      "configured": "Credenciais de tracing estão disponíveis para o 知序.",
+      "environment": "Defina LANGFUSE_SECRET_KEY e LANGFUSE_PUBLIC_KEY e reinicie o 知序.",
       "enable": "Habilitar suporte a tracing"
     },
     "apps": {
-      "description": "Adicione ferramentas ao Mira e mencione-as com @ na conversa.",
+      "description": "Adicione ferramentas ao 知序 e mencione-as com @ na conversa.",
       "cliLabel": "Aplicativo",
       "mcpLabel": "MCP",
       "channelLabel": "Canal",
@@ -788,21 +1015,21 @@
       "browseApps": "Explorar aplicativos",
       "browseIntegrations": "Explorar ferramentas MCP",
       "emptyIntegrationsHint": "Adicione um servidor MCP personalizado abaixo.",
-      "restartRequired": "Reinicie o Mira para aplicar os aplicativos e ferramentas MCP atualizados."
+      "restartRequired": "Reinicie o 知序 para aplicar os aplicativos e ferramentas MCP atualizados."
     },
     "channels": {
-      "description": "Conecte aplicativos de chat, e-mail e WebUI ao Mira.",
+      "description": "Conecte aplicativos de chat, e-mail e WebUI ao 知序.",
       "caption": "{{enabled}} habilitados · {{total}} canais",
       "searchPlaceholder": "Buscar canais",
       "backToChannels": "Todos os canais",
       "catalog": "Canais",
       "loading": "Carregando canais...",
       "empty": "Nenhum canal corresponde a este filtro.",
-      "restartRequired": "Reinicie o Mira para aplicar o suporte de canais atualizado.",
+      "restartRequired": "Reinicie o 知序 para aplicar o suporte de canais atualizado.",
       "requires": "Requer: {{requirements}}",
       "setUp": "Configurar",
       "setupGuide": "Guia de configuração",
-      "setupSummary": "Habilitar apenas ativa o suporte no Mira. Adicione as credenciais da plataforma e reinicie o Mira.",
+      "setupSummary": "Habilitar apenas ativa o suporte no 知序. Adicione as credenciais da plataforma e reinicie o 知序.",
       "configKeys": "Chaves de configuração",
       "enable": "Habilitar canal",
       "disable": "Desabilitar canal",
@@ -857,7 +1084,7 @@
         "unsupported": "Configuração manual"
       }
     },
-    "nanobotFeatures": {
+    "zhixuFeatures": {
       "enabled": "Habilitado",
       "enable": "Habilitar",
       "disable": "Desabilitar",
@@ -865,7 +1092,7 @@
       "missingDependency": "Suporte ausente",
       "installSupport": "Instalar suporte",
       "installConfirmTitle": "Instalar suporte para {{name}}?",
-      "installConfirmDescription": "O Mira adicionará o que {{name}} precisa e depois o ativará. Continuar?",
+      "installConfirmDescription": "O 知序 adicionará o que {{name}} precisa e depois o ativará. Continuar?",
       "installConfirmAction": "Instalar e habilitar",
       "websocketRequired": "Necessário para a WebUI",
       "channelDisabled": "Canal desabilitado",
@@ -1009,7 +1236,7 @@
       "signedInAs": "Conectado como {{account}}",
       "signInHelp": "Entre por este dispositivo; nenhuma chave de API é armazenada em config.",
       "remoteSignInHelp": "Selecione Entrar para abrir a xAI no seu computador e depois cole o código de autorização exibido após o login.",
-      "codexRemoteSignInHelp": "Entre por este navegador e cole no Mira a URL completa de callback do localhost.",
+      "codexRemoteSignInHelp": "Entre por este navegador e cole no 知序 a URL completa de callback do localhost.",
       "signInRequired": "Login necessário",
       "signInBeforeSaving": "Entre neste provedor antes de salvar a predefinição.",
       "signedIn": "Conectado",
@@ -1017,9 +1244,9 @@
       "proxyLabel": "Proxy de rede",
       "proxySaveBeforeSignIn": "Salve as alterações do proxy antes de entrar.",
       "saveProxy": "Salvar proxy",
-      "localCodeHelp": "Conclua o login no navegador. O Mira geralmente termina automaticamente; caso contrário, cole o código de autorização abaixo.",
+      "localCodeHelp": "Conclua o login no navegador. O 知序 geralmente termina automaticamente; caso contrário, cole o código de autorização abaixo.",
       "remoteCodeHelp": "Selecione Entrar para abrir a xAI no seu computador. Após o login, cole abaixo o código de autorização exibido pela xAI.",
-      "localCallbackHelp": "Conclua o login no navegador. O Mira geralmente termina automaticamente; caso contrário, copie da barra de endereço a URL completa de callback do localhost e cole abaixo.",
+      "localCallbackHelp": "Conclua o login no navegador. O 知序 geralmente termina automaticamente; caso contrário, copie da barra de endereço a URL completa de callback do localhost e cole abaixo.",
       "remoteCallbackHelp": "Abra o ChatGPT neste navegador e conclua o login. Quando a página localhost não carregar, copie a URL completa da barra de endereço e cole abaixo.",
       "authorizationCode": "Código de autorização",
       "callbackUrl": "URL completa de callback",
@@ -1062,7 +1289,7 @@
       "deleteConfirmAction": "Excluir habilidade",
       "instructionsTitle": "Instruções da habilidade",
       "setupRequired": "Requer configuração",
-      "setupDescription": "Instale a dependência ausente na máquina que executa o Mira e verifique novamente.",
+      "setupDescription": "Instale a dependência ausente na máquina que executa o 知序 e verifique novamente.",
       "copySetupCommand": "Copiar comando de configuração",
       "checkAgain": "Verificar novamente",
       "marketplaceSearchFailed": "Não foi possível pesquisar nos mercados de habilidades.",
@@ -1120,6 +1347,8 @@
       "languageAuto": "Automático"
     },
     "memory": {
+      "pageEyebrow": "Centro de memória",
+      "pageSubtitle": "Fatos de longo prazo e trechos de conversa que o agente guarda entre sessões. Ative a extração automática aqui ou apenas explore e organize o que já existe.",
       "tabSemantic": "Memórias semânticas",
       "tabEpisode": "Episódios",
       "tabsLabel": "Seções de memória",
@@ -1219,12 +1448,125 @@
       "mdModalDiffCurrent": "MEMORY.md atual",
       "mdModalDiffCurrentPlaceholder": "（MEMORY.md não existe ou está vazio）",
       "masterToggleTitle": "Extração e busca automáticas de memória",
-      "masterToggleDescription": "Quando ativo, Mira extrai fatos das conversas e recupera memórias no próximo turno. Efeito imediato — sem reiniciar.",
+      "masterToggleDescription": "Quando ativo, 知序 extrai fatos das conversas e recupera memórias no próximo turno. Efeito imediato — sem reiniciar.",
       "masterToggleAria": "Alternar extração de memória",
       "masterToggleOn": "Ativado",
       "masterToggleOff": "Desativado"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "Identidade",
+          "title": "Faça o agente falar do seu jeito",
+          "subtitle": "Escolha uma vibe, responda a algumas perguntas rápidas e veja exatamente como o agente vai te cumprimentar."
+        },
+        "stepsAria": "Etapas de configuração de identidade",
+        "step": {
+          "vibe": {
+            "label": "Vibe",
+            "hint": "Escolher uma preenche o formulário para você"
+          },
+          "voice": {
+            "label": "Nome e tom",
+            "hint": "Campos vazios são pulados"
+          },
+          "rules": {
+            "label": "Limites e notas",
+            "hint": "Diga o que ele não deve fazer"
+          },
+          "advanced": {
+            "label": "Avançado",
+            "hint": "Edite o arquivo de identidade diretamente"
+          }
+        },
+        "gallery": {
+          "active": "Ativa",
+          "reload": "Recarregar preset",
+          "use": "Usar esta vibe"
+        },
+        "preview": {
+          "yourAgent": "Seu agente",
+          "live": "Pré-visualização ao vivo",
+          "samplePrompt": "Escreva meu resumo mensal em três parágrafos curtos.",
+          "activeRule": "Regra ativa: ",
+          "hint": "É assim que o agente abre a conversa depois das suas mudanças. Salvar aplica na hora."
+        },
+        "advanced": {
+          "toggle": "Avançado: editar o Markdown bruto",
+          "note": "Use isto apenas quando os presets e o formulário não exprimem o que você quer. As edições aqui valem na hora, mas a visão do formulário reescreve o arquivo ao salvar.",
+          "rawAria": "Markdown bruto",
+          "reload": "Recarregar do disco"
+        },
+        "form": {
+          "nameLabel": "Como o agente deve te chamar?",
+          "namePlaceholder": "ex.: Equipe de marketing, Alex",
+          "roleLabel": "Em que o agente mais te ajuda?",
+          "rolePlaceholder": "ex.: transformar as reuniões da semana em um resumo legível; agrupar feedbacks de clientes por tema",
+          "toneLabel": "Tom de voz",
+          "toneHint": "Escolha o mais próximo",
+          "langLabel": "Idioma de resposta padrão",
+          "rulesLabel": "Limites que o agente não deve cruzar",
+          "rulesHint": "Um por linha, até 6",
+          "rulesPlaceholder": "Nunca inventar valores em contratos\nNão citar caminhos internos para usuários anônimos\nDizer 'não sei' em vez de chutar",
+          "notesLabel": "Algo mais que valha a pena lembrar?",
+          "notesPlaceholder": "Nome da empresa, jargões, palavras a evitar…"
+        },
+        "tone": {
+          "friendly": {
+            "label": "Amigável",
+            "description": "Caloroso, encorajador, empático"
+          },
+          "professional": {
+            "label": "Profissional",
+            "description": "Formal, contido, bem fundamentado"
+          },
+          "concise": {
+            "label": "Conciso",
+            "description": "Resposta primeiro, depois o resto"
+          },
+          "detailed": {
+            "label": "Detalhado",
+            "description": "Raciocínio completo e casos-limite"
+          }
+        },
+        "replyLang": {
+          "groupAria": "Idioma de resposta",
+          "auto": {
+            "label": "Te acompanhar",
+            "description": "Responder no idioma da sua pergunta"
+          },
+          "zh": {
+            "label": "Chinês",
+            "description": "Sempre responder em chinês"
+          },
+          "en": {
+            "label": "Inglês",
+            "description": "Todas as respostas em inglês"
+          }
+        },
+        "footer": {
+          "back": "Voltar",
+          "next": "Avançar",
+          "unsaved": "Mudanças não salvas",
+          "upToDate": "Em dia",
+          "discard": "Descartar",
+          "saved": "Salvo",
+          "save": "Salvar"
+        },
+        "error": {
+          "loadFailed": "Parte do conteúdo não pôde ser carregada",
+          "saveFailed": "Falha ao salvar"
+        },
+        "toast": {
+          "saved": "Identidade salva — já está valendo"
+        },
+        "persona": {
+          "default": "Padrão",
+          "cardTitle": "Persona ativa",
+          "cardNone": "SOUL padrão, nenhum preset ativo",
+          "cardHint": "Escolher um cartão de vibe acima também troca este preset."
+        }
+      },
       "groupCore": "Arquivos principais",
       "groupPersonas": "Personas",
       "warningBanner": "Os arquivos de identidade definem a personalidade e o comportamento do Agente. Edições inadequadas podem causar comportamentos anormais ou respostas inesperadas. Em caso de dúvida, faça backup primeiro.",
@@ -1288,7 +1630,141 @@
       "noPersona": "Nenhuma",
       "personaSwitchFailed": "Falha ao trocar a persona"
     },
+    "teams": {
+      "workspaceEyebrow": "Equipes de agentes",
+      "myTeams": "Minhas equipes",
+      "emptyEyebrow": "Melhor, em equipe",
+      "emptyTitle": "Forças diferentes. Uma só equipe.",
+      "emptyDescription": "O líder distribui as tarefas e reúne os resultados. Os membros concluem o trabalho conforme seus papéis.",
+      "buildFirst": "Crie sua primeira equipe",
+      "illustrationAlt": "Um agente coordenador com colegas de pesquisa, código e revisão",
+      "noDescription": "Forças diferentes, um objetivo só.",
+      "assemblySubtitle": "Escolha um líder, traga colegas e dê a cada um um papel claro.",
+      "setupSteps": "Etapas de montagem da equipe",
+      "stepIdentity": "Defina um objetivo",
+      "stepLeader": "Escolha um líder",
+      "stepMembers": "Monte a equipe",
+      "identitySection": "O que esta equipe vai fazer?",
+      "leaderSection": "Quem vai liderar a equipe?",
+      "oneLeader": "1 líder",
+      "leaderExplanation": "O líder recebe seu objetivo, distribui as tarefas e reúne os resultados.",
+      "promotedNotice": "{{name}} agora é o líder e saiu dos assentos de membro.",
+      "membersSection": "Reúna as forças certas",
+      "searchAgents": "Buscar nomes ou forças de agentes",
+      "permissionHint": "O perfil do líder ainda não permite este membro",
+      "agentProfile": "Perfil do agente",
+      "noAgentMatches": "Nenhum agente correspondente. Tente outra palavra-chave.",
+      "memberResponsibility": "Responsável nesta equipe",
+      "memberMinimum": "Adicione pelo menos 1 membro. Os papéis da equipe não alteram os perfis originais dos agentes.",
+      "advancedSettings": "Colaboração e preferências de trabalho",
+      "rosterCount": "1 líder · {{count}} membros",
+      "rosterCount_one": "1 líder · {{count}} membro",
+      "rosterCount_other": "1 líder · {{count}} membros",
+      "rosterPrompt": "Comece com um objetivo. Monte sua equipe de agentes em torno dele.",
+      "errorRoleLength": "Os papéis dos membros devem ter no máximo {{max}} caracteres",
+      "errorInstructionsLength": "As notas de colaboração devem ter no máximo {{max}} caracteres",
+      "formationLabel": "Prévia da estrutura da equipe",
+      "formationTitle": "Sua equipe está tomando forma",
+      "untitled": "Uma nova equipe",
+      "goalPrompt": "Um objetivo compartilhado. Agentes com forças diferentes.",
+      "receiveGoal": "Recebe seu objetivo",
+      "focusLeader": "Escolher ou trocar o líder",
+      "chooseLeaderSeat": "Aguardando um líder",
+      "leaderJob": "Distribui tarefas e reúne os resultados",
+      "focusMember": "Editar o papel de {{name}}",
+      "emptySeats": "Seus membros aparecerão aqui. Adicione pelo menos 1 colega.",
+      "summaryFlow": "Os membros trabalham; o líder reúne os resultados",
+      "formationReady": "A configuração básica está pronta",
+      "formationProgress": "Progresso da montagem da equipe",
+      "previewHint": "Clique no líder ou em um membro para editar as configurações.",
+      "name": "Nome da equipe",
+      "namePlaceholder": "ex.: Equipe de conteúdo",
+      "description": "Descrição da equipe",
+      "descriptionPlaceholder": "Uma linha sobre o que esta equipe faz.",
+      "instructions": "Regras de colaboração",
+      "instructionsPlaceholder": "Quem faz o quê primeiro e o que conta como concluído.",
+      "leader": "Leader",
+      "leaderPlaceholder": "Escolha um perfil de Agent",
+      "leaderLine": "Leader: {{name}}",
+      "members": "Membros",
+      "pickMember": "Adicionar {{name}} como membro",
+      "rolePlaceholder": "Função nesta equipe",
+      "roleAria": "Função de {{name}} nesta equipe",
+      "removeMember": "Remover {{name}}",
+      "noAgents": "Ainda não há perfis de Agent disponíveis",
+      "maxConcurrency": "Membros em paralelo",
+      "concurrencyHint": "Quantos membros rodam ao mesmo tempo (máx. {{max}})",
+      "concurrency": "Até {{count}} em paralelo",
+      "errorName": "Informe o nome da equipe",
+      "errorNameLength": "O nome da equipe não pode passar de {{max}} caracteres",
+      "errorLeader": "Escolha um Leader",
+      "errorMembers": "Escolha pelo menos 1 membro",
+      "errorMembersMax": "Uma equipe tem no máximo {{max}} membros",
+      "errorDuplicate": "O mesmo membro não pode se repetir",
+      "errorLeaderIsMember": "O Leader não pode ser também membro",
+      "errorLeaderExcludes": "O perfil do Leader não permite delegar para: {{ids}}",
+      "errorRole": "Cada membro precisa de uma função nesta equipe",
+      "errorConcurrency": "Membros em paralelo deve estar entre {{min}} e {{max}}",
+      "title": "Equipes",
+      "create": "Nova equipe",
+      "search": "Buscar equipes",
+      "saved": "Salvo",
+      "noMatch": "Nenhuma equipe correspondente. Tente outra palavra.",
+      "emptyHint": "Crie primeiro um perfil de Agent e então monte a equipe.",
+      "edit": "Editar",
+      "duplicate": "Duplicar",
+      "copySuffix": "Cópia",
+      "archive": "Arquivar",
+      "archiveTitle": "Arquivar equipe",
+      "archiveBody": "Depois de arquivar não é possível iniciar novas execuções da equipe. Os chats existentes continuam usando a revisão à qual estão vinculados e o histórico permanece visível.",
+      "showArchived": "Mostrar arquivadas",
+      "hideArchived": "Ocultar arquivadas",
+      "unarchive": "Desarquivar",
+      "unarchiveTitle": "Desarquivar esta equipe?",
+      "unarchiveBody": "Ao desarquivar, a equipe pode iniciar novas execuções, o que gera uma nova revisão.",
+      "allArchived": "Todas as equipes estão arquivadas. Ative “Mostrar arquivadas” para vê-las.",
+      "workspaceSubtitle": "Reúna seus perfis de Agent em uma equipe: o Leader divide o objetivo e distribui as tarefas, e os membros as executam. Ideal para trabalhos de várias etapas.",
+      "archived": "Arquivada",
+      "conflict": "A equipe foi alterada em outro lugar. Recarregue antes de salvar; seu rascunho é mantido.",
+      "createTitle": "Criar equipe",
+      "editTitle": "Editar equipe",
+      "editorSubtitle": "Escolha um Leader e até 8 membros entre os perfis de Agent existentes.",
+      "save": "Salvar",
+      "cancel": "Cancelar",
+      "revisionNote": "Revisão atual v{{revision}}; salvar criará v{{next}}"
+    },
     "agents": {
+      "workspace": {
+        "identity": "Identidade e papel",
+        "capabilities": "Ferramentas e habilidades",
+        "more": "Modelo e mais",
+        "subtitle": "Defina o papel e depois escolha o que ele pode usar.",
+        "identityHint": "Dê a ele um papel claro e instruções a seguir.",
+        "capabilitiesHint": "Escolha as ações que ele pode executar e as orientações que pode seguir.",
+        "moreHint": "Escolha um modelo e organize o perfil dele.",
+        "toolsHint": "Ações que ele pode executar, como ler arquivos ou pesquisar na web.",
+        "skillsHint": "Orientações que ele pode consultar em tarefas específicas.",
+        "profileDetails": "Detalhes do perfil",
+        "summary": "Resumo da configuração",
+        "summaryToggle": "Ver o resumo da configuração",
+        "unnamed": "Nome não definido",
+        "noDescription": "Adicione uma frase sobre o que ele faz.",
+        "noSkills": "Nenhuma habilidade adicionada",
+        "noTools": "Nenhuma ferramenta selecionada",
+        "selectedCount": "{{count}} ativadas",
+        "remaining": "e mais {{count}}",
+        "unavailableModel": "Modelo original indisponível",
+        "globalModel": "Seguir o modelo global",
+        "promptHint": "Descreva as responsabilidades, como deve trabalhar e o que deve entregar.",
+        "promptLimit": "As instruções devem ter no máximo {{count}} caracteres.",
+        "nameRequired": "Digite um nome para continuar.",
+        "idRequired": "O ID do agente é obrigatório.",
+        "description": "Descrição em uma linha",
+        "modelMissing": "O modelo salvo está indisponível no momento",
+        "modelMissingHint": "O modelo salvo é mantido. Escolha outro modelo ou siga a configuração global.",
+        "selectionIncludeHint": "Apenas os itens marcados ficam ativos. Mudar o modo de seleção limpa os itens.",
+        "selectionExcludeHint": "Os itens marcados ficam ativos; os desmarcados são excluídos. Mudar o modo de seleção limpa os itens."
+      },
       "basics": {
         "appearance": "Ícone e cor",
         "category": "Categoria",
@@ -1302,6 +1778,7 @@
         "namePlaceholder": "ex. Redator de SEO",
         "noCategory": "Sem categoria",
         "systemPreset": "Predefinição do sistema",
+        "defaultMainAgent": "Agente padrão",
         "updatedAt": "Atualizado {{time}}"
       },
       "capability": {
@@ -1381,6 +1858,9 @@
         "include": "Somente selecionados"
       },
       "model": {
+        "label": "Modelo",
+        "auto": "Seguir o modelo global",
+        "autoHint": "Este agente segue a configuração de modelo global.",
         "context": "contexto",
         "toolUse": "Uso de ferramentas",
         "vision": "Visão"
@@ -1574,6 +2054,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "Ir",
     "browserEmptyHint": "Digite um endereço para começar a navegar.",
+    "browserNewTab": "Nova aba",
     "browserFrameTitle": "Página do navegador incorporado",
     "browserError_scheme": "Apenas endereços http/https podem ser abertos aqui.",
     "browserError_private": "Endereços privados ou de rede local não são permitidos.",
@@ -1584,12 +2065,31 @@
     "tabBrowser": "Navegador",
     "plusAria": "Nova aba",
     "newTerminal": "Novo terminal",
+    "openTerminal": "Abrir painel do terminal",
     "shellChoices": "Escolher shell",
     "takeoverRunning": "Terminal em execução",
     "takeoverAction": "Assumir o controle",
     "takeoverHint": "Pressione Enter para redesenhar a tela",
     "closeTab": "Fechar aba",
-    "platformDefaultShell": "Shell padrão do host"
+    "platformDefaultShell": "Shell padrão do host",
+    "renameTab": "Renomear aba",
+    "copyOutput": "Copiar saída",
+    "clearOutput": "Limpar terminal",
+    "pasteInput": "Colar",
+    "browserWindow": "Abrir em janela do navegador",
+    "showHidden": "Mostrar arquivos ocultos",
+    "hideHidden": "Ocultar arquivos ocultos",
+    "refresh": "Atualizar",
+    "collapseAll": "Recolher tudo",
+    "search": "Pesquisar arquivos",
+    "searchPlaceholder": "Pesquisar por nome e conteúdo",
+    "searching": "Pesquisando…",
+    "noMatches": "Nenhum resultado",
+    "searchTruncated": "Mostrando resultados parciais",
+    "searchFailed": "Falha na pesquisa",
+    "copied": "Copiado",
+    "historyTruncated": "A saída anterior foi truncada",
+    "terminalTheme": "Alternar tema do terminal"
   },
   "plusMenu": {
     "groupAdd": "Adicionar",
@@ -1607,6 +2107,49 @@
     "back": "Voltar"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "Execução do subagente",
+      "genericAgent": "Agente geral",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "Sem detalhes de execução",
+      "close": "Fechar detalhes da execução",
+      "reload": "Recarregar",
+      "taskSwitcher": "Trocar tarefa do subagente",
+      "call": "Chamada {{id}}",
+      "instruction": "Tarefa",
+      "process": "Execução",
+      "result": "Resultado do subagente",
+      "truncated": "Conteúdo truncado",
+      "noActivities": "Ainda não há atividade pública.",
+      "connectionStale": "Conexão perdida; o estado aguarda sincronização",
+      "historyLimited": "Parte da atividade anterior expirou",
+      "activitySummary": "{{action}} · {{count}} chamadas de ferramenta concluídas",
+      "activitySummaryNoAction": "{{count}} chamadas de ferramenta concluídas",
+      "status": {
+        "queued": "Na fila",
+        "running": "Em execução",
+        "succeeded": "Concluído",
+        "failed": "Falhou",
+        "cancelled": "Interrompido",
+        "interrupted": "Interrompido"
+      },
+      "parameters": "Parâmetros",
+      "toolOutput": "Saída",
+      "detailToggle": "Mostrar parâmetros e saída",
+      "phase": {
+        "preparing": "Preparando",
+        "model": "Gerando",
+        "tools": "Usando ferramentas",
+        "finalizing": "Finalizando"
+      },
+      "activityStatus": {
+        "running": "Em execução",
+        "succeeded": "Concluído",
+        "failed": "Falhou",
+        "cancelled": "Interrompido",
+        "interrupted": "Interrompido"
+      }
+    },
     "activity": {
       "viewDetails": "Ver detalhes",
       "hideDetails": "Ocultar",
@@ -1656,7 +2199,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "Desenhar um ícone de aplicativo",
-          "prompt": "Gere um ícone de aplicativo 1:1 limpo para o Mira: robô amigável, estilo vetorial simples, paleta suave em azul e branco, sem texto."
+          "prompt": "Gere um ícone de aplicativo 1:1 limpo para o 知序: robô amigável, estilo vetorial simples, paleta suave em azul e branco, sem texto."
         },
         "sticker": {
           "title": "Criar um sticker",
@@ -1711,6 +2254,46 @@
         "local": "Aguardando gatilho",
         "none": "Sem próxima execução"
       }
+    },
+    "teamProgress": {
+      "title": "Progresso da equipe",
+      "leader": "Líder",
+      "leaderAction": {
+        "planning": "planejando",
+        "waiting": "aguardando membros",
+        "reviewing": "revisando",
+        "summarizing": "resumindo",
+        "idle": "ocioso"
+      },
+      "status": {
+        "running": "Em andamento",
+        "cancelling": "Parando…",
+        "completed": "Concluída",
+        "partial": "Parcialmente concluída",
+        "failed": "Falhou",
+        "cancelled": "Parada",
+        "interrupted": "Interrompida"
+      },
+      "taskStatus": {
+        "pending": "Não atribuída",
+        "queued": "Na fila",
+        "running": "Em andamento",
+        "cancelling": "Parando…",
+        "succeeded": "Concluída",
+        "failed": "Falhou",
+        "cancelled": "Parada",
+        "blocked": "Bloqueada",
+        "interrupted": "Interrompida"
+      },
+      "stop": "Parar equipe",
+      "stopping": "Parando…",
+      "retry": "Tentar novamente as tarefas com falha",
+      "retryHint": "A nova tentativa executa de novo as tarefas com falha e pode repetir efeitos já causados.",
+      "cancelTask": "Parar esta tarefa",
+      "noTasks": "O Líder respondeu diretamente neste turno.",
+      "resyncing": "Sincronizando o estado da equipe…",
+      "artifacts": "Artefatos: {{names}}",
+      "memberFallback": "Membro {{memberId}}"
     },
     "composer": {
       "menu": {
@@ -1867,7 +2450,7 @@
             "description": "Cancela o turno ativo do agente nesta conversa."
           },
           "restart": {
-            "title": "Reiniciar Mira",
+            "title": "Reiniciar 知序",
             "description": "Reinicia o processo do bot no mesmo lugar."
           },
           "status": {
@@ -1919,16 +2502,20 @@
       "mentions": {
         "ariaLabel": "Aplicativos",
         "label": "Aplicativos",
+        "agentGroup": "Agentes",
         "cliGroup": "Aplicativos CLI",
         "mcpGroup": "Serviços MCP",
-        "sessionGroup": "Conversas do Mira",
+        "sessionGroup": "Conversas do 知序",
+        "agentBadge": "Agente",
+        "defaultAgentBadge": "Agente padrão",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "Assume este turno via @{{name}}",
         "cliDescription": "Usar @{{name}} como aplicativo CLI local",
         "mcpDescription": "Usar @{{name}} como servidor MCP",
         "cliTitle": "Aplicativo CLI: {{name}}",
         "mcpTitle": "Servidor MCP: {{name}}",
-        "sessionBadge": "Conversa do Mira",
+        "sessionBadge": "Conversa do 知序",
         "sessionDescription": "Referenciar @{{name}} como chat anterior"
       },
       "encoding": "Codificando…",
@@ -1955,6 +2542,20 @@
         "defaultShort": "Padrão",
         "full": "Acesso total",
         "fullShort": "Total"
+      },
+      "team": {
+        "aria": "Escolher equipe",
+        "select": "Selecionar equipe",
+        "none": "Sem equipe",
+        "empty": "Ainda não há equipes disponíveis",
+        "bound": "Vinculada a {{name}} (revisão {{revision}})",
+        "chip": "Equipe: {{name}}",
+        "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "Agente atual: {{name}}",
+        "empty": "Ainda não há agentes disponíveis",
+        "defaultTag": "Padrão"
       }
     },
     "scrollToBottom": "Rolar para o final",
@@ -2072,9 +2673,16 @@
     "close": "Fechar pré-visualização de arquivo",
     "loading": "Carregando pré-visualização...",
     "failed": "Não foi possível pré-visualizar este arquivo.",
-    "routeMissing": "A pré-visualização de arquivo precisa do gateway mais recente. Reinicie o Mira gateway e tente novamente.",
+    "routeMissing": "A pré-visualização de arquivo precisa do gateway mais recente. Reinicie o 知序 gateway e tente novamente.",
     "resize": "Redimensionar pré-visualização de arquivo",
-    "truncated": "A pré-visualização foi truncada porque este arquivo é grande."
+    "pickFile": "Escolha um arquivo para visualizar aqui.",
+    "truncated": "A pré-visualização foi truncada porque este arquivo é grande.",
+    "edit": "Editar arquivo",
+    "save": "Salvar arquivo",
+    "cancel": "Cancelar edição",
+    "saved": "Salvo",
+    "saveFailed": "Não foi possível salvar este arquivo.",
+    "editTruncated": "Arquivos grandes não podem ser editados aqui."
   },
   "code": {
     "fallbackLanguage": "código",
@@ -2084,8 +2692,7 @@
   },
   "workbench": {
     "title": "Bancada de trabalho",
-    "open": "Abrir a bancada de trabalho",
-    "collapse": "Recolher a bancada de trabalho",
+    "tools": "Barra lateral de ferramentas",
     "updatedAt": "Atualizado {{time}}",
     "overview": "Visão geral",
     "emptyOverview": "Ainda não há resumo",
@@ -2154,6 +2761,14 @@
       "title": "O espaço de trabalho não foi alterado",
       "body": "O gateway rejeitou este projeto ou modo de acesso. Escolha um projeto existente ou outro modo de acesso e tente novamente."
     },
+    "teamBindingExpired": {
+      "title": "Nenhuma equipe foi vinculada",
+      "body": "A escolha de equipe para este chat vazio expirou. Escolha a equipe novamente antes de enviar a primeira mensagem."
+    },
+    "teamUnavailable": {
+      "title": "A equipe não está disponível",
+      "body": "Esta equipe foi arquivada ou um perfil de agente referenciado por ela foi removido. Escolha outra equipe ou envie a mensagem como um chat comum."
+    },
     "turnRejected": {
       "title": "A mensagem não foi enviada",
       "body": "O gateway rejeitou esta mensagem. Revise o texto ou os anexos e tente novamente."
@@ -2193,7 +2808,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "Assistente",
-      "creative": "Criativo"
+      "creative": "Criativo",
+      "more": "Mais",
+      "groups": {
+        "workspace": "Espaço de trabalho",
+        "ai": "Configuração de IA",
+        "personal": "Pessoal"
+      }
     },
     "preview": {
       "badge": "Pré-visualização da interface · conteúdo de exemplo"
@@ -2216,5 +2837,9 @@
     "creative": {
       "comingSoon": "O módulo criativo chega em breve."
     }
+  },
+  "toast": {
+    "saved": "Salvo",
+    "saveFailed": "Falha ao salvar: {{message}}"
   }
 }

@@ -24,6 +24,7 @@ from websockets.datastructures import Headers
 from websockets.http11 import Request as WsRequest
 from websockets.http11 import Response
 
+from nanobot.agent.skills import SkillsLoader
 from nanobot.command.builtin import builtin_command_palette
 from nanobot.cron.session_turns import is_bound_cron_job
 from nanobot.cron.types import CronJob, CronSchedule
@@ -33,12 +34,15 @@ from nanobot.session.recovery import RecoveryActionError
 from nanobot.session.session_handles import (
     SessionHandleResolver,
 )
+from nanobot.teams.binding import TeamBindingStore
 from nanobot.triggers.local_types import LocalTrigger
+from nanobot.webui import writing_collab_routes
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.file_preview import (
     WebUIFilePreviewError,
     file_preview_availability_payload,
     file_preview_payload,
+    file_save_payload,
 )
 from nanobot.webui.gateway_tokens import GatewayTokenStore, token_response_payload
 from nanobot.webui.http_utils import (
@@ -112,6 +116,7 @@ from nanobot.webui.session_list_index import (
     indexed_workspace_scope,
     list_webui_sessions,
 )
+from nanobot.webui.session_workbench import session_workbench_payload
 from nanobot.webui.sidebar_state import (
     read_webui_sidebar_state,
     write_webui_sidebar_state,
@@ -130,6 +135,8 @@ from nanobot.webui.skills_marketplace import (
     search_marketplace_skills,
     trending_marketplace_skills,
 )
+from nanobot.webui.subagent_execution_routes import SubagentExecutionSettingsOperations
+from nanobot.webui.teams_routes import TeamSettingsOperations
 from nanobot.webui.thread_disk import delete_webui_thread
 from nanobot.webui.transcript import (
     WEBUI_TRANSCRIPT_SCHEMA_VERSION,
@@ -138,13 +145,17 @@ from nanobot.webui.transcript import (
 from nanobot.webui.workspace_files import (
     resolve_workspace_anchor,
     workspace_directory_payload,
+    workspace_search_payload,
 )
 from nanobot.webui.workspaces import WebUIWorkspaceController
+from nanobot.webui.writing_collab_routes import WritingCollabSettingsOperations
 from nanobot.webui.writing_routes import WritingSettingsOperations
 
 _SLOW_WEBUI_HTTP_LOG_MS = 1_000
 _WEBUI_MUTATION_PAYLOAD_ATTR = "_nanobot_webui_mutation_payload"
 _WEBUI_MUTATION_REQUEST_ATTR = "_nanobot_webui_mutation_request"
+# 发起这次 mutation 的连接当前挂在哪些聊天上：由服务端从连接推导，payload 覆盖不了。
+_WEBUI_MUTATION_CALLER_ATTR = "_nanobot_webui_mutation_caller_chats"
 _NO_STORE_HEADERS = [("Cache-Control", "no-store")]
 
 _WEBUI_MUTATION_PATHS = {
@@ -181,8 +192,8 @@ _WEBUI_MUTATION_PATHS = {
     "settings.cli_app.update": "/api/settings/cli-apps/update",
     "settings.cli_app.uninstall": "/api/settings/cli-apps/uninstall",
     "settings.cli_app.test": "/api/settings/cli-apps/test",
-    "settings.feature.enable": "/api/settings/nanobot-features/enable",
-    "settings.feature.disable": "/api/settings/nanobot-features/disable",
+    "settings.feature.enable": "/api/settings/zhixu-features/enable",
+    "settings.feature.disable": "/api/settings/zhixu-features/disable",
     "settings.channel.validate": "/api/settings/channels/validate",
     "settings.channel.configure": "/api/settings/channels/configure",
     "settings.pairing.approve": "/api/settings/pairing/approve",
@@ -212,12 +223,26 @@ _WEBUI_MUTATION_PATHS = {
     "agents.delete": "/api/settings/agents/delete",
     "agents.reset": "/api/settings/agents/reset",
     "agents.visibility": "/api/settings/agents/visibility",
-    # 契约 §5：写作域四条写动作只能走已认证 WS 的 webui_request；动作名与领域
+    # Agent Team（契约 §3）：三个写动作只能走已认证 WS 的 requestMutation。
+    "teams.save": "/api/settings/teams/save",
+    "teams.archive": "/api/settings/teams/archive",
+    "teams.clone": "/api/settings/teams/clone",
+    # 契约 §5：运行级控制的动作名逐字照抄（teamRuns./teamTasks. 是 camelCase 段），
+    # 所以 WS 动作名校验要允许大写——见 nanobot/webui/inbound_commands.py。
+    "teamRuns.cancel": "/api/team-runs/cancel",
+    "teamRuns.retry": "/api/team-runs/retry",
+    "teamTasks.cancel": "/api/team-tasks/cancel",
+    # 契约 §5：写作域五条写动作只能走已认证 WS 的 webui_request；动作名与领域
     # 动作名同名取点号（契约 §4），不再有 WS/领域双口径映射。
     "article.create": "/api/writing/articles/create",
     "article.save": "/api/writing/articles/save",
     "article.duplicate": "/api/writing/articles/duplicate",
     "article.delete": "/api/writing/articles/delete",
+    "writing.undo_change": "/api/writing/articles/undo",
+    # 契约 §3：协作域七个写动作同样只能走已认证 WS；两个读动作走认证 HTTP GET，
+    # 因此**不**在这张表里（放进来的话 HTTP GET 会被 405 弹回）。path→action 的
+    # 唯一真相源是 writing_collab_routes，这里按写动作名单派生。
+    **writing_collab_routes.WRITING_COLLAB_MUTATION_WS_ACTIONS,
 }
 
 _WEBUI_CHANNEL_CONNECT_ACTIONS = {
@@ -361,9 +386,13 @@ class GatewayHTTPHandler:
             Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]] | None
         ) = None,
         memory_operations: MemorySettingsOperations | None = None,
+        subagent_execution_operations: SubagentExecutionSettingsOperations | None = None,
         identity_operations: IdentitySettingsOperations | None = None,
         agents_operations: AgentSettingsOperations | None = None,
         writing_operations: WritingSettingsOperations | None = None,
+        writing_collab_operations: WritingCollabSettingsOperations | None = None,
+        team_operations: TeamSettingsOperations | None = None,
+        team_bindings: TeamBindingStore | None = None,
         log: Any = logger,
     ) -> None:
         self.config = config
@@ -378,9 +407,15 @@ class GatewayHTTPHandler:
         self.settings = settings
         self.skills_workspace_path = skills_workspace_path
         self.memory_operations = memory_operations
+        self.subagent_execution_operations = subagent_execution_operations
+        self._mcp_runtime_status = mcp_runtime_status
         self.identity_operations = identity_operations
         self.agents_operations = agents_operations
         self.writing_operations = writing_operations
+        self.writing_collab_operations = writing_collab_operations
+        self.team_operations = team_operations
+        # 空聊天的团队绑定暂存；没装配团队服务时为 None，new_chat 会明确拒绝带 team_id 的请求。
+        self.team_bindings = team_bindings
         self.disabled_skills: set[str] = (
             disabled_skills if disabled_skills is not None else set()
         )
@@ -418,6 +453,8 @@ class GatewayHTTPHandler:
             identity_operations=self.identity_operations,
             agents_operations=self.agents_operations,
             writing_operations=self.writing_operations,
+            writing_collab_operations=self.writing_collab_operations,
+            team_operations=self.team_operations,
         )
 
     def workspace_controls_available(self, connection: Any) -> bool:
@@ -470,6 +507,8 @@ class GatewayHTTPHandler:
         connection: Any,
         action: str,
         payload: dict[str, Any],
+        *,
+        caller_chats: tuple[str, ...] = (),
     ) -> Response:
         """Run one explicitly allowlisted mutation for an authenticated WebUI socket."""
         path = self._webui_mutation_path(action, payload)
@@ -492,6 +531,7 @@ class GatewayHTTPHandler:
         setattr(request, "_nanobot_trusted_proxy_authenticated", True)
         setattr(request, _WEBUI_MUTATION_REQUEST_ATTR, True)
         setattr(request, _WEBUI_MUTATION_PAYLOAD_ATTR, dict(payload))
+        setattr(request, _WEBUI_MUTATION_CALLER_ATTR, tuple(caller_chats))
         response = await self._dispatch_resolved(connection, request, path)
         if isinstance(response, Response):
             return response
@@ -501,6 +541,8 @@ class GatewayHTTPHandler:
         if self.settings_routes.is_mutation_path(path):
             return True
         if re.match(r"^/api/sessions/[^/]+/delete$", path):
+            return True
+        if re.match(r"^/api/sessions/[^/]+/file-save$", path):
             return True
         if re.match(r"^/api/webui/automations/(enable|disable|delete|run|update)$", path):
             return True
@@ -527,6 +569,11 @@ class GatewayHTTPHandler:
             if not isinstance(key, str) or not key.strip():
                 return _http_error(400, "missing session key")
             return f"/api/sessions/{quote(key, safe='')}/delete"
+        if action == "workspace.file.save":
+            key = payload.get("key")
+            if not isinstance(key, str) or not key.strip():
+                return _http_error(400, "missing session key")
+            return f"/api/sessions/{quote(key, safe='')}/file-save"
         connect_action = _WEBUI_CHANNEL_CONNECT_ACTIONS.get(action)
         if connect_action is not None:
             channel = payload.get("channel")
@@ -743,9 +790,21 @@ class GatewayHTTPHandler:
         if m:
             return await self._handle_session_context_get(request, m.group(1))
 
+        m = re.match(r"^/api/sessions/([^/]+)/workbench$", got)
+        if m:
+            return await self._handle_session_workbench_get(request, m.group(1))
+
         m = re.match(r"^/api/sessions/([^/]+)/file-preview$", got)
         if m:
             return self._handle_file_preview(request, m.group(1))
+
+        m = re.match(r"^/api/sessions/([^/]+)/file-save$", got)
+        if m:
+            return self._handle_file_save(request, m.group(1))
+
+        m = re.match(r"^/api/sessions/([^/]+)/files/search$", got)
+        if m:
+            return self._handle_session_search(request, m.group(1))
 
         m = re.match(r"^/api/sessions/([^/]+)/files$", got)
         if m:
@@ -800,6 +859,60 @@ class GatewayHTTPHandler:
             return _http_error(404, "session not found")
         return _http_json_response(session_context_payload(session))
 
+    async def _handle_session_workbench_get(self, request: WsRequest, key: str) -> Response:
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        if str(getattr(request, "method", "GET")).upper() != "GET":
+            return _http_error(405, "workbench queries require GET")
+        decoded_key = _decode_api_key(key)
+        if decoded_key is None:
+            return _http_error(400, "invalid session key")
+        if not _is_websocket_channel_session_key(decoded_key):
+            return _http_error(404, "session not found")
+        if self.session_manager is None:
+            return _http_error(503, "session manager unavailable")
+
+        def read_payload() -> dict[str, Any] | None:
+            assert self.session_manager is not None
+            session = self.session_manager.read_session_snapshot(decoded_key)
+            if session is None:
+                return None
+            skills = None
+            always: list[str] = []
+            mcp_status = None
+            try:
+                skills = webui_skills_payload(
+                    self.skills_workspace_path, disabled_skills=self.disabled_skills,
+                )["skills"]
+                always = SkillsLoader(self.skills_workspace_path).get_always_skills()
+            except Exception:
+                logger.bind(event="workbench_source_unavailable", source="skills",
+                            session_key=decoded_key).warning("Workbench skills are unavailable")
+            try:
+                configured = self.settings.config.load().tools.mcp_servers
+                mcp_status = {name: "configured" for name in list(configured)[:100]}
+                if self._mcp_runtime_status is not None:
+                    mcp_status.update(self._mcp_runtime_status())
+            except Exception:
+                logger.bind(event="workbench_source_unavailable", source="mcp",
+                            session_key=decoded_key).warning("Workbench MCP state is unavailable")
+            return session_workbench_payload(
+                session, memory_operations=self.memory_operations,
+                execution_operations=self.subagent_execution_operations,
+                skills=skills, always_skills=always, mcp_status=mcp_status,
+            )
+
+        try:
+            payload = await asyncio.to_thread(read_payload)
+        except Exception:
+            logger.bind(event="workbench_read_failed", session_key=decoded_key).warning(
+                "Session workbench could not be read"
+            )
+            return _http_error(503, "session workbench unavailable")
+        if payload is None:
+            return _http_error(404, "session not found")
+        return _http_json_response(payload, extra_headers=_NO_STORE_HEADERS)
+
     async def _handle_sessions_list(self, request: WsRequest) -> Response:
         if not self.check_api_token(request):
             return _http_error(401, "Unauthorized")
@@ -832,6 +945,10 @@ class GatewayHTTPHandler:
             # older clients and compact list responses stay unchanged.
             if row.get("recovery_state") is None:
                 row.pop("recovery_state", None)
+            # 团队绑定同理：契约 §4 说「列表里没有这个字段就按普通聊天解释」，
+            # 所以普通聊天不带键，只有绑了团队的会话才多这一项。
+            if row.get("team_binding") is None:
+                row.pop("team_binding", None)
             chat_id = key.split(":", 1)[1]
             started_at = websocket_turn_wall_started_at(chat_id)
             if started_at is not None:
@@ -978,6 +1095,46 @@ class GatewayHTTPHandler:
             return _http_error(e.status, e.message)
         return _http_json_response(payload)
 
+    def _handle_file_save(self, request: WsRequest, key: str) -> Response:
+        if not getattr(request, _WEBUI_MUTATION_REQUEST_ATTR, False):
+            return _http_error(405, "file saves require an authenticated WebSocket")
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        decoded_key = _decode_api_key(key)
+        if decoded_key is None:
+            return _http_error(400, "invalid session key")
+        if not _is_websocket_channel_session_key(decoded_key):
+            return _http_error(404, "session not found")
+        payload = _mutation_payload(request)
+        if payload is None:
+            return _http_error(400, "invalid file save payload")
+        scope_param = payload.get("scope")
+        if scope_param is not None and not isinstance(scope_param, str):
+            return _http_error(400, "invalid workspace scope")
+        raw_path = payload.get("path")
+        if raw_path is not None and not isinstance(raw_path, str):
+            return _http_error(400, "invalid path")
+        if scope_param == "":
+            scope_param = None
+        try:
+            if scope_param is None:
+                scope = self.workspaces.scope_for_session_key(decoded_key)
+            else:
+                scope = resolve_workspace_anchor(
+                    scope_param,
+                    default_scope=self.workspaces.default_scope(),
+                )
+                if scope is None:
+                    return _http_json_response({"error": "no_default_workspace"}, status=404)
+            saved = file_save_payload(
+                raw_path,
+                payload.get("content"),
+                scope=scope,
+            )
+        except WebUIFilePreviewError as e:
+            return _http_error(e.status, e.message)
+        return _http_json_response(saved)
+
     def _handle_session_files(self, request: WsRequest, key: str) -> Response:
         if not self.check_api_token(request):
             return _http_error(401, "Unauthorized")
@@ -988,9 +1145,14 @@ class GatewayHTTPHandler:
             return _http_error(404, "session not found")
         query = _parse_query(request.path)
         path = _query_first(query, "path")
+        show_hidden = (_query_first(query, "show_hidden") or "").lower() in {
+            "1", "true", "yes", "on",
+        }
         try:
             scope = self.workspaces.scope_for_session_key(decoded_key)
-            payload = workspace_directory_payload(path, scope=scope)
+            payload = workspace_directory_payload(
+                path, scope=scope, show_hidden=show_hidden
+            )
         except WebUIFilePreviewError as e:
             return _http_error(e.status, e.message)
         return _http_json_response(
@@ -1010,11 +1172,70 @@ class GatewayHTTPHandler:
         )
         if anchor is None:
             return _http_json_response({"error": "no_default_workspace"}, status=404)
+        show_hidden = (_query_first(query, "show_hidden") or "").lower() in {
+            "1", "true", "yes", "on",
+        }
         try:
-            payload = workspace_directory_payload(path, scope=anchor)
+            payload = workspace_directory_payload(
+                path, scope=anchor, show_hidden=show_hidden
+            )
         except WebUIFilePreviewError as e:
             if e.status in {400, 403}:
                 return _http_json_response({"error": "invalid_path"}, status=400)
+            return _http_json_response({"error": e.message}, status=e.status)
+        return _http_json_response(
+            payload,
+            accept_encoding=_combined_list_header(request.headers, "Accept-Encoding"),
+        )
+
+    def _handle_session_search(self, request: WsRequest, key: str) -> Response:
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        decoded_key = _decode_api_key(key)
+        if decoded_key is None:
+            return _http_error(400, "invalid session key")
+        if not _is_websocket_channel_session_key(decoded_key):
+            return _http_error(404, "session not found")
+        query = _parse_query(request.path)
+        show_hidden = (_query_first(query, "show_hidden") or "").lower() in {
+            "1", "true", "yes", "on",
+        }
+        try:
+            scope = self.workspaces.scope_for_session_key(decoded_key)
+            payload = workspace_search_payload(
+                _query_first(query, "q"),
+                scope=scope,
+                show_hidden=show_hidden,
+            )
+        except WebUIFilePreviewError as e:
+            return _http_error(e.status, e.message)
+        return _http_json_response(
+            payload,
+            accept_encoding=_combined_list_header(request.headers, "Accept-Encoding"),
+        )
+
+    def _handle_workspace_search(self, request: WsRequest) -> Response:
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        query = _parse_query(request.path)
+        anchor = resolve_workspace_anchor(
+            _query_first(query, "scope"),
+            default_scope=self.workspaces.default_scope(),
+        )
+        if anchor is None:
+            return _http_json_response({"error": "no_default_workspace"}, status=404)
+        show_hidden = (_query_first(query, "show_hidden") or "").lower() in {
+            "1", "true", "yes", "on",
+        }
+        try:
+            payload = workspace_search_payload(
+                _query_first(query, "q"),
+                scope=anchor,
+                show_hidden=show_hidden,
+            )
+        except WebUIFilePreviewError as e:
+            if e.status in {400, 403}:
+                return _http_json_response({"error": "invalid_query"}, status=400)
             return _http_json_response({"error": e.message}, status=e.status)
         return _http_json_response(
             payload,
@@ -1285,6 +1506,8 @@ class GatewayHTTPHandler:
             return await self._handle_workspace_folder_picker(connection, request)
         if got == "/api/workspaces":
             return self._handle_workspaces(connection, request)
+        if got == "/api/workspace/files/search":
+            return self._handle_workspace_search(request)
         if got == "/api/workspace/files":
             return self._handle_workspace_files(request)
         if got == "/webui/terminal/shells":

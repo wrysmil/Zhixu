@@ -21,29 +21,65 @@ function renderNav(overrides: Partial<WorkspaceNavigationProps> = {}) {
   };
 }
 
-const NAV_ITEMS = [
-  "Assistant",
-  "Creative",
-  "Agents",
+const RAIL_ITEMS = ["Assistant", "Creative", "Agents", "Memory", "More", "Settings"];
+const GROUPED_ITEMS = [
+  "Apps",
   "Skills",
   "Automations",
-  "Apps",
-  "Settings",
+  "Teams",
+  "Identity",
 ];
 
+function openMore() {
+  fireEvent.click(screen.getByRole("button", { name: "More" }));
+}
+
 describe("WorkspaceNavigation", () => {
-  it("renders a single named navigation landmark with every nav entry", () => {
+  it("renders a single named navigation landmark with the top-level entries", () => {
     renderNav();
     const landmarks = screen.getAllByRole("navigation");
     expect(landmarks).toHaveLength(1);
     expect(landmarks[0]).toHaveAccessibleName("Sidebar navigation");
 
-    for (const label of NAV_ITEMS) {
-      expect(
-        screen.getByRole("button", { name: label }),
-      ).toBeInTheDocument();
+    for (const label of RAIL_ITEMS) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    for (const label of GROUPED_ITEMS) {
+      expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
     }
     expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
+  });
+
+  it("opens the More menu with grouped legacy routes", () => {
+    renderNav();
+    openMore();
+
+    const menu = screen.getByRole("dialog");
+    expect(within(menu).getByText("Workspace")).toBeInTheDocument();
+    expect(within(menu).getByText("AI configuration")).toBeInTheDocument();
+    expect(within(menu).getByText("Personal")).toBeInTheDocument();
+    for (const label of GROUPED_ITEMS) {
+      expect(within(menu).getByRole("button", { name: label })).toBeInTheDocument();
+    }
+  });
+
+  it("navigates with the matching route when a top-level entry is clicked", () => {
+    const { onNavigate } = renderNav();
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    expect(onNavigate).toHaveBeenCalledWith({ view: "chat" });
+  });
+
+  it.each([
+    ["Teams", "teams"],
+    ["Identity", "identity"],
+    ["Apps", "apps"],
+    ["Skills", "skills"],
+    ["Automations", "automations"],
+  ] as const)("navigates to %s from the More menu", (label, view) => {
+    const { onNavigate } = renderNav();
+    openMore();
+    fireEvent.click(screen.getByRole("button", { name: label }));
+    expect(onNavigate).toHaveBeenCalledWith({ view });
   });
 
   it("marks the active view item with aria-current=page", () => {
@@ -54,18 +90,60 @@ describe("WorkspaceNavigation", () => {
     expect(
       screen.getByRole("button", { name: "Assistant" }),
     ).not.toHaveAttribute("aria-current");
+    expect(
+      screen.getByRole("button", { name: "More" }),
+    ).not.toHaveAttribute("aria-current");
   });
 
-  it("navigates with the matching route when an entry is clicked", () => {
-    const { onNavigate } = renderNav();
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
-    expect(onNavigate).toHaveBeenCalledWith({ view: "chat" });
+  it.each(["identity", "teams", "apps", "skills", "automations"] as const)(
+    "marks More as current on the %s view and the entry inside the menu",
+    (activeView) => {
+      renderNav({ activeView });
+      const more = screen.getByRole("button", { name: "More" });
+      expect(more).toHaveAttribute("aria-current", "page");
+
+      openMore();
+      const menu = screen.getByRole("dialog");
+      const label = {
+        identity: "Identity",
+        teams: "Teams",
+        apps: "Apps",
+        skills: "Skills",
+        automations: "Automations",
+      }[activeView];
+      expect(within(menu).getByRole("button", { name: label })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+    },
+  );
+
+  it.each([
+    ["Agents", "agents"],
+    ["Memory", "memory"],
+  ] as const)("keeps core capability %s visible on the rail", (label, activeView) => {
+    const { onNavigate } = renderNav({ activeView });
+    const item = screen.getByRole("button", { name: label });
+    expect(item).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "More" })).not.toHaveAttribute("aria-current");
+
+    fireEvent.click(item);
+    expect(onNavigate).toHaveBeenCalledWith({ view: activeView });
   });
 
-  it("keeps nav entries reachable and collapses the rail when collapsed", () => {
+  it("marks Settings as current for the settings view", () => {
+    renderNav({ activeView: "settings" });
+    expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "More" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("keeps grouped entries reachable when the rail is collapsed", () => {
     renderNav({ collapsed: true });
-    // Collapsed items are still labelled for assistive tech via aria-label.
-    for (const label of NAV_ITEMS) {
+    for (const label of RAIL_ITEMS) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    openMore();
+    for (const label of GROUPED_ITEMS) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
   });

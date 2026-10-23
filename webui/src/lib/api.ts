@@ -9,6 +9,7 @@ import type {
   CliAppsPayload,
   EpisodePayload,
   FilePreviewPayload,
+  FileSavePayload,
   IdentityFileEntry,
   ImageGenerationSettingsUpdate,
   McpPresetsPayload,
@@ -18,7 +19,7 @@ import type {
   MemoryPriority,
   MemoryStats,
   MemoryType,
-  NanobotFeaturesPayload,
+  ZhixuFeaturesPayload,
   ModelConfigurationCreate,
   ModelConfigurationUpdate,
   NetworkSafetySettingsUpdate,
@@ -45,9 +46,11 @@ import type {
   SkillsTrendingPayload,
   SlashCommand,
   SlashCommandLifecycle,
+  TeamBinding,
   TranscriptionSettingsUpdate,
   WebSearchSettingsUpdate,
   WorkspacesPayload,
+  WorkspaceSearchPayload,
   WebuiThreadPersistedPayload,
   WorkspaceScopePayload,
 } from "./types";
@@ -203,6 +206,7 @@ export async function listSessions(
     recovery_state?: RecoveryState | null;
     workspace_scope?: WorkspaceScopePayload | null;
     handle?: SessionHandle | null;
+    team_binding?: TeamBinding | null;
   };
   const body = await request<{ sessions: Row[] }>(
     `${base}/api/sessions`,
@@ -224,6 +228,8 @@ export async function listSessions(
       recoveryState: s.recovery_state ?? null,
       workspaceScope: s.workspace_scope ?? null,
       handle,
+      // 服务端确认的绑定才是真值；列表不带这个键时按普通聊天解释（契约 §4）。
+      teamBinding: s.team_binding ?? null,
     };
   });
 }
@@ -306,14 +312,32 @@ export async function fetchFilePreviewAvailability(
   return payload.available !== false;
 }
 
+/** Save editor content back to a workspace file through the authenticated WebSocket. */
+export async function saveFileContent(
+  transport: WebUIMutationTransport,
+  key: string,
+  path: string,
+  content: string,
+  scope: string | null = null,
+): Promise<FileSavePayload> {
+  return mutation<FileSavePayload>(transport, "workspace.file.save", {
+    key,
+    path,
+    content,
+    ...(scope ? { scope } : {}),
+  });
+}
+
 export async function fetchSessionDirectory(
   token: string,
   key: string,
   path: string | null,
   base: string = "",
+  showHidden: boolean = false,
 ): Promise<SessionDirectoryPayload> {
   const query = new URLSearchParams();
   if (path) query.set("path", path);
+  if (showHidden) query.set("show_hidden", "1");
   return request<SessionDirectoryPayload>(
     `${base}/api/sessions/${encodeURIComponent(key)}/files?${query}`,
     token,
@@ -332,11 +356,46 @@ export async function fetchWorkspaceFiles(
   token: string,
   path: string | null = null,
   base: string = "",
+  showHidden: boolean = false,
 ): Promise<SessionDirectoryPayload> {
   const query = new URLSearchParams({ scope: "default" });
   if (path) query.set("path", path);
+  if (showHidden) query.set("show_hidden", "1");
   return request<SessionDirectoryPayload>(
     `${base}/api/workspace/files?${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
+export async function fetchSessionSearch(
+  token: string,
+  key: string,
+  text: string,
+  base: string = "",
+  showHidden: boolean = false,
+): Promise<WorkspaceSearchPayload> {
+  const query = new URLSearchParams({ q: text });
+  if (showHidden) query.set("show_hidden", "1");
+  return request<WorkspaceSearchPayload>(
+    `${base}/api/sessions/${encodeURIComponent(key)}/files/search?${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
+export async function fetchWorkspaceSearch(
+  token: string,
+  text: string,
+  base: string = "",
+  showHidden: boolean = false,
+): Promise<WorkspaceSearchPayload> {
+  const query = new URLSearchParams({ scope: "default", q: text });
+  if (showHidden) query.set("show_hidden", "1");
+  return request<WorkspaceSearchPayload>(
+    `${base}/api/workspace/files/search?${query}`,
     token,
     undefined,
     API_READ_TIMEOUT_MS,
@@ -611,12 +670,12 @@ export async function fetchInstalledCliApps(
   );
 }
 
-export async function fetchNanobotFeatures(
+export async function fetchZhixuFeatures(
   token: string,
   base: string = "",
-): Promise<NanobotFeaturesPayload> {
-  return request<NanobotFeaturesPayload>(
-    `${base}/api/settings/nanobot-features`,
+): Promise<ZhixuFeaturesPayload> {
+  return request<ZhixuFeaturesPayload>(
+    `${base}/api/settings/zhixu-features`,
     token,
     undefined,
     API_READ_TIMEOUT_MS,
@@ -650,12 +709,12 @@ export async function stopApiService(
   return mutation<ApiServicePayload>(transport, "settings.api_service.stop");
 }
 
-export async function enableNanobotFeature(
+export async function enableZhixuFeature(
   transport: WebUIMutationTransport,
   name: string,
   options: { instanceId?: string } = {},
-): Promise<NanobotFeaturesPayload> {
-  return mutation<NanobotFeaturesPayload>(
+): Promise<ZhixuFeaturesPayload> {
+  return mutation<ZhixuFeaturesPayload>(
     transport,
     "settings.feature.enable",
     { name, ...(options.instanceId ? { instance_id: options.instanceId } : {}) },
@@ -663,12 +722,12 @@ export async function enableNanobotFeature(
   );
 }
 
-export async function disableNanobotFeature(
+export async function disableZhixuFeature(
   transport: WebUIMutationTransport,
   name: string,
   options: { instanceId?: string } = {},
-): Promise<NanobotFeaturesPayload> {
-  return mutation<NanobotFeaturesPayload>(
+): Promise<ZhixuFeaturesPayload> {
+  return mutation<ZhixuFeaturesPayload>(
     transport,
     "settings.feature.disable",
     { name, ...(options.instanceId ? { instance_id: options.instanceId } : {}) },

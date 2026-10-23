@@ -1,5 +1,5 @@
 {
-  "description": "在 Microsoft Teams 對話中使用 Mira。",
+  "description": "在 Microsoft Teams 對話中使用 知序。",
   "requirements": "Azure 機器人應用程式憑證和公開回呼端點",
   "setup": {
     "docsLabel": "開啟 Teams 設定指南",

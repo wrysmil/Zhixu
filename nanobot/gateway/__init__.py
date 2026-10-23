@@ -1,4 +1,4 @@
-"""Lightweight background runtime for the nanobot gateway."""
+"""Lightweight background runtime for the Zhixu gateway."""
 
 from nanobot.gateway.runtime import (
     GatewayAlreadyRunningError,

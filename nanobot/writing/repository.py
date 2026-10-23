@@ -29,7 +29,7 @@ MAX_LIST_LIMIT = 200
 
 _READ_COLUMNS = (
     "id, workspace_key, title, writing_type, template_id, status, summary, brief,"
-    " body, outline, materials, tags, revision, created_at, updated_at"
+    " body, outline, materials, tags, revision, content_digest, created_at, updated_at"
 )
 _SUMMARY_COLUMNS = (
     "id, workspace_key, title, summary, status, writing_type, tags, revision,"

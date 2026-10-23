@@ -9,17 +9,70 @@ from pathlib import Path
 from typing import Any, cast
 
 from nanobot.agent.skills import SkillsLoader
+from nanobot.agents.store import (
+    coded_error_message,
+    protected_write_error,
+    protected_write_message,
+)
 from nanobot.config.loader import load_config, save_config
 from nanobot.security.workspace_policy import WorkspaceBoundaryError, require_path_within
+from nanobot.writing.builtin import (
+    ORIGIN_BUILTIN,
+    OWNER_MODULE,
+    WRITING_BUILTIN_VERSION,
+    BuiltinAssetRegistry,
+)
 
 
 class SkillManagementError(Exception):
-    """A safe skill-management error for the WebUI."""
+    """A safe skill-management error for the WebUI.
 
-    def __init__(self, message: str, *, status: int = 400) -> None:
+    ``code`` 只在需要业务码的拒绝路径上给（内置资产受保护即 ``BUILTIN_RESOURCE_PROTECTED``）；
+    其余错误保持 ``None``，错误体照旧只有原文（F4）。
+    """
+
+    def __init__(self, message: str, *, status: int = 400, code: str | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.status = status
+        self.code = code
+
+
+# 内置资产类别；与契约 §7 的清单口径一致。
+_ASSET_KIND_SKILL = "skill"
+
+
+def is_builtin_skill(name: str) -> bool:
+    """该名字是否是创作空间内置 Skill（数据源只有 ``WRITING_BUILTIN_ASSETS``）。"""
+    asset = BuiltinAssetRegistry.get_asset(_ASSET_KIND_SKILL, name)
+    return bool(asset is not None and asset.protected)
+
+
+def _raise_builtin_protected(name: str) -> None:
+    """内置 Skill 拒绝：异常携带业务码，错误体按统一口径带码前缀（F4）。"""
+    error = protected_write_error(_ASSET_KIND_SKILL, name)
+    raise SkillManagementError(
+        coded_error_message(error.code, error.message),
+        status=error.status,
+        code=error.code,
+    )
+
+
+def _protection_fields(source: str, name: str) -> dict[str, Any]:
+    """内置 Skill 的归属字段；工作区 / 插件技能返回空 dict（不得多出字段）。
+
+    带 ``source`` 的判据很关键：**同名的工作区技能遮蔽内置技能**时，物理上被操作的是
+    用户副本，既有的可删除语义必须保留——受保护的是内置身份，不是名字本身。
+    """
+    if source != "builtin" or not is_builtin_skill(name):
+        return {}
+    return {
+        "ownerModule": OWNER_MODULE,
+        "origin": ORIGIN_BUILTIN,
+        "builtinVersion": WRITING_BUILTIN_VERSION,
+        "deletable": False,
+        "protectionReason": protected_write_message(_ASSET_KIND_SKILL, name),
+    }
 
 
 def webui_skills_payload(
@@ -76,7 +129,10 @@ def set_webui_skill_enabled(
     config_path: Path | None = None,
 ) -> dict[str, Any]:
     """Persist and apply one skill's enabled state."""
-    _require_skill_entry(workspace_path, name)
+    entry = _require_skill_entry(workspace_path, name)
+    if entry.get("source") == "builtin" and is_builtin_skill(name):
+        # 内置 Skill 的身份与可用性由创作空间决定：既不能删，也不能被禁用掉。
+        _raise_builtin_protected(name)
     config = load_config(config_path)
     next_disabled = set(config.agents.defaults.disabled_skills)
     if enabled:
@@ -100,6 +156,9 @@ def delete_webui_skill(
 ) -> dict[str, Any]:
     """Delete one workspace skill and remove its disabled-state entry."""
     entry = _require_skill_entry(workspace_path, name)
+    if entry.get("source") == "builtin" and is_builtin_skill(name):
+        # 创作空间内置 Skill：归属事实优先于通用文案（契约 §4）。
+        _raise_builtin_protected(name)
     if entry.get("source") != "workspace":
         raise SkillManagementError("built-in skills cannot be deleted", status=403)
 
@@ -166,14 +225,16 @@ def _skill_payload(
     metadata = metadata if metadata is not None else loader.get_skill_metadata(name)
     available, unavailable_reason = loader.get_skill_availability(name)
     source = entry.get("source", "unknown")
+    deletable = source == "workspace"
     return {
         "name": name,
         "description": _description(metadata, name),
         "source": source,
         "enabled": name not in (disabled_skills or set()),
-        "deletable": source == "workspace",
+        "deletable": deletable,
         "available": available,
         "unavailable_reason": unavailable_reason,
+        **_protection_fields(source, name),
     }
 
 
@@ -196,7 +257,14 @@ def _nanobot_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(raw, dict):
         return {}
     metadata_payload = cast(dict[str, Any], raw)
-    payload = metadata_payload.get("nanobot", metadata_payload.get("openclaw", {}))
+    # Dual fallback: `zhixu` is current, legacy `nanobot` keys from external
+    # skills stay supported for >=1 major version, `openclaw` is upstream.
+    # Keep in sync with nanobot/agent/skills.py::_parse_nanobot_metadata.
+    payload = (
+        metadata_payload.get("zhixu")
+        or metadata_payload.get("nanobot")
+        or metadata_payload.get("openclaw", {})
+    )
     return cast(dict[str, Any], payload) if isinstance(payload, dict) else {}
 
 

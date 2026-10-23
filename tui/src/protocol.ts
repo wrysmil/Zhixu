@@ -944,7 +944,7 @@ export async function fetchGatewayConnection(
   clientId: string,
 ): Promise<GatewayConnection> {
   const response = await fetch(bootstrapUrl, {
-    headers: bootstrapSecret ? { "X-Nanobot-Auth": bootstrapSecret } : {},
+    headers: bootstrapSecret ? { "X-Zhixu-Auth": bootstrapSecret } : {},
   })
   if (!response.ok) {
     const retryable = response.status === 408 || response.status === 429 || response.status >= 500
@@ -1071,7 +1071,7 @@ export function sanitizeConnectionFailure(error: unknown): string {
   return "connection failed"
 }
 
-export class NanobotClient {
+export class ZhixuClient {
   private socket: WebSocket | null = null
   private chatId = ""
   private workspaceScope?: WorkspaceScopePayload

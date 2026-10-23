@@ -1,27 +1,54 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { PanelRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { FilePreviewAvailabilityProvider } from "@/components/FilePreviewAvailabilityContext";
 import { FilePreviewPanel } from "@/components/FilePreviewPanel";
+import { StartDock } from "@/components/dock/StartDock";
 import { SessionHandleLabel } from "@/components/SessionHandleLabel";
 import { SessionWorkbench } from "@/components/workbench/SessionWorkbench";
+import { ResizableRail } from "@/components/workbench/ResizableRail";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { deriveSessionWorkbench } from "@/components/workbench/session-workbench-model";
 import { RecoveryNotice } from "@/components/thread/RecoveryNotice";
 import { AskQuestionCard } from "@/components/thread/AskQuestionCard";
 import { ThreadComposer } from "@/components/thread/ThreadComposer";
+import {
+  DEFAULT_SESSION_AGENT_ID,
+  resolveSessionAgent,
+} from "@/components/thread/AgentPicker";
+import {
+  readSessionAgentSelection,
+  writeSessionAgentSelection,
+  SESSION_AGENT_DRAFT_SCOPE,
+  type SessionAgentSelection,
+} from "@/lib/session-agent-preference";
 import type {
   ComposerContextUsage,
   ComposerRoundUsage,
 } from "@/components/thread/ComposerUsagePopover";
 import type { ModelPresetOption } from "@/components/thread/ModelPresetBadge";
 import { ThreadHeader } from "@/components/thread/ThreadHeader";
+import { ThreadWelcomeExtras, ThreadWelcomeIntro } from "@/components/thread/ThreadWelcome";
 import { StreamErrorNotice } from "@/components/thread/StreamErrorNotice";
+import {
+  SubagentExecutionEntryProvider,
+  SubagentExecutionPanel,
+  WORKBENCH_SURFACE,
+  popRightSurface,
+  pushRightSurface,
+  type RightSurface,
+} from "@/components/thread/SubagentExecutionPanel";
 import { ThreadViewport, type ThreadViewportHandle } from "@/components/thread/ThreadViewport";
-import { useNanobotStream, type SendAttachment, type SendOptions } from "@/hooks/useNanobotStream";
+import { TeamSelector, teamPickerVisibility } from "@/components/thread/TeamSelector";
+import { TeamProgressPanel } from "@/components/thread/TeamProgressPanel";
+import { useZhixuStream, type SendAttachment, type SendOptions } from "@/hooks/useZhixuStream";
+import { useSubagentExecutions } from "@/features/subagent-execution/useSubagentExecutions";
+import { useTeamProgress } from "@/hooks/useTeamProgress";
 import { useSessionHistory } from "@/hooks/useSessions";
 import {
   ApiError,
@@ -33,6 +60,7 @@ import {
 } from "@/lib/api";
 import { listAgents } from "@/lib/agents/api";
 import type { AgentProfile } from "@/lib/agents/types";
+import { HOME_DOCK_SCOPE } from "@/lib/dock-store";
 import {
   CLI_APPS_CHANGED_EVENT,
   installedCliAppsFromPayload,
@@ -43,18 +71,21 @@ import {
   installedMcpPresetsFromPayload,
   isMcpPresetsPayload,
 } from "@/lib/mcp-preset-events";
-import type { CanonicalRunSnapshot, StreamError } from "@/lib/nanobot-client";
+import type { CanonicalRunSnapshot, StreamError } from "@/lib/zhixu-client";
 import { inferProviderFromModelName, providerDisplayLabel } from "@/lib/provider-brand";
 import type {
   ChatSummary,
+  NewChatTeam,
   RoundUsage,
   SettingsPayload,
   SlashCommand,
   SkillSummary,
+  TeamBinding,
   UIMessage,
   WorkspaceScopePayload,
   WorkspacesPayload,
 } from "@/lib/types";
+import type { TeamOption } from "@/lib/teams/types";
 import { projectWebuiThreadMessages } from "@/lib/thread-display-compat";
 import { useClient } from "@/providers/ClientProvider";
 
@@ -389,8 +420,8 @@ interface ThreadShellProps {
   title: string;
   temporary?: boolean;
   temporaryChatIds?: readonly string[];
+  /** 下一条消息是否走临时聊天（临时聊天不带 team_id，团队选择器要藏起来）。 */
   temporaryChatEnabled?: boolean;
-  onTemporaryChatEnabledChange?: (enabled: boolean) => void;
   onToggleSidebar: () => void;
   onGoHome?: () => void;
   onNewChat?: () => void;
@@ -398,12 +429,12 @@ interface ThreadShellProps {
     workspaceScope?: WorkspaceScopePayload | null,
     initialMessage?: string,
     modelPreset?: string | null,
+    team?: NewChatTeam | null,
   ) => Promise<string | null>;
   onForkChat?: (sourceChatId: string, beforeUserIndex: number) => Promise<string | null>;
   onTurnEnd?: () => void;
   theme?: "light" | "dark";
   onToggleTheme?: () => void;
-  hideSidebarToggleForHostChrome?: boolean;
   hideSidebarToggle?: boolean;
   hideThemeButton?: boolean;
   hideHeaderTitle?: boolean;
@@ -414,6 +445,8 @@ interface ThreadShellProps {
   headerActive?: boolean;
   composerPortalTarget?: HTMLElement | null;
   composerActive?: boolean;
+  onComposerRailInsetChange?: (width: number) => void;
+  onComposerPlacementChange?: (placement: "inline" | "footer") => void;
   composerInputAriaLabel?: string;
   emptyComposerVariant?: "hero" | "thread";
   workspaceScope?: WorkspaceScopePayload | null;
@@ -423,12 +456,18 @@ interface ThreadShellProps {
   workspaceError?: string | null;
   workspaceHostname?: string | null;
   onWorkspaceScopeChange?: (scope: WorkspaceScopePayload) => void;
+  /** Team choices for a brand-new chat; the picker is hidden without ``onTeamChange``. */
+  teamOptions?: TeamOption[];
+  teamSelection?: NewChatTeam | null;
+  teamSelectionName?: string | null;
+  onTeamChange?: (team: NewChatTeam | null, teamName: string | null) => void;
   settingsSnapshot?: SettingsPayload | null;
   onOpenModelSettings?: () => void;
   skills?: SkillSummary[];
-  onWorkbenchOpenChange?: (open: boolean) => void;
   draftSeed?: { text: string; token: number } | null;
   onDraftSeedConsumed?: () => void;
+  /** Server-declared capability; absent gateways must not be probed. */
+  subagentExecutionEventsCapability?: boolean;
 }
 
 function toModelBadgeLabel(modelName: string | null): string | null {
@@ -527,82 +566,11 @@ function modelPresetOptionsFromSettings(
     });
 }
 
-const HERO_GREETING_KEYS = [
-  "thread.empty.greetings.workOn",
+const HERO_GREETING_KEYS = [  "thread.empty.greetings.workOn",
   "thread.empty.greetings.start",
   "thread.empty.greetings.build",
   "thread.empty.greetings.tackle",
 ] as const;
-
-function HeroGreeting({ text }: { text: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const headingRef = useRef<HTMLHeadingElement>(null);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const heading = headingRef.current;
-    if (!container || !heading) return;
-
-    const fitToWidth = () => {
-      heading.style.removeProperty("font-size");
-      const availableWidth = container.clientWidth;
-      if (availableWidth <= 0) return;
-
-      const naturalWidth = heading.scrollWidth;
-      const maximumFontSize = Number.parseFloat(window.getComputedStyle(heading).fontSize);
-      if (
-        naturalWidth <= availableWidth
-        || !Number.isFinite(maximumFontSize)
-        || maximumFontSize <= 0
-      ) {
-        return;
-      }
-
-      const fittedFontSize = Math.max(
-        12,
-        Math.floor(maximumFontSize * ((availableWidth - 2) / naturalWidth) * 100) / 100,
-      );
-      heading.style.fontSize = `${fittedFontSize}px`;
-    };
-
-    fitToWidth();
-
-    let lastObservedWidth = container.clientWidth;
-    const resizeObserver = typeof ResizeObserver === "undefined"
-      ? null
-      : new ResizeObserver(([entry]) => {
-          const nextWidth = entry?.contentRect.width ?? container.clientWidth;
-          if (nextWidth === lastObservedWidth) return;
-          lastObservedWidth = nextWidth;
-          fitToWidth();
-        });
-    resizeObserver?.observe(container);
-    window.addEventListener("resize", fitToWidth);
-
-    let cancelled = false;
-    void document.fonts?.ready.then(() => {
-      if (!cancelled) fitToWidth();
-    });
-
-    return () => {
-      cancelled = true;
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", fitToWidth);
-    };
-  }, [text]);
-
-  return (
-    <div ref={containerRef} className="min-w-0 w-full max-w-[44rem]">
-      <h1
-        ref={headingRef}
-        data-testid="hero-greeting"
-        className="select-none whitespace-nowrap text-hero font-normal leading-tight tracking-normal text-foreground"
-      >
-        {text}
-      </h1>
-    </div>
-  );
-}
 
 function randomHeroGreetingKey(): (typeof HERO_GREETING_KEYS)[number] {
   const index = Math.floor(Math.random() * HERO_GREETING_KEYS.length);
@@ -702,14 +670,12 @@ export function ThreadShell({
   temporary = false,
   temporaryChatIds = [],
   temporaryChatEnabled = false,
-  onTemporaryChatEnabledChange,
   onToggleSidebar,
   onCreateChat,
   onForkChat,
   onTurnEnd,
   theme = "light",
   onToggleTheme = () => {},
-  hideSidebarToggleForHostChrome = false,
   hideSidebarToggle = false,
   hideHeaderTitle = false,
   inlineHandle = false,
@@ -719,6 +685,8 @@ export function ThreadShell({
   headerActive = true,
   composerPortalTarget,
   composerActive = true,
+  onComposerRailInsetChange,
+  onComposerPlacementChange,
   composerInputAriaLabel,
   emptyComposerVariant = "hero",
   workspaceScope = null,
@@ -728,12 +696,16 @@ export function ThreadShell({
   workspaceError = null,
   workspaceHostname = null,
   onWorkspaceScopeChange,
+  teamOptions = [],
+  teamSelection = null,
+  teamSelectionName = null,
+  onTeamChange,
   settingsSnapshot = null,
   onOpenModelSettings,
   skills = [],
-  onWorkbenchOpenChange,
   draftSeed = null,
   onDraftSeedConsumed,
+  subagentExecutionEventsCapability = false,
 }: ThreadShellProps) {
   const { t } = useTranslation();
   const chatId = session?.chatId ?? null;
@@ -760,6 +732,11 @@ export function ThreadShell({
     forkBoundaryMessageCount,
   } = useSessionHistory(historyKey);
   const { client, getToken, ingressLimits, modelName, token } = useClient();
+  const subagentExecutions = useSubagentExecutions(client, {
+    chatId,
+    token,
+    capability: subagentExecutionEventsCapability && !temporary,
+  });
   const pickWorkspaceFolder = useCallback(async (): Promise<string | null> => {
     const response = await client.requestMutation<{ path: unknown }>(
       "workspace.pick_folder",
@@ -783,6 +760,31 @@ export function ThreadShell({
       alive = false;
     };
   }, [getToken]);
+  // 会话级 Agent 选择：默认主 Agent，按 chat 各记一份并写入本地存储（刷新后仍记得）。
+  // 还没建出 chat 时用的草稿槽同时充当兜底：新会话沿用你最近一次的选择，而不是跳回默认。
+  const [agentSelectionByScope, setAgentSelectionByScope] = useState<SessionAgentSelection>(
+    readSessionAgentSelection,
+  );
+  const initialAgentSelectionRef = useRef(agentSelectionByScope);
+  const agentScopeKey = chatId ?? SESSION_AGENT_DRAFT_SCOPE;
+  const sessionAgentId =
+    resolveSessionAgent(
+      composerAgents,
+      agentSelectionByScope[agentScopeKey]
+        ?? agentSelectionByScope[SESSION_AGENT_DRAFT_SCOPE]
+        ?? DEFAULT_SESSION_AGENT_ID,
+    )?.id ?? DEFAULT_SESSION_AGENT_ID;
+  const handleAgentSelectionChange = useCallback(
+    (agentId: string) => {
+      setAgentSelectionByScope((current) => ({ ...current, [agentScopeKey]: agentId }));
+    },
+    [agentScopeKey],
+  );
+  useEffect(() => {
+    // 只在真的改过之后回写：挂载时把刚读出来的东西再写一遍没有意义。
+    if (agentSelectionByScope === initialAgentSelectionRef.current) return;
+    writeSessionAgentSelection(agentSelectionByScope);
+  }, [agentSelectionByScope]);
   const cliApps = useInstalledSettingItems({
     getToken,
     eventName: CLI_APPS_CHANGED_EVENT,
@@ -799,20 +801,42 @@ export function ThreadShell({
   });
   const [settings, setSettings] = useState<SettingsPayload | null>(settingsSnapshot);
   const [heroGreetingKey, setHeroGreetingKey] = useState(randomHeroGreetingKey);
+  const [welcomeDraftSeed, setWelcomeDraftSeed] = useState<{ text: string; token: number; mode: "append" } | null>(null);
+  const welcomeDraftTokenRef = useRef(0);
   const [submittedViewportTurnId, setSubmittedViewportTurnId] = useState<string | null>(null);
-  const [filePreviewPath, setFilePreviewPath] = useState<string | null>(null);
+  const [rightSurfaces, setRightSurfaces] = useState<RightSurface[]>([WORKBENCH_SURFACE]);
+  const activeRightSurface = rightSurfaces[rightSurfaces.length - 1] ?? WORKBENCH_SURFACE;
+  const filePreviewPath = activeRightSurface.kind === "file" ? activeRightSurface.path : null;
+  const narrowViewport = useMediaQuery("(max-width: 767px)");
+  const [mobileWorkbenchOpen, setMobileWorkbenchOpen] = useState(false);
+  const executionSurface = activeRightSurface.kind === "execution" ? activeRightSurface : null;
+  const [executionReturnFocus, setExecutionReturnFocus] = useState<HTMLElement | null>(null);
+  const [shellWidth, setShellWidth] = useState(() =>
+    typeof window === "undefined" ? 1024 : window.innerWidth,
+  );
+  const compactWorkbench = narrowViewport || shellWidth < 680;
+  const executionScrollTopRef = useRef<Record<string, number>>({});
   const [filePreviewClosing, setFilePreviewClosing] = useState(false);
   const [filePreviewWidth, setFilePreviewWidth] = useState(FILE_PREVIEW_DEFAULT_WIDTH);
-  const [workbenchOpen, setWorkbenchOpen] = useState(() => {
+  const [toolsOpen, setToolsOpen] = useState(() => {
     try {
-      return window.localStorage.getItem("mira.workbench.open") === "1";
+      return window.localStorage.getItem("mira.dock-tools.open") === "1";
     } catch {
       return false;
     }
   });
+  useEffect(() => {
+    setRightSurfaces((stack) => {
+      if (toolsOpen) return pushRightSurface(stack, { kind: "tools" });
+      return stack[stack.length - 1]?.kind === "tools" ? popRightSurface(stack) : stack;
+    });
+  }, [toolsOpen]);
   const [quotedContext, setQuotedContext] = useState<string | null>(null);
   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   const shellRef = useRef<HTMLElement | null>(null);
+  const mainColumnRef = useRef<HTMLDivElement | null>(null);
+  const insetCallbackRef = useRef(onComposerRailInsetChange);
+  insetCallbackRef.current = onComposerRailInsetChange;
   const composerSurfaceRef = useRef<HTMLDivElement | null>(null);
   const filePreviewWidthRef = useRef(FILE_PREVIEW_DEFAULT_WIDTH);
   const filePreviewCloseTimerRef = useRef<number | null>(null);
@@ -836,8 +860,6 @@ export function ThreadShell({
   const sessionKeyByChatIdRef = useRef<Map<string, string>>(new Map());
   const currentUiMessagesRef = useRef<UIMessage[] | null>(null);
   const uiRevisionRef = useRef(0);
-  const showTemporaryChatControl =
-    !hideHeader && !session && !loading && !!onTemporaryChatEnabledChange;
 
   const initial = useMemo(() => {
     if (!chatId) return historical;
@@ -868,7 +890,7 @@ export function ThreadShell({
     setMessages,
     streamError,
     dismissStreamError,
-  } = useNanobotStream(chatId, initial, hasPendingToolCalls, handleTurnEnd);
+  } = useZhixuStream(chatId, initial, hasPendingToolCalls, handleTurnEnd);
 
   useLayoutEffect(() => {
     if (currentUiMessagesRef.current === messages) return;
@@ -897,7 +919,8 @@ export function ThreadShell({
       filePreviewCloseTimerRef.current = null;
     }
     setFilePreviewClosing(false);
-    setFilePreviewPath(null);
+    setRightSurfaces(toolsOpen ? [WORKBENCH_SURFACE, { kind: "tools" }] : [WORKBENCH_SURFACE]);
+    setExecutionReturnFocus(null);
     setQuotedContext(null);
     setSubmittedViewportTurnId(null);
   }, [historyKey]);
@@ -1015,6 +1038,9 @@ export function ThreadShell({
   ]);
 
   const showHeroComposer = displayMessages.length === 0 && !loading;
+  useEffect(() => {
+    onComposerPlacementChange?.(showHeroComposer ? "inline" : "footer");
+  }, [onComposerPlacementChange, showHeroComposer]);
   const composerVariant = showHeroComposer ? emptyComposerVariant : "thread";
   const wasShowingHeroComposerRef = useRef(showHeroComposer);
   const sessionModelPreset = session?.modelPreset?.trim() || null;
@@ -1023,6 +1049,13 @@ export function ThreadShell({
     setLocalModelPreset(null);
   }, [session?.key, sessionModelPreset]);
   const [sessionReasoningEffort, setSessionReasoningEffort] = useState<string | null>(null);
+  /** Server-confirmed team binding for this chat; null means an ordinary chat. */
+  const [teamBound, setTeamBound] = useState<TeamBinding | null>(null);
+  const teamProgress = useTeamProgress(client, {
+    chatId: teamBound ? chatId : null,
+    token,
+    transport: client,
+  });
   useEffect(() => {
     setSessionReasoningEffort(null);
   }, [chatId]);
@@ -1114,13 +1147,19 @@ export function ThreadShell({
   }, [client, refreshModelSettings]);
 
   useEffect(() => {
-    if (!chatId) return;
+    if (!chatId) {
+      setTeamBound(null);
+      return;
+    }
+    setTeamBound(client.teamBindingFor(chatId));
     return client.onChat(chatId, (event) => {
       if (event.event !== "attached") return;
       const effort = typeof event.reasoning_effort === "string"
         ? event.reasoning_effort.trim()
         : "";
       setSessionReasoningEffort(effort || null);
+      // 只认服务端带回来的绑定；帧里没有这个键时保持现状（旧网关或普通回合）。
+      if (event.team_binding !== undefined) setTeamBound(event.team_binding ?? null);
     });
   }, [chatId, client]);
 
@@ -1128,8 +1167,8 @@ export function ThreadShell({
     if (!chatId) return;
     return client.onSessionUpdate((updatedChatId, scope, _scopePayload, effort) => {
       if (updatedChatId !== chatId || scope !== "metadata") return;
-      if (typeof effort !== "string") return;
-      setSessionReasoningEffort(effort.trim() || null);
+      if (typeof effort === "string") setSessionReasoningEffort(effort.trim() || null);
+      setTeamBound(client.teamBindingFor(chatId));
     });
   }, [chatId, client]);
 
@@ -1422,7 +1461,7 @@ export function ThreadShell({
     }
   }, [chatId, displayMessages]);
 
-  // Persist thread to in-memory cache after paint so ``useNanobotStream``'s chat switch
+  // Persist thread to in-memory cache after paint so ``useZhixuStream``'s chat switch
   // ``useEffect`` reset has flushed; ``skipLayoutCacheRef`` drops the first run that still
   // sees the *previous* chat's ``messages`` (avoids stale rows leaking across sessions).
   useEffect(() => {
@@ -1474,13 +1513,37 @@ export function ThreadShell({
     };
   }, [getToken]);
 
+  // 团队只在「还没有消息」的聊天上可选；服务端一旦确认绑定就退化成只读条（契约 §4）。
+  // 已经有 chatId 的表面（比如新建的分屏）也不能再选：那条创建路径已经走完了。
+  const teamMode = teamPickerVisibility({
+    temporary: temporary === true,
+    temporaryRequested: temporaryChatEnabled,
+    hasMessages: !showHeroComposer,
+    bound: teamBound,
+    canSelect: !!onTeamChange && !chatId,
+  });
+  const teamPickerSlot = teamMode === "hidden" ? null : (
+    <TeamSelector
+      options={teamOptions}
+      value={teamMode === "select" ? teamSelection : null}
+      valueName={teamMode === "select" ? teamSelectionName : null}
+      bound={teamMode === "bound" ? teamBound : null}
+      onChange={(team, name) => onTeamChange?.(team, name)}
+      agents={composerAgents}
+      agentValue={sessionAgentId}
+      onAgentChange={handleAgentSelectionChange}
+      isHero={composerVariant === "hero"}
+      disabled={booting}
+    />
+  );
+
   const handleWelcomeSend = useCallback(
     async (content: string, images?: SendAttachment[], options?: SendOptions) => {
       if (booting) return false;
       setBooting(true);
       pendingFirstRef.current = { content, images, options: withWorkspaceScope(options) };
       setPendingFirstTargetChatId(null);
-      const newId = await onCreateChat?.(workspaceScope, content, localModelPreset);
+      const newId = await onCreateChat?.(workspaceScope, content, localModelPreset, teamSelection);
       if (!newId) {
         pendingFirstRef.current = null;
         setPendingFirstTargetChatId(null);
@@ -1493,7 +1556,15 @@ export function ThreadShell({
       setPendingFirstTargetChatId(newId);
       return true;
     },
-    [booting, client, localModelPreset, onCreateChat, withWorkspaceScope, workspaceScope],
+    [
+      booting,
+      client,
+      localModelPreset,
+      onCreateChat,
+      teamSelection,
+      withWorkspaceScope,
+      workspaceScope,
+    ],
   );
 
   const handleThreadSend = useCallback(
@@ -1513,13 +1584,38 @@ export function ThreadShell({
     [chatId, send, withWorkspaceScope],
   );
 
+  useEffect(() => {
+    const shell = shellRef.current;
+    const updateWidth = () => {
+      const rectWidth = shell?.getBoundingClientRect().width ?? 0;
+      const clientWidth = shell?.clientWidth ?? 0;
+      setShellWidth(rectWidth || clientWidth || window.innerWidth);
+      const shellRect = shell?.getBoundingClientRect();
+      const mainRect = mainColumnRef.current?.getBoundingClientRect();
+      if (shellRect && mainRect) {
+        insetCallbackRef.current?.(Math.max(0, Math.round(shellRect.right - mainRect.right)));
+      }
+    };
+    updateWidth();
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(updateWidth);
+    observer?.observe(shell ?? document.documentElement);
+    if (mainColumnRef.current) observer?.observe(mainColumnRef.current);
+    window.addEventListener("resize", updateWidth);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateWidth);
+    };
+  }, [session?.key]);
+
   const handleOpenFilePreview = useCallback((path: string) => {
     if (filePreviewCloseTimerRef.current !== null) {
       window.clearTimeout(filePreviewCloseTimerRef.current);
       filePreviewCloseTimerRef.current = null;
     }
     setFilePreviewClosing(false);
-    setFilePreviewPath(path);
+    setRightSurfaces((stack) => pushRightSurface(stack, { kind: "file", path }));
   }, []);
 
   const handleCloseFilePreview = useCallback(() => {
@@ -1527,63 +1623,12 @@ export function ThreadShell({
     setFilePreviewClosing(true);
     filePreviewCloseTimerRef.current = window.setTimeout(() => {
       filePreviewCloseTimerRef.current = null;
-      setFilePreviewPath(null);
+      setRightSurfaces((stack) => (
+        stack[stack.length - 1]?.kind === "file" ? popRightSurface(stack) : stack
+      ));
       setFilePreviewClosing(false);
     }, FILE_PREVIEW_CLOSE_ANIMATION_MS);
   }, [filePreviewClosing, filePreviewPath]);
-
-  const handleFilePreviewResizeStart = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const panel = event.currentTarget.closest<HTMLElement>("[data-file-preview-panel]");
-    const shellRect = shellRef.current?.getBoundingClientRect();
-    const rightEdge = shellRect?.right ?? window.innerWidth;
-    const maxWidth = maxFilePreviewWidth(shellRect?.width ?? window.innerWidth);
-    const originalBodyCursor = document.body.style.cursor;
-    const originalBodyUserSelect = document.body.style.userSelect;
-    const originalPanelTransition = panel?.style.transition ?? "";
-    let nextWidth = filePreviewWidthRef.current;
-    let frame: number | null = null;
-
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    if (panel) panel.style.transition = "none";
-
-    const applyWidth = (clientX: number) => {
-      nextWidth = clampFilePreviewWidth(rightEdge - clientX, maxWidth);
-      filePreviewWidthRef.current = nextWidth;
-      if (frame !== null) return;
-      frame = window.requestAnimationFrame(() => {
-        frame = null;
-        panel?.style.setProperty("--file-preview-width", `${nextWidth}px`);
-        panel?.style.setProperty("--file-preview-slot-width", `${nextWidth}px`);
-      });
-    };
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      moveEvent.preventDefault();
-      applyWidth(moveEvent.clientX);
-    };
-    const handlePointerUp = () => {
-      if (frame !== null) {
-        window.cancelAnimationFrame(frame);
-        frame = null;
-      }
-      panel?.style.setProperty("--file-preview-width", `${nextWidth}px`);
-      panel?.style.setProperty("--file-preview-slot-width", `${nextWidth}px`);
-      if (panel) panel.style.transition = originalPanelTransition;
-      setFilePreviewWidth(nextWidth);
-      document.body.style.cursor = originalBodyCursor;
-      document.body.style.userSelect = originalBodyUserSelect;
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-      window.removeEventListener("pointercancel", handlePointerUp);
-    };
-
-    applyWidth(event.clientX);
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-    window.addEventListener("pointercancel", handlePointerUp);
-  }, []);
 
   useEffect(() => {
     if (!filePreviewPath) return;
@@ -1601,6 +1646,69 @@ export function ThreadShell({
     };
   }, [filePreviewPath]);
 
+  const handleOpenExecution = useCallback((invocationId: string, trigger: HTMLElement | null) => {
+    setToolsOpen(false);
+    setExecutionReturnFocus(trigger);
+    setRightSurfaces((stack) => {
+      const base = stack[stack.length - 1]?.kind === "tools" ? popRightSurface(stack) : stack;
+      return pushRightSurface(base, { kind: "execution", invocationId });
+    });
+    void subagentExecutions.loadDetail(invocationId);
+  }, [subagentExecutions]);
+
+  const handleCloseExecution = useCallback(() => {
+    const returnFocus = executionReturnFocus;
+    setRightSurfaces((stack) => (
+      stack[stack.length - 1]?.kind === "execution" ? popRightSurface(stack) : stack
+    ));
+    setExecutionReturnFocus(null);
+    window.requestAnimationFrame(() => returnFocus?.focus());
+  }, [executionReturnFocus]);
+
+  const handleSelectExecution = useCallback((invocationId: string) => {
+    setRightSurfaces((stack) => {
+      if (stack[stack.length - 1]?.kind !== "execution") return stack;
+      const next = [...stack];
+      next[next.length - 1] = { kind: "execution", invocationId };
+      return next;
+    });
+    void subagentExecutions.loadDetail(invocationId);
+  }, [subagentExecutions]);
+
+  const handleReloadExecution = useCallback(() => {
+    subagentExecutions.reload();
+    if (executionSurface) void subagentExecutions.loadDetail(executionSurface.invocationId);
+  }, [executionSurface, subagentExecutions]);
+
+  const subagentExecutionEntryValue = useMemo(() => {
+    const invocationIdByToolCallId: Record<string, string> = {};
+    for (const state of subagentExecutions.executions) {
+      const toolCallId = state.snapshot.parentToolCallId;
+      if (toolCallId && !invocationIdByToolCallId[toolCallId]) {
+        invocationIdByToolCallId[toolCallId] = state.snapshot.invocationId;
+      }
+    }
+    const agentIconById: Record<string, string> = {};
+    for (const agent of composerAgents) {
+      const icon = (agent.icon ?? "").trim();
+      if (icon) agentIconById[agent.id] = icon;
+    }
+    return {
+      capability: subagentExecutionEventsCapability && !temporary,
+      byInvocationId: subagentExecutions.byInvocationId,
+      invocationIdByToolCallId,
+      agentIconById,
+      onOpen: handleOpenExecution,
+    };
+  }, [
+    composerAgents,
+    handleOpenExecution,
+    subagentExecutionEventsCapability,
+    subagentExecutions.byInvocationId,
+    subagentExecutions.executions,
+    temporary,
+  ]);
+
   const handleForkFromMessage = useCallback(
     async (beforeUserIndex: number) => {
       if (!chatId || !onForkChat) return;
@@ -1613,8 +1721,33 @@ export function ThreadShell({
     [chatId, onForkChat],
   );
 
+  const handleDraftSeedConsumed = useCallback(() => {
+    if (welcomeDraftSeed) setWelcomeDraftSeed(null);
+    else onDraftSeedConsumed?.();
+  }, [onDraftSeedConsumed, welcomeDraftSeed]);
+
   const composer = (
     <>
+      {teamProgress.activeRun ? (
+        <div className="px-3 pt-2">
+          <TeamProgressPanel
+            run={teamProgress.activeRun}
+            memberNames={teamProgress.memberNames}
+            canControl={!temporary}
+            onCancelRun={(runId) => {
+              void teamProgress.cancelRun(runId).catch(() => {
+                // 控制失败不打断聊天：下一次事件会带出服务端的真实状态。
+              });
+            }}
+            onCancelTask={(runId, taskId) => {
+              void teamProgress.cancelTask(runId, taskId).catch(() => {});
+            }}
+            onRetryRun={(runId) => {
+              void teamProgress.retryRun(runId).catch(() => {});
+            }}
+          />
+        </div>
+      ) : null}
       {pendingQuestions.length > 0 ? (
         <AskQuestionCard question={pendingQuestions[0]} onAnswer={answerQuestion} />
       ) : null}
@@ -1665,6 +1798,8 @@ export function ThreadShell({
           sessions={mentionSessions}
           skills={skills}
           agents={composerAgents}
+          agentSelectionId={sessionAgentId}
+          onAgentSelectionChange={handleAgentSelectionChange}
           onStop={stop}
           onTranscribeAudio={transcribeAudio}
           goalState={currentGoalState}
@@ -1678,6 +1813,7 @@ export function ThreadShell({
             workspaceControls?.can_pick_folder ? pickWorkspaceFolder : undefined
           }
           onWorkspaceScopeChange={onWorkspaceScopeChange}
+          teamPickerSlot={teamPickerSlot}
           runtimeHostname={workspaceHostname}
           pendingQueueKey={temporary ? null : chatId}
           transcriptionProvider={settingsSnapshot?.transcription?.provider}
@@ -1685,6 +1821,8 @@ export function ThreadShell({
           quotedContext={quotedContext}
           focusRequest={composerFocusSignal}
           onQuotedContextChange={setQuotedContext}
+          draftSeed={welcomeDraftSeed ?? draftSeed}
+          onDraftSeedConsumed={handleDraftSeedConsumed}
         />
       ) : (
         <ThreadComposer
@@ -1720,6 +1858,8 @@ export function ThreadShell({
           sessions={mentionSessions}
           skills={skills}
           agents={composerAgents}
+          agentSelectionId={sessionAgentId}
+          onAgentSelectionChange={handleAgentSelectionChange}
           surfaceRef={composerSurfaceRef}
           onTranscribeAudio={transcribeAudio}
           goalState={currentGoalState}
@@ -1733,11 +1873,12 @@ export function ThreadShell({
             workspaceControls?.can_pick_folder ? pickWorkspaceFolder : undefined
           }
           onWorkspaceScopeChange={onWorkspaceScopeChange}
+          teamPickerSlot={teamPickerSlot}
           runtimeHostname={workspaceHostname}
           transcriptionProvider={settingsSnapshot?.transcription?.provider}
           ingressLimits={ingressLimits}
-          draftSeed={draftSeed}
-          onDraftSeedConsumed={onDraftSeedConsumed}
+          draftSeed={welcomeDraftSeed ?? draftSeed}
+          onDraftSeedConsumed={handleDraftSeedConsumed}
         />
       )}
     </>
@@ -1748,42 +1889,61 @@ export function ThreadShell({
       {t("thread.loadingConversation")}
     </div>
   ) : (
-    <div className="flex w-full flex-col items-center text-center animate-in fade-in-0 slide-in-from-bottom-2 [animation-duration:220ms] motion-reduce:animate-none">
-      <HeroGreeting text={t(heroGreetingKey)} />
-    </div>
+    <ThreadWelcomeIntro greeting={t(heroGreetingKey)} />
+  );
+
+  // Shortcuts live *below* the hero composer, matching the demo's reading order:
+  // greeting → input → quick starts.
+  const emptyStateBelow = loading ? null : (
+    <ThreadWelcomeExtras
+      onChoosePrompt={(text) => {
+        welcomeDraftTokenRef.current -= 1;
+        setWelcomeDraftSeed({ text, token: welcomeDraftTokenRef.current, mode: "append" });
+      }}
+    />
   );
   useEffect(() => {
     try {
-      window.localStorage.setItem("mira.workbench.open", workbenchOpen ? "1" : "0");
+      window.localStorage.setItem("mira.dock-tools.open", toolsOpen ? "1" : "0");
     } catch {
       // Preference persistence is best-effort.
     }
-  }, [workbenchOpen]);
-
-  const onWorkbenchOpenChangeRef = useRef(onWorkbenchOpenChange);
-  onWorkbenchOpenChangeRef.current = onWorkbenchOpenChange;
-  useEffect(() => {
-    onWorkbenchOpenChangeRef.current?.(workbenchOpen);
-    return () => {
-      onWorkbenchOpenChangeRef.current?.(false);
-    };
-  }, [workbenchOpen]);
+  }, [toolsOpen]);
 
   const workbenchModel = useMemo(
     () => deriveSessionWorkbench(displayMessages, workspaceScope),
     [displayMessages, workspaceScope],
   );
 
+  const closeToolsSurface = useCallback(() => {
+    setToolsOpen(false);
+    setRightSurfaces((stack) => (
+      stack[stack.length - 1]?.kind === "tools" ? popRightSurface(stack) : stack
+    ));
+  }, []);
+
+  const toggleToolsSurface = useCallback(() => {
+    setToolsOpen((open) => {
+      const nextOpen = !open;
+      setRightSurfaces((stack) => {
+        if (nextOpen) return pushRightSurface(stack, { kind: "tools" });
+        return stack[stack.length - 1]?.kind === "tools" ? popRightSurface(stack) : stack;
+      });
+      return nextOpen;
+    });
+  }, []);
+
+  // 工作台本体常驻、无收起入口：这个按钮只切右侧工具坞（文件/终端/浏览器）。
   const workbenchAction = session ? (
     <Button
       variant="ghost"
       size="icon"
       type="button"
-      aria-label={t("workbench.open", { defaultValue: "Open workbench" })}
-      aria-pressed={workbenchOpen}
-      onClick={() => setWorkbenchOpen((open) => !open)}
+      aria-label={compactWorkbench ? t("workbench.title", { defaultValue: "Workbench" }) : t("workbench.tools", { defaultValue: "Tools sidebar" })}
+      aria-pressed={compactWorkbench ? mobileWorkbenchOpen : toolsOpen}
+      onClick={compactWorkbench ? () => setMobileWorkbenchOpen((open) => !open) : toggleToolsSurface}
       className={`host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground ${
-        workbenchOpen ? "bg-accent/40 text-foreground" : ""
+        toolsOpen ? "bg-accent/40 text-foreground" : ""
       }`}
     >
       <PanelRight className="h-4 w-4" />
@@ -1794,27 +1954,22 @@ export function ThreadShell({
     <ThreadHeader
       title={title}
       handle={temporary || (hideHeaderTitle && inlineHandle) ? null : session?.handle}
+      teamInfo={teamBound}
       onToggleSidebar={onToggleSidebar}
       theme={theme}
       onToggleTheme={onToggleTheme}
-      hideSidebarToggleForHostChrome={hideSidebarToggleForHostChrome}
       hideSidebarToggle={hideSidebarToggle}
       hideThemeButton
       hideTitle={hideHeaderTitle}
       actions={headerActions}
       workbenchAction={workbenchAction}
       minimal={!session && !loading}
-      temporaryChatEnabled={temporaryChatEnabled}
-      temporaryChatDisabled={booting || turnActive}
-      onTemporaryChatEnabledChange={
-        showTemporaryChatControl ? onTemporaryChatEnabledChange : undefined
-      }
     />
   ) : null;
 
   return (
-    <section ref={shellRef} className="relative flex min-h-0 flex-1 overflow-hidden">
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+    <section ref={shellRef} className="agent-thread-shell relative flex min-h-0 flex-1 overflow-hidden">
+      <div ref={mainColumnRef} className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         {hideHeaderTitle && inlineHandle && !temporary && session?.handle ? (
           <div
             aria-label={`Session @${session.handle.name}`}
@@ -1830,10 +1985,11 @@ export function ThreadShell({
           </div>
         ) : null}
         {headerPortalTarget === undefined ? threadHeader : null}
-        <FilePreviewAvailabilityProvider
-          resolve={historyKey ? resolveFilePreviewAvailability : undefined}
-        >
-          <ThreadViewport
+        <SubagentExecutionEntryProvider value={subagentExecutionEntryValue}>
+          <FilePreviewAvailabilityProvider
+            resolve={historyKey ? resolveFilePreviewAvailability : undefined}
+          >
+            <ThreadViewport
             ref={viewportRef}
             messages={displayMessages}
             temporary={temporary}
@@ -1841,7 +1997,8 @@ export function ThreadShell({
             runStartedAt={currentRunStartedAt}
             retryStatus={retryStatus}
             emptyState={emptyState}
-            composer={composerPortalTarget === undefined ? composer : null}
+            emptyStateBelow={emptyStateBelow}
+            composer={showHeroComposer || composerPortalTarget === undefined ? composer : null}
             activeTurnId={viewportTurnId}
             activeTurnStartedHere={activeTurnStartedHere}
             conversationKey={historyKey}
@@ -1849,6 +2006,7 @@ export function ThreadShell({
             showScrollToBottomButton={!!session}
             cliApps={cliApps}
             mcpPresets={mcpPresets}
+            agents={composerAgents}
             slashCommands={availableSlashCommands}
             forkBoundaryMessageCount={forkBoundaryMessageCount}
             hasMoreBefore={hasMoreBefore}
@@ -1858,22 +2016,85 @@ export function ThreadShell({
             onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
             onForkFromMessage={onForkChat ? handleForkFromMessage : undefined}
             onQuoteSelection={session ? handleQuoteSelection : undefined}
-          />
-        </FilePreviewAvailabilityProvider>
+            />
+          </FilePreviewAvailabilityProvider>
+        </SubagentExecutionEntryProvider>
       </div>
-      {workbenchOpen && session ? (
-        <SessionWorkbench
-          model={workbenchModel}
-          onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
-          onCollapse={() => setWorkbenchOpen(false)}
-          sessionKey={historyKey ?? null}
-          getToken={getToken}
+      {filePreviewPath && historyKey ? (
+        <FilePreviewPanel
+          sessionKey={historyKey}
+          path={filePreviewPath}
+          token={token}
+          desktopWidth={filePreviewWidth}
+          isClosing={filePreviewClosing}
+          maxDesktopWidth={maxFilePreviewWidth(shellWidth)}
+          onWidthChange={setFilePreviewWidth}
+          onClose={handleCloseFilePreview}
         />
+      ) : null}
+      {executionSurface && historyKey ? (
+        <SubagentExecutionPanel
+          executions={subagentExecutions.executions}
+          selectedInvocationId={executionSurface.invocationId}
+          onSelect={handleSelectExecution}
+          onReload={handleReloadExecution}
+          onClose={handleCloseExecution}
+          onOpenFilePreview={handleOpenFilePreview}
+          initialScrollTop={executionScrollTopRef.current[executionSurface.invocationId] ?? 0}
+          onScrollTopChange={(scrollTop) => {
+            executionScrollTopRef.current[executionSurface.invocationId] = scrollTop;
+          }}
+          presentation={shellWidth >= 860 ? "sidebar" : "dialog"}
+          returnFocus={executionReturnFocus}
+        />
+      ) : null}
+      {session && (
+        activeRightSurface.kind === "workbench" || activeRightSurface.kind === "tools"
+      ) ? (
+        compactWorkbench ? (
+          <Dialog open={mobileWorkbenchOpen} onOpenChange={setMobileWorkbenchOpen}>
+            <DialogContent aria-describedby={undefined} className="fixed inset-y-0 left-auto right-0 flex h-full w-[min(100vw,380px)] max-w-full translate-x-0 translate-y-0 flex-col gap-0 rounded-none p-0 pt-12">
+              <DialogTitle className="sr-only">{t("workbench.title", { defaultValue: "Workbench" })}</DialogTitle>
+              <Button variant="ghost" className="absolute left-2 top-2" onClick={toggleToolsSurface}>
+                {toolsOpen ? t("workbench.title", { defaultValue: "Workbench" }) : t("workbench.tools", { defaultValue: "Tools sidebar" })}
+              </Button>
+              {toolsOpen ? <StartDock variant="embedded" scope={historyKey ?? HOME_DOCK_SCOPE}
+                sessionKey={historyKey} getToken={getToken} onCollapse={closeToolsSurface}
+                onOpenFilePreview={historyKey ? (path) => { setMobileWorkbenchOpen(false); handleOpenFilePreview(path); } : undefined}
+              /> : <SessionWorkbench model={workbenchModel} sessionKey={historyKey} token={token} client={client}
+                onOpenExecution={(id) => { setMobileWorkbenchOpen(false); handleOpenExecution(id, null); }}
+                onOpenFilePreview={historyKey ? (path) => { setMobileWorkbenchOpen(false); handleOpenFilePreview(path); } : undefined}
+              />}
+            </DialogContent>
+          </Dialog>
+        ) : <ResizableRail label={t("workbench.resizeRail", { defaultValue: "Resize workbench" })}>
+          <SessionWorkbench
+            model={workbenchModel}
+            sessionKey={historyKey}
+            token={token}
+            client={client}
+            onOpenExecution={(id) => handleOpenExecution(id, null)}
+            onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
+          />
+          {activeRightSurface.kind === "tools" ? (
+            // 工具侧边栏不占工作台版面：打开时整列盖住工作台，关掉后工作台原样露出。
+            // bg-background 打底是必须的——dock 自身只有半透明 tint，否则工作台文字会透出来重影。
+            <div className="absolute inset-0 z-30 flex bg-background">
+              <StartDock
+                variant="embedded"
+                scope={historyKey ?? HOME_DOCK_SCOPE}
+                sessionKey={historyKey ?? null}
+                getToken={getToken}
+                onCollapse={closeToolsSurface}
+              />
+            </div>
+          ) : null}
+        </ResizableRail>
       ) : null}
       {headerPortalTarget && headerActive
         ? createPortal(threadHeader, headerPortalTarget)
         : null}
-      {composerPortalTarget ? createPortal(
+      {composerPortalTarget && !showHeroComposer ? createPortal(
         <div
           hidden={!composerActive}
           aria-hidden={!composerActive}
@@ -1882,17 +2103,6 @@ export function ThreadShell({
           {composer}
         </div>,
         composerPortalTarget,
-      ) : null}
-      {filePreviewPath && historyKey ? (
-        <FilePreviewPanel
-          sessionKey={historyKey}
-          path={filePreviewPath}
-          token={token}
-          desktopWidth={filePreviewWidth}
-          isClosing={filePreviewClosing}
-          onResizeStart={handleFilePreviewResizeStart}
-          onClose={handleCloseFilePreview}
-        />
       ) : null}
     </section>
   );

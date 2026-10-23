@@ -1,0 +1,285 @@
+[
+  {
+    "schemaVersion": 1,
+    "runId": "run-0001",
+    "chatId": "chat-0001",
+    "turnId": "turn-0001",
+    "seq": 1,
+    "type": "run.started",
+    "taskId": null,
+    "attemptId": null,
+    "occurredAt": "2026-10-15T08:00:00+00:00",
+    "data": {
+      "binding": {
+        "teamId": "content-team",
+        "teamRevision": 1,
+        "teamName": "内容团队"
+      },
+      "startedAt": "2026-10-15T08:00:00+00:00"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "runId": "run-0001",
+    "chatId": "chat-0001",
+    "turnId": "turn-0001",
+    "seq": 2,
+    "type": "leader.updated",
+    "taskId": null,
+    "attemptId": null,
+    "occurredAt": "2026-10-15T08:00:20+00:00",
+    "data": {
+      "leaderAction": "waiting"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "runId": "run-0001",
+    "chatId": "chat-0001",
+    "turnId": "turn-0001",
+    "seq": 3,
+    "type": "task.created",
+    "taskId": "task-0001",
+    "attemptId": null,
+    "occurredAt": "2026-10-15T08:00:30+00:00",
+    "data": {
+      "task": {
+        "taskId": "task-0001",
+        "memberId": "m-researcher",
+        "agentId": "researcher",
+        "title": "检索项目内文档",
+        "acceptance": "给出至少 3 条可核对的相对路径来源",
+        "dependsOn": [],
+        "status": "pending",
+        "attemptId": null,
+        "lastAction": null,
+        "startedAt": null,
+        "finishedAt": null,
+        "result": null
+      }
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "runId": "run-0001",
+    "chatId": "chat-0001",
+    "turnId": "turn-0001",
+    "seq": 4,
+    "type": "task.queued",
+    "taskId": "task-0001",
+    "attemptId": null,
+    "occurredAt": "2026-10-15T08:00:31+00:00",
+    "data": {
+      "task": {
+        "taskId": "task-0001",
+        "memberId": "m-researcher",
+        "agentId": "researcher",
+        "title": "检索项目内文档",
+        "acceptance": "给出至少 3 条可核对的相对路径来源",
+        "dependsOn": [],
+        "status": "queued",
+        "attemptId": null,
+        "lastAction": null,
+        "startedAt": null,
+        "finishedAt": null,
+        "result": null
+      }
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "runId": "run-0001",
+    "chatId": "chat-0001",
+    "turnId": "turn-0001",
+    "seq": 5,
+    "type": "task.started",
+    "taskId": "task-0001",
+    "attemptId": "attempt-0001",
+    "occurredAt": "2026-10-15T08:01:00+00:00",
+    "data": {
+      "task": {
+        "taskId": "task-0001",
+        "memberId": "m-researcher",
+        "agentId": "researcher",
+        "title": "检索项目内文档",
+        "acceptance": "给出至少 3 条可核对的相对路径来源",
+        "dependsOn": [],
+        "status": "running",
+        "attemptId": "attempt-0001",
+        "lastAction": null,
+        "startedAt": "2026-10-15T08:01:00+00:00",
+        "finishedAt": null,
+        "result": null
+      }
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "runId": "run-0001",
+    "chatId": "chat-0001",
+    "turnId": "turn-0001",
+    "seq": 6,
+    "type": "task.activity",
+    "taskId": "task-0001",
+    "attemptId": "attempt-0001",
+    "occurredAt": "2026-10-15T08:01:20+00:00",
+    "data": {
+      "task": {
+        "taskId": "task-0001",
+        "memberId": "m-researcher",
+        "agentId": "researcher",
+        "title": "检索项目内文档",
+        "acceptance": "给出至少 3 条可核对的相对路径来源",
+        "dependsOn": [],
+        "status": "running",
+        "attemptId": "attempt-0001",
+        "lastAction": "read_file docs/记忆系统/README.md",
+        "startedAt": "2026-10-15T08:01:00+00:00",
+        "finishedAt": null,
+        "result": null
+      }
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "runId": "run-0001",
+    "chatId": "chat-0001",
+    "turnId": "turn-0001",
+    "seq": 7,
+    "type": "task.finished",
+    "taskId": "task-0001",
+    "attemptId": "attempt-0001",
+    "occurredAt": "2026-10-15T08:02:30+00:00",
+    "data": {
+      "task": {
+        "taskId": "task-0001",
+        "memberId": "m-researcher",
+        "agentId": "researcher",
+        "title": "检索项目内文档",
+        "acceptance": "给出至少 3 条可核对的相对路径来源",
+        "dependsOn": [],
+        "status": "succeeded",
+        "attemptId": "attempt-0001",
+        "lastAction": "整理出 5 条来源",
+        "startedAt": "2026-10-15T08:01:00+00:00",
+        "finishedAt": "2026-10-15T08:02:30+00:00",
+        "result": {
+          "taskId": "task-0001",
+          "attemptId": "attempt-0001",
+          "memberId": "m-researcher",
+          "agentId": "researcher",
+          "status": "succeeded",
+          "stopReason": "final_answer",
+          "summary": "已整理 5 条来源：记忆系统 README、契约 2 份、调研 2 份。",
+          "artifacts": ["docs/记忆系统/README.md"],
+          "errorCode": null,
+          "usage": {
+            "inputTokens": 1200,
+            "outputTokens": 300
+          }
+        }
+      }
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "runId": "run-0002",
+    "chatId": "chat-0002",
+    "turnId": "turn-0002",
+    "seq": 1,
+    "type": "run.cancelling",
+    "taskId": null,
+    "attemptId": null,
+    "occurredAt": "2026-10-15T09:00:00+00:00",
+    "data": {
+      "status": "cancelling"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "runId": "run-0001",
+    "chatId": "chat-0001",
+    "turnId": "turn-0001",
+    "seq": 8,
+    "type": "run.finished",
+    "taskId": null,
+    "attemptId": null,
+    "occurredAt": "2026-10-15T08:05:00+00:00",
+    "data": {
+      "run": {
+        "runId": "run-0001",
+        "chatId": "chat-0001",
+        "turnId": "turn-0001",
+        "binding": {
+          "teamId": "content-team",
+          "teamRevision": 1,
+          "teamName": "内容团队"
+        },
+        "status": "completed",
+        "lastSeq": 8,
+        "tasks": [
+          {
+            "taskId": "task-0001",
+            "memberId": "m-researcher",
+            "agentId": "researcher",
+            "title": "检索项目内文档",
+            "acceptance": "给出至少 3 条可核对的相对路径来源",
+            "dependsOn": [],
+            "status": "succeeded",
+            "attemptId": "attempt-0001",
+            "lastAction": "整理出 5 条来源",
+            "startedAt": "2026-10-15T08:01:00+00:00",
+            "finishedAt": "2026-10-15T08:02:30+00:00",
+            "result": {
+              "taskId": "task-0001",
+              "attemptId": "attempt-0001",
+              "memberId": "m-researcher",
+              "agentId": "researcher",
+              "status": "succeeded",
+              "stopReason": "final_answer",
+              "summary": "已整理 5 条来源：记忆系统 README、契约 2 份、调研 2 份。",
+              "artifacts": ["docs/记忆系统/README.md"],
+              "errorCode": null,
+              "usage": {
+                "inputTokens": 1200,
+                "outputTokens": 300
+              }
+            }
+          },
+          {
+            "taskId": "task-0002",
+            "memberId": "m-writer",
+            "agentId": "writer",
+            "title": "撰写对比稿",
+            "acceptance": "正文 800 字并引用研究结论",
+            "dependsOn": ["task-0001"],
+            "status": "succeeded",
+            "attemptId": "attempt-0002",
+            "lastAction": "write_file docs/draft.md",
+            "startedAt": "2026-10-15T08:02:40+00:00",
+            "finishedAt": "2026-10-15T08:04:30+00:00",
+            "result": {
+              "taskId": "task-0002",
+              "attemptId": "attempt-0002",
+              "memberId": "m-writer",
+              "agentId": "writer",
+              "status": "succeeded",
+              "stopReason": "final_answer",
+              "summary": "已交付对比稿并标注 3 处引用。",
+              "artifacts": ["docs/draft.md"],
+              "errorCode": null,
+              "usage": {
+                "inputTokens": 900,
+                "outputTokens": 2400
+              }
+            }
+          }
+        ],
+        "leaderAction": "idle",
+        "startedAt": "2026-10-15T08:00:00+00:00",
+        "finishedAt": "2026-10-15T08:05:00+00:00",
+        "parentRunId": null
+      }
+    }
+  }
+]

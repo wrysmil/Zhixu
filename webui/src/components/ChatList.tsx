@@ -31,6 +31,7 @@ import {
   Trash2,
   Ungroup,
   Unplug,
+  Users,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -82,7 +83,7 @@ import type { ChatSummary, SidebarDensity, SidebarProjectEntry, SidebarSortMode 
 const INITIAL_VISIBLE_SESSIONS = 160;
 const VISIBLE_SESSIONS_INCREMENT = 160;
 const ACTION_MENU_CONTENT_CLASS = "w-[11rem] min-w-[11rem] whitespace-nowrap";
-const COLLAPSED_PANE_GROUPS_STORAGE_KEY = "nanobot-webui.collapsed-pane-groups.v1";
+const COLLAPSED_PANE_GROUPS_STORAGE_KEY = "zhixu-webui.collapsed-pane-groups.v1";
 const DETACH_PANE_DROP_TARGET = "__sidebar-standalone__";
 export const PROJECTS_SECTION_KEY = "projects:section";
 
@@ -383,6 +384,22 @@ export const ChatList = memo(function ChatList({
     () => limitGroups(groups, visibleLimit, activeKey, collapsedGroups),
     [activeKey, collapsedGroups, groups, visibleLimit],
   );
+  // Low-signal titles collapse to the same fallback ("New chat · 9/30"); a
+  // per-group ordinal keeps those rows distinguishable in the sidebar.
+  const uniqueTitles = useMemo(() => {
+    const titles = new Map<string, string>();
+    for (const group of groups) {
+      const seen = new Map<string, number>();
+      for (const session of group.sessions) {
+        if (titles.has(session.key)) continue;
+        const base = displayTitle(session, titleOverrides, t("chat.newChat"));
+        const count = (seen.get(base) ?? 0) + 1;
+        seen.set(base, count);
+        titles.set(session.key, count === 1 ? base : `${base} · ${count}`);
+      }
+    }
+    return titles;
+  }, [groups, t, titleOverrides]);
   const totalSessionCount = useMemo(
     () => groups.reduce(
       (total, group) =>
@@ -681,7 +698,7 @@ export const ChatList = memo(function ChatList({
             onClose={onCloseTemporaryChat}
           />
         ) : null}
-        <div className="group/projects flex items-center gap-1 px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
+        <div className="sidebar-group-label group/projects flex items-center gap-1 px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
           <button
             type="button"
             aria-expanded={!projectsSectionCollapsed}
@@ -787,7 +804,8 @@ export const ChatList = memo(function ChatList({
                   {visibleSessions.map((s) => {
                     const topicActive = s.key === activeKey;
                     const paneGroup = paneGroups[s.key];
-                    const title = displayTitle(s, titleOverrides, t("chat.newChat"));
+                    const title = uniqueTitles.get(s.key)
+                      ?? displayTitle(s, titleOverrides, t("chat.newChat"));
                     const resolvedPaneGroup = paneGroup ?? {
                       tabKey: s.key,
                       title,
@@ -1023,6 +1041,9 @@ export const ChatList = memo(function ChatList({
                                       {title}
                                     </span>
                                     {isPinned ? <PinnedChatIndicator /> : null}
+                                    {s.teamBinding ? (
+                                      <TeamChatIndicator teamName={s.teamBinding.teamName} />
+                                    ) : null}
                                     {timestamp ? (
                                       <span className="shrink-0 text-[11.5px] font-medium text-muted-foreground/58">
                                         {timestamp}
@@ -1898,7 +1919,7 @@ function ProjectGroupHeader({
 
 function ChatsGroupHeader({ label }: { label: string }) {
   return (
-    <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
+    <div className="sidebar-group-label px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
       {label}
     </div>
   );
@@ -1912,6 +1933,20 @@ function PinnedChatIndicator() {
       className="inline-flex shrink-0 items-center text-muted-foreground/65"
     >
       <Pin className="h-3.5 w-3.5" aria-hidden="true" />
+    </span>
+  );
+}
+
+/** Sidebar marker for a chat bound to a team (server-confirmed, never inferred here). */
+function TeamChatIndicator({ teamName }: { teamName: string }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      data-sidebar-team-indicator
+      title={t("thread.composer.team.chip", { name: teamName })}
+      className="inline-flex shrink-0 items-center text-muted-foreground/65"
+    >
+      <Users className="h-3.5 w-3.5" aria-hidden="true" />
     </span>
   );
 }
@@ -1956,7 +1991,7 @@ function SessionActivityIndicator({
         <span
           role="img"
           aria-label={label}
-          className="grid h-4 w-4 shrink-0 place-items-center text-[#ff8a3d]"
+          className="grid h-4 w-4 shrink-0 place-items-center text-muted-foreground/60 group-hover:text-[#ff8a3d]"
         >
           <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
         </span>

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { CircleAlert, CircleCheck, RotateCcw, X } from "lucide-react";
+import { Bot, ChevronDown, CircleAlert, RotateCcw, SlidersHorizontal, Wrench, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
 import {
   Dialog,
   DialogContent,
@@ -19,8 +20,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { SectionLabel } from "@/components/settings/agents/shared";
 import { BasicsSection } from "@/components/settings/agents/parts/BasicsSection";
 import {
   CapabilityPicker,
@@ -29,11 +28,21 @@ import {
 import { ModelPicker } from "@/components/settings/agents/parts/ModelPicker";
 import { PromptSection } from "@/components/settings/agents/parts/PromptSection";
 import { AgentRailSummary } from "@/components/settings/agents/parts/AgentRailSummary";
+import { DefaultMainAgentBadge } from "@/components/settings/agents/shared";
 import type { AgentProfile } from "@/lib/agents/types";
 import type { AgentCatalog } from "@/lib/agents/catalog";
-import { PROMPT_MAX_LENGTH, TOOL_CATEGORIES, resolveSelection } from "@/lib/agents/types";
+import {
+  PROMPT_MAX_LENGTH,
+  TOOL_CATEGORIES,
+  isDefaultMainAgent,
+  resolveSelection,
+} from "@/lib/agents/types";
 import { SKILL_SOURCE_LABEL_KEY, TOOL_CATEGORY_LABEL_KEY } from "@/lib/agents/i18n";
 import { cn } from "@/lib/utils";
+import "./agent-editor.css";
+
+type EditorTab = "identity" | "capabilities" | "more";
+const EDITOR_TABS: EditorTab[] = ["identity", "capabilities", "more"];
 
 export type { AgentCatalog };
 
@@ -47,7 +56,6 @@ export function AgentEditorDialog({
   onSave,
   onReset,
   saving = false,
-  savedNotice = false,
 }: {
   open: boolean;
   agent: AgentProfile | null;
@@ -58,16 +66,34 @@ export function AgentEditorDialog({
   onSave: (agent: AgentProfile) => void;
   onReset?: (agent: AgentProfile) => void;
   saving?: boolean;
-  savedNotice?: boolean;
 }) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState<AgentProfile | null>(agent);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const twoColumn = useMediaQuery("(min-width: 1024px)");
+  const [activeTab, setActiveTab] = useState<EditorTab>("identity");
+  const [capabilityTab, setCapabilityTab] = useState<"tools" | "skills">("tools");
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [validationFocus, setValidationFocus] = useState<"name" | "id" | "prompt" | null>(null);
+  const editorId = useId();
+  const tabRefs = useRef<Partial<Record<EditorTab, HTMLButtonElement | null>>>({});
 
   useEffect(() => {
-    if (open) setDraft(agent ? { ...agent } : null);
+    if (open) {
+      setDraft(agent ? { ...agent } : null);
+      setActiveTab("identity");
+      setSummaryOpen(false);
+    }
   }, [open, agent]);
+
+  useEffect(() => {
+    if (!validationFocus) return;
+    const target = validationFocus === "prompt"
+      ? document.getElementById(`${editorId}-identity-panel`)?.querySelector<HTMLTextAreaElement>("textarea[aria-invalid]")
+      : document.getElementById(`agent-${validationFocus}`);
+    if (target instanceof HTMLInputElement && target.disabled) tabRefs.current.more?.focus();
+    else target?.focus();
+    setValidationFocus(null);
+  }, [activeTab, editorId, validationFocus]);
 
   const toolItems = useMemo<CapabilityItem[]>(
     () =>
@@ -109,7 +135,7 @@ export function AgentEditorDialog({
         // 被丢弃（后端 tool_names 与 subagent scope 求交），算进来会让
         // 「已启用」这一栏与实际生效集不一致。
         catalog.tools.filter((tool) => !tool.blocked).map((tool) => tool.name),
-        catalog.tools.filter((tool) => tool.locked).map((tool) => tool.name),
+        catalog.tools.filter((tool) => tool.locked && !tool.blocked).map((tool) => tool.name),
       ),
     [draft?.tools, catalog.tools],
   );
@@ -125,11 +151,16 @@ export function AgentEditorDialog({
 
   if (!draft) return null;
 
+  const isDefault = isDefaultMainAgent(draft);
   const dirty = JSON.stringify(draft) !== JSON.stringify(agent);
-  const canSave =
-    draft.name.trim().length > 0 &&
-    draft.id.trim().length > 0 &&
-    draft.prompt.length <= PROMPT_MAX_LENGTH;
+  const validationError = !draft.name.trim()
+    ? { field: "name" as const, message: t("settings.agents.workspace.nameRequired", "请先填写名称") }
+    : !draft.id.trim()
+      ? { field: "id" as const, message: t("settings.agents.workspace.idRequired", "智能体 ID 不能为空") }
+      : draft.prompt.length > PROMPT_MAX_LENGTH
+        ? { field: "prompt" as const, message: t("settings.agents.workspace.promptLimit", { count: PROMPT_MAX_LENGTH, defaultValue: "工作指令不能超过 {{count}} 字。" }) }
+        : null;
+  const canSave = !validationError;
 
   const requestClose = () => {
     if (dirty) setConfirmDiscard(true);
@@ -141,6 +172,26 @@ export function AgentEditorDialog({
     requestClose();
   };
 
+  const navigateTab = (event: KeyboardEvent<HTMLButtonElement>, tab: EditorTab) => {
+    let next: EditorTab | undefined;
+    const index = EDITOR_TABS.indexOf(tab);
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") next = EDITOR_TABS[(index + 1) % EDITOR_TABS.length];
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = EDITOR_TABS[(index + EDITOR_TABS.length - 1) % EDITOR_TABS.length];
+    if (event.key === "Home") next = EDITOR_TABS[0];
+    if (event.key === "End") next = EDITOR_TABS[EDITOR_TABS.length - 1];
+    if (next) {
+      event.preventDefault();
+      setActiveTab(next);
+      tabRefs.current[next]?.focus();
+    }
+  };
+  const tabLabels = {
+    identity: t("settings.agents.workspace.identity", "职责与身份"),
+    capabilities: t("settings.agents.workspace.capabilities", "工具与技能"),
+    more: t("settings.agents.workspace.more", "模型与更多"),
+  };
+  const tabIcons = { identity: Bot, capabilities: Wrench, more: SlidersHorizontal };
+
   return (
     <>
       <Dialog open={open} onOpenChange={(next) => !next && requestClose()}>
@@ -148,24 +199,27 @@ export function AgentEditorDialog({
           showCloseButton={false}
           onEscapeKeyDown={guard}
           onInteractOutside={guard}
-          className="flex max-h-[88vh] w-full max-w-[min(72rem,calc(100vw-2rem))] flex-col gap-0 overflow-hidden p-0"
+          className="agent-editor flex w-full flex-col gap-0 overflow-hidden p-0"
         >
-          <header className="flex shrink-0 items-center gap-3 border-b border-border/60 px-6 py-3.5">
+          <header className="agent-editor-header flex shrink-0 items-center gap-3">
             <span
               aria-hidden
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control text-[20px]"
               style={{ backgroundColor: `${draft.color}1a` }}
             >
-              {draft.icon}
+              <AgentGlyph icon={draft.icon} size={20} />
             </span>
             <div className="min-w-0 flex-1">
-              <DialogTitle className="truncate text-[15px] font-semibold">
-                {isNew
-                  ? t("settings.agents.editor.new", "新建 Agent")
-                  : t("settings.agents.editor.edit", "编辑 · {{name}}", { name: draft.name })}
-              </DialogTitle>
-              <DialogDescription className="mt-0.5 truncate text-[12px]">
-                {t("settings.agents.editor.subtitle", "配置该 Agent 可用的能力、模型与提示词。")}
+              <div className="flex min-w-0 items-center gap-2">
+                <DialogTitle className="truncate text-[19px] font-semibold tracking-tight">
+                  {isNew
+                    ? t("settings.agents.editor.new", "新建 Agent")
+                    : t("settings.agents.editor.edit", "编辑 · {{name}}", { name: draft.name })}
+                </DialogTitle>
+                {!isNew && isDefault ? <DefaultMainAgentBadge /> : null}
+              </div>
+              <DialogDescription className="mt-1 text-[12px]">
+                {t("settings.agents.workspace.subtitle", "先写清职责，再为它选择合适的能力。")}
               </DialogDescription>
             </div>
             {draft.type === "system" && onReset ? (
@@ -190,107 +244,83 @@ export function AgentEditorDialog({
             </button>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-            <div className="min-w-0 flex-1 space-y-6 overflow-y-auto px-6 py-5 scrollbar-thin">
-              <section className="space-y-3">
-                <SectionLabel index="①">
-                  {t("settings.agents.section.basics", "基础信息")}
-                </SectionLabel>
-                <BasicsSection
-                  profile={draft}
-                  categories={catalog.categories}
-                  isNew={isNew}
-                  onChange={patch}
-                />
+          <div className="agent-editor-body scrollbar-thin">
+            <nav className="agent-editor-nav" role="tablist" aria-label={t("settings.agents.workspace.summary", "配置摘要")}>
+              {EDITOR_TABS.map((tab) => {
+                const Icon = tabIcons[tab];
+                return <button key={tab} ref={(element) => { tabRefs.current[tab] = element; }} id={`${editorId}-${tab}-tab`} type="button" role="tab" aria-selected={activeTab === tab} aria-controls={`${editorId}-${tab}-panel`} tabIndex={activeTab === tab ? 0 : -1} onClick={() => setActiveTab(tab)} onKeyDown={(event) => navigateTab(event, tab)} className="agent-editor-nav-item">
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                  <span>{tabLabels[tab]}</span>
+                </button>;
+              })}
+            </nav>
+            <main className="agent-editor-main">
+              <section role="tabpanel" id={`${editorId}-${activeTab}-panel`} aria-labelledby={`${editorId}-${activeTab}-tab`} className="agent-editor-panel">
+                <div className="agent-editor-section-heading">
+                  <h3>{tabLabels[activeTab]}</h3>
+                  <p>{activeTab === "identity" ? t("settings.agents.workspace.identityHint", "给它一个明确的角色，以及做事的方法。") : activeTab === "capabilities" ? t("settings.agents.workspace.capabilitiesHint", "按需选择可执行的操作和可参考的做事方法。") : t("settings.agents.workspace.moreHint", "选择模型，整理档案的分类与外观。")}</p>
+                </div>
+                {activeTab === "identity" ? <div className="space-y-6">
+                  <BasicsSection profile={draft} categories={catalog.categories} isNew={isNew} onChange={patch} variant="identity" />
+                  <div className="agent-editor-prompt space-y-2">
+                    <h4 className="text-[13px] font-medium">{t("settings.agents.prompt.label", "工作指令")}</h4>
+                    <PromptSection profile={draft} onChange={(prompt) => patch({ prompt })} />
+                  </div>
+                </div> : activeTab === "capabilities" ? <div className="space-y-4">
+                  <div className="agent-editor-capability-tabs" role="tablist" aria-label={tabLabels.capabilities}>
+                    {(["tools", "skills"] as const).map((tab) => <button type="button" role="tab" key={tab} id={`${editorId}-${tab}-tab`} aria-controls={`${editorId}-${tab}-panel`} aria-selected={capabilityTab === tab} tabIndex={capabilityTab === tab ? 0 : -1} onClick={() => setCapabilityTab(tab)} onKeyDown={(event) => {
+                      if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                        event.preventDefault();
+                        const next = event.key === "Home" ? "tools" : event.key === "End" ? "skills" : tab === "tools" ? "skills" : "tools";
+                        setCapabilityTab(next);
+                        document.getElementById(`${editorId}-${next}-tab`)?.focus();
+                      }
+                    }}>{t(`settings.agents.noun.${tab}`, tab === "tools" ? "工具" : "技能")}<span>{tab === "tools" ? enabledToolIds.size : enabledSkillIds.size}</span></button>)}
+                  </div>
+                  <div role="tabpanel" id={`${editorId}-${capabilityTab}-panel`} aria-labelledby={`${editorId}-${capabilityTab}-tab`} className="space-y-4">
+                    <p className="text-xs leading-relaxed text-muted-foreground">{capabilityTab === "tools" ? t("settings.agents.workspace.toolsHint", "允许它执行的操作，比如读文件、搜索网页。") : t("settings.agents.workspace.skillsHint", "完成某类任务时可参考的做事方法。")}</p>
+                    {capabilityTab === "tools" ? <CapabilityPicker key="tools" items={toolItems} selection={draft.tools} onChange={(tools) => patch({ tools })} modeLabel={t("settings.agents.tools.modeLabel", "搜索工具")} groupLabelFor={(id) => t(TOOL_CATEGORY_LABEL_KEY[id] ?? id, TOOL_CATEGORIES.find((category) => category.id === id)?.label ?? id)} /> : <CapabilityPicker key="skills" items={skillItems} selection={draft.skills} onChange={(skills) => patch({ skills })} modeLabel={t("settings.agents.skills.modeLabel", "搜索技能")} groupLabelFor={(id) => t(SKILL_SOURCE_LABEL_KEY[id as keyof typeof SKILL_SOURCE_LABEL_KEY], id)} />}
+                  </div>
+                  <div hidden role="tabpanel" id={`${editorId}-${capabilityTab === "tools" ? "skills" : "tools"}-panel`} aria-labelledby={`${editorId}-${capabilityTab === "tools" ? "skills" : "tools"}-tab`} />
+                </div> : <div className="space-y-8">
+                  <ModelPicker models={catalog.models} value={draft.modelId} onChange={(modelId) => patch({ modelId })} globalModelLabel={globalModelLabel} />
+                  <div className="space-y-4 border-t border-border/60 pt-6">
+                    <h4 className="text-sm font-medium">{t("settings.agents.workspace.profileDetails", "档案信息")}</h4>
+                    <BasicsSection profile={draft} categories={catalog.categories} isNew={isNew} onChange={patch} variant="details" />
+                  </div>
+                </div>}
               </section>
-
-              <section className="space-y-3">
-                <SectionLabel index="②">
-                  {t("settings.agents.section.tools", "能力 · 工具")}
-                </SectionLabel>
-                <CapabilityPicker
-                  items={toolItems}
-                  selection={draft.tools}
-                  onChange={(tools) => patch({ tools })}
-                  modeLabel={t("settings.agents.tools.modeLabel", "搜索工具")}
-                  groupLabelFor={(id) =>
-                    t(TOOL_CATEGORY_LABEL_KEY[id] ?? id, TOOL_CATEGORIES.find((c) => c.id === id)?.label ?? id)
-                  }
-                />
-              </section>
-
-              <section className="space-y-3">
-                <SectionLabel index="③">
-                  {t("settings.agents.section.skills", "能力 · 技能")}
-                </SectionLabel>
-                <CapabilityPicker
-                  items={skillItems}
-                  selection={draft.skills}
-                  onChange={(skills) => patch({ skills })}
-                  modeLabel={t("settings.agents.skills.modeLabel", "搜索技能")}
-                  groupLabelFor={(id) =>
-                    t(SKILL_SOURCE_LABEL_KEY[id as keyof typeof SKILL_SOURCE_LABEL_KEY], id)
-                  }
-                />
-              </section>
-
-              <section className="space-y-3">
-                <SectionLabel index="④">
-                  {t("settings.agents.section.model", "模型")}
-                </SectionLabel>
-                <ModelPicker
-                  models={catalog.models}
-                  value={draft.modelId}
-                  onChange={(modelId) => patch({ modelId })}
-                  globalModelLabel={globalModelLabel}
-                />
-              </section>
-
-              <section className="space-y-3">
-                <SectionLabel index="⑤">
-                  {t("settings.agents.section.prompt", "提示词")}
-                </SectionLabel>
-                <PromptSection profile={draft} onChange={(prompt) => patch({ prompt })} />
-              </section>
-            </div>
-
-            <aside
-              className={cn(
-                "shrink-0 border-border/60 bg-muted/20 px-6 py-5",
-                twoColumn
-                  ? "w-[22rem] overflow-y-auto border-l scrollbar-thin"
-                  : "max-h-[45vh] overflow-y-auto border-t scrollbar-thin",
-              )}
-            >
-              <AgentRailSummary
-                modelId={draft.modelId}
-                tools={catalog.tools}
-                skills={catalog.skills}
-                models={catalog.models}
-                enabledToolIds={enabledToolIds}
-                enabledSkillIds={enabledSkillIds}
-              />
+              {EDITOR_TABS.filter((tab) => tab !== activeTab).map((tab) => <section key={tab} hidden role="tabpanel" id={`${editorId}-${tab}-panel`} aria-labelledby={`${editorId}-${tab}-tab`} />)}
+            </main>
+            <div className="agent-editor-mobile-summary"><button type="button" onClick={() => setSummaryOpen(!summaryOpen)} aria-expanded={summaryOpen} aria-controls={`${editorId}-summary`}><Bot className="h-4 w-4" aria-hidden />{t("settings.agents.workspace.summaryToggle", "查看配置摘要")}<ChevronDown className={cn("ml-auto h-4 w-4", summaryOpen && "rotate-180")} aria-hidden /></button></div>
+            <aside id={`${editorId}-summary`} className={cn("agent-editor-rail", summaryOpen && "is-open")}>
+              <AgentRailSummary profile={draft} modelId={draft.modelId} tools={catalog.tools} skills={catalog.skills} models={catalog.models} enabledToolIds={enabledToolIds} enabledSkillIds={enabledSkillIds} globalModelLabel={globalModelLabel} onNavigate={(tab, kind) => { setActiveTab(tab); if (kind) setCapabilityTab(kind); tabRefs.current[tab]?.focus(); }} />
             </aside>
           </div>
 
           <footer
             className={cn(
-              "flex shrink-0 items-center gap-3 border-t border-border/60 px-6 py-3",
-              dirty && "bg-amber-50/70 dark:bg-amber-950/25",
+              "agent-editor-footer flex shrink-0 flex-wrap items-center gap-3 border-t border-border/60",
             )}
           >
-            {/* 提示槽位宽度写死：文案出现或消失时按钮都不能挪位置，
-                否则「有未保存的修改」每次闪现都会让保存按钮跳一下。 */}
-            <div className="w-44 shrink-0">
-              {dirty ? (
+            <div className="min-w-0 flex-1 basis-40">
+              {validationError ? (
+                <button
+                  id={`${editorId}-validation`}
+                  type="button"
+                  className="flex items-center gap-1.5 text-left text-[12px] text-destructive underline-offset-4 hover:underline"
+                  onClick={() => {
+                    setActiveTab(validationError.field === "id" ? "more" : "identity");
+                    setValidationFocus(validationError.field);
+                  }}
+                >
+                  <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  {validationError.message}
+                </button>
+              ) : dirty ? (
                 <p className="flex items-center gap-1.5 text-[12px] text-amber-800 dark:text-amber-200">
                   <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
                   {t("settings.agents.editor.unsaved", "有未保存的修改")}
-                </p>
-              ) : savedNotice ? (
-                <p className="flex items-center gap-1.5 text-[12px] text-emerald-700 dark:text-emerald-300">
-                  <CircleCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  {t("settings.agents.editor.saved", "已保存")}
                 </p>
               ) : null}
             </div>
@@ -308,8 +338,9 @@ export function AgentEditorDialog({
                 type="button"
                 size="sm"
                 disabled={!canSave || saving}
+                aria-describedby={validationError ? `${editorId}-validation` : undefined}
                 onClick={() => onSave({ ...draft, updatedAt: new Date().toISOString() })}
-                className="text-[13px]"
+                className="agent-editor-save text-[13px]"
               >
                 {t("settings.agents.editor.save", "保存")}
               </Button>

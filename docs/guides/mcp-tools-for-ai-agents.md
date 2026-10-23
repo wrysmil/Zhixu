@@ -1,18 +1,18 @@
-# How to Add MCP Tools to an AI Agent with nanobot
+# How to Add MCP Tools to an AI Agent with Zhixu
 
-nanobot can connect MCP servers and expose their tools to the agent alongside
+Zhixu can connect MCP servers and expose their tools to the agent alongside
 built-in file, shell, web, cron, image generation, and subagent tools.
 
 ## What you will build
 
-- a working nanobot agent
+- a working Zhixu agent
 - one MCP server configured in `config.json`
 - a restricted set of tools available to the model
 
 ## When to use this
 
 Use MCP when a tool already exists as an MCP server, when another application
-publishes an MCP adapter, or when you want a clean boundary between nanobot and
+publishes an MCP adapter, or when you want a clean boundary between Zhixu and
 external tool logic.
 
 ## Install
@@ -44,14 +44,14 @@ Add a stdio MCP server to `~/.nanobot/config.json`:
 }
 ```
 
-Restart nanobot, then ask a question that needs the MCP tool.
+Restart Zhixu, then ask a question that needs the MCP tool.
 
 ## Production notes
 
 - Use `enabledTools` to expose only the tools the agent actually needs.
 - Set `toolTimeout` for slow MCP servers.
 - Prefer stdio MCP for local tools and HTTP MCP for trusted remote services.
-- Keep MCP server install/update steps outside nanobot config when possible.
+- Keep MCP server install/update steps outside Zhixu config when possible.
 
 ## Security notes
 
@@ -64,11 +64,11 @@ Restart nanobot, then ask a question that needs the MCP tool.
 ## Troubleshooting
 
 - Start `nanobot gateway --verbose` and check MCP startup logs.
-- Confirm the MCP command works by itself before debugging nanobot.
+- Confirm the MCP command works by itself before debugging Zhixu.
 - If an HTTP MCP server is blocked, review the SSRF whitelist and use a narrow
   host CIDR.
 
-## Related nanobot docs
+## Related Zhixu docs
 
 - [Configure MCP tools](./configure-mcp-tools.md)
 - [Configuration: MCP](../configuration.md#mcp-model-context-protocol)

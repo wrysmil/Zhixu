@@ -1,5 +1,5 @@
 {
-  "description": "Gunakan Mira dari grup DingTalk.",
+  "description": "Gunakan 知序 dari grup DingTalk.",
   "requirements": "Kredensial aplikasi DingTalk dan gateway",
   "setup": {
     "docsLabel": "Buka panduan DingTalk",

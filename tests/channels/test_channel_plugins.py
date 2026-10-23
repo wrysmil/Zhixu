@@ -406,7 +406,7 @@ def test_multi_plugin_action_defaults_to_default_instance(
     tmp_path,
 ):
     from nanobot.config import loader
-    from nanobot.webui.nanobot_features_api import nanobot_features_action
+    from nanobot.webui.zhixu_features_api import zhixu_features_action
 
     class _ManagedMultiPlugin(_FakeMultiChannel):
         name = "managedmulti"
@@ -433,19 +433,19 @@ def test_multi_plugin_action_defaults_to_default_instance(
     )
     monkeypatch.setattr("nanobot.optional_features.optional_dependency_groups", lambda: {})
 
-    disabled = nanobot_features_action("disable", {"name": ["managedmulti"]})
+    disabled = zhixu_features_action("disable", {"name": ["managedmulti"]})
     saved = json.loads(config_path.read_text(encoding="utf-8"))["channels"]["managedmulti"]
     assert saved["enabled"] is True
     assert [item["enabled"] for item in saved["instances"]] == [False, True]
     assert disabled["features"][0]["enabled"] is True
 
-    enabled = nanobot_features_action("enable", {"name": ["managedmulti"]})
+    enabled = zhixu_features_action("enable", {"name": ["managedmulti"]})
     saved = json.loads(config_path.read_text(encoding="utf-8"))["channels"]["managedmulti"]
     assert saved["enabled"] is True
     assert [item["enabled"] for item in saved["instances"]] == [True, True]
     assert enabled["features"][0]["enabled"] is True
 
-    explicit = nanobot_features_action(
+    explicit = zhixu_features_action(
         "disable",
         {"name": ["managedmulti"], "instance_id": ["default"]},
     )
@@ -460,7 +460,7 @@ async def test_single_channel_enable_applies_defaults_before_hot_reload(
     tmp_path,
 ):
     from nanobot.config import loader
-    from nanobot.webui.nanobot_features_api import nanobot_features_action
+    from nanobot.webui.zhixu_features_api import zhixu_features_action
 
     class _SingleDefaultsPlugin(_FakePlugin):
         name = "singleplugin"
@@ -491,7 +491,7 @@ async def test_single_channel_enable_applies_defaults_before_hot_reload(
         MessageBus(),
     )
 
-    payload = nanobot_features_action("enable", {"name": ["singleplugin"]})
+    payload = zhixu_features_action("enable", {"name": ["singleplugin"]})
     hot_reload = await manager.apply_channel_feature_action("enable", "singleplugin")
 
     saved = json.loads(config_path.read_text(encoding="utf-8"))["channels"]["singleplugin"]
@@ -2472,7 +2472,7 @@ def test_optional_features_payload_preserves_legacy_flat_feishu_config(monkeypat
 
     payload = optional_features_payload()
 
-    assert payload["features"][0]["instances"][0]["display_name"] == "nanobot"
+    assert payload["features"][0]["instances"][0]["display_name"] == "知序"
     assert config_path.read_text(encoding="utf-8") == before
     saved = json.loads(config_path.read_text(encoding="utf-8"))["channels"]["feishu"]
     assert saved["appId"] == "cli_legacy"

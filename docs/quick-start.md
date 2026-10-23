@@ -1,6 +1,6 @@
 # Install and Quick Start
 
-This guide has one goal: get a normal nanobot reply in your browser. Do not add chat apps, MCP servers, fallback models, or deployment until this path works.
+This guide has one goal: get a normal Zhixu reply in your browser. Do not add chat apps, MCP servers, fallback models, or deployment until this path works.
 
 If terminals, Python, or API keys are unfamiliar, use the [beginner walkthrough](./start-without-technical-background.md), which explains each term and screen.
 
@@ -14,9 +14,9 @@ These repository docs describe `main`, which can be newer than the released pack
 
 Git and [Bun](https://bun.sh/) are only needed for a source install. The published package already contains the WebUI and fetches a checksummed, version-matched TUI archive with its licenses, notices, corresponding application source, source offer, and relinking instructions on first use.
 
-## 1. Install nanobot
+## 1. Install Zhixu
 
-The recommended installer keeps nanobot out of the system Python environment. On a fresh local desktop, it starts the WebUI when installation finishes.
+The recommended installer keeps Zhixu out of the system Python environment. On a fresh local desktop, it starts the WebUI when installation finishes.
 
 **macOS / Linux**
 
@@ -30,7 +30,7 @@ curl -fsSL https://raw.githubusercontent.com/HKUDS/nanobot/main/scripts/install.
 irm https://raw.githubusercontent.com/HKUDS/nanobot/main/scripts/install.ps1 | iex
 ```
 
-The installer chooses an active virtual environment, `uv`, `pipx`, or a managed environment under `~/.nanobot/venv`. It installs the stable PyPI release. At the end it prints the exact command it used to run nanobot; if `nanobot` is not on `PATH`, reuse that full command in the examples below.
+The installer chooses an active virtual environment, `uv`, `pipx`, or a managed environment under `~/.nanobot/venv`. It installs the stable PyPI release. At the end it prints the exact command it used to run Zhixu; if `nanobot` is not on `PATH`, reuse that full command in the examples below.
 
 If you prefer to inspect the scripts first, open [`install.sh`](../scripts/install.sh) or [`install.ps1`](../scripts/install.ps1).
 
@@ -87,7 +87,7 @@ Send:
 Hello!
 ```
 
-Any normal assistant answer is success. It proves that nanobot can load the config, reach the selected model, use the workspace, and serve the browser UI.
+Any normal assistant answer is success. It proves that Zhixu can load the config, reach the selected model, use the workspace, and serve the browser UI.
 
 Interactive WebUI and TUI launchers share one on-demand gateway. Closing one launcher leaves it running for the others; closing the last launcher stops it. If you prefer a persistent background process, press `Ctrl+C`, then run:
 
@@ -113,7 +113,7 @@ nanobot
 ```
 
 In interactive mode, `Enter` sends and `Shift+Enter` inserts a newline (`Ctrl+J` is the
-universal fallback). While nanobot is working, `Enter` sends immediately, `Tab` waits until the
+universal fallback). While Zhixu is working, `Enter` sends immediately, `Tab` waits until the
 current response is finished, and `Option+Up` on macOS (`Alt+Up` on Windows/Linux) edits the
 latest waiting message. Exit
 with `exit`, `/exit`, `:q`, or `Ctrl+D`.

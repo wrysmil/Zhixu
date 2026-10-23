@@ -1,5 +1,5 @@
 {
-  "description": "Chatea con Mira desde Telegram.",
+  "description": "Chatea con 知序 desde Telegram.",
   "requirements": "Token del bot, usuarios permitidos y gateway",
   "setup": {
     "docsLabel": "Abrir guía de Telegram",

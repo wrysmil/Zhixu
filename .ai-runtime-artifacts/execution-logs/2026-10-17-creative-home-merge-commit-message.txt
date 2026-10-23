@@ -1,0 +1,8 @@
+fix(creative): 让首页创建与续写入口更清晰
+
+将已验证的创作空间首页改动合入当前分支，明确标题与模板的创建关系，保留现有文章操作。
+
+Constraint: 仅合入相对用户前端 WIP 基线的 15 个首页相关文件
+Confidence: high
+Scope-risk: narrow
+Tested: WebUI 全量测试、TypeScript 与生产构建、全量 ESLint、git diff --check

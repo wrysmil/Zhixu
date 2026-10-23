@@ -56,6 +56,20 @@ def _configure_windows_console() -> None:
                 reconfigure(encoding="utf-8", errors="replace")
 
 
+def _sanitize_no_proxy_env() -> None:
+    """Normalize ``NO_PROXY`` before any HTTP client is constructed.
+
+    A bracketed IPv6 entry (``[::1]``) makes ``httpx`` raise
+    ``InvalidURL: Invalid port`` while building proxy mounts, which surfaces as
+    "model provider request failed" for every LLM call. Best effort: never let
+    environment cleanup block startup.
+    """
+    with suppress(Exception):
+        from nanobot.security.network import sanitize_no_proxy_env
+
+        sanitize_no_proxy_env()
+
+
 def _run_agent(args: list[str], *, prog_name: str) -> None:
     """Run the shared agent command without importing the complete CLI graph."""
     import typer
@@ -70,6 +84,7 @@ def _run_agent(args: list[str], *, prog_name: str) -> None:
 
 def main() -> None:
     """Dispatch native TUI startup without importing the complete CLI graph."""
+    _sanitize_no_proxy_env()
     raw_args = sys.argv[1:]
     # Installed completion scripts call ``nanobot`` without positional arguments
     # and pass the request through this environment variable. Keep those requests

@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { isLoopbackHost } from "@/lib/network";
 import { getRuntimeHost, isNativeRuntime } from "@/lib/runtime";
-import type { ApiServicePayload, NanobotFeatureInfo, SettingsPayload } from "@/lib/types";
+import type { ApiServicePayload, ZhixuFeatureInfo, SettingsPayload } from "@/lib/types";
 
 export function RuntimeSettings({
   form,
@@ -44,7 +44,7 @@ export function RuntimeSettings({
   apiServiceLoading: boolean;
   apiServiceAction: "start" | "stop" | null;
   apiServiceError: string | null;
-  langfuseFeature?: NanobotFeatureInfo;
+  langfuseFeature?: ZhixuFeatureInfo;
   capabilitiesLoading: boolean;
   capabilityAction: string | null;
   capabilityError: string | null;
@@ -329,7 +329,7 @@ export function RuntimeSettings({
                 ? undefined
                 : tx(
                     "settings.observability.environment",
-                    "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY, then restart Mira.",
+                    "Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY, then restart 知序.",
                   )
             }
           >

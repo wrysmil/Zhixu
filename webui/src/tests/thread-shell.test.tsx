@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { StrictMode, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,10 +7,19 @@ import { preloadMarkdownText } from "@/components/MarkdownText";
 import { ThreadCameraController } from "@/components/thread/thread-camera";
 import { ThreadShell } from "@/components/thread/ThreadShell";
 import i18n from "@/i18n";
+import type { AgentProfile } from "@/lib/agents/types";
 import { CLI_APPS_CHANGED_EVENT } from "@/lib/cli-app-events";
-import type { CanonicalRunSnapshot, StreamError } from "@/lib/nanobot-client";
+import type { CanonicalRunSnapshot, StreamError } from "@/lib/zhixu-client";
+import { SESSION_AGENT_STORAGE_KEY } from "@/lib/session-agent-preference";
 import { ClientProvider } from "@/providers/ClientProvider";
 import type { CliAppsPayload, ConnectionStatus, SettingsPayload, UIMessage } from "@/lib/types";
+
+// 工作台常驻后，最后一条助手回复会同时出现在概览摘要里：断言消息正文时先限定到
+// 消息区，避免与工作台摘要撞名。
+function messages() {
+  const region = screen.queryByTestId("thread-message-region");
+  return region ? within(region) : screen;
+}
 
 const HERO_GREETING_PATTERN =
   /What should we work on\?|Where should we start\?|What are we building today\?|What should we tackle together\?/;
@@ -28,6 +38,7 @@ function makeClient() {
   const latestRunTurnIdByChatId = new Map<string, string>();
   const completedTurnIdsByChatId = new Map<string, Set<string>>();
   const goalStateByChatId = new Map<string, import("@/lib/types").GoalStateWsPayload>();
+  const teamBindingByChatId = new Map<string, import("@/lib/types").TeamBinding | null>();
   let status: ConnectionStatus = "open";
   const advanceRunGeneration = (chatId: string, turnId?: string) => {
     runGenerationByChatId.set(chatId, (runGenerationByChatId.get(chatId) ?? 0) + 1);
@@ -126,6 +137,7 @@ function makeClient() {
     canReconcileCanonicalCompletion,
     reconcileCanonicalCompletion,
     getGoalState: (chatId: string) => goalStateByChatId.get(chatId),
+    teamBindingFor: (chatId: string) => teamBindingByChatId.get(chatId) ?? null,
     onChat: (chatId: string, handler: (ev: import("@/lib/types").InboundEvent) => void) => {
       let handlers = chatHandlers.get(chatId);
       if (!handlers) {
@@ -177,6 +189,10 @@ function makeClient() {
       if (ev.event === "goal_state") {
         goalStateByChatId.set(chatId, ev.goal_state);
       }
+      // 与真实客户端同构：attached 带回的绑定进 map，页头/选择器只读它。
+      if (ev.event === "attached" && ev.team_binding !== undefined) {
+        teamBindingByChatId.set(chatId, ev.team_binding ?? null);
+      }
       for (const h of chatHandlers.get(chatId) ?? []) h(ev);
     },
     _emitRuntimeModelUpdate(modelName: string | null, modelPreset?: string | null) {
@@ -211,7 +227,7 @@ function wrap(
 ) {
   return (
     <ClientProvider
-      client={client as unknown as import("@/lib/nanobot-client").NanobotClient}
+      client={client as unknown as import("@/lib/zhixu-client").ZhixuClient}
       token={token}
       modelName={modelName ?? null}
     >
@@ -243,6 +259,26 @@ function session(chatId: string, modelPreset?: string | null) {
     updatedAt: null,
     preview: "",
     modelPreset,
+  };
+}
+
+function agent(id: string, name: string): AgentProfile {
+  return {
+    id,
+    name,
+    description: "",
+    type: id === "commander" ? "system" : "custom",
+    customized: false,
+    categoryId: null,
+    icon: "lucide:compass",
+    color: "#D97706",
+    prompt: "",
+    modelId: null,
+    tools: { mode: "all", entries: [] },
+    skills: { mode: "all", entries: [] },
+    subAgents: { mode: "all", entries: [] },
+    hidden: false,
+    updatedAt: "2026-10-18T00:00:00.000Z",
   };
 }
 
@@ -423,6 +459,47 @@ function settingsWithFastPreset(): SettingsPayload {
 }
 
 describe("ThreadShell", () => {
+  it("keeps an empty session composer in the welcome area when a shared footer exists", async () => {
+    const footer = document.createElement("div");
+    document.body.append(footer);
+    const client = makeClient();
+    const view = render(wrap(client, <ThreadShell
+      session={session("empty-with-footer")}
+      title="Empty session"
+      onToggleSidebar={() => {}}
+      composerPortalTarget={footer}
+    />));
+    await waitFor(() => expect(screen.getByTestId("thread-welcome-layout"))
+      .toContainElement(screen.getByLabelText("Message input")));
+    const input = screen.getByLabelText("Message input");
+    expect(footer).not.toContainElement(input);
+    fireEvent.click(screen.getByRole("button", { name: "Tools sidebar" }));
+    expect(screen.getByTestId("thread-welcome-layout")).toContainElement(input);
+    view.unmount();
+    footer.remove();
+    window.localStorage.removeItem("mira.dock-tools.open");
+  });
+
+  it("opens the narrow workbench as a dismissible dialog while keeping the welcome composer inline", async () => {
+    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
+      matches: query.includes("max-width: 767px"), media: query,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    })));
+    const client = makeClient();
+    const view = render(wrap(client, <ThreadShell session={session("narrow-workbench")}
+      title="Narrow session" onToggleSidebar={() => {}} />));
+    await waitFor(() => expect(screen.getByTestId("thread-welcome-layout"))
+      .toContainElement(screen.getByLabelText("Message input")));
+    expect(screen.queryByTestId("session-workbench")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Workbench" }));
+    expect(screen.getByRole("dialog")).toContainElement(screen.getByTestId("session-workbench"));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByTestId("thread-welcome-layout")).toContainElement(screen.getByLabelText("Message input"));
+    view.unmount();
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
@@ -643,7 +720,7 @@ describe("ThreadShell", () => {
       text: "new automation",
       turn_id: turnId,
     }));
-    await waitFor(() => expect(screen.getByText("new automation")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("new automation")).toBeInTheDocument());
     expect(screen.getAllByRole("button", { name: "Copy" })).toHaveLength(1);
 
     act(() => client._emitChat("assistant-only-actions", {
@@ -1242,8 +1319,69 @@ describe("ThreadShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-    expect(onCreateChat).toHaveBeenCalledWith(null, "start for real", null);
+    expect(onCreateChat).toHaveBeenCalledWith(null, "start for real", null, null);
     expect(onNewChat).not.toHaveBeenCalled();
+  });
+
+  it("carries the selected team into the create request", async () => {
+    const client = makeClient();
+    const onCreateChat = vi.fn().mockResolvedValue("chat-new");
+
+    render(
+      wrap(
+        client,
+        <ThreadShell
+          session={null}
+          title="nanobot"
+          onToggleSidebar={() => {}}
+          onGoHome={() => {}}
+          onCreateChat={onCreateChat}
+          teamOptions={[{ id: "content-team", name: "内容团队", revision: 2 }]}
+          teamSelection={{ teamId: "content-team", teamRevision: 2 }}
+          teamSelectionName="内容团队"
+          onTeamChange={vi.fn()}
+        />,
+      ),
+    );
+
+    // 选择器落在 composer 的上下文条上，并把当前选择显示出来。
+    expect(screen.getByRole("button", { name: "Team: 内容团队" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Message input"), {
+      target: { value: "research this" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+    expect(onCreateChat).toHaveBeenCalledWith(null, "research this", null, {
+      teamId: "content-team",
+      teamRevision: 2,
+    });
+  });
+
+  it("hides the team picker when the next chat would be temporary", () => {
+    const client = makeClient();
+    render(
+      wrap(
+        client,
+        <ThreadShell
+          session={null}
+          title="nanobot"
+          onToggleSidebar={() => {}}
+          onGoHome={() => {}}
+          onCreateChat={vi.fn()}
+          temporaryChatEnabled
+          teamOptions={[{ id: "content-team", name: "内容团队", revision: 2 }]}
+          teamSelection={{ teamId: "content-team", teamRevision: 2 }}
+          teamSelectionName="内容团队"
+          onTeamChange={vi.fn()}
+        />,
+      ),
+    );
+
+    // 临时聊天那条发送走 new_temporary_chat，不带 team_id，所以选择器不能出现。
+    expect(screen.queryByRole("button", { name: "Team: 内容团队" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Choose team" })).not.toBeInTheDocument();
   });
 
   it("applies the selected landing preset before sending the first prompt", async () => {
@@ -1283,7 +1421,7 @@ describe("ThreadShell", () => {
       "chat-new",
       "/model fast",
     ));
-    expect(onCreateChat).toHaveBeenCalledWith(null, "use the selected model", "fast");
+    expect(onCreateChat).toHaveBeenCalledWith(null, "use the selected model", "fast", null);
 
     await act(async () => {
       rerender(view(session("chat-new", "fast")));
@@ -1493,7 +1631,7 @@ describe("ThreadShell", () => {
     });
     expect(screen.queryByText("/model")).not.toBeInTheDocument();
     expect(screen.queryByText(/Current model/)).not.toBeInTheDocument();
-    expect(screen.getByText("This unrelated reply stays visible.")).toBeInTheDocument();
+    expect(messages().getByText("This unrelated reply stays visible.")).toBeInTheDocument();
 
     await act(async () => {
       resolveThread?.(
@@ -1504,8 +1642,36 @@ describe("ThreadShell", () => {
     await waitFor(() => {
       expect(screen.queryByText("/model")).not.toBeInTheDocument();
       expect(screen.queryByText(/Current model/)).not.toBeInTheDocument();
-      expect(screen.getByText("This unrelated reply stays visible.")).toBeInTheDocument();
+      expect(messages().getByText("This unrelated reply stays visible.")).toBeInTheDocument();
     });
+  });
+
+  it("prepares a suggested task without creating a chat or sending a message", async () => {
+    const client = makeClient();
+    const createChat = vi.fn();
+    render(wrap(client, <ThreadShell session={null} title="nanobot" onToggleSidebar={() => {}}
+      onCreateChat={createChat} />));
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: /Summarize a document/ }));
+    expect(screen.getByRole("textbox", { name: "Message input" })).toHaveValue(
+      "Summarize a document for me: pull out the key points, open questions, and next steps. I'll paste it or attach the file.",
+    );
+    expect(createChat).not.toHaveBeenCalled();
+    expect(client.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("appends a suggested task to the draft of an existing empty conversation", async () => {
+    const client = makeClient();
+    render(wrap(client, <ThreadShell session={session("empty-welcome")} title="Empty conversation"
+      onToggleSidebar={() => {}} />));
+    const suggestion = await screen.findByRole("button", { name: /Summarize a document/ });
+    const input = screen.getByRole("textbox", { name: "Message input" });
+    fireEvent.change(input, { target: { value: "Keep this conversation draft." } });
+    fireEvent.click(suggestion);
+    expect(input).toHaveValue(
+      "Keep this conversation draft.\nSummarize a document for me: pull out the key points, open questions, and next steps. I'll paste it or attach the file.",
+    );
+    expect(client.sendMessage).not.toHaveBeenCalled();
   });
 
   it("keeps the empty thread landing focused on the composer", async () => {
@@ -1568,7 +1734,7 @@ describe("ThreadShell", () => {
       ),
     );
 
-    await waitFor(() => expect(screen.getByText("old answer")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("old answer")).toBeInTheDocument());
 
     await act(async () => {
       rerender(
@@ -1636,7 +1802,8 @@ describe("ThreadShell", () => {
       ),
     );
 
-    const targetText = await screen.findByText("answer 100");
+    const region = await screen.findByTestId("thread-message-region");
+    const targetText = await within(region).findByText("answer 100");
     fireEvent.click(within(targetText.closest(".w-full") as HTMLElement).getByRole("button", {
       name: "Fork",
     }));
@@ -1766,7 +1933,7 @@ describe("ThreadShell", () => {
         text: "live assistant reply",
       });
     });
-    expect(screen.getByText("live assistant reply")).toBeInTheDocument();
+    expect(messages().getByText("live assistant reply")).toBeInTheDocument();
 
     await act(async () => {
       rerender(
@@ -1799,7 +1966,7 @@ describe("ThreadShell", () => {
       );
     });
 
-    await waitFor(() => expect(screen.getByText("live assistant reply")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("live assistant reply")).toBeInTheDocument());
   });
 
   it("restores the stop control when returning to a running chat", async () => {
@@ -1884,7 +2051,7 @@ describe("ThreadShell", () => {
         text: "first fork answer",
       });
     });
-    expect(screen.getByText("first fork answer")).toBeInTheDocument();
+    expect(messages().getByText("first fork answer")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Message input"), {
       target: { value: "second fork question" },
@@ -1901,7 +2068,7 @@ describe("ThreadShell", () => {
 
     await waitFor(() => expect(historyCalls).toBe(2));
     expect(screen.getByText("first fork question")).toBeInTheDocument();
-    expect(screen.getByText("first fork answer")).toBeInTheDocument();
+    expect(messages().getByText("first fork answer")).toBeInTheDocument();
     expect(screen.getByText("second fork question")).toBeInTheDocument();
   });
 
@@ -1969,7 +2136,7 @@ describe("ThreadShell", () => {
 
     await waitFor(() => expect(historyCalls).toBe(2));
     await waitFor(() =>
-      expect(screen.getByText("partial answer completed while away")).toBeInTheDocument(),
+      expect(messages().getByText("partial answer completed while away")).toBeInTheDocument(),
     );
     expect(screen.queryByText("partial answer")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Stop response" })).not.toBeInTheDocument();
@@ -2020,7 +2187,7 @@ describe("ThreadShell", () => {
 
     await waitFor(() => expect(historyCalls).toBe(2));
     await waitFor(() =>
-      expect(screen.getByText("answer completed before open")).toBeInTheDocument(),
+      expect(messages().getByText("answer completed before open")).toBeInTheDocument(),
     );
   });
 
@@ -2080,13 +2247,13 @@ describe("ThreadShell", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByText("row from the expired latest window")).toBeInTheDocument(),
+      expect(messages().getByText("row from the expired latest window")).toBeInTheDocument(),
     );
 
     act(() => client._emitSessionUpdate("window-reset-chat", "thread"));
 
     await waitFor(() =>
-      expect(screen.getByText("answer in the new latest window")).toBeInTheDocument(),
+      expect(messages().getByText("answer in the new latest window")).toBeInTheDocument(),
     );
     expect(screen.queryByText("row from the expired latest window")).not.toBeInTheDocument();
     expect(client.reconcileCanonicalCompletion).toHaveBeenCalledWith(
@@ -2142,19 +2309,19 @@ describe("ThreadShell", () => {
     );
     const { rerender } = render(view("lineage-chat-a"));
 
-    await waitFor(() => expect(screen.getByText("committed old lineage")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("committed old lineage")).toBeInTheDocument());
     rerender(view("lineage-chat-b"));
-    await waitFor(() => expect(screen.getByText("other lineage chat")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("other lineage chat")).toBeInTheDocument());
     rerender(view("lineage-chat-a"));
     await waitFor(() => expect(chatACalls).toBe(2));
 
-    expect(screen.getByText("committed old lineage")).toBeInTheDocument();
+    expect(messages().getByText("committed old lineage")).toBeInTheDocument();
     expect(screen.queryByText("disjoint new lineage")).not.toBeInTheDocument();
 
     act(() => client._emitSessionUpdate("lineage-chat-a", "thread"));
 
     await waitFor(() => expect(chatACalls).toBe(3));
-    await waitFor(() => expect(screen.getByText("disjoint new lineage")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("disjoint new lineage")).toBeInTheDocument());
     expect(screen.queryByText("committed old lineage")).not.toBeInTheDocument();
   });
 
@@ -2198,7 +2365,7 @@ describe("ThreadShell", () => {
       ),
     );
 
-    await waitFor(() => expect(screen.getByText("old canonical row")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("old canonical row")).toBeInTheDocument());
     act(() => client._emitSessionUpdate("reset-tail-race", "thread"));
     await waitFor(() => expect(historyCalls).toBe(2));
 
@@ -2210,7 +2377,7 @@ describe("ThreadShell", () => {
       });
     });
     await waitFor(() =>
-      expect(screen.getByText("local durable row after request")).toBeInTheDocument(),
+      expect(messages().getByText("local durable row after request")).toBeInTheDocument(),
     );
 
     await act(async () => {
@@ -2223,8 +2390,8 @@ describe("ThreadShell", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByText("old canonical row")).toBeInTheDocument();
-    expect(screen.getByText("local durable row after request")).toBeInTheDocument();
+    expect(messages().getByText("old canonical row")).toBeInTheDocument();
+    expect(messages().getByText("local durable row after request")).toBeInTheDocument();
     expect(screen.queryByText("disjoint canonical reset row")).not.toBeInTheDocument();
   });
 
@@ -2343,14 +2510,14 @@ describe("ThreadShell", () => {
     client.reconcileCanonicalCompletion.mockClear();
     const reconcileAfterCommit = client.reconcileCanonicalCompletion.getMockImplementation();
     client.reconcileCanonicalCompletion.mockImplementation((...args) => {
-      expect(screen.getByText("strict canonical answer")).toBeInTheDocument();
+      expect(messages().getByText("strict canonical answer")).toBeInTheDocument();
       return reconcileAfterCommit?.(...args) ?? false;
     });
     canonicalComplete = true;
 
     act(() => client._emitSessionUpdate("strict-canonical", "thread"));
 
-    await waitFor(() => expect(screen.getByText("strict canonical answer")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("strict canonical answer")).toBeInTheDocument());
     expect(client.reconcileCanonicalCompletion).toHaveBeenCalledTimes(1);
     expect(client.canReconcileCanonicalCompletion).toHaveBeenCalled();
   });
@@ -2432,7 +2599,7 @@ describe("ThreadShell", () => {
     act(() => client._emitSessionUpdate("layout-recheck", "thread"));
 
     await waitFor(() => expect(historyCalls).toBe(3));
-    await waitFor(() => expect(screen.getByText("layout canonical answer")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("layout canonical answer")).toBeInTheDocument());
     expect(screen.queryByText("layout partial")).not.toBeInTheDocument();
     expect(client.reconcileCanonicalCompletion).toHaveBeenCalledTimes(2);
   });
@@ -2491,7 +2658,7 @@ describe("ThreadShell", () => {
     );
     const { rerender } = render(view("chat-version-a"));
 
-    await waitFor(() => expect(screen.getByText("old answer")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("old answer")).toBeInTheDocument());
     act(() => client._emitSessionUpdate("chat-version-a"));
     await waitFor(() => expect(chatACalls).toBe(2));
 
@@ -2533,7 +2700,7 @@ describe("ThreadShell", () => {
 
     await waitFor(() => expect(chatACalls).toBe(4));
     await waitFor(() =>
-      expect(screen.getByText("partial answer completed")).toBeInTheDocument(),
+      expect(messages().getByText("partial answer completed")).toBeInTheDocument(),
     );
     expect(screen.queryByText("partial answer")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Stop response" })).not.toBeInTheDocument();
@@ -2582,7 +2749,7 @@ describe("ThreadShell", () => {
       ),
     );
 
-    await waitFor(() => expect(screen.getByText("old answer")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("old answer")).toBeInTheDocument());
     act(() => client._emitSessionUpdate("run-generation-chat", "thread"));
     await waitFor(() => expect(historyCalls).toBe(2));
 
@@ -2678,7 +2845,7 @@ describe("ThreadShell", () => {
 
     act(() => client._emitSessionUpdate("late-frame-chat", "thread"));
     await waitFor(() =>
-      expect(screen.getByText("canonical complete answer")).toBeInTheDocument(),
+      expect(messages().getByText("canonical complete answer")).toBeInTheDocument(),
     );
 
     act(() => {
@@ -2697,7 +2864,7 @@ describe("ThreadShell", () => {
     });
 
     await waitFor(() => expect(historyCalls).toBe(3));
-    expect(screen.getAllByText("canonical complete answer")).toHaveLength(1);
+    expect(messages().getAllByText("canonical complete answer")).toHaveLength(1);
     expect(screen.queryByText(" delayed duplicate")).not.toBeInTheDocument();
     expect(screen.queryByText("canonical complete answer delayed duplicate")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Stop response" })).not.toBeInTheDocument();
@@ -2761,14 +2928,14 @@ describe("ThreadShell", () => {
     expect(screen.getByRole("button", { name: "Stop response" })).toBeInTheDocument();
 
     act(() => client._emitSessionUpdate("visibility-complete-a", "thread"));
-    await waitFor(() => expect(screen.getByText("completed while hidden")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("completed while hidden")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Stop response" })).not.toBeInTheDocument();
     expect(client.getRunStartedAt("visibility-complete-a")).toBeNull();
 
     rerender(view("visibility-complete-b"));
     await waitFor(() => expect(screen.getByText("other thread")).toBeInTheDocument());
     rerender(view("visibility-complete-a"));
-    await waitFor(() => expect(screen.getByText("completed while hidden")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("completed while hidden")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Stop response" })).not.toBeInTheDocument();
   });
 
@@ -2921,7 +3088,7 @@ describe("ThreadShell", () => {
     act(() => client._emitStatus("open"));
     await waitFor(() => expect(historyCalls).toBe(3));
     await waitFor(() =>
-      expect(screen.getByText("missed prefix resumed suffix")).toBeInTheDocument(),
+      expect(messages().getByText("missed prefix resumed suffix")).toBeInTheDocument(),
     );
     expect(screen.queryByText("resumed suffix")).not.toBeInTheDocument();
     await waitFor(() => expectSendMessageWithTurn(
@@ -3029,7 +3196,7 @@ describe("ThreadShell", () => {
 
     await waitFor(() => expect(historyCalls).toBe(3));
     await waitFor(() =>
-      expect(screen.getByText("partial answer missed resumed")).toBeInTheDocument(),
+      expect(messages().getByText("partial answer missed resumed")).toBeInTheDocument(),
     );
     expect(screen.queryByText("partial answer resumed")).not.toBeInTheDocument();
     await waitFor(() => expectSendMessageWithTurn(
@@ -3093,7 +3260,7 @@ describe("ThreadShell", () => {
       });
     });
 
-    await waitFor(() => expect(screen.getByText("Continuing the search.")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("Continuing the search.")).toBeInTheDocument());
     const input = screen.getByRole("textbox", { name: "Message input" });
     fireEvent.change(input, { target: { value: "How is it going?" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -3177,7 +3344,7 @@ describe("ThreadShell", () => {
 
       await waitFor(() => expect(historyCalls).toBe(2));
       await waitFor(() =>
-        expect(screen.getByText("answer completed in background")).toBeInTheDocument(),
+        expect(messages().getByText("answer completed in background")).toBeInTheDocument(),
       );
     } finally {
       restoreDocumentVisibility(visibilityDescriptor);
@@ -3217,7 +3384,7 @@ describe("ThreadShell", () => {
           />,
         ),
       );
-      await waitFor(() => expect(screen.getByText("settled answer")).toBeInTheDocument());
+      await waitFor(() => expect(messages().getByText("settled answer")).toBeInTheDocument());
 
       act(() => document.dispatchEvent(new Event("visibilitychange")));
       act(() => {
@@ -3275,6 +3442,11 @@ describe("ThreadShell", () => {
         ),
       );
       await waitFor(() => expect(historyCalls).toBe(1));
+      // 首次失败必须先落到 state 上（loading 转 false、欢迎态渲染出来），否则切回前台时
+      // refreshOnReturn 拿的还是旧闭包：它看不到 historyError，会直接 return 而不重试。
+      await act(async () => {
+        await screen.findByText(HERO_GREETING_PATTERN);
+      });
 
       act(() => {
         setDocumentVisibility("hidden");
@@ -3285,7 +3457,7 @@ describe("ThreadShell", () => {
       });
 
       await waitFor(() => expect(historyCalls).toBe(2));
-      expect(await screen.findByText("recovered answer")).toBeInTheDocument();
+      expect(await messages().findByText("recovered answer")).toBeInTheDocument();
     } finally {
       restoreDocumentVisibility(visibilityDescriptor);
     }
@@ -3344,7 +3516,7 @@ describe("ThreadShell", () => {
       });
     });
 
-    await waitFor(() => expect(screen.getByText("live half-parsed | markdown")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("live half-parsed | markdown")).toBeInTheDocument());
     expect(screen.queryByText("canonical markdown answer")).not.toBeInTheDocument();
     expect(historyCalls).toBe(1);
   });
@@ -3389,7 +3561,7 @@ describe("ThreadShell", () => {
       ),
     );
 
-    await waitFor(() => expect(screen.getByText("answer")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("answer")).toBeInTheDocument());
     const image = screen.getByRole("img", { name: "answer.png" });
     expect(historyCalls).toBe(1);
 
@@ -3440,7 +3612,7 @@ describe("ThreadShell", () => {
     );
     const { rerender } = render(view("tok-old"));
 
-    await waitFor(() => expect(screen.getByText("answer")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("answer")).toBeInTheDocument());
     const image = screen.getByRole("img", { name: "token-answer.png" });
 
     rerender(view("tok-new"));
@@ -3506,7 +3678,7 @@ describe("ThreadShell", () => {
       });
 
       await waitFor(() => expect(historyCalls).toBe(2));
-      await waitFor(() => expect(screen.getByText("canonical answer")).toBeInTheDocument());
+      await waitFor(() => expect(messages().getByText("canonical answer")).toBeInTheDocument());
       expect(jumpTo).not.toHaveBeenCalled();
     } finally {
       jumpTo.mockRestore();
@@ -3555,7 +3727,7 @@ describe("ThreadShell", () => {
         ),
       );
 
-      await waitFor(() => expect(screen.getByText("old answer")).toBeInTheDocument());
+      await waitFor(() => expect(messages().getByText("old answer")).toBeInTheDocument());
       const scroller = container.querySelector(".thread-viewport-scrollbar") as HTMLElement;
       Object.defineProperties(scroller, {
         scrollHeight: { configurable: true, value: 2_000 },
@@ -3675,7 +3847,7 @@ describe("ThreadShell", () => {
       );
     });
 
-    await waitFor(() => expect(screen.getByText("loaded answer")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("loaded answer")).toBeInTheDocument());
     await waitFor(() => expect(scroller.scrollTop).toBe(1800));
   });
 
@@ -3784,20 +3956,20 @@ describe("ThreadShell", () => {
     );
 
     // No banner yet: only appears once the client emits a matching error.
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Message too large")).not.toBeInTheDocument();
 
     await act(async () => {});
     await act(async () => {
       client._emitError({ kind: "message_too_big" });
     });
 
-    const banner = await screen.findByRole("alert");
+    const banner = await screen.findByText("Message too large");
     expect(banner).toHaveTextContent("Message too large");
 
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
 
     await waitFor(() => {
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("Message too large")).not.toBeInTheDocument();
     });
   });
 
@@ -3834,7 +4006,9 @@ describe("ThreadShell", () => {
       });
     });
 
-    const banner = await screen.findByRole("alert");
+    const message = await screen.findByText("无法连接模型提供商");
+    const banner = message.closest('[role="alert"]');
+    expect(banner).toBeInTheDocument();
     expect(banner).toHaveTextContent("无法连接模型提供商");
     expect(banner).toHaveTextContent(
       "模型提供商请求在第 4 次尝试后仍然失败，已停止重试。请检查提供商配置或服务状态后重试。",
@@ -3847,7 +4021,7 @@ describe("ThreadShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
 
     await waitFor(() => {
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("无法连接模型提供商")).not.toBeInTheDocument();
     });
   });
 
@@ -3887,7 +4061,8 @@ describe("ThreadShell", () => {
     const status = screen.getByRole("button", {
       name: "Not sent: Message too large",
     });
-    expect(screen.getByRole("alert")).toHaveClass("sr-only");
+    expect(screen.getAllByRole("alert").find((element) => element.classList.contains("sr-only")))
+      .toBeInTheDocument();
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 
     fireEvent.focus(status);
@@ -3918,7 +4093,7 @@ describe("ThreadShell", () => {
     await act(async () => {
       client._emitError({ kind: "message_too_big" });
     });
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(await screen.findByText("Message too large")).toBeInTheDocument();
 
     // Switch to a different chat. The banner was about the *previous* send
     // in chat-a; it must not leak into chat-b's view.
@@ -3938,7 +4113,7 @@ describe("ThreadShell", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("Message too large")).not.toBeInTheDocument();
     });
   });
 
@@ -3985,7 +4160,7 @@ describe("ThreadShell", () => {
       ),
     );
 
-    await waitFor(() => expect(screen.getByText("from chat a")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("from chat a")).toBeInTheDocument());
 
     await act(async () => {
       rerender(
@@ -4011,7 +4186,7 @@ describe("ThreadShell", () => {
       );
     });
 
-    await waitFor(() => expect(screen.getByText("from chat b")).toBeInTheDocument());
+    await waitFor(() => expect(messages().getByText("from chat b")).toBeInTheDocument());
     expect(screen.queryByText("from chat a")).not.toBeInTheDocument();
   });
 
@@ -4260,27 +4435,123 @@ describe("ThreadShell", () => {
     expect(screen.getByRole("button", { name: "Stop response" })).toBeInTheDocument();
   });
 
-  it("reports session rail open state to the pane host", async () => {
-    window.localStorage.setItem("mira.workbench.open", "1");
+  it("keeps the workbench pinned and opens the tools sidebar over it from the header", async () => {
+    window.localStorage.removeItem("mira.dock-tools.open");
     const client = makeClient();
-    const onWorkbenchOpenChange = vi.fn();
     render(wrap(
       client,
       <ThreadShell
-        session={session("rail-report")}
-        title="Rail report"
+        session={session("pinned-workbench")}
+        title="Pinned workbench"
         onToggleSidebar={() => {}}
-        onWorkbenchOpenChange={onWorkbenchOpenChange}
       />,
     ));
 
     await screen.findByLabelText("Message input");
-    expect(onWorkbenchOpenChange).toHaveBeenLastCalledWith(true);
+    const toggle = screen.getByRole("button", { name: "Tools sidebar" });
+    expect(screen.getByTestId("session-workbench")).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("start-dock")).toBeNull();
+    // 工作台不允许收缩：面板自身没有任何收起入口。
+    expect(screen.queryByRole("button", { name: /collapse workbench/i })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Collapse workbench" }));
-    expect(onWorkbenchOpenChange).toHaveBeenLastCalledWith(false);
+    fireEvent.click(toggle);
+    // 工具侧边栏盖在工作台那一列上，工作台本体不受影响。
+    expect(screen.getByTestId("start-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("session-workbench")).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(window.localStorage.getItem("mira.dock-tools.open")).toBe("1");
 
-    window.localStorage.removeItem("mira.workbench.open");
+    fireEvent.click(screen.getByRole("button", { name: /Collapse the start panel/i }));
+    expect(screen.queryByTestId("start-dock")).toBeNull();
+    expect(screen.getByTestId("session-workbench")).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    window.localStorage.removeItem("mira.dock-tools.open");
+  });
+
+  it("does not request subagent execution data when the gateway capability is absent", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = makeClient();
+
+    render(wrap(
+      client,
+      <ThreadShell
+        session={session("legacy-execution")}
+        title="Legacy execution"
+        onToggleSidebar={() => {}}
+        subagentExecutionEventsCapability={false}
+      />,
+    ));
+
+    await screen.findByLabelText("Message input");
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).includes("/api/subagent-executions")),
+    ).toBe(false);
+  });
+
+  it("requests the read-only execution list only when the gateway capability is present", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = makeClient();
+
+    render(wrap(
+      client,
+      <ThreadShell
+        session={session("new-execution")}
+        title="New execution"
+        onToggleSidebar={() => {}}
+        subagentExecutionEventsCapability
+      />,
+    ));
+
+    await screen.findByLabelText("Message input");
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input]) => String(input).includes("/api/subagent-executions")),
+      ).toBe(true);
+    });
+  });
+
+  it("会话级 Agent 选择按 chat 记在本地存储里，刷新后仍然生效", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem(
+      SESSION_AGENT_STORAGE_KEY,
+      JSON.stringify({ "agent-pick": "writer", "other-chat": "reviewer" }),
+    );
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      if (String(input).includes("/api/settings/agents")) {
+        return Promise.resolve(httpJson({
+          agents: [agent("commander", "知序指挥官"), agent("writer", "写手")],
+        }));
+      }
+      return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
+    }));
+
+    render(wrap(
+      makeClient(),
+      <ThreadShell session={session("agent-pick")} title="Agent pick" onToggleSidebar={() => {}} />,
+    ));
+
+    // 存过就按存过的显示，而不是回到默认主 Agent。
+    const chip = await screen.findByRole("button", { name: "Current agent: 写手" });
+    await user.click(chip);
+    await user.click(await screen.findByRole("button", { name: /知序指挥官/ }));
+
+    // 改选写回本地存储，且只动当前 chat 这一条。
+    expect(JSON.parse(window.localStorage.getItem(SESSION_AGENT_STORAGE_KEY) ?? "{}")).toEqual({
+      "agent-pick": "commander",
+      "other-chat": "reviewer",
+    });
   });
 
 });

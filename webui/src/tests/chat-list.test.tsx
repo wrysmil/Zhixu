@@ -39,7 +39,7 @@ describe("ChatList", () => {
   afterEach(() => {
     HTMLElement.prototype.animate = originalAnimate;
     HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
-    localStorage.removeItem("nanobot-webui.collapsed-pane-groups.v1");
+    localStorage.removeItem("zhixu-webui.collapsed-pane-groups.v1");
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -64,6 +64,32 @@ describe("ChatList", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
 
     expect(onTogglePin).toHaveBeenCalledWith("websocket:review");
+  });
+
+  it("marks a team-bound chat in the sidebar", () => {
+    render(
+      <ChatList
+        sessions={[
+          session({
+            chatId: "bound",
+            title: "Weekly digest",
+            teamBinding: { teamId: "content-team", teamRevision: 3, teamName: "内容团队" },
+          }),
+          session({ chatId: "plain", title: "Ordinary thread" }),
+        ]}
+        activeKey="websocket:bound"
+        onSelect={vi.fn()}
+        onRequestDelete={vi.fn()}
+      />,
+    );
+
+    const boundRow = screen.getByRole("button", { name: "Weekly digest" })
+      .closest("[data-chat-row]")!;
+    const plainRow = screen.getByRole("button", { name: "Ordinary thread" })
+      .closest("[data-chat-row]")!;
+
+    expect(within(boundRow).getByTitle("Team: 内容团队")).toBeInTheDocument();
+    expect(within(plainRow).queryByTitle(/Team:/)).not.toBeInTheDocument();
   });
 
   it("renders plain session rows without handle prefixes or underline tracks", () => {

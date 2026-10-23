@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { isNativeRuntime } from "@/lib/runtime";
-import type { NanobotFeatureInfo } from "@/lib/types";
+import type { ZhixuFeatureInfo } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const SETTINGS_SEARCH_INPUT_CLASS = cn(
@@ -45,16 +45,16 @@ export function CapabilityInstallNotice({
   );
 }
 
-export function NanobotFeatureInstallDialog({
+export function ZhixuFeatureInstallDialog({
   feature,
   installing,
   onOpenChange,
   onConfirm,
 }: {
-  feature: NanobotFeatureInfo | null;
+  feature: ZhixuFeatureInfo | null;
   installing: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (feature: NanobotFeatureInfo) => void | Promise<void>;
+  onConfirm: (feature: ZhixuFeatureInfo) => void | Promise<void>;
 }) {
   const { t } = useTranslation();
   const tx = (key: string, fallback: string, values?: Record<string, unknown>) =>
@@ -68,12 +68,12 @@ export function NanobotFeatureInstallDialog({
       >
         <DialogHeader className="items-center space-y-0 text-center">
           <DialogTitle className="text-center text-[20px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
-            {tx("settings.nanobotFeatures.installConfirmTitle", "Install support for {{name}}?", { name })}
+            {tx("settings.zhixuFeatures.installConfirmTitle", "Install support for {{name}}?", { name })}
           </DialogTitle>
           <DialogDescription className="mt-3 max-w-[20rem] text-center text-[14px] leading-6 text-muted-foreground">
             {tx(
-              "settings.nanobotFeatures.installConfirmDescription",
-              "Mira will add what {{name}} needs, then turn it on. Continue?",
+              "settings.zhixuFeatures.installConfirmDescription",
+              "知序 will add what {{name}} needs, then turn it on. Continue?",
               { name },
             )}
           </DialogDescription>
@@ -95,7 +95,7 @@ export function NanobotFeatureInstallDialog({
             className="h-11 w-full min-w-0 !whitespace-normal px-5 text-center text-[15px] font-semibold"
           >
             {installing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
-            {tx("settings.nanobotFeatures.installConfirmAction", "Install and enable")}
+            {tx("settings.zhixuFeatures.installConfirmAction", "Install and enable")}
           </Button>
         </DialogFooter>
       </DialogContent>

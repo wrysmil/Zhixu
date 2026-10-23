@@ -209,3 +209,53 @@ def test_delete_webui_skill_restores_directory_when_config_save_fails(
     assert (directory / "SKILL.md").is_file()
     assert config.agents.defaults.disabled_skills == ["custom-skill"]
     assert disabled == {"custom-skill"}
+
+
+# ------------------------------------------- 内置保护业务码（F4：不丢 code）
+
+
+def test_builtin_skill_protection_code_is_carried_to_the_error_body(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """内置 Skill 拒绝必须让异常带码，并把码放进错误体（F4）。
+
+    ``_disable_config`` 式钉法：守卫必须在读 config 之前就拒绝，否则错误体会变成
+    config 相关的 5xx，码也就无从谈起。
+    """
+    from nanobot.agents.store import protected_write_message
+    from nanobot.writing.builtin import (
+        BUILTIN_RESOURCE_PROTECTED,
+        WRITING_BUILTIN_ASSETS,
+    )
+
+    monkeypatch.setattr(
+        "nanobot.webui.skills_api.load_config",
+        lambda _path=None: pytest.fail("builtin protection must reject before loading config"),
+    )
+    logical_id = next(
+        asset.logical_id for asset in WRITING_BUILTIN_ASSETS if asset.kind == "skill"
+    )
+
+    with pytest.raises(SkillManagementError) as delete_error:
+        delete_webui_skill(tmp_path, logical_id, disabled_skills=set())
+    # 异常对象真的携带业务码（不是用例硬编码的断言）。
+    assert delete_error.value.code == BUILTIN_RESOURCE_PROTECTED
+    assert delete_error.value.status == 409
+    assert delete_error.value.message == (
+        f"{BUILTIN_RESOURCE_PROTECTED} {protected_write_message('skill', logical_id)}"
+    )
+
+    with pytest.raises(SkillManagementError) as update_error:
+        set_webui_skill_enabled(tmp_path, logical_id, enabled=False, disabled_skills=set())
+    assert update_error.value.code == BUILTIN_RESOURCE_PROTECTED
+    assert update_error.value.message.startswith(BUILTIN_RESOURCE_PROTECTED)
+
+
+def test_ordinary_skill_errors_have_no_business_code(tmp_path: Path) -> None:
+    """普通错误保持既有形状：不带码，也不加前缀。"""
+    with pytest.raises(SkillManagementError) as excinfo:
+        delete_webui_skill(tmp_path, "ghost-skill", disabled_skills=set())
+    assert excinfo.value.status == 404
+    assert excinfo.value.code is None
+    assert excinfo.value.message == "skill not found"

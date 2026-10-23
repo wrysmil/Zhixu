@@ -560,6 +560,7 @@ def _make_router(
         temporary_chats=MagicMock(),
         session_projection=MagicMock(),
         session_manager=None,
+        team_bindings=None,
     )
     return WebUICommandRouter(transport, gateway)  # type: ignore[arg-type]
 
@@ -1172,3 +1173,39 @@ async def test_start_rejects_bad_shell_name_before_bridge(tmp_path: Path) -> Non
         assert started[-1]["message"] == "shell_unavailable"
     finally:
         await router.close()
+
+
+@_SKIP_WINDOWS
+async def test_bridge_takeover_replays_bounded_scrollback(tmp_path: Path) -> None:
+    bridge = _make_bridge(tmp_path)
+    first, second = Collector(), Collector()
+    scope = build_workspace_scope(tmp_path, "full")
+    try:
+        await bridge.start(
+            terminal_id="t-replay",
+            scope=scope,
+            chat_id="chat1",
+            session_key="websocket:chat1",
+            publisher=first,
+        )
+        await bridge.write(terminal_id="t-replay", data="echo BEFORE_TAKEOVER\n")
+        await _wait_until(
+            lambda: "BEFORE_TAKEOVER" in first.text("terminal_output"),
+            message="pre-takeover output",
+        )
+
+        result = await bridge.start(
+            terminal_id="t-replay",
+            scope=scope,
+            chat_id="chat2",
+            session_key="websocket:chat2",
+            publisher=second,
+        )
+
+        assert result["status"] == "already_running"
+        snapshots = second.of("terminal_snapshot")
+        assert len(snapshots) == 1
+        assert "BEFORE_TAKEOVER" in snapshots[0]["data"]
+        assert first.of("terminal_snapshot") == []
+    finally:
+        await bridge.aclose()

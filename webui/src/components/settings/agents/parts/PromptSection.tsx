@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Maximize2, Minimize2 } from "lucide-react";
 
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { AgentProfile } from "@/lib/agents/types";
 import { PROMPT_MAX_LENGTH } from "@/lib/agents/types";
 import { cn } from "@/lib/utils";
@@ -13,7 +15,7 @@ type PromptProps = {
 };
 
 const PILL_CLASS =
-  "inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-muted/65 px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-control bg-muted/65 px-3 text-[12px] font-medium text-muted-foreground transition-colors duration-150 [transition-timing-function:cubic-bezier(.2,.8,.2,1)] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none";
 
 /**
  * 提示词输入框。高度随内容自动增长（把 `scrollHeight` 反写回 `style.height`），
@@ -27,9 +29,13 @@ function PromptTextarea({
   onChange,
   textareaRef,
   maxHeightPx,
+  expanded = false,
+  descriptionId,
 }: PromptProps & {
   textareaRef: RefObject<HTMLTextAreaElement>;
   maxHeightPx: number;
+  expanded?: boolean;
+  descriptionId: string;
 }) {
   const { t } = useTranslation();
 
@@ -51,9 +57,14 @@ function PromptTextarea({
         "用 markdown 写这个 Agent 的职责、边界与输出风格。",
       )}
       aria-label={t("settings.agents.prompt.label", "系统提示词")}
+      aria-describedby={descriptionId}
+      aria-invalid={profile.prompt.length > PROMPT_MAX_LENGTH}
       spellCheck={false}
       style={{ maxHeight: `${maxHeightPx}px` }}
-      className="min-h-[13rem] resize-none overflow-y-auto font-mono text-[13px] leading-relaxed scrollbar-thin"
+      className={cn(
+        "resize-none overflow-y-auto rounded-control border-border/75 bg-background/80 p-4 font-mono text-[13px] leading-7 shadow-none scrollbar-thin focus-visible:border-ring/50 focus-visible:ring-ring/20",
+        expanded ? "min-h-[60dvh]" : "min-h-[320px]",
+      )}
     />
   );
 }
@@ -76,107 +87,89 @@ export function PromptSection({ profile, onChange }: PromptProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // 展开态下不保留行内那个输入框：两个 textarea 共用一个 ref 会互相抢，
-  // 变量就不知道该插进哪一个了。
-  if (expanded) {
-    return (
-      <ExpandedPromptEditor
-        profile={profile}
-        onChange={onChange}
-        textareaRef={textareaRef}
-        onClose={() => setExpanded(false)}
-      />
+  const expandedRef = useRef<HTMLTextAreaElement>(null);
+  const hintId = useId();
+  const expandedHintId = useId();
+  const overLimit = profile.prompt.length > PROMPT_MAX_LENGTH;
+  const hint = overLimit
+    ? t("settings.agents.workspace.promptLimit", {
+      count: PROMPT_MAX_LENGTH,
+      defaultValue: "Instructions must be within {{count}} characters.",
+    })
+    : t(
+      "settings.agents.workspace.promptHint",
+      "Describe its responsibilities, how it should work, and what it should deliver.",
     );
-  }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className={PILL_CLASS}
-        >
-          <Maximize2 className="h-3.5 w-3.5" aria-hidden />
-          {t("settings.agents.prompt.expand", "展开编辑")}
-        </button>
-        <div className="ml-auto">
-          <LengthCounter profile={profile} />
+    <Dialog open={expanded} onOpenChange={setExpanded}>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <p
+            id={hintId}
+            className={cn("min-w-0 flex-1 text-[12px] leading-5", overLimit ? "text-destructive" : "text-muted-foreground")}
+          >
+            {hint}
+          </p>
+          <DialogPrimitive.Trigger asChild>
+            <button type="button" className={PILL_CLASS}>
+              <Maximize2 className="h-3.5 w-3.5" aria-hidden />
+              {t("settings.agents.prompt.expand", "展开编辑")}
+            </button>
+          </DialogPrimitive.Trigger>
         </div>
+        {!expanded ? (
+          <PromptTextarea
+            profile={profile}
+            onChange={onChange}
+            textareaRef={textareaRef}
+            maxHeightPx={520}
+            descriptionId={hintId}
+          />
+        ) : null}
+        <div className="flex justify-end"><LengthCounter profile={profile} /></div>
       </div>
-
-      <PromptTextarea
-        profile={profile}
-        onChange={onChange}
-        textareaRef={textareaRef}
-        maxHeightPx={448}
-      />
-    </div>
-  );
-}
-
-/**
- * 全屏专注编辑。提示词是这个 Agent 里最长的一段文本，挤在弹窗左列的一小块里
- * 没法写；这里让它独占视口，写完退回原处。
- */
-function ExpandedPromptEditor({
-  profile,
-  onChange,
-  textareaRef,
-  onClose,
-}: PromptProps & {
-  textareaRef: RefObject<HTMLTextAreaElement>;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation();
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, [textareaRef]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("settings.agents.prompt.expandedTitle", "编辑提示词")}
-      className="fixed inset-0 z-[60] flex flex-col bg-background"
-    >
-      <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-5 py-3">
-        <h3 className="text-[13px] font-medium text-foreground">
-          {t("settings.agents.prompt.expandedTitle", "编辑提示词")}
-        </h3>
-        <div className="ml-auto">
-          <LengthCounter profile={profile} />
+      <DialogContent
+        showCloseButton={false}
+        className="flex max-h-[92dvh] w-full max-w-[1000px] flex-col gap-0 overflow-hidden p-0 text-left"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          expandedRef.current?.focus();
+        }}
+        onEscapeKeyDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setExpanded(false);
+        }}
+      >
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border/60 px-5 py-4">
+          <DialogTitle className="text-base">
+            {t("settings.agents.prompt.expandedTitle", "编辑提示词")}
+          </DialogTitle>
+          <div className="ml-auto"><LengthCounter profile={profile} /></div>
+          <DialogPrimitive.Close asChild>
+            <button type="button" className={PILL_CLASS}>
+              <Minimize2 className="h-3.5 w-3.5" aria-hidden />
+              {t("settings.agents.prompt.collapse", "完成")}
+            </button>
+          </DialogPrimitive.Close>
         </div>
-        <button
-          ref={closeRef}
-          type="button"
-          onClick={onClose}
-          className={PILL_CLASS}
-        >
-          <Minimize2 className="h-3.5 w-3.5" aria-hidden />
-          {t("settings.agents.prompt.collapse", "完成")}
-        </button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-        <PromptTextarea
-          profile={profile}
-          onChange={onChange}
-          textareaRef={textareaRef}
-          maxHeightPx={Number.MAX_SAFE_INTEGER}
-        />
-      </div>
-    </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <DialogDescription
+            className={cn("mb-3 text-xs leading-5", overLimit && "text-destructive")}
+          >
+            <span id={expandedHintId}>{hint}</span>
+          </DialogDescription>
+          <PromptTextarea
+            profile={profile}
+            onChange={onChange}
+            textareaRef={expandedRef}
+            maxHeightPx={700}
+            expanded
+            descriptionId={expandedHintId}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

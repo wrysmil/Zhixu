@@ -1,6 +1,6 @@
-# How to Connect an AI Agent to Chat Apps with nanobot
+# How to Connect an AI Agent to Chat Apps with Zhixu
 
-nanobot can run as a self-hosted chatbot or AI agent in Telegram, Discord,
+Zhixu can run as a self-hosted chatbot or AI agent in Telegram, Discord,
 Slack, WeChat, Email, Mattermost, and other chat apps. The gateway receives chat
 messages, runs the agent, and sends replies back to the same channel.
 
@@ -88,7 +88,7 @@ Use the full [Chat Apps reference](../chat-apps.md) when you manage `config.json
   platform credentials, event permissions, and allow lists.
 - If group replies are unexpected, review that channel's group policy.
 
-## Related nanobot docs
+## Related Zhixu docs
 
 - [Chat Apps](../chat-apps.md)
 - [Configuration](../configuration.md#channel-settings)

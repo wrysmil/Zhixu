@@ -290,7 +290,7 @@ describe("panels wired into the article snapshot (A-08 rule 2)", () => {
     const saveButton = screen.getByRole("button", { name: /保存/ }) as HTMLButtonElement;
     expect(saveButton.disabled).toBe(true);
 
-    fireEvent.click(screen.getByText("提纲"));
+    fireEvent.click(screen.getByTestId("outline-toggle"));
     fireEvent.click(screen.getByTestId("outline-add-open"));
     fireEvent.change(screen.getByTestId("outline-add-input"), { target: { value: "多出来的一节" } });
     fireEvent.click(screen.getByTestId("outline-add-submit"));
@@ -303,10 +303,10 @@ describe("panels wired into the article snapshot (A-08 rule 2)", () => {
     expect(saveButton.disabled).toBe(true);
 
     // 面板开关与标签切换都不进快照：不重新变脏、不推进版本。
-    fireEvent.click(screen.getByText("素材"));
-    fireEvent.click(screen.getByText("提纲"));
-    fireEvent.click(screen.getByText("素材"));
-    fireEvent.click(screen.getByText("提纲"));
+    fireEvent.click(screen.getByTestId("materials-toggle"));
+    fireEvent.click(screen.getByTestId("outline-toggle"));
+    fireEvent.click(screen.getByTestId("materials-toggle"));
+    fireEvent.click(screen.getByTestId("outline-toggle"));
     expect(saveButton.disabled).toBe(true);
     expect(screen.getByTestId("save-phase-label").textContent).toContain("已保存");
   });
@@ -316,6 +316,7 @@ describe("panels wired into the article snapshot (A-08 rule 2)", () => {
     fireEvent.click(await screen.findByText("从零构建 Agent 的记忆系统"));
     await waitFor(() => expect(screen.getByTestId("article-editor")).toBeInTheDocument());
 
+    fireEvent.click(screen.getByTestId("materials-toggle"));
     fireEvent.click(screen.getByTestId("material-add-open"));
     fireEvent.change(screen.getByTestId("material-title-input"), { target: { value: "新加的观点" } });
     fireEvent.change(screen.getByTestId("material-content-input"), { target: { value: "观点内容" } });
@@ -330,6 +331,8 @@ describe("panels wired into the article snapshot (A-08 rule 2)", () => {
       expect(screen.getByText("从零构建 Agent 的记忆系统")).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByText("从零构建 Agent 的记忆系统"));
+    await waitFor(() => expect(screen.getByTestId("article-editor")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("materials-toggle"));
     await waitFor(() => expect(screen.getByTestId("material-add-open")).toBeInTheDocument());
 
     const rows = Array.from(document.querySelectorAll("[data-material-id]"));

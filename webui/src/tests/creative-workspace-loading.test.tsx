@@ -106,7 +106,7 @@ describe("CreativeWorkspace loading (A3.1)", () => {
     fetchMock.mockImplementationOnce(async () => jsonResponse({}, 500));
     fireEvent.click(screen.getByTestId("status-filter-idea"));
     expect(await screen.findByTestId("article-list-error")).toBeInTheDocument();
-    expect(screen.getByText("文章列表加载失败")).toBeInTheDocument();
+    expect(screen.getByText("Could not load articles")).toBeInTheDocument();
 
     // ready: rows come from the server payload.
     fetchMock.mockImplementation(async () =>
@@ -152,7 +152,7 @@ describe("CreativeWorkspace loading (A3.1)", () => {
     renderWorkspace();
     await waitFor(() => expect(screen.getByText("真实文章")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByLabelText(/搜索标题或摘要/), {
+    fireEvent.change(screen.getByLabelText("Search titles or summaries"), {
       target: { value: "nope" },
     });
     await waitFor(() =>
@@ -176,11 +176,11 @@ describe("CreativeWorkspace loading (A3.1)", () => {
     });
     await waitFor(() => expect(screen.getByText("真实文章")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByPlaceholderText(/想讲清楚什么问题/), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Article title" }), {
       target: { value: "我的新文章" },
     });
     fireEvent.click(screen.getByTestId("template-tech-explainer"));
-    fireEvent.click(screen.getByRole("button", { name: /新建/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
 
     await waitFor(() => expect(requestMutation).toHaveBeenCalled());
     const [action, payload] = requestMutation.mock.calls[0] as [string, Record<string, unknown>];
@@ -210,14 +210,14 @@ describe("CreativeWorkspace loading (A3.1)", () => {
       expect(screen.getByTestId("article-list-empty")).toBeInTheDocument(),
     );
 
-    const textarea = screen.getByPlaceholderText(/想讲清楚什么问题/);
-    fireEvent.change(textarea, { target: { value: "失败也要留着" } });
-    fireEvent.click(screen.getByRole("button", { name: /新建/ }));
+    const titleInput = screen.getByRole("textbox", { name: "Article title" });
+    fireEvent.change(titleInput, { target: { value: "失败也要留着" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
 
     await waitFor(() =>
       expect(screen.getByTestId("create-error")).toBeInTheDocument(),
     );
-    expect((screen.getByPlaceholderText(/想讲清楚什么问题/) as HTMLTextAreaElement).value)
+    expect((screen.getByRole("textbox", { name: "Article title" }) as HTMLInputElement).value)
       .toBe("失败也要留着");
   });
 

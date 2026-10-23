@@ -21,9 +21,26 @@ const DOCK_KEYS = [
   "takeoverHint",
   "closeTab",
   "platformDefaultShell",
+  "renameTab",
+  "copyOutput",
+  "clearOutput",
+  "pasteInput",
+  "browserWindow",
+  "showHidden",
+  "hideHidden",
+  "refresh",
+  "collapseAll",
+  "search",
+  "searchPlaceholder",
+  "searching",
+  "noMatches",
+  "searchTruncated",
+  "searchFailed",
+  "copied",
+  "historyTruncated",
 ];
 
-function loadLocale(lang: string): Record<string, any> {
+function loadLocale(lang: string): Record<string, Record<string, string>> {
   return JSON.parse(readFileSync(join(ROOT, "src/i18n/locales", lang, "common.json"), "utf8"));
 }
 

@@ -5,6 +5,7 @@ import { AgentActivityCluster } from "@/components/thread/AgentActivityCluster";
 import { AssistantSelectionAction } from "@/components/thread/AssistantSelectionAction";
 import { projectActivityTimeline, type TurnUnit } from "@/lib/activity-timeline";
 import type { CliAppInfo, McpPresetInfo, RetryStatus, SlashCommand, UIMessage } from "@/lib/types";
+import type { AgentProfile } from "@/lib/agents/types";
 
 interface ThreadMessagesProps {
   messages: UIMessage[];
@@ -18,6 +19,7 @@ interface ThreadMessagesProps {
   hiddenUserMessageCount?: number;
   cliApps?: CliAppInfo[];
   mcpPresets?: McpPresetInfo[];
+  agents?: AgentProfile[];
   slashCommands?: SlashCommand[];
   forkBoundaryMessageCount?: number | null;
   onOpenFilePreview?: (path: string) => void;
@@ -68,6 +70,7 @@ export function ThreadMessages({
   hiddenUserMessageCount = 0,
   cliApps = [],
   mcpPresets = [],
+  agents = [],
   slashCommands = [],
   forkBoundaryMessageCount = null,
   onOpenFilePreview,
@@ -174,6 +177,7 @@ export function ThreadMessages({
             temporary={temporary}
             cliApps={cliApps}
             mcpPresets={mcpPresets}
+            agents={agents}
             slashCommands={slashCommands}
             onOpenFilePreview={onOpenFilePreview}
             onForkFromMessage={onForkFromMessage}
@@ -257,6 +261,7 @@ interface ThreadDisplayUnitProps {
   temporary: boolean;
   cliApps: CliAppInfo[];
   mcpPresets: McpPresetInfo[];
+  agents: AgentProfile[];
   slashCommands: SlashCommand[];
   onOpenFilePreview?: (path: string) => void;
   onForkFromMessage?: (beforeUserIndex: number) => void;
@@ -277,6 +282,7 @@ const ThreadDisplayUnit = memo(function ThreadDisplayUnit({
   temporary,
   cliApps,
   mcpPresets,
+  agents,
   slashCommands,
   onOpenFilePreview,
   onForkFromMessage,
@@ -317,6 +323,7 @@ const ThreadDisplayUnit = memo(function ThreadDisplayUnit({
             temporary={temporary}
             cliApps={cliApps}
             mcpPresets={mcpPresets}
+            agents={agents}
             slashCommands={slashCommands}
             onOpenFilePreview={onOpenFilePreview}
             onForkFromHere={forkIndex !== undefined ? onForkFromHere : undefined}
@@ -346,6 +353,7 @@ function threadDisplayUnitPropsEqual(
     && previous.temporary === next.temporary
     && previous.cliApps === next.cliApps
     && previous.mcpPresets === next.mcpPresets
+    && previous.agents === next.agents
     && previous.slashCommands === next.slashCommands
     && previous.onOpenFilePreview === next.onOpenFilePreview
     && previous.onForkFromMessage === next.onForkFromMessage

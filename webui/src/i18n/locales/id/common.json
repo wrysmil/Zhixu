@@ -1,5 +1,206 @@
 {
+  "appearance": {
+    "previewOnly": "Preview only. Appearance changes stay in this session and do not change your saved preferences.",
+    "visualStyle": "Visual style",
+    "mode": "Mode",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+    "theme": "Theme",
+    "zhixu": "Zhixu",
+    "graphite": "Graphite",
+    "ocean": "Ocean",
+    "sand": "Warm sand",
+    "custom": "Custom",
+    "editingDark": "Editing dark colors",
+    "editingLight": "Editing light colors",
+    "accent": "Accent",
+    "background": "Background",
+    "foreground": "Text",
+    "chooseColor": "Choose {{label}} color",
+    "resetColor": "Restore {{label}} theme value",
+    "invalidColor": "Enter a HEX color, such as #0169CC or #09C.",
+    "uiFont": "Interface font",
+    "codeFont": "Code font",
+    "font_system": "System default",
+    "font_sans": "Sans serif",
+    "font_serif": "Serif",
+    "font_custom": "Custom local font",
+    "font_default": "Default monospace",
+    "font_consolas": "Consolas",
+    "font_cascadia": "Cascadia Code",
+    "font_jetbrains": "JetBrains Mono",
+    "fontFamily": "{{label}} family name",
+    "invalidFont": "Use a single font family name without style punctuation.",
+    "fontFallback": "Use a font installed on this device. Missing fonts or characters use the fallback fonts.",
+    "lowContrast": "Low contrast ({{ratio}}:1). Try a darker text color or a lighter background.",
+    "storageError": "Applied for this session, but could not save to this device.",
+    "preview": "Preview",
+    "sampleTitle": "让想法有序生长 · Make room for ideas",
+    "sampleBody": "Your colors and fonts apply across the interface. 0123456789",
+    "sampleButton": "Continue",
+    "sampleInput": "A new idea…",
+    "sampleInputLabel": "Example input",
+    "instant": "Changes apply immediately and save on this device.",
+    "reset": "Restore default appearance"
+  },
   "creative": {
+    "title": "Ruang kreatif",
+    "new_placeholder": "Beri judul artikel ini",
+    "create_btn": "Buat draf",
+    "creating_btn": "Membuat…",
+    "search_placeholder": "Cari judul atau ringkasan",
+    "status_filter": "Filter berdasarkan status",
+    "empty_template": "Artikel kosong",
+    "selected_template": "Templat terpilih: {{name}}",
+    "title_hint": "Judul sementara sudah cukup. Anda dapat mengubahnya nanti.",
+    "library_hint": "Lanjutkan dari bagian terakhir.",
+    "empty_action": "Tulis artikel pertama Anda",
+    "clear_filters": "Hapus filter",
+    "dismiss": "Tutup",
+    "no_summary": "Belum ada ringkasan",
+    "revision_label": "Versi {{revision}}",
+    "duplicate": "Duplikat",
+    "delete": "Hapus",
+    "edit_article": "Edit artikel",
+    "confirm_delete": "Hapus artikel ini?",
+    "confirm_delete_body": "“{{title}}” akan dihapus. Tindakan ini tidak dapat dibatalkan.",
+    "cancel": "Batal",
+    "confirm": "Konfirmasi",
+    "loadFailed": "Tidak dapat memuat artikel",
+    "retry": "Coba lagi",
+    "no_match": "Tidak ada artikel yang cocok dengan filter",
+    "empty": "Artikel pertama Anda dimulai di sini",
+    "createFailed": "Tidak dapat membuat artikel. Silakan coba lagi.",
+    "title_required": "Masukkan judul artikel",
+    "duplicateFailed": "Tidak dapat menduplikasi artikel",
+    "deleteFailed": "Tidak dapat menghapus artikel",
+    "note_storage": "Artikel pratinjau hanya disimpan selama kunjungan ini. Ekspor draf sebelum memuat ulang.",
+    "confirm_delete_dirty": "Artikel ini memiliki perubahan yang belum disimpan. Menghapusnya juga menghapus draf pemulihan lokal.",
+    "partner": {
+      "ui": {
+        "after": "Sesudah",
+        "angles": "Sudut pandang",
+        "before": "Sebelum",
+        "busy": "Sedang bekerja…",
+        "copyRewrite": "Salin tulisan ulang",
+        "dismissMaterial": "Hapus dari pilihan ini",
+        "empty": "Belum ada hasil yang kembali.",
+        "errorUnknown": "Rekan menulis tidak dapat menangani itu. Coba lagi.",
+        "failed": "Item ini gagal. Coba lagi.",
+        "handoffUnknown": "Menunggu keputusan Anda",
+        "inputLabel": "Kirim pesan ke editor",
+        "insertIntoArticle": "Sisipkan ke artikel",
+        "insertSection": "Sisipkan bagian ini",
+        "issues": "Masalah yang perlu ditangani",
+        "materials": "Materi",
+        "modelGlobalDefault": "Artikel ini belum punya model sendiri — memakai default global ({{preset}}).",
+        "modelSetup": "Pilih model",
+        "modelSwitchApplied": "Beralih ke {{preset}} — hanya batch baru yang akan memakainya.",
+        "modelSwitchFailed": "Tidak bisa mengganti model. Coba lagi.",
+        "modelSwitchNotApplied": "Server masih memakai {{preset}} — pergantian tidak berlaku.",
+        "modelSwitchPending": "Mengganti model…",
+        "modelSwitchRequested": "Pergantian model terkirim; berlaku untuk batch yang dimulai mulai sekarang.",
+        "modelSwitchUnsupported": "Koneksi ini tidak bisa mengganti model.",
+        "modelUnknownPreset": "Preset model itu tidak lagi tersedia. Pilih yang lain.",
+        "nextStep": "Langkah berikutnya",
+        "nextStepUnknown": "Buka proses kolaborasi untuk langkah berikutnya",
+        "noProgress": "Tidak ada tugas yang berjalan untuk artikel ini.",
+        "outlineConfirm": "Simpan kerangka dan lanjutkan",
+        "outlinePoint": "Poin kerangka",
+        "pending": "Menunggu keputusan Anda",
+        "plan": "Rencana",
+        "quickTasks": "Tugas cepat",
+        "rejectRewrite": "Tolak",
+        "replaceArticle": "Ganti draf kosong",
+        "retry": "Coba lagi",
+        "retryRewrite": "Coba tulisan ulang lain",
+        "sections": "Bagian",
+        "send": "Kirim ke tim",
+        "showFewerIssues": "Tampilkan lebih sedikit",
+        "showMoreIssues": "Tampilkan {{count}} lagi",
+        "stop": "Hentikan",
+        "stopping": "Menghentikan…",
+        "untitled": "Artikel tanpa judul",
+        "viewAndInsert": "Lihat dan sisipkan",
+        "viewMaterials": "Lihat materi",
+        "viewOutline": "Lihat kerangka",
+        "toggle": "Mitra penulisan"
+      },
+      "title": "Rekan menulis",
+      "builtinBadge": "Bawaan",
+      "process": {
+        "toggle": "Lihat proses kolaborasi"
+      },
+      "input": {
+        "placeholder": "Pertahankan gaya saya; buat bagian 2 lebih konkret…"
+      },
+      "requirements": {
+        "toggle": "Persyaratan artikel ini"
+      },
+      "stage": {
+        "idle": "Menganggur",
+        "queued": "Dalam antrean",
+        "running": "Berjalan",
+        "waiting_author": "Menunggu Anda",
+        "completed": "Selesai",
+        "failed": "Gagal",
+        "cancelled": "Dibatalkan",
+        "interrupted": "Terputus"
+      },
+      "action": {
+        "start_full": "Jalankan alur lengkap",
+        "ideate": "Cari sudut pandang",
+        "research": "Riset",
+        "outline": "Buat kerangka",
+        "draft": "Tulis draf",
+        "rewrite_selection": "Tulis ulang pilihan",
+        "review_all": "Tinjau semua",
+        "reply": "Balas"
+      },
+      "artifact": {
+        "brief": "Ringkasan brief",
+        "material_list": "Materi",
+        "outline": "Kerangka",
+        "draft": "Draf",
+        "rewrite": "Tulisan ulang",
+        "review": "Tinjauan"
+      },
+      "artifactAction": {
+        "useAngle": "Pakai sudut ini",
+        "addMaterial": "Tambah materi",
+        "writeFromOutline": "Tulis dari kerangka",
+        "insertDraft": "Sisipkan draf",
+        "applyRewrite": "Terapkan tulisan ulang",
+        "viewIssues": "Lihat masalah"
+      },
+      "handoff": {
+        "outline_confirm": "Kerangka siap — konfirmasi untuk lanjut",
+        "materials_request": "Perlu materi tambahan",
+        "final_accept": "Hasil akhir siap — setujui untuk selesai"
+      },
+      "progress": {
+        "researching": "Meriset",
+        "outlining": "Menyusun kerangka",
+        "drafting": "Menulis draf",
+        "reviewing": "Meninjau",
+        "waitingAuthor": "Menunggu Anda",
+        "stopped": "Dihentikan"
+      },
+      "error": {
+        "selectionRequired": "Pilih teks terlebih dahulu",
+        "versionConflict": "Artikel berubah. Muat ulang lalu coba lagi.",
+        "notPending": "Item ini tidak lagi menunggu Anda.",
+        "serviceUnavailable": "Layanan penulisan tidak tersedia. Coba lagi nanti.",
+        "requestTooLarge": "Permintaan terlalu besar. Persingkat lalu coba lagi."
+      },
+      "next": {
+        "writeFromOutline": "Tulis dari kerangka ini",
+        "insertToArticle": "Sisipkan ke artikel",
+        "viewChanges": "Lihat perubahan",
+        "addMaterials": "Tambah materi"
+      }
+    },
     "headline": "Apa yang ingin Anda tulis hari ini?",
     "hero_description": "Kode, pengalaman praktik, wawasan baru — setiap artikel dimulai dari sesuatu.",
     "topic_label": "Topik artikel",
@@ -92,33 +293,57 @@
       "tech-explainer": {
         "name": "Penjelasan teknis",
         "desc": "Menjelaskan konsep rumit dengan jelas",
-        "outline": ["Dari mana masalahnya", "Konsep dan prinsip inti", "Ilustrasikan dengan contoh", "Cakupan dan batasan", "Pemahaman saya"]
+        "outline": [
+          "Dari mana masalahnya",
+          "Konsep dan prinsip inti",
+          "Ilustrasikan dengan contoh",
+          "Cakupan dan batasan",
+          "Pemahaman saya"
+        ]
       },
       "source-reading": {
         "name": "Membaca kode",
         "desc": "Menelusuri rantai pemanggilan untuk memahami desain",
-        "outline": ["Apa yang ingin dipahami", "Titik masuk dan rantai pemanggilan", "Implementasi utama", "Pertukaran desain", "Pemahaman saya sendiri"]
+        "outline": [
+          "Apa yang ingin dipahami",
+          "Titik masuk dan rantai pemanggilan",
+          "Implementasi utama",
+          "Pertukaran desain",
+          "Pemahaman saya sendiri"
+        ]
       },
       "practice-retro": {
         "name": "Retrospeksi praktik",
         "desc": "Mencatat proses sekaligus pertukarannya",
-        "outline": ["Latar belakang dan tujuan", "Bagaimana saya melakukannya", "Masalah dan pemeriksaan", "Hasil dan kekurangan", "Apa yang diubah berikutnya"]
+        "outline": [
+          "Latar belakang dan tujuan",
+          "Bagaimana saya melakukannya",
+          "Masalah dan pemeriksaan",
+          "Hasil dan kekurangan",
+          "Apa yang diubah berikutnya"
+        ]
       },
       "learning-summary": {
         "name": "Ringkasan belajar",
         "desc": "Mengubah pengetahuan baru menjadi pemahaman sendiri",
-        "outline": ["Belajar dengan pertanyaan apa", "Pengetahuan utama", "Verifikasi langsung", "Bagaimana pemahaman berubah", "Pertanyaan yang tersisa"]
+        "outline": [
+          "Belajar dengan pertanyaan apa",
+          "Pengetahuan utama",
+          "Verifikasi langsung",
+          "Bagaimana pemahaman berubah",
+          "Pertanyaan yang tersisa"
+        ]
       }
     }
   },
   "app": {
-    "brand": "Mira",
+    "brand": "知序",
     "loading": {
-      "connecting": "Menghubungkan ke Mira…",
-      "boot": "Memuat Mira…"
+      "connecting": "Menghubungkan ke 知序…",
+      "boot": "Memuat 知序…"
     },
     "error": {
-      "title": "Tidak dapat menjangkau Mira",
+      "title": "Tidak dapat menjangkau 知序",
       "gatewayHint": "Pastikan gateway sedang berjalan (`nanobot gateway`) dan halaman ini dibuka pada mesin yang sama."
     },
     "auth": {
@@ -136,8 +361,8 @@
     },
     "system": {
       "section": "Sistem",
-      "restartHint": "Mulai ulang Mira untuk menerapkan perubahan runtime.",
-      "restart": "Mulai ulang Mira",
+      "restartHint": "Mulai ulang 知序 untuk menerapkan perubahan runtime.",
+      "restart": "Mulai ulang 知序",
       "restarting": "Memulai ulang...",
       "restartEngine": "Mulai ulang mesin",
       "restartingEngine": "Memulai ulang mesin..."
@@ -146,11 +371,11 @@
       "completed": "Mulai ulang selesai dalam {{seconds}} dtk."
     },
     "documentTitle": {
-      "base": "Mira",
-      "chat": "{{title}} · Mira"
+      "base": "知序",
+      "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "UI web Mira — ngobrol dengan ruang kerja Mira Anda."
+      "description": "UI web 知序 — ngobrol dengan ruang kerja 知序 Anda."
     },
     "pairing": {
       "title": "Hubungkan pengguna chat",
@@ -218,7 +443,9 @@
       "automations": "Otomasi",
       "skills": "Keterampilan",
       "memory": "Memori",
-      "identity": "Identitas"
+      "identity": "Identitas",
+      "agents": "Agent",
+      "teams": "Tim"
     },
     "sections": {
       "interface": "Antarmuka",
@@ -247,7 +474,7 @@
       "language": "Bahasa",
       "provider": "Penyedia",
       "model": "Model",
-      "restart": "Mulai ulang Mira",
+      "restart": "Mulai ulang 知序",
       "configPath": "Path konfigurasi",
       "activePreset": "Prasetel aktif",
       "gateway": "Gerbang",
@@ -323,7 +550,7 @@
       "selectedModelValue": "Ditentukan oleh model yang dipilih.",
       "brandLogos": "Tampilkan logo penyedia pihak ketiga dan CLI di Pengaturan.",
       "browserNotifications": "Beri tahu hanya saat halaman ini di latar belakang. Nonaktif secara bawaan.",
-      "cliAppsCatalog": "Instal hanya adaptor CLI aplikasi yang dapat dijalankan Mira secara lokal; aplikasi asli tidak diubah.",
+      "cliAppsCatalog": "Instal hanya adaptor CLI aplikasi yang dapat dijalankan 知序 secara lokal; aplikasi asli tidak diubah.",
       "cliAppsFilter": "Cari berdasarkan aplikasi, kategori, atau kemampuan.",
       "logs": "Buka folder log mesin asli.",
       "diagnostics": "Ekspor laporan waktu proses singkat untuk dukungan.",
@@ -373,11 +600,11 @@
       "loadError": "Tidak dapat memuat pengaturan",
       "unsaved": "Perubahan belum disimpan.",
       "upToDate": "Sudah terbaru.",
-      "savedRestart": "Tersimpan. Mulai ulang Mira untuk menerapkan.",
+      "savedRestart": "Tersimpan. Mulai ulang 知序 untuk menerapkan.",
       "restartAfterSaving": "Simpan perubahan, lalu mulai ulang saat siap.",
       "savedRestartApply": "Tersimpan. Mulai ulang saat siap.",
       "imageProviderRestart": "Perubahan penyedia gambar tersimpan. Mulai ulang saat siap.",
-      "hostRestartAfterSaving": "Saat disimpan, Mira akan memulai ulang mesinnya.",
+      "hostRestartAfterSaving": "Saat disimpan, 知序 akan memulai ulang mesinnya.",
       "hostRestartPending": "Tersimpan. Mesin akan dimulai ulang saat siap.",
       "hostApiUnavailable": "Tindakan host hanya tersedia di aplikasi asli.",
       "logsOpened": "Folder log dibuka.",
@@ -401,7 +628,7 @@
       "exporting": "Mengekspor..."
     },
     "byok": {
-      "description": "Gunakan kunci penyedia Anda sendiri. Mira membaca nilai ini dari konfigurasi saat ini dan hanya penyedia yang sudah dikonfigurasi yang dapat digunakan dalam prasetel model.",
+      "description": "Gunakan kunci penyedia Anda sendiri. 知序 membaca nilai ini dari konfigurasi saat ini dan hanya penyedia yang sudah dikonfigurasi yang dapat digunakan dalam prasetel model.",
       "configured": "Terkonfigurasi",
       "notConfigured": "Belum dikonfigurasi",
       "configuredSection": "Terkonfigurasi",
@@ -649,7 +876,7 @@
       "saveCustom": "Simpan MCP",
       "configImport": "Impor mcp.json",
       "importConfig": "Impor",
-      "restartRequired": "Mulai ulang Mira untuk menyambungkan alat MCP yang diperbarui.",
+      "restartRequired": "Mulai ulang 知序 untuk menyambungkan alat MCP yang diperbarui.",
       "toolsFound": "{{count}} alat",
       "loading": "Memuat prasetel MCP...",
       "empty": "Tidak ada prasetel MCP yang cocok dengan filter ini.",
@@ -677,14 +904,14 @@
       "preparingSignIn": "Menyiapkan proses masuk yang aman…",
       "openSignInToContinue": "Buka halaman masuk untuk melanjutkan.",
       "finishSignInInBrowser": "Selesaikan proses masuk di jendela browser.",
-      "manualCallbackRequired": "Selesaikan proses masuk, lalu tempel URL callback ke Mira.",
+      "manualCallbackRequired": "Selesaikan proses masuk, lalu tempel URL callback ke 知序.",
       "manualCallbackHelp": "Setelah menyetujui akses, halaman localhost tidak akan terbuka. Salin URL lengkap dari bilah alamat lalu tempel di sini.",
       "finishingConnection": "Menyelesaikan koneksi…",
       "activatingTools": "Mengaktifkan alat…",
       "connected": "Terhubung.",
       "connectionFailed": "Koneksi gagal.",
       "connectionCancelled": "Koneksi dibatalkan.",
-      "reloadFailed": "Anda sudah masuk, tetapi Mira tidak dapat menghubungkan alat. Coba mulai ulang Mira.",
+      "reloadFailed": "Anda sudah masuk, tetapi 知序 tidak dapat menghubungkan alat. Coba mulai ulang 知序.",
       "oauthFailed": "Tidak dapat terhubung. Coba masuk lagi.",
       "statusMissingDependency": "Butuh dependensi",
       "statusComingSoon": "Segera hadir",
@@ -757,15 +984,15 @@
     },
     "observability": {
       "title": "Observabilitas",
-      "configured": "Kredensial tracing tersedia untuk Mira.",
-      "environment": "Atur LANGFUSE_SECRET_KEY dan LANGFUSE_PUBLIC_KEY, lalu mulai ulang Mira.",
+      "configured": "Kredensial tracing tersedia untuk 知序.",
+      "environment": "Atur LANGFUSE_SECRET_KEY dan LANGFUSE_PUBLIC_KEY, lalu mulai ulang 知序.",
       "enable": "Aktifkan dukungan tracing"
     },
     "legal": {
       "thirdPartyBrands": "Nama produk, logo, dan merek adalah milik pemiliknya masing-masing. Penggunaan hanya untuk identifikasi dan tidak menyiratkan dukungan."
     },
     "apps": {
-      "description": "Tambahkan alat ke Mira, lalu gunakan dengan @ di chat.",
+      "description": "Tambahkan alat ke 知序, lalu gunakan dengan @ di chat.",
       "cliLabel": "Aplikasi",
       "mcpLabel": "MCP",
       "channelLabel": "Kanal",
@@ -788,21 +1015,21 @@
       "browseApps": "Jelajahi aplikasi",
       "browseIntegrations": "Jelajahi alat MCP",
       "emptyIntegrationsHint": "Tambahkan server MCP khusus di bawah.",
-      "restartRequired": "Mulai ulang Mira untuk menerapkan aplikasi dan alat MCP yang diperbarui."
+      "restartRequired": "Mulai ulang 知序 untuk menerapkan aplikasi dan alat MCP yang diperbarui."
     },
     "channels": {
-      "description": "Hubungkan Mira ke aplikasi chat. Memasang dukungan hanya menambahkan paket integrasi; sebagian besar kanal tetap memerlukan token atau pengaturan ruang kerja.",
+      "description": "Hubungkan 知序 ke aplikasi chat. Memasang dukungan hanya menambahkan paket integrasi; sebagian besar kanal tetap memerlukan token atau pengaturan ruang kerja.",
       "caption": "{{enabled}} aktif · {{total}} kanal",
       "searchPlaceholder": "Cari kanal",
       "backToChannels": "Semua kanal",
       "catalog": "Kanal",
       "loading": "Memuat kanal...",
       "empty": "Tidak ada kanal yang cocok dengan filter ini.",
-      "restartRequired": "Mulai ulang Mira untuk menerapkan dukungan kanal yang diperbarui.",
+      "restartRequired": "Mulai ulang 知序 untuk menerapkan dukungan kanal yang diperbarui.",
       "requires": "Memerlukan: {{requirements}}",
       "setUp": "Siapkan",
       "setupGuide": "Panduan penyiapan",
-      "setupSummary": "Mengaktifkan hanya menyalakan dukungan Mira. Tambahkan kredensial platform, lalu mulai ulang Mira.",
+      "setupSummary": "Mengaktifkan hanya menyalakan dukungan 知序. Tambahkan kredensial platform, lalu mulai ulang 知序.",
       "configKeys": "Kunci konfigurasi",
       "enable": "Aktifkan kanal",
       "disable": "Nonaktifkan kanal",
@@ -857,7 +1084,7 @@
         "unsupported": "Penyiapan manual"
       }
     },
-    "nanobotFeatures": {
+    "zhixuFeatures": {
       "enabled": "Aktif",
       "enable": "Aktifkan",
       "disable": "Nonaktifkan",
@@ -865,7 +1092,7 @@
       "missingDependency": "Dukungan belum terpasang",
       "installSupport": "Instal dukungan",
       "installConfirmTitle": "Instal dukungan untuk {{name}}?",
-      "installConfirmDescription": "Mira akan menambahkan yang dibutuhkan {{name}}, lalu mengaktifkannya. Lanjutkan?",
+      "installConfirmDescription": "知序 akan menambahkan yang dibutuhkan {{name}}, lalu mengaktifkannya. Lanjutkan?",
       "installConfirmAction": "Instal dan aktifkan",
       "websocketRequired": "Wajib untuk WebUI",
       "channelDisabled": "Kanal dinonaktifkan",
@@ -1009,7 +1236,7 @@
       "signedInAs": "Masuk sebagai {{account}}",
       "signInHelp": "Masuk dari perangkat ini; kunci API tidak disimpan di config.",
       "remoteSignInHelp": "Pilih Masuk untuk membuka xAI di komputer Anda, lalu tempel kode otorisasi yang ditampilkan setelah masuk.",
-      "codexRemoteSignInHelp": "Masuk melalui browser ini, lalu tempel URL callback localhost lengkap kembali ke Mira.",
+      "codexRemoteSignInHelp": "Masuk melalui browser ini, lalu tempel URL callback localhost lengkap kembali ke 知序.",
       "signInRequired": "Perlu masuk",
       "signInBeforeSaving": "Masuk ke penyedia ini sebelum menyimpan prasetel.",
       "signedIn": "Sudah masuk",
@@ -1017,9 +1244,9 @@
       "proxyLabel": "Proksi jaringan",
       "proxySaveBeforeSignIn": "Simpan perubahan proksi sebelum login.",
       "saveProxy": "Simpan proksi",
-      "localCodeHelp": "Selesaikan proses masuk di browser. Mira biasanya menyelesaikannya secara otomatis; jika tidak, tempel kode otorisasi di bawah.",
+      "localCodeHelp": "Selesaikan proses masuk di browser. 知序 biasanya menyelesaikannya secara otomatis; jika tidak, tempel kode otorisasi di bawah.",
       "remoteCodeHelp": "Pilih Masuk untuk membuka xAI di komputer Anda. Setelah masuk, tempel kode otorisasi yang ditampilkan xAI di bawah.",
-      "localCallbackHelp": "Selesaikan proses masuk di browser. Mira biasanya menyelesaikannya secara otomatis; jika tidak, salin URL callback localhost lengkap dari bilah alamat dan tempel di bawah.",
+      "localCallbackHelp": "Selesaikan proses masuk di browser. 知序 biasanya menyelesaikannya secara otomatis; jika tidak, salin URL callback localhost lengkap dari bilah alamat dan tempel di bawah.",
       "remoteCallbackHelp": "Buka ChatGPT di browser ini dan selesaikan proses masuk. Saat halaman localhost gagal dimuat, salin URL lengkap dari bilah alamat dan tempel di bawah.",
       "authorizationCode": "Kode otorisasi",
       "callbackUrl": "URL callback lengkap",
@@ -1062,7 +1289,7 @@
       "deleteConfirmAction": "Hapus keterampilan",
       "instructionsTitle": "Petunjuk keterampilan",
       "setupRequired": "Perlu penyiapan",
-      "setupDescription": "Instal dependensi yang belum tersedia di mesin yang menjalankan Mira, lalu periksa lagi.",
+      "setupDescription": "Instal dependensi yang belum tersedia di mesin yang menjalankan 知序, lalu periksa lagi.",
       "copySetupCommand": "Salin perintah penyiapan",
       "checkAgain": "Periksa lagi",
       "marketplaceSearchFailed": "Tidak dapat mencari marketplace keterampilan.",
@@ -1120,6 +1347,8 @@
       "languageAuto": "Otomatis"
     },
     "memory": {
+      "pageEyebrow": "Pusat memori",
+      "pageSubtitle": "Fakta jangka panjang dan kutipan percakapan yang disimpan agen lintas sesi. Aktifkan ekstraksi otomatis di sini, atau telusuri dan kelola yang sudah ada.",
       "tabSemantic": "Memori semantik",
       "tabEpisode": "Episode",
       "tabsLabel": "Bagian memori",
@@ -1219,12 +1448,125 @@
       "mdModalDiffCurrent": "MEMORY.md saat ini",
       "mdModalDiffCurrentPlaceholder": "（MEMORY.md tidak ada atau kosong）",
       "masterToggleTitle": "Ekstraksi & pencarian memori otomatis",
-      "masterToggleDescription": "Saat aktif, Mira mengekstrak fakta dari obrolan dan mengambil memori terkait di giliran berikutnya. Berlaku seketika — tanpa restart.",
+      "masterToggleDescription": "Saat aktif, 知序 mengekstrak fakta dari obrolan dan mengambil memori terkait di giliran berikutnya. Berlaku seketika — tanpa restart.",
       "masterToggleAria": "Alihkan ekstraksi memori",
       "masterToggleOn": "Aktif",
       "masterToggleOff": "Nonaktif"
     },
     "identity": {
+      "page": {
+        "hero": {
+          "eyebrow": "Identitas",
+          "title": "Buat agen berbicara sesuai keinginanmu",
+          "subtitle": "Pilih karakter, jawab beberapa pertanyaan singkat, dan lihat persis bagaimana agen akan menyapamu berikutnya."
+        },
+        "stepsAria": "Langkah pengaturan identitas",
+        "step": {
+          "vibe": {
+            "label": "Karakter",
+            "hint": "Memilih satu akan mengisi formulir untukmu"
+          },
+          "voice": {
+            "label": "Nama & nada",
+            "hint": "Bagian kosong dilewati otomatis"
+          },
+          "rules": {
+            "label": "Batas & catatan",
+            "hint": "Sampaikan apa yang tidak boleh dilakukan"
+          },
+          "advanced": {
+            "label": "Lanjutan",
+            "hint": "Edit file identitas secara langsung"
+          }
+        },
+        "gallery": {
+          "active": "Aktif",
+          "reload": "Muat ulang preset",
+          "use": "Pakai karakter ini"
+        },
+        "preview": {
+          "yourAgent": "Agenmu",
+          "live": "Pratinjau langsung",
+          "samplePrompt": "Buat rekap bulananku dalam tiga bagian pendek.",
+          "activeRule": "Aturan aktif: ",
+          "hint": "Begini agen membuka percakapan setelah perubahanmu. Menyimpan langsung menerapkannya."
+        },
+        "advanced": {
+          "toggle": "Lanjutan: edit Markdown mentah",
+          "note": "Gunakan ini hanya jika preset dan formulir tidak cukup. Perubahan di sini langsung berlaku, tetapi tampilan formulir akan menulis ulang file saat disimpan.",
+          "rawAria": "Markdown mentah",
+          "reload": "Muat ulang dari disk"
+        },
+        "form": {
+          "nameLabel": "Agen sebaiknya memanggilmu apa?",
+          "namePlaceholder": "mis. Tim Pemasaran, Alex",
+          "roleLabel": "Agen terutama membantumu dalam hal apa?",
+          "rolePlaceholder": "mis. mengubah rapat mingguan jadi rekap yang enak dibaca; mengelompokkan masukan pelanggan",
+          "toneLabel": "Nada bicara",
+          "toneHint": "Pilih yang paling dekat",
+          "langLabel": "Bahasa balasan bawaan",
+          "rulesLabel": "Batas yang tidak boleh dilewati agen",
+          "rulesHint": "Satu per baris, maksimal 6",
+          "rulesPlaceholder": "Jangan mengarang angka dalam kontrak\nJangan menyebut jalur internal ke pengguna yang belum masuk\nBilang 'saya tidak tahu' daripada menebak",
+          "notesLabel": "Ada hal lain yang perlu diingat?",
+          "notesPlaceholder": "Nama perusahaan, istilah, kata yang harus dihindari…"
+        },
+        "tone": {
+          "friendly": {
+            "label": "Ramah",
+            "description": "Hangat, mendorong, empatik"
+          },
+          "professional": {
+            "label": "Profesional",
+            "description": "Formal, terukur, beralasan"
+          },
+          "concise": {
+            "label": "Ringkas",
+            "description": "Jawaban dulu, baru penjelasan"
+          },
+          "detailed": {
+            "label": "Rinci",
+            "description": "Penalaran lengkap dan kasus tepi"
+          }
+        },
+        "replyLang": {
+          "groupAria": "Bahasa balasan",
+          "auto": {
+            "label": "Ikuti kamu",
+            "description": "Menjawab dalam bahasa yang kamu pakai"
+          },
+          "zh": {
+            "label": "Mandarin",
+            "description": "Selalu menjawab dalam bahasa Mandarin"
+          },
+          "en": {
+            "label": "Inggris",
+            "description": "Semua balasan dalam bahasa Inggris"
+          }
+        },
+        "footer": {
+          "back": "Kembali",
+          "next": "Lanjut",
+          "unsaved": "Perubahan belum disimpan",
+          "upToDate": "Sudah terbaru",
+          "discard": "Buang",
+          "saved": "Tersimpan",
+          "save": "Simpan"
+        },
+        "error": {
+          "loadFailed": "Sebagian konten gagal dimuat",
+          "saveFailed": "Gagal menyimpan"
+        },
+        "toast": {
+          "saved": "Identitas tersimpan — langsung aktif"
+        },
+        "persona": {
+          "default": "Bawaan",
+          "cardTitle": "Persona aktif",
+          "cardNone": "SOUL bawaan, tidak ada preset aktif",
+          "cardHint": "Memilih kartu karakter di atas juga mengganti preset ini."
+        }
+      },
       "groupCore": "File inti",
       "groupPersonas": "Persona",
       "warningBanner": "File identitas menentukan kepribadian dan perilaku Agent. Perubahan yang tidak tepat dapat menyebabkan perilaku tidak normal atau respons tak terduga. Jika ragu, cadangkan dulu.",
@@ -1288,7 +1630,141 @@
       "noPersona": "Tidak ada",
       "personaSwitchFailed": "Gagal mengganti persona"
     },
+    "teams": {
+      "workspaceEyebrow": "Tim agen",
+      "myTeams": "Tim saya",
+      "emptyEyebrow": "Lebih baik, bersama",
+      "emptyTitle": "Kekuatan berbeda. Satu tim.",
+      "emptyDescription": "Leader membagi tugas dan menyatukan hasil. Anggota menyelesaikan pekerjaan sesuai perannya.",
+      "buildFirst": "Buat tim pertama Anda",
+      "illustrationAlt": "Agen koordinator bersama rekan riset, kode, dan peninjauan",
+      "noDescription": "Kekuatan berbeda, satu tujuan.",
+      "assemblySubtitle": "Pilih Leader, tambahkan rekan, dan beri setiap orang peran yang jelas.",
+      "setupSteps": "Langkah menyusun tim",
+      "stepIdentity": "Tetapkan tujuan",
+      "stepLeader": "Pilih Leader",
+      "stepMembers": "Susun tim",
+      "identitySection": "Apa yang akan dilakukan tim ini?",
+      "leaderSection": "Siapa yang akan memimpin tim?",
+      "oneLeader": "1 Leader",
+      "leaderExplanation": "Leader menerima tujuan Anda, membagi tugas, dan menyatukan hasilnya.",
+      "promotedNotice": "{{name}} kini menjadi Leader dan dikeluarkan dari kursi anggota.",
+      "membersSection": "Hadirkan kekuatan yang tepat",
+      "searchAgents": "Cari nama atau kekuatan agen",
+      "permissionHint": "Profil Leader belum mengizinkan anggota ini",
+      "agentProfile": "Profil agen",
+      "noAgentMatches": "Tidak ada agen yang cocok. Coba kata kunci lain.",
+      "memberResponsibility": "Bertanggung jawab di tim ini",
+      "memberMinimum": "Tambahkan minimal 1 anggota. Peran tim tidak mengubah profil asli agen.",
+      "advancedSettings": "Kolaborasi dan preferensi kerja",
+      "rosterCount": "1 Leader · {{count}} anggota",
+      "rosterCount_one": "1 Leader · {{count}} anggota",
+      "rosterCount_other": "1 Leader · {{count}} anggota",
+      "rosterPrompt": "Mulai dari tujuan. Susun tim agen Anda di sekitarnya.",
+      "errorRoleLength": "Peran anggota maksimal {{max}} karakter",
+      "errorInstructionsLength": "Catatan kolaborasi maksimal {{max}} karakter",
+      "formationLabel": "Pratinjau struktur tim",
+      "formationTitle": "Tim Anda mulai terbentuk",
+      "untitled": "Tim baru",
+      "goalPrompt": "Satu tujuan bersama. Agen dengan kekuatan berbeda.",
+      "receiveGoal": "Menerima tujuan Anda",
+      "focusLeader": "Pilih atau ganti Leader",
+      "chooseLeaderSeat": "Menunggu Leader",
+      "leaderJob": "Membagi tugas dan menyatukan hasil",
+      "focusMember": "Ubah peran {{name}}",
+      "emptySeats": "Anggota Anda akan muncul di sini. Tambahkan minimal 1 rekan.",
+      "summaryFlow": "Anggota bekerja; Leader menyatukan hasil",
+      "formationReady": "Pengaturan dasar siap",
+      "formationProgress": "Progres penyusunan tim",
+      "previewHint": "Klik Leader atau anggota untuk mengubah pengaturannya.",
+      "name": "Nama tim",
+      "namePlaceholder": "mis. Tim Konten",
+      "description": "Deskripsi tim",
+      "descriptionPlaceholder": "Satu baris tentang apa yang dilakukan tim ini.",
+      "instructions": "Kesepakatan kolaborasi",
+      "instructionsPlaceholder": "Siapa mengerjakan apa lebih dulu, dan apa yang dianggap selesai.",
+      "leader": "Leader",
+      "leaderPlaceholder": "Pilih profil Agent",
+      "leaderLine": "Leader: {{name}}",
+      "members": "Anggota",
+      "pickMember": "Tambahkan {{name}} sebagai anggota",
+      "rolePlaceholder": "Peran di tim ini",
+      "roleAria": "Peran {{name}} di tim ini",
+      "removeMember": "Hapus {{name}}",
+      "noAgents": "Belum ada profil Agent yang bisa dipilih",
+      "maxConcurrency": "Anggota paralel",
+      "concurrencyHint": "Jumlah anggota yang berjalan bersamaan (maks {{max}})",
+      "concurrency": "Hingga {{count}} paralel",
+      "errorName": "Isi nama tim",
+      "errorNameLength": "Nama tim maksimal {{max}} karakter",
+      "errorLeader": "Pilih Leader",
+      "errorMembers": "Pilih minimal 1 anggota",
+      "errorMembersMax": "Tim paling banyak {{max}} anggota",
+      "errorDuplicate": "Anggota tidak boleh ganda",
+      "errorLeaderIsMember": "Leader tidak boleh sekaligus menjadi anggota",
+      "errorLeaderExcludes": "Profil Leader tidak mengizinkan delegasi ke: {{ids}}",
+      "errorRole": "Setiap anggota perlu peran di tim ini",
+      "errorConcurrency": "Jumlah paralel harus antara {{min}} dan {{max}}",
+      "title": "Tim",
+      "create": "Tim baru",
+      "search": "Cari tim",
+      "saved": "Tersimpan",
+      "noMatch": "Tidak ada tim yang cocok. Coba kata lain.",
+      "emptyHint": "Buat profil Agent lebih dulu, lalu susun tim darinya.",
+      "edit": "Ubah",
+      "duplicate": "Duplikat",
+      "copySuffix": "Salinan",
+      "archive": "Arsipkan",
+      "archiveTitle": "Arsipkan tim",
+      "archiveBody": "Setelah diarsipkan, tim tidak bisa memulai jalannya baru. Chat yang ada tetap memakai revisi yang terikat, dan riwayat tetap dapat dilihat.",
+      "showArchived": "Tampilkan yang diarsipkan",
+      "hideArchived": "Sembunyikan yang diarsipkan",
+      "unarchive": "Batalkan arsip",
+      "unarchiveTitle": "Batalkan arsip tim ini?",
+      "unarchiveBody": "Setelah dibatalkan, tim ini bisa memulai jalannya lagi dan akan menghasilkan revisi baru.",
+      "allArchived": "Semua tim sudah diarsipkan. Aktifkan “Tampilkan yang diarsipkan” untuk melihatnya.",
+      "workspaceSubtitle": "Satukan profil Agent menjadi satu tim: Leader memecah tujuan dan membagi tugas, anggota menjalankannya. Cocok untuk pekerjaan yang butuh beberapa langkah.",
+      "archived": "Diarsipkan",
+      "conflict": "Tim diubah di tempat lain. Muat ulang sebelum menyimpan; draf Anda tetap dijaga.",
+      "createTitle": "Buat tim",
+      "editTitle": "Ubah tim",
+      "editorSubtitle": "Pilih satu Leader dan hingga 8 anggota dari profil Agent yang sudah ada.",
+      "save": "Simpan",
+      "cancel": "Batal",
+      "revisionNote": "Revisi saat ini v{{revision}}; menyimpan akan membuat v{{next}}"
+    },
     "agents": {
+      "workspace": {
+        "identity": "Identitas dan peran",
+        "capabilities": "Alat dan keterampilan",
+        "more": "Model dan lainnya",
+        "subtitle": "Tentukan perannya, lalu pilih apa yang boleh digunakannya.",
+        "identityHint": "Beri peran yang jelas dan instruksi yang harus diikuti.",
+        "capabilitiesHint": "Pilih tindakan yang boleh dilakukan dan panduan yang boleh diikutinya.",
+        "moreHint": "Pilih model dan rapikan profilnya.",
+        "toolsHint": "Tindakan yang boleh dilakukan, seperti membaca berkas atau menelusuri web.",
+        "skillsHint": "Panduan yang bisa dirujuk untuk tugas tertentu.",
+        "profileDetails": "Detail profil",
+        "summary": "Ringkasan konfigurasi",
+        "summaryToggle": "Tampilkan ringkasan konfigurasi",
+        "unnamed": "Nama belum diisi",
+        "noDescription": "Tambahkan satu kalimat tentang fungsinya.",
+        "noSkills": "Belum ada keterampilan",
+        "noTools": "Belum ada alat dipilih",
+        "selectedCount": "{{count}} aktif",
+        "remaining": "dan {{count}} lagi",
+        "unavailableModel": "Model asli tidak tersedia",
+        "globalModel": "Ikuti model global",
+        "promptHint": "Jelaskan tanggung jawabnya, cara kerjanya, dan apa yang harus dihasilkan.",
+        "promptLimit": "Instruksi maksimal {{count}} karakter.",
+        "nameRequired": "Isi nama untuk melanjutkan.",
+        "idRequired": "ID agen wajib diisi.",
+        "description": "Deskripsi satu baris",
+        "modelMissing": "Model tersimpan sedang tidak tersedia",
+        "modelMissingHint": "Model tersimpan tetap disimpan. Pilih model lain atau ikuti pengaturan global.",
+        "selectionIncludeHint": "Hanya item yang dicentang yang aktif. Mengubah mode pilihan akan menghapus isinya.",
+        "selectionExcludeHint": "Item yang dicentang aktif; yang tidak dicentang dikecualikan. Mengubah mode pilihan akan menghapus isinya."
+      },
       "basics": {
         "appearance": "Ikon dan warna",
         "category": "Kategori",
@@ -1302,6 +1778,7 @@
         "namePlaceholder": "mis. Penulis SEO",
         "noCategory": "Tanpa kategori",
         "systemPreset": "Preset sistem",
+        "defaultMainAgent": "Agen default",
         "updatedAt": "Diperbarui {{time}}"
       },
       "capability": {
@@ -1381,6 +1858,9 @@
         "include": "Hanya yang dipilih"
       },
       "model": {
+        "label": "Model",
+        "auto": "Ikuti model global",
+        "autoHint": "Agen ini mengikuti pengaturan model global.",
         "context": "konteks",
         "toolUse": "Penggunaan alat",
         "vision": "Visi"
@@ -1574,6 +2054,7 @@
     "browserAddressPlaceholder": "https://example.com",
     "browserGo": "Tuju",
     "browserEmptyHint": "Masukkan alamat untuk mulai menjelajah.",
+    "browserNewTab": "Tab baru",
     "browserFrameTitle": "Halaman peramban sematan",
     "browserError_scheme": "Hanya alamat http/https yang bisa dibuka di sini.",
     "browserError_private": "Alamat privat atau jaringan lokal tidak diizinkan.",
@@ -1584,12 +2065,31 @@
     "tabBrowser": "Peramban",
     "plusAria": "Tab baru",
     "newTerminal": "Terminal baru",
+    "openTerminal": "Buka panel terminal",
     "shellChoices": "Pilih shell",
     "takeoverRunning": "Terminal berjalan",
     "takeoverAction": "Ambil alih",
     "takeoverHint": "Tekan Enter untuk menggambar ulang layar",
     "closeTab": "Tutup tab",
-    "platformDefaultShell": "Shell default host"
+    "platformDefaultShell": "Shell default host",
+    "renameTab": "Ganti nama tab",
+    "copyOutput": "Salin keluaran",
+    "clearOutput": "Bersihkan terminal",
+    "pasteInput": "Tempel",
+    "browserWindow": "Buka di jendela browser",
+    "showHidden": "Tampilkan file tersembunyi",
+    "hideHidden": "Sembunyikan file tersembunyi",
+    "refresh": "Segarkan",
+    "collapseAll": "Ciutkan semua",
+    "search": "Cari file",
+    "searchPlaceholder": "Cari nama dan isi file",
+    "searching": "Mencari…",
+    "noMatches": "Tidak ada hasil",
+    "searchTruncated": "Menampilkan sebagian hasil",
+    "searchFailed": "Pencarian gagal",
+    "copied": "Disalin",
+    "historyTruncated": "Keluaran sebelumnya terpotong",
+    "terminalTheme": "Ganti tema terminal"
   },
   "plusMenu": {
     "groupAdd": "Tambah",
@@ -1607,6 +2107,49 @@
     "back": "Kembali"
   },
   "thread": {
+    "subagentExecution": {
+      "title": "Eksekusi sub-agen",
+      "genericAgent": "Agen umum",
+      "entryAria": "{{agent}} · {{title}} · {{status}}",
+      "unavailable": "Tidak ada detail eksekusi",
+      "close": "Tutup detail eksekusi",
+      "reload": "Muat ulang",
+      "taskSwitcher": "Ganti tugas sub-agen",
+      "call": "Panggilan {{id}}",
+      "instruction": "Tugas",
+      "process": "Eksekusi",
+      "result": "Hasil sub-agen",
+      "truncated": "Konten dipotong",
+      "noActivities": "Belum ada aktivitas publik.",
+      "connectionStale": "Koneksi terputus, status menunggu sinkronisasi",
+      "historyLimited": "Sebagian aktivitas lama telah kedaluwarsa",
+      "activitySummary": "{{action}} · {{count}} panggilan alat selesai",
+      "activitySummaryNoAction": "{{count}} panggilan alat selesai",
+      "status": {
+        "queued": "Dalam antrean",
+        "running": "Berjalan",
+        "succeeded": "Selesai",
+        "failed": "Gagal",
+        "cancelled": "Dihentikan",
+        "interrupted": "Terputus"
+      },
+      "parameters": "Parameter",
+      "toolOutput": "Keluaran",
+      "detailToggle": "Lihat parameter dan keluaran",
+      "phase": {
+        "preparing": "Menyiapkan",
+        "model": "Menghasilkan",
+        "tools": "Menggunakan alat",
+        "finalizing": "Menyelesaikan"
+      },
+      "activityStatus": {
+        "running": "Berjalan",
+        "succeeded": "Selesai",
+        "failed": "Gagal",
+        "cancelled": "Dihentikan",
+        "interrupted": "Terputus"
+      }
+    },
     "activity": {
       "viewDetails": "Lihat detail",
       "hideDetails": "Sembunyikan",
@@ -1656,7 +2199,7 @@
       "imageQuickActions": {
         "icon": {
           "title": "Desain ikon aplikasi",
-          "prompt": "Buat ikon aplikasi 1:1 yang bersih untuk Mira: robot ramah, gaya vektor sederhana, palet biru dan putih lembut, tanpa teks."
+          "prompt": "Buat ikon aplikasi 1:1 yang bersih untuk 知序: robot ramah, gaya vektor sederhana, palet biru dan putih lembut, tanpa teks."
         },
         "sticker": {
           "title": "Buat stiker",
@@ -1711,6 +2254,46 @@
         "local": "Menunggu pemicu",
         "none": "Tidak ada jadwal berikutnya"
       }
+    },
+    "teamProgress": {
+      "title": "Kemajuan tim",
+      "leader": "Pemimpin",
+      "leaderAction": {
+        "planning": "menyusun rencana",
+        "waiting": "menunggu anggota",
+        "reviewing": "meninjau",
+        "summarizing": "merangkum",
+        "idle": "siap"
+      },
+      "status": {
+        "running": "Berjalan",
+        "cancelling": "Menghentikan…",
+        "completed": "Selesai",
+        "partial": "Selesai sebagian",
+        "failed": "Gagal",
+        "cancelled": "Dihentikan",
+        "interrupted": "Terhenti"
+      },
+      "taskStatus": {
+        "pending": "Belum ditugaskan",
+        "queued": "Antre",
+        "running": "Berjalan",
+        "cancelling": "Menghentikan…",
+        "succeeded": "Selesai",
+        "failed": "Gagal",
+        "cancelled": "Dihentikan",
+        "blocked": "Terblokir",
+        "interrupted": "Terhenti"
+      },
+      "stop": "Hentikan tim",
+      "stopping": "Menghentikan…",
+      "retry": "Ulangi tugas yang gagal",
+      "retryHint": "Mengulang menjalankan kembali tugas yang gagal dan dapat mengulangi efek samping yang sudah terjadi.",
+      "cancelTask": "Hentikan tugas ini",
+      "noTasks": "Pemimpin menjawab langsung pada giliran ini.",
+      "resyncing": "Menyinkronkan status tim…",
+      "artifacts": "Keluaran: {{names}}",
+      "memberFallback": "Anggota {{memberId}}"
     },
     "composer": {
       "menu": {
@@ -1857,7 +2440,7 @@
             "description": "Batalkan giliran agen yang sedang aktif di chat ini."
           },
           "restart": {
-            "title": "Mulai ulang Mira",
+            "title": "Mulai ulang 知序",
             "description": "Mulai ulang proses bot di tempat."
           },
           "status": {
@@ -1935,16 +2518,20 @@
       "mentions": {
         "ariaLabel": "Sebutan",
         "label": "Aplikasi",
+        "agentGroup": "Agen",
         "cliGroup": "Aplikasi CLI",
         "mcpGroup": "Layanan MCP",
-        "sessionGroup": "Percakapan Mira",
+        "sessionGroup": "Percakapan 知序",
+        "agentBadge": "Agen",
+        "defaultAgentBadge": "Agen default",
         "cliBadge": "CLI",
         "mcpBadge": "MCP",
+        "agentDescription": "Mengambil alih giliran ini melalui @{{name}}",
         "cliDescription": "Gunakan @{{name}} sebagai aplikasi CLI lokal",
         "mcpDescription": "Gunakan @{{name}} sebagai server MCP",
         "cliTitle": "Aplikasi CLI: {{name}}",
         "mcpTitle": "Server MCP: {{name}}",
-        "sessionBadge": "Percakapan Mira",
+        "sessionBadge": "Percakapan 知序",
         "sessionDescription": "Referensikan @{{name}} sebagai chat sebelumnya"
       },
       "workspace": {
@@ -1955,6 +2542,20 @@
         "defaultShort": "Bawaan",
         "full": "Akses penuh",
         "fullShort": "Penuh"
+      },
+      "team": {
+        "aria": "Pilih tim",
+        "select": "Pilih tim",
+        "none": "Tanpa tim",
+        "empty": "Belum ada tim yang tersedia",
+        "bound": "Terikat pada {{name}} (revisi {{revision}})",
+        "chip": "Tim: {{name}}",
+        "revision": "v{{revision}}"
+      },
+      "agent": {
+        "chip": "Agen saat ini: {{name}}",
+        "empty": "Belum ada agen yang tersedia",
+        "defaultTag": "Bawaan"
       }
     },
     "scrollToBottom": "Gulir ke bawah",
@@ -2072,9 +2673,16 @@
     "close": "Tutup pratinjau file",
     "loading": "Memuat pratinjau...",
     "failed": "Tidak dapat mempratinjau file ini.",
-    "routeMissing": "Pratinjau file memerlukan gateway terbaru. Mulai ulang Mira gateway lalu coba lagi.",
+    "routeMissing": "Pratinjau file memerlukan gateway terbaru. Mulai ulang 知序 gateway lalu coba lagi.",
     "resize": "Ubah ukuran pratinjau file",
-    "truncated": "Pratinjau dipotong karena file ini besar."
+    "pickFile": "Pilih file untuk pratinjau di sini.",
+    "truncated": "Pratinjau dipotong karena file ini besar.",
+    "edit": "Edit file",
+    "save": "Simpan file",
+    "cancel": "Batal mengedit",
+    "saved": "Tersimpan",
+    "saveFailed": "Tidak dapat menyimpan file ini.",
+    "editTruncated": "File yang terlalu besar tidak dapat diedit di sini."
   },
   "code": {
     "fallbackLanguage": "kode",
@@ -2084,8 +2692,7 @@
   },
   "workbench": {
     "title": "Ruang kerja",
-    "open": "Buka ruang kerja",
-    "collapse": "Ciutkan ruang kerja",
+    "tools": "Bilah sisi alat",
     "updatedAt": "Diperbarui {{time}}",
     "overview": "Ringkasan",
     "emptyOverview": "Belum ada ringkasan",
@@ -2154,6 +2761,14 @@
       "title": "Ruang kerja tidak berubah",
       "body": "Gateway menolak proyek atau mode akses ini. Pilih proyek yang sudah ada atau mode akses lain, lalu coba lagi."
     },
+    "teamBindingExpired": {
+      "title": "Tim belum dipasang",
+      "body": "Pilihan tim untuk chat kosong ini sudah kedaluwarsa. Pilih tim lagi sebelum mengirim pesan pertama."
+    },
+    "teamUnavailable": {
+      "title": "Tim tidak tersedia",
+      "body": "Tim ini telah diarsipkan, atau profil agen yang direferensikannya dihapus. Pilih tim lain, atau kirim pesan sebagai chat biasa."
+    },
     "turnRejected": {
       "title": "Pesan tidak terkirim",
       "body": "Gateway menolak pesan ini. Periksa teks atau lampiran, lalu coba lagi."
@@ -2193,7 +2808,13 @@
     "brand": "知序",
     "nav": {
       "assistant": "Asisten",
-      "creative": "Kreatif"
+      "creative": "Kreatif",
+      "more": "Lainnya",
+      "groups": {
+        "workspace": "Ruang kerja",
+        "ai": "Konfigurasi AI",
+        "personal": "Pribadi"
+      }
     },
     "preview": {
       "badge": "Pratinjau antarmuka · konten contoh"
@@ -2216,5 +2837,9 @@
     "creative": {
       "comingSoon": "Modul kreatif segera hadir."
     }
+  },
+  "toast": {
+    "saved": "Tersimpan",
+    "saveFailed": "Gagal menyimpan: {{message}}"
   }
 }

@@ -8,7 +8,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Eye, EyeOff, Moon, PanelLeftOpen, ShieldCheck, Sun, X } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Moon,
+  ShieldCheck,
+  SquareTerminal,
+  Sun,
+  X,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   parseWorkspaceHash,
@@ -18,7 +26,7 @@ import {
 import { channelUiPresentation } from "@/channel-plugins/registry";
 import { Sidebar } from "@/components/Sidebar";
 import { PROJECTS_SECTION_KEY, type SidebarDeleteItem } from "@/components/ChatList";
-import { HOME_DOCK_SCOPE, dockStore } from "@/lib/dock-store";
+import { HOME_DOCK_SCOPE, dockStore, requestDockTerminalPanel } from "@/lib/dock-store";
 import { resolveDockShortcut } from "@/lib/dock-shortcuts";
 import type { SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
@@ -27,7 +35,6 @@ import { SESSION_WORKBENCH_RAIL_WIDTH } from "@/components/workbench/SessionWork
 import { WorkbenchTabBar } from "@/components/workbench/WorkbenchTabBar";
 import {
   MAX_WORKBENCH_PANES,
-  addWorkbenchPane,
   attachWorkbenchPane,
   createWorkbenchTab,
   detachWorkbenchPane,
@@ -44,8 +51,10 @@ import {
 } from "@/components/workbench/workbench-model";
 import { floatingSurfaceElevationClassName } from "@/components/ui/floating-surface";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Toaster } from "@/components/ui/toaster";
 
 import { useSessions } from "@/hooks/useSessions";
+import { useTeamOptions } from "@/hooks/useTeamOptions";
 import { useDeferredTitleRefresh } from "@/hooks/useDeferredTitleRefresh";
 import { useSidebarState } from "@/hooks/useSidebarState";
 import { useSkills } from "@/hooks/useSkills";
@@ -66,11 +75,13 @@ import {
 } from "@/lib/bootstrap";
 import { displayTitle, sortSessions } from "@/lib/chat-groups";
 import { deriveTitle } from "@/lib/format";
-import { NanobotClient } from "@/lib/nanobot-client";
+import { ZhixuClient } from "@/lib/zhixu-client";
+import { notify } from "@/lib/toast-events";
 import { ClientProvider, useClient } from "@/providers/ClientProvider";
 import type {
   BootstrapResponse,
   ChatSummary,
+  NewChatTeam,
   RuntimeSurface,
   PairingRequestInfo,
   SessionAutomationJob,
@@ -107,27 +118,28 @@ type BootState =
   | { status: "auth"; failed?: boolean }
   | {
       status: "ready";
-      client: NanobotClient;
+      client: ZhixuClient;
       token: string;
       tokenExpiresAt: number | null;
       modelName: string | null;
       ingressLimits: BootstrapResponse["limits"] | null;
+      runtimeCapabilities: BootstrapResponse["runtime_capabilities"] | null;
       runtimeSurface: RuntimeSurface;
     };
 
-const SIDEBAR_STORAGE_KEY = "nanobot-webui.sidebar";
-const SESSION_UPDATES_STORAGE_KEY = "nanobot-webui.sidebar.session-updates.v1";
-const LEGACY_COMPLETED_RUNS_STORAGE_KEY = "nanobot-webui.sidebar.completed-runs.v1";
-const RESTART_STARTED_KEY = "nanobot-webui.restartStartedAt";
-const RESTART_ROUTE_KEY = "nanobot-webui.restartRoute";
+const SIDEBAR_STORAGE_KEY = "zhixu-webui.sidebar";
+const SESSION_UPDATES_STORAGE_KEY = "zhixu-webui.sidebar.session-updates.v1";
+const LEGACY_COMPLETED_RUNS_STORAGE_KEY = "zhixu-webui.sidebar.completed-runs.v1";
+const RESTART_STARTED_KEY = "zhixu-webui.restartStartedAt";
+const RESTART_ROUTE_KEY = "zhixu-webui.restartRoute";
 const RESTART_ROUTE_TTL_MS = 5 * 60 * 1000;
-// 视觉规格 v1.1（spec 2026-10-11）：54 / 220 替换 64 / 248，与 globals.css 的
-// --rail-w / --chat-col-w 对齐；如需调整只改 CSS 变量与此处。
+// 视觉规格 v1.2：展开的聊天侧栏是单列（导航移到底部），折叠后仍为 54px 图标列。
 const SIDEBAR_WIDTH = 54;
 const SIDEBAR_RAIL_WIDTH = 54;
-const SIDEBAR_CHAT_WIDTH = 220;
-const MOBILE_SIDEBAR_WIDTH = `min(${SIDEBAR_WIDTH + SIDEBAR_CHAT_WIDTH}px, calc(100vw - 0.75rem))`;
+const SIDEBAR_CHAT_WIDTH = 264;
+const MOBILE_SIDEBAR_WIDTH = `min(${SIDEBAR_CHAT_WIDTH}px, calc(100vw - 0.75rem))`;
 const TOKEN_REFRESH_MARGIN_MS = 30_000;
+const SUBAGENT_EXECUTION_EVENTS_CAPABILITY = "subagentExecutionEventsV1";
 const TOKEN_REFRESH_MIN_DELAY_MS = 5_000;
 const PAIRING_POLL_INTERVAL_MS = 5_000;
 const PAIRING_IDLE_POLL_INTERVAL_MS = 15_000;
@@ -141,7 +153,10 @@ type ShellView =
   | "apps"
   | "automations"
   | "skills"
-  | "agents";
+  | "agents"
+  | "teams"
+  | "memory"
+  | "identity";
 type ShellRoute = {
   view: ShellView;
   activeKey: string | null;
@@ -153,6 +168,14 @@ const loadSettingsView = () => import("@/components/settings/SettingsView");
 const SettingsView = lazy(async () => {
   const module = await loadSettingsView();
   return { default: module.SettingsView };
+});
+const MemoryPage = lazy(async () => {
+  const module = await import("@/components/workspace/MemoryPage");
+  return { default: module.MemoryPage };
+});
+const IdentityPage = lazy(async () => {
+  const module = await import("@/components/workspace/IdentityPage");
+  return { default: module.IdentityPage };
 });
 const CreativeWorkspace = lazy(() => import("./components/creative/CreativeWorkspace"));
 // 终端入口已迁移：TerminalSection 由 TerminalSurface + StartDock（Task 7/9）接管。
@@ -172,6 +195,24 @@ const RenameChatDialog = lazy(async () => {
   const module = await import("@/components/RenameChatDialog");
   return { default: module.RenameChatDialog };
 });
+
+function DockPanelIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={className}
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <rect x="14" y="7" width="5" height="10" rx="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 
 function SurfaceLoadingFallback() {
   const { t } = useTranslation();
@@ -747,13 +788,23 @@ function resolveRuntimeSurface(
   return surface ? toRuntimeSurface(surface) : fallback;
 }
 
+function hasSubagentExecutionEvents(
+  capabilities: BootstrapResponse["runtime_capabilities"] | null | undefined,
+): boolean {
+  return Boolean(
+    (capabilities as unknown as Record<string, unknown> | undefined)?.[
+      SUBAGENT_EXECUTION_EVENTS_CAPABILITY
+    ] === true,
+  );
+}
+
 export default function App() {
   const { t } = useTranslation();
   const [state, setState] = useState<BootState>({ status: "loading" });
   const bootstrapSecretRef = useRef("");
 
   const refreshReadyClient = useCallback(
-    async (client: NanobotClient, fallbackSurface: RuntimeSurface) => {
+    async (client: ZhixuClient, fallbackSurface: RuntimeSurface) => {
       const boot = await fetchBootstrap("", bootstrapSecretRef.current);
       const url = deriveWsUrl(boot.ws_path, boot.token, boot.ws_url);
       const runtimeSurface = resolveRuntimeSurface(boot.runtime_surface, fallbackSurface);
@@ -775,6 +826,7 @@ export default function App() {
               tokenExpiresAt,
               modelName: boot.model_name ?? current.modelName,
               ingressLimits: boot.limits ?? current.ingressLimits,
+              runtimeCapabilities: boot.runtime_capabilities ?? current.runtimeCapabilities,
               runtimeSurface,
             }
           : current,
@@ -796,7 +848,7 @@ export default function App() {
           const url = deriveWsUrl(boot.ws_path, boot.token, boot.ws_url);
           const runtimeSurface = resolveRuntimeSurface(boot.runtime_surface, "browser");
           const runtimeHost = createRuntimeHost(runtimeSurface, boot.runtime_capabilities);
-          const client = new NanobotClient({
+          const client = new ZhixuClient({
             url,
             maxFrameBytes: boot.limits?.transport.max_frame_bytes,
             socketFactory: runtimeHost.socketFactory,
@@ -820,6 +872,7 @@ export default function App() {
               : null,
             modelName: boot.model_name ?? null,
             ingressLimits: boot.limits ?? null,
+            runtimeCapabilities: boot.runtime_capabilities ?? null,
             runtimeSurface,
           });
         } catch (e) {
@@ -946,6 +999,7 @@ export default function App() {
     >
       <Shell
         runtimeSurface={state.runtimeSurface}
+        subagentExecutionEventsCapability={hasSubagentExecutionEvents(state.runtimeCapabilities)}
         onModelNameChange={handleModelNameChange}
         onLogout={handleLogout}
         onNativeEngineRestart={handleNativeEngineRestart}
@@ -956,18 +1010,21 @@ export default function App() {
 
 function Shell({
   runtimeSurface,
+  subagentExecutionEventsCapability,
   onModelNameChange,
   onLogout,
   onNativeEngineRestart,
 }: {
   runtimeSurface: RuntimeSurface;
+  subagentExecutionEventsCapability: boolean;
   onModelNameChange: (modelName: string | null) => void;
   onLogout: () => void;
   onNativeEngineRestart: () => Promise<string>;
 }) {
   const { t, i18n } = useTranslation();
-  const { client, getToken } = useClient();
-  const { theme, toggle } = useTheme();
+  const { client, getToken, token } = useClient();
+  const appearance = useTheme();
+  const { theme, toggle } = appearance;
   const {
     sessions,
     loading,
@@ -985,11 +1042,14 @@ function Shell({
     useSidebarState(sessions, !loading);
   const initialRouteRef = useRef<ShellRoute | null>(null);
   if (!initialRouteRef.current) initialRouteRef.current = readShellRoute();
+  const [homeDockOpen, setHomeDockOpen] = useState(false);
   const [activeKey, setActiveKey] = useState<string | null>(
     initialRouteRef.current.activeKey,
   );
   const [view, setView] = useState<ShellView>(initialRouteRef.current.view);
   const [temporarySessions, setTemporarySessions] = useState<Record<string, ChatSummary>>({});
+  // 临时聊天的开关按钮已下线，状态保留：运行时（侧栏分区、关闭动作、#/temporary 路由）
+  // 仍然完整，重新接回开关即可恢复新建临时聊天。
   const [temporaryChatEnabled, setTemporaryChatEnabled] = useState(false);
   const [settingsInitialSection, setSettingsInitialSection] =
     useState<SettingsSectionKey>(initialRouteRef.current.settingsSection);
@@ -1008,7 +1068,6 @@ function Shell({
     });
   }, [updateSidebarState]);
   const lastActivePaneByTabRef = useRef(new Map<string, string>());
-  const [creatingPane, setCreatingPane] = useState(false);
   const topicSessions = sessions;
   const [pendingDelete, setPendingDelete] = useState<{
     items: SidebarDeleteItem[];
@@ -1027,7 +1086,6 @@ function Shell({
     label: string;
   } | null>(null);
   const restartSawDisconnectRef = useRef(false);
-  const [restartToast, setRestartToast] = useState<string | null>(null);
   const [isRestarting, setIsRestarting] = useState(false);
   const [pairingRequests, setPairingRequests] = useState<PairingRequestInfo[]>([]);
   const [pairingBusyCode, setPairingBusyCode] = useState<string | null>(null);
@@ -1049,6 +1107,10 @@ function Shell({
   } | null>(null);
   const [draftWorkspaceScope, setDraftWorkspaceScope] =
     useState<WorkspaceScopePayload | null>(null);
+  // 只在还没发出第一条消息的聊天里存在的本地团队选择；生效与否由服务端确认的绑定决定。
+  const [pendingTeam, setPendingTeam] = useState<NewChatTeam | null>(null);
+  const [pendingTeamName, setPendingTeamName] = useState<string | null>(null);
+  const teamChoices = useTeamOptions(token);
   const [workspaceOverrides, setWorkspaceOverrides] =
     useState<Record<string, WorkspaceScopePayload>>({});
   const runningChatIdsRef = useRef<Set<string>>(new Set());
@@ -1445,12 +1507,16 @@ function Shell({
     workspaceScope?: WorkspaceScopePayload | null,
     _initialMessage?: string,
     modelPreset?: string | null,
+    team?: NewChatTeam | null,
   ) => {
     try {
       const scope = workspaceScope ?? activeWorkspaceScope;
-      const chatId = await createChat(scope, modelPreset);
+      const chatId = await createChat(scope, modelPreset, team ?? null);
       const key = `websocket:${chatId}`;
       pendingCreatedSessionKeyRef.current = key;
+      // 服务端已经确认过绑定，本地选择就此失效：下一条新聊天从普通模式重新开始。
+      setPendingTeam(null);
+      setPendingTeamName(null);
       navigate({
         view: "chat",
         activeKey: key,
@@ -1466,12 +1532,28 @@ function Shell({
       return chatId;
     } catch (e) {
       console.error("Failed to create chat", e);
-      if (e instanceof Error && e.message.startsWith("workspace_scope_rejected:")) {
+      const message = e instanceof Error ? e.message : "";
+      if (message.startsWith("workspace_scope_rejected:")) {
         setWorkspaceError(t("errors.workspaceScopeRejected.body"));
+      } else if (/^TEAM[S]_/.test(message)) {
+        setWorkspaceError(
+          message.startsWith("TEAM_BINDING_EXPIRED")
+            ? t("errors.teamBindingExpired.body")
+            : t("errors.teamUnavailable.body"),
+        );
       }
       return null;
     }
   }, [activeWorkspaceScope, createChat, navigate, t]);
+
+  const onTeamChange = useCallback((
+    team: NewChatTeam | null,
+    teamName: string | null,
+  ) => {
+    setPendingTeam(team);
+    setPendingTeamName(teamName);
+    setWorkspaceError(null);
+  }, []);
 
   const onCreateTemporaryChat = useCallback(
     async (
@@ -1545,17 +1627,12 @@ function Shell({
     navigate(newChatRoute());
     setTemporaryChatEnabled(false);
     setDraftWorkspaceScope(null);
+    setPendingTeam(null);
+    setPendingTeamName(null);
     setWorkspaceError(null);
     setSessionSearchOpen(false);
     setMobileSidebarOpen(false);
   }, [navigate]);
-
-  const onTemporaryChatEnabledChange = useCallback((enabled: boolean) => {
-    if (view !== "chat" || activeKey) return;
-    setTemporaryChatEnabled(enabled);
-    setDraftWorkspaceScope(null);
-    setWorkspaceError(null);
-  }, [activeKey, view]);
 
   const onNewChatInProject = useCallback(
     (projectPath: string, projectName: string) => {
@@ -1573,6 +1650,8 @@ function Shell({
         access_mode: base.access_mode,
         restrict_to_workspace: base.access_mode === "restricted",
       }));
+      setPendingTeam(null);
+      setPendingTeamName(null);
       setWorkspaceError(null);
       setMobileSidebarOpen(false);
       const projectKey = normalizeWorkspacePath(trimmed);
@@ -1858,56 +1937,6 @@ function Shell({
     setSessionSearchOpen(true);
   }, []);
 
-  const onAddPane = useCallback(async () => {
-    const tabKey = activeTabKey;
-    if (
-      !tabKey
-      || !activeKey
-      || !activeSession
-      || creatingPane
-      || (activeTabState?.paneKeys.length ?? 0) >= MAX_WORKBENCH_PANES
-      || temporarySessionsRef.current[activeKey]
-    ) return;
-    setMobileSidebarOpen(false);
-    setSessionSearchOpen(false);
-    setCreatingPane(true);
-    try {
-      const scope = activeWorkspaceScope;
-      const chatId = await createChat(scope);
-      const paneKey = `websocket:${chatId}`;
-      pendingCreatedSessionKeyRef.current = paneKey;
-      updateWorkbenchState((current) => addWorkbenchPane(current, activeKey, paneKey));
-      navigate({
-        view: "chat",
-        activeKey: paneKey,
-        settingsSection: "overview",
-      });
-      if (scope) {
-        setWorkspaceOverrides((current) => ({
-          ...current,
-          [chatId]: normalizeWorkspaceScope(scope),
-        }));
-      }
-    } catch (error) {
-      console.error("Failed to create pane", error);
-      if (error instanceof Error && error.message.startsWith("workspace_scope_rejected:")) {
-        setWorkspaceError(t("errors.workspaceScopeRejected.body"));
-      }
-    } finally {
-      setCreatingPane(false);
-    }
-  }, [
-    activeKey,
-    activeSession,
-    activeTabKey,
-    activeTabState,
-    activeWorkspaceScope,
-    createChat,
-    creatingPane,
-    navigate,
-    t,
-    updateWorkbenchState,
-  ]);
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -1919,6 +1948,35 @@ function Shell({
         onNewChat();
         return;
       }
+      // ⌘B / Ctrl+B：折叠/展开侧边栏（对齐 VS Code 的常用快捷键）。
+      const commandB =
+        (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
+      if (commandB && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        toggleSidebar();
+        return;
+      }
+      // Esc：折叠桌面侧栏。仅在没开 modal 且焦点不在输入控件时触发，避免
+      // 与各组件本地 Esc 处理（清空 composer、关闭菜单等）冲突。
+      if (
+        event.key === "Escape" &&
+        !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+      ) {
+        const target = event.target as HTMLElement | null;
+        const inEditable =
+          !!target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable);
+        const openModal = document.querySelector(
+          '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]',
+        );
+        if (!inEditable && !openModal && hostSidebarOpen) {
+          event.preventDefault();
+          closeHostSidebar();
+          return;
+        }
+      }
       // spec B2：⌘P/⌘T 全场景直达 dock 标签（首页与会话页一致；terminal 标签不接快捷键）。
       // xterm 聚焦时 ⌘T 也走本 handler——浏览器新标签语义让位于 dock。
       const dockSection = resolveDockShortcut(event);
@@ -1926,7 +1984,10 @@ function Shell({
         event.preventDefault();
         const scope = activeKey ?? HOME_DOCK_SCOPE;
         if (dockSection === "file") dockStore.openFile(scope);
-        else dockStore.openBrowser(scope);
+        else if (dockSection === "browser") dockStore.openBrowser(scope);
+        else requestDockTerminalPanel();
+        // 首页右坞默认收起：快捷键直达标签时一并把覆盖层拉出来。
+        if (activeKey === null) setHomeDockOpen(true);
         return;
       }
       const plainCommandK =
@@ -1939,7 +2000,7 @@ function Shell({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeKey, onNewChat, onOpenSessionSearch]);
+  }, [activeKey, closeHostSidebar, hostSidebarOpen, onNewChat, onOpenSessionSearch, toggleSidebar]);
 
   const onSelectSearchResult = useCallback(
     (key: string) => {
@@ -1981,6 +2042,12 @@ function Shell({
     setMobileSidebarOpen(false);
   }, [activeKey, navigate]);
 
+  const onOpenTeams = useCallback(() => {
+    setSessionSearchOpen(false);
+    navigate({ view: "teams", activeKey, settingsSection: "teams" });
+    setMobileSidebarOpen(false);
+  }, [activeKey, navigate]);
+
   const onOpenSkills = useCallback(() => {
     setSessionSearchOpen(false);
     navigate({ view: "skills", activeKey, settingsSection: "skills" });
@@ -1994,6 +2061,7 @@ function Shell({
         || section === "automations"
         || section === "skills"
         || section === "agents"
+        || section === "teams"
           ? section
           : "settings";
       navigate({
@@ -2020,6 +2088,18 @@ function Shell({
   const onOpenCreative = useCallback(() => {
     setSessionSearchOpen(false);
     navigate({ view: "creative", activeKey: null, settingsSection: "overview" });
+    setMobileSidebarOpen(false);
+  }, [navigate]);
+
+  const onOpenMemory = useCallback(() => {
+    setSessionSearchOpen(false);
+    navigate({ view: "memory", activeKey: null, settingsSection: "overview" });
+    setMobileSidebarOpen(false);
+  }, [navigate]);
+
+  const onOpenIdentity = useCallback(() => {
+    setSessionSearchOpen(false);
+    navigate({ view: "identity", activeKey: null, settingsSection: "overview" });
     setMobileSidebarOpen(false);
   }, [navigate]);
 
@@ -2140,8 +2220,10 @@ function Shell({
         // ignore storage errors
       }
       setIsRestarting(false);
-      setRestartToast(t("app.restart.completed", { seconds: (elapsedMs / 1000).toFixed(1) }));
-      window.setTimeout(() => setRestartToast(null), 3_500);
+      notify({
+        message: t("app.restart.completed", { seconds: (elapsedMs / 1000).toFixed(1) }),
+        durationMs: 3_500,
+      });
     });
   }, [client, t]);
 
@@ -2266,7 +2348,11 @@ function Shell({
   const titleForSession = useCallback((session: ChatSummary) => (
     sidebarState.title_overrides[session.key]
     || session.title
-    || deriveTitle(session.preview, t("chat.newChat"))
+    || deriveTitle(
+      session.preview,
+      t("chat.newChat"),
+      session.updatedAt ?? session.createdAt,
+    )
   ), [sidebarState.title_overrides, t]);
 
   const automaticSidebarSort = sidebarState.view.sort === "manual"
@@ -2381,12 +2467,47 @@ function Shell({
     workbenchPaneSessions,
   ]);
   const renderedActivePaneKey = activeKey ?? renderedWorkbenchPanes[0].key;
-  const [paneWorkbenchOpen, setPaneWorkbenchOpen] = useState<Record<string, boolean>>({});
-  const onPaneWorkbenchOpenChange = useCallback((paneKey: string, open: boolean) => {
-    setPaneWorkbenchOpen((current) => (
-      current[paneKey] === open ? current : { ...current, [paneKey]: open }
-    ));
+
+  // 首页右坞与会话内嵌工作台互斥：两者都是 StartDock，同时出现会叠成两块，
+  // 各自还带一个收起按钮、状态互不同步。会话页只保留会话工作台内的内嵌 dock。
+  const openHomeDockTerminal = useCallback(() => {
+    setHomeDockOpen(true);
+    requestDockTerminalPanel();
   }, []);
+
+  const dockToggle = (
+    <div className="flex shrink-0 items-center gap-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        data-testid="start-dock-terminal-toggle"
+        aria-label={t("dock.openTerminal", { defaultValue: "Open terminal panel" })}
+        title={`${t("dock.openTerminal", { defaultValue: "Open terminal panel" })} (Ctrl+J)`}
+        onClick={openHomeDockTerminal}
+        className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
+      >
+        <SquareTerminal className="h-4 w-4" aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        data-testid="start-dock-toggle"
+        aria-label={homeDockOpen
+          ? t("startPanel.collapse", { defaultValue: "Collapse the start panel" })
+          : t("startPanel.expand", { defaultValue: "Expand the start panel" })}
+        aria-pressed={homeDockOpen}
+        onClick={() => setHomeDockOpen((open) => !open)}
+        className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
+      >
+        <DockPanelIcon className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+  // 文件/终端/浏览器在会话页只有一个入口：会话头部的工作台按钮 → SessionWorkbench
+  // 内嵌 dock。首页没有会话工作台，才由顶栏这个按钮挂独立右坞。
+  const dockVisible = view === "chat" && activeKey === null && !mobileWorkbench;
   const renderedWorkbenchLayout = paneChromeEnabled && activeTabState
     ? activeTabState.layout
     : "columns";
@@ -2422,9 +2543,6 @@ function Shell({
     sidebarTabPresentations,
     titleForSession,
   ]);
-  const activePaneLimitReached = Boolean(
-    activeTabState && activeTabState.paneKeys.length >= MAX_WORKBENCH_PANES,
-  );
 
   const onActivateWorkbenchPane = useCallback((paneKey: string) => {
     onSelectChat(paneKey);
@@ -2562,14 +2680,18 @@ function Shell({
     onTogglePinProject,
     onRemoveProject,
     activeView: view === "article" ? "creative" : view,
+    activeSettingsSection: settingsInitialSection,
     onOpenHome,
     onOpenAssistant,
     onOpenCreative,
+    onOpenMemory,
+    onOpenIdentity,
     onOpenSettings,
     onOpenApps,
     onOpenAutomations,
     onOpenAgents,
     onOpenSkills,
+    onOpenTeams,
     onSettingsIntent,
     onOpenSearch: onOpenSessionSearch,
     activeUtility:
@@ -2599,14 +2721,15 @@ function Shell({
   const hostSidebarFlowWidth = !hostSidebarOpen
     ? SIDEBAR_RAIL_WIDTH
     : view === "chat"
-      ? SIDEBAR_WIDTH + SIDEBAR_CHAT_WIDTH
+      ? SIDEBAR_CHAT_WIDTH
       : SIDEBAR_WIDTH;
   const isSettingsLikeView =
     view === "settings"
     || view === "apps"
     || view === "automations"
     || view === "skills"
-    || view === "agents";
+    || view === "agents"
+    || view === "teams";
 
   useEffect(() => {
     document.documentElement.classList.toggle("native-host", showHostChrome);
@@ -2616,10 +2739,10 @@ function Shell({
   }, [showHostChrome]);
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme} appearance={appearance}>
       <div
         className={cn(
-          "relative h-full w-full overflow-hidden",
+          "app-shell-canvas relative h-full w-full overflow-hidden",
           showHostChrome && "host-window-shell",
         )}
       >
@@ -2656,7 +2779,8 @@ function Shell({
               data-testid="host-sidebar-flow"
               className={cn(
                 "relative z-20 hidden shrink-0 overflow-hidden lg:block",
-                "transition-[width] duration-300 ease-out",
+                "transition-[width] duration-150 ease-out",
+                "host-sidebar-aside",
               )}
               style={{
                 width: hostSidebarFlowWidth,
@@ -2664,7 +2788,7 @@ function Shell({
             >
               <div
                 className={cn(
-                  "absolute inset-y-0 left-0 h-full w-full overflow-hidden",
+                  "app-shell-panel absolute inset-y-0 left-0 h-full w-full overflow-hidden",
                   showHostChrome
                     ? "host-sidebar-glass"
                     : "bg-sidebar",
@@ -2716,17 +2840,26 @@ function Shell({
               />
             </Suspense>
           ) : null}
-        <main
-          className={cn(
-            "relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background",
-          )}
-        >
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col lg:p-2">
+          <main
+            className={cn(
+              "app-shell-card relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background",
+            )}
+          >
             <div
+              data-shell-right-action={dockVisible ? "" : undefined}
               className={cn(
                 "absolute inset-0 flex flex-col",
                 view !== "chat" && "hidden",
               )}
             >
+              {/* Anchored to the workspace surface (not the chat column), so
+                  opening the right dock does not shift the toggle leftwards. */}
+              {dockVisible ? (
+                <div className="pointer-events-none absolute right-2 top-1.5 z-40 flex">
+                  <div className="pointer-events-auto">{dockToggle}</div>
+                </div>
+              ) : null}
               <WorkbenchTabBar
                 tabs={sidebarTabPresentations
                   .filter((presentation) => (
@@ -2743,7 +2876,7 @@ function Shell({
                 onNewChat={onNewChat}
               />
               <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
                   <PaneWorkbench
                     panes={renderedWorkbenchPanes}
                     activePaneKey={renderedActivePaneKey}
@@ -2751,14 +2884,7 @@ function Shell({
                     splitRatios={renderedWorkbenchSplitRatios}
                     chrome={paneChromeEnabled}
                     showLayoutControl={activeTabVisible}
-                    addPaneDisabled={creatingPane || activePaneLimitReached}
-                    addPaneDisabledLabel={activePaneLimitReached
-                      ? t("workbench.paneLimit", {
-                          count: MAX_WORKBENCH_PANES,
-                        })
-                      : undefined}
                     onActivatePane={onActivateWorkbenchPane}
-                    onAddPane={onAddPane}
                     onLayoutChange={(layout) => {
                       if (!activeTabKey) return;
                       updateWorkbenchState((current) => (
@@ -2777,9 +2903,7 @@ function Shell({
                         setWorkbenchSplitRatios(current, activeTabKey, splitRatios)
                       ));
                     }}
-                    composerRailInset={paneWorkbenchOpen[renderedActivePaneKey]
-                      ? SESSION_WORKBENCH_RAIL_WIDTH
-                      : undefined}
+                    composerRailInset={SESSION_WORKBENCH_RAIL_WIDTH}
                     renderPane={(pane, context) => {
                       if (!paneChromeEnabled) {
                         return (
@@ -2790,10 +2914,8 @@ function Shell({
                             temporary={temporaryChatRequested}
                             temporaryChatIds={temporaryChatIds}
                             temporaryChatEnabled={temporaryChatEnabled}
-                            onTemporaryChatEnabledChange={
-                              !activeKey ? onTemporaryChatEnabledChange : undefined
-                            }
                             onToggleSidebar={toggleSidebar}
+                            headerActions={context.headerActions}
                             onNewChat={onNewChat}
                             onCreateChat={
                               temporaryChatEnabled ? onCreateTemporaryChat : onCreateChat
@@ -2802,7 +2924,6 @@ function Shell({
                             onTurnEnd={onTurnEnd}
                             theme={theme}
                             onToggleTheme={toggle}
-                            hideSidebarToggleForHostChrome
                             hideHeader={false}
                             workspaceScope={activeWorkspaceScope}
                             workspaceDefaultScope={workspaces?.default_scope ?? null}
@@ -2811,11 +2932,16 @@ function Shell({
                             workspaceScopeDisabled={activeChatRunning}
                             workspaceError={workspaceError}
                             onWorkspaceScopeChange={applyWorkspaceScope}
+                            teamOptions={teamChoices.options}
+                            teamSelection={pendingTeam}
+                            teamSelectionName={pendingTeamName}
+                            onTeamChange={onTeamChange}
                             settingsSnapshot={settingsSnapshot}
                             onOpenModelSettings={onOpenModelSettings}
                             skills={skills}
                             draftSeed={composerDraftSeed}
                             onDraftSeedConsumed={onDraftSeedConsumed}
+                            subagentExecutionEventsCapability={subagentExecutionEventsCapability}
                           />
                         );
                       }
@@ -2842,7 +2968,6 @@ function Shell({
                           theme={theme}
                           onToggleTheme={toggle}
                           hideSidebarToggle={!context.active}
-                          hideSidebarToggleForHostChrome={context.active}
                           hideThemeButton={!context.active}
                           hideHeaderTitle
                           inlineHandle={workbenchPaneSessions.length > 1}
@@ -2850,11 +2975,12 @@ function Shell({
                           headerPortalTarget={context.headerPortalTarget}
                           headerActive={context.active}
                           composerPortalTarget={context.composerPortalTarget}
+                          onComposerRailInsetChange={context.onComposerRailInsetChange}
+                          onComposerPlacementChange={context.onComposerPlacementChange}
                           composerActive={context.active}
                           composerInputAriaLabel={t("workbench.composerAria", {
                             title: pane.title,
                           })}
-                          emptyComposerVariant="thread"
                           workspaceScope={paneScope}
                           workspaceDefaultScope={workspaces?.default_scope ?? null}
                           workspaceControls={workspaces?.controls ?? null}
@@ -2874,17 +3000,17 @@ function Shell({
                           settingsSnapshot={settingsSnapshot}
                           onOpenModelSettings={onOpenModelSettings}
                           skills={skills}
-                          onWorkbenchOpenChange={(open) => onPaneWorkbenchOpenChange(pane.key, open)}
+                          subagentExecutionEventsCapability={subagentExecutionEventsCapability}
                         />
                       );
                     }}
                   />
                 </div>
-                {view === "chat" && activeKey === null && !mobileWorkbench ? (
+                {dockVisible && homeDockOpen ? (
                   <Suspense fallback={null}>
                     <StartDock
                       scope={HOME_DOCK_SCOPE}
-                      sessionKey={null}
+                      sessionKey={activeKey}
                       getToken={getToken}
                     />
                   </Suspense>
@@ -2892,18 +3018,12 @@ function Shell({
               </div>
             </div>
             {(view === "creative" || view === "article") ? (
-              <div className="absolute inset-0 overflow-y-auto bg-background">
-                <header className={cn("flex h-14 items-center gap-3 border-b border-border px-5 sm:px-8", showHostChrome && "mt-10")}>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden"
-                    aria-label={t("thread.header.toggleSidebar")} onClick={toggleSidebar}>
-                    <PanelLeftOpen className="h-4 w-4" aria-hidden />
-                  </Button>
-                  <span className="text-xs text-muted-foreground">{t("workspace.home.creativeTitle")}</span>
-                  <Button variant="ghost" size="icon" className="ml-auto h-8 w-8"
-                    aria-label={t("thread.header.toggleTheme")} onClick={toggle}>
-                    {theme === "dark" ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />}
-                  </Button>
-                </header>
+              <div
+                className={cn(
+                  "absolute inset-0 overflow-y-auto bg-background",
+                  showHostChrome && "pt-10",
+                )}
+              >
                 <Suspense fallback={null}>
                   <CreativeWorkspace
                     getToken={getToken}
@@ -2913,7 +3033,7 @@ function Shell({
                 </Suspense>
               </div>
             ) : null}
-            {isSettingsLikeView && (
+            {isSettingsLikeView ? (
               <div className="absolute inset-0 flex flex-col">
                 <Suspense fallback={<SurfaceLoadingFallback />}>
                   <SettingsView
@@ -2935,8 +3055,28 @@ function Shell({
                   />
                 </Suspense>
               </div>
-            )}
+            ) : null}
+            {view === "memory" || view === "identity" ? (
+              <div
+                className={cn(
+                  "absolute inset-0 flex flex-col overflow-y-auto bg-background",
+                  showHostChrome && "pt-10",
+                )}
+              >
+                <Suspense fallback={<SurfaceLoadingFallback />}>
+                  {view === "memory" ? (
+                    <MemoryPage
+                      settingsSnapshot={settingsSnapshot}
+                      onSettingsChange={setSettingsSnapshot}
+                    />
+                  ) : (
+                    <IdentityPage />
+                  )}
+                </Suspense>
+              </div>
+            ) : null}
           </main>
+        </div>
         </div>
 
         {pendingDelete ? (
@@ -2987,19 +3127,7 @@ function Shell({
             />
           </Suspense>
         ) : null}
-        {restartToast ? (
-          <div className="fixed left-1/2 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 flex w-[min(32rem,calc(100vw-1rem))] -translate-x-1/2 flex-col items-center gap-2">
-            <div
-              role="status"
-              className={cn(
-                floatingSurfaceElevationClassName,
-                "max-w-full rounded-full px-4 py-2 text-sm font-medium",
-              )}
-            >
-              {restartToast}
-            </div>
-          </div>
-        ) : null}
+        <Toaster />
         <PairingCodePopup
           requests={visiblePairingRequests}
           total={visiblePairingRequests.length}

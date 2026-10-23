@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ApiError, type WebUIMutationTransport } from "@/lib/api";
+import { ApiError, fetchSettings, listSessions, type WebUIMutationTransport } from "@/lib/api";
+import type { SettingsPayload } from "@/lib/types";
+import { providerDisplayLabel } from "@/lib/provider-brand";
+import { workspaceRouteHash } from "@/workspace/routes";
+import type { ModelPresetOption } from "@/components/thread/ModelPresetBadge";
+import { Button } from "@/components/ui/button";
 import {
   createArticle,
   deleteArticle,
@@ -11,6 +16,8 @@ import {
   saveArticle,
   toArticle,
   toSnapshotPayload,
+  undoArticleChange,
+  type ArticleSnapshotPayload,
   type CreateArticleRequest,
 } from "@/lib/writing-api";
 import { clearDraft, listDrafts, readDraft, type LocalArticleDraft } from "@/lib/writing-draft-cache";
@@ -23,9 +30,22 @@ import {
 } from "./article-model";
 import { demoArticles } from "./demo-data";
 import { ArticleList, type ArticleListState } from "./ArticleList";
-import { ArticleEditor } from "./ArticleEditor";
+import {
+  ArticleEditor,
+  type WritingSelectionAction,
+} from "./ArticleEditor";
+import {
+  WritingChatPanel,
+  type WritingChatSeed,
+} from "./WritingChatPanel";
 import { useArticleSaveFlow } from "./use-article-save-flow";
 import { ArticleRecoveryBanner } from "./ArticleRecoveryBanner";
+import type {
+  WritingChangedEvent,
+  WritingSelectionContext,
+  WritingSessionInfo,
+  WritingTask,
+} from "@/lib/types";
 
 export interface CreativeWorkspaceProps {
   getToken: () => string;
@@ -66,6 +86,33 @@ function toSummaryRow(article: Article): ArticleSummaryView {
   };
 }
 
+/** 团队写入的三种 kind 对应的可读文本，用于改动前后对比。 */
+function writingFieldText(snapshot: ArticleSnapshotPayload, kind: string): string {
+  if (kind === "material") {
+    return snapshot.materials
+      .map((material) => `${material.title}\n${material.content}`.trim())
+      .join("\n\n");
+  }
+  if (kind === "outline") {
+    return snapshot.outline
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((item, index) => `${index + 1}. ${item.text}`)
+      .join("\n");
+  }
+  return snapshot.body;
+}
+
+interface RemoteWritingDiff {
+  changeId: string;
+  kind: string;
+  actor: string | null;
+  revision: number;
+  digest: string | null;
+  before: string;
+  after: string;
+}
+
 /** 只比对会持久化的内容字段，用来回答 `no_change`。 */
 function contentFields(article: Article) {
   return {
@@ -80,6 +127,93 @@ function contentFields(article: Article) {
     materials: article.materials,
     tags: article.tags,
   };
+}
+
+// —— 创作搭档模型 chip 的数据来源（spec 2026-10-17-writing-partner-model-selection §4.3）——
+//
+// `settings.model_presets` 与会话 `model_preset` 都在这一层映射成面板 props：面板本身
+// 不读 settings、不读会话列表。选项口径与 `ThreadShell.modelPresetOptionsFromSettings`
+// 逐条对齐（同名过滤 `is_default`、按 `model_call_order` 排序）；它是那个模块的私有函数，
+// 不能 import，故在此保持同口径实现而不是改动画像侧代码。
+
+/** 宽松但明确的结构校验：拿不到 settings 就不要假装有可切换的 preset。 */
+function isSettingsPayload(value: unknown): value is SettingsPayload {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as { model_presets?: unknown; agent?: unknown };
+  return Array.isArray(candidate.model_presets)
+    && Boolean(candidate.agent)
+    && typeof candidate.agent === "object";
+}
+
+function partnerModelPresetOptions(settings: SettingsPayload | null): ModelPresetOption[] {
+  if (!settings) return [];
+  const order = new Map(
+    (settings.model_call_order ?? []).map((name, index) => [name.trim(), index]),
+  );
+  return settings.model_presets
+    .filter((preset) => !preset.is_default && preset.name.trim())
+    .sort((a, b) => (
+      (order.get(a.name.trim()) ?? Number.POSITIVE_INFINITY)
+      - (order.get(b.name.trim()) ?? Number.POSITIVE_INFINITY)
+    ))
+    .map((preset) => {
+      const name = preset.name.trim();
+      return {
+        name,
+        model: preset.model,
+        provider: preset.resolved_provider || preset.provider,
+        reasoningEffort: preset.reasoning_effort ?? null,
+      };
+    });
+}
+
+/** 当前 preset 对应的模型与供应商（与 `ThreadShell.toModelBadgeInfo` 同口径）。 */
+function partnerModelDisplay(
+  settings: SettingsPayload | null,
+  currentPreset: string,
+): { model: string | null; provider: string | null; providerLabel: string | null } {
+  const preset = settings?.model_presets.find((entry) => entry.name === currentPreset) ?? null;
+  const model = (preset?.model || settings?.agent.model || "").trim() || null;
+  const rawProvider = preset?.resolved_provider
+    || preset?.provider
+    || settings?.agent.resolved_provider
+    || settings?.agent.provider
+    || null;
+  const provider = rawProvider === "auto"
+    ? preset?.resolved_provider || settings?.agent.resolved_provider || null
+    : rawProvider;
+  const providerLabel = provider
+    ? providerDisplayLabel(settings?.providers ?? [], provider)
+    : null;
+  return { model, provider, providerLabel };
+}
+
+/** 没有可用 preset 或当前 preset 没配好 → 走 `ModelPresetBadge` 既有 needsSetup 行为。 */
+function partnerModelNeedsSetup(
+  settings: SettingsPayload | null,
+  currentPreset: string,
+): boolean {
+  if (!settings) return true;
+  const preset = settings.model_presets.find((entry) => entry.name === currentPreset) ?? null;
+  const model = (preset?.model || settings.agent.model || "").trim();
+  const provider = preset?.resolved_provider
+    || preset?.provider
+    || settings.agent.resolved_provider
+    || settings.agent.provider
+    || null;
+  const providerRow = provider
+    ? settings.providers.find((item) => item.name === provider) ?? null
+    : null;
+  return Boolean(!model || !provider || !providerRow || !providerRow.configured);
+}
+
+/**
+ * needsSetup 时的既有入口：写既有 settings 路由（App 与 PreviewApp 都监听 `hashchange`），
+ * 不新增导航机制、不自己造跳转。
+ */
+function openModelSettings(): void {
+  if (typeof window === "undefined") return;
+  window.location.hash = workspaceRouteHash({ view: "settings", settingsSection: "models" });
 }
 
 /** 预览响应用契约 §5 的 snake_case 线格式，方便 `toArticle()` 原样解析。 */
@@ -210,6 +344,9 @@ function EditorHost({
   readLatest,
   onArticleReplaced,
   onBack,
+  partnerEnabled = true,
+  settings = null,
+  settingsResolved = false,
 }: {
   getToken: () => string;
   transport: WebUIMutationTransport;
@@ -219,6 +356,12 @@ function EditorHost({
   readLatest: (articleId: string) => Promise<Article>;
   onArticleReplaced: (article: Article) => void;
   onBack: () => void;
+  /** 预览入口不走真实协作：面板不挂载（预览里 transport 是内存替身）。 */
+  partnerEnabled?: boolean;
+  /** 容器读到的 settings（模型 chip 的选项来源）；预览入口为 null。 */
+  settings?: SettingsPayload | null;
+  /** settings 是否已经有结果（成功或失败）：加载中不谎报「未配置」。 */
+  settingsResolved?: boolean;
 }) {
   const flow = useArticleSaveFlow({ getToken, transport, article, workspacePath });
 
@@ -339,13 +482,376 @@ function EditorHost({
     });
   }, [flow.draft, onArticleReplaced, transport]);
 
+  // —— 创作会话：身份由服务端绑定，模型 chip 读绑定后的会话真值 ——
+  const [writingSession, setWritingSession] = useState<WritingSessionInfo | null>(null);
+  const writingChatId = writingSession?.chat_id ?? null;
+  const writingSessionKey = writingSession?.session_key ?? null;
+  const [writingSessionPreset, setWritingSessionPreset] = useState<string | null>(null);
+  const globalDefaultPreset = settings?.agent.model_preset?.trim() || "default";
+  const globalDefaultPresetRef = useRef(globalDefaultPreset);
+  globalDefaultPresetRef.current = globalDefaultPreset;
+  const writingModelOptions = useMemo(() => partnerModelPresetOptions(settings), [settings]);
+
+  /** 读回该会话的 `model_preset`；读不到（请求失败）返回 null，绝不假装成功。 */
+  const readWritingSessionPreset = useCallback(async (): Promise<string | null> => {
+    if (!writingSessionKey) return null;
+    try {
+      const rows = await listSessions(getToken());
+      const row = rows.find((entry) => entry.key === writingSessionKey) ?? null;
+      const value = row?.modelPreset?.trim() || null;
+      setWritingSessionPreset(value);
+      return value ?? globalDefaultPresetRef.current;
+    } catch {
+      return null;
+    }
+  }, [getToken, writingSessionKey]);
+
+  useEffect(() => {
+    if (!partnerEnabled || !writingSessionKey) {
+      setWritingSessionPreset(null);
+      return undefined;
+    }
+    void readWritingSessionPreset();
+    return undefined;
+  }, [partnerEnabled, readWritingSessionPreset, writingSessionKey]);
+
+  /**
+   * 会话帧对齐：`/model` 的 turn end 广播 `session_updated(scope="metadata")`，
+   * 据此把真值读回来。只订阅本会话的 metadata 帧。
+   */
+  useEffect(() => {
+    if (!partnerEnabled || !writingChatId) return undefined;
+    const source = transport as {
+      onSessionUpdate?: (
+        handler: (chatId: string, scope?: string) => void,
+      ) => () => void;
+    };
+    const subscribe = source.onSessionUpdate?.bind(source);
+    if (!subscribe) return undefined;
+    return subscribe((updatedChatId, scope) => {
+      if (updatedChatId !== writingChatId) return;
+      if (scope && scope !== "metadata") return;
+      void readWritingSessionPreset();
+    });
+  }, [
+    partnerEnabled,
+    readWritingSessionPreset,
+    transport,
+    writingChatId,
+  ]);
+
+  const writingPreset = writingSessionPreset ?? globalDefaultPreset;
+  const writingDisplay = partnerModelDisplay(settings, writingPreset);
+  const writingNeedsSetup = settingsResolved
+    && (writingModelOptions.length === 0
+      || partnerModelNeedsSetup(settings, writingPreset));
+
+  // —— 团队写入 → 编辑器：无脏稿自动应用；有脏稿只提示，绝不覆盖 ——
+  const flowRef = useRef(flow);
+  flowRef.current = flow;
+  const dirtyRef = useRef(flow.dirty);
+  dirtyRef.current = flow.dirty;
+  const phaseRef = useRef(flow.state.phase);
+  phaseRef.current = flow.state.phase;
+  const [bodyEditSeq, setBodyEditSeq] = useState(0);
+  const [composerSeed, setComposerSeed] = useState<WritingChatSeed | null>(null);
+  const seedSeqRef = useRef(0);
+  const [remoteNotice, setRemoteNotice] = useState<WritingChangedEvent | null>(null);
+  const [remoteDiff, setRemoteDiff] = useState<RemoteWritingDiff | null>(null);
+  const [remoteDiffOpen, setRemoteDiffOpen] = useState(false);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
+  const [remoteBusy, setRemoteBusy] = useState(false);
+  const remoteTimerRef = useRef<number | null>(null);
+  const appliedChangeRef = useRef<string | null>(null);
+
+  const applyTeamUpdate = useCallback(async (
+    event: WritingChangedEvent,
+    compare: boolean,
+  ) => {
+    setRemoteBusy(true);
+    setRemoteError(null);
+    try {
+      const latest = await readLatest(article.id);
+      const beforeSnapshot = flowRef.current.draft;
+      const latestSnapshot = toSnapshotPayload(latest);
+      const before = writingFieldText(beforeSnapshot, event.kind);
+      const after = writingFieldText(latestSnapshot, event.kind);
+      flowRef.current.applyRemote(
+        latestSnapshot,
+        latest.revision,
+        latest.contentDigest ?? null,
+        latest.updatedAt,
+      );
+      onArticleReplaced(latest);
+      appliedChangeRef.current = event.change_id;
+      setRemoteNotice(null);
+      if (compare && before !== after) {
+        setRemoteDiff({
+          changeId: event.change_id,
+          kind: event.kind,
+          actor: event.actor_name ?? event.actor ?? null,
+          revision: event.revision,
+          digest: event.digest,
+          before,
+          after,
+        });
+        setRemoteDiffOpen(false);
+      } else {
+        setRemoteDiff(null);
+      }
+    } catch (error) {
+      setRemoteError(
+        error instanceof Error ? error.message : "读取团队修改失败，请稍后重试。",
+      );
+    } finally {
+      setRemoteBusy(false);
+    }
+  }, [article.id, onArticleReplaced, readLatest]);
+
+  useEffect(() => {
+    if (!partnerEnabled) return undefined;
+    const source = transport as {
+      onWritingChanged?: (
+        handler: (event: WritingChangedEvent) => void,
+      ) => () => void;
+    };
+    const subscribe = source.onWritingChanged?.bind(source);
+    if (!subscribe) return undefined;
+    return subscribe((event) => {
+      if (event.article_id !== article.id) return;
+      if (appliedChangeRef.current === event.change_id) return;
+      const phase = phaseRef.current;
+      if (dirtyRef.current || phase === "saving" || phase === "conflict" || phase === "offline") {
+        setRemoteNotice(event);
+        return;
+      }
+      if (remoteTimerRef.current !== null) window.clearTimeout(remoteTimerRef.current);
+      remoteTimerRef.current = window.setTimeout(() => {
+        remoteTimerRef.current = null;
+        void applyTeamUpdate(event, true);
+      }, 150);
+    });
+  }, [applyTeamUpdate, article.id, partnerEnabled, transport]);
+
+  useEffect(() => () => {
+    if (remoteTimerRef.current !== null) {
+      window.clearTimeout(remoteTimerRef.current);
+      remoteTimerRef.current = null;
+    }
+  }, []);
+
+  const handleLoadRemote = useCallback(async () => {
+    const notice = remoteNotice;
+    if (!notice) return;
+    setRemoteBusy(true);
+    try {
+      const saved = await flowRef.current.flushForWriting();
+      if (!saved) {
+        setRemoteError("本地稿还没保存成功，先处理保存后再载入团队版本。");
+        return;
+      }
+      await applyTeamUpdate(notice, true);
+    } finally {
+      setRemoteBusy(false);
+    }
+  }, [applyTeamUpdate, remoteNotice]);
+
+  const handleUndoRemote = useCallback(async () => {
+    if (!remoteDiff) return;
+    setRemoteBusy(true);
+    setRemoteError(null);
+    try {
+      const result = await undoArticleChange(transport, {
+        clientRequestId: newLocalId(),
+        changeId: remoteDiff.changeId,
+        baseRevision: remoteDiff.revision,
+      });
+      if (result.noChange) {
+        setRemoteDiff(null);
+        return;
+      }
+      const latest = await readLatest(article.id);
+      flowRef.current.applyRemote(
+        toSnapshotPayload(latest),
+        latest.revision,
+        latest.contentDigest ?? null,
+        latest.updatedAt,
+      );
+      onArticleReplaced(latest);
+      setRemoteDiff(null);
+      setRemoteNotice(null);
+    } catch (error) {
+      setRemoteError(
+        error instanceof Error
+          ? error.message
+          : "撤销失败：可能有更新的修改，请先查看最新正文。",
+      );
+    } finally {
+      setRemoteBusy(false);
+    }
+  }, [article.id, onArticleReplaced, readLatest, remoteDiff, transport]);
+
+  const handleSetField = useCallback(
+    <K extends keyof ArticleSnapshotPayload,>(
+      key: K,
+      value: ArticleSnapshotPayload[K],
+    ) => {
+      if (key === "body") setBodyEditSeq((seq) => seq + 1);
+      flowRef.current.setField(key, value);
+    },
+    [],
+  );
+
+  const handleSeedConsumed = useCallback(() => setComposerSeed(null), []);
+
+  const handleSelectionAction = useCallback((
+    selection: WritingSelectionContext,
+    action: WritingSelectionAction,
+  ) => {
+    const requests: Record<WritingSelectionAction, {
+      text: string;
+      task: WritingTask;
+    }> = {
+      ask: { text: "", task: "ask" },
+      rewrite: { text: "把这段改得简洁清楚，保留术语。", task: "rewrite" },
+      expand: { text: "把这段扩写得更具体，保持原意。", task: "expand" },
+      condense: { text: "把这段精简，保留关键信息。", task: "condense" },
+      explain: { text: "这段是什么意思？", task: "ask" },
+      verify: { text: "这段说法准确吗？", task: "ask" },
+      tone: { text: "把这段换成更自然的语气。", task: "rewrite" },
+    };
+    const request = requests[action];
+    seedSeqRef.current += 1;
+    setComposerSeed({
+      id: seedSeqRef.current,
+      text: request.text,
+      task: request.task,
+      memberId: null,
+      selection,
+    });
+  }, []);
+
+  const remoteBanner = remoteNotice || remoteDiff || remoteError ? (
+    <div
+      data-testid="writing-remote-banner"
+      className="border-b border-primary/30 bg-primary/5 px-4 py-2 text-[11px] text-foreground"
+    >
+      {remoteNotice ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="min-w-0 flex-1">
+            团队更新了文章；本地有未保存的修改，未覆盖本地稿。
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 cursor-pointer text-[11px]"
+            disabled={remoteBusy}
+            onClick={() => void handleLoadRemote()}
+          >
+            保存并载入团队版本
+          </Button>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setRemoteNotice(null)}
+          >
+            忽略
+          </button>
+        </div>
+      ) : null}
+      {remoteDiff ? (
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="min-w-0 flex-1">
+              团队修改了{remoteDiff.kind === "body"
+                ? "正文"
+                : remoteDiff.kind === "outline"
+                  ? "提纲"
+                  : "素材"}
+              {remoteDiff.actor ? `（${remoteDiff.actor}）` : ""}，已载入最新版本。
+            </span>
+            <button
+              type="button"
+              className="rounded border border-border px-1.5 py-0.5 hover:bg-accent"
+              aria-expanded={remoteDiffOpen}
+              onClick={() => setRemoteDiffOpen((open) => !open)}
+            >
+              {remoteDiffOpen ? "收起对比" : "查看对比"}
+            </button>
+            <button
+              type="button"
+              className="rounded border border-border px-1.5 py-0.5 hover:bg-accent disabled:opacity-50"
+              disabled={remoteBusy}
+              onClick={() => void handleUndoRemote()}
+            >
+              {remoteBusy ? "处理中…" : "撤销这次修改"}
+            </button>
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setRemoteDiff(null);
+                setRemoteError(null);
+              }}
+            >
+              关闭
+            </button>
+          </div>
+          {remoteDiffOpen ? (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div>
+                <p className="mb-1 text-[10px] font-medium text-muted-foreground">修改前</p>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-control border border-border bg-background p-2 font-mono text-[10.5px] leading-relaxed">
+                  {remoteDiff.before || "（空）"}
+                </pre>
+              </div>
+              <div>
+                <p className="mb-1 text-[10px] font-medium text-muted-foreground">修改后</p>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-control border border-border bg-background p-2 font-mono text-[10.5px] leading-relaxed">
+                  {remoteDiff.after || "（空）"}
+                </pre>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {remoteError ? (
+        <p role="alert" className="mt-1 text-destructive">{remoteError}</p>
+      ) : null}
+    </div>
+  ) : null;
+
+  const writingChat = partnerEnabled
+    ? ({ onCollapse }: { onCollapse: () => void }) => (
+      <WritingChatPanel
+        articleId={article.id}
+        articleSnapshot={flow.draft}
+        flushForWriting={flow.flushForWriting}
+        seed={composerSeed}
+        onSeedConsumed={handleSeedConsumed}
+        onSessionChange={setWritingSession}
+        articleEditSeq={bodyEditSeq}
+        modelPresets={writingModelOptions}
+        modelPreset={writingPreset}
+        modelDetail={writingDisplay.model}
+        modelProvider={writingDisplay.provider}
+        modelProviderLabel={writingDisplay.providerLabel}
+        modelPresetFromFallback={!writingSessionPreset}
+        modelNeedsSetup={writingNeedsSetup}
+        onManageModels={openModelSettings}
+        onModelRefresh={readWritingSessionPreset}
+        onCollapse={onCollapse}
+      />
+    )
+    : null;
+
   return (
     <ArticleEditor
       article={article}
       draft={flow.draft}
       dirty={flow.dirty}
       saveState={flow.state}
-      setField={flow.setField}
+      setField={handleSetField}
       onSaveNow={flow.saveNow}
       onAcknowledgeConflict={flow.acknowledgeConflict}
       onFetchLatest={handleFetchLatest}
@@ -365,6 +871,9 @@ function EditorHost({
       onLeaveRetry={handleLeaveRetry}
       onLeaveStay={handleLeaveStay}
       onLeaveForce={handleLeaveForce}
+      writingChat={writingChat}
+      onSelectionAction={handleSelectionAction}
+      remoteBanner={remoteBanner}
     />
   );
 }
@@ -392,6 +901,12 @@ export default function CreativeWorkspace({
   const [previewArticles, setPreviewArticles] = useState<Article[]>(() =>
     preview ? demoArticles() : [],
   );
+  /**
+   * 模型 chip 的选项来源。容器不再渲染 settings 页，但模型 preset 只能从 settings 取：
+   * 这里读一次（每次进入创作视图一次），把 `model_presets` 映射后注入面板。
+   */
+  const [settings, setSettings] = useState<SettingsPayload | null>(null);
+  const [settingsResolved, setSettingsResolved] = useState(preview);
 
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
@@ -457,6 +972,27 @@ export default function CreativeWorkspace({
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [preview, query]);
+
+  useEffect(() => {
+    if (preview) return undefined;
+    let cancelled = false;
+    setSettingsResolved(false);
+    fetchSettings(getTokenRef.current())
+      .then((payload) => {
+        if (cancelled) return;
+        // 载荷形状不对就当没有 settings：chip 走 needsSetup 跳设置，而不是崩掉。
+        setSettings(isSettingsPayload(payload) ? payload : null);
+        setSettingsResolved(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSettings(null);
+        setSettingsResolved(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [preview]);
 
   const localRows = useMemo(
     () => searchArticles(filterByStatus(previewArticles, statusFilter), query).map(toSummaryRow),
@@ -545,8 +1081,9 @@ export default function CreativeWorkspace({
           mutationTransport,
           createDraftInput(title, templateId, t),
         );
-        if (preview) writePreview([article, ...previewRef.current]);
-        else refreshList();
+        // B01：预览列表的更新责任唯一归内存写通道（`previewTransport` 已 writePreview），
+        // 这里再 prepend 一次会得到两张同 id 的卡。真实入口仍由服务端列表刷新。
+        if (!preview) refreshList();
         setActiveArticle(article);
         setOpenError(null);
         setView("editor");
@@ -556,7 +1093,7 @@ export default function CreativeWorkspace({
         return { error: failureText(reason, "creative.createFailed", "新建文章失败") };
       }
     },
-    [failureText, mutationTransport, preview, refreshList, t, writePreview],
+    [failureText, mutationTransport, preview, refreshList, t],
   );
 
   const handleDuplicate = useCallback(
@@ -568,7 +1105,7 @@ export default function CreativeWorkspace({
           clientRequestId: newLocalId(),
         });
         if (preview) {
-          writePreview([copy, ...previewRef.current]);
+          // 同上：预览副本已由内存写通道插入，这里不再重复插。
           return;
         }
         // 服务端把副本整条返回了，直接插到列表头部，省一次往返。
@@ -579,7 +1116,7 @@ export default function CreativeWorkspace({
         setActionError(failureText(reason, "creative.duplicateFailed", "复制文章失败"));
       }
     },
-    [failureText, mutationTransport, preview, writePreview],
+    [failureText, mutationTransport, preview],
   );
 
   const handleDelete = useCallback(
@@ -595,7 +1132,7 @@ export default function CreativeWorkspace({
         clearDraft(workspacePath, row.id);
         if (activeArticle?.id === row.id) backToList();
         if (preview) {
-          writePreview(previewRef.current.filter((item) => item.id !== row.id));
+          // 内存写通道的 `article.delete` 已经把它从集合里摘掉，这里不再二次过滤。
           return;
         }
         refreshList();
@@ -611,7 +1148,6 @@ export default function CreativeWorkspace({
       preview,
       refreshList,
       workspacePath,
-      writePreview,
     ],
   );
 
@@ -634,6 +1170,9 @@ export default function CreativeWorkspace({
         readLatest={readLatestArticle}
         onArticleReplaced={setActiveArticle}
         onBack={backToList}
+        partnerEnabled={!preview}
+        settings={settings}
+        settingsResolved={settingsResolved}
       />
     );
   }
