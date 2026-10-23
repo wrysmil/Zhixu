@@ -381,14 +381,28 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     background-color: hsl(var(--background));
   }
 
-  /* Flat two-pane shell: the sidebar runs full height and the content surface
-     sits flush against it, separated by a hairline instead of card chrome. */
+  /* Two-pane shell: the sidebar runs full height and stays flat; the content
+     surface floats above the canvas as an inset rounded card. */
   @media (min-width: 1024px) {
-    .app-shell-card,
     .app-shell-panel {
       border: 0;
       border-radius: 0;
       box-shadow: none;
+    }
+
+    .app-shell-card {
+      border: 1px solid hsl(var(--border) / 0.7);
+      border-radius: var(--radius-prominent);
+      box-shadow:
+        0 1px 2px hsl(var(--foreground) / 0.04),
+        0 18px 40px -28px hsl(var(--foreground) / 0.28);
+    }
+
+    .dark .app-shell-card {
+      border-color: hsl(var(--border) / 0.8);
+      box-shadow:
+        0 1px 2px hsl(0 0% 0% / 0.35),
+        0 20px 44px -30px hsl(0 0% 0% / 0.65);
     }
   }
 

@@ -33,7 +33,7 @@ export const DEFAULT_APPEARANCE: AppearancePreferences = {
 
 export const THEME_PRESETS: Array<{ id: PresetId; name: string; light: Palette; dark: Palette }> = [
   { id: "zhixu", name: "Zhixu", light: { accent: "#3C64B4", background: "#FFFFFF", foreground: "#202B3C" }, dark: { accent: "#8FB0E8", background: "#111621", foreground: "#EDF1F7" } },
-  { id: "graphite", name: "Graphite", light: { accent: "#52525B", background: "#FAFAFA", foreground: "#242426" }, dark: { accent: "#B3B3BC", background: "#18181B", foreground: "#E4E4E7" } },
+  { id: "graphite", name: "Graphite", light: { accent: "#52525B", background: "#FFFFFF", foreground: "#242426" }, dark: { accent: "#B3B3BC", background: "#18181B", foreground: "#E4E4E7" } },
   { id: "ocean", name: "Ocean", light: { accent: "#0169CC", background: "#F4F8FC", foreground: "#152A3E" }, dark: { accent: "#76B8F5", background: "#101C29", foreground: "#E1EBF5" } },
   { id: "sand", name: "Sand", light: { accent: "#976337", background: "#FAF5EB", foreground: "#3A3026" }, dark: { accent: "#D7AD79", background: "#241F19", foreground: "#EDE3D6" } },
 ];
