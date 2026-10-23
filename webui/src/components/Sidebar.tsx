@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   Archive,
-  PanelLeftClose,
   Search,
   SquarePen,
 } from "lucide-react";
@@ -189,17 +188,7 @@ export function Sidebar(props: SidebarProps) {
               props.hostChromeInset ? "pt-8" : "pt-3",
             )}
           >
-            <BrandMark className="h-6 shrink-0 text-[14px]" />
-            <div className="min-w-0 flex-1" />
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t("sidebar.collapse")}
-              onClick={props.onCollapse}
-              className="host-no-drag h-7 w-7 rounded-lg text-muted-foreground/85 hover:bg-sidebar-accent/75 hover:text-sidebar-foreground"
-            >
-              <PanelLeftClose className="h-3.5 w-3.5" />
-            </Button>
+            <BrandMark className="shrink-0 text-[18px]" />
           </div>
           <div className="space-y-0.5 px-2 pb-2 pt-1">
             <SidebarActionButton

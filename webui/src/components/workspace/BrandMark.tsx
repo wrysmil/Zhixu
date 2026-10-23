@@ -1,15 +1,21 @@
 import { cn } from "@/lib/utils";
 
-/** Outlined wordmark stays consistent without requiring an installed font. */
+/** A lightweight typographic mark that stays legible in both rail widths. */
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <img
-      src={`${import.meta.env.BASE_URL}brand/zhixu-wordmark.svg`}
-      alt="知序 Zhixu"
-      width={100}
-      height={50}
-      draggable={false}
-      className={cn("brand-image w-auto shrink-0 select-none object-contain", className)}
-    />
+    <span
+      aria-label="知序 Zhixu"
+      className={cn(
+        "inline-flex select-none items-center whitespace-nowrap text-[13px] leading-none",
+        className,
+      )}
+      style={{
+        fontFamily: '"Century Gothic", "Avenir Next", Futura, "Segoe UI Variable Display", sans-serif',
+        fontWeight: 600,
+        letterSpacing: "0.015em",
+      }}
+    >
+      ZhiXu~
+    </span>
   );
 }

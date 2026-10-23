@@ -14,7 +14,7 @@ interface ThreadWelcomeExtrasProps {
   onChoosePrompt: (text: string) => void;
 }
 
-const MASCOT_SRC = `${import.meta.env.BASE_URL}illustrations/zhixu-welcome.webp`;
+const MASCOT_SRC = `${import.meta.env.BASE_URL}brand/zhixu-robot.webp`;
 
 function useWelcomeCopy() {
   const { t, i18n } = useTranslation();
@@ -52,7 +52,7 @@ export function ThreadWelcomeIntro({ greeting }: ThreadWelcomeIntroProps) {
           </p>
         </div>
         <div className="thread-welcome-illustration" aria-hidden>
-          <img src={MASCOT_SRC} alt="" width={552} height={368} draggable={false} />
+          <img src={MASCOT_SRC} alt="" width={600} height={450} draggable={false} />
         </div>
       </div>
     </div>

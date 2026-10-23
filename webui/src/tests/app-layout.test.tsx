@@ -506,7 +506,6 @@ describe("App layout", () => {
     expect(main).not.toHaveAttribute("style");
     expect(screen.getByTestId("sidebar-brand-row")).toHaveClass("pt-3");
     expect(screen.getByTestId("sidebar-brand-row")).not.toHaveClass("pt-8");
-    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
 
     const asideClassNames = Array.from(container.querySelectorAll("aside")).map(
       (el) => el.className,
@@ -1607,13 +1606,12 @@ describe("App layout", () => {
     expect(flowSidebar).toHaveStyle({ width: "264px" });
     expect(screen.getByTestId("sidebar-brand-row")).toHaveClass("pt-8");
     expect(screen.getByTestId("sidebar-brand-row")).not.toHaveClass("pt-3");
-    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
     expect(screen.queryByTestId("host-sidebar-toggle")).not.toBeInTheDocument();
     expect(
       screen.getByRole("navigation", { name: "Sidebar navigation" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    fireEvent.keyDown(window, { key: "b", ctrlKey: true });
     await waitFor(() => expect(flowSidebar).toHaveStyle({ width: "54px" }));
     expect(
       screen.getByRole("navigation", { name: "Sidebar navigation" }),
@@ -3730,7 +3728,7 @@ describe("App layout", () => {
 
     expect(screen.queryByRole("button", { name: "Toggle theme from header" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    fireEvent.keyDown(window, { key: "b", ctrlKey: true });
     const sidebarAside = container.querySelector("aside.lg\\:block") as HTMLElement;
     await waitFor(() => expect(sidebarAside.style.width).toBe("54px"));
 
