@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import csv
+import html
 import io
 import json
 import math
@@ -471,3 +472,46 @@ def export_run_json(
         "attempts": rows,
     }
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2)
+
+
+# ------------------------------------------------------------- HTML 汇总报告（WU-07）
+
+
+_SUMMARY_CSS = """
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;margin:32px;color:#111}
+h1{font-size:20px} h2{font-size:16px;margin-top:24px}
+table{border-collapse:collapse;width:100%;margin-top:8px}
+th,td{border:1px solid #d4d4d4;padding:6px 10px;font-size:13px;text-align:left}
+th{background:#f5f5f5} .meta{color:#666;font-size:12px}
+"""
+
+
+def _esc(value: Any) -> str:
+    """HTML 文本转义：报告内容含用例名/运行数据等动态输入，写入模板前一律先过这里。"""
+    return html.escape(str(value), quote=True)
+
+
+def render_summary_html(*, title: str, generated_at: str, sections: list[dict[str, Any]]) -> str:
+    """自包含 HTML 汇总报告：内联 CSS、无 JS、不引任何外部资源，可离线打开或归档。
+
+    每个 section 的 ``headers``/``rows`` 均可省略（只有标题与行数据的精简段落合法）；
+    所有动态文本（标题、时间、表头、单元格）都必须经过 ``_esc``。
+    """
+    parts = [
+        '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">',
+        f"<title>{_esc(title)}</title><style>{_SUMMARY_CSS}</style></head><body>",
+        f'<h1>{_esc(title)}</h1><p class="meta">生成时间：{_esc(generated_at)} · 知序评估</p>',
+    ]
+    for section in sections:
+        parts.append(f"<h2>{_esc(section.get('heading') or '')}</h2>")
+        parts.append("<table>")
+        headers = section.get("headers") or ()
+        if headers:
+            head_cells = "".join(f"<th>{_esc(cell)}</th>" for cell in headers)
+            parts.append(f"<tr>{head_cells}</tr>")
+        for row in section.get("rows") or ():
+            body_cells = "".join(f"<td>{_esc(cell)}</td>" for cell in row)
+            parts.append(f"<tr>{body_cells}</tr>")
+        parts.append("</table>")
+    parts.append("</body></html>")
+    return "".join(parts)

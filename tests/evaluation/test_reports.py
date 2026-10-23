@@ -19,6 +19,7 @@ from nanobot.evaluation.reports import (
     baseline_key,
     export_run_csv,
     export_run_json,
+    render_summary_html,
 )
 
 
@@ -476,3 +477,43 @@ def test_json_export_is_free_of_secrets() -> None:
 def test_export_rejects_unknown_run_id_type() -> None:
     with pytest.raises((TypeError, KeyError, ValueError)):
         export_run_json(None, aggregate_run([], planned_count=0), [])  # type: ignore[arg-type]
+
+
+# ------------------------------------------------------------------ HTML 汇总报告（WU-07）
+
+
+def test_summary_html_is_self_contained() -> None:
+    html = render_summary_html(
+        title="评估汇总",
+        generated_at="2026-10-23T00:00:00Z",
+        sections=[{"heading": "通过率", "rows": [["run-1", "4/6", "0.667"]]}],
+    )
+
+    assert "<html" in html and "run-1" in html
+    # 自包含：不引外部资源（http/https），也不依赖脚本。
+    assert "http://" not in html and "https://" not in html
+    assert "<script" not in html
+
+
+def test_summary_html_escapes_special_characters() -> None:
+    """sections 里的 HTML 特殊字符（含标题/表头/单元格）必须被转义，防止注入。"""
+    html = render_summary_html(
+        title="<b>加粗</b> & \"引号\"",
+        generated_at="2026-10-23T00:00:00Z",
+        sections=[
+            {
+                "heading": "结论 <img src=x onerror=alert(1)>",
+                "headers": ["用例", "<i>状态</i>"],
+                "rows": [["<script>alert(1)</script>", "a&b"]],
+            },
+        ],
+    )
+
+    # 原始标签不得原样出现在输出里
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert "<i>" not in html
+    # 转义后的文本仍然可见（内容不丢，只做转义）
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "&lt;i&gt;状态&lt;/i&gt;" in html
+    assert "&lt;b&gt;加粗&lt;/b&gt; &amp; &quot;引号&quot;" in html
