@@ -118,9 +118,16 @@ async def test_config_is_bound_to_attempt_root_and_never_written(tmp_path: Path)
     assert runtime.config.workspace_path == (tmp_path / "workspace").resolve()
     # 原始 boot 与合并后的配置都不落盘：凭据只在内存里。
     assert not (tmp_path / "runtime" / "config.json").exists()
+    def read_lenient(path: Path) -> str:
+        try:
+            return path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            # Windows 上运行时仍持有的 *.lock 文件不可读；锁文件不承载配置内容。
+            return ""
+
     leaked = [
         path for path in tmp_path.rglob("*")
-        if path.is_file() and API_KEY in path.read_text(encoding="utf-8", errors="ignore")
+        if path.is_file() and API_KEY in read_lenient(path)
     ]
     assert leaked == []
     # 先设上下文再构造 SDK：任何按 get_config_path() 派生路径的代码都指向 attempt 目录。

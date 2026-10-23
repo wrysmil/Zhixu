@@ -1,6 +1,7 @@
 """Foreground gateway runtime and lifecycle helpers."""
 
 import asyncio
+import os
 import signal
 from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from contextlib import suppress
@@ -31,8 +32,9 @@ from nanobot.cli.webui_support import (
     _webui_channel_enabled,
     _webui_display_url,
     _webui_endpoint_reachable,
+    webui_bootstrap_secret,
 )
-from nanobot.config.paths import is_default_workspace
+from nanobot.config.paths import get_data_dir, is_default_workspace
 from nanobot.config.schema import Config
 from nanobot.gateway.runtime import GatewayInstance
 from nanobot.memory.retrieval import RetrievalEngine
@@ -342,6 +344,67 @@ async def _close_gateway_runtime(
     if runtime_tasks is not None and runtime_tasks.done():
         with suppress(asyncio.CancelledError, Exception):
             await runtime_tasks
+
+
+EVALUATION_PORT_ENV = "NANOBOT_EVAL_PORT"
+EVALUATION_DEFAULT_PORT = 8790
+
+
+async def _start_embedded_evaluation(
+    config: Config, *, gateway_port: int, team_runner: Any | None = None
+) -> Any | None:
+    """在 gateway 进程内启动评估 HTTP 服务，随 gateway 一起启停。
+
+    桌面 WebUI 与评估服务不同端口，口令复用 WebUI bootstrap secret：用户
+    不需要记第二个密码。启动失败只降级为「评估服务离线」，不能拖垮 gateway。
+    """
+    secret = webui_bootstrap_secret(config)
+    if not secret:
+        logger.warning("Evaluation API skipped: WebUI bootstrap secret is empty")
+        return None
+    try:
+        port = int(os.environ.get(EVALUATION_PORT_ENV, EVALUATION_DEFAULT_PORT))
+    except ValueError:
+        logger.warning("Evaluation API skipped: invalid {} value", EVALUATION_PORT_ENV)
+        return None
+
+    from aiohttp import web
+
+    from nanobot.evaluation.profiles import build_profiles_from_config
+    from nanobot.evaluation.server import create_eval_app
+    from nanobot.evaluation.services import default_profiles
+
+    origins = frozenset(
+        {
+            f"http://127.0.0.1:{gateway_port}",
+            f"http://localhost:{gateway_port}",
+            "http://127.0.0.1:5173",
+            "http://localhost:5173",
+        }
+    )
+    runner: Any = None
+    try:
+        app = create_eval_app(
+            data_dir=get_data_dir() / "evaluation",
+            passphrase=secret,
+            allowed_origins=origins,
+            profiles=(*build_profiles_from_config(config), *default_profiles()),
+            team_runner=team_runner,
+        )
+        runner = web.AppRunner(app)
+        await runner.setup()
+        await web.TCPSite(runner, "127.0.0.1", port).start()
+    except OSError as exc:
+        logger.warning("Evaluation API unavailable on 127.0.0.1:{}: {}", port, exc)
+        if runner is not None:
+            with suppress(Exception):
+                await runner.cleanup()
+        return None
+    except Exception as exc:  # noqa: BLE001 - 评估服务不能阻断 gateway 启动
+        logger.warning("Evaluation API failed to start: {}", exc)
+        return None
+    logger.info("Evaluation API listening on http://127.0.0.1:{}", port)
+    return runner
 
 
 def _run_gateway(
@@ -966,6 +1029,7 @@ def _run_gateway(
         tasks: list[asyncio.Task[Any]] = []
         shutdown_task: asyncio.Task[Any] | None = None
         runtime_tasks: asyncio.Future[list[Any]] | None = None
+        eval_runner: Any | None = None
         startup_complete = False
         shutdown_event = asyncio.Event()
         cli_terminal._ensure_interactive_tty_mode()
@@ -976,6 +1040,12 @@ def _run_gateway(
             console.print,
         )
         try:
+            webui_gateway = channels.webui_gateway()
+            eval_runner = await _start_embedded_evaluation(
+                config,
+                gateway_port=port,
+                team_runner=getattr(webui_gateway, "evaluation_team_runner", None),
+            )
             await cron.start()
             # Re-read once on first admission to close the watcher subscription window.
             agent.runtime_resolver.invalidate()
@@ -1069,6 +1139,9 @@ def _run_gateway(
                     shutdown_task.cancel()
                     with suppress(asyncio.CancelledError):
                         await shutdown_task
+                if eval_runner is not None:
+                    with suppress(Exception):
+                        await eval_runner.cleanup()
                 cron.stop()
                 # A gateway exit interrupts ownership of active turns; it is
                 # not the same as the user stopping a turn.  Keep checkpoints

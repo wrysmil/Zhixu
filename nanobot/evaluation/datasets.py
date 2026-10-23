@@ -73,7 +73,9 @@ def parse_workbook(data: bytes) -> dict[str, Any]:
 
     grouped: dict[str, list[tuple[int, int, tuple[Any, ...]]]] = {}
     errors: list[dict[str, Any]] = []
-    for row_index, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+    for row_index, row in enumerate(
+        ws.iter_rows(min_row=2, max_row=MAX_ROWS + 1, values_only=True), start=2,
+    ):
         if all(_cell(row, i) == "" for i in range(len(COLUMNS))):
             continue
         name = _cell(row, 0)

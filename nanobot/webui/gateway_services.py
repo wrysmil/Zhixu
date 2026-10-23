@@ -91,6 +91,8 @@ class GatewayServices:
     subagent_execution_operations: SubagentExecutionSettingsOperations | None = None
     team_bindings: TeamBindingStore | None = None
     team_turns: TeamLeaderTurns | None = None
+    #: 评估服务用的团队执行回调（进程内复用团队栈）；没有团队栈时为 None。
+    evaluation_team_runner: Any | None = None
     # 文章 ↔ 会话绑定（``bind_writing_session``）；未接团队栈时仍可绑定（只是没有运行）。
     writing_sessions: WritingSessionBinder | None = None
     writing_team_id: str | None = None
@@ -486,6 +488,79 @@ def build_team_stack(
     )
 
 
+def build_team_eval_runner(
+    *,
+    team_service: Any,
+    scheduler: Any,
+    session_manager: Any | None = None,
+) -> Any:
+    """把评估服务的「团队目标」接到 gateway 已有的团队执行栈（进程内，无独立服务）。
+
+    评估侧只认一个回调：给 team_id 与 prompt，拿回 status/final_answer。
+    这里用合成 chat/session 跑一次团队运行，再从会话里取 Leader 的最后一条回答。
+    """
+    import asyncio
+    import time
+    import uuid
+
+    from nanobot.teams.models import TeamBinding
+
+    async def run(payload: dict[str, Any]) -> dict[str, Any]:
+        team_id = str(payload.get("team_id") or "")
+        try:
+            team = team_service.repository.get_team(team_id)
+        except Exception:  # noqa: BLE001 - 团队缺失/已归档统一按执行失败返回
+            return {
+                "status": "failed", "final_answer": None,
+                "error": f"TEAM_NOT_FOUND:{team_id}",
+            }
+        token = uuid.uuid4().hex
+        session_key = f"eval:{token}"
+        try:
+            binding = TeamBinding(
+                team_id=team_id, team_revision=int(team.revision), team_name=str(team.name),
+            )
+            handle = await scheduler.start_run(
+                binding=binding,
+                chat_id=session_key,
+                session_key=session_key,
+                turn_id=token,
+                internal_turn_id=token,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return {"status": "failed", "final_answer": None, "error": str(exc)}
+        deadline = time.monotonic() + float(payload.get("timeout_s") or 1800)
+        status = "failed"
+        while time.monotonic() < deadline:
+            snapshot = team_service.repository.get_run(handle.run_id)
+            status = str(getattr(snapshot, "status", "") or "failed")
+            if status in ("completed", "failed", "cancelled"):
+                break
+            await asyncio.sleep(1.0)
+        final = _last_assistant_text(session_manager, session_key)
+        return {
+            "status": "succeeded" if status == "completed" else status,
+            "final_answer": final,
+            "error": None if status == "completed" else status,
+        }
+
+    return run
+
+
+def _last_assistant_text(session_manager: Any | None, session_key: str) -> str | None:
+    """取会话里最后一条 assistant 回答；拿不到就如实返回 None（评估侧会记人工复核）。"""
+    if session_manager is None:
+        return None
+    try:
+        session = session_manager.get_or_create(session_key)
+    except Exception:  # noqa: BLE001
+        return None
+    for message in reversed(list(getattr(session, "messages", []) or [])):
+        if message.get("role") == "assistant":
+            return str(message.get("content") or "")
+    return None
+
+
 def build_gateway_services(
     *,
     config: WebSocketConfig,
@@ -718,6 +793,14 @@ def build_gateway_services(
         session_projection=session_projection,
         session_manager=session_manager,
         cron_service=cron_service,
+        evaluation_team_runner=(
+            build_team_eval_runner(
+                team_service=team_service,
+                scheduler=team_turns.scheduler,
+                session_manager=session_manager,
+            )
+            if team_turns is not None else None
+        ),
         local_trigger_store=local_trigger_store,
         cron_pending_job_ids=cron_pending_job_ids,
         local_trigger_pending_ids=local_trigger_pending_ids,

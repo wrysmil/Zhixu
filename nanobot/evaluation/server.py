@@ -82,6 +82,50 @@ def context_of(request: web.Request) -> ServiceContext:
 # --------------------------------------------------------------------------- 中间件
 
 
+def _cors_headers(origin: str) -> dict[str, str]:
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Vary": "Origin",
+    }
+
+
+def _cors_middleware(
+    allowed_origins: frozenset[str],
+) -> Callable[[web.Request, Handler], Awaitable[web.StreamResponse]]:
+    """精确 Origin 的 CORS：桌面 WebUI 与评估服务不同端口，但仍只信任显式白名单。
+
+    预检必须在 ``guard`` 之前处理：浏览器不会在 OPTIONS 上带会话 Cookie，
+    交给准入中间件只会得到 401，页面永远发不出写请求。
+    """
+
+    @web.middleware
+    async def cors(request: web.Request, handler: Handler) -> web.StreamResponse:
+        origin = request.headers.get("Origin")
+        allowed = bool(origin and origin in allowed_origins)
+        if request.method == "OPTIONS" and allowed:
+            assert origin is not None
+            return web.Response(
+                status=204,
+                headers={
+                    **_cors_headers(origin),
+                    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+                    "Access-Control-Allow-Headers": (
+                        request.headers.get("Access-Control-Request-Headers")
+                        or "Content-Type, X-CSRF-Token, Idempotency-Key"
+                    ),
+                    "Access-Control-Max-Age": "600",
+                },
+            )
+        response = await handler(request)
+        if allowed:
+            assert origin is not None
+            response.headers.update(_cors_headers(origin))
+        return response
+
+    return cors
+
+
 @web.middleware
 async def guard(request: web.Request, handler: Handler) -> web.StreamResponse:
     """准入：Host/Origin → 会话 → 写操作再加 CSRF 与限流。未登记异常一律 500 不回显。"""
@@ -498,6 +542,101 @@ async def cancel_calibration(request: web.Request) -> web.Response:
     )
 
 
+# ------------------------------------------------------------------- 数据集与报告
+
+
+_XLSX_CONTENT_TYPE = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
+
+async def dataset_template(request: web.Request) -> web.Response:
+    from nanobot.evaluation.datasets import build_template_bytes
+
+    return web.Response(
+        body=build_template_bytes(),
+        content_type=_XLSX_CONTENT_TYPE,
+        headers={
+            "Content-Disposition": 'attachment; filename="evaluation-dataset-template.xlsx"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+async def import_dataset(request: web.Request) -> web.Response:
+    """multipart 上传 xlsx：全部合法才建 suite+cases，逐行错误随 201/422 返回。"""
+    from nanobot.evaluation.datasets import parse_workbook
+
+    context = context_of(request)
+    reader = await request.multipart()
+    data = b""
+    while part := await reader.next():
+        if part.name == "file":
+            while chunk := await part.read_chunk(65536):
+                data += chunk
+                if len(data) > MAX_BODY_BYTES:
+                    _fail("PAYLOAD_TOO_LARGE", "Excel 超过 5MB")
+            break
+    if not data:
+        _fail("VALIDATION_ERROR", "缺少 file 字段")
+    parsed = parse_workbook(data)
+    if not parsed["cases"]:
+        return web.json_response(
+            {
+                "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "没有可用用例",
+                },
+                "rows": parsed["errors"],
+            },
+            status=422,
+        )
+    suite = context.repository.create_suite(parsed["suite"])
+    saved = [
+        context.repository.save_case({**case, "suite_id": suite["id"]})
+        for case in parsed["cases"]
+    ]
+    return web.json_response(
+        {"suite": suite, "case_count": len(saved), "errors": parsed["errors"]},
+        status=201,
+    )
+
+
+async def export_suite_xlsx(request: web.Request) -> web.Response:
+    from nanobot.evaluation.datasets import export_suite_workbook
+
+    context = context_of(request)
+    suite = context.repository.get_suite(request.match_info["id"])
+    cases = context.repository.list_cases(str(suite["id"]))
+    return web.Response(
+        body=export_suite_workbook(suite, cases),
+        content_type=_XLSX_CONTENT_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="dataset-{suite["id"]}.xlsx"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+async def summary_report_route(request: web.Request) -> web.Response:
+    context = context_of(request)
+    suite_id = request.query.get("suite_id", "")
+    if not suite_id:
+        _fail("VALIDATION_ERROR", "缺少 suite_id")
+    html = context.service.summary_report(suite_id)
+    return web.Response(
+        text=html,
+        content_type="text/html",
+        charset="utf-8",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="evaluation-summary-{suite_id[:8]}.html"'
+            ),
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 def _calibration_read(context: ServiceContext, job_id: str) -> dict[str, Any]:
     detail = context.repository.get_calibration(job_id)
     result = detail.get("result") or {}
@@ -545,7 +684,13 @@ def create_app(
     )
     del profiles
 
-    app = web.Application(middlewares=[guard], client_max_size=MAX_BODY_BYTES)
+    cors_origins = set(auth_config.allowed_origins)
+    if auth_config.dev_origin:
+        cors_origins.add(auth_config.dev_origin)
+    app = web.Application(
+        middlewares=[_cors_middleware(frozenset(cors_origins)), guard],
+        client_max_size=MAX_BODY_BYTES,
+    )
     app["eval_context"] = context
     routes = _routes()
     app.add_routes(routes)
@@ -599,6 +744,10 @@ def _routes() -> list[web.RouteDef]:
         r("GET", "/attempts/{id}/trace", get_trace),
         r("POST", "/attempts/{id}/reviews", add_review),
         r("GET", "/artifacts/{id}", get_artifact),
+        r("GET", "/datasets/template", dataset_template),
+        r("POST", "/datasets/import", import_dataset),
+        r("GET", "/suites/{id}/export.xlsx", export_suite_xlsx),
+        r("GET", "/reports/summary", summary_report_route),
     ]
 
 
@@ -607,18 +756,22 @@ def create_eval_app(
     data_dir: Any,
     passphrase: str,
     allowed_hosts: frozenset[str] = frozenset({"127.0.0.1", "localhost"}),
+    allowed_origins: frozenset[str] = frozenset(),
     dev_origin: str | None = None,
     profiles: tuple[Any, ...] = (),
+    team_runner: Any | None = None,
 ) -> web.Application:
-    """CLI 入口用的便捷装配：库、服务、调度器一次到位。"""
+    """CLI/网关入口用的便捷装配：库、服务、调度器一次到位。"""
     from pathlib import Path
 
     root = Path(data_dir)
+    root.mkdir(parents=True, exist_ok=True)
     database = EvaluationDatabase(root / "evaluation.db")
     database.init_schema()
     repository = EvaluationRepository(database)
     service = EvaluationService(
-        repository=repository, data_dir=root, profiles=profiles
+        repository=repository, data_dir=root, profiles=profiles,
+        team_runner=team_runner,
     )
     return create_app(
         repository=repository,
@@ -626,6 +779,7 @@ def create_eval_app(
         auth_config=AuthConfig(
             passphrase=passphrase,
             allowed_hosts=allowed_hosts,
+            allowed_origins=allowed_origins,
             dev_origin=dev_origin,
         ),
         scheduler_config=SchedulerConfig(data_dir=root),

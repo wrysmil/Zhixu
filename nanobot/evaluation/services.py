@@ -21,6 +21,7 @@ import sys
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -1105,6 +1106,48 @@ class EvaluationService:
             "metrics": metrics,
             "status_counts": counts,
         }
+
+    def summary_report(self, suite_id: str) -> str:
+        """数据集维度的 HTML 汇总报告：按 suite 聚合全部运行与用例最新结论。"""
+        from nanobot.evaluation.reports import render_summary_html
+
+        runs = self._repository.list_runs(suite_id=suite_id, limit=100)
+        run_rows: list[list[str]] = []
+        case_rows: dict[str, list[str]] = {}
+        for row in runs:
+            run_id = str(row["id"])
+            attempts = self._repository.list_run_attempts(run_id)
+            counts: dict[str, int] = {"passed": 0, "failed": 0, "review_required": 0}
+            for attempt in attempts:
+                verdict = str(attempt.get("verdict") or "not_evaluated")
+                if verdict in counts:
+                    counts[verdict] += 1
+                name = str(attempt.get("case_name") or attempt.get("case_id") or "?")
+                entry = case_rows.setdefault(name, [name, "-", "-"])
+                # 「最新结论」取最近一次运行的 verdict；failed 优先展示，便于排障。
+                if entry[1] in ("-", "passed") or verdict == "failed":
+                    entry[1], entry[2] = verdict, run_id[:8]
+            run_rows.append([
+                run_id[:8], str(row.get("status") or ""), str(len(attempts)),
+                str(counts["passed"]), str(counts["failed"]),
+                str(counts["review_required"]),
+            ])
+        return render_summary_html(
+            title=f"评估汇总 · 数据集 {self._repository.get_suite_name(suite_id)}",
+            generated_at=datetime.now(timezone.utc).isoformat(),
+            sections=[
+                {
+                    "heading": "运行",
+                    "headers": ["运行", "状态", "用例数", "通过", "失败", "待复核"],
+                    "rows": run_rows,
+                },
+                {
+                    "heading": "用例最新结论",
+                    "headers": ["用例", "最新结论", "最近运行"],
+                    "rows": sorted(case_rows.values()),
+                },
+            ],
+        )
 
     def export_run(self, run_id: str, *, fmt: str) -> tuple[str, str, str]:
         # 先确认运行存在：导出不能给不存在的运行编一个空文件。
