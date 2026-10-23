@@ -157,6 +157,10 @@ class Scheduler:
         self._slots = asyncio.Semaphore(config.concurrency)
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._cancel_requests: set[str] = set()
+        # run 级总时限（WU-03）：领取首个 attempt 时起算；到点按 timeout 批量停止。
+        self._deadlines: dict[str, float] = {}
+        # 取消原因：``timeout``（watchdog）与用户取消的终态/attempt 收口不同。
+        self._cancel_reasons: dict[str, str] = {}
         self._dispatcher: asyncio.Task[None] | None = None
         self._lock: Any | None = None
         self._lock_depth = 0
@@ -237,12 +241,33 @@ class Scheduler:
 
     # ------------------------------------------------------------------ 取消
 
-    async def cancel_run(self, run_id: str) -> dict[str, Any]:
-        """排队/运行中 → cancelling；取消在飞任务，等 owner 回收完再落 cancelled。"""
-        self._repository.cancel_run(run_id)
+    async def cancel_run(self, run_id: str, *, reason: str = "user") -> dict[str, Any]:
+        """排队/运行中 → cancelling；取消在飞任务，等 owner 回收完再落终态。
+
+        ``reason="timeout"`` 是 deadline watchdog 的到点停止：终态与 attempt 收口都
+        写 ``timed_out``（WU-03），与用户取消的 ``cancelled`` 区分。已终结的运行
+        依旧抛 ``StateConflict``，语义与既有取消路由一致。
+        """
+        self._cancel_reasons[run_id] = reason
+        try:
+            self._repository.cancel_run(run_id, reason=reason)
+        except StateConflict:
+            self._cancel_reasons.pop(run_id, None)
+            raise
         self._cancel_requests.add(run_id)
         await self._finalize_cancelling(run_id)
         return self._repository.get_run(run_id)
+
+    def _final_status(self, run_id: str) -> str:
+        """按取消原因决定 run 终态：超时收口 timed_out，其余收口 cancelled。"""
+        return "timed_out" if self._cancel_reasons.get(run_id) == "timeout" else "cancelled"
+
+    def _settle_final(self, run_id: str) -> None:
+        """收口终态并清掉该 run 的取消与限时簿记；重复调用幂等（仓储层保证）。"""
+        self._repository.finalize_cancel(run_id, status=self._final_status(run_id))
+        self._cancel_requests.discard(run_id)
+        self._cancel_reasons.pop(run_id, None)
+        self._deadlines.pop(run_id, None)
 
     async def _finalize_cancelling(self, run_id: str) -> None:
         self._abort_tasks_for(run_id)
@@ -261,8 +286,7 @@ class Scheduler:
             )
         # 收干净（或超时放弃）之后才落终态；取消标记必须留到任务真正退出之后，
         # 否则被唤醒的执行器会看不到「已取消」，把通过结论提交上去。
-        self._repository.finalize_cancel(run_id)
-        self._cancel_requests.discard(run_id)
+        self._settle_final(run_id)
 
     def _abort_tasks_for(self, run_id: str) -> None:
         prefix = f"attempt:{run_id}:"
@@ -294,8 +318,7 @@ class Scheduler:
         if self._cancel_requests:
             for run_id in tuple(self._cancel_requests):
                 if not self._any_task_for(run_id):
-                    self._repository.finalize_cancel(run_id)
-                    self._cancel_requests.discard(run_id)
+                    self._settle_final(run_id)
         dispatched_any = False
         for row in self._repository.open_runs():
             run_id = str(row["id"])
@@ -310,6 +333,7 @@ class Scheduler:
             # 都必须跟 attempt 自己的 run_id，否则取消一个 run 会放过它名下在飞的项。
             run_id = str(claimed["run_id"])
             dispatched_any = True
+            self._arm_deadline(run_id)
             task = asyncio.create_task(
                 self._run_attempt(claimed, run_id),
                 name=f"attempt:{run_id}:{claimed['id']}",
@@ -317,6 +341,48 @@ class Scheduler:
             self._tasks[task.get_name()] = task
         if not dispatched_any:
             await self._dispatch_calibration()
+
+    def _arm_deadline(self, run_id: str) -> None:
+        """领取首个 attempt 时给 run 记总时限；不限时（None/缺失）不设 watchdog。
+
+        起点取**领取时刻**而不是 run 的 created_at：排队时间不该烧掉执行预算。
+        watchdog 任务与 attempt 任务同住 ``_tasks``，stop() 统一回收。
+        """
+        if run_id in self._deadlines:
+            return
+        try:
+            snapshot = self._repository.get_run(run_id).get("snapshot") or {}
+        except Exception:
+            return
+        budget = (
+            snapshot.get("run_timeout_s")
+            if isinstance(snapshot, Mapping) else None
+        )
+        if not isinstance(budget, int) or isinstance(budget, bool) or budget <= 0:
+            return
+        deadline = asyncio.get_running_loop().time() + float(budget)
+        self._deadlines[run_id] = deadline
+        task = asyncio.create_task(
+            self._enforce_deadline(run_id), name=f"deadline:{run_id}"
+        )
+        self._tasks[task.get_name()] = task
+
+    async def _enforce_deadline(self, run_id: str) -> None:
+        """到点批量停止：唯一的超时取消入口，与用户取消共用同一条收口链路。"""
+        deadline = self._deadlines.get(run_id)
+        if deadline is None:
+            return
+        delay = deadline - asyncio.get_running_loop().time()
+        if delay > 0:
+            await asyncio.sleep(delay)
+        if self._deadlines.get(run_id) != deadline:
+            # 已收口（或簿记被清）：不要把一个已完成的 run 拖进 timed_out。
+            return
+        try:
+            await self.cancel_run(run_id, reason="timeout")
+        except StateConflict:
+            # 到点前 run 已正常终结：无需停止。
+            pass
 
     async def _dispatch_calibration(self) -> None:
         """领取并派发一个校准项；与 attempt 共用同一个服务级信号量（契约 §3.1/§4）。
@@ -402,11 +468,11 @@ class Scheduler:
                 run = self._repository.get_run(run_id)
                 outcome = await self._pipeline.execute(claimed, run=run)
             if self._cancelled(run_id):
-                # 取消已经发起：不再提交通过结论，只落 cancelled。
+                # 取消已经发起：不再提交通过结论，只落终态。
                 raise asyncio.CancelledError
             self._repository.finish_attempt(attempt_id, result=_as_result(outcome))
         except asyncio.CancelledError:
-            self._settle_cancelled(attempt_id)
+            self._settle_cancelled(attempt_id, run_id)
             raise
         except Exception as exc:
             self._repository.finish_attempt(
@@ -432,13 +498,15 @@ class Scheduler:
             return True
         return status in ("cancelling", "cancelled")
 
-    def _settle_cancelled(self, attempt_id: str) -> None:
+    def _settle_cancelled(self, attempt_id: str, run_id: str) -> None:
+        """被取消/超时的在飞 attempt 收口；原因决定写 cancelled 还是 timed_out。"""
+        timed_out = self._cancel_reasons.get(run_id) == "timeout"
         with contextlib.suppress(StateConflict, Exception):
             self._repository.finish_attempt(
                 attempt_id,
                 result=_as_result(
                     AttemptOutcome(
-                        execution_status="cancelled",
+                        execution_status="timed_out" if timed_out else "cancelled",
                         grading_status="not_applicable",
                         verdict="not_evaluated",
                         result={},

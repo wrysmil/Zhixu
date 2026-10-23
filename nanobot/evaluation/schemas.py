@@ -454,12 +454,27 @@ class RunLimits(JsonModel):
     timeout_s: Annotated[int, Field(strict=True, ge=5, le=900)] = 120
 
 
+class TargetRef(JsonModel):
+    """运行目标：Agent 档案 / 团队 / Skill / Excel 数据集（spec §目标体系）。
+
+    只在入队时给出引用；真正的冻结（Agent 档案与 Skill 文件落快照）由服务层在
+    ``create_run`` 时完成，快照冻结后运行与源文件的后续改动无关。
+    """
+
+    kind: Literal["agent", "team", "skill", "dataset"]
+    id: Annotated[StrictStr, Field(min_length=1, max_length=120)]
+
+
 class RunCreate(JsonModel):
     suite_id: Uuid
     case_ids: Annotated[list[Uuid], Field(min_length=1, max_length=200)]
     agent_profile_id: Identifier
     judge_profile_id: Identifier | None = None
     limits: RunLimits = Field(default_factory=RunLimits)
+    target: TargetRef | None = None
+    #: 整个 run 的总时限（秒）；None = 不限时。到点由调度器批量停止（WU-03），
+    #: 与用例级 ``execution.timeout_s``（单 attempt）相互独立。
+    run_timeout_s: Annotated[int | None, Field(strict=True, ge=5, le=86400)] = None
 
     @model_validator(mode="after")
     def _case_ids_unique(self) -> "RunCreate":
@@ -480,6 +495,7 @@ GradingStatus = Literal[
 Verdict = Literal["passed", "failed", "review_required", "not_evaluated"]
 RunStatus = Literal[
     "queued", "running", "cancelling", "completed", "cancelled", "interrupted",
+    "timed_out",
 ]
 
 

@@ -53,6 +53,7 @@ from nanobot.evaluation.schemas import (
     Rubric,
     RunCreate,
     RunLimits,
+    TargetRef,
 )
 from nanobot.evaluation.trace import read_trace
 from nanobot.evaluation.worker import ARTIFACT_INDEX_NAME, evidence_from_payload
@@ -186,7 +187,7 @@ class EvaluationService:
         存在（如换了一套预设）时给空 config，让下游按「无凭据」显式失败而不是 KeyError。
         """
         profile = self._profiles.get(profile_id)
-        bundle = dict(profile.bundle) if profile is not None else {}
+        bundle = dict(profile.bundle or {}) if profile is not None else {}
         bundle.setdefault("config", {})
         return bundle
 
@@ -202,13 +203,22 @@ class EvaluationService:
         idempotency_key: str,
         scope: str,
         parent_run_id: str | None = None,
+        frozen_target: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """冻结快照并幂等入队。入队即返回 202，真正的执行由调度器接手。"""
+        """冻结快照并幂等入队。入队即返回 202，真正的执行由调度器接手。
+
+        ``frozen_target`` 供 rerun 透传源运行已冻结的目标载荷：重跑必须引用**原
+        冻结快照**，不能按当前工作区重新冻结一遍。
+        """
         agent = self.profile(request.agent_profile_id)
         judge = (
             self.profile(request.judge_profile_id) if request.judge_profile_id else None
         )
         self._require_judge_when_needed(request, judge)
+        target_payload = (
+            dict(frozen_target) if frozen_target is not None
+            else self._freeze_target(request.target)
+        )
         snapshot_bundle = {
             "agent_profile": {
                 "provider": agent.provider, "model": agent.model, "id": agent.id,
@@ -226,7 +236,16 @@ class EvaluationService:
             rules_version="rules-v1",
             grader_version="judge-v1",
             parent_run_id=parent_run_id,
+            target=target_payload,
         )
+
+    def _freeze_target(self, target: TargetRef | None) -> dict[str, Any] | None:
+        """入队时冻结运行目标。
+
+        WU-03 只冻结引用（team/dataset 天然无文件）；Agent/Skill 目标的档案与
+        Skill 文件冻结在 WU-04 的 ``_freeze_agent_target`` / ``_freeze_skill_target``。
+        """
+        return None if target is None else {"kind": target.kind, "id": target.id}
 
     def _require_judge_when_needed(
         self, request: RunCreate, judge: Profile | None
@@ -260,19 +279,25 @@ class EvaluationService:
             if item is None:
                 raise ServiceError("ATTEMPT_NOT_RERUNNABLE", attempt_id)
             chosen.append(str(item["case_id"]))
+        snapshot = source["snapshot"]
+        target_raw = snapshot.get("target")
         request = RunCreate(
             suite_id=source["suite_id"],
             case_ids=chosen,
-            agent_profile_id=str(source["snapshot"]["agent_profile"]["id"]),
+            agent_profile_id=str(snapshot["agent_profile"]["id"]),
             judge_profile_id=(
-                str(source["snapshot"]["judge_profile"]["id"])
-                if source["snapshot"].get("judge_profile") else None
+                str(snapshot["judge_profile"]["id"])
+                if snapshot.get("judge_profile") else None
             ),
-            limits=RunLimits.model_validate(source["snapshot"].get("limits") or {}),
+            limits=RunLimits.model_validate(snapshot.get("limits") or {}),
+            run_timeout_s=snapshot.get("run_timeout_s"),
         )
         return self.create_run(
             request, idempotency_key=idempotency_key, scope=scope,
             parent_run_id=run_id,
+            frozen_target=(
+                dict(target_raw) if isinstance(target_raw, Mapping) else None
+            ),
         )
 
     # -------------------------------------------------------------- 执行流水线

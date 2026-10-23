@@ -212,8 +212,10 @@ def test_suite_write_and_read_field_sets_match_contract() -> None:
 
 
 def test_run_create_field_set_matches_contract() -> None:
+    # target / run_timeout_s 属 2026-10-23 评估目标体系扩展（WU-03）。
     assert set(RunCreate.model_fields) == {
-        "suite_id", "case_ids", "agent_profile_id", "judge_profile_id", "limits"
+        "suite_id", "case_ids", "agent_profile_id", "judge_profile_id", "limits",
+        "target", "run_timeout_s",
     }
 
 

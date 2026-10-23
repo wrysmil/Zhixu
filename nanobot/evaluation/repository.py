@@ -37,8 +37,8 @@ from nanobot.evaluation.validation import validate_relative_path
 
 RUNS_ENDPOINT = "POST /runs"
 
-#: run 终态：只有这三种允许软删（契约 §3 `DELETE /runs/{id}`）。
-TERMINAL_RUN_STATUSES = frozenset({"completed", "cancelled", "interrupted"})
+#: run 终态：只有这四种允许软删（契约 §3 `DELETE /runs/{id}`；timed_out 属 WU-03）。
+TERMINAL_RUN_STATUSES = frozenset({"completed", "cancelled", "interrupted", "timed_out"})
 #: attempt 的非终态 execution_status（契约 §4）。
 OPEN_EXECUTION_STATUSES = frozenset({"queued", "running"})
 CANCELLABLE_RUN_STATUSES = frozenset({"queued", "running"})
@@ -498,8 +498,13 @@ class EvaluationRepository:
         rules_version: str,
         grader_version: str,
         parent_run_id: str | None = None,
+        target: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """幂等入队：key、request_hash、run 与 attempts 在**同一事务**内落库。"""
+        """幂等入队：key、request_hash、run 与 attempts 在**同一事务**内落库。
+
+        ``target`` 是服务层决定好的冻结载荷（Agent/Skill 目标的档案与文件在服务层
+        落成 dict 后传入；仓储只负责进快照，不做二次解析）。
+        """
         digest = self.request_digest(json.loads(request.model_dump_json()))
         with self._db.connect(immediate=True) as conn:
             replay = self._replay(conn, scope, idempotency_key, digest)
@@ -520,6 +525,8 @@ class EvaluationRepository:
                 "grader_version": grader_version,
                 "tool_mode": snapshots[0]["case_snapshot"]["execution"]["tool_mode"],
                 "limits": request.limits.model_dump(mode="json"),
+                "target": dict(target) if target else None,
+                "run_timeout_s": request.run_timeout_s,
             })
             conn.execute(
                 "INSERT INTO runs (id, suite_id, status, snapshot_json, request_hash,"
@@ -932,8 +939,14 @@ class EvaluationRepository:
             claimed.pop("case_snapshot_json")
         return claimed
 
-    def cancel_run(self, run_id: str) -> dict[str, Any]:
-        """取消只对排队/运行中的 run 生效；已是 cancelling/cancelled 的原样返回。"""
+    def cancel_run(self, run_id: str, *, reason: str = "user") -> dict[str, Any]:
+        """取消只对排队/运行中的 run 生效；已是 cancelling/cancelled 的原样返回。
+
+        ``reason="timeout"`` 是调度器 watchdog 的到点停止：queued 的 attempt 没有
+        进程可回收，直接按 ``timed_out`` 收口——超时停止的运行里不该出现「用户已
+        取消」的项。in-flight 的项由调度器取消后统一收口。
+        """
+        closed_status = "timed_out" if reason == "timeout" else "cancelled"
         with self._db.connect(immediate=True) as conn:
             row = conn.execute(
                 "SELECT status FROM runs WHERE id = ?", (run_id,)
@@ -945,12 +958,12 @@ class EvaluationRepository:
                 return self._run_dict(conn, run_id)
             if row["status"] not in CANCELLABLE_RUN_STATUSES:
                 raise StateConflict(f"RUN_NOT_CANCELLABLE status={row['status']}")
-            # 只进 cancelling：进程树回收归 WU-05 的调度器，收干净后才 finalize_cancel。
+            # 只进 cancelling：进程树回收归调度器，收干净后才 finalize_cancel。
             # 这里直接落 cancelled 会让页面显示已取消而进程仍在跑。
             conn.execute(
-                "UPDATE attempts SET execution_status = 'cancelled', finished_at = :now"
+                "UPDATE attempts SET execution_status = :status, finished_at = :now"
                 " WHERE run_id = :run_id AND execution_status = 'queued'",
-                {"now": _utc_now_iso(), "run_id": run_id},
+                {"status": closed_status, "now": _utc_now_iso(), "run_id": run_id},
             )
             conn.execute(
                 "UPDATE runs SET status = 'cancelling'"
@@ -959,8 +972,12 @@ class EvaluationRepository:
             )
         return self.get_run(run_id)
 
-    def finalize_cancel(self, run_id: str) -> dict[str, Any]:
-        """调度器回收完进程树后收口：cancelling → cancelled。"""
+    def finalize_cancel(
+        self, run_id: str, *, status: str = "cancelled"
+    ) -> dict[str, Any]:
+        """调度器回收完进程树后收口：cancelling → cancelled / timed_out。"""
+        if status not in ("cancelled", "timed_out"):
+            raise ValueError(f"VALIDATION_ERROR: unsupported final status {status}")
         now = _utc_now_iso()
         with self._db.connect(immediate=True) as conn:
             row = conn.execute(
@@ -968,19 +985,19 @@ class EvaluationRepository:
             ).fetchone()
             if row is None:
                 raise RecordNotFound(f"RUN_NOT_FOUND {run_id}")
-            if row["status"] == "cancelled":
+            if row["status"] == status:
                 return self._run_dict(conn, run_id)
             if row["status"] != "cancelling":
                 raise StateConflict(f"RUN_NOT_CANCELLABLE status={row['status']}")
             conn.execute(
-                "UPDATE attempts SET execution_status = 'cancelled', finished_at = :now"
+                "UPDATE attempts SET execution_status = :status, finished_at = :now"
                 " WHERE run_id = :run_id AND execution_status IN ('queued', 'running')",
-                {"now": now, "run_id": run_id},
+                {"status": status, "now": now, "run_id": run_id},
             )
             conn.execute(
-                "UPDATE runs SET status = 'cancelled', finished_at = :now"
+                "UPDATE runs SET status = :status, finished_at = :now"
                 " WHERE id = :run_id AND status = 'cancelling'",
-                {"now": now, "run_id": run_id},
+                {"status": status, "now": now, "run_id": run_id},
             )
         return self.get_run(run_id)
 
