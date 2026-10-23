@@ -393,7 +393,9 @@ async def _start_embedded_evaluation(
         )
         runner = web.AppRunner(app)
         await runner.setup()
-        await web.TCPSite(runner, "127.0.0.1", port).start()
+        # 绑 localhost 而不是 127.0.0.1：WebUI 可能用 localhost 打开，
+        # 站点不一致会让 SameSite=Strict 的会话 cookie 被浏览器拦掉。
+        await web.TCPSite(runner, "localhost", port).start()
     except OSError as exc:
         logger.warning("Evaluation API unavailable on 127.0.0.1:{}: {}", port, exc)
         if runner is not None:
