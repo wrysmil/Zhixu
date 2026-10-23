@@ -155,6 +155,7 @@ class Nanobot:
         hooks: list[AgentHook] | None = None,
         model: str | None = None,
         model_preset: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
     ) -> RunResult:
         """Run the agent once and return the result.
 
@@ -173,6 +174,8 @@ class Nanobot:
             hooks: Optional lifecycle hooks for this run.
             model: Override the model for this run only.
             model_preset: Override the model preset for this run only.
+            metadata: Trusted internal message metadata (e.g. ``agent_id``);
+                merged into the turn message before profile resolution.
         """
         capture = SDKCaptureHook()
         per_run_hooks = [capture, *(hooks or [])]
@@ -189,6 +192,7 @@ class Nanobot:
             media=media,
             ephemeral=ephemeral,
             attributes=attributes,
+            metadata=metadata,
         )
         if runtime is not None:
             kwargs["runtime"] = runtime

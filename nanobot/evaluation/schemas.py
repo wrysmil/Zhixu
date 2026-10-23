@@ -345,8 +345,12 @@ FIXTURE_TOOLS = frozenset(
         "test_lookup", "test_unstable",
     }
 )
-#: 契约 §2：live 模式才可额外选择的只读网络工具，且保留项目网络保护。
-LIVE_ONLY_TOOLS = frozenset({"web_search", "web_fetch"})
+#: live 模式下允许选择的真实工具（全部仍在 attempt workspace 沙箱内执行：
+#: restrict_to_workspace + 空白 overlay，exec 仅在显式选择时打开）。
+LIVE_ONLY_TOOLS = frozenset({
+    "web_search", "web_fetch", "read_file", "write_file", "edit_file",
+    "list_dir", "apply_patch", "grep", "find_files", "exec", "exec_session",
+})
 
 
 class _CaseFields(JsonModel):
@@ -852,6 +856,8 @@ class _BootBase(JsonModel):
     workspace: StrictStr
     #: 只存在于内存与私有管道，不写原始 boot（契约 §5）。
     profile_bundle: JsonObject
+    #: 运行目标冻结载荷（Agent 档案 / Skill 文件）；judge boot 不消费。
+    target: JsonObject | None = None
 
     @model_validator(mode="after")
     def _paths_are_usable(self) -> "_BootBase":

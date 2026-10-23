@@ -3059,6 +3059,7 @@ class AgentLoop:
         runtime: LLMRuntime | None = None,
         on_runtime_admitted: Callable[[LLMRuntime], Awaitable[None]] | None = None,
         attributes: Mapping[str, Any] | None = None,
+        extra_metadata: Mapping[str, Any] | None = None,
     ) -> OutboundMessage | None:
         """Process an external message directly and return the outbound payload."""
         if channel == "system":
@@ -3066,6 +3067,9 @@ class AgentLoop:
         metadata: dict[str, Any] = {}
         if not persist_user_message:
             metadata[turn_continuation.SKIP_USER_PERSIST_META] = True
+        if extra_metadata:
+            # 评估等受信调用方按需注入受信 metadata（如 agent_id 接管本轮档案）。
+            metadata.update(dict(extra_metadata))
         msg = InboundMessage(
             channel=channel, sender_id=sender_id, chat_id=chat_id,
             content=content, media=media or [], metadata=metadata,

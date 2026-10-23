@@ -24,6 +24,7 @@ def build_process_direct_kwargs(
     media: list[str] | None,
     ephemeral: bool,
     attributes: Mapping[str, Any] | None = None,
+    metadata: Mapping[str, Any] | None = None,
     on_stream: Any | None = None,
     on_stream_end: Any | None = None,
 ) -> dict[str, Any]:
@@ -41,6 +42,8 @@ def build_process_direct_kwargs(
         kwargs["_run_extra_hooks_for_ephemeral"] = True
     if attributes is not None:
         kwargs["attributes"] = dict(attributes)
+    if metadata is not None:
+        kwargs["extra_metadata"] = dict(metadata)
     if on_stream is not None:
         kwargs["on_stream"] = on_stream
     if on_stream_end is not None:

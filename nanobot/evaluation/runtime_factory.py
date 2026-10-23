@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
@@ -167,7 +168,45 @@ def _merge(base: dict[str, Any], patch: Mapping[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def _sandbox_overlay(paths: AttemptPaths, max_iterations: int | None) -> dict[str, Any]:
+def _materialize_target_files(paths: Any, target: Mapping[str, Any] | None) -> list[str]:
+    """把快照里冻结的 Agent 档案与 Skill 文件写进 attempt workspace。
+
+    路径校验是硬边界：rel 必须落在 workspace 内，防止快照被塞进 ``../`` 逃逸。
+    """
+    if not isinstance(target, Mapping):
+        return []
+    written: list[str] = []
+    agent = target.get("agent") or {}
+    profile = agent.get("profile") if isinstance(agent, Mapping) else None
+    if isinstance(profile, Mapping) and profile.get("id"):
+        base = paths.workspace / "agents" / "profiles"
+        base.mkdir(parents=True, exist_ok=True)
+        dest = base / f"{profile['id']}.json"
+        dest.write_text(json.dumps(profile, ensure_ascii=False), encoding="utf-8")
+        written.append(f"agents/profiles/{profile['id']}.json")
+    skill = target.get("skill") if isinstance(target, Mapping) else None
+    payload: Mapping[str, Any] = {}
+    if isinstance(skill, Mapping) and isinstance(skill.get("files"), Mapping):
+        payload = skill["files"]
+    elif isinstance(agent, Mapping) and isinstance(agent.get("skills"), Mapping):
+        payload = agent["skills"]
+    root = paths.workspace.resolve()
+    for rel, content in payload.items():
+        dest = (paths.workspace / str(rel)).resolve()
+        if not dest.is_relative_to(root):
+            raise ValueError("TARGET_PATH_ESCAPE")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(str(content), encoding="utf-8")
+        written.append(str(rel))
+    return written
+
+
+def _sandbox_overlay(
+    paths: AttemptPaths,
+    max_iterations: int | None,
+    *,
+    live_exec: bool = False,
+) -> dict[str, Any]:
     defaults: dict[str, Any] = {
         "workspace": str(paths.workspace),
         "idleCompactAfterMinutes": 0,
@@ -185,7 +224,8 @@ def _sandbox_overlay(paths: AttemptPaths, max_iterations: int | None) -> dict[st
             "restrictToWorkspace": True,
             "mcpServers": {},
             "ssrfWhitelist": [],
-            "exec": {"enable": False},
+            # exec 只在 live 模式且用例显式点名时打开（Skill 全链路验证需要真实执行）。
+            "exec": {"enable": live_exec},
             "my": {"enable": False},
             "cliApps": {"enable": False},
             "imageGeneration": {"enabled": False},
@@ -207,6 +247,7 @@ def build_attempt_config(
     paths: AttemptPaths,
     max_iterations: int | None = None,
     base_config: Config | None = None,
+    live_exec: bool = False,
 ) -> Config:
     """内存里合成执行配置：profile 先合并，沙箱覆盖层最后生效且不可被 profile 翻转。"""
     config_part = profile_bundle.get("config")
@@ -218,7 +259,7 @@ def build_attempt_config(
     data = _merge(
         base.model_dump(mode="json", by_alias=True), config_part
     )
-    data = _merge(data, _sandbox_overlay(paths, max_iterations))
+    data = _merge(data, _sandbox_overlay(paths, max_iterations, live_exec=live_exec))
     config = Config.model_validate(data)
     # 只记路径归属，不写文件：runtime_data_dir 由此指向 attempt 的 runtime root。
     config.bind_source_path(paths.config_path)
@@ -274,11 +315,17 @@ async def create_attempt(
     execution = case.execution if isinstance(case, CaseWrite) else None
     allowed = list(execution.allowed_tools) if execution is not None else []
     clock = ControlledClock(case.clock_iso if isinstance(case, CaseWrite) else None)
+    _materialize_target_files(paths, getattr(boot, "target", None))
+    live_exec = bool(
+        execution is not None and execution.tool_mode == "live"
+        and "exec" in execution.allowed_tools
+    )
     config = build_attempt_config(
         profile_bundle=boot.profile_bundle,
         paths=paths,
         max_iterations=execution.max_iterations if execution is not None else None,
         base_config=base_config,
+        live_exec=live_exec,
     )
     if provider is None and isinstance(case, CaseWrite) and case.script:
         # fixture 模式 + 声明了脚本：走受控 provider，判分链路才能离线端到端跑通。

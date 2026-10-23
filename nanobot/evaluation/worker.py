@@ -593,6 +593,13 @@ async def run_agent_worker(
     final_answer: str | None = None
     stop_reason: str | None = None
     iterations = 0
+    target = getattr(boot, "target", None) or {}
+    # Agent 目标：注入 agent_id，让 loop 的档案解析接管本轮提示词/工具/技能。
+    extra_metadata = (
+        {"agent_id": str(target.get("id"))}
+        if isinstance(target, dict) and target.get("kind") == "agent"
+        else None
+    )
     recorder.emit(
         "attempt.started",
         payload={
@@ -616,11 +623,14 @@ async def run_agent_worker(
                         turn=index,
                         payload={"content_chars": len(content)},
                     )
-                    result = await runtime.bot.run(
-                        content,
-                        session_key=runtime.session_key,
-                        hooks=[hook],
-                    )
+                    # 仅在 Agent 目标时传 metadata：测试替身的 bot.run 不带该参数，
+                    # 无目标（默认 None）保持原调用形状。
+                    run_kwargs: dict[str, Any] = {
+                        "session_key": runtime.session_key, "hooks": [hook],
+                    }
+                    if extra_metadata is not None:
+                        run_kwargs["metadata"] = extra_metadata
+                    result = await runtime.bot.run(content, **run_kwargs)
                     iterations += hook.iterations
                     final_answer = result.content
                     stop_reason = result.stop_reason

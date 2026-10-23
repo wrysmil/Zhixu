@@ -18,11 +18,13 @@ import asyncio
 import contextlib
 import json
 import sys
+import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from nanobot.config.paths import get_workspace_path
 from nanobot.evaluation.evidence import (
     AttemptEvidence,
     EvidenceArtifact,
@@ -65,6 +67,9 @@ JUDGE_BUDGET_S = 60
 
 #: 评分实现的可注入点：attempt 评分与校准项评分共用，生产默认是评分子进程。
 JudgeRunner = Callable[..., Awaitable[JudgeResult]]
+
+#: 团队执行注入点：gateway 把进程内团队执行栈接进来，评估服务不感知团队内部。
+TeamRunner = Callable[[Mapping[str, Any]], Awaitable[Mapping[str, Any]]]
 
 
 class ServiceError(RuntimeError):
@@ -118,15 +123,21 @@ class EvaluationService:
         profiles: Sequence[Profile] = (),
         judge_slots: asyncio.Semaphore | None = None,
         judge_runner: JudgeRunner | None = None,
+        team_runner: TeamRunner | None = None,
+        workspace: Path | None = None,
     ) -> None:
         self._repository = repository
         self._data_dir = Path(data_dir)
+        self._workspace = (
+            Path(workspace) if workspace is not None else get_workspace_path()
+        )
         self._profiles = {profile.id: profile for profile in profiles} or {
             profile.id: profile for profile in default_profiles()
         }
         # Judge 与 Agent 共用的进程预算；与调度器传入的是同一个对象。
         self._judge_slots = judge_slots or asyncio.Semaphore(3)
         self._judge_runner: JudgeRunner = judge_runner or self._run_judge
+        self._team_runner = team_runner
 
     # ------------------------------------------------------------------ 配置
 
@@ -242,10 +253,75 @@ class EvaluationService:
     def _freeze_target(self, target: TargetRef | None) -> dict[str, Any] | None:
         """入队时冻结运行目标。
 
-        WU-03 只冻结引用（team/dataset 天然无文件）；Agent/Skill 目标的档案与
-        Skill 文件冻结在 WU-04 的 ``_freeze_agent_target`` / ``_freeze_skill_target``。
+        team/dataset 只冻结引用；Agent/Skill 目标在入队时把档案与技能文件
+        **内容**冻结进快照——之后源文件改动不影响本次运行。
         """
-        return None if target is None else {"kind": target.kind, "id": target.id}
+        if target is None:
+            return None
+        if target.kind == "agent":
+            return self._freeze_agent_target(target.id)
+        if target.kind == "skill":
+            return self._freeze_skill_target(target.id)
+        return {"kind": target.kind, "id": target.id}
+
+    #: 目标冻结的文件总量上限：技能目录失控时快速失败，而不是拖垮快照与 boot。
+    _TARGET_FILE_LIMIT = 512 * 1024
+
+    def _freeze_agent_target(self, agent_id: str) -> dict[str, Any]:
+        from nanobot.agents.store import AgentStore
+
+        try:
+            profile = AgentStore(self._workspace).get_profile(agent_id)
+        except Exception as exc:  # noqa: BLE001 - 档案缺失/损坏统一按资源缺失报
+            raise ServiceError("AGENT_NOT_FOUND", agent_id) from exc
+        data = profile.to_dict()
+        return {
+            "kind": "agent",
+            "id": agent_id,
+            "agent": {
+                "profile": data,
+                "skills": self._freeze_skill_files(self._profile_skill_names(data)),
+            },
+        }
+
+    def _freeze_skill_target(self, skill_name: str) -> dict[str, Any]:
+        return {
+            "kind": "skill",
+            "id": skill_name,
+            "skill": {"name": skill_name, "files": self._freeze_skill_files([skill_name])},
+        }
+
+    def _profile_skill_names(self, profile: Mapping[str, Any]) -> list[str]:
+        """档案的技能选择 ∩ 本机可用技能（语义与 agents.runtime 的白名单一致）。"""
+        from nanobot.agent.skills import SkillsLoader
+        from nanobot.agents.models import AgentSelection
+        from nanobot.agents.runtime import resolve_selection
+
+        selection = AgentSelection.from_dict(profile.get("skills"))
+        available = [
+            str(item["name"])
+            for item in SkillsLoader(self._workspace).list_skills(filter_unavailable=False)
+        ]
+        return sorted(resolve_selection(selection, available))
+
+    def _freeze_skill_files(self, names: Sequence[str]) -> dict[str, str]:
+        """把技能目录的文本文件读成 {workspace 相对路径: 内容}。"""
+        skills_root = self._workspace / "skills"
+        files: dict[str, str] = {}
+        total = 0
+        for name in names:
+            base = skills_root / name
+            if not base.is_dir():
+                raise ServiceError("SKILL_NOT_FOUND", name)
+            for path in sorted(base.rglob("*")):
+                if not path.is_file():
+                    continue
+                data = path.read_text(encoding="utf-8", errors="replace")
+                total += len(data)
+                if total > self._TARGET_FILE_LIMIT:
+                    raise ServiceError("TARGET_TOO_LARGE", name)
+                files[path.relative_to(self._workspace).as_posix()] = data
+        return files
 
     def _require_judge_when_needed(
         self, request: RunCreate, judge: Profile | None
@@ -309,6 +385,11 @@ class EvaluationService:
         attempt_id = str(attempt["id"])
         case = CaseWrite.model_validate(attempt["case_snapshot"])
         limits = _limits_of(run.get("snapshot"))
+        target = (run.get("snapshot") or {}).get("target")
+        if isinstance(target, Mapping) and target.get("kind") == "team":
+            return await self._execute_team(
+                attempt_id=attempt_id, case=case, run=run, limits=limits,
+            )
         paths = self._attempt_paths(attempt_id)
         paths.create()
         errors: list[AttemptError] = []
@@ -362,6 +443,93 @@ class EvaluationService:
             errors=errors, owner=owner, result=result,
         )
 
+    async def _execute_team(
+        self,
+        *,
+        attempt_id: str,
+        case: CaseWrite,
+        run: Mapping[str, Any],
+        limits: RunLimits,
+    ) -> AttemptOutcome:
+        """团队目标：gateway 注入的 runner 在进程内执行，评估服务不起 worker 子进程。
+
+        结论装配与普通 attempt 走同一条 ``_grade`` 出口（规则断言 + 可选 Judge），
+        差异只在执行段：没有子进程、没有 workspace 产物，证据只有最终回答。
+        """
+        started = time.monotonic()
+        if self._team_runner is None:
+            return self._setup_failure([
+                AttemptError(
+                    phase="setup", code="TEAM_RUNNER_UNAVAILABLE",
+                    message="gateway 未注入团队执行栈",
+                ),
+            ])
+        target = (run.get("snapshot") or {}).get("target") or {}
+        payload = {
+            "team_id": str(target.get("id") or ""),
+            "prompt": case.turns[-1].content,
+            "timeout_s": limits.timeout_s,
+        }
+        try:
+            outcome = await self._team_runner(payload)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - runner 异常按执行失败收口
+            return AttemptOutcome(
+                execution_status="failed",
+                grading_status="not_applicable",
+                verdict="failed",
+                result=_result_payload(
+                    execution_status="failed",
+                    errors=[AttemptError(
+                        phase="execution", code="TEAM_RUN_FAILED", message=str(exc),
+                    )],
+                    worker_result={
+                        "final_answer": None, "stop_reason": "team_runner_error",
+                        "iterations": 0, "trace_complete": False,
+                    },
+                    timing={"agent_ms": int((time.monotonic() - started) * 1000)},
+                ),
+            )
+        status = str(outcome.get("status") or "failed")
+        result = {
+            "final_answer": outcome.get("final_answer"),
+            "stop_reason": None if status == "succeeded" else status,
+            "iterations": 0,
+            "trace_complete": True,
+        }
+        if "usage" in outcome:
+            result["usage"] = outcome["usage"]
+        timing = {"agent_ms": int((time.monotonic() - started) * 1000)}
+        if status != "succeeded":
+            return AttemptOutcome(
+                execution_status=status,
+                grading_status="not_applicable",
+                verdict="failed" if status in ("failed", "timed_out") else "not_evaluated",
+                result=_result_payload(
+                    execution_status=status, errors=[], worker_result=result,
+                    timing=timing,
+                ),
+            )
+        paths = self._attempt_paths(attempt_id)
+        paths.create()
+        self._repository.mark_attempt_execution_done(attempt_id, execution_status="succeeded")
+        self._repository.mark_attempt_grading_running(attempt_id)
+
+        team_timing = timing
+
+        class _TeamOwner:
+            """_grade 只用 owner.timing()；团队路径没有 WorkerProcess 可言。"""
+
+            def timing(self) -> dict[str, Any]:
+                return dict(team_timing)
+
+        return await self._grade(
+            attempt_id=attempt_id, case=case, run=run, paths=paths,
+            errors=[], owner=_TeamOwner(), result=result,
+            trace_complete_override=True,
+        )
+
     def _agent_boot(
         self,
         attempt_id: str,
@@ -383,6 +551,7 @@ class EvaluationService:
             profile_bundle=bundle,
             role="agent",
             case_snapshot=case,
+            target=(run.get("snapshot") or {}).get("target"),
         )
 
     def _record_process(self, attempt_id: str, owner: WorkerProcess) -> None:
@@ -404,8 +573,15 @@ class EvaluationService:
         errors: list[AttemptError],
         owner: WorkerProcess,
         result: Mapping[str, Any] | None,
+        trace_complete_override: bool | None = None,
     ) -> AttemptOutcome:
         trace = read_trace(paths.trace_dir)
+        # 团队路径没有 worker trace 密封语义：runner 返回 succeeded 即视为执行
+        # 证据完整，否则每次团队评估都会被推进人工复核。
+        trace_complete = (
+            trace.trace_complete if trace_complete_override is None
+            else trace_complete_override
+        )
         evidence = build_attempt_evidence(
             attempt_id=attempt_id,
             case_snapshot=case.model_dump(mode="json"),
@@ -415,7 +591,7 @@ class EvaluationService:
             final_answer=_text(result, "final_answer"),
             stop_reason=_text(result, "stop_reason"),
             iterations=_iterations_of(result),
-            trace_complete=trace.trace_complete,
+            trace_complete=trace_complete,
             execution_status="succeeded",
         )
         rules = evaluate_rules(case, evidence)
@@ -430,7 +606,7 @@ class EvaluationService:
             )
 
         state = judge_state_of(rubric, judge_result, calibration)
-        verdict = derive_verdict("succeeded", required, state, trace.trace_complete)
+        verdict = derive_verdict("succeeded", required, state, trace_complete)
         payload = _result_payload(
             execution_status="succeeded",
             errors=errors,
