@@ -354,3 +354,70 @@ async def test_confirming_a_gold_sample_bumps_revision(
     assert updated["label_status"] == "confirmed"
     assert updated["reviewer"] == "local-user"
     assert repository.gold_revision() == before + 1
+
+
+# ------------------------------------------------------------- S7 凭据边界
+
+
+def _secret_profile() -> Profile:
+    """真实 provider 形状的 profile：bundle 持有凭据，公开字段不含密钥。"""
+    return Profile(
+        id="model:test", label="test", provider="openai", model="gpt-x", kind="both",
+        bundle={"config": {"providers": {"openai": {"api_key": "sk-secret"}}}},
+    )
+
+
+def test_create_run_snapshot_strips_profile_bundle(
+    repository: EvaluationRepository, tmp_path: Path
+) -> None:
+    """快照只存 {id, provider, model}：凭据 bundle 绝不落入 runs.snapshot_json。"""
+    from nanobot.evaluation.schemas import RunCreate
+
+    service = EvaluationService(
+        repository=repository, data_dir=tmp_path, profiles=(_secret_profile(),)
+    )
+    suite = repository.create_suite(make_suite_payload())
+    case = repository.save_case(make_case_payload(suite_id=suite["id"]))
+    run = service.create_run(
+        RunCreate.model_validate(
+            make_run_payload(
+                [case["id"]], suite_id=suite["id"], agent_profile_id="model:test"
+            )
+        ),
+        idempotency_key="s7-1", scope="t",
+    )
+    snapshot = repository.get_run(run["id"])["snapshot"]
+    assert "bundle" not in snapshot["agent_profile"]
+    assert "sk-secret" not in json.dumps(snapshot, ensure_ascii=False)
+    assert snapshot["agent_profile"]["id"] == "model:test"
+    assert snapshot["agent_profile"]["provider"] == "openai"
+
+
+def test_agent_boot_rebuilds_bundle_from_profile(
+    repository: EvaluationRepository, tmp_path: Path
+) -> None:
+    """boot 阶段从启动时装入的内存 profile 重建 bundle，执行链路与旧快照等价。"""
+    from nanobot.evaluation.schemas import CaseWrite, RunCreate
+
+    service = EvaluationService(
+        repository=repository, data_dir=tmp_path, profiles=(_secret_profile(),)
+    )
+    suite = repository.create_suite(make_suite_payload())
+    case = repository.save_case(make_case_payload(suite_id=suite["id"]))
+    run = service.create_run(
+        RunCreate.model_validate(
+            make_run_payload(
+                [case["id"]], suite_id=suite["id"], agent_profile_id="model:test"
+            )
+        ),
+        idempotency_key="s7-2", scope="t",
+    )
+    detail = repository.get_run(run["id"])
+    attempt = detail["attempts"][0]
+    boot = service._agent_boot(  # noqa: SLF001 - 测试直测内部装配点
+        attempt["id"],
+        CaseWrite.model_validate(attempt["case_snapshot"]),
+        detail,
+        service._attempt_paths(attempt["id"]),
+    )
+    assert boot.profile_bundle["config"]["providers"]["openai"]["api_key"] == "sk-secret"

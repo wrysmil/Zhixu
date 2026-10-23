@@ -179,6 +179,17 @@ class EvaluationService:
             raise ServiceError("PROFILE_NOT_FOUND", profile_id)
         return profile
 
+    def _bundle_for(self, profile_id: str) -> dict[str, Any]:
+        """凭据只进内存：快照里没有 bundle，执行时从启动时装入的 profile 重建。
+
+        gateway 重启后 bundle 由启动时的 config 重建，rerun 依旧可用；profile 已不
+        存在（如换了一套预设）时给空 config，让下游按「无凭据」显式失败而不是 KeyError。
+        """
+        profile = self._profiles.get(profile_id)
+        bundle = dict(profile.bundle) if profile is not None else {}
+        bundle.setdefault("config", {})
+        return bundle
+
     def list_profiles(self) -> list[dict[str, Any]]:
         return [profile.to_read() for profile in self._profiles.values()]
 
@@ -200,12 +211,10 @@ class EvaluationService:
         self._require_judge_when_needed(request, judge)
         snapshot_bundle = {
             "agent_profile": {
-                "provider": agent.provider, "model": agent.model,
-                "id": agent.id, "bundle": dict(agent.bundle or {}),
+                "provider": agent.provider, "model": agent.model, "id": agent.id,
             },
             "judge_profile": None if judge is None else {
-                "provider": judge.provider, "model": judge.model,
-                "id": judge.id, "bundle": dict(judge.bundle or {}),
+                "provider": judge.provider, "model": judge.model, "id": judge.id,
             },
         }
         return self._repository.create_run(
@@ -337,10 +346,8 @@ class EvaluationService:
     ) -> AgentWorkerBoot:
         snapshot = run.get("snapshot") or {}
         profile = dict(snapshot.get("agent_profile") or {})
-        bundle = dict(profile.get("bundle") or {})
-        # build_attempt_config 要求 config 一定是对象：空预设也要给 {}，
-        # 否则每个不带凭据的预设都会变成 setup_error。
-        bundle.setdefault("config", {})
+        # 凭据不再落入快照（S7）：执行时从启动时装入的 profile 重建。
+        bundle = self._bundle_for(str(profile.get("id") or ""))
         return AgentWorkerBoot(
             type="boot",
             protocol_version=1,
@@ -486,7 +493,13 @@ class EvaluationService:
     ) -> tuple[JudgeResult, Mapping[str, Any] | None]:
         """按需评分。Judge 阶段**重新申请**进程槽位，不嵌套持有 Agent 的槽位。"""
         snapshot = run.get("snapshot") or {}
-        profile = dict(snapshot.get("judge_profile") or {})
+        judge_ref = dict(snapshot.get("judge_profile") or {})
+        judge_id = str(judge_ref.get("id") or "")
+        # 快照里没有凭据（S7）：评分子进程的 bundle 同样在执行时从内存 profile 重建。
+        profile = {
+            "provider": judge_ref.get("provider"), "model": judge_ref.get("model"),
+            "id": judge_id, "bundle": self._bundle_for(judge_id),
+        }
         fingerprint = _fingerprint(profile, rubric)
         calibration = self._find_calibration(fingerprint, rubric)
         # 评分子进程必须有自己的 runtime/trace 目录：共用 agent 的 trace 目录会让
@@ -526,7 +539,9 @@ class EvaluationService:
             attempt_id=attempt_id,
             runtime_root=str(paths.runtime_root),
             workspace=str(paths.workspace),
-            profile_bundle=_judge_bundle(profile),
+            # 注入点拿到的 profile 已带重建后的 bundle（快照不再存凭据，S7）；
+            # build_attempt_config 要求 config 一定是对象：空预设也要给 {}。
+            profile_bundle=_boot_bundle(profile),
             role="judge",
             rubric=rubric,
             evidence=_evidence_payload(evidence),
@@ -1099,7 +1114,8 @@ def _evidence_payload(evidence: AttemptEvidence) -> dict[str, Any]:
     }
 
 
-def _judge_bundle(profile: Mapping[str, Any]) -> dict[str, Any]:
+def _boot_bundle(profile: Mapping[str, Any]) -> dict[str, Any]:
+    """把注入点给的 profile 载荷收敛成 boot 可用的 bundle（config 缺省补空对象）。"""
     bundle = dict(profile.get("bundle") or {})
     bundle.setdefault("config", {})
     return bundle
