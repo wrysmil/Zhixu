@@ -8,6 +8,7 @@ import { ImageGenerationSettings } from "@/components/settings/capabilities/Imag
 import { AdvancedSettings } from "@/components/settings/capabilities/SecuritySettings";
 import { TranscriptionSettings } from "@/components/settings/capabilities/TranscriptionSettings";
 import { WebSettings } from "@/components/settings/capabilities/WebSettings";
+import { EvaluationSettings } from "@/components/settings/evaluation/EvaluationSettings";
 import {
   ModelPresetDeleteDialog,
   ModelsSettings,
@@ -720,7 +721,9 @@ export function SettingsPage({
             </div>
           ) : null}
 
-          {loading ? (
+          {activeSection === "eval" ? (
+            <EvaluationSettings />
+          ) : loading ? (
             <div className="flex h-48 items-center justify-center rounded-panel bg-settings-surface text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               {t("settings.status.loading")}

@@ -445,7 +445,103 @@
       "memory": "Mémoire",
       "identity": "Identité",
       "agents": "Agents",
-      "teams": "Équipes"
+      "teams": "Équipes",
+      "eval": "Evaluation"
+    },
+    "evaluation": {
+      "title": "Evaluation",
+      "subtitle": "Run test suites against agents, teams, skills and datasets.",
+      "refresh": "Refresh",
+      "online": "Online",
+      "offline": "Offline",
+      "tab": {
+        "overview": "Overview",
+        "runs": "Runs",
+        "datasets": "Datasets"
+      },
+      "metrics": {
+        "planned": "Planned",
+        "passed": "Passed",
+        "failed": "Failed",
+        "reviewRequired": "Needs review",
+        "notEvaluated": "Not evaluated",
+        "passRate": "Pass rate",
+        "coverage": "Coverage",
+        "recentRuns": "Recent runs"
+      },
+      "runs": {
+        "new": "New run",
+        "filterAll": "All",
+        "filter": "Filter by status",
+        "empty": "No runs yet.",
+        "progress": "Progress",
+        "suite": "Suite",
+        "status": "Status",
+        "created": "Created"
+      },
+      "newRun": {
+        "title": "New run",
+        "target": "Target type",
+        "targetAgent": "Agent",
+        "targetTeam": "Team",
+        "targetSkill": "Skill",
+        "targetDataset": "Dataset",
+        "targetId": "Target ID",
+        "model": "Model",
+        "judge": "Judge",
+        "judgeNone": "No judge",
+        "dataset": "Dataset",
+        "cases": "Cases",
+        "noLimit": "No time limit",
+        "timeLimitSeconds": "Time limit (seconds)",
+        "submit": "Start run",
+        "cancel": "Cancel"
+      },
+      "detail": {
+        "attempts": "Attempts",
+        "errors": "Errors",
+        "assertions": "Assertions",
+        "trace": "Trace",
+        "loadTrace": "Load trace",
+        "loadMore": "Load more",
+        "exportJson": "Export JSON",
+        "exportCsv": "Export CSV",
+        "cancelRun": "Cancel run",
+        "rerunFailed": "Rerun failed",
+        "summaryReport": "HTML summary",
+        "noAttempts": "No attempts yet.",
+        "metrics": "Metrics"
+      },
+      "datasets": {
+        "template": "Download template",
+        "import": "Import",
+        "importing": "Importing…",
+        "imported": "Imported",
+        "export": "Export xlsx",
+        "errors": "Row errors",
+        "cases": "Cases",
+        "empty": "No datasets yet.",
+        "viewCases": "View cases",
+        "summary": "HTML summary"
+      },
+      "status": {
+        "passed": "Passed",
+        "failed": "Failed",
+        "reviewRequired": "Needs review",
+        "notEvaluated": "Not evaluated",
+        "running": "Running",
+        "queued": "Queued",
+        "completed": "Completed",
+        "cancelled": "Cancelled",
+        "interrupted": "Interrupted",
+        "cancelling": "Cancelling",
+        "timedOut": "Timed out"
+      },
+      "error": {
+        "offline": "Evaluation service offline",
+        "auth": "Authentication failed",
+        "request": "Request failed"
+      }
     },
     "sections": {
       "interface": "Interface utilisateur",

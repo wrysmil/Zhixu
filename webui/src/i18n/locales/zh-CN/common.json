@@ -445,7 +445,103 @@
       "memory": "记忆",
       "identity": "身份",
       "agents": "智能体",
-      "teams": "团队"
+      "teams": "团队",
+      "eval": "评估"
+    },
+    "evaluation": {
+      "title": "评估",
+      "subtitle": "对 Agent、团队、Skill 与数据集运行测试套件。",
+      "refresh": "刷新",
+      "online": "在线",
+      "offline": "离线",
+      "tab": {
+        "overview": "总览",
+        "runs": "运行",
+        "datasets": "数据集"
+      },
+      "metrics": {
+        "planned": "计划",
+        "passed": "通过",
+        "failed": "失败",
+        "reviewRequired": "需复核",
+        "notEvaluated": "未评估",
+        "passRate": "通过率",
+        "coverage": "覆盖率",
+        "recentRuns": "最近运行"
+      },
+      "runs": {
+        "new": "新建运行",
+        "filterAll": "全部",
+        "filter": "按状态筛选",
+        "empty": "暂无运行。",
+        "progress": "进度",
+        "suite": "套件",
+        "status": "状态",
+        "created": "创建时间"
+      },
+      "newRun": {
+        "title": "新建运行",
+        "target": "目标类型",
+        "targetAgent": "Agent",
+        "targetTeam": "团队",
+        "targetSkill": "Skill",
+        "targetDataset": "数据集",
+        "targetId": "目标 ID",
+        "model": "模型",
+        "judge": "评审员",
+        "judgeNone": "无评审员",
+        "dataset": "数据集",
+        "cases": "用例",
+        "noLimit": "不限时",
+        "timeLimitSeconds": "总时限（秒）",
+        "submit": "开始运行",
+        "cancel": "取消"
+      },
+      "detail": {
+        "attempts": "尝试",
+        "errors": "错误",
+        "assertions": "断言",
+        "trace": "轨迹",
+        "loadTrace": "加载轨迹",
+        "loadMore": "加载更多",
+        "exportJson": "导出 JSON",
+        "exportCsv": "导出 CSV",
+        "cancelRun": "取消运行",
+        "rerunFailed": "重跑失败项",
+        "summaryReport": "HTML 汇总",
+        "noAttempts": "暂无尝试。",
+        "metrics": "指标"
+      },
+      "datasets": {
+        "template": "下载模板",
+        "import": "导入",
+        "importing": "导入中…",
+        "imported": "已导入",
+        "export": "导出 xlsx",
+        "errors": "行错误",
+        "cases": "用例",
+        "empty": "暂无数据集。",
+        "viewCases": "查看用例",
+        "summary": "HTML 汇总"
+      },
+      "status": {
+        "passed": "已通过",
+        "failed": "失败",
+        "reviewRequired": "需复核",
+        "notEvaluated": "未评估",
+        "running": "运行中",
+        "queued": "排队中",
+        "completed": "已完成",
+        "cancelled": "已取消",
+        "interrupted": "已中断",
+        "cancelling": "取消中",
+        "timedOut": "已超时"
+      },
+      "error": {
+        "offline": "评估服务离线",
+        "auth": "认证失败",
+        "request": "请求失败"
+      }
     },
     "teams": {
       "workspaceEyebrow": "AGENT TEAMS",

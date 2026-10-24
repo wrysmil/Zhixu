@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   ChevronLeft,
+  ClipboardCheck,
   Globe2,
   ImageIcon,
   LogOut,
@@ -39,6 +40,7 @@ const SETTINGS_NAV_ITEMS: Array<{ key: SettingsSectionKey; icon: LucideIcon; fal
   { key: "voice", icon: Mic, fallback: "Voice" },
   { key: "browser", icon: Globe2, fallback: "Web" },
   { key: "channels", icon: MessageCircle, fallback: "Channels" },
+  { key: "eval", icon: ClipboardCheck, fallback: "Evaluation" },
   { key: "runtime", icon: Server, fallback: "System" },
   { key: "advanced", icon: ShieldCheck, fallback: "Security" },
 ];
@@ -49,6 +51,7 @@ export function standaloneSectionTitle(section: SettingsSectionKey): string {
   if (section === "skills") return "Skills";
   if (section === "agents") return "Agents";
   if (section === "teams") return "Teams";
+  if (section === "eval") return "Evaluation";
   return SETTINGS_NAV_ITEMS.find((item) => item.key === section)?.fallback ?? "Settings";
 }
 

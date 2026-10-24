@@ -286,22 +286,6 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   return (await res.json()) as T;
 }
 
-async function requestBlob(path: string, retry = true): Promise<Blob> {
-  await ensureSession();
-  const res = await fetch(`${evaluationBase()}${path}`, {
-    credentials: "include",
-    headers: { "X-CSRF-Token": csrfToken },
-  });
-  if (res.status === 401 && retry) {
-    resetEvaluationSession();
-    return requestBlob(path, false);
-  }
-  if (!res.ok) {
-    throw await parseError(res);
-  }
-  return res.blob();
-}
-
 function contentDispositionFilename(res: Response, fallback: string): string {
   const disposition = res.headers.get("Content-Disposition") ?? "";
   const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);

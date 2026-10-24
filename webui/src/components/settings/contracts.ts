@@ -8,6 +8,7 @@ export type SettingsSectionKey =
   | "voice"
   | "browser"
   | "channels"
+  | "eval"
   | "apps"
   | "automations"
   | "skills"

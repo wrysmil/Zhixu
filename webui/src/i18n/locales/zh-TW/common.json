@@ -445,7 +445,103 @@
       "memory": "記憶",
       "identity": "身分",
       "agents": "智慧助理",
-      "teams": "團隊"
+      "teams": "團隊",
+      "eval": "評估"
+    },
+    "evaluation": {
+      "title": "評估",
+      "subtitle": "對 Agent、團隊、Skill 與資料集執行測試套件。",
+      "refresh": "重新整理",
+      "online": "線上",
+      "offline": "離線",
+      "tab": {
+        "overview": "總覽",
+        "runs": "執行",
+        "datasets": "資料集"
+      },
+      "metrics": {
+        "planned": "計畫",
+        "passed": "通過",
+        "failed": "失敗",
+        "reviewRequired": "需複核",
+        "notEvaluated": "未評估",
+        "passRate": "通過率",
+        "coverage": "覆蓋率",
+        "recentRuns": "最近執行"
+      },
+      "runs": {
+        "new": "新增執行",
+        "filterAll": "全部",
+        "filter": "依狀態篩選",
+        "empty": "尚無執行。",
+        "progress": "進度",
+        "suite": "套件",
+        "status": "狀態",
+        "created": "建立時間"
+      },
+      "newRun": {
+        "title": "新增執行",
+        "target": "目標類型",
+        "targetAgent": "Agent",
+        "targetTeam": "團隊",
+        "targetSkill": "Skill",
+        "targetDataset": "資料集",
+        "targetId": "目標 ID",
+        "model": "模型",
+        "judge": "評審",
+        "judgeNone": "無評審",
+        "dataset": "資料集",
+        "cases": "案例",
+        "noLimit": "不限時",
+        "timeLimitSeconds": "總時限（秒）",
+        "submit": "開始執行",
+        "cancel": "取消"
+      },
+      "detail": {
+        "attempts": "嘗試",
+        "errors": "錯誤",
+        "assertions": "斷言",
+        "trace": "軌跡",
+        "loadTrace": "載入軌跡",
+        "loadMore": "載入更多",
+        "exportJson": "匯出 JSON",
+        "exportCsv": "匯出 CSV",
+        "cancelRun": "取消執行",
+        "rerunFailed": "重跑失敗項",
+        "summaryReport": "HTML 彙總",
+        "noAttempts": "尚無嘗試。",
+        "metrics": "指標"
+      },
+      "datasets": {
+        "template": "下載範本",
+        "import": "匯入",
+        "importing": "匯入中…",
+        "imported": "已匯入",
+        "export": "匯出 xlsx",
+        "errors": "列錯誤",
+        "cases": "案例",
+        "empty": "尚無資料集。",
+        "viewCases": "檢視案例",
+        "summary": "HTML 彙總"
+      },
+      "status": {
+        "passed": "已通過",
+        "failed": "失敗",
+        "reviewRequired": "需複核",
+        "notEvaluated": "未評估",
+        "running": "執行中",
+        "queued": "排隊中",
+        "completed": "已完成",
+        "cancelled": "已取消",
+        "interrupted": "已中斷",
+        "cancelling": "取消中",
+        "timedOut": "已逾時"
+      },
+      "error": {
+        "offline": "評估服務離線",
+        "auth": "驗證失敗",
+        "request": "請求失敗"
+      }
     },
     "sections": {
       "interface": "介面",

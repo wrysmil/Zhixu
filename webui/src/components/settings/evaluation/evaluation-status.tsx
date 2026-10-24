@@ -34,9 +34,14 @@ export function evaluationTone(status: string): EvaluationTone {
   return RUN_TONE[status] ?? "muted";
 }
 
+/** 后端状态为 snake_case，i18n 词条为 camelCase（timedOut / reviewRequired / notEvaluated）。 */
+export function evaluationStatusKey(status: string): string {
+  return status.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+}
+
 export function evaluationStatusLabel(status: string): string {
   const { t } = useTranslation();
-  const key = `settings.evaluation.status.${status}`;
+  const key = `settings.evaluation.status.${evaluationStatusKey(status)}`;
   const fallback: Record<string, string> = {
     queued: "Queued",
     running: "Running",
@@ -51,7 +56,7 @@ export function evaluationStatusLabel(status: string): string {
 
 export function evaluationVerdictLabel(verdict: string): string {
   const { t } = useTranslation();
-  const key = `settings.evaluation.status.${verdict}`;
+  const key = `settings.evaluation.status.${evaluationStatusKey(verdict)}`;
   const fallback: Record<string, string> = {
     passed: "Passed",
     failed: "Failed",
