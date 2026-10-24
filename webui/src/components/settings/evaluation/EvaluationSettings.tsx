@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RefreshCw } from "lucide-react";
 
+import { EvaluationDatasets } from "@/components/settings/evaluation/EvaluationDatasets";
 import { EvaluationRuns } from "@/components/settings/evaluation/EvaluationRuns";
 import { EvaluationStatusBadge } from "@/components/settings/evaluation/evaluation-status";
 import {
@@ -14,7 +15,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { evaluationApi, type Overview } from "@/lib/evaluation-api";
 import { cn } from "@/lib/utils";
 
-type EvalTab = "overview" | "runs";
+type EvalTab = "overview" | "runs" | "datasets";
 
 export function EvaluationSettings() {
   const { t } = useTranslation();
@@ -63,6 +64,7 @@ export function EvaluationSettings() {
           options={[
             { value: "overview", label: t("settings.evaluation.tab.overview") },
             { value: "runs", label: t("settings.evaluation.tab.runs") },
+            { value: "datasets", label: t("settings.evaluation.tab.datasets") },
           ]}
         />
         <div className="flex items-center gap-2">
@@ -165,6 +167,7 @@ export function EvaluationSettings() {
       ) : null}
 
       {tab === "runs" ? <EvaluationRuns refreshKey={refreshKey} /> : null}
+      {tab === "datasets" ? <EvaluationDatasets /> : null}
     </div>
   );
 }

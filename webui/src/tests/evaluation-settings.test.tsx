@@ -45,6 +45,10 @@ const listSuitesMock = vi.mocked(evaluationApi.listSuites);
 const listCasesMock = vi.mocked(evaluationApi.listCases);
 const listProfilesMock = vi.mocked(evaluationApi.listProfiles);
 const createRunMock = vi.mocked(evaluationApi.createRun);
+const importDatasetMock = vi.mocked(evaluationApi.importDataset);
+const downloadDatasetTemplateMock = vi.mocked(evaluationApi.downloadDatasetTemplate);
+const exportDatasetXlsxMock = vi.mocked(evaluationApi.exportDatasetXlsx);
+const downloadSummaryReportMock = vi.mocked(evaluationApi.downloadSummaryReport);
 
 function overviewPayload() {
   return {
@@ -230,5 +234,57 @@ describe("EvaluationSettings", () => {
     await waitFor(() => expect(getTraceMock).toHaveBeenCalledWith("a1", 0, 200));
     expect(within(sheet).getByText("attempt.started")).toBeInTheDocument();
     expect(within(sheet).getByText("tool.started")).toBeInTheDocument();
+  });
+
+  it("manages datasets: template, export, summary and case list", async () => {
+    render(<EvaluationSettings />);
+
+    await userEvent.setup().click(await screen.findByRole("tab", { name: "Datasets" }));
+    await waitFor(() => expect(listSuitesMock).toHaveBeenCalled());
+    expect(screen.getByText("Dataset A")).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download template" }));
+    expect(downloadDatasetTemplateMock).toHaveBeenCalledTimes(1);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Export xlsx" }));
+    expect(exportDatasetXlsxMock).toHaveBeenCalledWith("s1");
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "HTML summary" }));
+    expect(downloadSummaryReportMock).toHaveBeenCalledWith("s1");
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "View cases" }));
+    await waitFor(() => expect(listCasesMock).toHaveBeenCalledWith("s1"));
+    expect(await screen.findByText("Case 1")).toBeInTheDocument();
+    expect(screen.getByText("Case 2")).toBeInTheDocument();
+  });
+
+  it("imports an xlsx dataset and surfaces row errors", async () => {
+    importDatasetMock.mockResolvedValue({
+      suite: {
+        id: "s2",
+        revision: 1,
+        case_count: 3,
+        name: "Dataset B",
+        description: "",
+        tags: [],
+        created_at: "",
+        updated_at: "",
+        is_deleted: false,
+      },
+      case_count: 3,
+      errors: [{ row: 2, message: "missing question" }],
+    });
+
+    render(<EvaluationSettings />);
+
+    await userEvent.setup().click(await screen.findByRole("tab", { name: "Datasets" }));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    await userEvent.upload(input, new File(["x"], "dataset.xlsx"));
+
+    await waitFor(() => expect(importDatasetMock).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Dataset B")).toBeInTheDocument();
+    expect(screen.getByText("Imported")).toBeInTheDocument();
+    expect(screen.getByText("Row errors")).toBeInTheDocument();
   });
 });
