@@ -197,7 +197,7 @@ afterEach(() => cleanup());
 describe("evaluation observability", () => {
   it("loads the canvas, supports keyboard node selection and preserves unknown token totals", async () => {
     render(<RunDetailSheet run={run} onClose={vi.fn()} />);
-    const sheet = await screen.findByRole("dialog", { name: "Observability suite" });
+    const sheet = await screen.findByRole("region", { name: "Observability suite" });
 
     await userEvent.setup().click(within(sheet).getByRole("tab", { name: "Execution canvas" }));
     await waitFor(() => expect(evaluationApi.getExecution).toHaveBeenCalledWith("attempt-1", 0, 200));
@@ -215,7 +215,7 @@ describe("evaluation observability", () => {
 
   it("filters paged tool calls, changes cases without retaining the old graph, and exports run HTML", async () => {
     render(<RunDetailSheet run={run} onClose={vi.fn()} />);
-    const sheet = await screen.findByRole("dialog", { name: "Observability suite" });
+    const sheet = await screen.findByRole("region", { name: "Observability suite" });
 
     await userEvent.setup().click(within(sheet).getByRole("tab", { name: "Tool calls" }));
     await userEvent.setup().type(within(sheet).getByRole("searchbox", { name: "Search tool calls" }), "call-19");

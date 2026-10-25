@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ArrowLeft } from "lucide-react";
 
 import { ObservabilityTabs } from "@/components/settings/evaluation/ObservabilityTabs";
 import {
@@ -11,7 +12,6 @@ import {
   formatPercent,
 } from "@/components/settings/evaluation/evaluation-utils";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import {
   evaluationApi,
   type Attempt,
@@ -19,8 +19,10 @@ import {
   type RunSummary,
 } from "@/lib/evaluation-api";
 
-export function RunDetailSheet({ run, onClose }: { run: RunSummary; onClose: () => void }) {
+export function RunDetailSheet({ run, onClose, refreshKey = 0 }: { run: RunSummary; onClose: () => void; refreshKey?: number }) {
   const { t } = useTranslation();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { headingRef.current?.focus(); }, [run.id]);
   const [full, setFull] = useState<Run | null>(null);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export function RunDetailSheet({ run, onClose }: { run: RunSummary; onClose: () 
     return () => {
       cancelled = true;
     };
-  }, [run.id, t]);
+  }, [run.id, t, refreshKey]);
 
   const runAction = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -69,35 +71,34 @@ export function RunDetailSheet({ run, onClose }: { run: RunSummary; onClose: () 
     }
   };
 
-  const isActive = run.status === "queued" || run.status === "running" || run.status === "cancelling";
+  const currentRun = full ?? run;
+  const isActive = currentRun.status === "queued" || currentRun.status === "running" || currentRun.status === "cancelling";
   const failedAttemptIds = attempts
     .filter((attempt) => attempt.verdict === "failed")
     .map((attempt) => attempt.id);
 
   return (
-    <Sheet
-      open
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-    >
-      <SheetContent className="overflow-y-auto sm:max-w-4xl">
-        <div className="space-y-4 pr-8">
+    <section aria-labelledby="evaluation-detail-title" className="min-w-0 space-y-6">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            {t("settings.evaluation.tab.runs")}
+          </Button>
+        <div className="space-y-5 rounded-panel border border-border/60 bg-settings-surface p-4 sm:p-6">
           <div className="space-y-1">
-            <SheetTitle className="text-base font-semibold">{run.suite_name}</SheetTitle>
-            <SheetDescription className="text-[12px]">
+            <h2 id="evaluation-detail-title" tabIndex={-1} ref={headingRef} className="break-words text-xl font-semibold tracking-tight outline-none">{run.suite_name}</h2>
+            <p className="text-[12px] text-muted-foreground">
               {formatDateTime(run.created_at)}
-            </SheetDescription>
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <EvaluationStatusBadge status={run.status} />
+            <EvaluationStatusBadge status={currentRun.status} />
             <span className="text-[12px] text-muted-foreground">
-              {t("settings.evaluation.runs.progress")}: {run.terminal_count}/{run.planned_count}
+              {t("settings.evaluation.runs.progress")}: {currentRun.terminal_count}/{currentRun.planned_count}
             </span>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 border-t border-border/60 pt-4">
             <Button
               type="button"
               variant="outline"
@@ -185,9 +186,10 @@ export function RunDetailSheet({ run, onClose }: { run: RunSummary; onClose: () 
             </div>
           ) : null}
 
-          <ObservabilityTabs runId={run.id} attempts={attempts} />
         </div>
-      </SheetContent>
-    </Sheet>
+        <div className="min-w-0 rounded-panel border border-border/60 bg-settings-surface p-4 sm:p-6">
+          <ObservabilityTabs key={`${run.id}:${refreshKey}`} runId={run.id} attempts={attempts} />
+        </div>
+    </section>
   );
 }

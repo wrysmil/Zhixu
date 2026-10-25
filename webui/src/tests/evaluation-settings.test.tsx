@@ -200,7 +200,8 @@ describe("EvaluationSettings", () => {
     await userEvent.setup().click(await screen.findByRole("tab", { name: "Runs" }));
     await userEvent.setup().click(await screen.findByRole("button", { name: "New run" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "New run" });
+    const dialog = await screen.findByRole("region", { name: "New run" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     const targetInput = within(dialog).getByLabelText("Target ID");
     await userEvent.setup().clear(targetInput);
     await userEvent.setup().type(targetInput, "my-agent");
@@ -218,22 +219,63 @@ describe("EvaluationSettings", () => {
       target: { kind: "agent", id: "my-agent" },
       run_timeout_s: 600,
     });
+    expect(await screen.findByRole("region", { name: "Dataset A" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "New run" })).not.toBeInTheDocument();
   });
 
-  it("expands an attempt and loads its trace in the run detail sheet", async () => {
+  it("opens run details in the page and returns to the filtered list", async () => {
     render(<EvaluationSettings />);
 
     await userEvent.setup().click(await screen.findByRole("tab", { name: "Runs" }));
     await waitFor(() => expect(listRunsMock).toHaveBeenCalled());
+    await userEvent.setup().selectOptions(screen.getByRole("combobox"), "running");
     await userEvent.setup().click(await screen.findByRole("button", { name: /Dataset A/ }));
 
-    const sheet = await screen.findByRole("dialog", { name: "Dataset A" });
+    const sheet = await screen.findByRole("region", { name: "Dataset A" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Runs" })).not.toBeInTheDocument();
     await waitFor(() => expect(within(sheet).getByText("Case 1")).toBeInTheDocument());
     await userEvent.setup().click(within(sheet).getByRole("button", { name: "Load trace" }));
 
     await waitFor(() => expect(getTraceMock).toHaveBeenCalledWith("a1", 0, 200));
     expect(within(sheet).getByText("attempt.started")).toBeInTheDocument();
     expect(within(sheet).getByText("tool.started")).toBeInTheDocument();
+    await userEvent.setup().click(within(sheet).getByRole("button", { name: "Runs" }));
+    expect(screen.getByRole("table", { name: "Runs" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveValue("running");
+    expect(screen.getByRole("button", { name: "Dataset A" })).toHaveFocus();
+  });
+
+  it("opens a recent run directly from the overview", async () => {
+    render(<EvaluationSettings />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: /Dataset A/ }));
+    expect(await screen.findByRole("region", { name: "Dataset A" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("cancels page creation without starting a run", async () => {
+    render(<EvaluationSettings />);
+    await userEvent.setup().click(await screen.findByRole("tab", { name: "Runs" }));
+    await userEvent.setup().click(await screen.findByRole("button", { name: "New run" }));
+    const form = await screen.findByRole("region", { name: "New run" });
+    await userEvent.setup().click(within(form).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("region", { name: "New run" })).not.toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Runs" })).toBeInTheDocument();
+    expect(createRunMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "New run" })).toHaveFocus();
+  });
+
+  it("refreshes the visible run detail and uses its latest status", async () => {
+    render(<EvaluationSettings />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: /Dataset A/ }));
+    const detail = await screen.findByRole("region", { name: "Dataset A" });
+    await waitFor(() => expect(listAttemptsMock).toHaveBeenCalledWith("r1"));
+    const beforeRefresh = getRunMock.mock.calls.length;
+    getRunMock.mockResolvedValue({ ...runRow, status: "completed", terminal_count: 2, snapshot: {}, counts: {}, metrics: null, attempts_url: "" });
+    await userEvent.setup().click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(getRunMock.mock.calls.length).toBeGreaterThan(beforeRefresh));
+    expect(await within(detail).findByText("Completed")).toBeInTheDocument();
+    expect(within(detail).queryByRole("button", { name: "Cancel run" })).not.toBeInTheDocument();
   });
 
   it("manages datasets: template, export, summary and case list", async () => {

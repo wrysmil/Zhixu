@@ -1,16 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { ArrowLeft } from "lucide-react";
 
 import { evaluationErrorText } from "@/components/settings/evaluation/evaluation-utils";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   evaluationApi,
@@ -34,6 +27,8 @@ export function NewRunDialog({
   onCreated?: (run: Run) => void;
 }) {
   const { t } = useTranslation();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (open) headingRef.current?.focus(); }, [open]);
   const [suites, setSuites] = useState<Suite[]>([]);
   const [cases, setCases] = useState<EvaluationCase[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -133,21 +128,28 @@ export function NewRunDialog({
     dataset: t("settings.evaluation.newRun.targetDataset"),
   };
 
+  if (!open) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("settings.evaluation.newRun.title")}</DialogTitle>
-          <DialogDescription>{t("settings.evaluation.subtitle")}</DialogDescription>
-        </DialogHeader>
+    <section aria-labelledby="evaluation-create-title" className="space-y-6">
+        <header className="space-y-4">
+          <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={() => onOpenChange(false)}>
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            {t("settings.evaluation.tab.runs")}
+          </Button>
+          <div>
+            <h2 id="evaluation-create-title" tabIndex={-1} ref={headingRef} className="text-xl font-semibold tracking-tight outline-none">{t("settings.evaluation.newRun.title")}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{t("settings.evaluation.subtitle")}</p>
+          </div>
+        </header>
         <form
-          className="space-y-4"
+          className="grid gap-6 rounded-panel border border-border/60 bg-settings-surface p-4 sm:p-6 lg:grid-cols-2 lg:gap-x-8"
           onSubmit={(event) => {
             event.preventDefault();
             void submit();
           }}
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
             <Field label={t("settings.evaluation.newRun.target")} id="eval-newrun-target-kind">
               <select
                 id="eval-newrun-target-kind"
@@ -205,15 +207,15 @@ export function NewRunDialog({
           </Field>
 
           {cases.length > 0 ? (
-            <fieldset className="space-y-1.5">
+            <fieldset className="space-y-2 lg:col-span-2">
               <legend className="text-[12px] font-medium text-muted-foreground">
                 {t("settings.evaluation.newRun.cases")}
               </legend>
-              <div className="max-h-40 space-y-1 overflow-y-auto rounded-control border border-border/60 p-2">
+              <div className="grid max-h-72 gap-2 overflow-y-auto rounded-control border border-border/60 bg-background p-3 sm:grid-cols-2">
                 {cases.map((item) => (
                   <label
                     key={item.id}
-                    className="flex items-center gap-2 rounded-control px-1 py-0.5 text-[13px] text-foreground"
+                    className="flex cursor-pointer items-center gap-3 rounded-control px-3 py-2.5 text-[13px] text-foreground hover:bg-muted/50 has-[:checked]:bg-primary/5"
                   >
                     <input
                       type="checkbox"
@@ -234,7 +236,7 @@ export function NewRunDialog({
             </fieldset>
           ) : null}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
             <Field label={t("settings.evaluation.newRun.model")} id="eval-newrun-model">
               <select
                 id="eval-newrun-model"
@@ -266,7 +268,7 @@ export function NewRunDialog({
             </Field>
           </div>
 
-          <div className="flex items-end gap-4">
+          <div className="flex flex-wrap items-end gap-4 lg:col-span-2">
             <label className="flex items-center gap-2 pb-2 text-[13px] text-foreground">
               <input
                 type="checkbox"
@@ -295,22 +297,21 @@ export function NewRunDialog({
             </Field>
           </div>
 
-          <DialogFooter>
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/60 pt-5 lg:col-span-2">
             {submitError ? (
               <p role="alert" className="mr-auto text-[13px] text-destructive">
                 {submitError}
               </p>
             ) : null}
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="ghost" disabled={submitting} onClick={() => onOpenChange(false)}>
               {t("settings.evaluation.newRun.cancel")}
             </Button>
             <Button type="submit" disabled={!canSubmit || submitting}>
               {t("settings.evaluation.newRun.submit")}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+    </section>
   );
 }
 

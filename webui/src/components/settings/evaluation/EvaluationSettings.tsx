@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshCw } from "lucide-react";
+import { ArrowUpRight, RefreshCw } from "lucide-react";
 
 import { EvaluationDatasets } from "@/components/settings/evaluation/EvaluationDatasets";
 import { EvaluationRuns } from "@/components/settings/evaluation/EvaluationRuns";
@@ -12,7 +12,7 @@ import {
 } from "@/components/settings/evaluation/evaluation-utils";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { evaluationApi, type Overview } from "@/lib/evaluation-api";
+import { evaluationApi, type Overview, type RunSummary } from "@/lib/evaluation-api";
 import { cn } from "@/lib/utils";
 
 type EvalTab = "overview" | "runs" | "datasets";
@@ -24,6 +24,7 @@ export function EvaluationSettings() {
   const [online, setOnline] = useState<boolean | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedRun, setSelectedRun] = useState<RunSummary | null>(null);
 
   const loadOverview = useCallback(async () => {
     try {
@@ -45,7 +46,11 @@ export function EvaluationSettings() {
   const statusEntries = Object.entries(overview?.status_counts ?? {}).filter(([, count]) => count);
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-6">
+      <header>
+        <h2 className="text-2xl font-semibold tracking-tight">{t("settings.evaluation.title")}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{t("settings.evaluation.subtitle")}</p>
+      </header>
       {loadError ? (
         <div
           role="alert"
@@ -55,11 +60,13 @@ export function EvaluationSettings() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
         <SegmentedControl
           mode="tabs"
           value={tab}
-          onChange={(next) => setTab(next)}
+          onChange={(next) => { setSelectedRun(null); setTab(next); }}
+          className="rounded-control bg-muted/40 p-1"
+          itemClassName="rounded-control px-4 py-2"
           ariaLabel={t("settings.evaluation.title")}
           options={[
             { value: "overview", label: t("settings.evaluation.tab.overview") },
@@ -97,36 +104,31 @@ export function EvaluationSettings() {
       </div>
 
       {tab === "overview" ? (
-        <section className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile
-              label={t("settings.evaluation.metrics.planned")}
-              value={metrics ? String(metrics.planned) : "—"}
-            />
-            <MetricTile
-              label={t("settings.evaluation.metrics.passed")}
-              value={metrics ? String(metrics.passed) : "—"}
-            />
-            <MetricTile
-              label={t("settings.evaluation.metrics.failed")}
-              value={metrics ? String(metrics.failed) : "—"}
-            />
-            <MetricTile
-              label={t("settings.evaluation.metrics.reviewRequired")}
-              value={metrics ? String(metrics.review_required) : "—"}
-            />
-            <MetricTile
-              label={t("settings.evaluation.metrics.notEvaluated")}
-              value={metrics ? String(metrics.not_evaluated) : "—"}
-            />
+        <section className="space-y-6">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <MetricTile
               label={t("settings.evaluation.metrics.passRate")}
               value={formatPercent(metrics?.overall_pass_rate)}
+              prominent
             />
             <MetricTile
               label={t("settings.evaluation.metrics.coverage")}
               value={formatPercent(metrics?.evaluation_coverage)}
             />
+            <MetricTile
+              label={t("settings.evaluation.metrics.planned")}
+              value={metrics ? String(metrics.planned) : "—"}
+            />
+            <MetricTile
+              label={t("settings.evaluation.metrics.failed")}
+              value={metrics ? String(metrics.failed) : "—"}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-control bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
+            <span>{t("settings.evaluation.metrics.passed")} <strong className="ml-2 font-medium tabular-nums text-foreground">{metrics?.passed ?? "—"}</strong></span>
+            <span>{t("settings.evaluation.metrics.reviewRequired")} <strong className="ml-2 font-medium tabular-nums text-foreground">{metrics?.review_required ?? "—"}</strong></span>
+            <span>{t("settings.evaluation.metrics.notEvaluated")} <strong className="ml-2 font-medium tabular-nums text-foreground">{metrics?.not_evaluated ?? "—"}</strong></span>
           </div>
 
           <p className="text-[12px] text-muted-foreground">
@@ -138,25 +140,28 @@ export function EvaluationSettings() {
               : t("settings.evaluation.metrics.sourceUnknown")}
           </p>
 
-          <div className="space-y-2">
-            <h3 className="text-[13px] font-medium text-foreground">
+          <div className="overflow-hidden rounded-panel border border-border/60 bg-settings-surface">
+            <h3 className="border-b border-border/60 px-5 py-4 text-sm font-semibold text-foreground">
               {t("settings.evaluation.metrics.recentRuns")}
             </h3>
             {overview && overview.recent_runs.length > 0 ? (
-              <ul className="space-y-1.5">
+              <ul className="divide-y divide-border/50">
                 {overview.recent_runs.map((run) => (
                   <li
                     key={run.id}
-                    className="flex flex-wrap items-center gap-2 rounded-floating border border-border/60 bg-settings-surface px-3 py-2 text-[13px]"
+                    className="text-[13px]"
                   >
-                    <span className="font-medium text-foreground">{run.suite_name}</span>
+                    <button type="button" onClick={() => { setSelectedRun(run); setTab("runs"); }} className="flex w-full flex-wrap items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/30 focus-visible:bg-muted/40">
+                    <span className="min-w-0 flex-1 break-words font-medium text-foreground">{run.suite_name}</span>
                     <EvaluationStatusBadge status={run.status} />
                     <span className="text-muted-foreground">{formatDateTime(run.created_at)}</span>
+                    <ArrowUpRight className="h-4 w-4 text-muted-foreground" aria-hidden />
+                    </button>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-[13px] text-muted-foreground">
+              <p className="px-5 py-12 text-center text-[13px] text-muted-foreground">
                 {t("settings.evaluation.runs.empty")}
               </p>
             )}
@@ -175,17 +180,17 @@ export function EvaluationSettings() {
         </section>
       ) : null}
 
-      {tab === "runs" ? <EvaluationRuns refreshKey={refreshKey} /> : null}
+      {tab === "runs" ? <EvaluationRuns refreshKey={refreshKey} initialRun={selectedRun} /> : null}
       {tab === "datasets" ? <EvaluationDatasets /> : null}
     </div>
   );
 }
 
-function MetricTile({ label, value }: { label: string; value: string }) {
+function MetricTile({ label, value, prominent = false }: { label: string; value: string; prominent?: boolean }) {
   return (
-    <div className="rounded-floating border border-border/60 bg-settings-surface px-3 py-2.5">
+    <div className={cn("rounded-panel border px-5 py-5", prominent ? "border-primary/20 bg-primary/5" : "border-border/60 bg-settings-surface")}>
       <p className="text-[12px] text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-lg font-medium text-foreground">{value}</p>
+      <p className={cn("mt-3 text-3xl font-semibold tabular-nums tracking-tight", prominent ? "text-primary" : "text-foreground")}>{value}</p>
     </div>
   );
 }
