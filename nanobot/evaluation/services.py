@@ -306,13 +306,24 @@ class EvaluationService:
         return sorted(resolve_selection(selection, available))
 
     def _freeze_skill_files(self, names: Sequence[str]) -> dict[str, str]:
-        """把技能目录的文本文件读成 {workspace 相对路径: 内容}。"""
-        skills_root = self._workspace / "skills"
+        """把技能目录的文本文件读成 {attempt workspace 相对路径: 内容}。
+
+        技能目录必须与 SkillsLoader 的三级来源（workspace → 插件 → builtin）同源，
+        否则选了内置技能的 Agent 档案在入队时就会假性 SKILL_NOT_FOUND。
+        统一写成 ``skills/<name>/…``：workspace 技能与旧键一致，builtin/插件技能
+        物化进 attempt workspace 后会被 worker 的 SkillsLoader 以同名优先加载，
+        内容正是这份冻结快照。
+        """
+        from nanobot.agent.skills import SkillsLoader
+
+        roots: dict[str, Path] = {}
+        for item in SkillsLoader(self._workspace).list_skills(filter_unavailable=False):
+            roots.setdefault(str(item["name"]), Path(str(item["path"])).parent)
         files: dict[str, str] = {}
         total = 0
         for name in names:
-            base = skills_root / name
-            if not base.is_dir():
+            base = roots.get(name)
+            if base is None or not base.is_dir():
                 raise ServiceError("SKILL_NOT_FOUND", name)
             for path in sorted(base.rglob("*")):
                 if not path.is_file():
@@ -321,7 +332,8 @@ class EvaluationService:
                 total += len(data)
                 if total > self._TARGET_FILE_LIMIT:
                     raise ServiceError("TARGET_TOO_LARGE", name)
-                files[path.relative_to(self._workspace).as_posix()] = data
+                key = f"skills/{name}/{path.relative_to(base).as_posix()}"
+                files[key] = data
         return files
 
     def _require_judge_when_needed(
@@ -493,9 +505,39 @@ class EvaluationService:
                 ),
             )
         status = str(outcome.get("status") or "failed")
+        # 团队状态的 ``partial`` 表示「跑完了但部分子任务失败」：执行阶段本身是终结的，
+        # 结论交给规则断言按最终回答判定，停止原因如实保留。
+        if status == "partial":
+            status, stop_reason = "succeeded", "partial"
+        elif status == "succeeded":
+            stop_reason = None
+        elif status in ("failed", "timed_out", "cancelled", "interrupted"):
+            stop_reason = status
+        else:
+            # 非终态（如仍 running）不能交给 finish_attempt：那不是合法终态，会让
+            # 调度器以 StateConflict 收场，反而丢掉真实原因。
+            return AttemptOutcome(
+                execution_status="failed",
+                grading_status="not_applicable",
+                verdict="failed",
+                result=_result_payload(
+                    execution_status="failed",
+                    errors=[AttemptError(
+                        phase="execution", code="TEAM_RUN_STATUS_UNEXPECTED",
+                        message=f"team run ended in non-terminal status {status!r}",
+                    )],
+                    worker_result={
+                        "final_answer": outcome.get("final_answer"),
+                        "stop_reason": status,
+                        "iterations": 0,
+                        "trace_complete": True,
+                    },
+                    timing={"agent_ms": int((time.monotonic() - started) * 1000)},
+                ),
+            )
         result = {
             "final_answer": outcome.get("final_answer"),
-            "stop_reason": None if status == "succeeded" else status,
+            "stop_reason": stop_reason,
             "iterations": 0,
             "trace_complete": True,
         }
@@ -1124,8 +1166,9 @@ class EvaluationService:
                     counts[verdict] += 1
                 name = str(attempt.get("case_name") or attempt.get("case_id") or "?")
                 entry = case_rows.setdefault(name, [name, "-", "-"])
-                # 「最新结论」取最近一次运行的 verdict；failed 优先展示，便于排障。
-                if entry[1] in ("-", "passed") or verdict == "failed":
+                # list_runs 已按 created_at DESC 排序：第一次遇到的 verdict 就是最新结论。
+                # 历史运行（哪怕失败过）不得覆盖它，否则「修复后重跑通过」永远显示 failed。
+                if entry[1] == "-":
                     entry[1], entry[2] = verdict, run_id[:8]
             run_rows.append([
                 run_id[:8], str(row.get("status") or ""), str(len(attempts)),

@@ -421,3 +421,42 @@ def test_agent_boot_rebuilds_bundle_from_profile(
         service._attempt_paths(attempt["id"]),
     )
     assert boot.profile_bundle["config"]["providers"]["openai"]["api_key"] == "sk-secret"
+
+
+def test_summary_report_uses_the_latest_run_verdict(
+    repository: EvaluationRepository, tmp_path: Path
+) -> None:
+    """历史失败不能覆盖最新结论：重跑通过后报告必须显示 passed。"""
+    from nanobot.evaluation.schemas import RunCreate
+
+    service = EvaluationService(repository=repository, data_dir=tmp_path)
+    suite = repository.create_suite(make_suite_payload())
+    case = repository.save_case(make_case_payload(suite_id=suite["id"]))
+
+    def _run(key: str, verdict: str) -> str:
+        run = service.create_run(
+            RunCreate.model_validate(
+                make_run_payload(
+                    [case["id"]], suite_id=suite["id"], agent_profile_id="controlled-agent"
+                )
+            ),
+            idempotency_key=key, scope="t",
+        )
+        attempt = repository.get_run(run["id"])["attempts"][0]
+        repository.finish_attempt(
+            attempt["id"],
+            result={
+                "execution_status": "succeeded",
+                "grading_status": "completed",
+                "verdict": verdict,
+                "result": {},
+            },
+        )
+        return run["id"]
+
+    old_run = _run("summary-old", "failed")
+    new_run = _run("summary-new", "passed")
+
+    html = service.summary_report(suite["id"])
+    assert f"<td>passed</td><td>{new_run[:8]}</td>" in html
+    assert f"<td>failed</td><td>{old_run[:8]}</td>" not in html

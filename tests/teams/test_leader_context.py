@@ -216,7 +216,7 @@ def test_role_prompt_carries_team_identity_and_members() -> None:
         instructions="先查证再成稿。",
         leader_name="主编",
         leader_prompt="你是主笔。",
-        members=[("研究员", "查资料并给出来源"), ("写作", "成稿")],
+        members=[("研究员", "查资料并给出来源", "researcher"), ("写作", "成稿", "author")],
     )
 
     assert "内容团队" in prompt
@@ -224,6 +224,9 @@ def test_role_prompt_carries_team_identity_and_members() -> None:
     assert "先查证再成稿。" in prompt
     assert "你是主笔。" in prompt
     assert "研究员" in prompt and "查资料并给出来源" in prompt
+    # team_dispatch 只认槽位 id：名册必须把 memberId 原样交给模型，否则只能靠猜。
+    assert "memberId: researcher" in prompt
+    assert "memberId: author" in prompt
 
 
 def test_role_prompt_hands_over_leadership_to_the_team_leader() -> None:
@@ -258,7 +261,7 @@ def test_role_prompt_teaches_delegation_discipline_not_just_a_ban() -> None:
         instructions="",
         leader_name="主编",
         leader_prompt="你是主编。",
-        members=[("研究员", "查资料")],
+        members=[("研究员", "查资料", "researcher")],
     )
 
     assert "team_dispatch" in prompt
@@ -276,7 +279,7 @@ def test_role_prompt_omits_the_leader_line_without_a_name() -> None:
         instructions="",
         leader_name="   ",
         leader_prompt="你是主编。",
-        members=[("研究员", "查资料")],
+        members=[("研究员", "查资料", "researcher")],
     )
 
     assert "「」" not in prompt
@@ -387,7 +390,7 @@ def _leader_context(
             team_revision=revision,
             instructions="先查证再成稿。",
             leader_prompt=f"你是 {team_name} 的主笔。",
-            members=[("研究员", "查资料")],
+            members=[("研究员", "查资料", "researcher")],
         ),
         tool_allow=tool_allow,
         model_id=model_id,

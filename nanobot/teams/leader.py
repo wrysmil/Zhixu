@@ -84,11 +84,13 @@ def render_role_prompt(
     instructions: str,
     leader_name: str = "",
     leader_prompt: str,
-    members: Sequence[tuple[str, str]],
+    members: Sequence[tuple[str, str, str]],
 ) -> str:
     """渲染 Leader 看得见的团队段：主管交接、角色、委派纪律、团队指令与成员。
 
-    ``members`` 是 ``(成员名, 角色)`` 序列。空白的段落整块省略，避免拼出只有标题的空壳；
+    ``members`` 是 ``(成员名, 角色, 槽位 memberId)`` 序列。memberId 必须原样出现：
+    ``team_dispatch`` 只接受冻结名册里的槽位 id，只给名字时模型只能猜，猜错就整批退回。
+    空白的段落整块省略，避免拼出只有标题的空壳；
     修订号必须出现，因为「运行期间团队配置冻结」是用户可感知的承诺。
 
     主管交接行是这个函数存在的理由：档案的 ``leader_prompt`` 早就注入了，但没有一处
@@ -124,12 +126,17 @@ def render_role_prompt(
         parts.append(f"## 团队指令\n{instructions.strip()}")
     if members:
         lines = "\n".join(
-            f"- {name}：{role}" if role.strip() else f"- {name}"
-            for name, role in members
+            f"- {name}（memberId: {member_id}）：{role}" if role.strip()
+            else f"- {name}（memberId: {member_id}）"
+            for name, role, member_id in members
             if name.strip()
         )
         if lines:
-            parts.append(f"## 团队成员\n{lines}\n派活用 team_dispatch；成员那部分工作不替他们做完。")
+            parts.append(
+                f"## 团队成员\n{lines}\n"
+                "派活用 team_dispatch，memberId 只能填上面括号里的值；"
+                "成员那部分工作不替他们做完。"
+            )
     return "\n\n".join(parts)
 
 

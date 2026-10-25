@@ -278,6 +278,46 @@ def test_skill_target_freezes_files_and_missing_skill_fails(
     assert excinfo.value.code == "SKILL_NOT_FOUND"
 
 
+def test_agent_target_freezes_builtin_skill_files(
+    repository: EvaluationRepository, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """选了 builtin 技能的 Agent 档案也能入队：冻结来源必须与 SkillsLoader 同源。"""
+    import json as jsonlib
+
+    from nanobot.agent import skills as skills_mod
+    from nanobot.evaluation.services import EvaluationService
+    from tests.evaluation.conftest import make_run_payload, make_suite_payload
+
+    builtin_root = tmp_path / "builtin-skills"
+    pack = builtin_root / "pack"
+    pack.mkdir(parents=True)
+    (pack / "SKILL.md").write_text("# packed builtin", encoding="utf-8")
+    monkeypatch.setattr(skills_mod, "BUILTIN_SKILLS_DIR", builtin_root)
+
+    ws = _seed_workspace(tmp_path)
+    profile = ws / "agents" / "profiles" / "writer.json"
+    data = jsonlib.loads(profile.read_text(encoding="utf-8"))
+    data["skills"] = {"mode": "include", "entries": ["demo", "pack"]}
+    profile.write_text(jsonlib.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    service = EvaluationService(
+        repository=repository, data_dir=tmp_path, workspace=ws,
+    )
+    suite = repository.create_suite(make_suite_payload())
+    case = repository.save_case(make_case_payload(suite_id=suite["id"]))
+    run = service.create_run(
+        RunCreate.model_validate({
+            **make_run_payload([case["id"]], suite_id=suite["id"],
+                               agent_profile_id="controlled-agent"),
+            "target": {"kind": "agent", "id": "writer"},
+        }),
+        idempotency_key="freeze-builtin", scope="t",
+    )
+    skills = repository.get_run(run["id"])["snapshot"]["target"]["agent"]["skills"]
+    assert skills["skills/pack/SKILL.md"] == "# packed builtin"
+    assert "skills/demo/SKILL.md" in skills
+
+
 # --------------------------------------------------------------------- WU-05 团队 runner
 
 
@@ -313,6 +353,66 @@ async def test_team_target_runs_through_injected_runner(
     assert outcome.result["final_answer"] == "团队结论 alpha"
     assert calls[0]["team_id"] == "creative"
     assert calls[0]["prompt"]
+
+
+async def test_team_target_partial_run_is_submitted_as_succeeded(
+    repository: EvaluationRepository, tmp_path: Path
+) -> None:
+    """团队 ``partial`` 是终结状态：执行按成功提交，停止原因如实保留。"""
+    from nanobot.evaluation.services import EvaluationService
+    from tests.evaluation.conftest import make_run_payload, make_suite_payload
+
+    async def fake_runner(payload: dict) -> dict:
+        return {"status": "partial", "final_answer": "团队结论 alpha", "error": None}
+
+    service = EvaluationService(
+        repository=repository, data_dir=tmp_path, team_runner=fake_runner,
+    )
+    suite = repository.create_suite(make_suite_payload())
+    case = repository.save_case(make_case_payload(suite_id=suite["id"]))
+    run = service.create_run(
+        RunCreate.model_validate({
+            **make_run_payload([case["id"]], suite_id=suite["id"],
+                               agent_profile_id="controlled-agent"),
+            "target": {"kind": "team", "id": "creative"},
+        }),
+        idempotency_key="team-partial", scope="t",
+    )
+    detail = repository.get_run(run["id"])
+    outcome = await service.execute(detail["attempts"][0], run=detail)
+    assert outcome.execution_status == "succeeded"
+    assert outcome.verdict == "passed"
+    assert outcome.result["stop_reason"] == "partial"
+
+
+async def test_team_target_non_terminal_status_fails_instead_of_conflicting(
+    repository: EvaluationRepository, tmp_path: Path
+) -> None:
+    """runner 返回仍 running 时按执行失败收口，不能把非法状态交给 finish_attempt。"""
+    from nanobot.evaluation.services import EvaluationService
+    from tests.evaluation.conftest import make_run_payload, make_suite_payload
+
+    async def fake_runner(payload: dict) -> dict:
+        return {"status": "running", "final_answer": None}
+
+    service = EvaluationService(
+        repository=repository, data_dir=tmp_path, team_runner=fake_runner,
+    )
+    suite = repository.create_suite(make_suite_payload())
+    case = repository.save_case(make_case_payload(suite_id=suite["id"]))
+    run = service.create_run(
+        RunCreate.model_validate({
+            **make_run_payload([case["id"]], suite_id=suite["id"],
+                               agent_profile_id="controlled-agent"),
+            "target": {"kind": "team", "id": "creative"},
+        }),
+        idempotency_key="team-running", scope="t",
+    )
+    detail = repository.get_run(run["id"])
+    outcome = await service.execute(detail["attempts"][0], run=detail)
+    assert outcome.execution_status == "failed"
+    assert outcome.verdict == "failed"
+    assert outcome.result["errors"][0]["code"] == "TEAM_RUN_STATUS_UNEXPECTED"
 
 
 async def test_team_target_without_runner_fails_setup(

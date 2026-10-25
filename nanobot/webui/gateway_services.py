@@ -15,7 +15,7 @@ from loguru import logger as default_logger
 from nanobot.config.loader import get_config_path
 from nanobot.config.loader import load_config as _load_config
 from nanobot.memory.lifecycle import MemoryLifecycle
-from nanobot.teams.binding import TeamBindingStore
+from nanobot.teams.binding import SESSION_TEAM_BINDING_KEY, TeamBindingStore
 from nanobot.teams.runs import TeamRunController
 from nanobot.teams.service import TeamService
 from nanobot.teams.turn import TeamLeaderTurns, build_team_turns, resolve_session_runtime
@@ -493,17 +493,21 @@ def build_team_eval_runner(
     team_service: Any,
     scheduler: Any,
     session_manager: Any | None = None,
+    host: Any | None = None,
 ) -> Any:
     """把评估服务的「团队目标」接到 gateway 已有的团队执行栈（进程内，无独立服务）。
 
     评估侧只认一个回调：给 team_id 与 prompt，拿回 status/final_answer。
-    这里用合成 chat/session 跑一次团队运行，再从会话里取 Leader 的最后一条回答。
+    这里用合成会话跑一次**真实 Leader 回合**，再从会话里取 Leader 的最后一条回答。
+
+    只建运行记录不够：团队运行由 Leader 回合的钩子推进，没有回合就永远停在
+    ``running``，评估只能等到超时。所以先按可见 turn_id 建运行，再借
+    ``process_direct`` 跑同一 turn_id 的回合——注入点会用 ``open_run`` 命中这条运行。
     """
-    import asyncio
-    import time
     import uuid
 
     from nanobot.teams.models import TeamBinding
+    from nanobot.teams.turn import VISIBLE_TURN_ID_METADATA_KEY
 
     async def run(payload: dict[str, Any]) -> dict[str, Any]:
         team_id = str(payload.get("team_id") or "")
@@ -514,12 +518,17 @@ def build_team_eval_runner(
                 "status": "failed", "final_answer": None,
                 "error": f"TEAM_NOT_FOUND:{team_id}",
             }
+        if host is None:
+            return {
+                "status": "failed", "final_answer": None,
+                "error": "TEAM_HOST_UNAVAILABLE",
+            }
         token = uuid.uuid4().hex
         session_key = f"eval:{token}"
+        binding = TeamBinding(
+            team_id=team_id, team_revision=int(team.revision), team_name=str(team.name),
+        )
         try:
-            binding = TeamBinding(
-                team_id=team_id, team_revision=int(team.revision), team_name=str(team.name),
-            )
             handle = await scheduler.start_run(
                 binding=binding,
                 chat_id=session_key,
@@ -529,14 +538,30 @@ def build_team_eval_runner(
             )
         except Exception as exc:  # noqa: BLE001
             return {"status": "failed", "final_answer": None, "error": str(exc)}
-        deadline = time.monotonic() + float(payload.get("timeout_s") or 1800)
-        status = "failed"
-        while time.monotonic() < deadline:
-            snapshot = team_service.repository.get_run(handle.run_id)
-            status = str(getattr(snapshot, "status", "") or "failed")
-            if status in ("completed", "failed", "cancelled"):
-                break
-            await asyncio.sleep(1.0)
+        timeout_s = float(payload.get("timeout_s") or 1800)
+        try:
+            async with asyncio.timeout(timeout_s):
+                await host.process_direct(
+                    str(payload.get("prompt") or ""),
+                    session_key=session_key,
+                    channel="eval",
+                    chat_id=session_key,
+                    sender_id="eval",
+                    extra_metadata={
+                        SESSION_TEAM_BINDING_KEY: binding.to_dict(),
+                        VISIBLE_TURN_ID_METADATA_KEY: token,
+                    },
+                )
+        except TimeoutError:
+            return {
+                "status": "timed_out",
+                "final_answer": _last_assistant_text(session_manager, session_key),
+                "error": f"TEAM_RUN_TIMED_OUT:{timeout_s:g}s",
+            }
+        except Exception as exc:  # noqa: BLE001 - 回合异常按执行失败返回，不冒充完成
+            return {"status": "failed", "final_answer": None, "error": str(exc)}
+        snapshot = team_service.repository.get_run(handle.run_id)
+        status = str(getattr(snapshot, "status", "") or "failed")
         final = _last_assistant_text(session_manager, session_key)
         return {
             "status": "succeeded" if status == "completed" else status,
@@ -798,6 +823,7 @@ def build_gateway_services(
                 team_service=team_service,
                 scheduler=team_turns.scheduler,
                 session_manager=session_manager,
+                host=team_host,
             )
             if team_turns is not None else None
         ),
