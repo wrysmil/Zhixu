@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知序评估运行报告 · bbc4196a-f618-44fb-9d22-f95313b4857f</title>
+<style>
+:root {
+  --bg: #f4f6f8;
+  --paper: #ffffff;
+  --ink: #1f262e;
+  --muted: #78838f;
+  --line: #e3e7ec;
+  --brand: #4b7f6f;
+  --brand-soft: #eaf3ef;
+  --blue-soft: #edf3fa;
+  --purple-soft: #f3eff9;
+  --red: #c05f5c;
+  --radius: 10px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.6;
+  font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.paper {
+  max-width: 1080px;
+  margin: 0 auto;
+  background: var(--paper);
+  padding: 36px 40px 56px;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+h1, h2, h3, p, figure, ul { margin: 0; }
+h1 { font-size: 24px; font-weight: 650; letter-spacing: -0.4px; }
+h2 {
+  font-size: 15px;
+  font-weight: 620;
+  margin: 34px 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+h3 { font-size: 13px; font-weight: 600; margin: 18px 0 8px; }
+.section-number { color: var(--brand); font-variant-numeric: tabular-nums; margin-right: 8px; }
+.report-sub { color: var(--muted); margin-top: 6px; }
+.report-head { padding-bottom: 4px; }
+.muted { color: var(--muted); }
+.empty-state { color: var(--muted); padding: 10px 0; }
+.scope-note { margin-top: 10px; color: var(--muted); }
+.export-summary { font-weight: 600; margin-bottom: 10px; }
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.metric { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.metric-label { color: var(--muted); font-size: 11px; }
+.metric-value { font-size: 22px; font-weight: 600; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+.metric-note { color: var(--muted); font-size: 10.5px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0 16px;
+  font-variant-numeric: tabular-nums;
+}
+caption { caption-side: top; text-align: left; color: var(--muted); padding-bottom: 6px; }
+th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: #f7f9fa; font-weight: 600; font-size: 11.5px; }
+td.num, th.num { text-align: right; }
+td.empty { color: var(--muted); text-align: center; }
+td { word-break: break-word; }
+.kv-table th:first-child { width: 190px; }
+.usage-total td { font-weight: 600; background: #fbfcfd; }
+.flow-case { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+.flowchart { margin: 10px 0 6px; }
+.flowchart figcaption { color: var(--muted); font-size: 11px; margin-bottom: 6px; }
+.flow-svg { max-width: 100%; height: auto; }
+details.aux { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; margin: 10px 0; }
+details.aux summary { cursor: pointer; color: var(--muted); }
+.error-list { margin: 8px 0 4px 18px; }
+@media print {
+  body { background: #ffffff; font-size: 11px; }
+  .paper { max-width: 100%; padding: 0; border: 0; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  h2 { break-after: avoid; }
+  .flow-svg { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+<main class="paper">
+<header class="report-head"><h1>知序评估运行报告 · bbc4196a-f618-44fb-9d22-f95313b4857f</h1><p class="report-sub">自包含离线静态报告 · 无脚本 · 无外部资源</p><table class="kv-table"><thead><tr><th scope="col" class="">项目</th><th scope="col" class="">说明</th></tr></thead><tbody><tr><td class="">运行 ID</td><td class="">bbc4196a-f618-44fb-9d22-f95313b4857f</td></tr><tr><td class="">数据集</td><td class="">基础对话回归 · 普通对话</td></tr><tr><td class="">数据集 ID</td><td class="">943eb08f-8c9c-45fa-8d2b-1fee56312349</td></tr><tr><td class="">运行状态</td><td class="">completed</td></tr><tr><td class="">模型</td><td class="">MiniMax-M3.1-Flash</td></tr><tr><td class="">模式</td><td class="">live</td></tr><tr><td class="">创建时间</td><td class="">2026-10-25T15:01:53.826945+00:00</td></tr><tr><td class="">开始时间</td><td class="">2026-10-25T15:01:53.841902+00:00</td></tr><tr><td class="">结束时间</td><td class="">2026-10-25T15:01:58.819878+00:00</td></tr><tr><td class="">生成时间</td><td class="">2026-10-25T15:07:26.686274+00:00</td></tr></tbody></table></header>
+<section class="report-section" id="section-scope"><h2><span class="section-number">01</span> 报告范围</h2><table class="kv-table"><thead><tr><th scope="col" class="">项目</th><th scope="col" class="">说明</th></tr></thead><tbody><tr><td class="">数据集</td><td class="">基础对话回归 · 普通对话</td></tr><tr><td class="">运行 ID</td><td class="">bbc4196a-f618-44fb-9d22-f95313b4857f</td></tr><tr><td class="">用例数</td><td class="">3</td></tr><tr><td class="">已结束用例数</td><td class="">3</td></tr><tr><td class="">工具调用数</td><td class="">1</td></tr><tr><td class="">计划用例数</td><td class="">3</td></tr></tbody></table><p class="scope-note">本报告仅覆盖运行 bbc4196a-f618-44fb-9d22-f95313b4857f 的 3 个用例与 1 次工具调用；数据集历史记录不在本报告范围内，报告内任何单个用例的调用数都不代表整轮规模。</p></section>
+<section class="report-section" id="section-metrics"><h2><span class="section-number">02</span> 摘要指标</h2><div class="metric-grid"><div class="metric" data-metric="total_cases"><div class="metric-label">总用例数</div><div class="metric-value">3</div><div class="metric-note">本次运行记录的用例</div></div><div class="metric" data-metric="passed"><div class="metric-label">通过</div><div class="metric-value">3</div><div class="metric-note">verdict = passed</div></div><div class="metric" data-metric="failed"><div class="metric-label">失败</div><div class="metric-value">0</div><div class="metric-note">verdict = failed</div></div><div class="metric" data-metric="review_required"><div class="metric-label">待复核</div><div class="metric-value">0</div><div class="metric-note">verdict = review_required</div></div><div class="metric" data-metric="not_evaluated"><div class="metric-label">未评测</div><div class="metric-value">0</div><div class="metric-note">未评测或结论缺失</div></div><div class="metric" data-metric="pass_rate"><div class="metric-label">通过率</div><div class="metric-value">1.0%</div><div class="metric-note">通过 ÷（通过 + 失败）</div></div><div class="metric" data-metric="unique_agents"><div class="metric-label">唯一执行智能体数</div><div class="metric-value">1</div><div class="metric-note">按 agent_id 去重</div></div><div class="metric" data-metric="tool_calls"><div class="metric-label">工具调用数</div><div class="metric-value">1</div><div class="metric-note">按 call_id 去重</div></div><div class="metric" data-metric="physical_requests"><div class="metric-label">物理请求数</div><div class="metric-value">4</div><div class="metric-note">整轮唯一物理请求主账本</div></div><div class="metric" data-metric="token_total"><div class="metric-label">Token 合计</div><div class="metric-value">13,232</div><div class="metric-note">输入 + 输出，未知显示 —</div></div><div class="metric" data-metric="agent_tokens"><div class="metric-label">Agent Token 合计</div><div class="metric-value">13,232</div><div class="metric-note">按 role = agent 分账</div></div><div class="metric" data-metric="judge_tokens"><div class="metric-label">Judge Token 合计</div><div class="metric-value">—</div><div class="metric-note">按 role = judge 分账</div></div></div></section>
+<section class="report-section" id="section-agents"><h2><span class="section-number">03</span> 参与智能体</h2><table class="agent-table"><thead><tr><th scope="col" class="">智能体</th><th scope="col" class="">agent_id</th><th scope="col" class="num">执行次数</th><th scope="col" class="">父执行</th><th scope="col" class="">模型</th><th scope="col" class="">角色</th><th scope="col" class="num">工具调用</th><th scope="col" class="num">物理请求</th><th scope="col" class="num">合计 Token</th><th scope="col" class="">覆盖</th></tr></thead><tbody><tr><td class="">general-assistant</td><td class="">general-assistant</td><td class="num">3</td><td class="">—</td><td class="">MiniMax-M3.1-Flash</td><td class="">agent</td><td class="num">1</td><td class="num">4</td><td class="num">13,232</td><td class="">complete</td></tr></tbody></table></section>
+<section class="report-section" id="section-usage"><h2><span class="section-number">04</span> Token 分账</h2><table class="usage-table"><thead><tr><th scope="col" class="">维度键</th><th scope="col" class="">角色</th><th scope="col" class="">智能体</th><th scope="col" class="">提供方</th><th scope="col" class="">模型</th><th scope="col" class="num">输入 Token</th><th scope="col" class="num">输出 Token</th><th scope="col" class="num">合计 Token</th><th scope="col" class="num">物理请求</th><th scope="col" class="num">缺失用量调用</th><th scope="col" class="">来源</th><th scope="col" class="">覆盖</th></tr></thead><tbody><tr><td class="">general-assistant</td><td class="">agent</td><td class="">general-assistant</td><td class="">custom-minmax</td><td class="">MiniMax-M3.1-Flash</td><td class="num">13,137</td><td class="num">95</td><td class="num">13,232</td><td class="num">4</td><td class="num">0</td><td class="">reported</td><td class="">complete</td></tr></tbody></table><table class="usage-table usage-total"><thead><tr><th scope="col" class="">维度键</th><th scope="col" class="">角色</th><th scope="col" class="">智能体</th><th scope="col" class="">提供方</th><th scope="col" class="">模型</th><th scope="col" class="num">输入 Token</th><th scope="col" class="num">输出 Token</th><th scope="col" class="num">合计 Token</th><th scope="col" class="num">物理请求</th><th scope="col" class="num">缺失用量调用</th><th scope="col" class="">来源</th><th scope="col" class="">覆盖</th></tr></thead><tbody><tr><td class="">合计</td><td class="">—</td><td class="">—</td><td class="">—</td><td class="">—</td><td class="num">13,137</td><td class="num">95</td><td class="num">13,232</td><td class="num">4</td><td class="num">0</td><td class="">—</td><td class="">—</td></tr></tbody></table></section>
+<section class="report-section" id="section-attempts"><h2><span class="section-number">05</span> 用例结果</h2><table class="attempt-table"><thead><tr><th scope="col" class="">用例名</th><th scope="col" class="">case_id</th><th scope="col" class="num">revision</th><th scope="col" class="">执行状态</th><th scope="col" class="">判分状态</th><th scope="col" class="">结论</th><th scope="col" class="num">错误数</th><th scope="col" class="num">耗时</th></tr></thead><tbody><tr><td class="">读取固定标识</td><td class="">389968f1-baf4-4c3b-bc6c-3fd555c1627d</td><td class="num">1</td><td class="">succeeded</td><td class="">completed</td><td class="">passed</td><td class="num">0</td><td class="num">—</td></tr><tr><td class="">算术与排除</td><td class="">67474429-6ca4-4224-adc2-95075bbcc6f4</td><td class="num">1</td><td class="">succeeded</td><td class="">completed</td><td class="">passed</td><td class="num">0</td><td class="num">—</td></tr><tr><td class="">固定口令复述</td><td class="">5a61a48d-d2b0-49d0-b5c8-3601ffc00f94</td><td class="num">1</td><td class="">succeeded</td><td class="">completed</td><td class="">passed</td><td class="num">0</td><td class="num">—</td></tr></tbody></table><details class="aux"><summary>用例 1 的判分摘要与错误明细（读取固定标识）</summary><table class="kv-table"><thead><tr><th scope="col" class="">项目</th><th scope="col" class="">说明</th></tr></thead><tbody><tr><td class="">模型</td><td class="">—</td></tr><tr><td class="">状态</td><td class="">—</td></tr><tr><td class="">评分</td><td class="">—</td></tr><tr><td class="">校准</td><td class="">—</td></tr></tbody></table><p class="muted">无错误记录</p></details><details class="aux"><summary>用例 2 的判分摘要与错误明细（算术与排除）</summary><table class="kv-table"><thead><tr><th scope="col" class="">项目</th><th scope="col" class="">说明</th></tr></thead><tbody><tr><td class="">模型</td><td class="">—</td></tr><tr><td class="">状态</td><td class="">—</td></tr><tr><td class="">评分</td><td class="">—</td></tr><tr><td class="">校准</td><td class="">—</td></tr></tbody></table><p class="muted">无错误记录</p></details><details class="aux"><summary>用例 3 的判分摘要与错误明细（固定口令复述）</summary><table class="kv-table"><thead><tr><th scope="col" class="">项目</th><th scope="col" class="">说明</th></tr></thead><tbody><tr><td class="">模型</td><td class="">—</td></tr><tr><td class="">状态</td><td class="">—</td></tr><tr><td class="">评分</td><td class="">—</td></tr><tr><td class="">校准</td><td class="">—</td></tr></tbody></table><p class="muted">无错误记录</p></details></section>
+<section class="report-section" id="section-flowcharts"><h2><span class="section-number">06</span> 执行流程图</h2><article class="flow-case"><h3>用例 1 · 读取固定标识</h3><p class="muted">用例 ID：f4af41b0-8469-4261-b1cb-bcbf45d6fafe · case_id：389968f1-baf4-4c3b-bc6c-3fd555c1627d</p><figure class="flowchart"><figcaption>节点 4 · 工具节点 1 · 完整渲染</figcaption><svg class="flow-svg" viewBox="0 0 398 258" width="398" height="258" role="img" aria-label="用例执行流程静态图"><rect x="0" y="0" width="398" height="258" rx="10" fill="#fbfcfd" stroke="#e3e7ec" /><path d="M 190.0 45.0 C 104.0 45.0, 104.0 129.0, 18.0 129.0" fill="none" stroke="#c3cad2" stroke-width="1.2" /><path d="M 190.0 45.0 C 199.0 45.0, 199.0 129.0, 208.0 129.0" fill="none" stroke="#c3cad2" stroke-width="1.2" /><path d="M 190.0 45.0 C 104.0 45.0, 104.0 213.0, 18.0 213.0" fill="none" stroke="#c3cad2" stroke-width="1.2" /><path d="M 190.0 45.0 C 104.0 45.0, 104.0 129.0, 18.0 129.0" fill="none" stroke="#c3cad2" stroke-width="1.2" /><path d="M 190.0 129.0 C 199.0 129.0, 199.0 129.0, 208.0 129.0" fill="none" stroke="#c3cad2" stroke-width="1.2" /><path d="M 208.0 129.0 C 199.0 129.0, 199.0 213.0, 190.0 213.0" fill="none" stroke="#c3cad2" stroke-width="1.2" /><g class="flow-node"><rect x="18.0" y="18.0" width="172" height="54" rx="8" fill="#eaf3ef" stroke="#4b7f6f" stroke-width="1.1" /><circle cx="32.0" cy="35.0" r="4" fill="#b0b7bf" /><text x="43.0" y="39.0" font-size="12" font-weight="600" fill="#1f262e">general-assista…</text><text x="30.0" y="58.0" font-size="10.5" fill="#78838f">智能体 · unknown</text></g><g class="flow-node"><rect x="18.0" y="102.0" width="172" height="54" rx="8" fill="#edf3fa" stroke="#4f7cb4" stroke-width="1.1" /><circle cx="32.0" cy="119.0" r="4" fill="#4b7f6f" /><text x="43.0" y="123.0" font-size="12" font-weight="600" fill="#1f262e">MiniMax-M3.1-Fl…</text><text x="30.0" y="142.0" font-size="10.5" fill="#78838f">模型 · succeeded · 2120 ms</text></g><g class="flow-node"><rect x="208.0" y="102.0" width="172" height="54" rx="8" fill="#edf3fa" stroke="#4f7cb4" stroke-width="1.1" /><circle cx="222.0" cy="119.0" r="4" fill="#4b7f6f" /><text x="233.0" y="123.0" font-size="12" font-weight="600" fill="#1f262e">MiniMax-M3.1-Fl…</text><text x="220.0" y="142.0" font-size="10.5" fill="#78838f">模型 · succeeded · 839 ms</text></g><g class="flow-node"><rect x="18.0" y="186.0" width="172" height="54" rx="8" fill="#f3eff9" stroke="#8a72b5" stroke-width="1.1" /><circle cx="32.0" cy="203.0" r="4" fill="#4b7f6f" /><text x="43.0" y="207.0" font-size="12" font-weight="600" fill="#1f262e">read_file</text><text x="30.0" y="226.0" font-size="10.5" fill="#78838f">工具 · succeeded · 3 ms</text></g></svg></figure><p class="muted">覆盖：trace complete · identity complete · usage complete</p></article><article class="flow-case"><h3>用例 2 · 算术与排除</h3><p class="muted">用例 ID：4a4c228c-d025-4223-a613-f4e19b956ce4 · case_id：67474429-6ca4-4224-adc2-95075bbcc6f4</p><figure class="flowchart"><figcaption>节点 2 · 工具节点 0 · 完整渲染</figcaption><svg class="flow-svg" viewBox="0 0 208 174" width="208" height="174" role="img" aria-label="用例执行流程静态图"><rect x="0" y="0" width="208" height="174" rx="10" fill="#fbfcfd" stroke="#e3e7ec" /><path d="M 190.0 45.0 C 104.0 45.0, 104.0 129.0, 18.0 129.0" fill="none" stroke="#c3cad2" stroke-width="1.2" /><path d="M 190.0 45.0 C 104.0 45.0, 104.0 129.0, 18.0 129.0" fill="none" stroke="#c3cad2" stroke-width="1.2" /><g class="flow-node"><rect x="18.0" y="18.0" width="172" height="54" rx="8" fill="#eaf3ef" stroke="#4b7f6f" stroke-width="1.1" /><circle cx="32.0" cy="35.0" r="4" fill="#b0b7bf" /><text x="43.0" y="39.0" font-size="12" font-weight="600" fill="#1f262e">general-assista…</text><text x="30.0" y="58.0" font-size="10.5" fill="#78838f">智能体 · unknown</text></g><g class="flow-node"><rect x="18.0" y="102.0" width="172" height="54" rx="8" fill="#edf3fa" stroke="#4f7cb4" stroke-width="1.1" /><circle cx="32.0" cy="119.0" r="4" fill="#4b7f6f" /><text x="43.0" y="123.0" font-size="12" font-weight="600" fill="#1f262e">MiniMax-M3.1-Fl…</text><text x="30.0" y="142.0" font-size="10.5" fill="#78838f">模型 · succeeded · 2367 ms</text></g></svg></figure><p class="muted">覆盖：trace complete · identity complete · usage complete</p></article><article class="flow-case"><h3>用例 3 · 固定口令复述</h3><p class="muted">用例 ID：d8c62e11-2d5c-4e0e-bfaa-a33bbc312491 · case_id：5a61a48d-d2b0-49d0-b5c8-3601ffc00f94</p><figure class="flowchart"><figcaption>节点 2 · 工具节点 0 · 完整渲染</figcaption><svg class="flow-svg" viewBox="0 0 208 174" width="208" height="174" role="img" aria-label="用例执行流程静态图"><rect x="0" y="0" width="208" height="174" rx="10" fill="#fbfcfd" stroke="#e3e7ec" /><path d="M 190.0 45.0 C 104.0 45.0, 104.0 129.0, 18.0 129.0" fill="none" stroke="#c3cad2" stroke-width="1.2" /><path d="M 190.0 45.0 C 104.0 45.0, 104.0 129.0, 18.0 129.0" fill="none" stroke="#c3cad2" stroke-width="1.2" /><g class="flow-node"><rect x="18.0" y="18.0" width="172" height="54" rx="8" fill="#eaf3ef" stroke="#4b7f6f" stroke-width="1.1" /><circle cx="32.0" cy="35.0" r="4" fill="#b0b7bf" /><text x="43.0" y="39.0" font-size="12" font-weight="600" fill="#1f262e">general-assista…</text><text x="30.0" y="58.0" font-size="10.5" fill="#78838f">智能体 · unknown</text></g><g class="flow-node"><rect x="18.0" y="102.0" width="172" height="54" rx="8" fill="#edf3fa" stroke="#4f7cb4" stroke-width="1.1" /><circle cx="32.0" cy="119.0" r="4" fill="#4b7f6f" /><text x="43.0" y="123.0" font-size="12" font-weight="600" fill="#1f262e">MiniMax-M3.1-Fl…</text><text x="30.0" y="142.0" font-size="10.5" fill="#78838f">模型 · succeeded · 3669 ms</text></g></svg></figure><p class="muted">覆盖：trace complete · identity complete · usage complete</p></article></section>
+<section class="report-section" id="section-tool-groups"><h2><span class="section-number">07</span> 工具分组概览</h2><table class="tool-group-table"><thead><tr><th scope="col" class="">用例</th><th scope="col" class="">execution</th><th scope="col" class="">阶段</th><th scope="col" class="">工具名</th><th scope="col" class="num">数量</th><th scope="col" class="num">成功</th><th scope="col" class="num">失败</th><th scope="col" class="num">运行中</th><th scope="col" class="num">已取消</th><th scope="col" class="num">未知</th><th scope="col" class="num">耗时</th></tr></thead><tbody><tr><td class="">f4af41b0-8469-4261-b1cb-bcbf45d6fafe</td><td class="">acb10cde-a0a9-4e69-8d4b-c4a6cdb53ad6</td><td class="">turn-1:iteration-0</td><td class="">read_file</td><td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">3 ms</td></tr></tbody></table></section>
+<section class="report-section" id="section-abnormal"><h2><span class="section-number">08</span> 异常调用</h2><p class="muted">异常调用共 0 条（failed / cancelled / unknown），明细不因分组而隐藏。</p><table class="abnormal-table"><thead><tr><th scope="col" class="">call_id</th><th scope="col" class="">用例</th><th scope="col" class="">execution</th><th scope="col" class="">阶段</th><th scope="col" class="">工具名</th><th scope="col" class="">智能体</th><th scope="col" class="">状态</th><th scope="col" class="num">耗时</th><th scope="col" class="">错误</th></tr></thead><tbody><tr><td class="empty" colspan="9">暂无数据</td></tr></tbody></table></section>
+<section class="report-section" id="section-tool-calls"><h2><span class="section-number">09</span> 全量工具调用</h2><p class="export-summary">已导出 1 / 总 1 次工具调用，本次导出无截断。</p><h3 class="segment-title">第 1 / 1 段 · 本段第 1–1 行 · 每表最多 200 行</h3><table class="tool-table"><thead><tr><th scope="col" class="num">#</th><th scope="col" class="">call_id</th><th scope="col" class="">用例</th><th scope="col" class="">execution</th><th scope="col" class="">阶段</th><th scope="col" class="">工具名</th><th scope="col" class="">智能体</th><th scope="col" class="">状态</th><th scope="col" class="num">耗时</th><th scope="col" class="">参数摘要</th><th scope="col" class="">结果摘要</th><th scope="col" class="">错误</th></tr></thead><tbody><tr><td class="num">1</td><td class="">acb10cde-a0a9-4e69-8d4b-c4a6cdb53ad6:call_01a173952566736d8872111f</td><td class="">f4af41b0-8469-4261-b1cb-bcbf45d6fafe</td><td class="">acb10cde-a0a9-4e69-8d4b-c4a6cdb53ad6</td><td class="">turn-1:iteration-0</td><td class="">read_file</td><td class="">general-assistant</td><td class="">succeeded</td><td class="num">3 ms</td><td class="">{&quot;path&quot;: &quot;input.txt&quot;}</td><td class="">1| ALPHA-42
+
+(End of file — 1 lines total)</td><td class="">—</td></tr></tbody></table></section>
+<section class="report-section" id="section-methodology"><h2><span class="section-number">10</span> 口径说明</h2><table class="kv-table"><thead><tr><th scope="col" class="">项目</th><th scope="col" class="">说明</th></tr></thead><tbody><tr><td class="">范围边界</td><td class="">本报告只描述单次运行 bbc4196a-f618-44fb-9d22-f95313b4857f；数据集历史记录、跨运行对比与历史失败统计不在本报告范围内。</td></tr><tr><td class="">用例口径</td><td class="">本次运行记录 3 个用例：通过 3、失败 0、待复核 0、未评测 0。</td></tr><tr><td class="">未知与零</td><td class="">“—”表示未知、未采集或不可归因；真实为零的数字显示“0”。未知用量绝不用 0 代替，缺失的耗时不会被当作 0 毫秒。</td></tr><tr><td class="">覆盖与缺失</td><td class="">Trace 覆盖：complete；用量覆盖：complete。覆盖不完整时，异常计数与耗时里的未知部分不会补零。</td></tr><tr><td class="">工具调用计数</td><td class="">按 call_id 去重计数，started/completed 事件合并为一次调用；分组键为 execution × 阶段 × 工具名，跨用例、跨执行、跨阶段的同名工具不合并。</td></tr><tr><td class="">流程图口径</td><td class="">工具节点超过 40 个时流程图按分组渲染（不逐条铺开），可见节点上限 80 个；超出部分在明细表与分组概览中可查。</td></tr><tr><td class="">Token 分账</td><td class="">Agent 合计 13,232，Judge 合计 —；Agent 与 Judge 不共享去重桶，重放同一 model_call_id 不重复计数。</td></tr><tr><td class="">未归属 Token</td><td class="">来源为 unavailable 的账本行合计 — Token；缺失用量调用 0 次（未归属的调用不摊派到任何智能体）。</td></tr><tr><td class="">导出完整性</td><td class="">已导出 1 / 总 1 次工具调用（指逐次调用明细表）；单表最多 200 行，整轮导出上限 10000 行。本次导出未被截断。</td></tr><tr><td class="">聚合与明细的关系</td><td class="">工具分组概览与异常调用表按全部可用调用统计，逐次调用明细表按导出预算截断；两者口径不同，不可互相替代。</td></tr><tr><td class="">离线阅读</td><td class="">报告是自包含静态 HTML：无脚本、无外链、无 CDN、无远程字体，流程图为原生静态 SVG，离线可直接打开与打印。</td></tr></tbody></table></section>
+</main>
+</body>
+</html>
