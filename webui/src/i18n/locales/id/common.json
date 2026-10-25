@@ -535,7 +535,9 @@
         "cancelled": "Cancelled",
         "interrupted": "Interrupted",
         "cancelling": "Cancelling",
-        "timedOut": "Timed out"
+        "timedOut": "Timed out",
+        "succeeded": "Succeeded",
+        "setupError": "Setup error"
       },
       "error": {
         "offline": "Evaluation service offline",

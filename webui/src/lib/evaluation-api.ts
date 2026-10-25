@@ -98,6 +98,68 @@ export type Attempt = {
   reviews: Array<Record<string, unknown>>;
 };
 
+/** 列表接口 /runs/{id}/attempts 返回轻量结构：errors/final_answer 等在 result 里，
+ * 与详情接口 /attempts/{id} 的完整 AttemptRead 不同；归一化成 Attempt 供 UI 消费。 */
+type AttemptListItem = Omit<
+  Attempt,
+  | "final_answer"
+  | "stop_reason"
+  | "errors"
+  | "assertions"
+  | "judge"
+  | "usage"
+  | "timing"
+  | "trace_complete"
+  | "artifacts"
+  | "reviews"
+> &
+  Partial<
+    Pick<
+      Attempt,
+      | "final_answer"
+      | "stop_reason"
+      | "errors"
+      | "assertions"
+      | "judge"
+      | "usage"
+      | "timing"
+      | "trace_complete"
+      | "artifacts"
+      | "reviews"
+    >
+  > & {
+    result?: Partial<
+    Pick<
+      Attempt,
+      | "final_answer"
+      | "stop_reason"
+      | "errors"
+      | "assertions"
+      | "judge"
+      | "usage"
+      | "timing"
+      | "trace_complete"
+    >
+  > | null;
+};
+
+function normalizeAttempt(item: AttemptListItem): Attempt {
+  const result = item.result ?? {};
+  return {
+    ...item,
+    final_answer: item.final_answer ?? result.final_answer ?? null,
+    stop_reason: item.stop_reason ?? result.stop_reason ?? null,
+    errors: item.errors ?? result.errors ?? [],
+    assertions: item.assertions ?? result.assertions ?? [],
+    judge: item.judge ?? result.judge ?? null,
+    usage: item.usage ?? result.usage ?? null,
+    timing: item.timing ?? result.timing ?? null,
+    trace_complete: item.trace_complete ?? result.trace_complete ?? false,
+    artifacts: item.artifacts ?? [],
+    reviews: item.reviews ?? [],
+  };
+}
+
 export type TraceEvent = {
   schema_version: 1;
   attempt_id: string;
@@ -345,7 +407,9 @@ export const evaluationApi = {
   },
 
   listAttempts(runId: string): Promise<{ data: Attempt[] }> {
-    return request<{ data: Attempt[] }>(`/runs/${encodeURIComponent(runId)}/attempts`);
+    return request<{ data: AttemptListItem[] }>(
+      `/runs/${encodeURIComponent(runId)}/attempts`,
+    ).then((page) => ({ data: page.data.map(normalizeAttempt) }));
   },
 
   getAttempt(id: string): Promise<Attempt> {

@@ -535,7 +535,9 @@
         "cancelled": "已取消",
         "interrupted": "已中斷",
         "cancelling": "取消中",
-        "timedOut": "已逾時"
+        "timedOut": "已逾時",
+        "succeeded": "執行成功",
+        "setupError": "初始化失敗"
       },
       "error": {
         "offline": "評估服務離線",
