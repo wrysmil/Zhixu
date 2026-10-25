@@ -239,3 +239,21 @@ def test_garbled_line_marks_trace_incomplete(trace_dir: Path) -> None:
 def test_unsealed_trace_is_reported_as_not_sealed(collector: TraceCollector, trace_dir: Path) -> None:
     collector.append(make_event(collector, 1))
     assert read_trace(trace_dir).sealed is False
+
+
+def test_legacy_event_without_execution_identity_remains_valid() -> None:
+    event = TraceEvent.model_validate(
+        {
+            "schema_version": 1,
+            "attempt_id": str(uuid.uuid4()),
+            "seq": 1,
+            "event_id": str(uuid.uuid4()),
+            "type": "model.call_completed",
+            "ts": "2026-10-15T10:00:00+00:00",
+            "elapsed_ms": 5,
+            "payload": {"role": "agent", "scope": "main"},
+        }
+    )
+
+    assert event.call_id is None
+    assert "execution_id" not in event.payload

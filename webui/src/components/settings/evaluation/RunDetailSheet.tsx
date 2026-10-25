@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ObservabilityTabs } from "@/components/settings/evaluation/ObservabilityTabs";
 import {
   EvaluationStatusBadge,
-  evaluationStatusKey,
 } from "@/components/settings/evaluation/evaluation-status";
 import {
   evaluationErrorText,
@@ -17,7 +17,6 @@ import {
   type Attempt,
   type Run,
   type RunSummary,
-  type TraceEvent,
 } from "@/lib/evaluation-api";
 
 export function RunDetailSheet({ run, onClose }: { run: RunSummary; onClose: () => void }) {
@@ -27,15 +26,11 @@ export function RunDetailSheet({ run, onClose }: { run: RunSummary; onClose: () 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [traces, setTraces] = useState<Record<string, TraceEvent[]>>({});
-  const [traceMore, setTraceMore] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let cancelled = false;
     setFull(null);
     setAttempts([]);
-    setTraces({});
-    setTraceMore({});
     setLoadError(null);
     setActionError(null);
     void (async () => {
@@ -55,24 +50,6 @@ export function RunDetailSheet({ run, onClose }: { run: RunSummary; onClose: () 
       cancelled = true;
     };
   }, [run.id, t]);
-
-  const loadTrace = async (attemptId: string, afterSeq = 0) => {
-    try {
-      const page = await evaluationApi.getTrace(attemptId, afterSeq, 200);
-      setTraces((prev) => ({
-        ...prev,
-        [attemptId]:
-          afterSeq === 0 ? page.data : [...(prev[attemptId] ?? []), ...page.data],
-      }));
-      setTraceMore((prev) => ({
-        ...prev,
-        [attemptId]: page.has_more ? page.next_after_seq : 0,
-      }));
-      setActionError(null);
-    } catch (error) {
-      setActionError(evaluationErrorText(error, t));
-    }
-  };
 
   const runAction = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -104,7 +81,7 @@ export function RunDetailSheet({ run, onClose }: { run: RunSummary; onClose: () 
         if (!next) onClose();
       }}
     >
-      <SheetContent className="overflow-y-auto sm:max-w-md">
+      <SheetContent className="overflow-y-auto sm:max-w-4xl">
         <div className="space-y-4 pr-8">
           <div className="space-y-1">
             <SheetTitle className="text-base font-semibold">{run.suite_name}</SheetTitle>
@@ -138,6 +115,16 @@ export function RunDetailSheet({ run, onClose }: { run: RunSummary; onClose: () 
               onClick={() => void runAction(() => evaluationApi.downloadRunExport(run.id, "csv"))}
             >
               {t("settings.evaluation.detail.exportCsv")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              title={t("settings.evaluation.observability.exportReportHint")}
+              onClick={() => void runAction(() => evaluationApi.downloadRunReport(run.id))}
+            >
+              {t("settings.evaluation.observability.exportReport")}
             </Button>
             <Button
               type="button"
@@ -198,75 +185,7 @@ export function RunDetailSheet({ run, onClose }: { run: RunSummary; onClose: () 
             </div>
           ) : null}
 
-          <div className="space-y-3">
-            <h3 className="text-[13px] font-medium text-foreground">
-              {t("settings.evaluation.detail.attempts")}
-            </h3>
-            {attempts.length === 0 && !loadError ? (
-              <p className="text-[12px] text-muted-foreground">
-                {t("settings.evaluation.detail.noAttempts")}
-              </p>
-            ) : null}
-            {attempts.map((attempt) => (
-              <div
-                key={attempt.id}
-                className="space-y-2 rounded-floating border border-border/60 bg-settings-surface p-3"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[13px] font-medium text-foreground">{attempt.case_name}</span>
-                  <EvaluationStatusBadge status={attempt.verdict} kind="verdict" />
-                  <span className="text-[11px] text-muted-foreground">
-                    {t(`settings.evaluation.status.${evaluationStatusKey(attempt.execution_status)}`, {
-                      defaultValue: attempt.execution_status,
-                    })}
-                  </span>
-                  {attempt.errors.length > 0 ? (
-                    <span className="text-[11px] text-destructive">
-                      {t("settings.evaluation.detail.errors")}: {attempt.errors.length}
-                    </span>
-                  ) : null}
-                </div>
-                {attempt.final_answer ? (
-                  <p className="line-clamp-2 text-[12px] text-muted-foreground">
-                    {attempt.final_answer}
-                  </p>
-                ) : null}
-                {traces[attempt.id] ? (
-                  <ol className="space-y-1 rounded-control bg-muted/40 p-2 font-mono text-[11px] text-muted-foreground">
-                    {traces[attempt.id].map((event) => (
-                      <li key={event.event_id} className="flex gap-2">
-                        <span>{event.seq}</span>
-                        <span className="text-foreground">{event.type}</span>
-                        {event.payload ? (
-                          <span className="truncate">{JSON.stringify(event.payload)}</span>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ol>
-                ) : null}
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void loadTrace(attempt.id)}
-                  >
-                    {t("settings.evaluation.detail.loadTrace")}
-                  </Button>
-                  {traceMore[attempt.id] ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void loadTrace(attempt.id, traceMore[attempt.id])}
-                    >
-                      {t("settings.evaluation.detail.loadMore")}
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
+          <ObservabilityTabs runId={run.id} attempts={attempts} />
         </div>
       </SheetContent>
     </Sheet>

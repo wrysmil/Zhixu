@@ -129,6 +129,50 @@ def test_agent_and_judge_ledgers_do_not_double_count() -> None:
     assert usage["judge"].input_tokens == 700
 
 
+def test_stable_model_call_id_deduplicates_within_role_only() -> None:
+    ledger = UsageLedger()
+    record = call_record(input_tokens=100, output_tokens=10)
+
+    ledger.record(record, role="agent", scope="main", model_call_id="model-call-1")
+    ledger.record(record, role="agent", scope="main", model_call_id="model-call-1")
+    ledger.record(record, role="judge", scope="main", model_call_id="model-call-1")
+
+    assert ledger.aggregate("agent", iterations=1).physical_requests == 1
+    assert ledger.aggregate("judge", iterations=1).physical_requests == 1
+    assert [call.model_call_id for call in ledger.physical_calls("agent")] == [
+        "model-call-1"
+    ]
+
+
+def test_physical_call_keeps_optional_execution_identity_without_guessing() -> None:
+    ledger = UsageLedger()
+    ledger.record(
+        call_record(),
+        role="agent",
+        scope="auxiliary",
+        model_call_id="model-call-child",
+        agent_id="researcher",
+        agent_name="Researcher",
+        execution_id="exec-child",
+        parent_execution_id="exec-root",
+    )
+    ledger.record(
+        call_record(),
+        role="agent",
+        scope="main",
+        model_call_id="model-call-legacy",
+    )
+
+    child, legacy = ledger.physical_calls("agent")
+    assert child.agent_id == "researcher"
+    assert child.agent_name == "Researcher"
+    assert child.execution_id == "exec-child"
+    assert child.parent_execution_id == "exec-root"
+    assert legacy.agent_id is None
+    assert legacy.execution_id is None
+    assert legacy.parent_execution_id is None
+
+
 def test_auxiliary_scope_is_tracked_separately() -> None:
     ledger = UsageLedger()
     ledger.record(call_record(input_tokens=100, output_tokens=10), role="agent", scope="main")

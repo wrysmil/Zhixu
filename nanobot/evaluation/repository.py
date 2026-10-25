@@ -788,6 +788,7 @@ class EvaluationRepository:
         verdict: str | None = None,
         execution_status: str | None = None,
         grading_status: str | None = None,
+        include_snapshot: bool = False,
     ) -> list[dict[str, Any]]:
         where = ["a.run_id = :run_id"]
         params: dict[str, Any] = {"run_id": run_id}
@@ -818,8 +819,23 @@ class EvaluationRepository:
             # 用例名取自冻结快照：运行中途改名也不该让历史报告换名字。
             snapshot = _load(attempt.pop("case_snapshot_json"), {})
             attempt["case_name"] = str(snapshot.get("name") or "")
+            if include_snapshot:
+                attempt["case_snapshot"] = snapshot
             listed.append(attempt)
         return listed
+
+    def count_runs(self, *, suite_id: str | None = None) -> int:
+        """统计未软删运行；HTML 报告用它显式披露历史选择上限。"""
+        where = ["is_deleted = 0"]
+        params: list[Any] = []
+        if suite_id is not None:
+            where.append("suite_id = ?")
+            params.append(suite_id)
+        with self._db.connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM runs WHERE " + " AND ".join(where), params
+            ).fetchone()
+        return int(row[0])
 
     def get_artifact(self, artifact_id: str) -> dict[str, Any]:
         """按 artifact id 取登记行；下载只认这一行给出的 attempt 归属，不解析任意 path。"""

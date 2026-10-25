@@ -30,10 +30,22 @@ SCOPES: frozenset[str] = frozenset({"main", "auxiliary", "unknown"})
 
 
 @dataclass(frozen=True, slots=True)
-class _Call:
+class PhysicalModelCall:
+    """一次可去重的物理模型请求及其显式执行归属。
+
+    归属字段只接受调用方实际提供的值；历史记录与未接入执行上下文的调用保持 ``None``。
+    ``source`` 仍在 ``record`` 内表示 user/api/cron/dream/system，不与 Token 来源混用。
+    """
+
     record: LLMCallRecord
     role: str
     scope: str
+    model_call_id: str | None = None
+    retry_of_call_id: str | None = None
+    agent_id: str | None = None
+    agent_name: str | None = None
+    execution_id: str | None = None
+    parent_execution_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,24 +92,64 @@ class UsageLedger:
     """按 role/scope 累积物理调用并派生契约 §4 的 ``UsageAggregate``。"""
 
     def __init__(self) -> None:
-        self._calls: list[_Call] = []
+        self._calls: list[PhysicalModelCall] = []
+        self._seen_model_call_ids: set[tuple[str, str]] = set()
         self._gaps: dict[str, list[str]] = {"agent": [], "judge": []}
         self.observer_errors: list[str] = []
 
     # ------------------------------------------------------------------ 写入
 
-    def _append(self, call: _Call) -> None:
+    def _append(self, call: PhysicalModelCall) -> None:
         """账本唯一的可变写入点；坏对象必须在这里失败，好让 observer 留下 sticky 痕迹。"""
-        if not isinstance(call.record, LLMCallRecord):
+        if not isinstance(call.record, LLMCallRecord):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError(f"USAGE_RECORD_INVALID: {type(call.record).__name__}")
         self._calls.append(call)
 
     def record(
-        self, record: LLMCallRecord, *, role: str, scope: str = "main"
-    ) -> None:
+        self,
+        record: LLMCallRecord,
+        *,
+        role: str,
+        scope: str = "main",
+        model_call_id: str | None = None,
+        retry_of_call_id: str | None = None,
+        agent_id: str | None = None,
+        agent_name: str | None = None,
+        execution_id: str | None = None,
+        parent_execution_id: str | None = None,
+    ) -> bool:
         check_role(role)
         check_scope(scope)
-        self._append(_Call(record=record, role=role, scope=scope))
+        for field_name, value in (
+            ("model_call_id", model_call_id),
+            ("retry_of_call_id", retry_of_call_id),
+            ("agent_id", agent_id),
+            ("agent_name", agent_name),
+            ("execution_id", execution_id),
+            ("parent_execution_id", parent_execution_id),
+        ):
+            if value is not None and not value.strip():
+                raise ValueError(f"USAGE_{field_name.upper()}_INVALID")
+        if model_call_id is not None:
+            dedupe_key = (role, model_call_id)
+            if dedupe_key in self._seen_model_call_ids:
+                return False
+        self._append(
+            PhysicalModelCall(
+                record=record,
+                role=role,
+                scope=scope,
+                model_call_id=model_call_id,
+                retry_of_call_id=retry_of_call_id,
+                agent_id=agent_id,
+                agent_name=agent_name,
+                execution_id=execution_id,
+                parent_execution_id=parent_execution_id,
+            )
+        )
+        if model_call_id is not None:
+            self._seen_model_call_ids.add((role, model_call_id))
+        return True
 
     def note_observer_error(self, detail: str) -> None:
         self.observer_errors.append(detail)
@@ -113,7 +165,7 @@ class UsageLedger:
             joined = "; ".join(self.observer_errors[:5])
             raise RuntimeError(f"USAGE_OBSERVER_FAILED: {joined}")
 
-    def _bucket(self, role: str) -> list[_Call]:
+    def _bucket(self, role: str) -> list[PhysicalModelCall]:
         self._check_known_role(role)
         return [item for item in self._calls if item.role == role]
 
@@ -123,6 +175,10 @@ class UsageLedger:
             raise KeyError(f"USAGE_ROLE_UNKNOWN: {role}")
 
     # ------------------------------------------------------------------ 读出
+
+    def physical_calls(self, role: str) -> tuple[PhysicalModelCall, ...]:
+        """返回指定角色的物理请求行，供后续读模型按稳定 ID 聚合。"""
+        return tuple(self._bucket(role))
 
     def calls(self, role: str) -> tuple[ScopeBreakdown, ...]:
         bucket = self._bucket(role)

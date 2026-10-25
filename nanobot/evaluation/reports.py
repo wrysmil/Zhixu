@@ -74,6 +74,38 @@ class RunMetrics(TypedDict):
     usage: dict[str, Any]
 
 
+def normalize_attempt_for_metrics(row: Mapping[str, Any]) -> dict[str, Any]:
+    """把仓储 ``result`` 包装层适配成既有聚合器消费的扁平形状。
+
+    顶层数据库状态是权威值；断言、评分、耗时和用量来自已完成 attempt 的 result。
+    只复制聚合需要的白名单字段，不把原始回答或未知 payload 扩散到报告。
+    """
+    normalized = {
+        key: row.get(key)
+        for key in (
+            "id",
+            "run_id",
+            "position",
+            "case_id",
+            "case_revision",
+            "case_name",
+            "execution_status",
+            "grading_status",
+            "verdict",
+            "started_at",
+            "finished_at",
+            "case_snapshot",
+        )
+        if key in row
+    }
+    result = row.get("result")
+    source = result if isinstance(result, Mapping) else row
+    for key in ("assertions", "judge", "timing", "usage", "reviews", "trace_complete"):
+        if key in source:
+            normalized[key] = source.get(key)
+    return normalized
+
+
 def aggregate_run(
     attempts: Sequence[Mapping[str, Any]],
     planned_count: int,

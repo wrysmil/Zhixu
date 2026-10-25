@@ -77,4 +77,87 @@ describe("evaluation-api", () => {
     expect(String(cancelCall[0])).toContain("/runs/run-1/cancel");
     expect(cancelCall[1]?.headers).toHaveProperty("Idempotency-Key");
   });
+
+  it("loads execution pages with explicit cursor and limit", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ csrf_token: "csrf-1" }));
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      data: { nodes: [], edges: [] },
+      next_after_seq: 80,
+      has_more: true,
+      sealed: false,
+      coverage: {
+        trace: "partial",
+        identity: "unavailable",
+        usage_attribution: "unavailable",
+        reasons: ["run_active"],
+      },
+    }));
+
+    await evaluationApi.getExecution("attempt / 1", 20, 60);
+
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      "/attempts/attempt%20%2F%201/execution?after_seq=20&limit=60",
+    );
+  });
+
+  it("encodes tool filters and the opaque paging cursor", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ csrf_token: "csrf-1" }));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: [], next_after_key: null, total_count: 0 }));
+
+    await evaluationApi.listToolCalls("attempt-1", {
+      execution_id: "exec/child",
+      phase_id: "research phase",
+      name: "web_search",
+      status: "failed",
+      q: "call #19",
+      after_key: "opaque+/=",
+      limit: 25,
+    });
+
+    const url = new URL(String(fetchMock.mock.calls[1][0]));
+    expect(url.pathname).toContain("/attempts/attempt-1/tool-calls");
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({
+      execution_id: "exec/child",
+      phase_id: "research phase",
+      name: "web_search",
+      status: "failed",
+      q: "call #19",
+      after_key: "opaque+/=",
+      limit: "25",
+    });
+  });
+
+  it("loads the run usage ledger and downloads current-run HTML", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ csrf_token: "csrf-1" }));
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      data: [],
+      totals: { input_tokens: 0, output_tokens: 0, total_tokens: 0, physical_requests: 0 },
+      next_after_key: null,
+      coverage: "complete",
+    }));
+    await evaluationApi.getRunUsage("run-1", { group_by: "agent", limit: 50 });
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      "/runs/run-1/usage?group_by=agent&limit=50",
+    );
+
+    fetchMock.mockResolvedValueOnce(new Response("<html></html>", {
+      headers: {
+        "Content-Type": "text/html",
+        "Content-Disposition": 'attachment; filename="run-report.html"',
+      },
+    }));
+    const createObjectURL = vi.fn(() => "blob:report");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL }));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+
+    await evaluationApi.downloadRunReport("run-1");
+
+    expect(String(fetchMock.mock.calls[2][0])).toContain("/runs/run-1/report");
+    expect(click).toHaveBeenCalled();
+    click.mockRestore();
+  });
 });

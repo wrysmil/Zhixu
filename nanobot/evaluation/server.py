@@ -117,7 +117,16 @@ def _cors_middleware(
                     "Access-Control-Max-Age": "600",
                 },
             )
-        response = await handler(request)
+        try:
+            response = await handler(request)
+        except web.HTTPException as exc:
+            # guard 会把 HTTPException 原样抛出（aiohttp 协议层负责转响应），
+            # 这条路径不经过下方的 response 分支；错误体也必须带 CORS 头，
+            # 否则浏览器把 4xx/5xx 当网络错误，前端读不到契约错误 JSON。
+            if allowed:
+                assert origin is not None
+                exc.headers.update(_cors_headers(origin))
+            raise
         if allowed:
             assert origin is not None
             response.headers.update(_cors_headers(origin))
@@ -416,6 +425,109 @@ async def get_trace(request: web.Request) -> web.Response:
     return web.json_response(
         context.service.trace_page(request.match_info["id"], after_seq=after_seq, limit=limit)
     )
+
+
+async def get_execution(request: web.Request) -> web.Response:
+    """执行图分页。``after_seq`` 严格递增，旧 Trace 缺身份时 coverage 会降级。"""
+    context = context_of(request)
+    try:
+        after_seq = int(request.query.get("after_seq", "0"))
+        limit = int(request.query.get("limit", "200"))
+    except ValueError as exc:
+        _fail("VALIDATION_ERROR", "after_seq/limit 必须是整数", exc)
+    if after_seq < 0 or not 1 <= limit <= 1000:
+        _fail("VALIDATION_ERROR", "after_seq/limit 超出范围")
+    return web.json_response(
+        context.service.execution_page(
+            request.match_info["id"], after_seq=after_seq, limit=limit
+        )
+    )
+
+
+async def list_tool_calls(request: web.Request) -> web.Response:
+    """工具调用分页。``q`` 只匹配工具名、调用 ID 与智能体名称。"""
+    context = context_of(request)
+    try:
+        limit = int(request.query.get("limit", "50"))
+    except ValueError as exc:
+        _fail("VALIDATION_ERROR", "limit 必须是整数", exc)
+    if not 1 <= limit <= 200:
+        _fail("VALIDATION_ERROR", "limit 超出范围")
+    status = request.query.get("status")
+    if status is not None and status not in {
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "unknown",
+    }:
+        _fail("VALIDATION_ERROR", "status 取值非法")
+    try:
+        page = context.service.tool_calls_page(
+            request.match_info["id"],
+            execution_id=request.query.get("execution_id"),
+            phase_id=request.query.get("phase_id"),
+            name=request.query.get("name"),
+            status=status,
+            q=request.query.get("q"),
+            after_key=request.query.get("after_key"),
+            limit=limit,
+        )
+    except ValueError as exc:
+        _fail("VALIDATION_ERROR", "after_key 非法", exc)
+    return web.json_response(page)
+
+
+async def get_run_usage(request: web.Request) -> web.Response:
+    """整轮 Token 主账本；``totals`` 覆盖全轮，不是当前页求和。"""
+    context = context_of(request)
+    group_by = request.query.get("group_by", "role")
+    if group_by not in {"role", "agent", "model"}:
+        _fail("VALIDATION_ERROR", "group_by 取值非法")
+    try:
+        limit = int(request.query.get("limit", "50"))
+    except ValueError as exc:
+        _fail("VALIDATION_ERROR", "limit 必须是整数", exc)
+    if not 1 <= limit <= 200:
+        _fail("VALIDATION_ERROR", "limit 超出范围")
+    try:
+        page = context.service.run_usage_page(
+            request.match_info["id"],
+            group_by=group_by,
+            after_key=request.query.get("after_key"),
+            limit=limit,
+        )
+    except ValueError as exc:
+        _fail("VALIDATION_ERROR", "after_key 非法", exc)
+    return web.json_response(page)
+
+
+async def get_run_report(request: web.Request) -> web.Response:
+    """单次运行的离线 HTML 报告：自包含静态页面，无脚本、无外链。"""
+    from nanobot.evaluation.report_view import render_run_report
+
+    context = context_of(request)
+    run_id = request.match_info["id"]
+    snapshot = context.service.run_report_snapshot(run_id)
+    html = render_run_report(snapshot)
+    filename = _safe_report_filename(run_id)
+    return web.Response(
+        text=html,
+        content_type="text/html",
+        charset="utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+def _safe_report_filename(run_id: str) -> str:
+    """文件名只由运行 ID 派生：用户输入不得进入 Content-Disposition。"""
+    cleaned = "".join(
+        char for char in run_id if char.isalnum() or char in {".", "_", "-"}
+    )
+    return f"{cleaned[:64] or 'run'}-report.html"
 
 
 async def add_review(request: web.Request) -> web.Response:
@@ -740,8 +852,12 @@ def _routes() -> list[web.RouteDef]:
         r("POST", "/runs/{id}/rerun", rerun_run),
         r("GET", "/runs/{id}/attempts", list_run_attempts),
         r("GET", "/runs/{id}/export", export_run),
+        r("GET", "/runs/{id}/usage", get_run_usage),
+        r("GET", "/runs/{id}/report", get_run_report),
         r("GET", "/attempts/{id}", get_attempt),
         r("GET", "/attempts/{id}/trace", get_trace),
+        r("GET", "/attempts/{id}/execution", get_execution),
+        r("GET", "/attempts/{id}/tool-calls", list_tool_calls),
         r("POST", "/attempts/{id}/reviews", add_review),
         r("GET", "/artifacts/{id}", get_artifact),
         r("GET", "/datasets/template", dataset_template),

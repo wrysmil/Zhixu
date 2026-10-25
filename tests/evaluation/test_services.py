@@ -264,6 +264,41 @@ async def test_run_summary_and_overview_derive_from_persisted_state(
     assert any(item["id"] == run["id"] for item in overview["recent_runs"])
     assert overview["status_counts"]["completed"] == 1
     assert overview["metrics"]["planned"] == 1
+    assert overview["metrics_run_id"] == run["id"]
+    assert overview["metrics_scope"] == "single_run"
+
+
+def test_run_read_aggregates_nested_persisted_result(
+    repository: EvaluationRepository, service: EvaluationService
+) -> None:
+    run = _seed_run(repository, service, key="nested-metrics")
+    attempt_id = repository.get_run(run["id"])["attempts"][0]["id"]
+    repository.finish_attempt(
+        attempt_id,
+        result={
+            "execution_status": "succeeded",
+            "grading_status": "completed",
+            "verdict": "passed",
+            "result": {
+                "timing": {"agent_ms": 321},
+                "usage": {
+                    "agent": {
+                        "input_tokens": 8,
+                        "output_tokens": 5,
+                        "total_tokens": 13,
+                        "physical_requests": 1,
+                        "iterations": 1,
+                        "missing_usage_calls": 0,
+                        "source": "reported",
+                        "coverage": "complete",
+                    }
+                },
+            },
+        },
+    )
+    read = service.run_read(run["id"])
+    assert read["metrics"]["usage"]["agent"]["total_tokens"] == 13
+    assert read["metrics"]["agent_duration"]["median_ms"] == 321
 
 
 async def test_rerun_creates_a_child_run_from_frozen_snapshot(
@@ -460,3 +495,40 @@ def test_summary_report_uses_the_latest_run_verdict(
     html = service.summary_report(suite["id"])
     assert f"<td>passed</td><td>{new_run[:8]}</td>" in html
     assert f"<td>failed</td><td>{old_run[:8]}</td>" not in html
+
+
+def test_summary_report_does_not_merge_distinct_cases_with_same_name(
+    repository: EvaluationRepository, tmp_path: Path
+) -> None:
+    from nanobot.evaluation.schemas import RunCreate
+
+    service = EvaluationService(repository=repository, data_dir=tmp_path)
+    suite = repository.create_suite(make_suite_payload())
+    cases = [
+        repository.save_case(make_case_payload(suite_id=suite["id"], name="同名用例"))
+        for _ in range(2)
+    ]
+    run = service.create_run(
+        RunCreate.model_validate(
+            make_run_payload(
+                [case["id"] for case in cases],
+                suite_id=suite["id"],
+                agent_profile_id="controlled-agent",
+            )
+        ),
+        idempotency_key="same-name",
+        scope="t",
+    )
+    for attempt in repository.get_run(run["id"])["attempts"]:
+        repository.finish_attempt(
+            attempt["id"],
+            result={
+                "execution_status": "succeeded",
+                "grading_status": "completed",
+                "verdict": "passed",
+                "result": {},
+            },
+        )
+    html = service.summary_report(suite["id"])
+    assert html.count("<td>同名用例</td>") == 2
+    assert all(case["id"][:8] in html for case in cases)

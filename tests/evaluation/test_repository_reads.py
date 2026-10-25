@@ -220,6 +220,16 @@ def test_list_run_attempts_carries_case_name_and_filters(repository: EvaluationR
     assert repository.list_run_attempts(run["id"], execution_status="succeeded") != []
 
 
+def test_list_run_attempts_only_exposes_frozen_snapshot_to_internal_callers(
+    repository: EvaluationRepository,
+) -> None:
+    run, _ = _seed_run(repository, case_count=1)
+    public = repository.list_run_attempts(run["id"])
+    internal = repository.list_run_attempts(run["id"], include_snapshot=True)
+    assert "case_snapshot" not in public[0]
+    assert internal[0]["case_snapshot"]["name"] == "用例 0"
+
+
 def test_list_run_attempts_rejects_unknown_run(repository: EvaluationRepository) -> None:
     from nanobot.evaluation.repository import RecordNotFound
 

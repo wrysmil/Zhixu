@@ -40,6 +40,11 @@ describe("workspace route parsing", () => {
       view: "settings",
       settingsSection: "models",
     });
+    // 评估分区在侧边栏里可选，路由解析必须认得它，否则刷新后会被丢回概览。
+    expect(parseWorkspaceHash("#/settings?section=eval")).toMatchObject({
+      view: "settings",
+      settingsSection: "eval",
+    });
     // Memory and Identity moved out of settings into standalone views.
     expect(parseWorkspaceHash("#/memory")).toMatchObject({ view: "memory" });
     expect(parseWorkspaceHash("#/identity")).toMatchObject({ view: "identity" });

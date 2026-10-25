@@ -31,7 +31,7 @@ from collections.abc import AsyncGenerator, Callable, Iterable, Mapping, Sequenc
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from nanobot.agent.hook import AgentHook, AgentHookContext
 from nanobot.evaluation.evidence import (
@@ -54,7 +54,7 @@ from nanobot.evaluation.schemas import (
     WorkerResult,
 )
 from nanobot.evaluation.trace import TraceCollector, TraceError, TraceManifest
-from nanobot.evaluation.usage import UsageLedger, install_usage_observer
+from nanobot.evaluation.usage import UsageLedger
 from nanobot.evaluation.validation import resolve_inside
 from nanobot.llm_usage.models import LLMCallRecord
 
@@ -216,6 +216,10 @@ class TraceRecorder:
     channel: WorkerChannel
     started_at: float
     trace_errors: list[AttemptError]
+    agent_id: str | None = None
+    agent_name: str | None = None
+    execution_id: str | None = None
+    parent_execution_id: str | None = None
 
     def emit(
         self,
@@ -226,6 +230,11 @@ class TraceRecorder:
         call_id: str | None = None,
         payload: Mapping[str, Any] | None = None,
     ) -> TraceEvent | None:
+        event_payload = dict(payload or {})
+        event_payload.setdefault("agent_id", self.agent_id)
+        event_payload.setdefault("agent_name", self.agent_name)
+        event_payload.setdefault("execution_id", self.execution_id)
+        event_payload.setdefault("parent_execution_id", self.parent_execution_id)
         event = TraceEvent(
             schema_version=1,
             attempt_id=uuid.UUID(self.attempt_id),
@@ -238,7 +247,7 @@ class TraceRecorder:
             ts=_now_iso(),
             elapsed_ms=max(0, int((time.monotonic() - self.started_at) * 1000)),
             # 先脱敏再落盘：Trace 目录会被证据读取与导出复用，凭据不能只挡在 IPC 这一层。
-            payload=self.channel.redact(json_safe(dict(payload or {}))),
+            payload=self.channel.redact(json_safe(event_payload)),
         )
         try:
             written = self.collector.append(event)
@@ -258,16 +267,57 @@ class TraceRecorder:
         return self.collector.seal()
 
 
+class _PhysicalCallIds:
+    """为 observer 回调补物理请求 ID，并让串接消费者共享同一个值。"""
+
+    def __init__(self) -> None:
+        self._generated: dict[int, tuple[LLMCallRecord, str]] = {}
+
+    def resolve(self, record: LLMCallRecord) -> str:
+        provided = getattr(record, "model_call_id", None)
+        if isinstance(provided, str) and provided.strip():
+            return provided
+        key = id(record)
+        cached = self._generated.get(key)
+        if cached is not None and cached[0] is record:
+            return cached[1]
+        generated = str(uuid.uuid4())
+        # 保留强引用，避免一次 worker 生命周期内对象 id 被回收复用。
+        self._generated[key] = (record, generated)
+        return generated
+
+
 def make_model_call_observer(
-    recorder: TraceRecorder, *, role: str, scope: str
+    recorder: TraceRecorder,
+    *,
+    role: str,
+    scope: str,
+    agent_id: str | None = None,
+    agent_name: str | None = None,
+    execution_id: str | None = None,
+    parent_execution_id: str | None = None,
+    call_ids: _PhysicalCallIds | None = None,
 ) -> Callable[[LLMCallRecord], None]:
     """把每次物理调用映射成 ``model.call_completed``；字段全部来自 ``LLMCallRecord``。"""
 
+    identities = call_ids or _PhysicalCallIds()
+
     def observer(record: LLMCallRecord) -> None:
         usage = record.usage
+        model_call_id = identities.resolve(record)
+        retry_of_call_id = getattr(record, "retry_of_call_id", None)
+        if not isinstance(retry_of_call_id, str) or not retry_of_call_id.strip():
+            retry_of_call_id = None
         recorder.emit(
             "model.call_completed",
+            call_id=model_call_id,
             payload={
+                "model_call_id": model_call_id,
+                "retry_of_call_id": retry_of_call_id,
+                "agent_id": agent_id,
+                "agent_name": agent_name,
+                "execution_id": execution_id,
+                "parent_execution_id": parent_execution_id,
                 "role": role,
                 "scope": scope,
                 "provider": record.provider,
@@ -295,6 +345,10 @@ def install_worker_observers(
     *,
     ledger: UsageLedger,
     recorder: TraceRecorder,
+    agent_id: str | None = None,
+    agent_name: str | None = None,
+    execution_id: str | None = None,
+    parent_execution_id: str | None = None,
 ) -> bool:
     """只在 attempt 自己的 provider 实例上装 observer，绝不改全局 provider。"""
     provider = runtime.provider
@@ -303,13 +357,45 @@ def install_worker_observers(
             runtime.role, reason=f"{WORKER_OBSERVER_UNAVAILABLE}: {type(provider).__name__}"
         )
         return False
-    install_usage_observer(
-        provider,
-        ledger=ledger,
+    call_ids = _PhysicalCallIds()
+    trace_observer = make_model_call_observer(
+        recorder,
         role=runtime.role,
         scope="main",
-        previous=make_model_call_observer(recorder, role=runtime.role, scope="main"),
+        agent_id=agent_id,
+        agent_name=agent_name,
+        execution_id=execution_id,
+        parent_execution_id=parent_execution_id,
+        call_ids=call_ids,
     )
+
+    def observer(record: LLMCallRecord) -> None:
+        model_call_id = call_ids.resolve(record)
+        retry_of_call_id = getattr(record, "retry_of_call_id", None)
+        if not isinstance(retry_of_call_id, str) or not retry_of_call_id.strip():
+            retry_of_call_id = None
+        try:
+            trace_observer(record)
+        except Exception as exc:  # noqa: BLE001 - provider 会 fail-open，必须留 sticky 证据
+            ledger.note_observer_error(f"trace: {type(exc).__name__}: {exc}")
+        try:
+            ledger.record(
+                record,
+                role=runtime.role,
+                scope="main",
+                model_call_id=model_call_id,
+                retry_of_call_id=retry_of_call_id,
+                agent_id=agent_id,
+                agent_name=agent_name,
+                execution_id=execution_id,
+                parent_execution_id=parent_execution_id,
+            )
+        except Exception as exc:  # noqa: BLE001 - provider 会 fail-open，必须留 sticky 证据
+            ledger.note_observer_error(
+                f"{runtime.role}/main: {type(exc).__name__}: {exc}"
+            )
+
+    provider.set_llm_call_observer(observer)
     return True
 
 
@@ -328,6 +414,15 @@ class WorkerTraceHook(AgentHook):
         self._open_calls: dict[str, tuple[int, float]] = {}
         self.iterations = 0
         self.tools_used: list[str] = []
+
+    def _tool_call_ids(self, tool_call: Any, context: AgentHookContext) -> tuple[str, str]:
+        provider_call_id = str(
+            getattr(tool_call, "id", "") or f"seq-{context.iteration}"
+        )
+        execution_id = getattr(self._recorder, "execution_id", None)
+        if isinstance(execution_id, str) and execution_id:
+            return f"{execution_id}:{provider_call_id}", provider_call_id
+        return provider_call_id, provider_call_id
 
     async def before_iteration(self, context: AgentHookContext) -> None:
         self.iterations = max(self.iterations, int(context.iteration) + 1)
@@ -373,7 +468,7 @@ class WorkerTraceHook(AgentHook):
         tool: Any,
         params: Any,
     ) -> None:
-        call_id = str(getattr(tool_call, "id", "") or f"seq-{context.iteration}")
+        call_id, provider_call_id = self._tool_call_ids(tool_call, context)
         self.tools_used.append(str(getattr(tool_call, "name", "")))
         self._open_calls[call_id] = (context.iteration, time.monotonic())
         self._recorder.emit(
@@ -383,6 +478,7 @@ class WorkerTraceHook(AgentHook):
             call_id=call_id,
             payload={
                 "name": str(getattr(tool_call, "name", "")),
+                "provider_call_id": provider_call_id,
                 "arguments": json_safe(params if isinstance(params, Mapping) else {}),
                 "result": None,
                 "is_error": None,
@@ -411,7 +507,7 @@ class WorkerTraceHook(AgentHook):
         self._emit_tool_result(tool_call, context, error, failed=True)
 
     def _emit_tool_result(self, tool_call: Any, context: AgentHookContext, value: Any, *, failed: bool) -> None:
-        call_id = str(getattr(tool_call, "id", "") or f"seq-{context.iteration}")
+        call_id, provider_call_id = self._tool_call_ids(tool_call, context)
         iteration, started = self._open_calls.pop(call_id, (context.iteration, time.monotonic()))
         # is_error 取项目 ToolResult 的结构化布尔值；抛出的异常同样算错误结果。
         is_error = bool(getattr(value, "is_error", True)) if failed else bool(getattr(value, "is_error", False))
@@ -422,6 +518,7 @@ class WorkerTraceHook(AgentHook):
             call_id=call_id,
             payload={
                 "name": str(getattr(tool_call, "name", "")),
+                "provider_call_id": provider_call_id,
                 "arguments": json_safe(getattr(tool_call, "arguments", None)),
                 "result": json_safe(value if isinstance(value, (str, int, float, bool)) or value is None else str(value)),
                 "is_error": is_error,
@@ -579,21 +676,56 @@ async def run_agent_worker(
         )
 
     channel.set_secrets(_secret_values(runtime))
+    target_raw = getattr(boot, "target", None)
+    target: Mapping[str, Any]
+    if isinstance(target_raw, Mapping):
+        target = cast(Mapping[str, Any], target_raw)
+    else:
+        target = {}
+    agent_id = (
+        str(target.get("id"))
+        if isinstance(target, dict) and target.get("kind") == "agent" and target.get("id")
+        else None
+    )
+    agent_name = (
+        str(target.get("name"))
+        if isinstance(target, dict) and isinstance(target.get("name"), str) and target.get("name")
+        else None
+    )
+    parent_execution_id = (
+        str(target.get("parent_execution_id"))
+        if isinstance(target, dict)
+        and isinstance(target.get("parent_execution_id"), str)
+        and target.get("parent_execution_id")
+        else None
+    )
+    execution_id = str(uuid.uuid4())
     recorder = TraceRecorder(
         attempt_id=runtime.attempt_id,
         collector=TraceCollector(attempt_id=runtime.attempt_id, trace_dir=runtime.paths.trace_dir),
         channel=channel,
         started_at=started,
         trace_errors=[],
+        agent_id=agent_id,
+        agent_name=agent_name,
+        execution_id=execution_id,
+        parent_execution_id=parent_execution_id,
     )
-    install_worker_observers(runtime, ledger=ledger, recorder=recorder)
+    install_worker_observers(
+        runtime,
+        ledger=ledger,
+        recorder=recorder,
+        agent_id=agent_id,
+        agent_name=agent_name,
+        execution_id=execution_id,
+        parent_execution_id=parent_execution_id,
+    )
 
     case = boot.case_snapshot
     status: str = "succeeded"
     final_answer: str | None = None
     stop_reason: str | None = None
     iterations = 0
-    target = getattr(boot, "target", None) or {}
     # Agent 目标：注入 agent_id，让 loop 的档案解析接管本轮提示词/工具/技能。
     extra_metadata = (
         {"agent_id": str(target.get("id"))}
@@ -759,14 +891,21 @@ async def run_judge_worker(
         )
 
     channel.set_secrets(_secret_values(runtime))
+    execution_id = str(uuid.uuid4())
     recorder = TraceRecorder(
         attempt_id=runtime.attempt_id,
         collector=TraceCollector(attempt_id=runtime.attempt_id, trace_dir=runtime.paths.trace_dir),
         channel=channel,
         started_at=started,
         trace_errors=[],
+        execution_id=execution_id,
     )
-    install_worker_observers(runtime, ledger=ledger, recorder=recorder)
+    install_worker_observers(
+        runtime,
+        ledger=ledger,
+        recorder=recorder,
+        execution_id=execution_id,
+    )
     recorder.emit(
         "attempt.started",
         payload={"role": "judge", "rubric_version": boot.rubric.version, "model": runtime.capability.get("model")},

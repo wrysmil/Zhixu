@@ -42,8 +42,19 @@ from nanobot.evaluation.graders.calibration import (
 from nanobot.evaluation.graders.judge import JudgeResult
 from nanobot.evaluation.graders.rules import evaluate_rules
 from nanobot.evaluation.graders.verdict import derive_verdict, judge_state_of
+from nanobot.evaluation.observability import (
+    build_execution_page,
+    build_tool_calls,
+    build_tool_calls_page,
+    build_usage_page,
+)
 from nanobot.evaluation.processes import WorkerProcess
-from nanobot.evaluation.reports import aggregate_run, export_run_csv, export_run_json
+from nanobot.evaluation.reports import (
+    aggregate_run,
+    export_run_csv,
+    export_run_json,
+    normalize_attempt_for_metrics,
+)
 from nanobot.evaluation.repository import EvaluationRepository
 from nanobot.evaluation.runtime_factory import attempt_paths
 from nanobot.evaluation.scheduler import AttemptOutcome, CalibrationItemOutcome
@@ -1005,14 +1016,21 @@ class EvaluationService:
             "started_at": detail["started_at"], "finished_at": detail["finished_at"],
             "parent_run_id": detail["parent_run_id"],
             "planned_count": detail["planned_count"],
-            "terminal_count": self._repository.run_counts(run_id).get("pending", 0),
+            "terminal_count": max(
+                0,
+                int(detail["planned_count"])
+                - self._repository.run_counts(run_id).get("pending", 0),
+            ),
         })
 
     def run_read(self, run_id: str) -> dict[str, Any]:
         detail = self._repository.get_run(run_id)
         summary = self.run_summary(run_id)
-        attempts = self._repository.list_run_attempts(run_id)
-        metrics = aggregate_run(attempts, summary["planned_count"])
+        attempts = self._repository.list_run_attempts(run_id, include_snapshot=True)
+        metrics = aggregate_run(
+            [normalize_attempt_for_metrics(item) for item in attempts],
+            summary["planned_count"],
+        )
         snapshot = detail.get("snapshot") or {}
         limits = snapshot.get("limits") or {}
         return {
@@ -1104,6 +1122,158 @@ class EvaluationService:
             "sealed": bool(trace.sealed) if trace else False,
         }
 
+    # ---------------------------------------------------------------- 观测读模型
+
+    def _trace_events(self, attempt_id: str) -> tuple[list[Any], bool]:
+        """读取 attempt 的全部 Trace 事件；目录缺失或损坏时返回空表而不是抛错。"""
+        paths = self._paths_for(attempt_id)
+        trace = read_trace(paths.trace_dir) if paths is not None else None
+        if trace is None:
+            return [], False
+        return sorted(trace.events, key=lambda event: event.seq), bool(trace.sealed)
+
+    def execution_page(
+        self, attempt_id: str, *, after_seq: int = 0, limit: int = 200
+    ) -> dict[str, Any]:
+        """执行图分页；旧 Trace 缺身份时降级 coverage，不虚构父子关系。"""
+        events, sealed = self._trace_events(attempt_id)
+        return build_execution_page(
+            events,
+            after_seq=after_seq,
+            limit=limit,
+            sealed=sealed,
+            attempt_id=attempt_id,
+        )
+
+    def tool_calls_page(
+        self,
+        attempt_id: str,
+        *,
+        execution_id: str | None = None,
+        phase_id: str | None = None,
+        name: str | None = None,
+        status: str | None = None,
+        q: str | None = None,
+        after_key: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """工具调用分页；``total_count`` 是过滤后的全量条数，与当前页长度无关。"""
+        events, _sealed = self._trace_events(attempt_id)
+        return build_tool_calls_page(
+            events,
+            attempt_id=attempt_id,
+            execution_id=execution_id,
+            phase_id=phase_id,
+            name=name,
+            status=status,
+            q=q,
+            after_key=after_key,
+            limit=limit,
+        )
+
+    def _run_attempt_events(self, run_id: str) -> list[tuple[str, list[Any]]]:
+        attempts = self._repository.list_run_attempts(run_id)
+        out: list[tuple[str, list[Any]]] = []
+        for row in attempts:
+            attempt_id = str(row["id"])
+            events, _sealed = self._trace_events(attempt_id)
+            out.append((attempt_id, events))
+        return out
+
+    def run_usage_page(
+        self,
+        run_id: str,
+        *,
+        group_by: str = "role",
+        after_key: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """整轮 Token 主账本；``totals`` 覆盖全轮而不是当前页求和。"""
+        self._repository.get_run(run_id)
+        return build_usage_page(
+            self._run_attempt_events(run_id),
+            run_id=run_id,
+            group_by=group_by,  # type: ignore[arg-type]
+            after_key=after_key,
+            limit=limit,
+        )
+
+    def run_report_snapshot(self, run_id: str) -> dict[str, Any]:
+        """组装离线 HTML 报告用的快照；页面与报告消费同一份派生数据。"""
+        detail = self._repository.get_run(run_id)
+        attempts_raw = self._repository.list_run_attempts(run_id, include_snapshot=True)
+        summary = self.run_summary(run_id)
+        snapshot = detail.get("snapshot") or {}
+        profile = snapshot.get("agent_profile") or {}
+        attempts: list[dict[str, Any]] = []
+        execution: list[dict[str, Any]] = []
+        tool_calls: list[dict[str, Any]] = []
+        for row in attempts_raw:
+            attempt_id = str(row["id"])
+            normalized = normalize_attempt_for_metrics(row)
+            attempts.append(
+                {
+                    "id": attempt_id,
+                    "position": normalized.get("position"),
+                    "case_id": normalized.get("case_id"),
+                    "case_revision": normalized.get("case_revision"),
+                    "case_name": normalized.get("case_name"),
+                    "execution_status": normalized.get("execution_status"),
+                    "grading_status": normalized.get("grading_status"),
+                    "verdict": normalized.get("verdict"),
+                    "errors": normalized.get("errors") or [],
+                    "judge_summary": _judge_summary(normalized.get("judge")),
+                    "usage": normalized.get("usage"),
+                    "timing": normalized.get("timing") or {},
+                    "trace_complete": bool(normalized.get("trace_complete")),
+                }
+            )
+            events, sealed = self._trace_events(attempt_id)
+            page = build_execution_page(
+                events, after_seq=0, limit=1000, sealed=sealed, attempt_id=attempt_id
+            )
+            execution.append(
+                {
+                    "attempt_id": attempt_id,
+                    "nodes": page["data"]["nodes"],
+                    "edges": page["data"]["edges"],
+                    "coverage": page["coverage"],
+                }
+            )
+            tool_calls.extend(build_tool_calls(events, attempt_id=attempt_id))
+        # 报告的 Token 表要能看出「哪个智能体花了多少」：按 agent 归组，
+        # Judge 单独成组，避免与执行智能体合并成一行。
+        usage = build_usage_page(
+            self._run_attempt_events(run_id),
+            run_id=run_id,
+            group_by="agent",
+            limit=200,
+        )
+        return {
+            "run": {
+                "id": str(detail["id"]),
+                "suite_id": str(detail.get("suite_id") or ""),
+                "suite_name": self._repository.get_suite_name(str(detail.get("suite_id") or "")),
+                "status": str(detail.get("status") or ""),
+                "model": str(profile.get("model") or ""),
+                "mode": str(snapshot.get("tool_mode") or ""),
+                "created_at": detail.get("created_at"),
+                "started_at": detail.get("started_at"),
+                "finished_at": detail.get("finished_at"),
+                "planned_count": summary.get("planned_count"),
+                "terminal_count": summary.get("terminal_count"),
+            },
+            "attempts": attempts,
+            "execution": execution,
+            "tool_calls": tool_calls,
+            "usage": {"totals": usage["totals"], "rows": usage["data"]},
+            "options": {
+                "max_tool_rows_per_table": 200,
+                "max_total_tool_rows": 10000,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            },
+        }
+
     def _paths_for(self, attempt_id: str) -> Any | None:
         try:
             return self._attempt_paths(attempt_id)
@@ -1139,13 +1309,18 @@ class EvaluationService:
             or (recent[0] if recent else None)
         metrics = None
         if latest is not None:
+            attempts = self._repository.list_run_attempts(
+                str(latest["id"]), include_snapshot=True
+            )
             metrics = aggregate_run(
-                self._repository.list_run_attempts(str(latest["id"])),
+                [normalize_attempt_for_metrics(item) for item in attempts],
                 int(latest["planned_count"]),
             )
         return {
             "recent_runs": [_summary(row) for row in recent],
             "metrics": metrics,
+            "metrics_run_id": str(latest["id"]) if latest is not None else None,
+            "metrics_scope": "single_run" if latest is not None else None,
             "status_counts": counts,
         }
 
@@ -1153,6 +1328,7 @@ class EvaluationService:
         """数据集维度的 HTML 汇总报告：按 suite 聚合全部运行与用例最新结论。"""
         from nanobot.evaluation.reports import render_summary_html
 
+        total_run_count = self._repository.count_runs(suite_id=suite_id)
         runs = self._repository.list_runs(suite_id=suite_id, limit=100)
         run_rows: list[list[str]] = []
         case_rows: dict[str, list[str]] = {}
@@ -1164,12 +1340,16 @@ class EvaluationService:
                 verdict = str(attempt.get("verdict") or "not_evaluated")
                 if verdict in counts:
                     counts[verdict] += 1
-                name = str(attempt.get("case_name") or attempt.get("case_id") or "?")
-                entry = case_rows.setdefault(name, [name, "-", "-"])
+                case_id = str(attempt.get("case_id") or "")
+                name = str(attempt.get("case_name") or case_id or "?")
+                revision = str(attempt.get("case_revision") or "-")
+                entry = case_rows.setdefault(
+                    case_id, [name, case_id[:8], revision, "-", "-"]
+                )
                 # list_runs 已按 created_at DESC 排序：第一次遇到的 verdict 就是最新结论。
                 # 历史运行（哪怕失败过）不得覆盖它，否则「修复后重跑通过」永远显示 failed。
-                if entry[1] == "-":
-                    entry[1], entry[2] = verdict, run_id[:8]
+                if entry[3] == "-":
+                    entry[3], entry[4] = verdict, run_id[:8]
             run_rows.append([
                 run_id[:8], str(row.get("status") or ""), str(len(attempts)),
                 str(counts["passed"]), str(counts["failed"]),
@@ -1180,14 +1360,24 @@ class EvaluationService:
             generated_at=datetime.now(timezone.utc).isoformat(),
             sections=[
                 {
+                    "heading": "报告范围",
+                    "headers": ["范围", "已选择运行", "总运行", "是否截断"],
+                    "rows": [[
+                        "数据集历史（最近运行）",
+                        str(len(runs)),
+                        str(total_run_count),
+                        "是" if total_run_count > len(runs) else "否",
+                    ]],
+                },
+                {
                     "heading": "运行",
                     "headers": ["运行", "状态", "用例数", "通过", "失败", "待复核"],
                     "rows": run_rows,
                 },
                 {
                     "heading": "用例最新结论",
-                    "headers": ["用例", "最新结论", "最近运行"],
-                    "rows": sorted(case_rows.values()),
+                    "headers": ["用例", "用例 ID", "版本", "最新结论", "最近运行"],
+                    "rows": sorted(case_rows.values(), key=lambda item: (item[0], item[1])),
                 },
             ],
         )
@@ -1195,9 +1385,12 @@ class EvaluationService:
     def export_run(self, run_id: str, *, fmt: str) -> tuple[str, str, str]:
         # 先确认运行存在：导出不能给不存在的运行编一个空文件。
         detail = self._repository.get_run(run_id)
-        attempts = self._repository.list_run_attempts(run_id)
+        attempts = self._repository.list_run_attempts(run_id, include_snapshot=True)
         summary = self.run_summary(run_id)
-        metrics = aggregate_run(attempts, int(summary["planned_count"]))
+        metrics = aggregate_run(
+            [normalize_attempt_for_metrics(item) for item in attempts],
+            int(summary["planned_count"]),
+        )
         if fmt == "csv":
             body = export_run_csv(detail, metrics, attempts)
             return body, "text/csv; charset=utf-8", f"{run_id}.csv"
@@ -1296,6 +1489,23 @@ def _result_payload(
         payload["judge"] = judge
     payload.setdefault("usage", _empty_usage())
     return payload
+
+
+def _judge_summary(judge: Any) -> dict[str, Any] | None:
+    """判分结果只留口径需要的字段：结论、评分与理由摘要。
+
+    原始 judge payload 可能包含维度明细与长文本，报告里只需要能复核的结论。
+    """
+    if not isinstance(judge, Mapping):
+        return None
+    summary: dict[str, Any] = {}
+    for key in ("verdict", "passed", "score", "reason", "reasoning", "agreement"):
+        if key in judge:
+            value = judge[key]
+            if isinstance(value, str) and len(value) > 240:
+                value = value[:239] + "…"
+            summary[key] = value
+    return summary or None
 
 
 def _usage_pair(reported: Any) -> dict[str, Any]:

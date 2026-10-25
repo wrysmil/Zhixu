@@ -176,6 +176,124 @@ export type TracePage = {
   sealed: boolean;
 };
 
+export type Coverage = "complete" | "partial" | "unavailable";
+
+export type ExecutionNode = {
+  id: string;
+  kind: "agent_activity" | "tool_call" | "model_call" | "judge" | "output";
+  agent_id: string | null;
+  agent_name: string | null;
+  execution_id: string | null;
+  parent_execution_id: string | null;
+  call_id: string | null;
+  model: string | null;
+  status: "running" | "succeeded" | "failed" | "cancelled" | "unknown";
+  started_at: string | null;
+  duration_ms: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  usage_source: "reported" | "estimated" | "mixed" | "unavailable";
+  evidence_refs: string[];
+  /** Additive display metadata. Older servers may omit these fields. */
+  label?: string | null;
+  tool_name?: string | null;
+  phase_id?: string | null;
+  input_summary?: string | null;
+  output_summary?: string | null;
+};
+
+export type ExecutionEdge = {
+  id: string;
+  from: string;
+  to: string;
+  kind: "delegation" | "invocation" | "sequence" | "return";
+};
+
+export type ExecutionCoverage = {
+  trace: Coverage;
+  identity: Coverage;
+  usage_attribution: Coverage;
+  reasons: string[];
+};
+
+export type ExecutionPage = {
+  data: { nodes: ExecutionNode[]; edges: ExecutionEdge[] };
+  next_after_seq: number;
+  has_more: boolean;
+  sealed: boolean;
+  coverage: ExecutionCoverage;
+};
+
+export type ToolCallStatus = "running" | "succeeded" | "failed" | "cancelled" | "unknown";
+
+export type ToolCall = {
+  call_id: string;
+  attempt_id: string;
+  execution_id: string | null;
+  phase_id: string | null;
+  tool_name: string;
+  agent_id: string | null;
+  agent_name: string | null;
+  status: ToolCallStatus;
+  started_at: string | null;
+  duration_ms: number | null;
+  input_summary: string | null;
+  output_summary: string | null;
+  error: string | null;
+  retry_of_call_id?: string | null;
+};
+
+export type ToolCallsFilter = {
+  execution_id?: string;
+  phase_id?: string;
+  name?: string;
+  status?: ToolCallStatus;
+  q?: string;
+  after_key?: string;
+  limit?: number;
+};
+
+export type ToolCallPage = {
+  data: ToolCall[];
+  next_after_key: string | null;
+  total_count: number;
+  coverage?: Coverage;
+};
+
+export type UsageGroupBy = "role" | "agent" | "model";
+
+export type UsageRow = {
+  key: string;
+  agent_id: string | null;
+  agent_name: string | null;
+  role: "agent" | "judge";
+  provider: string | null;
+  model: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  physical_requests: number;
+  missing_usage_calls: number;
+  source: "reported" | "estimated" | "mixed" | "unavailable";
+  coverage: Coverage;
+};
+
+export type UsageTotals = {
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  physical_requests: number;
+  missing_usage_calls?: number;
+};
+
+export type UsagePage = {
+  data: UsageRow[];
+  totals: UsageTotals;
+  next_after_key: string | null;
+  coverage: Coverage | { usage_attribution: Coverage; reasons?: string[] };
+};
+
 export type Profile = {
   id: string;
   label: string;
@@ -213,6 +331,10 @@ export type Overview = {
   recent_runs: RunSummary[];
   metrics: RunMetrics | null;
   status_counts: Partial<Record<RunStatus, number>>;
+  /** 指标来源的运行 ID：总览数字只代表这一次运行，不是全部运行。 */
+  metrics_run_id?: string | null;
+  /** 指标统计范围：目前是 single_run（单次运行）。 */
+  metrics_scope?: string | null;
 };
 
 export type TargetKind = "agent" | "team" | "skill" | "dataset";
@@ -422,6 +544,41 @@ export const evaluationApi = {
     );
   },
 
+  getExecution(attemptId: string, afterSeq = 0, limit = 200): Promise<ExecutionPage> {
+    return request<ExecutionPage>(
+      `/attempts/${encodeURIComponent(attemptId)}/execution?after_seq=${afterSeq}&limit=${limit}`,
+    );
+  },
+
+  listToolCalls(attemptId: string, filter: ToolCallsFilter = {}): Promise<ToolCallPage> {
+    return request<ToolCallPage>(withQuery(
+      `/attempts/${encodeURIComponent(attemptId)}/tool-calls`,
+      {
+        execution_id: filter.execution_id,
+        phase_id: filter.phase_id,
+        name: filter.name,
+        status: filter.status,
+        q: filter.q,
+        after_key: filter.after_key,
+        limit: String(filter.limit ?? 50),
+      },
+    ));
+  },
+
+  getRunUsage(
+    runId: string,
+    filter: { group_by?: UsageGroupBy; after_key?: string; limit?: number } = {},
+  ): Promise<UsagePage> {
+    return request<UsagePage>(withQuery(
+      `/runs/${encodeURIComponent(runId)}/usage`,
+      {
+        group_by: filter.group_by ?? "role",
+        after_key: filter.after_key,
+        limit: String(filter.limit ?? 50),
+      },
+    ));
+  },
+
   createRun(input: CreateRunInput): Promise<Run> {
     return request<Run>("/runs", {
       method: "POST",
@@ -479,6 +636,13 @@ export const evaluationApi = {
     return requestDownload(
       `/runs/${encodeURIComponent(runId)}/export?format=${format}`,
       `evaluation-run-${runId.slice(0, 8)}.${format}`,
+    );
+  },
+
+  downloadRunReport(runId: string): Promise<void> {
+    return requestDownload(
+      `/runs/${encodeURIComponent(runId)}/report`,
+      `evaluation-run-${runId.slice(0, 8)}.html`,
     );
   },
 

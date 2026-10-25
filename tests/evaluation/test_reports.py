@@ -517,3 +517,33 @@ def test_summary_html_escapes_special_characters() -> None:
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert "&lt;i&gt;状态&lt;/i&gt;" in html
     assert "&lt;b&gt;加粗&lt;/b&gt; &amp; &quot;引号&quot;" in html
+
+
+def test_normalize_nested_attempt_metrics() -> None:
+    from nanobot.evaluation import reports
+
+    row = {
+        "id": "attempt-1",
+        "verdict": "passed",
+        "case_snapshot": {"name": "嵌套结果"},
+        "result": {
+            "timing": {"agent_ms": 125},
+            "usage": {
+                "agent": {
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "total_tokens": 15,
+                    "physical_requests": 1,
+                    "iterations": 1,
+                    "missing_usage_calls": 0,
+                    "source": "reported",
+                    "coverage": "complete",
+                }
+            },
+        },
+    }
+    normalized = reports.normalize_attempt_for_metrics(row)
+    metrics = aggregate_run([normalized], 1)
+    assert normalized["case_snapshot"]["name"] == "嵌套结果"
+    assert metrics["usage"]["agent"]["total_tokens"] == 15
+    assert metrics["agent_duration"]["median_ms"] == 125

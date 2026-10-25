@@ -129,6 +129,15 @@ export function EvaluationSettings() {
             />
           </div>
 
+          <p className="text-[12px] text-muted-foreground">
+            {overview?.metrics_run_id
+              ? t("settings.evaluation.metrics.sourceRun", {
+                  run: overview.metrics_run_id.slice(0, 8),
+                  scope: t("settings.evaluation.metrics.scopeSingleRun"),
+                })
+              : t("settings.evaluation.metrics.sourceUnknown")}
+          </p>
+
           <div className="space-y-2">
             <h3 className="text-[13px] font-medium text-foreground">
               {t("settings.evaluation.metrics.recentRuns")}
