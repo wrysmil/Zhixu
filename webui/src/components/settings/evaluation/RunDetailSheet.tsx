@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 
+import { EvaluationReviews, type ReviewItem, type ReviewVerdict } from "@/components/settings/evaluation/EvaluationReviews";
+import { EvaluationScorecard } from "@/components/settings/evaluation/EvaluationScorecard";
 import { ObservabilityTabs } from "@/components/settings/evaluation/ObservabilityTabs";
 import {
   EvaluationStatusBadge,
@@ -15,15 +17,81 @@ import { Button } from "@/components/ui/button";
 import {
   evaluationApi,
   type Attempt,
+  type DimensionStatus,
+  type EvaluationCoverage,
   type Run,
+  type RunMetricsView,
   type RunSummary,
 } from "@/lib/evaluation-api";
+
+/** 把后端的覆盖度载荷映射成组件口径；缺字段按缺证处理，绝不用 0 或 complete 冒充。 */
+function toCoverage(raw: Record<string, unknown> | undefined | null): EvaluationCoverage | null {
+  if (!raw) return null;
+  const source = raw;
+  function pick<T extends string>(
+    key: string,
+    allowed: readonly T[],
+    fallback: T
+  ): T {
+    const value = source[key];
+    return typeof value === "string" && (allowed as readonly string[]).includes(value)
+      ? (value as T)
+      : fallback;
+  }
+  const reasons = Array.isArray(source.reasons)
+    ? source.reasons.filter((item): item is string => typeof item === "string")
+    : [];
+  return {
+    trace: pick("trace", ["complete", "partial", "missing"], "missing"),
+    identity: pick("identity", ["complete", "partial", "missing"], "missing"),
+    usage: pick("usage", ["complete", "partial", "missing"], "missing"),
+    artifacts: pick(
+      "artifacts",
+      ["complete", "partial", "missing", "not_applicable"],
+      "missing"
+    ),
+    required_evidence: pick("required_evidence", ["complete", "partial"], "partial"),
+    reasons,
+  };
+}
+
+/** 把 attempt 映射成复核条目：自动结论始终保留，人工结论只做追加。 */
+function toReviewItems(attempts: Attempt[]): ReviewItem[] {
+  return attempts.map((attempt) => {
+    const reviews = attempt.reviews ?? [];
+    const manual = reviews.length > 0 ? reviews[reviews.length - 1] : null;
+    const dimensions: Record<string, DimensionStatus> = {};
+    for (const [key, value] of Object.entries(attempt.evaluation?.dimensions ?? {})) {
+      dimensions[key] = value.status;
+    }
+    const manualVerdict =
+      manual && typeof manual.verdict === "string"
+        ? (manual.verdict as ReviewVerdict)
+        : null;
+    return {
+      attempt_id: attempt.id,
+      case_id: attempt.case_id,
+      case_name: attempt.case_name,
+      automatic_verdict: (attempt.verdict ?? "not_evaluated") as ReviewVerdict,
+      automatic_reason: attempt.stop_reason ?? null,
+      dimensions,
+      manual_verdict: manualVerdict,
+      manual_note:
+        manual && typeof manual.comment === "string" ? manual.comment : null,
+      manual_reviewer:
+        manual && typeof manual.reviewer === "string" ? manual.reviewer : null,
+      manual_reviewed_at:
+        manual && typeof manual.created_at === "string" ? manual.created_at : null,
+    };
+  });
+}
 
 export function RunDetailSheet({ run, onClose, refreshKey = 0 }: { run: RunSummary; onClose: () => void; refreshKey?: number }) {
   const { t } = useTranslation();
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => { headingRef.current?.focus(); }, [run.id]);
   const [full, setFull] = useState<Run | null>(null);
+  const [metricsView, setMetricsView] = useState<RunMetricsView | null>(null);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -46,6 +114,13 @@ export function RunDetailSheet({ run, onClose, refreshKey = 0 }: { run: RunSumma
         setAttempts(attemptPage.data);
       } catch (error) {
         if (!cancelled) setLoadError(evaluationErrorText(error, t));
+      }
+      // 指标与覆盖度单独取：它们失败不影响其它数据展示，但也不能用旧值冒充。
+      try {
+        const view = await evaluationApi.getRunMetrics(run.id);
+        if (!cancelled) setMetricsView(view);
+      } catch {
+        if (!cancelled) setMetricsView(null);
       }
     })();
     return () => {
@@ -71,6 +146,8 @@ export function RunDetailSheet({ run, onClose, refreshKey = 0 }: { run: RunSumma
     }
   };
 
+  const coverage = toCoverage(metricsView?.coverage);
+  const reviewItems = toReviewItems(attempts);
   const currentRun = full ?? run;
   const isActive = currentRun.status === "queued" || currentRun.status === "running" || currentRun.status === "cancelling";
   const failedAttemptIds = attempts
@@ -186,6 +263,21 @@ export function RunDetailSheet({ run, onClose, refreshKey = 0 }: { run: RunSumma
             </div>
           ) : null}
 
+        </div>
+        <div className="min-w-0 space-y-4 rounded-panel border border-border/60 bg-settings-surface p-4 sm:p-6">
+          <EvaluationScorecard
+            metrics={metricsView}
+            evaluationCapability={full?.evaluation_capability ?? null}
+            coverage={coverage}
+          />
+          <EvaluationReviews
+            reviews={reviewItems}
+            busy={busy}
+            onSubmitReview={(attemptId, verdict) => {
+              if (verdict !== "passed" && verdict !== "failed") return;
+              void runAction(() => evaluationApi.addReview(attemptId, { verdict }));
+            }}
+          />
         </div>
         <div className="min-w-0 rounded-panel border border-border/60 bg-settings-surface p-4 sm:p-6">
           <ObservabilityTabs key={`${run.id}:${refreshKey}`} runId={run.id} attempts={attempts} />

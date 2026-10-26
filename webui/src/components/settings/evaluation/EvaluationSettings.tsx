@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUpRight, RefreshCw } from "lucide-react";
 
+import {
+  EvaluationCalibration,
+  type CalibrationState,
+} from "@/components/settings/evaluation/EvaluationCalibration";
 import { EvaluationDatasets } from "@/components/settings/evaluation/EvaluationDatasets";
 import { EvaluationRuns } from "@/components/settings/evaluation/EvaluationRuns";
 import { EvaluationStatusBadge } from "@/components/settings/evaluation/evaluation-status";
@@ -12,7 +16,12 @@ import {
 } from "@/components/settings/evaluation/evaluation-utils";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { evaluationApi, type Overview, type RunSummary } from "@/lib/evaluation-api";
+import {
+  evaluationApi,
+  type GoldSample,
+  type Overview,
+  type RunSummary,
+} from "@/lib/evaluation-api";
 import { cn } from "@/lib/utils";
 
 type EvalTab = "overview" | "runs" | "datasets";
@@ -25,6 +34,9 @@ export function EvaluationSettings() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedRun, setSelectedRun] = useState<RunSummary | null>(null);
+  const [gold, setGold] = useState<{ gold_revision: number; data: GoldSample[] } | null>(null);
+  const [calibrationBusy, setCalibrationBusy] = useState(false);
+  const [calibrationError, setCalibrationError] = useState<string | null>(null);
 
   const loadOverview = useCallback(async () => {
     try {
@@ -41,6 +53,97 @@ export function EvaluationSettings() {
   useEffect(() => {
     void loadOverview();
   }, [loadOverview, refreshKey]);
+
+  const loadGold = useCallback(async () => {
+    try {
+      setGold(await evaluationApi.listGoldSamples());
+      setCalibrationError(null);
+    } catch (error) {
+      setCalibrationError(evaluationErrorText(error, t));
+    }
+  }, [t]);
+
+  useEffect(() => {
+    void loadGold();
+  }, [loadGold, refreshKey]);
+
+  const confirmedSamples = (gold?.data ?? []).filter(
+    (item) => item.label_status === "confirmed"
+  );
+  const calibrationState: CalibrationState | null = gold
+    ? {
+        status: confirmedSamples.length >= 10 ? "ready" : "not_started",
+        fingerprint: null,
+        required_confirmed: 10,
+        confirmed_count: confirmedSamples.length,
+        positive_confirmed: confirmedSamples.filter(
+          (item) => item.expected_verdict === "passed"
+        ).length,
+        negative_confirmed: confirmedSamples.filter(
+          (item) => item.expected_verdict === "failed"
+        ).length,
+        agreement_rate: null,
+        agreement_threshold: 0.8,
+        samples: gold.data.map((item) => ({
+          id: item.id,
+          case_id: item.id,
+          case_name: item.task ?? null,
+          gold_status: item.label_status,
+          agreement: null,
+          note: item.comment || null,
+        })),
+      }
+    : null;
+
+  const confirmGold = async (sampleId: string) => {
+    const sample = gold?.data.find((item) => item.id === sampleId);
+    if (!sample || !gold) return;
+    setCalibrationBusy(true);
+    setCalibrationError(null);
+    try {
+      await evaluationApi.confirmGoldSample(sampleId, {
+        base_gold_revision: gold.gold_revision,
+        expected_verdict: sample.expected_verdict ?? "passed",
+        expected_scores: sample.expected_scores ?? [],
+      });
+      await loadGold();
+    } catch (error) {
+      setCalibrationError(evaluationErrorText(error, t));
+    } finally {
+      setCalibrationBusy(false);
+    }
+  };
+
+  const runCalibration = async () => {
+    if (!gold) return;
+    setCalibrationBusy(true);
+    setCalibrationError(null);
+    try {
+      const profiles = await evaluationApi.listProfiles();
+      const judge = profiles.data.find((item) => item.kind === "judge");
+      if (!judge) {
+        throw new Error(
+          t("settings.evaluation.reliability.calibration.runCalibrationHint")
+        );
+      }
+      if (confirmedSamples.length < 10) {
+        throw new Error(
+          t("settings.evaluation.reliability.calibration.goldRequired", {
+            required: 10,
+          })
+        );
+      }
+      await evaluationApi.createCalibration({
+        judge_profile_id: judge.id,
+        gold_revision: gold.gold_revision,
+        sample_ids: confirmedSamples.slice(0, 10).map((item) => item.id),
+      });
+    } catch (error) {
+      setCalibrationError(evaluationErrorText(error, t));
+    } finally {
+      setCalibrationBusy(false);
+    }
+  };
 
   const metrics = overview?.metrics ?? null;
   const statusEntries = Object.entries(overview?.status_counts ?? {}).filter(([, count]) => count);
@@ -165,6 +268,20 @@ export function EvaluationSettings() {
                 {t("settings.evaluation.runs.empty")}
               </p>
             )}
+          </div>
+
+          <div className="rounded-panel border border-border/60 bg-settings-surface p-4">
+            <EvaluationCalibration
+              calibration={calibrationState}
+              busy={calibrationBusy}
+              onRunCalibration={() => void runCalibration()}
+              onConfirmGold={(sampleId) => void confirmGold(sampleId)}
+            />
+            {calibrationError ? (
+              <p role="alert" className="mt-2 text-[12px] text-destructive">
+                {calibrationError}
+              </p>
+            ) : null}
           </div>
 
           {statusEntries.length > 0 ? (

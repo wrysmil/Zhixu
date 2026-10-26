@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, Plus } from "lucide-react";
 
+import { EvaluationComparison } from "@/components/settings/evaluation/EvaluationComparison";
 import { NewRunDialog } from "@/components/settings/evaluation/NewRunDialog";
 import { RunDetailSheet } from "@/components/settings/evaluation/RunDetailSheet";
 import {
@@ -13,7 +14,12 @@ import {
   formatDateTime,
 } from "@/components/settings/evaluation/evaluation-utils";
 import { Button } from "@/components/ui/button";
-import { evaluationApi, type RunStatus, type RunSummary } from "@/lib/evaluation-api";
+import {
+  evaluationApi,
+  type Comparison,
+  type RunStatus,
+  type RunSummary,
+} from "@/lib/evaluation-api";
 
 const FILTER_STATUSES: RunStatus[] = [
   "queued",
@@ -35,6 +41,11 @@ export function EvaluationRuns({ refreshKey = 0, initialRun = null }: { refreshK
   const returnFocus = useRef<string | null>(null);
   const newRunRef = useRef<HTMLButtonElement>(null);
   const runRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [baselineId, setBaselineId] = useState("");
+  const [candidateId, setCandidateId] = useState("");
+  const [comparison, setComparison] = useState<Comparison | null>(null);
+  const [comparisonBusy, setComparisonBusy] = useState(false);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
 
   useEffect(() => {
     if (createOpen || activeRun || !returnFocus.current) return;
@@ -58,6 +69,25 @@ export function EvaluationRuns({ refreshKey = 0, initialRun = null }: { refreshK
   useEffect(() => {
     void loadRuns(statusFilter);
   }, [loadRuns, statusFilter, refreshKey]);
+
+  const comparableRuns = runs.filter((run) => run.status === "completed");
+
+  const createComparison = async () => {
+    if (!baselineId || !candidateId) return;
+    setComparisonBusy(true);
+    setComparisonError(null);
+    try {
+      const created = await evaluationApi.createComparison({
+        baseline_run_id: baselineId,
+        candidate_run_id: candidateId,
+      });
+      setComparison(created);
+    } catch (error) {
+      setComparisonError(evaluationErrorText(error, t));
+    } finally {
+      setComparisonBusy(false);
+    }
+  };
 
   if (createOpen) return (
     <NewRunDialog
@@ -107,6 +137,53 @@ export function EvaluationRuns({ refreshKey = 0, initialRun = null }: { refreshK
         <p role="alert" className="text-[13px] text-destructive">
           {loadError}
         </p>
+      ) : null}
+
+      {comparableRuns.length >= 2 ? (
+        <div className="space-y-2 rounded-panel border border-border/60 bg-settings-surface p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label={t("settings.evaluation.reliability.comparison.baseline")}
+              value={baselineId}
+              onChange={(event) => setBaselineId(event.target.value)}
+              className="h-8 rounded-control border border-border/70 bg-background px-2 text-[12px] text-foreground"
+            >
+              <option value="">{t("settings.evaluation.reliability.comparison.baseline")}</option>
+              {comparableRuns.map((run) => (
+                <option key={run.id} value={run.id}>
+                  {run.suite_name} · {formatDateTime(run.created_at)}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label={t("settings.evaluation.reliability.comparison.candidate")}
+              value={candidateId}
+              onChange={(event) => setCandidateId(event.target.value)}
+              className="h-8 rounded-control border border-border/70 bg-background px-2 text-[12px] text-foreground"
+            >
+              <option value="">{t("settings.evaluation.reliability.comparison.candidate")}</option>
+              {comparableRuns.map((run) => (
+                <option key={run.id} value={run.id}>
+                  {run.suite_name} · {formatDateTime(run.created_at)}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              size="sm"
+              disabled={comparisonBusy || !baselineId || !candidateId}
+              onClick={() => void createComparison()}
+            >
+              {t("settings.evaluation.reliability.comparison.createComparison")}
+            </Button>
+          </div>
+          {comparisonError ? (
+            <p role="alert" className="text-[12px] text-destructive">
+              {comparisonError}
+            </p>
+          ) : null}
+          <EvaluationComparison comparison={comparison} loading={comparisonBusy} />
+        </div>
       ) : null}
 
       {runs.length > 0 ? (

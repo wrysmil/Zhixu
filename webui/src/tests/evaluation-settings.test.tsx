@@ -17,6 +17,15 @@ vi.mock("@/lib/evaluation-api", () => ({
     createRun: vi.fn(),
     cancelRun: vi.fn(),
     rerunRun: vi.fn(),
+    getRunMetrics: vi.fn(),
+    addReview: vi.fn(),
+    listGoldSamples: vi.fn(),
+    confirmGoldSample: vi.fn(),
+    createCalibration: vi.fn(),
+    getCase: vi.fn(),
+    updateCase: vi.fn(),
+    createComparison: vi.fn(),
+    getComparison: vi.fn(),
     downloadRunExport: vi.fn(),
     downloadDatasetTemplate: vi.fn(),
     importDataset: vi.fn(),
@@ -234,7 +243,9 @@ describe("EvaluationSettings", () => {
     const sheet = await screen.findByRole("region", { name: "Dataset A" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByRole("table", { name: "Runs" })).not.toBeInTheDocument();
-    await waitFor(() => expect(within(sheet).getByText("Case 1")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(within(sheet).getAllByText("Case 1").length).toBeGreaterThan(0)
+    );
     await userEvent.setup().click(within(sheet).getByRole("button", { name: "Load trace" }));
 
     await waitFor(() => expect(getTraceMock).toHaveBeenCalledWith("a1", 0, 200));

@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  CaseEvaluationEditor,
+  type CaseEvaluationDraft,
+} from "@/components/settings/evaluation/CaseEvaluationEditor";
+import {
   evaluationErrorText,
   formatDateTime,
 } from "@/components/settings/evaluation/evaluation-utils";
@@ -10,6 +14,7 @@ import {
   evaluationApi,
   type DatasetImportResult,
   type EvaluationCase,
+  type EvaluationCaseDetail,
   type Suite,
 } from "@/lib/evaluation-api";
 import { cn } from "@/lib/utils";
@@ -24,6 +29,9 @@ export function EvaluationDatasets() {
   const [importError, setImportError] = useState<string | null>(null);
   const [expandedSuiteId, setExpandedSuiteId] = useState<string | null>(null);
   const [casesBySuite, setCasesBySuite] = useState<Record<string, EvaluationCase[]>>({});
+  const [editingCase, setEditingCase] = useState<EvaluationCaseDetail | null>(null);
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadSuites = useCallback(async () => {
@@ -67,6 +75,58 @@ export function EvaluationDatasets() {
       setImportError(evaluationErrorText(error, t));
     } finally {
       setImporting(false);
+    }
+  };
+
+  const openCaseEditor = async (caseId: string) => {
+    setEditorError(null);
+    try {
+      const detail = await evaluationApi.getCase(caseId);
+      setEditingCase(detail);
+    } catch (error) {
+      setEditorError(evaluationErrorText(error, t));
+    }
+  };
+
+  const saveCaseCriteria = async (draft: CaseEvaluationDraft) => {
+    if (!editingCase) return;
+    setEditorBusy(true);
+    setEditorError(null);
+    try {
+      const payload: Record<string, unknown> = { ...editingCase };
+      delete payload.id;
+      delete payload.revision;
+      delete payload.created_at;
+      delete payload.updated_at;
+      delete payload.is_deleted;
+      const hard = new Set(draft.hard_constraints);
+      const assertions = (editingCase.assertions ?? []).map((item) => ({
+        ...item,
+        required: hard.has(item.id) ? true : item.required,
+      }));
+      await evaluationApi.updateCase(editingCase.id, {
+        ...payload,
+        assertions,
+        evaluation: {
+          version: 2,
+          required_dimensions: draft.required_dimensions,
+          required_evidence: draft.required_evidence,
+          milestones: draft.milestones,
+          reference_answer: draft.reference_answer,
+          judge_artifact_paths: draft.judge_artifact_paths,
+          budgets: draft.budgets,
+        },
+        base_revision: editingCase.revision,
+      });
+      setEditingCase(null);
+      if (expandedSuiteId) {
+        const page = await evaluationApi.listCases(expandedSuiteId);
+        setCasesBySuite((prev) => ({ ...prev, [expandedSuiteId]: page.data }));
+      }
+    } catch (error) {
+      setEditorError(evaluationErrorText(error, t));
+    } finally {
+      setEditorBusy(false);
     }
   };
 
@@ -203,6 +263,14 @@ export function EvaluationDatasets() {
                     <span className="text-[11px] text-muted-foreground">
                       {formatDateTime(item.updated_at)}
                     </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void openCaseEditor(item.id)}
+                    >
+                      {t("settings.evaluation.reliability.caseEditor.editCriteria")}
+                    </Button>
                   </li>
                 ))}
               </ol>
@@ -210,6 +278,58 @@ export function EvaluationDatasets() {
           </li>
         ))}
       </ul>
+
+      {editorError ? (
+        <p role="alert" className="text-[13px] text-destructive">
+          {editorError}
+        </p>
+      ) : null}
+
+      {editingCase ? (
+        <div className="rounded-panel border border-border/60 bg-settings-surface p-3 sm:p-4">
+          <CaseEvaluationEditor
+            caseId={editingCase.id}
+            caseName={editingCase.name}
+            baseRevision={editingCase.revision}
+            evaluation={
+              editingCase.evaluation
+                ? {
+                    version: 2,
+                    required_dimensions: editingCase.evaluation.required_dimensions ?? [],
+                    required_evidence: editingCase.evaluation.required_evidence ?? [],
+                    milestones: editingCase.evaluation.milestones ?? [],
+                    reference_answer: editingCase.evaluation.reference_answer ?? null,
+                    judge_artifact_paths: editingCase.evaluation.judge_artifact_paths ?? [],
+                    budgets: {
+                      max_input_tokens: null,
+                      max_output_tokens: null,
+                      max_total_tokens: null,
+                      max_duration_ms: null,
+                      max_tool_calls: null,
+                      max_iterations: null,
+                      ...(editingCase.evaluation.budgets ?? {}),
+                    },
+                    hard_constraints: (editingCase.assertions ?? [])
+                      .filter((item) => item.required)
+                      .map((item) => item.id),
+                  }
+                : null
+            }
+            assertions={editingCase.assertions}
+            rubric={editingCase.rubric}
+            environment={{
+              tool_mode: editingCase.execution?.tool_mode ?? null,
+            }}
+            onSave={(draft) => void saveCaseCriteria(draft)}
+            onCancel={() => setEditingCase(null)}
+          />
+          {editorBusy ? (
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              {t("settings.evaluation.reliability.caseEditor.saving")}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

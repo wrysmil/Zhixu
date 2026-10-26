@@ -49,6 +49,110 @@ export type RunMetrics = {
   quality: Record<string, unknown>;
   agent_duration: Record<string, unknown>;
   usage: Record<string, unknown>;
+  /** 任务完成度：与综合合格率不是一回事。 */
+  task_outcomes?: TaskOutcomeMetrics;
+  qualification?: QualificationMetrics;
+  reliability?: ReliabilityMetrics;
+};
+
+export type TaskOutcomeMetrics = {
+  planned: number;
+  completed: number;
+  partial: number;
+  failed: number;
+  unknown: number;
+  task_success_rate: number | null;
+  partial_completion_rate: number | null;
+  task_assessment_coverage: number | null;
+};
+
+export type QualificationMetrics = {
+  qualified: number;
+  disqualified: number;
+  review_required: number;
+  not_evaluated: number;
+  qualification_rate: number | null;
+};
+
+export type ReliabilityMetrics = {
+  total_cases: number;
+  groups: Array<{
+    repetitions: number;
+    cases: number;
+    at_least_once_cases: number;
+    all_success_cases: number;
+    at_least_once_rate: number | null;
+    all_success_rate: number | null;
+  }>;
+};
+
+/** 证据覆盖度：缺证必须显式，不能默认完整。 */
+export type EvaluationCoverage = {
+  trace: "complete" | "partial" | "missing";
+  identity: "complete" | "partial" | "missing";
+  usage: "complete" | "partial" | "missing";
+  artifacts: "complete" | "partial" | "missing" | "not_applicable";
+  required_evidence: "complete" | "partial";
+  reasons: string[];
+};
+
+export type DimensionStatus =
+  | "passed"
+  | "failed"
+  | "not_assessable"
+  | "not_applicable";
+
+export type AttemptEvaluation = {
+  task_outcome: "completed" | "partial" | "failed" | "unknown";
+  qualification: "qualified" | "disqualified" | "review_required" | "not_evaluated";
+  dimensions: Record<
+    string,
+    {
+      dimension: string;
+      status: DimensionStatus;
+      score: number | null;
+      reason_codes: string[];
+      evidence_refs: string[];
+    }
+  >;
+  measurement_errors: Array<Record<string, unknown>>;
+};
+
+export type ComparisonPair = {
+  case_id: string;
+  case_revision: number;
+  status: "improved" | "regressed" | "unchanged" | "incomparable";
+  reason: string;
+  baseline: { success_rate: number | null; trials: number; status: string };
+  candidate: { success_rate: number | null; trials: number; status: string };
+  delta_success_rate: number | null;
+};
+
+export type Comparison = {
+  id: string;
+  baseline_run_id: string;
+  candidate_run_id: string;
+  mode: string;
+  compatibility: "strict" | "incompatible";
+  pairs: ComparisonPair[];
+  metrics: Record<string, unknown>;
+  intervals: Record<string, unknown> | null;
+  excluded: Array<Record<string, unknown>>;
+  reasons: string[];
+};
+
+export type RunMetricsView = {
+  metrics_version: number;
+  metrics: RunMetrics;
+  coverage: Record<string, unknown>;
+  scope: {
+    run_id: string;
+    case_count: number;
+    planned_trials: number;
+    valid_trials: number;
+    repetitions: number;
+    model_mode: string;
+  };
 };
 
 export type RunCounts = Partial<Record<Verdict, number>>;
@@ -58,6 +162,9 @@ export type Run = RunSummary & {
   counts: RunCounts;
   metrics: RunMetrics | null;
   attempts_url: string;
+  /** 评估能力：full / smoke / legacy。smoke 不能当综合质量门禁。 */
+  evaluation_capability?: "full" | "smoke" | "legacy";
+  coverage?: Record<string, unknown>;
 };
 
 export type AttemptError = {
@@ -96,6 +203,11 @@ export type Attempt = {
   trace_complete: boolean;
   artifacts: Array<Record<string, unknown>>;
   reviews: Array<Record<string, unknown>>;
+  /** v2 判分结果：任务结论、五维度与证据引用。 */
+  evaluation?: AttemptEvaluation | null;
+  /** 证据覆盖度：缺证必须显式，不能默认完整。 */
+  coverage?: EvaluationCoverage | null;
+  evidence_refs?: string[];
 };
 
 /** 列表接口 /runs/{id}/attempts 返回轻量结构：errors/final_answer 等在 result 里，
@@ -325,6 +437,45 @@ export type EvaluationCase = {
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
+};
+
+/** 用例详情：判据编辑页需要的完整定义（evaluation、assertions、量表、限额）。 */
+export type EvaluationCaseDetail = EvaluationCase & {
+  turns: Array<{ content: string }>;
+  execution: {
+    tool_mode: string;
+    allowed_tools: string[];
+    max_iterations: number;
+    timeout_s: number;
+  };
+  assertions: Array<{ id: string; kind: string; required: boolean }>;
+  rubric: {
+    required: boolean;
+    dimensions: Array<{ id: string; name: string; pass_score: number }>;
+  } | null;
+  evaluation: {
+    version: 2;
+    required_dimensions: string[];
+    required_evidence: string[];
+    milestones: Array<{ id: string; weight: number; assertion_ids: string[] }>;
+    reference_answer: string | null;
+    judge_artifact_paths: string[];
+    budgets: Record<string, number | null>;
+  } | null;
+  dependencies: string[];
+  required_inputs: string[];
+};
+
+/** gold 样本：人工确认后才允许进入 Judge 校准。 */
+export type GoldSample = {
+  id: string;
+  label_status: "proposed" | "confirmed" | "rejected";
+  reviewer: string | null;
+  comment: string;
+  updated_at: string;
+  task?: string;
+  expected_verdict?: "passed" | "failed";
+  expected_scores?: Array<Record<string, unknown>>;
 };
 
 export type Overview = {
@@ -609,12 +760,113 @@ export const evaluationApi = {
     });
   },
 
+  /** 追加人工复核结论：自动结论不会被这条路径改写。 */
+  addReview(
+    attemptId: string,
+    payload: { verdict: "passed" | "failed"; comment?: string }
+  ): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>(
+      `/attempts/${encodeURIComponent(attemptId)}/reviews`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  listGoldSamples(): Promise<{ gold_revision: number; data: GoldSample[] }> {
+    return request<{ gold_revision: number; data: GoldSample[] }>(
+      "/calibration-samples"
+    );
+  },
+
+  /** 人工确认 gold：只有字面量 true 才会被服务端接受。 */
+  confirmGoldSample(
+    sampleId: string,
+    payload: {
+      base_gold_revision: number;
+      expected_verdict: "passed" | "failed";
+      expected_scores: Array<Record<string, unknown>>;
+      comment?: string;
+    }
+  ): Promise<GoldSample> {
+    return request<GoldSample>(
+      `/calibration-samples/${encodeURIComponent(sampleId)}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ...payload, confirm: true }),
+      }
+    );
+  },
+
+  createCalibration(payload: {
+    judge_profile_id: string;
+    gold_revision: number;
+    sample_ids: string[];
+  }): Promise<Record<string, unknown>> {
+    return request<Record<string, unknown>>("/calibrations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey(),
+      },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  getRunMetrics(runId: string): Promise<RunMetricsView> {
+    return request<RunMetricsView>(`/runs/${runId}/metrics`);
+  },
+
+  createComparison(input: {
+    baseline_run_id: string;
+    candidate_run_id: string;
+    mode?: "strict";
+  }): Promise<Comparison> {
+    return request<Comparison>("/comparisons", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey(),
+      },
+      body: JSON.stringify(input),
+    });
+  },
+
+  getComparison(id: string): Promise<Comparison> {
+    return request<Comparison>(`/comparisons/${id}`);
+  },
+
   listSuites(): Promise<{ data: Suite[] }> {
     return request<{ data: Suite[] }>("/suites");
   },
 
   listCases(suiteId: string): Promise<{ data: EvaluationCase[] }> {
     return request<{ data: EvaluationCase[] }>(`/cases?suite_id=${encodeURIComponent(suiteId)}`);
+  },
+
+  getCase(caseId: string): Promise<EvaluationCaseDetail> {
+    return request<EvaluationCaseDetail>(`/cases/${caseId}`);
+  },
+
+  /** 保存用例判据：后端按 base_revision 做 CAS，落库即形成新 revision。 */
+  updateCase(
+    caseId: string,
+    payload: Record<string, unknown>
+  ): Promise<EvaluationCaseDetail> {
+    return request<EvaluationCaseDetail>(`/cases/${caseId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
   },
 
   listProfiles(): Promise<{ data: Profile[] }> {
