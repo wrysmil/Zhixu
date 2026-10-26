@@ -15,7 +15,7 @@ blockers: [team-runtime-wiring, real-model-smoke, gold-human-confirmation]
 - 软件回归：后端 1332 passed / 0 failed；前端 1902 passed / 7 failed / 2 skipped，失败集合与同 HEAD 基线完全一致（都在评估域之外）；tsc 通过；ruff（nanobot/evaluation）通过。
 - 判错能力：14 条评分器反例全部未判合格（12 disqualified + 2 review_required）；36 条样本的错误回放 34 failed + 2 setup_error，**没有一条错误回放被判 passed**。
 - 待完成（阻断完整交付）：
-  1. 团队生产执行栈未接线：EvaluationService 只有注入 team_runtime_factory 才能跑团队目标；gateway 尚未注入，团队目标会 setup 失败（不会假通过）。
+  1. 团队生产装配未接线：既无 team_snapshot_provider 也无 team_runtime_factory，团队目标在入队即失败（TEAM_NOT_FOUND），即使入队成功也会 setup_error；不会假通过，但功能不可用。
   2. 真实模型验收未执行：本机未提供可用凭据，6 attempt 真实冒烟未跑。
   3. gold 未人工确认：校准保持「待人工确认」，未运行真实 Judge 校准。
   4. Skill 目标：本次回放统一走 Agent 执行路径，Skill 目标的技能物化与技能隔离只做了单元级验证，未在 36 条回放中按 skill 目标执行。
@@ -36,6 +36,8 @@ blockers: [team-runtime-wiring, real-model-smoke, gold-human-confirmation]
 | 前端评估域 | vitest reliability + settings + observability + api | 26 passed |
 
 前端失败集合（与基线一致，非评估域）：useSessions、thread-viewport、add-project-dialog（2 条）、workspace-navigation、preview-isolation、i18n-dock-parity、preview-thread。
+补充（2026-10-26 晚）：全量跑时曾出现 3 条 services 测试随机失败，根因是 **Windows 260 字符路径上限**——会话 checkpoint 路径长度 276，长数据目录下写盘报 FileNotFoundError。已修复（紧凑会话键 + runs/s 目录，同一目录降到 242），并加了长路径回归测试；修复后全量复跑见下方记录。
+
 
 ## 3. 36 条样本受控回放（框架验证，不是模型能力）
 
@@ -69,8 +71,12 @@ blockers: [team-runtime-wiring, real-model-smoke, gold-human-confirmation]
 
 ## 6. 团队抽核（未完成，明确阻塞）
 
-- 团队目标必须注入 team_runtime_factory；gateway 未接线，团队 attempt 会 setup_error（TEAM_RUNTIME_UNAVAILABLE），不会假通过。
-- 因此「Leader 与成员 Trace / 工具与物理请求 / usage 同和 / attempt 之外写入为零 / 取消后全部退出」本轮无法实测。
+实测（2026-10-26）：
+
+- 生产装配里既没有 team_snapshot_provider，也没有 team_runtime_factory（全仓只有 EvaluationService 的形参定义，没有任何注入点）。
+- 因此团队目标在**入队阶段**就会失败：create_run 返回 TEAM_NOT_FOUND；即使手工提供冻结快照让入队通过，执行阶段仍会因缺 runtime factory 得到 setup_error（TEAM_RUNTIME_UNAVAILABLE）。
+- 失败是显式错误，不是静默放行——这符合「缺证不能通过」，但团队目标目前不可用。
+- 由于团队从未真正执行，「Leader 与成员 Trace / 工具与物理请求 / usage 同和 / attempt 之外写入为零 / 取消后全部退出」本轮无法实测。
 - 这是 T14 的阻断项，不能写成「已通过」。
 
 ## 7. 真实模型与人工校准（未完成）
@@ -82,3 +88,8 @@ blockers: [team-runtime-wiring, real-model-smoke, gold-human-confirmation]
 ## 8. 结论
 
 软件回归与「错误必须被判错」的底线已通过；完整交付仍被三项阻塞：团队执行栈接线、真实模型验收、人工 gold 确认。在上述阻塞解除前，不得宣称「完整评估系统已交付」。
+
+## 9. 审查状态
+
+- 代码审查与安全审查各派发两次，均因服务高负载失败/超时；现提供的两份 reviews 报告为 **Leader 自查**，
+  首行明确标注「独立审查未满足」。独立审查这一验收项仍为未满足，不能当作已通过。

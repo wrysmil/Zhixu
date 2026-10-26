@@ -50,6 +50,8 @@ status: in-progress
 | 「故意缺输入」样本被依赖校验卡在入库 | CASE_DEPENDENCY_MISSING:data/missing.csv | 新增 required_inputs 通道，改为 setup 阶段报缺 |
 | 复核组件与既有探索列表重复出现用例名 | evaluation-settings 单测 getByText 多匹配 | 断言改为 getAllByText，保留复核页展示 |
 | 前端覆盖度字段是 Record<string, unknown> | tsc 报 string 不可赋值 | 用泛型 pick 做白名单映射，缺字段按 missing 处理 |
+| 能力清单未进 Trace：技能哈希/生效白名单/生效限额只在内存 | 自查发现，worker.py 只读取 model/provider | 把 capability 写进 attempt.started，并加端到端断言 |
+| Windows 260 上限：会话 checkpoint 路径 276 字符，长数据目录下 FileNotFoundError | 全量跑 3 条 services 测试随机失败，定位到 worker.log 与 attempt 错误 | 会话键改为「前 8 位 + 摘要 8 位」紧凑形式、会话根改 runs/s；同目录从 276 降到 242，并加长路径回归测试 |
 
 ## 5. 未完成与阻塞
 
@@ -58,6 +60,7 @@ status: in-progress
 3. **gold 人工确认未完成**（不得 AI 代签），校准保持 review_required。
 4. **Skill 目标隔离未在 36 条回放中启用**（回放统一走 Agent 路径）。
 5. 前端既有失败 7 条（useSessions、thread-viewport、add-project-dialog×2、workspace-navigation、preview-isolation、i18n-dock-parity、preview-thread）与本轮无关，未修复。
+5. **独立审查未满足**：两个独立审查单元两次派发均因服务高负载失败/超时，已关闭；现由 Leader 自查产出 reviews/ 两份报告，报告首行明确标注「Leader 自查，独立审查未满足」。
 
 ## 6. 下一步建议
 

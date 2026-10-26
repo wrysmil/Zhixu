@@ -787,6 +787,9 @@ async def run_agent_worker(
             "turns": len(case.turns),
             "max_iterations": case.execution.max_iterations,
             "timeout_s": case.execution.timeout_s,
+            # 能力清单必须进 Trace：技能清单与哈希、生效工具白名单、生效限额
+            # 只留在内存里，报告侧就无法回答「这次到底在什么能力边界下跑的」。
+            "capability": runtime.capability,
         },
     )
     # 执行身份单独起一条事件：判分侧要能回答"谁跑的、跑的是哪个被测对象"。

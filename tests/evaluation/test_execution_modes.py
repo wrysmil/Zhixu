@@ -343,3 +343,45 @@ async def test_missing_required_input_fails_at_setup(tmp_path: Path) -> None:
     with pytest.raises(ValueError) as excinfo:
         await create_attempt(boot, provider=_fake_provider())
     assert "CASE_INPUT_MISSING" in str(excinfo.value)
+
+
+def test_session_checkpoint_path_fits_windows_limit() -> None:
+    """Windows 传统 MAX_PATH=260：长数据目录下会话 checkpoint 仍必须写得进去。
+
+    这条回归用例锁定真实故障：数据目录较深时，base64(完整 UUID) 命名让
+    checkpoint 临时文件长度达到 276，写盘直接 FileNotFoundError。
+    """
+    import base64
+
+    from nanobot.evaluation.runtime_factory import (
+        attempt_paths,
+        compact_session_key,
+    )
+
+    attempt_id = "4d75f38c-0aac-4e10-ab80-cd792d8d2175"
+    # 140 字符左右的目录在真实 Windows 用户目录里很常见（用户名 + 多级工作区）。
+    base = "D:/" + "x" * 135
+    paths = attempt_paths(
+        attempt_id=attempt_id,
+        runtime_root=base + "/runs/" + attempt_id + "/runtime",
+        workspace=base + "/runs/" + attempt_id + "/workspace",
+    )
+    key = compact_session_key(attempt_id)
+    assert len(key) <= 21
+    encoded = base64.urlsafe_b64encode(key.encode("utf-8")).decode("ascii")
+    suffix = f".checkpoint.json.{'0' * 16}.tmp"
+    checkpoint = paths.sessions_root / ("0" * 32) / f".{encoded}{suffix}"
+
+    # 旧命名（完整 UUID + sessions 目录 + 56 字符 base64）在同样目录下会顶穿上限；
+    # 新命名必须落回 260 以内，否则长路径回归会以 FileNotFoundError 重现。
+    legacy_encoded = base64.urlsafe_b64encode(
+        f"eval:{attempt_id}".encode("utf-8")
+    ).decode("ascii")
+    legacy = (
+        paths.sessions_root.parent
+        / "sessions"
+        / ("0" * 32)
+        / f".{legacy_encoded}{suffix}"
+    )
+    assert len(str(legacy)) > 260, len(str(legacy))
+    assert len(str(checkpoint)) <= 260, len(str(checkpoint))

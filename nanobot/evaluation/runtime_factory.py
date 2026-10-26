@@ -40,6 +40,23 @@ from nanobot.nanobot import Nanobot
 from nanobot.session.manager import SessionManager
 
 ATTEMPT_SESSION_PREFIX = "eval:"
+#: 会话键的紧凑后缀长度。session 文件用 base64(会话键) 命名，键每多一个字符，
+#: 文件名就多约 4/3 个字符；Windows 传统 MAX_PATH=260，长数据目录下会直接写失败。
+#: 16 个十六进制字符 = 64 bit，attempt 级唯一性足够，且把文件名压回安全区。
+COMPACT_SESSION_KEY_CHARS = 16
+
+
+def compact_session_key(attempt_id: str) -> str:
+    """把 attempt id 压成短会话键，避免 Windows 长路径写失败。
+
+    只截前几位会撞车：两个只在末段不同的 UUID 会得到同一个键（测试已抓到）。
+    这里取「前 8 位便于肉眼辨认 + 全 id 摘要 8 位」共 16 个十六进制字符，
+    64 bit 唯一性对 <=200 attempt 足够，同时把文件名缩短一半。
+    """
+    raw = str(attempt_id).replace("-", "")
+    digest = hashlib.sha256(str(attempt_id).encode("utf-8")).hexdigest()
+    compact = f"{raw[:8]}{digest[:8]}"
+    return f"{ATTEMPT_SESSION_PREFIX}{compact}"
 CONFIG_FILE_NAME = "config.json"
 
 RUNTIME_ROOT_NOT_ABSOLUTE = "RUNTIME_ROOT_NOT_ABSOLUTE"
@@ -151,7 +168,9 @@ def attempt_paths(*, attempt_id: str, runtime_root: str, workspace: str) -> Atte
         runtime_root=runtime,
         workspace=resolved_workspace,
         config_path=runtime / CONFIG_FILE_NAME,
-        sessions_root=attempt_dir.parent / "sessions",
+        # 目录名同样压短（runs/sessions → runs/s）：与紧凑会话键一起把整条
+        # checkpoint 路径拉回 260 字符以内。
+        sessions_root=attempt_dir.parent / "s",
         trace_dir=attempt_dir / "trace",
         artifact_dir=attempt_dir / "artifacts",
         log_path=attempt_dir / "worker.log",
@@ -417,7 +436,7 @@ async def create_attempt(
     )
 
     bot = Nanobot(loop, config=config)
-    session_key = f"{ATTEMPT_SESSION_PREFIX}{boot.attempt_id}"
+    session_key = compact_session_key(str(boot.attempt_id))
     fixtures_written: list[str] = []
     seeded = 0
     if isinstance(case, CaseWrite):

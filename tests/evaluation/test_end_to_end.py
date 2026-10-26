@@ -511,3 +511,27 @@ async def test_calibration_refuses_unconfirmed_gold(tmp_path: Path) -> None:
         rubric_version="general-v1",
         gold_revision=repository.gold_revision(),
     ) is None
+
+
+async def test_attempt_started_carries_capability_evidence(tmp_path: Path) -> None:
+    """能力边界必须进 Trace：工具白名单、生效限额、技能清单不能只留在内存。"""
+    case = copy.deepcopy(basic_cases()[BASIC_CASE_IDS[0]])
+    boot = _boot(case, tmp_path)
+    channel = WorkerChannel(attempt_id=str(boot.attempt_id), sink=[].append)
+    result = await run_agent_worker(boot, channel=channel)
+    assert result.execution_status == "succeeded", [
+        item.model_dump() for item in result.errors
+    ]
+
+    paths = attempt_paths(
+        attempt_id=str(boot.attempt_id),
+        runtime_root=boot.runtime_root,
+        workspace=boot.workspace,
+    )
+    trace = read_trace(paths.trace_dir)
+    started = next(event for event in trace.events if event.type == "attempt.started")
+    capability = started.payload.get("capability")
+    assert isinstance(capability, dict)
+    assert capability["effective_allowed_tools"]
+    assert capability["effective_limits"]["max_iterations"] >= 1
+    assert capability["skills"]["restricted_to_frozen"] is True

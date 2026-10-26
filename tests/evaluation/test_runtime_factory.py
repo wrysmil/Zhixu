@@ -30,6 +30,7 @@ from nanobot.evaluation.fixtures import (
 from nanobot.evaluation.runtime_factory import (
     ATTEMPT_SESSION_PREFIX,
     FORBIDDEN_TOOLS,
+    compact_session_key,
     create_attempt,
 )
 from nanobot.evaluation.schemas import AgentWorkerBoot, CaseWrite, JudgeWorkerBoot
@@ -369,12 +370,15 @@ async def test_two_attempts_isolate_workspace_session_and_memory(tmp_path: Path)
     assert "alpha" in first.bot.memory.read() and "bravo" not in first.bot.memory.read()
     assert "bravo" in second.bot.memory.read() and "alpha" not in second.bot.memory.read()
 
-    assert first.session_key == f"{ATTEMPT_SESSION_PREFIX}{first_id}"
+    # 会话键是紧凑形式（避 Windows 260 上限）：前缀保留，后段压到 16 个十六进制字符。
+    assert first.session_key == compact_session_key(first_id)
+    assert first.session_key.startswith(ATTEMPT_SESSION_PREFIX)
+    assert len(first.session_key) <= 21
     assert first.session_key != second.session_key
-    # 会话根与 attempt 目录同级（避 Windows 260 上限）；共享 sessions root 的两个
-    # attempt 靠「会话键前缀 + 按工作区哈希的命名空间」隔离，因此命名空间目录必须各归各家。
-    assert first.paths.sessions_root == (first_root.parent / "sessions").resolve()
-    assert second.paths.sessions_root == (second_root.parent / "sessions").resolve()
+    # 会话根与 attempt 目录同级（避 Windows 260 上限）；共享会话根的两个 attempt
+    # 靠「按工作区哈希的命名空间」隔离，因此命名空间目录必须各归各家。
+    assert first.paths.sessions_root == (first_root.parent / "s").resolve()
+    assert second.paths.sessions_root == (second_root.parent / "s").resolve()
     first_dir = first.bot._loop.sessions.sessions_dir.resolve()  # pyright: ignore[reportPrivateUsage]
     second_dir = second.bot._loop.sessions.sessions_dir.resolve()  # pyright: ignore[reportPrivateUsage]
     assert first_dir.is_relative_to(first.paths.sessions_root)
