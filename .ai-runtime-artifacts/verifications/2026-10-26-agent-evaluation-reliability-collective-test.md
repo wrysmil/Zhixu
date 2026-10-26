@@ -12,7 +12,7 @@ blockers: [team-runtime-wiring, real-model-smoke, gold-human-confirmation]
 
 ## 1. 结论摘要
 
-- 软件回归：后端 1332 passed / 0 failed；前端 1902 passed / 7 failed / 2 skipped，失败集合与同 HEAD 基线完全一致（都在评估域之外）；tsc 通过；ruff（nanobot/evaluation）通过。
+- 软件回归：后端 **1336 passed / 0 failed**（最终门禁复跑，180s）；前端 1902 passed / 7 failed / 2 skipped，失败集合与同 HEAD 基线完全一致（都在评估域之外）；tsc 通过；ruff（nanobot/evaluation）通过。
 - 判错能力：14 条评分器反例全部未判合格（12 disqualified + 2 review_required）；36 条样本的错误回放 34 failed + 2 setup_error，**没有一条错误回放被判 passed**。
 - 待完成（阻断完整交付）：
   1. 团队生产装配断链：入队可冻结团队快照（无 provider 时回退读用户团队库），但执行段只认 team_runtime_factory；gateway 构造并传入的是旧的 team_runner，服务端从不使用它 → 团队 attempt 必然 setup_error（TEAM_RUNTIME_UNAVAILABLE）。不会假通过，但团队功能不可用。
@@ -24,7 +24,7 @@ blockers: [team-runtime-wiring, real-model-smoke, gold-human-confirmation]
 
 | 域 | 命令 | 结果 |
 | --- | --- | --- |
-| 后端全量 | pytest tests/evaluation tests/teams tests/webui/test_eval_team_runner.py tests/cli/test_eval_commands.py tests/cli/test_gateway_runtime.py -q | 1332 passed / 0 failed（185s） |
+| 后端全量 | pytest tests/evaluation tests/teams tests/webui/test_eval_team_runner.py tests/cli/test_eval_commands.py tests/cli/test_gateway_runtime.py -q | 1336 passed / 0 failed（180s，最终门禁） |
 | 后端 lint | ruff check nanobot/evaluation | All checks passed |
 | 前端类型 | npx tsc -p tsconfig.build.json --noEmit | 退出码 0 |
 | 前端全量 | npm run test -- --no-cache | 1902 passed / 7 failed / 2 skipped（153 文件） |
