@@ -55,7 +55,7 @@ status: in-progress
 
 ## 5. 未完成与阻塞
 
-1. **团队生产执行栈未接线**（阻断 T14 团队抽核）：gateway 未注入 team_runtime_factory，团队目标一律 setup_error。
+1. **团队生产执行栈断链**（阻断 T14 团队抽核）：gateway 注入的是旧 team_runner，_execute_team 只认 team_runtime_factory，旧注入从不被读取；团队目标一律 setup_error。计划禁止回退共享 host，因此不直接复用旧 runner。
 2. **真实模型 6 attempt 冒烟未执行**（无凭据）。
 3. **gold 人工确认未完成**（不得 AI 代签），校准保持 review_required。
 4. **Skill 目标隔离未在 36 条回放中启用**（回放统一走 Agent 路径）。

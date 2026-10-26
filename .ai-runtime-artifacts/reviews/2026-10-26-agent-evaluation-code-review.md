@@ -28,7 +28,7 @@ status: completed-with-blockers
 
 | 编号 | 严重度 | 位置 | 问题 | 影响 | 建议 |
 | --- | --- | --- | --- | --- | --- |
-| CR-01 | 阻断（已记录） | nanobot/evaluation/services.py:176-177, 682-686 | 全仓没有注入 team_snapshot_provider / team_runtime_factory；团队目标在入队即 TEAM_NOT_FOUND，即使入队成功也会 TEAM_RUNTIME_UNAVAILABLE | 团队目标不可用，T14 团队抽核无法进行 | 接入生产团队执行栈（复用 nanobot/teams 的 Leader 回合与成员执行），并用真实团队跑抽核 |
+| CR-01 | 阻断（已记录） | nanobot/evaluation/services.py:682-686；nanobot/webui/gateway_services.py:821-828；nanobot/cli/gateway_runtime.py:1049 | gateway 注入的是旧 team_runner，_execute_team 只认 team_runtime_factory，self._team_runner 从不被读取（死注入）；团队 attempt 必然 TEAM_RUNTIME_UNAVAILABLE | 团队目标不可用，T14 团队抽核无法进行 | 在 attempt workspace 内构造隔离 TeamService/TeamScheduler/Leader 运行时并做成 team_runtime_factory；不得直接复用 gateway team_runner（共享 host，计划禁止） |
 | CR-02 | 已修复 | nanobot/evaluation/runtime_factory.py:152（sessions_root）、:420（session_key） | 会话 checkpoint 用 base64(完整 UUID) 命名，数据目录一深就超过 Windows 260，写盘报 FileNotFoundError（实测路径 276 字符） | 长路径下 attempt 执行失败，看起来像「Agent 能力失败」 | 已改为紧凑会话键 + runs/s 目录，实测同一目录 242 字符通过，并加了回归测试 |
 | CR-03 | 已修复 | nanobot/evaluation/worker.py:792 | capability（技能清单/哈希、生效白名单、生效限额）只在内存，未写进 Trace | 报告侧无法回答「这次在什么能力边界下跑的」 | 已写进 attempt.started，并加测试断言 |
 | CR-04 | 阻断（待验收） | — | 真实模型 6 attempt 冒烟未执行；gold 未人工确认 | 无法证明真实模型与 Judge 校准成立 | 配凭据后跑冒烟；人工确认 ≥10 条 gold |

@@ -26,7 +26,7 @@ status: completed-with-blockers
 
 | 编号 | 严重度 | 位置 | 失效路径 | 影响 | 建议 |
 | --- | --- | --- | --- | --- | --- |
-| SR-01 | 中 | nanobot/evaluation/services.py:176-177 | 团队快照与运行时都未注入，团队路径不可达 | 团队隔离、成员权限交集、取消回收均未实测，不能作为安全验收依据 | 接线后补团队安全抽核 |
+| SR-01 | 中 | nanobot/evaluation/services.py:682-686；nanobot/webui/gateway_services.py:821-828 | gateway 只传旧 team_runner，执行段只认 team_runtime_factory，团队路径不可达（不会回退共享 host，已加测试锁定） | 团队隔离、成员权限交集、取消回收均未实测，不能作为安全验收依据 | 接线隔离 team_runtime_factory 后补团队安全抽核 |
 | SR-02 | 低 | nanobot/evaluation/runtime_factory.py:314 | _missing_required_inputs 用 exists()，未展开符号链接 | 仅存在性判断（不读取），据以拒绝/放行的风险有限 | 改用 resolve_inside |
 | SR-03 | 低 | nanobot/evaluation/sample_cases.py:100 | 样本 environment/notes 文本写入 case description | description 仅展示、不进 prompt；React 转义渲染，无 XSS | 保持现状；若未来 description 进 prompt 需重新评估 |
 | SR-04 | 低 | webui EvaluationRuns.tsx | 同一 run 可自比 | 非安全问题，结果误导 | 前端禁用同值 + 后端 422 |

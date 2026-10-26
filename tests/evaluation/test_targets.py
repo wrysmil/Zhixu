@@ -533,3 +533,46 @@ async def test_team_target_without_runner_fails_setup(
     outcome = await service.execute(detail["attempts"][0], run=detail)
     assert outcome.execution_status == "setup_error"
     assert outcome.result["errors"][0]["code"] == "TEAM_RUNTIME_UNAVAILABLE"
+
+
+async def test_shared_host_team_runner_is_not_used_as_fallback(
+    repository: EvaluationRepository, tmp_path: Path
+) -> None:
+    """只注入旧的共享 host runner 时，团队执行必须拒绝，而不是回退共享运行时。
+
+    计划明确禁止「回退共享 host 做真实团队安全测评」：旧 team_runner 跑在 gateway
+    的共享团队栈里，隔离性无法保证。这条锁住「宁可 setup 失败也不静默回退」。
+    """
+    from typing import Any
+
+    from nanobot.evaluation.services import EvaluationService
+    from tests.evaluation.conftest import make_run_payload, make_suite_payload
+
+    called: list[dict[str, Any]] = []
+
+    async def legacy_runner(payload: dict[str, Any]) -> dict[str, Any]:
+        called.append(payload)
+        return {"status": "succeeded", "final_answer": "共享 host 的结论"}
+
+    service = EvaluationService(
+        repository=repository, data_dir=tmp_path,
+        team_runner=legacy_runner,
+        team_snapshot_provider=_team_snapshot,
+    )
+    suite = repository.create_suite(make_suite_payload())
+    case = repository.save_case(make_case_payload(suite_id=suite["id"]))
+    run = service.create_run(
+        RunCreate.model_validate({
+            **make_run_payload([case["id"]], suite_id=suite["id"],
+                               agent_profile_id="controlled-agent"),
+            "target": {"kind": "team", "id": "creative"},
+        }),
+        idempotency_key="team-shared-host", scope="t",
+    )
+    detail = repository.get_run(run["id"])
+    outcome = await service.execute(detail["attempts"][0], run=detail)
+
+    assert outcome.execution_status == "setup_error"
+    assert outcome.result["errors"][0]["code"] == "TEAM_RUNTIME_UNAVAILABLE"
+    # 共享 host 的 runner 一次都不能被调用。
+    assert called == []

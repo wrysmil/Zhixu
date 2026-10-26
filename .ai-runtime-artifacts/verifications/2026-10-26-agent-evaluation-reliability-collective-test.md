@@ -15,7 +15,7 @@ blockers: [team-runtime-wiring, real-model-smoke, gold-human-confirmation]
 - 软件回归：后端 1332 passed / 0 failed；前端 1902 passed / 7 failed / 2 skipped，失败集合与同 HEAD 基线完全一致（都在评估域之外）；tsc 通过；ruff（nanobot/evaluation）通过。
 - 判错能力：14 条评分器反例全部未判合格（12 disqualified + 2 review_required）；36 条样本的错误回放 34 failed + 2 setup_error，**没有一条错误回放被判 passed**。
 - 待完成（阻断完整交付）：
-  1. 团队生产装配未接线：既无 team_snapshot_provider 也无 team_runtime_factory，团队目标在入队即失败（TEAM_NOT_FOUND），即使入队成功也会 setup_error；不会假通过，但功能不可用。
+  1. 团队生产装配断链：入队可冻结团队快照（无 provider 时回退读用户团队库），但执行段只认 team_runtime_factory；gateway 构造并传入的是旧的 team_runner，服务端从不使用它 → 团队 attempt 必然 setup_error（TEAM_RUNTIME_UNAVAILABLE）。不会假通过，但团队功能不可用。
   2. 真实模型验收未执行：本机未提供可用凭据，6 attempt 真实冒烟未跑。
   3. gold 未人工确认：校准保持「待人工确认」，未运行真实 Judge 校准。
   4. Skill 目标：本次回放统一走 Agent 执行路径，Skill 目标的技能物化与技能隔离只做了单元级验证，未在 36 条回放中按 skill 目标执行。
@@ -71,11 +71,12 @@ blockers: [team-runtime-wiring, real-model-smoke, gold-human-confirmation]
 
 ## 6. 团队抽核（未完成，明确阻塞）
 
-实测（2026-10-26）：
+实测与代码核对（2026-10-26）：
 
-- 生产装配里既没有 team_snapshot_provider，也没有 team_runtime_factory（全仓只有 EvaluationService 的形参定义，没有任何注入点）。
-- 因此团队目标在**入队阶段**就会失败：create_run 返回 TEAM_NOT_FOUND；即使手工提供冻结快照让入队通过，执行阶段仍会因缺 runtime factory 得到 setup_error（TEAM_RUNTIME_UNAVAILABLE）。
-- 失败是显式错误，不是静默放行——这符合「缺证不能通过」，但团队目标目前不可用。
+- **入队**：没有 team_snapshot_provider 时会回退读用户工作区的团队库（services.py:435-453），团队存在即可入队并冻结快照；团队不存在才报 TEAM_NOT_FOUND。
+- **执行**：_execute_team 只认 team_runtime_factory（services.py:682-686）。gateway 构造并传入的是旧的 team_runner（gateway_services.py:821-828 → gateway_runtime.py:1049），服务端从不读 self._team_runner，属于**死注入**。
+- 因此团队 attempt 必然 setup_error（TEAM_RUNTIME_UNAVAILABLE）：失败是显式错误，不是静默放行，也不会回退共享 host。
+- 新增测试 test_shared_host_team_runner_is_not_used_as_fallback 锁定：只注入旧 team_runner 时共享 host 一次都不会被调用。
 - 由于团队从未真正执行，「Leader 与成员 Trace / 工具与物理请求 / usage 同和 / attempt 之外写入为零 / 取消后全部退出」本轮无法实测。
 - 这是 T14 的阻断项，不能写成「已通过」。
 
