@@ -1,0 +1,620 @@
+{
+  "total": 36,
+  "text_only": 1,
+  "correct_passed": 1,
+  "wrong_not_passed": 1,
+  "results": [
+    {
+      "case_id": "R2-A01",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "passed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-A02",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "review_required",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-A03",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "review_required",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-A04",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-A05",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "passed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-A06",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "not_evaluated",
+        "execution_status": "setup_error",
+        "grading_status": "not_applicable",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "not_evaluated",
+        "execution_status": "setup_error",
+        "grading_status": "not_applicable",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-A07",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "passed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-A08",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "passed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-A09",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-A10",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-A11",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "passed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-A12",
+      "target": "agent",
+      "text_only": false,
+      "correct": {
+        "verdict": "passed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S01",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "review_required",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S02",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S03",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "review_required",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S04",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S05",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "not_evaluated",
+        "execution_status": "setup_error",
+        "grading_status": "not_applicable",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "not_evaluated",
+        "execution_status": "setup_error",
+        "grading_status": "not_applicable",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S06",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S07",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S08",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S09",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "review_required",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S10",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S11",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "review_required",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-S12",
+      "target": "skill",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T01",
+      "target": "team",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T02",
+      "target": "team",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T03",
+      "target": "team",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T04",
+      "target": "team",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T05",
+      "target": "team",
+      "text_only": true,
+      "correct": {
+        "verdict": "passed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T06",
+      "target": "team",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T07",
+      "target": "team",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T08",
+      "target": "team",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T09",
+      "target": "team",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T10",
+      "target": "team",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T11",
+      "target": "team",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    },
+    {
+      "case_id": "R2-T12",
+      "target": "team",
+      "text_only": false,
+      "correct": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      },
+      "wrong": {
+        "verdict": "failed",
+        "execution_status": "succeeded",
+        "grading_status": "completed",
+        "coverage": null
+      }
+    }
+  ]
+}
