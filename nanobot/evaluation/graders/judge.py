@@ -26,6 +26,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
 from nanobot.evaluation.graders.rules import AttemptEvidenceView
+from nanobot.evaluation.judge_materials import JudgeMaterials, build_materials
 from nanobot.evaluation.schemas import JudgeDimensionResult, JudgeResult
 
 #: 固定评分器版本：写进结果与快照，便于复核（spec §7.1「评分提示词、量表版本进快照」）。
@@ -86,7 +87,21 @@ async def evaluate_judge(
     """
     dimensions = _rubric_dimensions(rubric)
     used_model = model if model is not None else _default_model(provider)
-    messages = _build_messages(rubric, evidence, dimensions)
+    materials = build_materials(
+        case=evidence.case_snapshot if isinstance(evidence.case_snapshot, Mapping) else {},
+        evidence=evidence,
+        rubric=rubric if isinstance(rubric, Mapping) else None,
+    )
+    if materials.not_assessable:
+        # 缺必需材料时不让 Judge 硬给低分：直接弃权，交给人工复核。
+        return JudgeResult(
+            status="not_assessable",
+            model=used_model,
+            version=GRADER_VERSION,
+            calibrated=False,
+            error="REQUIRED_EVIDENCE_MISSING: " + ",".join(materials.required_evidence_missing),
+        )
+    messages = _build_messages(rubric, evidence, dimensions, materials)
     errors: list[str] = []
     try:
         async with asyncio.timeout(timeout_s):
@@ -141,10 +156,12 @@ def _build_messages(
     rubric: Mapping[str, Any] | Any,
     evidence: AttemptEvidenceView,
     dimensions: Sequence[Mapping[str, Any]],
+    materials: JudgeMaterials | None = None,
 ) -> list[dict[str, Any]]:
+    body = materials.render() if materials is not None else _material(evidence)
     return [
         {"role": "system", "content": _system_prompt(rubric, dimensions)},
-        {"role": "user", "content": _material(evidence)},
+        {"role": "user", "content": body},
     ]
 
 

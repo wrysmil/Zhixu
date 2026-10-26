@@ -84,6 +84,9 @@ def judge_state_of(
     required = bool(_field(rubric, "required", False))
     if judge is None:
         return "missing" if required else "disabled"
+    if judge.status == "not_assessable":
+        # 缺证弃权：无论量表是否必需，都必须人工复核，不能当"通过"或"失败"。
+        return "missing"
     if judge.status != "completed" or judge.error is not None:
         return "error" if required else "disabled"
     scores = _scores_by_dimension(judge)

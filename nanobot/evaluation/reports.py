@@ -72,6 +72,10 @@ class RunMetrics(TypedDict):
     quality: list[QualityEntry]
     agent_duration: DurationStats
     usage: dict[str, Any]
+    #: v2 指标（契约 §5）：任务完成度、合格策略与重复可靠性。
+    task_outcomes: dict[str, Any]
+    qualification: dict[str, Any]
+    reliability: dict[str, Any]
 
 
 def normalize_attempt_for_metrics(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -139,6 +143,9 @@ def aggregate_run(
             "agent": _usage_ledger(attempts, "agent"),
             "judge": _usage_ledger(attempts, "judge"),
         },
+        task_outcomes=aggregate_task_outcomes(attempts, planned_count),
+        qualification=aggregate_qualification(attempts, planned_count),
+        reliability=aggregate_reliability(attempts),
     )
 
 
@@ -547,3 +554,130 @@ def render_summary_html(*, title: str, generated_at: str, sections: list[dict[st
         parts.append("</table>")
     parts.append("</body></html>")
     return "".join(parts)
+
+# ------------------------------------------------------------------ v2 指标口径
+
+
+def _evaluation_of(attempt: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    payload = attempt.get("evaluation")
+    return payload if isinstance(payload, Mapping) else None
+
+
+def aggregate_task_outcomes(
+    attempts: Sequence[Mapping[str, Any]], planned_count: int
+) -> dict[str, Any]:
+    """任务完成度指标（契约 §5）。
+
+    - task_success_rate = completed / planned；
+    - partial_completion_rate = partial / planned；
+    - task_assessment_coverage = 已知任务结果的 attempt 数 / planned。
+
+    老记录没有任务结果时只算覆盖度，不补 0 假装失败。
+    """
+    completed = partial = failed = unknown = 0
+    for attempt in attempts:
+        evaluation = _evaluation_of(attempt)
+        if evaluation is None:
+            unknown += 1
+            continue
+        outcome = str(evaluation.get("task_outcome") or "unknown")
+        if outcome == "completed":
+            completed += 1
+        elif outcome == "partial":
+            partial += 1
+        elif outcome == "failed":
+            failed += 1
+        else:
+            unknown += 1
+    known = completed + partial + failed
+    return {
+        "planned": planned_count,
+        "completed": completed,
+        "partial": partial,
+        "failed": failed,
+        "unknown": unknown,
+        # 一个任务结果都没测到时返回 None：把"没测"写成 0% 就是把未知当失败。
+        "task_success_rate": _ratio(completed, planned_count) if known else None,
+        "partial_completion_rate": _ratio(partial, planned_count) if known else None,
+        "task_assessment_coverage": _ratio(known, planned_count),
+    }
+
+
+def aggregate_qualification(
+    attempts: Sequence[Mapping[str, Any]], planned_count: int
+) -> dict[str, Any]:
+    """合格策略指标：qualified / disqualified / review_required 的分布。"""
+    qualified = disqualified = review = not_evaluated = 0
+    for attempt in attempts:
+        evaluation = _evaluation_of(attempt)
+        if evaluation is None:
+            not_evaluated += 1
+            continue
+        value = str(evaluation.get("qualification") or "not_evaluated")
+        if value == "qualified":
+            qualified += 1
+        elif value == "disqualified":
+            disqualified += 1
+        elif value == "review_required":
+            review += 1
+        else:
+            not_evaluated += 1
+    return {
+        "qualified": qualified,
+        "disqualified": disqualified,
+        "review_required": review,
+        "not_evaluated": not_evaluated,
+        "qualification_rate": _ratio(qualified, planned_count),
+    }
+
+
+def aggregate_reliability(
+    attempts: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """重复试验的可靠性（契约 §5）。
+
+    先按 case 聚合 trial；只统计"r 相同且全部可判"的 case，
+    再给"r 次至少一次成功""r 次全部成功"的经验比例。
+    这些是经验比例，不是独立性假设下的 p^r 估计。
+    """
+    buckets: dict[str, dict[str, int]] = {}
+    for attempt in attempts:
+        case_id = str(attempt.get("case_id") or "")
+        if not case_id:
+            continue
+        bucket = buckets.setdefault(
+            case_id, {"trials": 0, "successes": 0, "judged": 0}
+        )
+        bucket["trials"] += 1
+        verdict = str(attempt.get("verdict") or "not_evaluated")
+        if verdict == "passed":
+            bucket["successes"] += 1
+            bucket["judged"] += 1
+        elif verdict == "failed":
+            bucket["judged"] += 1
+    by_r: dict[int, dict[str, int]] = {}
+    for bucket in buckets.values():
+        trials = bucket["trials"]
+        entry = by_r.setdefault(trials, {"cases": 0, "at_least_once": 0, "all_success": 0})
+        entry["cases"] += 1
+        if bucket["successes"] > 0:
+            entry["at_least_once"] += 1
+        if bucket["judged"] == trials and bucket["successes"] == trials:
+            entry["all_success"] += 1
+    groups = []
+    for trials in sorted(by_r):
+        entry = by_r[trials]
+        groups.append(
+            {
+                "repetitions": trials,
+                "cases": entry["cases"],
+                "at_least_once_cases": entry["at_least_once"],
+                "all_success_cases": entry["all_success"],
+                "at_least_once_rate": _ratio(entry["at_least_once"], entry["cases"]),
+                "all_success_rate": _ratio(entry["all_success"], entry["cases"]),
+            }
+        )
+    return {
+        "total_cases": len(buckets),
+        "groups": groups,
+    }

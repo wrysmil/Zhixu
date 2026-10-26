@@ -23,13 +23,16 @@ from pydantic import Field, StrictStr, ValidationError
 
 from nanobot.evaluation.artifacts import ArtifactError, attachment_headers, resolve_artifact
 from nanobot.evaluation.auth import SESSION_COOKIE, AuthConfig, AuthError, AuthManager
+from nanobot.evaluation.coverage import summarize_coverage
 from nanobot.evaluation.database import EvaluationDatabase
 from nanobot.evaluation.errors import code_from_exception, error_body, status_for
+from nanobot.evaluation.reports import aggregate_run, normalize_attempt_for_metrics
 from nanobot.evaluation.repository import EvaluationRepository
 from nanobot.evaluation.scheduler import Scheduler, SchedulerConfig
 from nanobot.evaluation.schemas import (
     CalibrationCreate,
     CaseWrite,
+    ComparisonCreate,
     EmptyBody,
     GoldReview,
     ImportSuiteRequest,
@@ -352,6 +355,72 @@ async def create_run(request: web.Request) -> web.Response:
         context.service.run_read(run["id"]),
         status=202,
         headers={"Location": f"{API_PREFIX}/runs/{run['id']}"},
+    )
+
+
+async def create_comparison(request: web.Request) -> web.Response:
+    """创建严格比较：不可比时直接报错，不生成记录。"""
+    context = context_of(request)
+    key = request.headers.get("Idempotency-Key")
+    if not key:
+        _fail("VALIDATION_ERROR", "缺少 Idempotency-Key")
+    body = await _json_body(request, ComparisonCreate)
+    result = context.service.create_comparison(
+        body, idempotency_key=key, scope=_scope(request)
+    )
+    return web.json_response(
+        result,
+        status=201,
+        headers={"Location": f"{API_PREFIX}/comparisons/{result.get('id')}"},
+    )
+
+
+async def get_comparison(request: web.Request) -> web.Response:
+    context = context_of(request)
+    return web.json_response(context.service.comparison_read(request.match_info["id"]))
+
+
+async def get_comparison_report(request: web.Request) -> web.Response:
+    context = context_of(request)
+    body = context.service.comparison_report(request.match_info["id"])
+    return web.Response(
+        text=body, content_type="text/html", charset="utf-8"
+    )
+
+
+async def get_run_metrics(request: web.Request) -> web.Response:
+    """v2 指标读模型：metrics_version、指标、覆盖度与统计范围。"""
+    context = context_of(request)
+    run_id = request.match_info["id"]
+    detail = context.repository.get_run(run_id)
+    attempts = context.repository.list_run_attempts(run_id)
+    metrics = aggregate_run(
+        [normalize_attempt_for_metrics(item) for item in attempts],
+        len(detail["attempts"]),
+    )
+    coverages = [
+        dict((item.get("result") or {}).get("coverage") or {})
+        for item in detail["attempts"]
+    ]
+    snapshot = detail.get("snapshot") or {}
+    return web.json_response(
+        {
+            "metrics_version": 2,
+            "metrics": metrics,
+            "coverage": summarize_coverage(coverages),
+            "scope": {
+                "run_id": run_id,
+                "case_count": len(detail["attempts"]),
+                "planned_trials": len(detail["attempts"]),
+                "valid_trials": sum(
+                    1
+                    for item in attempts
+                    if str(item.get("verdict") or "") in ("passed", "failed")
+                ),
+                "repetitions": int(snapshot.get("repetitions") or 1),
+                "model_mode": str(snapshot.get("model_mode") or "real"),
+            },
+        }
     )
 
 
@@ -848,6 +917,10 @@ def _routes() -> list[web.RouteDef]:
         r("POST", "/runs", create_run),
         r("GET", "/runs", list_runs),
         r("GET", "/runs/{id}", get_run),
+        r("GET", "/runs/{id}/metrics", get_run_metrics),
+        r("POST", "/comparisons", create_comparison),
+        r("GET", "/comparisons/{id}", get_comparison),
+        r("GET", "/comparisons/{id}/report", get_comparison_report),
         r("POST", "/runs/{id}/cancel", cancel_run),
         r("POST", "/runs/{id}/rerun", rerun_run),
         r("GET", "/runs/{id}/attempts", list_run_attempts),

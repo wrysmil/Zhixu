@@ -55,6 +55,7 @@ from nanobot.cli import terminal as cli_terminal  # noqa: E402
 from nanobot.cli.agent import agent  # noqa: E402
 from nanobot.cli.gateway import create_gateway_app  # noqa: E402
 from nanobot.cli.gateway_runtime import _run_gateway  # noqa: E402
+from nanobot.cli.eval_commands import eval_app  # noqa: E402
 from nanobot.cli.log_control import _set_nanobot_logs  # noqa: E402
 from nanobot.cli.process_identity import set_cli_process_identity  # noqa: E402
 from nanobot.cli.provider import provider_app  # noqa: E402
@@ -646,6 +647,9 @@ def plugins_disable(
 # ============================================================================
 # Status Commands
 # ============================================================================
+
+
+app.add_typer(eval_app, name="eval")
 
 
 @app.command()

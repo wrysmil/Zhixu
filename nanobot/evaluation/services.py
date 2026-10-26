@@ -29,6 +29,7 @@ from typing import Any
 
 from nanobot.config.paths import get_workspace_path
 from nanobot.evaluation.assessment import assess
+from nanobot.evaluation.comparisons import build_comparison
 from nanobot.evaluation.coverage import (
     compute_coverage,
     evaluation_capability,
@@ -62,6 +63,7 @@ from nanobot.evaluation.reports import (
     export_run_csv,
     export_run_json,
     normalize_attempt_for_metrics,
+    render_summary_html,
 )
 from nanobot.evaluation.repository import EvaluationRepository
 from nanobot.evaluation.runtime_factory import attempt_paths
@@ -70,6 +72,7 @@ from nanobot.evaluation.schemas import (
     AgentWorkerBoot,
     AttemptError,
     CaseWrite,
+    ComparisonCreate,
     JudgeDimensionResult,
     JudgeWorkerBoot,
     Rubric,
@@ -100,6 +103,11 @@ def _null_sink(raw: bytes) -> None:
 
 #: 契约 §5：评分总预算（含格式重试），超时按 judge_error 记，不无限等。
 JUDGE_BUDGET_S = 60
+
+#: run 的终态：只有终态运行才能进入比较。
+_TERMINAL_RUN_STATUSES = frozenset(
+    {"completed", "cancelled", "interrupted", "timed_out"}
+)
 
 #: 评分实现的可注入点：attempt 评分与校准项评分共用，生产默认是评分子进程。
 JudgeRunner = Callable[..., Awaitable[JudgeResult]]
@@ -189,6 +197,11 @@ class EvaluationService:
     @property
     def repository(self) -> EvaluationRepository:
         return self._repository
+
+    @property
+    def profiles(self) -> tuple[Profile, ...]:
+        """已装配的执行/评分档案（不含凭据：bundle 只在服务内存里）。"""
+        return tuple(self._profiles.values())
 
     @property
     def runtime_root(self) -> Path:
@@ -1336,6 +1349,105 @@ class EvaluationService:
             "evidence_refs": list(result.get("evidence_refs") or []),
             "coverage": result.get("coverage"),
         }
+
+    # ------------------------------------------------------------------ 比较
+
+    def create_comparison(
+        self,
+        request: ComparisonCreate,
+        *,
+        idempotency_key: str,
+        scope: str,
+    ) -> dict[str, Any]:
+        """严格比较：先校验可比性，再逐 case 配对。
+
+        不可比时**不生成比较记录**：把不兼容的两次运行存成"比较"，
+        会让读者以为已经比过了。
+        """
+        baseline = self._repository.get_run(str(request.baseline_run_id))
+        candidate = self._repository.get_run(str(request.candidate_run_id))
+        for label, run in (("baseline", baseline), ("candidate", candidate)):
+            if str(run.get("status")) not in _TERMINAL_RUN_STATUSES:
+                raise ServiceError(
+                    "COMPARISON_RUN_NOT_TERMINAL",
+                    f"{label} run is not terminal",
+                )
+        result = build_comparison(
+            comparison_id="",
+            baseline_run=baseline,
+            candidate_run=candidate,
+            baseline_attempts=self._repository.list_run_attempts(
+                str(request.baseline_run_id)
+            ),
+            candidate_attempts=self._repository.list_run_attempts(
+                str(request.candidate_run_id)
+            ),
+            mode=request.mode,
+        )
+        if result.compatibility != "strict":
+            code = (
+                "COMPARISON_METADATA_MISSING"
+                if any("METADATA_MISSING" in item for item in result.reasons)
+                else "COMPARISON_INCOMPATIBLE"
+            )
+            raise ServiceError(code, ";".join(result.reasons))
+        stored = self._repository.create_comparison(
+            scope=scope,
+            idempotency_key=idempotency_key,
+            baseline_run_id=str(request.baseline_run_id),
+            candidate_run_id=str(request.candidate_run_id),
+            mode=request.mode,
+            compatibility=result.compatibility,
+            result=result.to_dict(),
+        )
+        return dict(stored.get("result") or {})
+
+    def comparison_read(self, comparison_id: str) -> dict[str, Any]:
+        stored = self._repository.get_comparison(comparison_id)
+        return dict(stored.get("result") or {})
+
+    def comparison_report(self, comparison_id: str) -> str:
+        """自包含 HTML 报告：与 API 读模型同源，不另算一套数。"""
+        stored = self._repository.get_comparison(comparison_id)
+        result = dict(stored.get("result") or {})
+        rows = [
+            [
+                str(pair.get("case_id") or "")[:8],
+                str(pair.get("status") or ""),
+                str((pair.get("baseline") or {}).get("success_rate")),
+                str((pair.get("candidate") or {}).get("success_rate")),
+                str(pair.get("delta_success_rate")),
+            ]
+            for pair in (result.get("pairs") or [])
+        ]
+        metrics = result.get("metrics") or {}
+        return render_summary_html(
+            title="评估配对比较",
+            generated_at=datetime.now(timezone.utc).isoformat(),
+            sections=[
+                {
+                    "heading": "比较范围",
+                    "headers": ["项", "值"],
+                    "rows": [
+                        ["baseline", str(result.get("baseline_run_id") or "")],
+                        ["candidate", str(result.get("candidate_run_id") or "")],
+                        ["可比性", str(result.get("compatibility") or "")],
+                        ["配对 case", str(metrics.get("compared_cases"))],
+                        ["改进 / 退步 / 不变", (
+                            f"{metrics.get('improved_cases')} / "
+                            f"{metrics.get('regressed_cases')} / "
+                            f"{metrics.get('unchanged_cases')}"
+                        )],
+                        ["成功率差", str(metrics.get("task_success_rate_delta"))],
+                    ],
+                },
+                {
+                    "heading": "逐 case",
+                    "headers": ["case", "状态", "baseline", "candidate", "差值"],
+                    "rows": rows or [["—", "—", "—", "—", "—"]],
+                },
+            ],
+        )
 
     def trace_page(
         self, attempt_id: str, *, after_seq: int = 0, limit: int = 200

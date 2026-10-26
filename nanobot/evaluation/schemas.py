@@ -789,6 +789,10 @@ class RunMetrics(JsonModel):
     quality: list[QualityEntry] = Field(default_factory=list)
     agent_duration: DurationStats
     usage: UsageLedgerView
+    #: v2 指标（契约 §5）：任务完成度、合格策略与重复可靠性。
+    task_outcomes: JsonObject = Field(default_factory=dict)
+    qualification: JsonObject = Field(default_factory=dict)
+    reliability: JsonObject = Field(default_factory=dict)
 
 
 class RunRead(RunSummary):
@@ -956,6 +960,29 @@ class ImportSuiteRequest(JsonModel):
     schema_version: Literal[1] = 1
     suite: SuiteWrite
     cases: Annotated[list[CaseWrite], Field(min_length=1, max_length=200)]
+
+
+class ComparisonCreate(JsonModel):
+    """创建一次严格比较（契约 §6）。"""
+
+    baseline_run_id: Uuid
+    candidate_run_id: Uuid
+    mode: Literal["strict"] = "strict"
+
+
+class ComparisonRead(JsonModel):
+    """比较的读模型；统计覆盖整份比较快照，不是当前页。"""
+
+    id: Uuid
+    baseline_run_id: Uuid
+    candidate_run_id: Uuid
+    mode: StrictStr
+    compatibility: Literal["strict", "incompatible"]
+    pairs: list[JsonObject] = Field(default_factory=list)
+    metrics: JsonObject = Field(default_factory=dict)
+    intervals: JsonObject | None = None
+    excluded: list[JsonObject] = Field(default_factory=list)
+    reasons: list[StrictStr] = Field(default_factory=list)
 
 
 class RerunCreate(JsonModel):

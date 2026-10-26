@@ -250,6 +250,25 @@ _MIGRATIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             " ON attempts (run_id, case_id, trial_index)",
         ),
     ),
+    (
+        "3",
+        (
+            """
+            CREATE TABLE IF NOT EXISTS comparisons (
+              id              TEXT    PRIMARY KEY,
+              scope           TEXT    NOT NULL,
+              baseline_run_id TEXT    NOT NULL,
+              candidate_run_id TEXT   NOT NULL,
+              mode            TEXT    NOT NULL,
+              compatibility   TEXT    NOT NULL,
+              result_json     TEXT,
+              created_at      TEXT    NOT NULL
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS comparisons_scope_idx"
+            " ON comparisons (scope, created_at)",
+        ),
+    ),
 )
 
 def _read_version(conn: sqlite3.Connection) -> int | None:

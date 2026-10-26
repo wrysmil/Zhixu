@@ -37,6 +37,7 @@ from nanobot.evaluation.schemas import CaseRead, CaseWrite, RunCreate, SuiteRead
 from nanobot.evaluation.validation import validate_relative_path
 
 RUNS_ENDPOINT = "POST /runs"
+COMPARISONS_ENDPOINT = "POST /comparisons"
 
 #: run 终态：只有这四种允许软删（契约 §3 `DELETE /runs/{id}`；timed_out 属 WU-03）。
 TERMINAL_RUN_STATUSES = frozenset({"completed", "cancelled", "interrupted", "timed_out"})
@@ -644,6 +645,113 @@ class EvaluationRepository:
             }).model_dump(mode="json", exclude={"id", "revision", "created_at",
                                                 "updated_at", "is_deleted"}),
         }
+
+    # ------------------------------------------------------------------ 比较
+
+    def create_comparison(
+        self,
+        *,
+        scope: str,
+        idempotency_key: str,
+        baseline_run_id: str,
+        candidate_run_id: str,
+        mode: str,
+        compatibility: str,
+        result: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """写入一次比较；同一幂等键重放返回同一份结果。"""
+        digest = _dump(
+            {
+                "baseline_run_id": baseline_run_id,
+                "candidate_run_id": candidate_run_id,
+                "mode": mode,
+            }
+        )
+        with self._db.connect(immediate=True) as conn:
+            replay = self._replay_comparison(conn, scope, idempotency_key, digest)
+            if replay is not None:
+                return replay
+            comparison_id = _new_id()
+            now = _utc_now_iso()
+            payload = dict(result)
+            payload["id"] = comparison_id
+            conn.execute(
+                "INSERT INTO comparisons (id, scope, baseline_run_id, candidate_run_id,"
+                " mode, compatibility, result_json, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    comparison_id,
+                    scope,
+                    baseline_run_id,
+                    candidate_run_id,
+                    mode,
+                    compatibility,
+                    _dump(payload),
+                    now,
+                ),
+            )
+            response = self._comparison_dict(conn, comparison_id)
+            conn.execute(
+                "INSERT INTO idempotency (scope, endpoint, key, request_hash, run_id,"
+                " response_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    scope,
+                    COMPARISONS_ENDPOINT,
+                    idempotency_key,
+                    digest,
+                    comparison_id,
+                    _dump(response),
+                    now,
+                ),
+            )
+            return response
+
+    def get_comparison(self, comparison_id: str) -> dict[str, Any]:
+        with self._db.connect() as conn:
+            return self._comparison_dict(conn, comparison_id)
+
+    def _comparison_dict(
+        self, conn: sqlite3.Connection, comparison_id: str
+    ) -> dict[str, Any]:
+        row = conn.execute(
+            "SELECT id, scope, baseline_run_id, candidate_run_id, mode, compatibility,"
+            " result_json, created_at FROM comparisons WHERE id = ?",
+            (comparison_id,),
+        ).fetchone()
+        if row is None:
+            raise RecordNotFound(f"COMPARISON_NOT_FOUND {comparison_id}")
+        payload = _load(row["result_json"], {})
+        return {
+            "id": row["id"],
+            "scope": row["scope"],
+            "baseline_run_id": row["baseline_run_id"],
+            "candidate_run_id": row["candidate_run_id"],
+            "mode": row["mode"],
+            "compatibility": row["compatibility"],
+            "created_at": row["created_at"],
+            "result": payload,
+        }
+
+    @staticmethod
+    def _replay_comparison(
+        conn: sqlite3.Connection, scope: str, key: str, digest: str
+    ) -> dict[str, Any] | None:
+        row = conn.execute(
+            "SELECT request_hash, response_json FROM idempotency"
+            " WHERE scope = ? AND endpoint = ? AND key = ?",
+            (scope, COMPARISONS_ENDPOINT, key),
+        ).fetchone()
+        if row is None:
+            return None
+        if row["request_hash"] != digest:
+            raise IdempotencyMismatch(
+                f"IDEMPOTENCY_MISMATCH scope={scope} key={key}"
+            )
+        if row["response_json"] is None:
+            raise IdempotencyInProgress(
+                f"IDEMPOTENCY_IN_PROGRESS scope={scope} key={key}"
+            )
+        return dict(json.loads(row["response_json"]))
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         with self._db.connect() as conn:
