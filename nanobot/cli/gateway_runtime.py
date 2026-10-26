@@ -1042,7 +1042,7 @@ def _run_gateway(
             console.print,
         )
         try:
-            webui_gateway = channels.webui_gateway()
+            webui_gateway = channels.webui_gateway
             eval_runner = await _start_embedded_evaluation(
                 config,
                 gateway_port=port,

@@ -16,6 +16,20 @@ from nanobot.evaluation.schemas import RunCreate
 
 from .conftest import make_case_payload
 
+
+def _team_snapshot(team_id: str) -> dict:
+    """团队冻结快照替身：不碰日常团队库，也不依赖真实团队记录。"""
+    return {
+        "definition": {
+            "id": team_id,
+            "revision": 3,
+            "leaderAgentId": "leader",
+            "members": [{"memberId": "writer"}],
+        },
+        "leader": {"id": "leader", "name": "领队"},
+        "members": [{"member": "writer", "profile": {"id": "writer"}}],
+    }
+
 # --------------------------------------------------------------------- WU-03 schemas
 
 
@@ -88,7 +102,10 @@ def test_create_run_freezes_target_and_timeout(
     from nanobot.evaluation.services import EvaluationService
     from tests.evaluation.conftest import make_run_payload, make_suite_payload
 
-    service = EvaluationService(repository=repository, data_dir=tmp_path)
+    service = EvaluationService(
+        repository=repository, data_dir=tmp_path,
+        team_snapshot_provider=_team_snapshot,
+    )
     suite = repository.create_suite(make_suite_payload())
     case = repository.save_case(make_case_payload(suite_id=suite["id"]))
     run = service.create_run(
@@ -101,7 +118,13 @@ def test_create_run_freezes_target_and_timeout(
         idempotency_key="target-1", scope="t",
     )
     snapshot = repository.get_run(run["id"])["snapshot"]
-    assert snapshot["target"] == {"kind": "team", "id": "creative"}
+    # 团队目标在入队时冻结：快照里必须有 revision、Leader 与成员档案，
+    # 之后源团队被改也不影响本次运行。
+    target = snapshot["target"]
+    assert target["kind"] == "team" and target["id"] == "creative"
+    assert target["team"]["revision"] == 3
+    assert target["team"]["leader"]["id"] == "leader"
+    assert target["team"]["members"][0]["member"] == "writer"
     assert snapshot["run_timeout_s"] == 300
 
 
@@ -335,6 +358,7 @@ async def test_team_target_runs_through_injected_runner(
 
     service = EvaluationService(
         repository=repository, data_dir=tmp_path, team_runner=fake_runner,
+        team_snapshot_provider=_team_snapshot,
     )
     suite = repository.create_suite(make_suite_payload())
     case = repository.save_case(make_case_payload(suite_id=suite["id"]))
@@ -367,6 +391,7 @@ async def test_team_target_partial_run_is_submitted_as_succeeded(
 
     service = EvaluationService(
         repository=repository, data_dir=tmp_path, team_runner=fake_runner,
+        team_snapshot_provider=_team_snapshot,
     )
     suite = repository.create_suite(make_suite_payload())
     case = repository.save_case(make_case_payload(suite_id=suite["id"]))
@@ -397,6 +422,7 @@ async def test_team_target_non_terminal_status_fails_instead_of_conflicting(
 
     service = EvaluationService(
         repository=repository, data_dir=tmp_path, team_runner=fake_runner,
+        team_snapshot_provider=_team_snapshot,
     )
     suite = repository.create_suite(make_suite_payload())
     case = repository.save_case(make_case_payload(suite_id=suite["id"]))
@@ -421,7 +447,10 @@ async def test_team_target_without_runner_fails_setup(
     from nanobot.evaluation.services import EvaluationService
     from tests.evaluation.conftest import make_run_payload, make_suite_payload
 
-    service = EvaluationService(repository=repository, data_dir=tmp_path)
+    service = EvaluationService(
+        repository=repository, data_dir=tmp_path,
+        team_snapshot_provider=_team_snapshot,
+    )
     suite = repository.create_suite(make_suite_payload())
     case = repository.save_case(make_case_payload(suite_id=suite["id"]))
     run = service.create_run(

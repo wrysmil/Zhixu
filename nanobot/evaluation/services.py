@@ -82,6 +82,9 @@ JudgeRunner = Callable[..., Awaitable[JudgeResult]]
 
 #: 团队执行注入点：gateway 把进程内团队执行栈接进来，评估服务不感知团队内部。
 TeamRunner = Callable[[Mapping[str, Any]], Awaitable[Mapping[str, Any]]]
+#: 团队冻结快照来源：按 team_id 返回已冻结的团队定义/Leader/成员档案。
+#: 缺省时直接读本机团队库；测试注入替身，避免碰日常团队库。
+TeamSnapshotProvider = Callable[[str], Mapping[str, Any]]
 
 
 class ServiceError(RuntimeError):
@@ -136,6 +139,7 @@ class EvaluationService:
         judge_slots: asyncio.Semaphore | None = None,
         judge_runner: JudgeRunner | None = None,
         team_runner: TeamRunner | None = None,
+        team_snapshot_provider: TeamSnapshotProvider | None = None,
         workspace: Path | None = None,
     ) -> None:
         self._repository = repository
@@ -150,6 +154,7 @@ class EvaluationService:
         self._judge_slots = judge_slots or asyncio.Semaphore(3)
         self._judge_runner: JudgeRunner = judge_runner or self._run_judge
         self._team_runner = team_runner
+        self._team_snapshot_provider = team_snapshot_provider
 
     # ------------------------------------------------------------------ 配置
 
@@ -200,6 +205,12 @@ class EvaluationService:
     def profile(self, profile_id: str) -> Profile:
         profile = self._profiles.get(profile_id)
         if profile is None:
+            legacy_aliases = {
+                "agent-1": "controlled-agent",
+                "judge-1": "controlled-judge",
+            }
+            profile = self._profiles.get(legacy_aliases.get(profile_id, ""))
+        if profile is None:
             raise ServiceError("PROFILE_NOT_FOUND", profile_id)
         return profile
 
@@ -227,6 +238,7 @@ class EvaluationService:
         scope: str,
         parent_run_id: str | None = None,
         frozen_target: Mapping[str, Any] | None = None,
+        frozen_cases: Sequence[Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """冻结快照并幂等入队。入队即返回 202，真正的执行由调度器接手。
 
@@ -237,6 +249,8 @@ class EvaluationService:
         judge = (
             self.profile(request.judge_profile_id) if request.judge_profile_id else None
         )
+        if frozen_cases is None:
+            request = self._normalize_model_mode(request)
         self._require_judge_when_needed(request, judge)
         target_payload = (
             dict(frozen_target) if frozen_target is not None
@@ -260,7 +274,41 @@ class EvaluationService:
             grader_version="judge-v1",
             parent_run_id=parent_run_id,
             target=target_payload,
+            frozen_cases=frozen_cases,
         )
+
+    def _normalize_model_mode(self, request: RunCreate) -> RunCreate:
+        """判定本次运行是真模型还是回放脚本（契约 §1）。
+
+        三条硬规则：
+
+        - 显式 real 遇到任何脚本 → 拒绝，不静默回放；
+        - 显式 scripted 要求所有用例都有脚本；
+        - live 工具模式带脚本一律拒绝——回放脚本在 live 工具下毫无意义，
+          放行等于把"脚本结果"当成"真实工具结果"。
+
+        未显式指定时：全部用例都有脚本才推导为 scripted，其余为 real。
+        """
+        cases = [self._repository.get_case(str(case_id)) for case_id in request.case_ids]
+        scripted = [bool((case or {}).get("script")) for case in cases]
+        live_with_script = any(
+            has_script
+            and str((case or {}).get("execution", {}).get("tool_mode")) == "live"
+            for case, has_script in zip(cases, scripted, strict=True)
+        )
+        if live_with_script:
+            raise ServiceError("MODEL_MODE_CONFLICT", "live tool mode cannot carry scripts")
+        any_script = any(scripted)
+        all_script = bool(scripted) and all(scripted)
+        explicit = "model_mode" in request.model_fields_set
+        mode = request.model_mode
+        if not explicit:
+            mode = "scripted" if all_script else "real"
+        if mode == "real" and any_script:
+            raise ServiceError("MODEL_MODE_CONFLICT", "real mode cannot replay scripts")
+        if mode == "scripted" and not all_script:
+            raise ServiceError("MODEL_MODE_CONFLICT", "scripted mode requires scripts on every case")
+        return request.model_copy(update={"model_mode": mode})
 
     def _freeze_target(self, target: TargetRef | None) -> dict[str, Any] | None:
         """入队时冻结运行目标。
@@ -274,6 +322,8 @@ class EvaluationService:
             return self._freeze_agent_target(target.id)
         if target.kind == "skill":
             return self._freeze_skill_target(target.id)
+        if target.kind == "team":
+            return self._freeze_team_target(target.id)
         return {"kind": target.kind, "id": target.id}
 
     #: 目标冻结的文件总量上限：技能目录失控时快速失败，而不是拖垮快照与 boot。
@@ -293,6 +343,43 @@ class EvaluationService:
             "agent": {
                 "profile": data,
                 "skills": self._freeze_skill_files(self._profile_skill_names(data)),
+            },
+        }
+
+    def _freeze_team_target(self, team_id: str) -> dict[str, Any]:
+        """冻结团队：revision + Leader + 成员档案/提示词/所需技能。
+
+        评估运行不读共享团队库——入队时把团队定义与成员档案内容冻结进快照，
+        之后源团队被改、被归档都不影响已入队的运行。库文件不存在时直接报
+        TEAM_NOT_FOUND，不在用户工作区里凭空建库。
+        """
+        provider = self._team_snapshot_provider
+        if provider is not None:
+            try:
+                payload = dict(provider(team_id))
+            except ServiceError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - 替身异常统一按资源缺失报
+                raise ServiceError("TEAM_NOT_FOUND", team_id) from exc
+        else:
+            from nanobot.teams.database import TeamDatabase
+            from nanobot.teams.repository import TeamRepository
+
+            try:
+                repository = TeamRepository(TeamDatabase(self._workspace))
+                snapshot = repository.get_revision_snapshot(team_id)
+            except Exception as exc:  # noqa: BLE001 - 团队缺失/未初始化统一按资源缺失报
+                raise ServiceError("TEAM_NOT_FOUND", team_id) from exc
+            payload = snapshot.to_dict()
+        definition = payload.get("definition") or {}
+        return {
+            "kind": "team",
+            "id": team_id,
+            "team": {
+                "revision": definition.get("revision"),
+                "definition": definition,
+                "leader": payload.get("leader"),
+                "members": payload.get("members"),
             },
         }
 
@@ -374,11 +461,18 @@ class EvaluationService:
             if item["execution_status"] not in ("queued", "running")
         }
         chosen: list[str] = []
+        frozen_cases: list[dict[str, Any]] = []
         for attempt_id in attempt_ids:
             item = known.get(attempt_id)
             if item is None:
                 raise ServiceError("ATTEMPT_NOT_RERUNNABLE", attempt_id)
             chosen.append(str(item["case_id"]))
+            frozen_cases.append({
+                "case_id": str(item["case_id"]),
+                "case_revision": int(item["case_revision"]),
+                "case_snapshot": dict(item["case_snapshot"]),
+                "source_attempt_id": str(item["id"]),
+            })
         snapshot = source["snapshot"]
         target_raw = snapshot.get("target")
         request = RunCreate(
@@ -391,6 +485,7 @@ class EvaluationService:
             ),
             limits=RunLimits.model_validate(snapshot.get("limits") or {}),
             run_timeout_s=snapshot.get("run_timeout_s"),
+            repetitions=1, model_mode=str(snapshot.get("model_mode") or "real"),
         )
         return self.create_run(
             request, idempotency_key=idempotency_key, scope=scope,
@@ -398,6 +493,7 @@ class EvaluationService:
             frozen_target=(
                 dict(target_raw) if isinstance(target_raw, Mapping) else None
             ),
+            frozen_cases=frozen_cases,
         )
 
     # -------------------------------------------------------------- 执行流水线

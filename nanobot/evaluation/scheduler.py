@@ -326,9 +326,9 @@ class Scheduler:
                 continue
             if self._inflight_for(run_id) >= self._run_limit(run_id):
                 continue
-            claimed = self._repository.claim_attempt()
+            claimed = self._repository.claim_attempt(run_id=run_id)
             if claimed is None:
-                break
+                continue
             # 领取是全队 FIFO，回来的行未必属于这一轮正在看的 run：任务名与取消判定
             # 都必须跟 attempt 自己的 run_id，否则取消一个 run 会放过它名下在飞的项。
             run_id = str(claimed["run_id"])

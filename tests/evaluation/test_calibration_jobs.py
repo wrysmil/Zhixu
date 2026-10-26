@@ -25,22 +25,20 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 from nanobot.evaluation.controlled_provider import ControlledProvider, ScriptStep
 from nanobot.evaluation.evidence import AttemptEvidence
 from nanobot.evaluation.graders.calibration import (
     judge_fingerprint,
-    rubric_payload,
     lookup_calibration,
+    rubric_payload,
 )
 from nanobot.evaluation.graders.judge import evaluate_judge
 from nanobot.evaluation.repository import EvaluationRepository
 from nanobot.evaluation.scheduler import Scheduler, SchedulerConfig
 from nanobot.evaluation.server import API_PREFIX
 from nanobot.evaluation.services import EvaluationService
-from nanobot.evaluation.worker import evidence_from_payload
 
 from .http_app import JUDGE_PROFILE_ID, build_app, csrf_headers, login
 from .test_end_to_end import TEST_LABEL_COMMENT, confirm_all, gold_samples
@@ -347,7 +345,7 @@ async def test_item_evidence_is_the_frozen_gold_payload(
     # 每项独占一套 runtime/workspace：校准项之间不能共享 Trace 目录。
     roots = {str(Path(service.runtime_root) / "calibrations")}
     assert all(str(paths.workspace).startswith(next(iter(roots))) for paths in [
-        service._calibration_paths(item.id)[0]  # noqa: SLF001 - 断言布局本身
+        service._calibration_paths(item["id"])[0]  # noqa: SLF001 - 断言布局本身
         for item in evaluation_repository.list_calibration_items(job["id"])
     ])
 
@@ -364,18 +362,16 @@ async def test_http_created_job_runs_to_completed(
     )
     async with TestClient(TestServer(app, host="127.0.0.1")) as client:
         csrf = await login(client)
-        samples = (
-            await (
-                await client.get(
-                    f"{API_PREFIX}/calibration-samples", headers=csrf_headers(csrf)
-                )
+        samples = await (
+            await client.get(
+                f"{API_PREFIX}/calibration-samples", headers=csrf_headers(csrf)
             )
         ).json()
         revision = int(samples["gold_revision"])
         for row in samples["data"]:
             revision += 1
-            response = await client.post(
-                f"{API_PREFIX}/calibration-samples/{row['id']}/review",
+            response = await client.patch(
+                f"{API_PREFIX}/calibration-samples/{row['id']}",
                 json={
                     "base_gold_revision": revision - 1,
                     "expected_verdict": row["expected_verdict"],
@@ -388,8 +384,8 @@ async def test_http_created_job_runs_to_completed(
             assert response.status == 200
             assert (await response.json())["label_status"] == "confirmed"
 
-        rejected = await client.post(
-            f"{API_PREFIX}/calibration-samples/C01/review",
+        rejected = await client.patch(
+            f"{API_PREFIX}/calibration-samples/C01",
             json={
                 "base_gold_revision": revision,
                 "expected_verdict": "passed",

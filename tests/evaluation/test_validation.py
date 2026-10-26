@@ -191,6 +191,8 @@ def test_case_write_field_set_matches_contract() -> None:
         "name", "description", "tags", "enabled", "suite_id", "base_revision",
         "turns", "fixtures", "memory_seed", "clock_iso", "tool_fixtures",
         "execution", "assertions", "rubric", "script", "artifact_paths",
+        # 契约 §3：用例级任务判据（里程碑、必需证据、预算）。
+        "evaluation",
     }
 
 
@@ -216,6 +218,8 @@ def test_run_create_field_set_matches_contract() -> None:
     assert set(RunCreate.model_fields) == {
         "suite_id", "case_ids", "agent_profile_id", "judge_profile_id", "limits",
         "target", "run_timeout_s",
+        # 契约 §1：重复次数与模型模式是 v2 运行入队的必填增量。
+        "repetitions", "model_mode",
     }
 
 

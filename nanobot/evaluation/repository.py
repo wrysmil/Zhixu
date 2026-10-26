@@ -31,6 +31,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from typing import Any, cast
 
+from nanobot.evaluation import manifests
 from nanobot.evaluation.database import EvaluationDatabase
 from nanobot.evaluation.schemas import CaseRead, CaseWrite, RunCreate, SuiteRead, SuiteWrite
 from nanobot.evaluation.validation import validate_relative_path
@@ -499,6 +500,7 @@ class EvaluationRepository:
         grader_version: str,
         parent_run_id: str | None = None,
         target: Mapping[str, Any] | None = None,
+        frozen_cases: Sequence[Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """幂等入队：key、request_hash、run 与 attempts 在**同一事务**内落库。
 
@@ -513,10 +515,33 @@ class EvaluationRepository:
 
             run_id = _new_id()
             now = _utc_now_iso()
-            snapshots = [
-                self._freeze_case(conn, str(request.suite_id), case_id)
-                for case_id in request.case_ids
-            ]
+            snapshots = (
+                [dict(item) for item in frozen_cases]
+                if frozen_cases is not None
+                else [
+                    self._freeze_case(conn, str(request.suite_id), case_id)
+                    for case_id in request.case_ids
+                ]
+            )
+            if len(snapshots) * request.repetitions > 200:
+                raise RevisionConflict("ATTEMPT_BUDGET_EXCEEDED")
+            tool_modes: set[str] = set()
+            for item in snapshots:
+                frozen = cast("Mapping[str, Any]", item["case_snapshot"])
+                execution = cast("Mapping[str, Any]", frozen.get("execution") or {})
+                tool_modes.add(str(execution.get("tool_mode")))
+            manifest = manifests.build_manifest(
+                case_snapshots=snapshots,
+                model_mode=request.model_mode,
+                tool_modes=sorted(tool_modes),
+                limits=request.limits.model_dump(mode="json"),
+                target_snapshot=target,
+                agent_profile=agent,
+                judge_profile=judge,
+                rules_version=rules_version,
+                grader_version=grader_version,
+                source_state=manifests.collect_source_state(),
+            )
             snapshot_json = _dump({
                 "case_revisions": [item["case_revision"] for item in snapshots],
                 "agent_profile": dict(agent),
@@ -524,6 +549,8 @@ class EvaluationRepository:
                 "rules_version": rules_version,
                 "grader_version": grader_version,
                 "tool_mode": snapshots[0]["case_snapshot"]["execution"]["tool_mode"],
+                "tool_modes": sorted(tool_modes), "repetitions": request.repetitions,
+                "model_mode": request.model_mode, "manifest": manifest,
                 "limits": request.limits.model_dump(mode="json"),
                 "target": dict(target) if target else None,
                 "run_timeout_s": request.run_timeout_s,
@@ -535,14 +562,26 @@ class EvaluationRepository:
                 (run_id, str(request.suite_id), snapshot_json, digest,
                  parent_run_id, now),
             )
-            for index, item in enumerate(snapshots, start=1):
-                conn.execute(
-                    "INSERT INTO attempts (id, run_id, position, case_id, case_revision,"
-                    " case_snapshot_json, execution_status, grading_status, verdict)"
-                    " VALUES (?, ?, ?, ?, ?, ?, 'queued', 'pending', 'not_evaluated')",
-                    (_new_id(), run_id, index, item["case_id"], item["case_revision"],
-                     _dump(item["case_snapshot"])),
-                )
+            position = 0
+            for trial_index in range(request.repetitions):
+                for item in snapshots:
+                    position += 1
+                    conn.execute(
+                        "INSERT INTO attempts (id, run_id, position, case_id, case_revision,"
+                        " case_snapshot_json, trial_index, source_attempt_id,"
+                        " execution_status, grading_status, verdict)"
+                        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', 'pending', 'not_evaluated')",
+                        (
+                            _new_id(),
+                            run_id,
+                            position,
+                            item["case_id"],
+                            item["case_revision"],
+                            _dump(item["case_snapshot"]),
+                            trial_index,
+                            item.get("source_attempt_id"),
+                        ),
+                    )
             response = self._run_dict(conn, run_id)
             conn.execute(
                 "INSERT INTO idempotency (scope, endpoint, key, request_hash, run_id,"
@@ -620,8 +659,9 @@ class EvaluationRepository:
             raise RecordNotFound(f"RUN_NOT_FOUND {run_id}")
         attempts = conn.execute(
             "SELECT id, run_id, position, case_id, case_revision, case_snapshot_json,"
-            " execution_status, grading_status, verdict, result_json, started_at,"
-            " finished_at FROM attempts WHERE run_id = ? ORDER BY position, id",
+            " trial_index, source_attempt_id, execution_status, grading_status, verdict,"
+            " result_json, started_at, finished_at FROM attempts WHERE run_id = ?"
+            " ORDER BY position, id",
             (run_id,),
         ).fetchall()
         attempt_ids = [item["id"] for item in attempts]
@@ -683,6 +723,8 @@ class EvaluationRepository:
             "position": row["position"],
             "case_id": row["case_id"],
             "case_revision": row["case_revision"],
+            "trial_index": row["trial_index"],
+            "source_attempt_id": row["source_attempt_id"],
             "case_snapshot": _load(row["case_snapshot_json"], {}),
             "execution_status": row["execution_status"],
             "grading_status": row["grading_status"],
@@ -921,7 +963,7 @@ class EvaluationRepository:
 
     # ----------------------------------------------------------------- 领取与终态
 
-    def claim_attempt(self) -> dict[str, Any] | None:
+    def claim_attempt(self, *, run_id: str | None = None) -> dict[str, Any] | None:
         """plan §3 的原子领取：``BEGIN IMMEDIATE`` + 状态谓词 + ``RETURNING``。
 
         不能拆成「先查后改」：两个执行器会拿到同一行。没有可领取项时返回 ``None``。
@@ -935,12 +977,13 @@ class EvaluationRepository:
                 "   WHERE a.execution_status = 'queued'"
                 "     AND r.status IN ('queued', 'running')"
                 "     AND r.is_deleted = 0"
+                "     AND (:run_id IS NULL OR a.run_id = :run_id)"
                 "   ORDER BY r.created_at, a.position LIMIT 1"
                 " ) AND execution_status = 'queued'"
                 " RETURNING id, run_id, position, case_id, case_revision,"
                 " case_snapshot_json, execution_status, grading_status, verdict,"
                 " started_at",
-                {"now": now},
+                {"now": now, "run_id": run_id},
             ).fetchone()
             if row is None:
                 return None

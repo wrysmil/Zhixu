@@ -24,7 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import ParamSpec, TypeVar
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 BUSY_TIMEOUT_MS = 5000
 
@@ -239,6 +239,15 @@ _MIGRATIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             """,
             "CREATE INDEX IF NOT EXISTS calibration_items_claim_idx"
             " ON calibration_items (status, job_id, position)",
+        ),
+    ),
+    (
+        "2",
+        (
+            "ALTER TABLE attempts ADD COLUMN trial_index INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE attempts ADD COLUMN source_attempt_id TEXT",
+            "CREATE UNIQUE INDEX IF NOT EXISTS attempts_run_case_trial_idx"
+            " ON attempts (run_id, case_id, trial_index)",
         ),
     ),
 )

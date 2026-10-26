@@ -124,10 +124,13 @@ def _seed_run(
     case_count: int = 1,
     concurrency: int = 1,
     key: str = "sched-1",
+    case_prefix: str = "",
 ) -> dict[str, Any]:
     suite = repository.create_suite(make_suite_payload())
     cases = [
-        repository.save_case(make_case_payload(suite_id=suite["id"], name=f"case-{i}"))
+        repository.save_case(
+            make_case_payload(suite_id=suite["id"], name=f"{case_prefix}case-{i}")
+        )
         for i in range(case_count)
     ]
     request = RunCreate.model_validate(
@@ -243,6 +246,41 @@ async def test_service_wide_concurrency_never_exceeds_three(
 
     for run in (first, second):
         assert repository.get_run(run["id"])["status"] == "completed"
+
+
+async def test_scheduler_does_not_claim_another_run_when_current_run_is_at_limit(
+    repository: EvaluationRepository, tmp_path: Path
+) -> None:
+    """按 run 检查额度后，领取也必须限定同一个 run，不能由全局 FIFO 换走别的项。"""
+    pipeline = _FakePipeline()
+    for name in ("a-case-0", "a-case-1", "b-case-0"):
+        pipeline.blocked(name)
+    first = _seed_run(
+        repository, case_count=2, concurrency=1, key="sched-first", case_prefix="a-"
+    )
+    second = _seed_run(
+        repository, case_count=1, concurrency=1, key="sched-second", case_prefix="b-"
+    )
+    scheduler = _make_scheduler(repository, pipeline, tmp_path, concurrency=3)
+
+    async with scheduler:
+        await _wait_until(lambda: pipeline.live == 2, message="one attempt per run")
+        await asyncio.sleep(0.05)
+        assert pipeline.peak_live == 2
+        assert "a-case-1" not in pipeline.entered
+        for gate in pipeline.hold.values():
+            gate.set()
+        await _wait_until(
+            lambda: repository.get_run(first["id"])["status"] == "completed",
+            message="first run completed",
+        )
+        await _wait_until(
+            lambda: repository.get_run(second["id"])["status"] == "completed",
+            message="second run completed",
+        )
+
+    assert repository.get_run(first["id"])["status"] == "completed"
+    assert repository.get_run(second["id"])["status"] == "completed"
 
 
 async def test_judge_phase_reuses_the_same_process_budget(

@@ -353,6 +353,58 @@ LIVE_ONLY_TOOLS = frozenset({
 })
 
 
+class EvaluationBudgets(JsonModel):
+    """契约 §3：效率维度预算。缺项表示该维度不按预算判定。"""
+
+    max_input_tokens: NonNegativeInt | None = None
+    max_output_tokens: NonNegativeInt | None = None
+    max_total_tokens: NonNegativeInt | None = None
+    max_duration_ms: NonNegativeInt | None = None
+    max_tool_calls: NonNegativeInt | None = None
+    max_iterations: PositiveInt | None = None
+
+
+class Milestone(JsonModel):
+    """契约 §3：任务里程碑。引用真实 assertion id，权重必须为正。"""
+
+    id: Identifier
+    weight: Annotated[float, Field(gt=0, le=1)] = 1.0
+    assertion_ids: Annotated[
+        list[Identifier], Field(min_length=1, max_length=20)
+    ] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _weight_positive(self) -> "Milestone":
+        if not self.assertion_ids:
+            raise ValueError("MILESTONE_WITHOUT_ASSERTION")
+        return self
+
+
+class CaseEvaluation(JsonModel):
+    """契约 §3：用例级任务判据。
+
+    没有它时任务维度只能算 smoke（只能显示规则通过率），不允许输出综合质量结论。
+    """
+
+    version: Literal[2] = 2
+    required_dimensions: list[
+        Literal["task", "constraints", "process", "efficiency", "safety"]
+    ] = Field(default_factory=list)
+    milestones: list[Milestone] = Field(default_factory=list)
+    required_evidence: list[
+        Literal["final_answer", "turns", "artifacts", "trace", "usage", "delegation"]
+    ] = Field(default_factory=list)
+    reference_answer: StrictStr | None = None
+    judge_artifact_paths: list[StrictStr] = Field(default_factory=list)
+    budgets: EvaluationBudgets = Field(default_factory=EvaluationBudgets)
+
+    @model_validator(mode="after")
+    def _milestones_need_weight(self) -> "CaseEvaluation":
+        if any(item.weight <= 0 for item in self.milestones):
+            raise ValueError("MILESTONE_WEIGHT_INVALID")
+        return self
+
+
 class _CaseFields(JsonModel):
     """CaseWrite 与 CaseRead 的共有字段；base_revision 只属于写入侧，故不在此处。"""
 
@@ -383,6 +435,8 @@ class _CaseFields(JsonModel):
     artifact_paths: Annotated[list[StrictStr], Field(max_length=50)] = Field(
         default_factory=list
     )
+    #: 契约 §3：任务判据（里程碑、必需证据、预算）。缺省表示沿用旧口径。
+    evaluation: CaseEvaluation | None = None
 
     @model_validator(mode="after")
     def _limits_and_shape(self) -> "_CaseFields":
@@ -400,6 +454,11 @@ class _CaseFields(JsonModel):
             _assertion_path_check(assertion)
         if not self._has_required_rule():
             raise ValueError("REQUIRED_RULE_OR_RUBRIC")
+        if self.evaluation is not None and "task" in self.evaluation.required_dimensions:
+            has_milestone = bool(self.evaluation.milestones)
+            has_judge = self.rubric is not None and self.rubric.required
+            if not has_milestone and not has_judge:
+                raise ValueError("TASK_CRITERIA_MISSING")
         return self
 
     def _has_required_rule(self) -> bool:
@@ -479,11 +538,15 @@ class RunCreate(JsonModel):
     #: 整个 run 的总时限（秒）；None = 不限时。到点由调度器批量停止（WU-03），
     #: 与用例级 ``execution.timeout_s``（单 attempt）相互独立。
     run_timeout_s: Annotated[int | None, Field(strict=True, ge=5, le=86400)] = None
+    repetitions: Annotated[int, Field(strict=True, ge=1, le=10)] = 1
+    model_mode: Literal["real", "scripted"] = "real"
 
     @model_validator(mode="after")
     def _case_ids_unique(self) -> "RunCreate":
         if len(set(self.case_ids)) != len(self.case_ids):
             raise ValueError("DUPLICATE_CASE_IDS")
+        if len(self.case_ids) * self.repetitions > 200:
+            raise ValueError("ATTEMPT_BUDGET_EXCEEDED")
         return self
 
 
@@ -607,6 +670,11 @@ class RunSnapshot(JsonModel):
     rules_version: StrictStr
     grader_version: StrictStr
     tool_mode: StrictStr
+    #: 契约 §1：v2 运行清单。旧记录没有该字段时按 legacy 读，不回填猜测值。
+    manifest: JsonObject = Field(default_factory=dict)
+    repetitions: Annotated[int, Field(strict=True, ge=1, le=10)] = 1
+    model_mode: Literal["real", "scripted"] = "real"
+    tool_modes: list[StrictStr] = Field(default_factory=list)
 
 
 class RunCounts(JsonModel):
@@ -663,6 +731,19 @@ class RunRead(RunSummary):
     attempts_url: StrictStr
 
 
+class EvaluationCoverage(JsonModel):
+    """契约 §2：证据覆盖度。
+
+    缺证必须显式为 missing/partial 并给出原因，不允许补 0 假装已知。
+    """
+
+    trace: Literal["complete", "partial", "missing"] = "missing"
+    identity: Literal["complete", "partial", "missing"] = "missing"
+    usage: Literal["complete", "partial", "missing"] = "missing"
+    artifacts: Literal["complete", "partial", "missing", "not_applicable"] = "missing"
+    reasons: list[StrictStr] = Field(default_factory=list)
+
+
 class AttemptRead(JsonModel):
     """契约 §4 的尝试详情；judge 为 null 表示未评分，calibrated=false 只能进复核。"""
 
@@ -687,6 +768,9 @@ class AttemptRead(JsonModel):
     trace_complete: StrictBool
     artifacts: list[ArtifactRef] = Field(default_factory=list)
     reviews: list[ManualReview] = Field(default_factory=list)
+    trial_index: Annotated[int, Field(strict=True, ge=0)] = 0
+    source_attempt_id: Uuid | None = None
+    coverage: EvaluationCoverage | None = None
 
 
 class TracePage(JsonModel):
