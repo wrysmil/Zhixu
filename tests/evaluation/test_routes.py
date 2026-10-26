@@ -476,3 +476,93 @@ async def test_case_update_with_stale_revision_conflicts(
     )
     assert stale.status == 409
     assert (await stale.json())["error"]["code"] == "REVISION_CONFLICT"
+
+
+# --------------------------------------------------- API / JSON / HTML 同快照一致性
+
+
+def _metric_value(html: str, key: str) -> str:
+    import re
+
+    match = re.search(
+        rf'data-metric="{key}".*?<div class="metric-value">([^<]*)</div>',
+        html,
+        re.S,
+    )
+    return match.group(1).strip() if match else ""
+
+
+async def test_metrics_export_and_html_agree_on_the_same_snapshot(
+    client: TestClient, repository: EvaluationRepository
+) -> None:
+    """同一快照下，API 指标、JSON 导出与 HTML 报告的计划数与结论数必须一致。"""
+    import asyncio
+    import json
+    import time
+
+    csrf = await _login(client)
+    suite = repository.create_suite(make_suite_payload())
+    cases = []
+    for name, answer in (("通过用例", "标识是 alpha。"), ("失败用例", "什么也没有找到")):
+        payload = make_case_payload(suite_id=suite["id"], name=name)
+        payload["assertions"] = [
+            {
+                "id": "a1",
+                "kind": "answer_contains",
+                "required": True,
+                "text": "alpha",
+                "case_sensitive": True,
+            }
+        ]
+        payload["script"] = [{"text": answer}]
+        cases.append(repository.save_case(payload))
+
+    created = await client.post(
+        f"{API_PREFIX}/runs",
+        json={
+            "suite_id": suite["id"],
+            "case_ids": [item["id"] for item in cases],
+            "agent_profile_id": "agent-1",
+            "judge_profile_id": None,
+            "limits": {"concurrency": 1, "max_iterations": 6, "timeout_s": 60},
+            "model_mode": "scripted",
+        },
+        headers={**_headers(csrf), "Idempotency-Key": "surface-consistency-1"},
+    )
+    assert created.status == 202
+    run_id = str((await created.json())["id"])
+
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
+        detail = await (await client.get(f"{API_PREFIX}/runs/{run_id}")).json()
+        if detail["status"] in ("completed", "cancelled", "interrupted"):
+            break
+        await asyncio.sleep(0.1)
+    assert detail["status"] == "completed"
+
+    counts = detail["counts"]
+    assert counts["passed"] == 1
+    assert counts["failed"] == 1
+    assert detail["planned_count"] == 2
+
+    metrics = await (await client.get(f"{API_PREFIX}/runs/{run_id}/metrics")).json()
+    assert metrics["scope"]["planned_trials"] == detail["planned_count"]
+    assert metrics["metrics"]["passed"] == counts["passed"]
+    assert metrics["metrics"]["failed"] == counts["failed"]
+
+    export_response = await client.get(
+        f"{API_PREFIX}/runs/{run_id}/export?format=json"
+    )
+    exported = json.loads(await export_response.text())
+    assert len(exported["attempts"]) == detail["planned_count"]
+    assert exported["metrics"]["passed"] == counts["passed"]
+    assert exported["metrics"]["failed"] == counts["failed"]
+    verdicts = [str(item.get("verdict")) for item in exported["attempts"]]
+    assert verdicts.count("passed") == counts["passed"]
+    assert verdicts.count("failed") == counts["failed"]
+
+    report_response = await client.get(f"{API_PREFIX}/runs/{run_id}/report")
+    html = await report_response.text()
+    assert _metric_value(html, "total_cases") == str(detail["planned_count"])
+    assert _metric_value(html, "passed") == str(counts["passed"])
+    assert _metric_value(html, "failed") == str(counts["failed"])

@@ -68,6 +68,9 @@ blockers: [team-runtime-wiring, real-model-smoke, gold-human-confirmation]
 - 用例判据保存：PATCH /cases/{id} 走 base_revision CAS；集成测试验证 base_revision=2 与 evaluation.version=2 被写入。
 - 配对比较：运行页创建 baseline/candidate 比较，逐 case 显示 improved/regressed/unchanged/incomparable 与原因（集成测试覆盖）。
 - HTML/JSON 导出沿用既有报告读模型，本轮未改格式。
+- 新增自动化一致性检查 test_metrics_export_and_html_agree_on_the_same_snapshot：真实跑一条
+  scripted run（1 通过 + 1 失败），断言 API 指标、JSON 导出与 HTML 报告的计划数、通过数、
+  失败数完全一致（HTML 用 data-metric 取值，不靠模糊文本匹配）。
 
 ## 6. 团队抽核（未完成，明确阻塞）
 
