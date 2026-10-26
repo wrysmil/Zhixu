@@ -418,8 +418,12 @@ FIXTURE_TOOLS = frozenset(
 #: restrict_to_workspace + 空白 overlay，exec 仅在显式选择时打开）。
 LIVE_ONLY_TOOLS = frozenset({
     "web_search", "web_fetch", "read_file", "write_file", "edit_file",
-    "list_dir", "apply_patch", "grep", "find_files", "exec", "exec_session",
+    "list_dir", "grep", "find_files",
 })
+#: live 模式同样不允许的越权工具：原生 shell 与补丁执行。
+#: 它们不在受控白名单里；放进 LIVE_ONLY_TOOLS 就等于允许用例在入队时申请原生
+#: shell，而运行期沙箱只能事后报错。要求「入队即拒绝」，所以这里直接不提供。
+FORBIDDEN_LIVE_TOOLS = frozenset({"exec", "exec_session", "apply_patch"})
 
 
 class EvaluationBudgets(JsonModel):
@@ -506,6 +510,17 @@ class _CaseFields(JsonModel):
     )
     #: 契约 §3：任务判据（里程碑、必需证据、预算）。缺省表示沿用旧口径。
     evaluation: CaseEvaluation | None = None
+    #: 契约 §3：本用例必须存在的输入素材（相对路径）。
+    #: 必须由 fixtures 提供——缺依赖要明示，不能用空文件假装任务成功。
+    dependencies: Annotated[list[StrictStr], Field(max_length=50)] = Field(
+        default_factory=list
+    )
+    #: 契约 §3：运行时必须存在、但**故意不随用例提供**的输入（相对路径）。
+    #: 用于「缺输入」边界用例：入库合法，执行 setup 时必须明确报缺，而不是
+    #: 用空文件假装任务成功。
+    required_inputs: Annotated[list[StrictStr], Field(max_length=50)] = Field(
+        default_factory=list
+    )
 
     @model_validator(mode="after")
     def _limits_and_shape(self) -> "_CaseFields":
@@ -519,6 +534,9 @@ class _CaseFields(JsonModel):
         _check_tool_fixtures(self.tool_fixtures)
         for raw in self.artifact_paths:
             validate_relative_path(raw)
+        for raw in self.required_inputs:
+            validate_relative_path(raw)
+        self._check_dependencies()
         for assertion in self.assertions:
             _assertion_path_check(assertion)
         if not self._has_required_rule():
@@ -529,6 +547,18 @@ class _CaseFields(JsonModel):
             if not has_milestone and not has_judge:
                 raise ValueError("TASK_CRITERIA_MISSING")
         return self
+
+    def _check_dependencies(self) -> None:
+        """声明了输入素材就必须真的有：缺依赖在入库时明示，不留到运行期。
+
+        素材只能由 fixtures 提供；Skill 目标冻结的技能文件属于被测对象自带的
+        依赖，由目标快照负责，不在这里校验。
+        """
+        provided = {item.path for item in self.fixtures}
+        for raw in self.dependencies:
+            validate_relative_path(raw)
+            if raw not in provided:
+                raise ValueError(f"CASE_DEPENDENCY_MISSING:{raw}")
 
     def _has_required_rule(self) -> bool:
         """契约 §4：没有必过规则也没有必需量表时，服务端给不出任何 verdict。"""
@@ -1067,6 +1097,8 @@ class _BootBase(JsonModel):
 class AgentWorkerBoot(_BootBase):
     role: Literal["agent"]
     case_snapshot: CaseWrite
+    #: run 级限额（服务端已与用例取更严值）。为 None 时只用用例级限额。
+    limits: RunLimits | None = None
 
 
 class JudgeWorkerBoot(_BootBase):

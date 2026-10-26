@@ -46,6 +46,25 @@ team_*编排工具作为独立内部编排能力显式记录，禁止因此打�
 成员模型默认统一使用run选定profile；团队自带各成员模型的异构比较留后续，不能静默覆盖选择。
 有效max_iterations/timeout_s取case与run限制的更严值，写入Worker boot及capability；团队成员另受冻结团队限额约束，任何一层都不能放宽另一层。模型物理请求重试另有计数，不用iteration上限冒充请求预算。
 
+### 1.1 用例环境依赖与工具模式（实施期补充）
+
+CaseWrite 新增两个可选字段：
+
+```python
+dependencies: list[str] = []      # 用例必须齐备的输入素材（相对路径）
+required_inputs: list[str] = []  # 运行期必须存在、但故意不随用例提供的输入
+```
+
+- dependencies：入库即校验，每个路径必须由同用例 fixtures 提供，否则 422
+  CASE_DEPENDENCY_MISSING。缺依赖要在入库时明示，不留到运行期。
+- required_inputs：入库合法，用于「缺输入」边界用例；Worker setup 阶段检查，
+  缺失即 setup 失败并报 CASE_INPUT_MISSING，禁止用空文件假装任务成功。
+
+live 工具集收缩：LIVE_ONLY_TOOLS 不再提供 exec / exec_session / apply_patch，
+原生 shell 与补丁执行在 live 模式同样不可选（FORBIDDEN_LIVE_TOOLS）。
+理由：这些工具既不在受控白名单内，又属于运行期禁止清单，放进可选集等于允许
+用例在入库时申请到原生 shell。要求「入队即拒绝」，所以在模型校验层直接不提供。
+
 ## 2. 身份、事件、完整性
 
 复用event_id、seq、execution_id、parent_execution_id、call_id、model_call_id；新增可选target_kind/target_id/skill_id，表示被测对象，与执行Agent身份区分。
@@ -124,6 +143,17 @@ attempt新增trial_index（0..repetitions-1）；DB唯一(run_id,case_id,trial_i
 strict要求终态、相同dataset/environment/grading摘要、repetitions/model_mode/tool模式；candidate和source代码可以不同，作为被测变量显式列出。任一必需摘要未知，422 COMPARISON_METADATA_MISSING；不兼容409 COMPARISON_INCOMPATIBLE。初版不做自动交集比较。
 比较展示改进/退步/不变/不可比，缺失trial不按失败替代。每case先聚合trial，再按case配对bootstrap，固定seed=42、2000次；有效配对case<20仅描述差值，不输出显著性结论。此20为本项目显示策略，不是统计学保证。
 不自动宣布综合优胜；展示任务成功率差、合格率差、成本/耗时差、安全失败及覆盖变化。正向收益不能抵消安全硬失败。
+
+### 6.1 内置样本登记（实施期补充）
+
+- 内置样本 id 扩展为 basic-v1 与 reliability-v2；SampleImportRequest.sample_id 同步。
+- reliability-v2（36 条分层样本）带判据元数据（case_id/target/tier/失败定义/
+  可接受路径/所需环境/gold），不是 CaseWrite 形状：经 sample_cases 适配器转换后
+  才能入库。元数据进 tags 与描述，判据原样保留。
+- 适配器映射规则：environment.required 里普通 fixture 依赖转 dependencies；
+  标注「故意缺失」的 fixture 依赖转 required_inputs；tool/skill/team/member 类
+  依赖只进描述。
+- gold 不随样本入库：人工确认走校准通道，样本内 gold 一律 proposed。
 
 ## 7. 存储、兼容与启动
 

@@ -85,6 +85,22 @@ def _new_id() -> str:
     return str(uuid.uuid4())
 
 
+def _effective_limits_payload(
+    snapshots: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """汇总每个冻结用例的生效限额：报告与页面据此核对「实际跑在什么限额下」。"""
+    payload: list[dict[str, Any]] = []
+    for item in snapshots:
+        frozen = item.get("case_snapshot") or {}
+        execution = frozen.get("execution") or {}
+        payload.append({
+            "case_id": str(item.get("case_id") or ""),
+            "max_iterations": execution.get("max_iterations"),
+            "timeout_s": execution.get("timeout_s"),
+        })
+    return payload
+
+
 def _dump(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
@@ -502,8 +518,13 @@ class EvaluationRepository:
         parent_run_id: str | None = None,
         target: Mapping[str, Any] | None = None,
         frozen_cases: Sequence[Mapping[str, Any]] | None = None,
+        effective_limits: Mapping[str, int] | None = None,
     ) -> dict[str, Any]:
         """幂等入队：key、request_hash、run 与 attempts 在**同一事务**内落库。
+
+        effective_limits 是 run 级覆盖里**显式设置**的项（未设置就不覆盖）。
+        冻结时按更严值收敛用例的执行限额，收敛结果直接写进冻结快照——
+        执行期只认快照里的值，报告与实际执行不会各说各话。
 
         ``target`` 是服务层决定好的冻结载荷（Agent/Skill 目标的档案与文件在服务层
         落成 dict 后传入；仓储只负责进快照，不做二次解析）。
@@ -526,6 +547,7 @@ class EvaluationRepository:
             )
             if len(snapshots) * request.repetitions > 200:
                 raise RevisionConflict("ATTEMPT_BUDGET_EXCEEDED")
+            self._converge_limits(snapshots, effective_limits)
             tool_modes: set[str] = set()
             for item in snapshots:
                 frozen = cast("Mapping[str, Any]", item["case_snapshot"])
@@ -553,6 +575,8 @@ class EvaluationRepository:
                 "tool_modes": sorted(tool_modes), "repetitions": request.repetitions,
                 "model_mode": request.model_mode, "manifest": manifest,
                 "limits": request.limits.model_dump(mode="json"),
+                "explicit_limits": dict(effective_limits or {}),
+                "effective_limits": _effective_limits_payload(snapshots),
                 "target": dict(target) if target else None,
                 "run_timeout_s": request.run_timeout_s,
             })
@@ -973,6 +997,32 @@ class EvaluationRepository:
                 attempt["case_snapshot"] = snapshot
             listed.append(attempt)
         return listed
+
+    @staticmethod
+    def _converge_limits(
+        snapshots: list[dict[str, Any]], effective_limits: Mapping[str, int] | None
+    ) -> None:
+        """把 run 级覆盖按更严值收敛进冻结用例的执行限额。
+
+        契约 §4：run 覆盖只能收紧用例限制，不能放宽。未显式设置的项不参与收敛，
+        否则默认的 12/120 会把本来允许 30 轮迭代的用例悄悄压回去。
+        """
+        if not effective_limits:
+            return
+        for item in snapshots:
+            frozen = item.get("case_snapshot")
+            if not isinstance(frozen, dict):
+                continue
+            execution = dict(frozen.get("execution") or {})
+            for key in ("max_iterations", "timeout_s"):
+                override = effective_limits.get(key)
+                if override is None:
+                    continue
+                current = execution.get(key)
+                if not isinstance(current, int) or isinstance(current, bool):
+                    continue
+                execution[key] = min(current, int(override))
+            frozen["execution"] = execution
 
     def count_runs(self, *, suite_id: str | None = None) -> int:
         """统计未软删运行；HTML 报告用它显式披露历史选择上限。"""

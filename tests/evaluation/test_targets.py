@@ -234,9 +234,24 @@ def test_live_mode_allows_sandbox_tools() -> None:
     body = ExecutionConfig.model_validate({
         "tool_mode": "live",
         "allowed_tools": ["read_file", "write_file", "edit_file", "list_dir",
-                          "apply_patch", "grep", "find_files", "exec", "web_fetch"],
+                          "grep", "find_files", "web_fetch"],
     })
     assert body.tool_mode == "live"
+
+
+def test_live_mode_refuses_native_shell_tools() -> None:
+    """live 模式同样拿不到原生 shell：越权工具在入库前就被拒绝。"""
+    from pydantic import ValidationError
+
+    from nanobot.evaluation.schemas import ExecutionConfig
+
+    for name in ("exec", "exec_session", "apply_patch"):
+        with pytest.raises(ValidationError) as excinfo:
+            ExecutionConfig.model_validate({
+                "tool_mode": "live",
+                "allowed_tools": ["read_file", name],
+            })
+        assert "TOOL_NOT_ALLOWED" in str(excinfo.value)
 
 
 def test_agent_boot_carries_frozen_target(repository: EvaluationRepository, tmp_path: Path) -> None:
@@ -272,9 +287,11 @@ def test_materialize_target_files_writes_profile_and_skills(tmp_path: Path) -> N
             "skills": {"skills/demo/SKILL.md": "# demo"},
         },
     }
-    written = _materialize_target_files(paths, target)
+    written, skills = _materialize_target_files(paths, target)
     assert "agents/profiles/writer.json" in written
     assert "skills/demo/SKILL.md" in written
+    assert skills[0]["name"] == "demo"
+    assert len(skills[0]["files"][0]["sha256"]) == 64
     assert (tmp_path / "ws" / "agents" / "profiles" / "writer.json").is_file()
     assert "# demo" in (tmp_path / "ws" / "skills" / "demo" / "SKILL.md").read_text(
         encoding="utf-8"

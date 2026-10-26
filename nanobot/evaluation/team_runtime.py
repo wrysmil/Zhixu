@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -233,11 +234,30 @@ class IsolatedTeamRuntime:
                     "team_revision": request.team.revision,
                     "capability": request.team.capability(),
                     "prompt_chars": len(prompt),
+                    "limits": {
+                        "timeout_s": request.timeout_s,
+                        "max_iterations": request.max_iterations,
+                        "allowed_tools": list(request.allowed_tools),
+                    },
                 },
             )
             try:
-                answer = await self._turn_runner(
-                    turn_index=index, prompt=prompt, request=request
+                async with asyncio.timeout(request.timeout_s):
+                    answer = await self._turn_runner(
+                        turn_index=index, prompt=prompt, request=request
+                    )
+            except TimeoutError:
+                # 限额必须真的停住：超时的回合不能继续跑，也不能算成功。
+                errors.append({
+                    "phase": "execution",
+                    "code": "TEAM_TURN_TIMEOUT",
+                    "message": f"team turn {index} exceeded {request.timeout_s}s",
+                })
+                return TeamRunOutcome(
+                    status="timed_out",
+                    final_answer=answer,
+                    stop_reason="turn_timeout",
+                    errors=errors,
                 )
             except Exception as exc:  # noqa: BLE001 - 回合异常按执行失败收口
                 errors.append(

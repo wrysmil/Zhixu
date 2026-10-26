@@ -280,8 +280,12 @@ class EvaluationService:
         parent_run_id: str | None = None,
         frozen_target: Mapping[str, Any] | None = None,
         frozen_cases: Sequence[Mapping[str, Any]] | None = None,
+        effective_limits: Mapping[str, int] | None = None,
     ) -> dict[str, Any]:
         """冻结快照并幂等入队。入队即返回 202，真正的执行由调度器接手。
+
+        effective_limits 是 run 级覆盖里显式设置的项目；为 None 时按请求里的
+        limits 推断（未显式设置的项不覆盖用例限制）。
 
         ``frozen_target`` 供 rerun 透传源运行已冻结的目标载荷：重跑必须引用**原
         冻结快照**，不能按当前工作区重新冻结一遍。
@@ -316,7 +320,27 @@ class EvaluationService:
             parent_run_id=parent_run_id,
             target=target_payload,
             frozen_cases=frozen_cases,
+            effective_limits=(
+                dict(effective_limits)
+                if effective_limits is not None
+                else self._explicit_limits(request.limits)
+            ),
         )
+
+    @staticmethod
+    def _explicit_limits(limits: RunLimits) -> dict[str, int]:
+        """只取 run 里**显式设置**的限额项。
+
+        未显式设置的项不参与收敛：RunLimits 的默认值 12/120 是占位而不是意图，
+        拿它去收紧用例会把「用例允许 30 轮迭代」悄悄压回 12。
+        """
+        fields = limits.model_fields_set
+        payload: dict[str, int] = {}
+        if "max_iterations" in fields:
+            payload["max_iterations"] = int(limits.max_iterations)
+        if "timeout_s" in fields:
+            payload["timeout_s"] = int(limits.timeout_s)
+        return payload
 
     def _normalize_model_mode(self, request: RunCreate) -> RunCreate:
         """判定本次运行是真模型还是回放脚本（契约 §1）。
@@ -528,6 +552,7 @@ class EvaluationService:
             run_timeout_s=snapshot.get("run_timeout_s"),
             repetitions=1, model_mode=str(snapshot.get("model_mode") or "real"),
         )
+        explicit = snapshot.get("explicit_limits")
         return self.create_run(
             request, idempotency_key=idempotency_key, scope=scope,
             parent_run_id=run_id,
@@ -535,6 +560,11 @@ class EvaluationService:
                 dict(target_raw) if isinstance(target_raw, Mapping) else None
             ),
             frozen_cases=frozen_cases,
+            effective_limits=(
+                {str(k): int(v) for k, v in explicit.items()}
+                if isinstance(explicit, Mapping)
+                else {}
+            ),
         )
 
     # -------------------------------------------------------------- 执行流水线
@@ -545,8 +575,15 @@ class EvaluationService:
         """一次 attempt 的完整流水线；结论原样交给调度器提交。"""
         attempt_id = str(attempt["id"])
         case = CaseWrite.model_validate(attempt["case_snapshot"])
-        limits = _limits_of(run.get("snapshot"))
-        target = (run.get("snapshot") or {}).get("target")
+        snapshot = run.get("snapshot") or {}
+        limits = _limits_of(snapshot)
+        # 生效限额：冻结时已收敛过，这里再取一次更严值作为双保险，
+        # 保证进程级超时、团队限额与 Worker 内部迭代上限用的是同一组数。
+        max_iterations, timeout_s = _effective_attempt_limits(snapshot, case)
+        limits = limits.model_copy(
+            update={"max_iterations": max_iterations, "timeout_s": timeout_s}
+        )
+        target = snapshot.get("target")
         if isinstance(target, Mapping) and target.get("kind") == "team":
             return await self._execute_team(
                 attempt_id=attempt_id, case=case, run=run, limits=limits,
@@ -554,7 +591,7 @@ class EvaluationService:
         paths = self._attempt_paths(attempt_id)
         paths.create()
         errors: list[AttemptError] = []
-        boot = self._agent_boot(attempt_id, case, run, paths)
+        boot = self._agent_boot(attempt_id, case, run, paths, limits=limits)
         owner = WorkerProcess(
             attempt_id=attempt_id,
             command=[sys.executable, "-m", WORKER_MODULE, attempt_id],
@@ -791,6 +828,8 @@ class EvaluationService:
         case: CaseWrite,
         run: Mapping[str, Any],
         paths: Any,
+        *,
+        limits: RunLimits | None = None,
     ) -> AgentWorkerBoot:
         snapshot = run.get("snapshot") or {}
         profile = dict(snapshot.get("agent_profile") or {})
@@ -807,6 +846,7 @@ class EvaluationService:
             role="agent",
             case_snapshot=case,
             target=(run.get("snapshot") or {}).get("target"),
+            limits=limits,
         )
 
     def _record_process(self, attempt_id: str, owner: WorkerProcess) -> None:
@@ -1773,6 +1813,29 @@ def _summary(row: Mapping[str, Any]) -> dict[str, Any]:
         "planned_count": row["planned_count"],
         "terminal_count": row["terminal_count"],
     }
+
+
+def _effective_attempt_limits(
+    snapshot: Any, case: CaseWrite
+) -> tuple[int, int]:
+    """返回这次 attempt 真正生效的 (max_iterations, timeout_s)。
+
+    新快照在冻结时已经把 run 级覆盖按更严值收敛进用例快照，这里再取一次更严值
+    只是双保险；旧快照没有收敛记录，那时 run 级限额是唯一覆盖来源，按它收紧。
+    """
+    max_iterations = int(case.execution.max_iterations)
+    timeout_s = int(case.execution.timeout_s)
+    explicit = snapshot.get("explicit_limits") if isinstance(snapshot, Mapping) else None
+    if isinstance(explicit, Mapping):
+        override_iterations = explicit.get("max_iterations")
+        override_timeout = explicit.get("timeout_s")
+        if isinstance(override_iterations, int):
+            max_iterations = min(max_iterations, override_iterations)
+        if isinstance(override_timeout, int):
+            timeout_s = min(timeout_s, override_timeout)
+        return max_iterations, timeout_s
+    limits = _limits_of(snapshot)
+    return min(max_iterations, limits.max_iterations), min(timeout_s, limits.timeout_s)
 
 
 def _limits_of(snapshot: Any) -> RunLimits:

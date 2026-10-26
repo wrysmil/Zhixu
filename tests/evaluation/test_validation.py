@@ -193,6 +193,10 @@ def test_case_write_field_set_matches_contract() -> None:
         "execution", "assertions", "rubric", "script", "artifact_paths",
         # 契约 §3：用例级任务判据（里程碑、必需证据、预算）。
         "evaluation",
+        # 契约 §3：用例声明的输入素材依赖（缺依赖要明示）。
+        "dependencies",
+        # 契约 §3：运行期必需但故意不提供的输入（setup 必须报缺）。
+        "required_inputs",
     }
 
 

@@ -771,6 +771,7 @@ async def run_agent_worker(
     final_answer: str | None = None
     stop_reason: str | None = None
     iterations = 0
+    used_tools: set[str] = set()
     # Agent 目标：注入 agent_id，让 loop 的档案解析接管本轮提示词/工具/技能。
     extra_metadata = (
         {"agent_id": str(target.get("id"))}
@@ -826,6 +827,7 @@ async def run_agent_worker(
                         run_kwargs["metadata"] = extra_metadata
                     result = await runtime.bot.run(content, **run_kwargs)
                     iterations += hook.iterations
+                    used_tools.update(hook.tools_used)
                     final_answer = result.content
                     stop_reason = result.stop_reason
                     if result.error:
@@ -869,6 +871,11 @@ async def run_agent_worker(
                 AttemptError(phase="execution", code=_error_text(exc), message=str(exc))
             )
 
+    # 工具使用事实进能力清单与 Trace：判分侧要能区分
+    # 「真的读了素材」与「嘴上说读过」。
+    runtime.capability["tools_used"] = sorted(used_tools)
+    runtime.capability["read_file_executed"] = "read_file" in used_tools
+
     if status in {"timed_out", "cancelled"} and final_answer is None:
         # 未产出任何回答的执行不可能判通过；停止原因留成状态名，报告侧不再猜。
         stop_reason = stop_reason or status
@@ -882,6 +889,8 @@ async def run_agent_worker(
             "execution_status": status,
             "stop_reason": stop_reason,
             "iterations": iterations,
+            "tools_used": sorted(used_tools),
+            "read_file_executed": "read_file" in used_tools,
             "answer_chars": len(final_answer or ""),
             "answer_sha256": (
                 hashlib.sha256(final_answer.encode("utf-8")).hexdigest()

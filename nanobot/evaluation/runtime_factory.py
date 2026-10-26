@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping
 from copy import deepcopy
@@ -168,14 +169,19 @@ def _merge(base: dict[str, Any], patch: Mapping[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def _materialize_target_files(paths: Any, target: Mapping[str, Any] | None) -> list[str]:
+def _materialize_target_files(
+    paths: Any, target: Mapping[str, Any] | None
+) -> tuple[list[str], list[dict[str, Any]]]:
     """把快照里冻结的 Agent 档案与 Skill 文件写进 attempt workspace。
 
     路径校验是硬边界：rel 必须落在 workspace 内，防止快照被塞进 ``../`` 逃逸。
     """
+    # 返回 (写入清单, 技能清单)：技能清单带每个文件的内容哈希，
+    # 判分侧要能回答「这次跑的到底是哪份技能内容」，只记技能名等于没有证据。
     if not isinstance(target, Mapping):
-        return []
+        return [], []
     written: list[str] = []
+    skill_files: dict[str, list[dict[str, Any]]] = {}
     agent = target.get("agent") or {}
     profile = agent.get("profile") if isinstance(agent, Mapping) else None
     if isinstance(profile, Mapping) and profile.get("id"):
@@ -196,16 +202,26 @@ def _materialize_target_files(paths: Any, target: Mapping[str, Any] | None) -> l
         if not dest.is_relative_to(root):
             raise ValueError("TARGET_PATH_ESCAPE")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(str(content), encoding="utf-8")
+        text = str(content)
+        dest.write_text(text, encoding="utf-8")
         written.append(str(rel))
-    return written
+        parts = str(rel).split("/")
+        if len(parts) >= 3 and parts[0] == "skills":
+            raw = text.encode("utf-8")
+            skill_files.setdefault(parts[1], []).append({
+                "path": str(rel),
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "bytes": len(raw),
+            })
+    skills = [
+        {"name": name, "files": skill_files[name]} for name in sorted(skill_files)
+    ]
+    return written, skills
 
 
 def _sandbox_overlay(
     paths: AttemptPaths,
     max_iterations: int | None,
-    *,
-    live_exec: bool = False,
 ) -> dict[str, Any]:
     defaults: dict[str, Any] = {
         "workspace": str(paths.workspace),
@@ -224,8 +240,9 @@ def _sandbox_overlay(
             "restrictToWorkspace": True,
             "mcpServers": {},
             "ssrfWhitelist": [],
-            # exec 只在 live 模式且用例显式点名时打开（Skill 全链路验证需要真实执行）。
-            "exec": {"enable": live_exec},
+            # 原生 shell 永远关闭：live 模式也不再提供 exec/exec_session/apply_patch，
+            # 需要执行能力时用受控工具表达，不靠放开 shell。
+            "exec": {"enable": False},
             "my": {"enable": False},
             "cliApps": {"enable": False},
             "imageGeneration": {"enabled": False},
@@ -247,7 +264,6 @@ def build_attempt_config(
     paths: AttemptPaths,
     max_iterations: int | None = None,
     base_config: Config | None = None,
-    live_exec: bool = False,
 ) -> Config:
     """内存里合成执行配置：profile 先合并，沙箱覆盖层最后生效且不可被 profile 翻转。"""
     config_part = profile_bundle.get("config")
@@ -259,7 +275,7 @@ def build_attempt_config(
     data = _merge(
         base.model_dump(mode="json", by_alias=True), config_part
     )
-    data = _merge(data, _sandbox_overlay(paths, max_iterations, live_exec=live_exec))
+    data = _merge(data, _sandbox_overlay(paths, max_iterations))
     config = Config.model_validate(data)
     # 只记路径归属，不写文件：runtime_data_dir 由此指向 attempt 的 runtime root。
     config.bind_source_path(paths.config_path)
@@ -295,6 +311,32 @@ def _apply_tool_whitelist(
     return registered, removed, controlled
 
 
+def _missing_required_inputs(workspace: Path, required: list[str]) -> list[str]:
+    """返回运行期缺失的必需输入文件。"""
+    missing: list[str] = []
+    for rel in required:
+        if not (workspace / rel).exists():
+            missing.append(rel)
+    return missing
+
+
+def _requested_skill_names(
+    target: Any, skills: list[dict[str, Any]]
+) -> list[str]:
+    """本次运行声明要加载的技能名。
+
+    Skill 目标以被测对象的技能名为准；Agent 目标由档案冻结出来的技能目录名决定。
+    只列被冻结的技能：评估不加载用户工作区里的其它技能，避免「跑的不是声明的那个」。
+    """
+    names: set[str] = set()
+    if isinstance(target, Mapping):
+        skill = target.get("skill")
+        if isinstance(skill, Mapping) and skill.get("name"):
+            names.add(str(skill["name"]))
+    names.update(str(item.get("name")) for item in skills if item.get("name"))
+    return sorted(names)
+
+
 async def create_attempt(
     boot: AgentWorkerBoot | JudgeWorkerBoot,
     *,
@@ -315,17 +357,27 @@ async def create_attempt(
     execution = case.execution if isinstance(case, CaseWrite) else None
     allowed = list(execution.allowed_tools) if execution is not None else []
     clock = ControlledClock(case.clock_iso if isinstance(case, CaseWrite) else None)
-    _materialize_target_files(paths, getattr(boot, "target", None))
-    live_exec = bool(
-        execution is not None and execution.tool_mode == "live"
-        and "exec" in execution.allowed_tools
+    # 生效迭代上限 = 用例限制与 run 级限制的更严值。boot.limits 是服务端
+    # 收敛后下发的；直接把 run 的更宽值放行等于让 run 覆盖放宽用例限制。
+    effective_max_iterations: int | None = (
+        execution.max_iterations if execution is not None else None
+    )
+    boot_limits = getattr(boot, "limits", None)
+    if (
+        boot_limits is not None
+        and effective_max_iterations is not None
+    ):
+        effective_max_iterations = min(
+            effective_max_iterations, int(boot_limits.max_iterations)
+        )
+    written_files, skills = _materialize_target_files(
+        paths, getattr(boot, "target", None)
     )
     config = build_attempt_config(
         profile_bundle=boot.profile_bundle,
         paths=paths,
-        max_iterations=execution.max_iterations if execution is not None else None,
+        max_iterations=effective_max_iterations,
         base_config=base_config,
-        live_exec=live_exec,
     )
     if provider is None and isinstance(case, CaseWrite) and case.script:
         # fixture 模式 + 声明了脚本：走受控 provider，判分链路才能离线端到端跑通。
@@ -370,6 +422,10 @@ async def create_attempt(
     seeded = 0
     if isinstance(case, CaseWrite):
         fixtures_written = materialize_fixtures(paths.workspace, case.fixtures)
+        missing = _missing_required_inputs(paths.workspace, case.required_inputs)
+        if missing:
+            # 缺输入是 setup 级失败：明确报缺，不让后续用空文件假装任务成功。
+            raise ValueError(f"CASE_INPUT_MISSING: {', '.join(missing)}")
         seeded = seed_memory(bot.memory, case.memory_seed, session_key=session_key)
 
     capability = {
@@ -387,8 +443,19 @@ async def create_attempt(
         "model": config.resolve_preset().model,
         "provider": config.resolve_preset().provider,
         "clock_iso": clock.clock_iso,
-        "max_iterations": execution.max_iterations if execution is not None else None,
+        "max_iterations": effective_max_iterations,
         "timeout_s": execution.timeout_s if execution is not None else None,
+        # 生效口径：真正注册进本次运行的工具白名单，以及真正生效的限额。
+        "effective_allowed_tools": sorted(registered),
+        "effective_limits": {
+            "max_iterations": effective_max_iterations,
+            "timeout_s": execution.timeout_s if execution is not None else None,
+        },
+        "skills": {
+            "requested": _requested_skill_names(getattr(boot, "target", None), skills),
+            "materialized": skills,
+            "restricted_to_frozen": True,
+        },
     }
     return AttemptRuntime(
         attempt_id=str(boot.attempt_id),
