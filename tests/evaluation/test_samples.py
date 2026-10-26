@@ -286,3 +286,55 @@ def test_calibration_evidence_parses_and_matches_its_trace(
             (item["name"], item["arguments"], item["result"], item["is_error"], item["seq"])
             for item in authored
         ], f"{sample['id']} 的 tool_calls 与其 Trace 事件不自洽"
+
+
+# ----------------------------------------------------------------- 样本导入链路
+
+
+def test_reliability_v2_imports_through_service(
+    evaluation_repository: Any, tmp_path: Path
+) -> None:
+    """36 条分层样本必须能真的入库，不能只是躺在 JSON 里。"""
+    from nanobot.evaluation.services import EvaluationService, Profile
+
+    service = EvaluationService(
+        repository=evaluation_repository,
+        data_dir=tmp_path / "service",
+        profiles=(
+            Profile(id="agent-1", label="受控执行器", provider="controlled",
+                    model="eval-model", kind="agent",
+                    bundle={"config": {"providers": {"controlled": {"api_key": "sk-x"}}}}),
+        ),
+    )
+    result = service.import_sample("reliability-v2")
+    assert result["case_count"] == 36
+    assert len(result["cases"]) == 36
+    targets = {
+        tag
+        for case in result["cases"]
+        for tag in case["tags"]
+        if tag.startswith("target:")
+    }
+    assert targets == {"target:agent", "target:skill", "target:team"}
+    # gold 不入库：人工确认走校准通道，样本里的 gold 一律 proposed。
+    assert all("gold" not in case for case in result["cases"])
+
+
+def test_reliability_v2_import_is_idempotent(
+    evaluation_repository: Any, tmp_path: Path
+) -> None:
+    from nanobot.evaluation.services import EvaluationService, Profile
+
+    service = EvaluationService(
+        repository=evaluation_repository,
+        data_dir=tmp_path / "service",
+        profiles=(
+            Profile(id="agent-1", label="受控执行器", provider="controlled",
+                    model="eval-model", kind="agent",
+                    bundle={"config": {"providers": {"controlled": {"api_key": "sk-x"}}}}),
+        ),
+    )
+    first = service.import_sample("reliability-v2")
+    second = service.import_sample("reliability-v2")
+    assert first["suite"]["id"] == second["suite"]["id"]
+    assert second["case_count"] == 36

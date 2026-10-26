@@ -212,11 +212,25 @@ class EvaluationService:
         return self._data_dir
 
     def import_sample(self, sample_id: str) -> dict[str, Any]:
-        """内置样本随包发布：JSON 只读，导入幂等由仓储的 sample_imports 表负责。"""
+        """内置样本随包发布：JSON 只读，导入幂等由仓储的 sample_imports 表负责。
+
+        带判据元数据的样本（reliability-v2）先过适配器：元数据进 tags 与描述，
+        判据原样保留，gold 不入库（人工确认走校准通道）。
+        """
+        from nanobot.evaluation.sample_cases import (
+            ADAPTED_SAMPLE_IDS,
+            adapt_sample_payload,
+        )
+
         path = self._sample_path(sample_id)
         if not path.is_file():
             raise ServiceError("SAMPLE_NOT_FOUND", sample_id)
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if sample_id in ADAPTED_SAMPLE_IDS:
+            try:
+                payload = adapt_sample_payload(payload)
+            except ValueError as exc:
+                raise ServiceError("SAMPLE_INVALID", f"{sample_id}: {exc}") from exc
         return self._repository.import_sample(sample_id, payload)
 
     def seed_builtin_gold_samples(self) -> int:

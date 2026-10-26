@@ -981,7 +981,8 @@ class Overview(JsonModel):
 
 
 class SampleImportRequest(JsonModel):
-    sample_id: Literal["basic-v1"]
+    #: 内置样本 id：basic-v1 是基础回归集，reliability-v2 是 36 条分层样本。
+    sample_id: Literal["basic-v1", "reliability-v2"]
 
 
 class ImportSuiteRequest(JsonModel):
