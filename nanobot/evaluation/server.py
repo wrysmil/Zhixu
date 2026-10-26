@@ -343,6 +343,25 @@ async def create_case(request: web.Request) -> web.Response:
     )
 
 
+async def get_case(request: web.Request) -> web.Response:
+    """单条用例的完整定义：判据编辑页要看到 evaluation、assertions 与量表。"""
+    context = context_of(request)
+    return web.json_response(
+        context.repository.get_case(request.match_info["id"])
+    )
+
+
+async def update_case(request: web.Request) -> web.Response:
+    """保存用例判据：走 base_revision 的 CAS，落库即冻结一份新 revision。"""
+    context = context_of(request)
+    body = await _json_body(request, CaseWrite)
+    return web.json_response(
+        context.repository.save_case(
+            body.model_dump(mode="json"), case_id=request.match_info["id"]
+        )
+    )
+
+
 async def create_run(request: web.Request) -> web.Response:
     """入队后立即 202：客户端断开不会取消运行。"""
     context = context_of(request)
@@ -907,6 +926,8 @@ def _routes() -> list[web.RouteDef]:
         r("POST", "/suites/import", import_suite),
         r("GET", "/cases", list_cases),
         r("POST", "/cases", create_case),
+    r("GET", "/cases/{id}", get_case),
+    r("PATCH", "/cases/{id}", update_case),
         r("POST", "/samples/import", import_sample),
         r("GET", "/calibration-samples", list_calibration_samples),
         r("PATCH", "/calibration-samples/{id}", review_calibration_sample),

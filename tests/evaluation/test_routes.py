@@ -20,6 +20,7 @@ from aiohttp.test_utils import TestClient, TestServer
 from nanobot.evaluation.repository import EvaluationRepository
 from nanobot.evaluation.server import API_PREFIX
 
+from .conftest import make_case_payload, make_suite_payload
 from .http_app import (
     build_app,
 )
@@ -377,3 +378,101 @@ async def test_create_run_rejects_unknown_profile_without_side_effects(
     runs = await (await client.get(f"{API_PREFIX}/runs")).json()
     assert runs["data"] == []
     assert repository.list_runs(limit=10) == []
+
+
+# ------------------------------------------------------------------ 用例判据编辑
+
+
+async def test_case_detail_returns_full_criteria(
+    client: TestClient, repository: EvaluationRepository
+) -> None:
+    """判据编辑页要拿到完整定义：里程碑、量表与断言都在。"""
+    await _login(client)
+    suite = repository.create_suite(make_suite_payload())
+    payload = make_case_payload(suite_id=suite["id"])
+    payload["evaluation"] = {
+        "version": 2,
+        "required_dimensions": ["task"],
+        "milestones": [{"id": "m1", "weight": 1.0, "assertion_ids": ["a1"]}],
+        "required_evidence": ["final_answer", "trace"],
+    }
+    case = repository.save_case(payload)
+
+    response = await client.get(f"{API_PREFIX}/cases/{case['id']}")
+    assert response.status == 200
+    body = await response.json()
+    assert body["revision"] == 1
+    assert body["evaluation"]["milestones"][0]["assertion_ids"] == ["a1"]
+    assert body["assertions"][0]["id"] == "a1"
+
+
+async def test_case_criteria_update_creates_new_revision(
+    client: TestClient, repository: EvaluationRepository
+) -> None:
+    """保存判据要落成新 revision，且旧 revision 仍可读。"""
+    csrf = await _login(client)
+    suite = repository.create_suite(make_suite_payload())
+    payload = make_case_payload(suite_id=suite["id"])
+    payload["evaluation"] = {
+        "version": 2,
+        "required_dimensions": ["task"],
+        "milestones": [{"id": "m1", "weight": 1.0, "assertion_ids": ["a1"]}],
+    }
+    case = repository.save_case(payload)
+
+    body = await (await client.get(f"{API_PREFIX}/cases/{case['id']}")).json()
+    writable = {
+        key: value
+        for key, value in body.items()
+        if key not in {"id", "revision", "created_at", "updated_at", "is_deleted"}
+    }
+    writable["base_revision"] = body["revision"]
+    writable["evaluation"] = {
+        "version": 2,
+        "required_dimensions": ["task", "constraints"],
+        "milestones": [
+            {"id": "m1", "weight": 0.6, "assertion_ids": ["a1"]},
+            {"id": "m2", "weight": 0.4, "assertion_ids": ["a1"]},
+        ],
+        "required_evidence": ["final_answer", "trace", "usage"],
+    }
+    response = await client.patch(
+        f"{API_PREFIX}/cases/{case['id']}",
+        json=writable,
+        headers=_headers(csrf),
+    )
+    assert response.status == 200
+    updated = await response.json()
+    assert updated["revision"] == 2
+    assert len(updated["evaluation"]["milestones"]) == 2
+    # 旧 revision 仍可读：历史运行的冻结快照不受影响。
+    old = repository.get_case_revision(case["id"], 1)
+    assert len(old["evaluation"]["milestones"]) == 1
+
+
+async def test_case_update_with_stale_revision_conflicts(
+    client: TestClient, repository: EvaluationRepository
+) -> None:
+    csrf = await _login(client)
+    suite = repository.create_suite(make_suite_payload())
+    case = repository.save_case(make_case_payload(suite_id=suite["id"]))
+    body = await (await client.get(f"{API_PREFIX}/cases/{case['id']}")).json()
+    writable = {
+        key: value
+        for key, value in body.items()
+        if key not in {"id", "revision", "created_at", "updated_at", "is_deleted"}
+    }
+    writable["base_revision"] = body["revision"]
+    first = await client.patch(
+        f"{API_PREFIX}/cases/{case['id']}",
+        json=writable,
+        headers=_headers(csrf),
+    )
+    assert first.status == 200
+    stale = await client.patch(
+        f"{API_PREFIX}/cases/{case['id']}",
+        json=writable,
+        headers=_headers(csrf),
+    )
+    assert stale.status == 409
+    assert (await stale.json())["error"]["code"] == "REVISION_CONFLICT"
