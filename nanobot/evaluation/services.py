@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import sys
 import time
+import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -26,6 +28,12 @@ from pathlib import Path
 from typing import Any
 
 from nanobot.config.paths import get_workspace_path
+from nanobot.evaluation.assessment import assess
+from nanobot.evaluation.coverage import (
+    compute_coverage,
+    evaluation_capability,
+    summarize_coverage,
+)
 from nanobot.evaluation.evidence import (
     AttemptEvidence,
     EvidenceArtifact,
@@ -69,10 +77,26 @@ from nanobot.evaluation.schemas import (
     RunLimits,
     TargetRef,
 )
-from nanobot.evaluation.trace import read_trace
-from nanobot.evaluation.worker import ARTIFACT_INDEX_NAME, evidence_from_payload
+from nanobot.evaluation.team_runtime import (
+    TeamRunOutcome,
+    TeamRunRequest,
+    TeamRuntimeError,
+    build_frozen_team,
+)
+from nanobot.evaluation.trace import TraceCollector, TraceError, read_trace
+from nanobot.evaluation.worker import (
+    ARTIFACT_INDEX_NAME,
+    TraceRecorder,
+    WorkerChannel,
+    evidence_from_payload,
+)
 
 WORKER_MODULE = "nanobot.evaluation.worker"
+
+
+def _null_sink(raw: bytes) -> None:
+    """团队路径不需要 IPC 帧：Trace 直接落盘，帧只作空转出口。"""
+    return None
 
 #: 契约 §5：评分总预算（含格式重试），超时按 judge_error 记，不无限等。
 JUDGE_BUDGET_S = 60
@@ -85,6 +109,8 @@ TeamRunner = Callable[[Mapping[str, Any]], Awaitable[Mapping[str, Any]]]
 #: 团队冻结快照来源：按 team_id 返回已冻结的团队定义/Leader/成员档案。
 #: 缺省时直接读本机团队库；测试注入替身，避免碰日常团队库。
 TeamSnapshotProvider = Callable[[str], Mapping[str, Any]]
+#: 隔离团队运行时工厂：按 attempt 上下文产出运行时；生产由 gateway 注入。
+TeamRuntimeFactory = Callable[..., Any]
 
 
 class ServiceError(RuntimeError):
@@ -140,6 +166,7 @@ class EvaluationService:
         judge_runner: JudgeRunner | None = None,
         team_runner: TeamRunner | None = None,
         team_snapshot_provider: TeamSnapshotProvider | None = None,
+        team_runtime_factory: TeamRuntimeFactory | None = None,
         workspace: Path | None = None,
     ) -> None:
         self._repository = repository
@@ -155,6 +182,7 @@ class EvaluationService:
         self._judge_runner: JudgeRunner = judge_runner or self._run_judge
         self._team_runner = team_runner
         self._team_snapshot_provider = team_snapshot_provider
+        self._team_runtime_factory = team_runtime_factory
 
     # ------------------------------------------------------------------ 配置
 
@@ -571,113 +599,177 @@ class EvaluationService:
         run: Mapping[str, Any],
         limits: RunLimits,
     ) -> AttemptOutcome:
-        """团队目标：gateway 注入的 runner 在进程内执行，评估服务不起 worker 子进程。
+        """团队目标：隔离运行时 + 真实 Trace，不再有强制完整旁路。
 
-        结论装配与普通 attempt 走同一条 ``_grade`` 出口（规则断言 + 可选 Judge），
-        差异只在执行段：没有子进程、没有 workspace 产物，证据只有最终回答。
+        与 Agent 路径的差异只在执行段：团队有自己的 Leader/成员栈，
+        但 Trace、产物、评分与证据口径完全一致——
+        缺 Trace 只能判待复核，不能靠开关把"没采到证据"说成"证据完整"。
         """
         started = time.monotonic()
-        if self._team_runner is None:
+        snapshot = run.get("snapshot") or {}
+        target = snapshot.get("target") or {}
+        errors: list[AttemptError] = []
+        try:
+            team = build_frozen_team(target if isinstance(target, Mapping) else None)
+        except TeamRuntimeError as exc:
+            return self._setup_failure([
+                AttemptError(phase="setup", code=exc.code, message=str(exc)),
+            ])
+        factory = self._team_runtime_factory
+        if factory is None:
             return self._setup_failure([
                 AttemptError(
-                    phase="setup", code="TEAM_RUNNER_UNAVAILABLE",
-                    message="gateway 未注入团队执行栈",
+                    phase="setup", code="TEAM_RUNTIME_UNAVAILABLE",
+                    message="未注入隔离团队运行时",
                 ),
             ])
-        target = (run.get("snapshot") or {}).get("target") or {}
-        payload = {
-            "team_id": str(target.get("id") or ""),
-            "prompt": case.turns[-1].content,
-            "timeout_s": limits.timeout_s,
-        }
+
+        paths = self._attempt_paths(attempt_id)
+        paths.create()
+        recorder = TraceRecorder(
+            attempt_id=attempt_id,
+            collector=TraceCollector(attempt_id=attempt_id, trace_dir=paths.trace_dir),
+            channel=WorkerChannel(attempt_id=attempt_id, sink=_null_sink),
+            started_at=started,
+            trace_errors=errors,
+        )
+        execution_id = str(uuid.uuid4())
+        recorder.execution_id = execution_id
+        recorder.emit(
+            "attempt.started",
+            payload={
+                "role": "team",
+                "tool_mode": case.execution.tool_mode,
+                "turns": len(case.turns),
+                "team_id": team.team_id,
+                "team_revision": team.revision,
+            },
+        )
+        recorder.emit(
+            "agent.started",
+            target_kind="team",
+            target_id=team.team_id,
+            payload={
+                "role": "team",
+                "execution_id": execution_id,
+                "capability": team.capability(),
+                "turns": len(case.turns),
+            },
+        )
+        request = TeamRunRequest(
+            attempt_id=attempt_id,
+            team=team,
+            turns=tuple(turn.content for turn in case.turns),
+            workspace=paths.workspace,
+            timeout_s=limits.timeout_s,
+            max_iterations=limits.max_iterations,
+            allowed_tools=tuple(case.execution.allowed_tools),
+        )
         try:
-            outcome = await self._team_runner(payload)
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - runner 异常按执行失败收口
-            return AttemptOutcome(
-                execution_status="failed",
-                grading_status="not_applicable",
-                verdict="failed",
-                result=_result_payload(
-                    execution_status="failed",
-                    errors=[AttemptError(
-                        phase="execution", code="TEAM_RUN_FAILED", message=str(exc),
-                    )],
-                    worker_result={
-                        "final_answer": None, "stop_reason": "team_runner_error",
-                        "iterations": 0, "trace_complete": False,
-                    },
-                    timing={"agent_ms": int((time.monotonic() - started) * 1000)},
-                ),
+            runtime = factory(request=request, events=recorder)
+            outcome = await runtime.execute()
+        except Exception as exc:  # noqa: BLE001 - 运行时异常按执行失败收口
+            errors.append(
+                AttemptError(phase="execution", code="TEAM_RUNTIME_FAILED", message=str(exc))
             )
-        status = str(outcome.get("status") or "failed")
-        # 团队状态的 ``partial`` 表示「跑完了但部分子任务失败」：执行阶段本身是终结的，
-        # 结论交给规则断言按最终回答判定，停止原因如实保留。
+            outcome = TeamRunOutcome(status="failed", errors=[])
+        status = str(outcome.status or "failed")
+        stop_reason = outcome.stop_reason
+        # 团队运行状态归一：partial 表示"跑完了但部分子任务失败"，
+        # 执行阶段本身是终结的；非终态按执行失败收口，不能交给 finish_attempt。
         if status == "partial":
             status, stop_reason = "succeeded", "partial"
-        elif status == "succeeded":
-            stop_reason = None
-        elif status in ("failed", "timed_out", "cancelled", "interrupted"):
-            stop_reason = status
-        else:
-            # 非终态（如仍 running）不能交给 finish_attempt：那不是合法终态，会让
-            # 调度器以 StateConflict 收场，反而丢掉真实原因。
-            return AttemptOutcome(
-                execution_status="failed",
-                grading_status="not_applicable",
-                verdict="failed",
-                result=_result_payload(
-                    execution_status="failed",
-                    errors=[AttemptError(
-                        phase="execution", code="TEAM_RUN_STATUS_UNEXPECTED",
-                        message=f"team run ended in non-terminal status {status!r}",
-                    )],
-                    worker_result={
-                        "final_answer": outcome.get("final_answer"),
-                        "stop_reason": status,
-                        "iterations": 0,
-                        "trace_complete": True,
-                    },
-                    timing={"agent_ms": int((time.monotonic() - started) * 1000)},
-                ),
+        elif status not in ("succeeded", "failed", "timed_out", "cancelled", "setup_error"):
+            errors.append(
+                AttemptError(
+                    phase="execution", code="TEAM_RUN_STATUS_UNEXPECTED",
+                    message=f"team run ended in non-terminal status {status!r}",
+                )
             )
-        result = {
-            "final_answer": outcome.get("final_answer"),
-            "stop_reason": stop_reason,
-            "iterations": 0,
-            "trace_complete": True,
-        }
-        if "usage" in outcome:
-            result["usage"] = outcome["usage"]
-        timing = {"agent_ms": int((time.monotonic() - started) * 1000)}
+            status = "failed"
+        if outcome.errors:
+            for item in outcome.errors:
+                errors.append(
+                    AttemptError(
+                        phase=str(item.get("phase") or "execution"),
+                        code=str(item.get("code") or "TEAM_RUN_FAILED"),
+                        message=str(item.get("message") or ""),
+                    )
+                )
+        final_answer = outcome.final_answer
+        recorder.emit(
+            "agent.completed" if status == "succeeded" else "agent.failed",
+            target_kind="team",
+            target_id=team.team_id,
+            payload={
+                "execution_status": status,
+                "stop_reason": stop_reason,
+                "answer_chars": len(final_answer or ""),
+                "answer_sha256": (
+                    hashlib.sha256(final_answer.encode("utf-8")).hexdigest()
+                    if final_answer
+                    else None
+                ),
+            },
+        )
+        recorder.emit(
+            "attempt.completed" if status == "succeeded" else "attempt.failed",
+            payload={
+                "execution_status": status,
+                "stop_reason": stop_reason,
+            },
+        )
+        errors.extend(recorder.trace_errors)
+        trace_complete = True
+        try:
+            trace_complete = recorder.seal().trace_complete
+        except TraceError as exc:
+            trace_complete = False
+            errors.append(AttemptError(phase="trace", code=exc.code, message=str(exc)))
+
         if status != "succeeded":
             return AttemptOutcome(
-                execution_status=status,
+                execution_status=(
+                    status
+                    if status in ("failed", "timed_out", "cancelled", "setup_error")
+                    else "failed"
+                ),
                 grading_status="not_applicable",
                 verdict="failed" if status in ("failed", "timed_out") else "not_evaluated",
                 result=_result_payload(
-                    execution_status=status, errors=[], worker_result=result,
-                    timing=timing,
+                    execution_status=status,
+                    errors=errors,
+                    worker_result={
+                        "final_answer": final_answer,
+                        "stop_reason": stop_reason,
+                        "iterations": 0,
+                        "trace_complete": trace_complete,
+                    },
+                    timing={"agent_ms": int((time.monotonic() - started) * 1000)},
                 ),
             )
-        paths = self._attempt_paths(attempt_id)
-        paths.create()
-        self._repository.mark_attempt_execution_done(attempt_id, execution_status="succeeded")
-        self._repository.mark_attempt_grading_running(attempt_id)
 
-        team_timing = timing
+        self._repository.mark_attempt_execution_done(
+            attempt_id=attempt_id, execution_status="succeeded"
+        )
+        self._repository.mark_attempt_grading_running(attempt_id)
+        timing = {"agent_ms": int((time.monotonic() - started) * 1000)}
 
         class _TeamOwner:
             """_grade 只用 owner.timing()；团队路径没有 WorkerProcess 可言。"""
 
             def timing(self) -> dict[str, Any]:
-                return dict(team_timing)
+                return dict(timing)
 
         return await self._grade(
             attempt_id=attempt_id, case=case, run=run, paths=paths,
-            errors=[], owner=_TeamOwner(), result=result,
-            trace_complete_override=True,
+            errors=errors, owner=_TeamOwner(),
+            result={
+                "final_answer": final_answer,
+                "stop_reason": stop_reason,
+                "iterations": 0,
+                "trace_complete": trace_complete,
+            },
         )
 
     def _agent_boot(
@@ -723,15 +815,10 @@ class EvaluationService:
         errors: list[AttemptError],
         owner: WorkerProcess,
         result: Mapping[str, Any] | None,
-        trace_complete_override: bool | None = None,
     ) -> AttemptOutcome:
         trace = read_trace(paths.trace_dir)
-        # 团队路径没有 worker trace 密封语义：runner 返回 succeeded 即视为执行
-        # 证据完整，否则每次团队评估都会被推进人工复核。
-        trace_complete = (
-            trace.trace_complete if trace_complete_override is None
-            else trace_complete_override
-        )
+        # Trace 完整只来自密封结果：没有旁路开关能把"没采到证据"说成完整。
+        trace_complete = trace.trace_complete
         evidence = build_attempt_evidence(
             attempt_id=attempt_id,
             case_snapshot=case.model_dump(mode="json"),
@@ -746,6 +833,21 @@ class EvaluationService:
         )
         rules = evaluate_rules(case, evidence)
         required = [item.passed for item in rules if item.required]
+        artifacts = self._artifacts(attempt_id, paths)
+        coverage = compute_coverage(
+            trace_events=trace.events,
+            trace_sealed=trace.sealed,
+            trace_complete=trace_complete,
+            usage=result.get("usage") if isinstance(result, Mapping) else None,
+            declared_artifacts=list(case.artifact_paths),
+            registered_artifacts=[
+                {"relative_path": item.relative_path} for item in artifacts
+            ],
+            required_evidence=(
+                list(case.evaluation.required_evidence) if case.evaluation else []
+            ),
+            final_answer=_text(result, "final_answer"),
+        )
 
         rubric = case.rubric
         judge_result: JudgeResult | None = None
@@ -756,22 +858,42 @@ class EvaluationService:
             )
 
         state = judge_state_of(rubric, judge_result, calibration)
-        verdict = derive_verdict("succeeded", required, state, trace_complete)
+        rule_results = [
+            {
+                "id": item.id,
+                "passed": item.passed,
+                "required": item.required,
+                "message": item.message,
+                "evidence_refs": list(item.evidence_refs),
+            }
+            for item in rules
+        ]
+        # v2 用例（带 evaluation 判据）走五维度合格策略；
+        # 老用例保持既有 verdict 口径，不冒充新评分。
+        assessment = None
+        if case.evaluation is not None:
+            assessment = assess(
+                evaluation=case.evaluation.model_dump(mode="json"),
+                assertions=list(case.assertions),
+                rule_results=rule_results,
+                coverage=coverage,
+                judge_state=state,
+                execution_status="succeeded",
+            )
+            verdict = assessment.verdict
+        else:
+            verdict = derive_verdict("succeeded", required, state, trace_complete)
         payload = _result_payload(
             execution_status="succeeded",
             errors=errors,
             worker_result=result,
             timing=owner.timing(),
-            assertions=[
-                {
-                    "id": item.id, "passed": item.passed, "required": item.required,
-                    "message": item.message,
-                    "evidence_refs": list(item.evidence_refs),
-                }
-                for item in rules
-            ],
+            assertions=rule_results,
             judge=judge_result.model_dump(mode="json") if judge_result else None,
         )
+        payload["coverage"] = coverage
+        if assessment is not None:
+            payload["evaluation"] = assessment.to_dict()
         grading_status = "judge_error" if state == "error" and rubric is not None \
             and rubric.required else "completed"
         return AttemptOutcome(
@@ -1155,7 +1277,22 @@ class EvaluationService:
                 "rules_version": str(snapshot.get("rules_version", "")),
                 "grader_version": str(snapshot.get("grader_version", "")),
                 "tool_mode": str(snapshot.get("tool_mode", "")),
+                "manifest": dict(snapshot.get("manifest") or {}),
+                "repetitions": int(snapshot.get("repetitions") or 1),
+                "model_mode": str(snapshot.get("model_mode") or "real"),
+                "tool_modes": list(snapshot.get("tool_modes") or []),
             },
+            "evaluation_capability": evaluation_capability(
+                manifest=snapshot.get("manifest"),
+                cases_have_criteria=any(
+                    bool((item.get("case_snapshot") or {}).get("evaluation"))
+                    for item in detail["attempts"]
+                ),
+            ),
+            "coverage": summarize_coverage([
+                dict((item.get("result") or {}).get("coverage") or {})
+                for item in detail["attempts"]
+            ]),
             "counts": self._repository.run_counts(run_id),
             "metrics": metrics,
             "attempts_url": f"/api/eval/v1/runs/{run_id}/attempts",
@@ -1194,6 +1331,10 @@ class EvaluationService:
                 for item in self._repository.list_artifacts_for_attempt(attempt_id)
             ],
             "reviews": self._repository.list_reviews(attempt_id),
+            "trial_index": int(row.get("trial_index") or 0),
+            "source_attempt_id": row.get("source_attempt_id"),
+            "evidence_refs": list(result.get("evidence_refs") or []),
+            "coverage": result.get("coverage"),
         }
 
     def trace_page(
@@ -1574,7 +1715,7 @@ def _result_payload(
         "trace_complete": bool((worker_result or {}).get("trace_complete", False)),
     }
     if worker_result is not None:
-        for key in ("final_answer", "stop_reason", "iterations"):
+        for key in ("final_answer", "stop_reason", "iterations", "evidence_refs"):
             if key in worker_result:
                 payload[key] = worker_result[key]
         if "usage" in worker_result:

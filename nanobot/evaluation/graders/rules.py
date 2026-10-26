@@ -194,6 +194,20 @@ def _grade(assertion: Any, evidence: AttemptEvidenceView) -> _Outcome:
         outcome = _grade_iteration_limit(assertion, evidence)
     elif kind == "tool_call_limit":
         outcome = _grade_tool_call_limit(assertion, evidence)
+    elif kind == "answer_exact":
+        outcome = _grade_answer_exact(assertion, evidence)
+    elif kind == "answer_length":
+        outcome = _grade_answer_length(assertion, evidence)
+    elif kind == "answer_json_block":
+        outcome = _grade_answer_json_block(assertion, evidence)
+    elif kind == "tool_trajectory":
+        outcome = _grade_tool_trajectory(assertion, evidence)
+    elif kind == "team_member_executed":
+        outcome = _grade_team_member_executed(assertion, evidence)
+    elif kind == "usage_limit":
+        outcome = _grade_usage_limit(assertion, evidence)
+    elif kind == "duration_limit":
+        outcome = _grade_duration_limit(assertion, evidence)
     else:  # pragma: no cover - 判别联合已在模型层拒绝未知 kind
         return _Outcome(None, f"ASSERTION_KIND_UNSUPPORTED:{kind}")
     return _downgrade_unresolved_ref(outcome, evidence)
@@ -543,3 +557,213 @@ def _grade_tool_call_limit(assertion: Any, evidence: AttemptEvidenceView) -> _Ou
         count <= assertion.maximum,
         "" if count <= assertion.maximum else f"TOOL_CALL_LIMIT_EXCEEDED:{count} > {assertion.maximum}",
     )
+
+# ------------------------------------------------------------------ v2 声明式规则
+
+
+def _grade_answer_exact(assertion: Any, evidence: AttemptEvidenceView) -> _Outcome:
+    """精确匹配：去掉首尾空白后整段比较，命中关键词不算通过。"""
+    answer = evidence.final_answer
+    if answer is None:
+        return _Outcome(None, "ANSWER_UNAVAILABLE")
+    actual = answer.strip()
+    expected = assertion.text.strip()
+    if not assertion.case_sensitive:
+        actual = actual.casefold()
+        expected = expected.casefold()
+    if actual == expected:
+        return _Outcome(True, "")
+    return _Outcome(
+        False,
+        f"ANSWER_NOT_EXACT:expected={expected[:80]!r} actual={actual[:80]!r}",
+    )
+
+
+def _grade_answer_length(assertion: Any, evidence: AttemptEvidenceView) -> _Outcome:
+    """长度按 Unicode 码点计；超限是硬约束失败，不是"风格问题"。"""
+    answer = evidence.final_answer
+    if answer is None:
+        return _Outcome(None, "ANSWER_UNAVAILABLE")
+    length = len(answer)
+    if length > assertion.max_chars:
+        return _Outcome(
+            False, f"ANSWER_TOO_LONG:{length}>{assertion.max_chars}"
+        )
+    if length < assertion.min_chars:
+        return _Outcome(
+            False, f"ANSWER_TOO_SHORT:{length}<{assertion.min_chars}"
+        )
+    return _Outcome(True, "")
+
+
+def _grade_answer_json_block(assertion: Any, evidence: AttemptEvidenceView) -> _Outcome:
+    """答案里必须恰好一个 JSON 围栏块；多个或零个都判失败。"""
+    answer = evidence.final_answer
+    if answer is None:
+        return _Outcome(None, "ANSWER_UNAVAILABLE")
+    blocks = _json_blocks(answer)
+    if not blocks:
+        return _Outcome(False, "ANSWER_JSON_BLOCK_MISSING")
+    if len(blocks) > 1:
+        return _Outcome(False, f"ANSWER_JSON_BLOCK_AMBIGUOUS:{len(blocks)}")
+    try:
+        document = json.loads(blocks[0])
+    except (ValueError, TypeError):
+        return _Outcome(False, "ANSWER_JSON_BLOCK_INVALID")
+    return _grade_json_document(
+        assertion, document, source="ANSWER_JSON_BLOCK"
+    )
+
+
+def _json_blocks(text: str) -> list[str]:
+    """抓取围栏里的 JSON；没有围栏时退回整段（便于历史用例继续工作）。"""
+    blocks: list[str] = []
+    marker = "```"
+    index = text.find(marker)
+    while index >= 0:
+        start = index + len(marker)
+        end = text.find(marker, start)
+        if end < 0:
+            break
+        body = text[start:end].strip()
+        if body.startswith("json"):
+            body = body[4:].strip()
+        if body:
+            blocks.append(body)
+        index = text.find(marker, end + len(marker))
+    return blocks
+
+
+def _grade_tool_trajectory(assertion: Any, evidence: AttemptEvidenceView) -> _Outcome:
+    """轨迹匹配：按 call_id 一对一，一次调用不能满足多步。"""
+    calls = list(evidence.tool_calls)
+    if not calls:
+        return _Outcome(None, "TOOL_TRAJECTORY_UNAVAILABLE")
+    steps = list(assertion.steps)
+    used: set[int] = set()
+    matched: list[int] = []
+    if assertion.mode == "in_order":
+        cursor = 0
+        for step in steps:
+            found = None
+            for index in range(cursor, len(calls)):
+                if index in used:
+                    continue
+                if _call_matches_step(calls[index], step):
+                    found = index
+                    break
+            if found is None:
+                return _Outcome(
+                    False, f"TOOL_TRAJECTORY_MISSING_STEP:{step.name}"
+                )
+            used.add(found)
+            matched.append(found)
+            cursor = found + 1
+        return _Outcome(True, "")
+    if assertion.mode == "any_order":
+        for step in steps:
+            found = None
+            for index, call in enumerate(calls):
+                if index in used:
+                    continue
+                if _call_matches_step(call, step):
+                    found = index
+                    break
+            if found is None:
+                return _Outcome(
+                    False, f"TOOL_TRAJECTORY_MISSING_STEP:{step.name}"
+                )
+            used.add(found)
+        return _Outcome(True, "")
+    # exact：调用序列与步骤序列一一对应
+    if len(calls) != len(steps):
+        return _Outcome(
+            False, f"TOOL_TRAJECTORY_LENGTH_MISMATCH:{len(calls)}!={len(steps)}"
+        )
+    for call, step in zip(calls, steps, strict=True):
+        if not _call_matches_step(call, step):
+            return _Outcome(False, f"TOOL_TRAJECTORY_STEP_MISMATCH:{step.name}")
+    return _Outcome(True, "")
+
+
+def _call_matches_step(call: Any, step: Any) -> bool:
+    if str(call.name) != str(step.name):
+        return False
+    subset = dict(step.arguments_subset or {})
+    return _arguments_match(call.arguments, subset)
+
+
+def _grade_team_member_executed(
+    assertion: Any, evidence: AttemptEvidenceView
+) -> _Outcome:
+    """成员真实执行：读 member 终态事件，不采信最终文本里的自报。"""
+    events = list(evidence.trace_events)
+    if not events:
+        return _Outcome(None, "TEAM_MEMBER_EVENTS_UNAVAILABLE")
+    completed: set[str] = set()
+    for event in events:
+        if str(getattr(event, "type", "")) != "member.completed":
+            continue
+        payload = getattr(event, "payload", None)
+        if not isinstance(payload, Mapping):
+            continue
+        member_id = payload.get("member_id")
+        status = str(payload.get("status") or "")
+        if isinstance(member_id, str) and member_id and status == "succeeded":
+            completed.add(member_id)
+    missing = [
+        member_id for member_id in assertion.member_ids if member_id not in completed
+    ]
+    if missing:
+        return _Outcome(
+            False, "TEAM_MEMBER_NOT_EXECUTED:" + ",".join(sorted(missing))
+        )
+    return _Outcome(True, "")
+
+
+def _grade_usage_limit(assertion: Any, evidence: AttemptEvidenceView) -> _Outcome:
+    """Token 预算：缺 usage 时判不可评，绝不补 0 当成"没超"。"""
+    usage = _usage_of(evidence)
+    if usage is None:
+        return _Outcome(None, "USAGE_UNAVAILABLE")
+    total = usage.get("total_tokens")
+    output = usage.get("output_tokens")
+    checks = (
+        (assertion.max_total_tokens, total, "TOTAL_TOKENS"),
+        (assertion.max_output_tokens, output, "OUTPUT_TOKENS"),
+    )
+    for limit, actual, label in checks:
+        if limit is None:
+            continue
+        if actual is None:
+            return _Outcome(None, f"USAGE_{label}_UNAVAILABLE")
+        if int(actual) > int(limit):
+            return _Outcome(False, f"USAGE_LIMIT_EXCEEDED:{label}:{actual}>{limit}")
+    if assertion.max_tool_calls is not None:
+        calls = len(list(evidence.tool_calls))
+        if calls > int(assertion.max_tool_calls):
+            return _Outcome(
+                False,
+                f"USAGE_LIMIT_EXCEEDED:TOOL_CALLS:{calls}>{assertion.max_tool_calls}",
+            )
+    return _Outcome(True, "")
+
+
+def _usage_of(evidence: AttemptEvidenceView) -> Mapping[str, Any] | None:
+    getter = getattr(evidence, "usage", None)
+    if isinstance(getter, Mapping):
+        return getter
+    return None
+
+
+def _grade_duration_limit(assertion: Any, evidence: AttemptEvidenceView) -> _Outcome:
+    """耗时预算：缺计时时判不可评。"""
+    getter = getattr(evidence, "duration_ms", None)
+    if getter is None:
+        return _Outcome(None, "DURATION_UNAVAILABLE")
+    actual = int(getter)
+    if actual > int(assertion.max_duration_ms):
+        return _Outcome(
+            False, f"DURATION_LIMIT_EXCEEDED:{actual}>{assertion.max_duration_ms}"
+        )
+    return _Outcome(True, "")

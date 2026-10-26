@@ -16,6 +16,21 @@ from nanobot.evaluation.schemas import RunCreate
 
 from .conftest import make_case_payload
 
+TIMESTAMP = "2026-01-01T00:00:00+00:00"
+
+
+def _profile(agent_id: str, name: str) -> dict:
+    return {
+        "id": agent_id,
+        "updatedAt": TIMESTAMP,
+        "prompt": f"{name} 的提示词",
+        "name": name,
+        "modelId": None,
+        "tools": {"mode": "all", "entries": []},
+        "skills": {"mode": "include", "entries": []},
+        "subAgents": {"mode": "all", "entries": []},
+    }
+
 
 def _team_snapshot(team_id: str) -> dict:
     """团队冻结快照替身：不碰日常团队库，也不依赖真实团队记录。"""
@@ -23,12 +38,55 @@ def _team_snapshot(team_id: str) -> dict:
         "definition": {
             "id": team_id,
             "revision": 3,
+            "name": "创意组",
+            "description": "",
+            "instructions": "",
             "leaderAgentId": "leader",
-            "members": [{"memberId": "writer"}],
+            "members": [{"memberId": "writer", "agentId": "writer", "role": "写作"}],
+            "limits": {},
+            "archived": False,
+            "createdAt": TIMESTAMP,
+            "updatedAt": TIMESTAMP,
         },
-        "leader": {"id": "leader", "name": "领队"},
-        "members": [{"member": "writer", "profile": {"id": "writer"}}],
+        "leader": _profile("leader", "领队"),
+        "members": [
+            {
+                "member": {"memberId": "writer", "agentId": "writer", "role": "写作"},
+                "profile": _profile("writer", "写手"),
+            }
+        ],
     }
+
+
+class _StubRuntime:
+    """固定结果的运行时替身：用来覆盖 partial / 非终态等分支。"""
+
+    def __init__(self, outcome) -> None:
+        self._outcome = outcome
+
+    async def execute(self):
+        return self._outcome
+
+
+def _team_factory(*, status: str = "succeeded", answer: str = "团队结论 alpha", seen=None):
+    """隔离团队运行时工厂替身：只回放结论，不触网、不碰日常团队库。"""
+    from nanobot.evaluation.team_runtime import IsolatedTeamRuntime, TeamRunOutcome
+
+    async def turn_runner(*, turn_index, prompt, request):
+        if seen is not None:
+            seen.append((turn_index, prompt))
+        return answer
+
+    def factory(*, request, events=None):
+        if status != "succeeded":
+            return _StubRuntime(
+                TeamRunOutcome(status=status, final_answer=answer)
+            )
+        return IsolatedTeamRuntime(
+            request=request, turn_runner=turn_runner, events=events
+        )
+
+    return factory
 
 # --------------------------------------------------------------------- WU-03 schemas
 
@@ -124,7 +182,7 @@ def test_create_run_freezes_target_and_timeout(
     assert target["kind"] == "team" and target["id"] == "creative"
     assert target["team"]["revision"] == 3
     assert target["team"]["leader"]["id"] == "leader"
-    assert target["team"]["members"][0]["member"] == "writer"
+    assert target["team"]["members"][0]["member"]["memberId"] == "writer"
     assert snapshot["run_timeout_s"] == 300
 
 
@@ -350,14 +408,11 @@ async def test_team_target_runs_through_injected_runner(
     from nanobot.evaluation.services import EvaluationService
     from tests.evaluation.conftest import make_run_payload, make_suite_payload
 
-    calls: list[dict] = []
-
-    async def fake_runner(payload: dict) -> dict:
-        calls.append(payload)
-        return {"status": "succeeded", "final_answer": "团队结论 alpha", "error": None}
+    calls: list[tuple[int, str]] = []
 
     service = EvaluationService(
-        repository=repository, data_dir=tmp_path, team_runner=fake_runner,
+        repository=repository, data_dir=tmp_path,
+        team_runtime_factory=_team_factory(seen=calls),
         team_snapshot_provider=_team_snapshot,
     )
     suite = repository.create_suite(make_suite_payload())
@@ -375,8 +430,8 @@ async def test_team_target_runs_through_injected_runner(
     assert outcome.execution_status == "succeeded"
     assert outcome.verdict == "passed"
     assert outcome.result["final_answer"] == "团队结论 alpha"
-    assert calls[0]["team_id"] == "creative"
-    assert calls[0]["prompt"]
+    # 全部轮次都要跑：只跑最后一轮就是团队丢上下文。
+    assert calls == [(1, case["turns"][0]["content"])]
 
 
 async def test_team_target_partial_run_is_submitted_as_succeeded(
@@ -386,11 +441,9 @@ async def test_team_target_partial_run_is_submitted_as_succeeded(
     from nanobot.evaluation.services import EvaluationService
     from tests.evaluation.conftest import make_run_payload, make_suite_payload
 
-    async def fake_runner(payload: dict) -> dict:
-        return {"status": "partial", "final_answer": "团队结论 alpha", "error": None}
-
     service = EvaluationService(
-        repository=repository, data_dir=tmp_path, team_runner=fake_runner,
+        repository=repository, data_dir=tmp_path,
+        team_runtime_factory=_team_factory(status="partial"),
         team_snapshot_provider=_team_snapshot,
     )
     suite = repository.create_suite(make_suite_payload())
@@ -417,11 +470,9 @@ async def test_team_target_non_terminal_status_fails_instead_of_conflicting(
     from nanobot.evaluation.services import EvaluationService
     from tests.evaluation.conftest import make_run_payload, make_suite_payload
 
-    async def fake_runner(payload: dict) -> dict:
-        return {"status": "running", "final_answer": None}
-
     service = EvaluationService(
-        repository=repository, data_dir=tmp_path, team_runner=fake_runner,
+        repository=repository, data_dir=tmp_path,
+        team_runtime_factory=_team_factory(status="running", answer=None),
         team_snapshot_provider=_team_snapshot,
     )
     suite = repository.create_suite(make_suite_payload())
@@ -464,4 +515,4 @@ async def test_team_target_without_runner_fails_setup(
     detail = repository.get_run(run["id"])
     outcome = await service.execute(detail["attempts"][0], run=detail)
     assert outcome.execution_status == "setup_error"
-    assert outcome.result["errors"][0]["code"] == "TEAM_RUNNER_UNAVAILABLE"
+    assert outcome.result["errors"][0]["code"] == "TEAM_RUNTIME_UNAVAILABLE"

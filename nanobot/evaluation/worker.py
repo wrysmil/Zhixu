@@ -207,6 +207,49 @@ def stdout_sink(stream: Any) -> FrameSink:
 # --------------------------------------------------------------------------- Trace
 
 
+@dataclass(frozen=True)
+class TargetIdentity:
+    """被测对象与执行身份（契约 §2）。
+
+    Agent 目标有 agent_id/agent_name；Skill 目标只有 skill_id——
+    Skill 不是用户已有 Agent，捏造一个 agent_name 就是伪造身份。
+    """
+
+    kind: str = ""
+    id: str = ""
+    agent_id: str | None = None
+    agent_name: str | None = None
+    skill_id: str | None = None
+
+
+def resolve_target_identity(target: Mapping[str, Any] | None) -> TargetIdentity:
+    """从**冻结快照**解析执行身份。
+
+    名字只能取自冻结档案：源档案改名不应改写历史运行的身份。
+    """
+    if not isinstance(target, Mapping):
+        return TargetIdentity()
+    kind = str(target.get("kind") or "")
+    target_id = str(target.get("id") or "")
+    if kind == "agent":
+        frozen = target.get("agent")
+        profile: Mapping[str, Any] = {}
+        if isinstance(frozen, Mapping):
+            raw_profile = frozen.get("profile")
+            if isinstance(raw_profile, Mapping):
+                profile = raw_profile
+        raw_name = profile.get("name")
+        return TargetIdentity(
+            kind=kind,
+            id=target_id,
+            agent_id=target_id or None,
+            agent_name=str(raw_name) if isinstance(raw_name, str) and raw_name else None,
+        )
+    if kind == "skill":
+        return TargetIdentity(kind=kind, id=target_id, skill_id=target_id or None)
+    return TargetIdentity(kind=kind, id=target_id)
+
+
 @dataclass
 class TraceRecorder:
     """seq 分配 + 落盘 + IPC 转发的唯一出口。"""
@@ -228,6 +271,9 @@ class TraceRecorder:
         turn: int | None = None,
         iteration: int | None = None,
         call_id: str | None = None,
+        target_kind: str | None = None,
+        target_id: str | None = None,
+        skill_id: str | None = None,
         payload: Mapping[str, Any] | None = None,
     ) -> TraceEvent | None:
         event_payload = dict(payload or {})
@@ -244,6 +290,9 @@ class TraceRecorder:
             turn=turn,
             iteration=iteration,
             call_id=call_id,
+            target_kind=target_kind,
+            target_id=target_id,
+            skill_id=skill_id,
             ts=_now_iso(),
             elapsed_ms=max(0, int((time.monotonic() - self.started_at) * 1000)),
             # 先脱敏再落盘：Trace 目录会被证据读取与导出复用，凭据不能只挡在 IPC 这一层。
@@ -682,16 +731,12 @@ async def run_agent_worker(
         target = cast(Mapping[str, Any], target_raw)
     else:
         target = {}
-    agent_id = (
-        str(target.get("id"))
-        if isinstance(target, dict) and target.get("kind") == "agent" and target.get("id")
-        else None
-    )
-    agent_name = (
-        str(target.get("name"))
-        if isinstance(target, dict) and isinstance(target.get("name"), str) and target.get("name")
-        else None
-    )
+    identity = resolve_target_identity(target)
+    target_kind = identity.kind
+    target_id = identity.id
+    skill_id = identity.skill_id
+    agent_id = identity.agent_id
+    agent_name = identity.agent_name
     parent_execution_id = (
         str(target.get("parent_execution_id"))
         if isinstance(target, dict)
@@ -741,6 +786,23 @@ async def run_agent_worker(
             "turns": len(case.turns),
             "max_iterations": case.execution.max_iterations,
             "timeout_s": case.execution.timeout_s,
+        },
+    )
+    # 执行身份单独起一条事件：判分侧要能回答"谁跑的、跑的是哪个被测对象"。
+    recorder.emit(
+        "agent.started",
+        target_kind=target_kind or None,
+        target_id=target_id or None,
+        skill_id=skill_id,
+        payload={
+            "role": runtime.role,
+            "agent_id": agent_id,
+            "agent_name": agent_name,
+            "skill_id": skill_id,
+            "provider": runtime.capability.get("provider"),
+            "model": runtime.capability.get("model"),
+            "tool_mode": case.execution.tool_mode,
+            "turns": len(case.turns),
         },
     )
     # 异常处理必须排在 guarded_close 内侧：先记执行错误，再记清理错误，顺序才等于发生顺序。
@@ -811,9 +873,35 @@ async def run_agent_worker(
         # 未产出任何回答的执行不可能判通过；停止原因留成状态名，报告侧不再猜。
         stop_reason = stop_reason or status
 
+    answer_event = recorder.emit(
+        "agent.completed" if status == "succeeded" else "agent.failed",
+        target_kind=target_kind or None,
+        target_id=target_id or None,
+        skill_id=skill_id,
+        payload={
+            "execution_status": status,
+            "stop_reason": stop_reason,
+            "iterations": iterations,
+            "answer_chars": len(final_answer or ""),
+            "answer_sha256": (
+                hashlib.sha256(final_answer.encode("utf-8")).hexdigest()
+                if final_answer
+                else None
+            ),
+        },
+    )
+    # 最终回答的稳定引用：纯文本任务也能被 Judge 引用到具体证据行。
+    final_answer_ref = (
+        f"final:{runtime.attempt_id}:{answer_event.seq}" if answer_event else None
+    )
     recorder.emit(
         "attempt.completed" if status == "succeeded" else "attempt.failed",
-        payload={"execution_status": status, "stop_reason": stop_reason, "iterations": iterations},
+        payload={
+            "execution_status": status,
+            "stop_reason": stop_reason,
+            "iterations": iterations,
+            "final_answer_ref": final_answer_ref,
+        },
     )
     errors.extend(recorder.trace_errors)
     trace_complete = True
@@ -851,6 +939,7 @@ async def run_agent_worker(
             timing=AttemptTiming(agent_ms=_ms(started)),
             errors=errors,
             trace_complete=trace_complete,
+            evidence_refs=[final_answer_ref] if final_answer_ref else [],
         ),
     )
 

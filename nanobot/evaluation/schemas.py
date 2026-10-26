@@ -186,6 +186,7 @@ class _AssertionBase(JsonModel):
 # 同名；线上字段名不能改，这里只关掉这一条装饰性告警，其余告警照常抛出。
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore", message='Field name "schema"')
+    warnings.filterwarnings("ignore", message='.*shadows an attribute in parent.*')
 
     class AnswerContainsAssertion(_AssertionBase):
         kind: Literal["answer_contains"]
@@ -206,6 +207,13 @@ with warnings.catch_warnings():
         kind: Literal["file_json"]
         path: StrictStr
         schema: SchemaSubset  # pyright: ignore[reportIncompatibleMethodOverride] 契约字段名
+        checks: list[AssertionCheck] = Field(default_factory=list)
+
+    class AnswerJsonBlockAssertion(_AssertionBase):
+        """答案里恰好一个 JSON 围栏块，并按 schema 校验。"""
+
+        kind: Literal["answer_json_block"]
+        schema: SchemaSubset  # pyright: ignore[reportIncompatibleMethodOverride]
         checks: list[AssertionCheck] = Field(default_factory=list)
 
 
@@ -249,6 +257,60 @@ class ToolCallLimitAssertion(_AssertionBase):
     maximum: PositiveInt
 
 
+class AnswerExactAssertion(_AssertionBase):
+    """答案精确匹配；去掉首尾空白后再比，case_sensitive 决定是否区分大小写。"""
+
+    kind: Literal["answer_exact"]
+    text: Annotated[StrictStr, Field(max_length=32000)]
+    case_sensitive: StrictBool = True
+
+
+class AnswerLengthAssertion(_AssertionBase):
+    """答案长度上限；长度按 Unicode 码点计，含标点与空白。"""
+
+    kind: Literal["answer_length"]
+    max_chars: PositiveInt
+    min_chars: NonNegativeInt = 0
+
+
+class TrajectoryStep(JsonModel):
+    """轨迹的一步：工具名 + 参数子集。"""
+
+    name: Identifier
+    arguments_subset: JsonObject = Field(default_factory=dict)
+
+
+class ToolTrajectoryAssertion(_AssertionBase):
+    """工具轨迹匹配；按 call_id 一对一，不让一次调用满足多步。"""
+
+    kind: Literal["tool_trajectory"]
+    steps: Annotated[list[TrajectoryStep], Field(min_length=1, max_length=20)]
+    mode: Literal["exact", "in_order", "any_order"] = "in_order"
+
+
+class TeamMemberExecutedAssertion(_AssertionBase):
+    """成员真实执行：读 member 终态事件，不靠最终文本自报。"""
+
+    kind: Literal["team_member_executed"]
+    member_ids: Annotated[list[Identifier], Field(min_length=1, max_length=20)]
+
+
+class UsageLimitAssertion(_AssertionBase):
+    """Token 预算；缺 usage 时判不可评，不补 0。"""
+
+    kind: Literal["usage_limit"]
+    max_total_tokens: NonNegativeInt | None = None
+    max_output_tokens: NonNegativeInt | None = None
+    max_tool_calls: NonNegativeInt | None = None
+
+
+class DurationLimitAssertion(_AssertionBase):
+    """耗时预算（毫秒）；缺计时时判不可评。"""
+
+    kind: Literal["duration_limit"]
+    max_duration_ms: NonNegativeInt
+
+
 Assertion = Annotated[
     Union[
         AnswerContainsAssertion,
@@ -261,6 +323,13 @@ Assertion = Annotated[
         ToolForbiddenAssertion,
         IterationLimitAssertion,
         ToolCallLimitAssertion,
+        AnswerExactAssertion,
+        AnswerLengthAssertion,
+        AnswerJsonBlockAssertion,
+        ToolTrajectoryAssertion,
+        TeamMemberExecutedAssertion,
+        UsageLimitAssertion,
+        DurationLimitAssertion,
     ],
     Field(discriminator="kind"),
 ]
@@ -388,7 +457,7 @@ class CaseEvaluation(JsonModel):
 
     version: Literal[2] = 2
     required_dimensions: list[
-        Literal["task", "constraints", "process", "efficiency", "safety"]
+        Literal["task", "constraints", "trajectory", "efficiency", "safety"]
     ] = Field(default_factory=list)
     milestones: list[Milestone] = Field(default_factory=list)
     required_evidence: list[
@@ -729,6 +798,10 @@ class RunRead(RunSummary):
     counts: RunCounts
     metrics: RunMetrics
     attempts_url: StrictStr
+    #: 契约 §1：评估能力等级。smoke = 只能显示规则通过率，不能当综合质量门禁。
+    evaluation_capability: Literal["full", "smoke", "legacy"] = "legacy"
+    #: 运行级证据覆盖度汇总。
+    coverage: JsonObject = Field(default_factory=dict)
 
 
 class EvaluationCoverage(JsonModel):
@@ -741,6 +814,8 @@ class EvaluationCoverage(JsonModel):
     identity: Literal["complete", "partial", "missing"] = "missing"
     usage: Literal["complete", "partial", "missing"] = "missing"
     artifacts: Literal["complete", "partial", "missing", "not_applicable"] = "missing"
+    #: 用例要求的证据是否齐备。
+    required_evidence: Literal["complete", "partial"] = "complete"
     reasons: list[StrictStr] = Field(default_factory=list)
 
 
@@ -771,6 +846,8 @@ class AttemptRead(JsonModel):
     trial_index: Annotated[int, Field(strict=True, ge=0)] = 0
     source_attempt_id: Uuid | None = None
     coverage: EvaluationCoverage | None = None
+    #: 稳定证据引用（如最终回答 final:<attempt_id>:<seq>）。
+    evidence_refs: list[StrictStr] = Field(default_factory=list)
 
 
 class TracePage(JsonModel):
@@ -917,11 +994,20 @@ class TraceEvent(JsonModel):
         "model.request_summary", "model.call_completed", "tool.started",
         "tool.completed", "tool.failed", "iteration.completed",
         "turn.completed", "attempt.completed", "attempt.failed",
+        # 契约 §2：执行身份与被测对象分开记录。
+        "agent.started", "agent.completed", "agent.failed",
+        "team.dispatch", "member.started", "member.completed",
+        "tool.denied",
         "trace.incomplete",
     ]
     turn: NonNegativeInt | None = None
     iteration: NonNegativeInt | None = None
     call_id: StrictStr | None = None
+    #: 被测对象（Agent/Skill/团队），与执行身份 agent_id 区分。
+    target_kind: StrictStr | None = None
+    target_id: StrictStr | None = None
+    #: Skill 目标单独记录技能 id，不冒充用户已有 Agent。
+    skill_id: StrictStr | None = None
     ts: StrictStr
     elapsed_ms: NonNegativeInt
     payload: JsonObject = Field(default_factory=dict)
@@ -975,6 +1061,8 @@ class _ResultBase(JsonModel):
     timing: AttemptTiming
     errors: list[AttemptError] = Field(default_factory=list)
     trace_complete: StrictBool
+    #: 稳定证据引用（如最终回答 final:<attempt_id>:<seq>），供判分侧引用。
+    evidence_refs: list[StrictStr] = Field(default_factory=list)
 
 
 class AgentWorkerResult(_ResultBase):

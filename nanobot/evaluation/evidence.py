@@ -40,6 +40,8 @@ EVIDENCE_ATTEMPT_MISMATCH = "EVIDENCE_ATTEMPT_MISMATCH"
 EVIDENCE_SEQ_OUT_OF_ORDER = "EVIDENCE_SEQ_OUT_OF_ORDER"
 REF_TRACE_PREFIX = "trace:"
 REF_ARTIFACT_PREFIX = "artifact:"
+#: 最终回答的稳定引用：纯文本任务的结论也要能被指到具体证据行。
+REF_FINAL_PREFIX = "final:"
 TOOL_EVENT_TYPES = frozenset({"tool.started", "tool.completed", "tool.failed"})
 
 
@@ -157,6 +159,8 @@ class AttemptEvidence:
             return self._resolve_trace_ref(ref[len(REF_TRACE_PREFIX) :])
         if ref.startswith(REF_ARTIFACT_PREFIX):
             return self._resolve_artifact_ref(ref[len(REF_ARTIFACT_PREFIX) :])
+        if ref.startswith(REF_FINAL_PREFIX):
+            return self._resolve_final_ref(ref[len(REF_FINAL_PREFIX) :])
         return None
 
     def trace_event(self, seq: int) -> TraceEvent | None:
@@ -180,6 +184,16 @@ class AttemptEvidence:
         except (TypeError, ValueError):
             return None
         return self.trace_event(seq)
+
+    def _resolve_final_ref(self, remainder: str) -> TraceEvent | None:
+        """最终回答引用必须指向带答案摘要的事件，否则视为伪造引用。"""
+        event = self._resolve_trace_ref(remainder)
+        if event is None:
+            return None
+        payload = event.payload if isinstance(event.payload, Mapping) else {}
+        if "answer_sha256" not in payload:
+            return None
+        return event
 
     def _resolve_artifact_ref(self, remainder: str) -> EvidenceArtifact | None:
         try:
