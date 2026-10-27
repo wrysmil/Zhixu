@@ -88,6 +88,30 @@ from nanobot.webui.transcript import (
 
 from .ws_test_client import http_get as _http_get
 
+#: hydrate 按 subagent-observability 契约补发一帧 subagent_execution_snapshot。
+#: 它是带外遥测帧，与业务帧不在同一序列上：断言业务帧时必须按事件类型挑，
+#: 不能按「第一帧/最后一帧」的位置去取。
+_TELEMETRY_EVENT = "subagent_execution_snapshot"
+
+
+def _sent_frames(mock_ws: AsyncMock) -> list[dict[str, Any]]:
+    """按发送顺序解析通道发出的所有帧。"""
+    return [json.loads(call.args[0]) for call in mock_ws.send.await_args_list]
+
+
+def _frames_with_event(mock_ws: AsyncMock, event: str) -> list[dict[str, Any]]:
+    """挑出指定事件类型的帧（hydrate 会额外补发快照帧，不能按位置取）。"""
+    return [frame for frame in _sent_frames(mock_ws) if frame.get("event") == event]
+
+
+async def _recv_frame(client: Any, timeout: float = 5.0) -> dict[str, Any]:
+    """读取下一个业务帧，跳过 hydrate 补发的快照帧。"""
+    while True:
+        frame = json.loads(await asyncio.wait_for(client.recv(), timeout))
+        if frame.get("event") != _TELEMETRY_EVENT:
+            return frame
+
+
 # -- Shared helpers (aligned with test_websocket_integration.py) ---------------
 
 _PORT = 29876
@@ -299,12 +323,22 @@ async def test_attach_exposes_the_session_canonical_model_preset(bus, tmp_path) 
         {"type": "attach", "chat_id": "pinned-model"},
     )
 
-    payload = json.loads(connection.send.await_args_list[0].args[0])
-    assert payload == {
-        "event": "attached",
-        "chat_id": "pinned-model",
-        "model_preset": "Deep Research",
-    }
+    # attached 帧按契约带 model_preset / reasoning_effort / team_binding
+    # （见 2026-10-15-agent-team-contract.md §attached 字段扩展）。
+    attached = [
+        json.loads(call.args[0])
+        for call in connection.send.await_args_list
+        if json.loads(call.args[0]).get("event") == "attached"
+    ]
+    assert attached == [
+        {
+            "event": "attached",
+            "chat_id": "pinned-model",
+            "model_preset": "Deep Research",
+            "reasoning_effort": None,
+            "team_binding": None,
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -3743,7 +3777,8 @@ async def test_hydrate_noop_without_session_manager() -> None:
     mock_ws = AsyncMock()
     channel._attach(mock_ws, "chat-1")
     await channel._outbound.hydrate("chat-1")
-    mock_ws.send.assert_not_called()
+    # hydrate 按契约只补发一帧子智能体执行快照，不回放任何会话状态。
+    assert [frame["event"] for frame in _sent_frames(mock_ws)] == [_TELEMETRY_EVENT]
 
 
 @pytest.mark.asyncio
@@ -3759,7 +3794,8 @@ async def test_hydrate_skips_when_no_goal_on_disk() -> None:
     mock_ws = AsyncMock()
     channel._attach(mock_ws, "chat-1")
     await channel._outbound.hydrate("chat-1")
-    mock_ws.send.assert_not_called()
+    # 没有目标就不回放目标状态，只剩契约要求的快照帧。
+    assert [frame["event"] for frame in _sent_frames(mock_ws)] == [_TELEMETRY_EVENT]
 
 
 @pytest.mark.asyncio
@@ -3784,8 +3820,9 @@ async def test_hydrate_notifies_when_goal_active_on_disk() -> None:
     mock_ws = AsyncMock()
     channel._attach(mock_ws, "chat-1")
     await channel._outbound.hydrate("chat-1")
-    mock_ws.send.assert_awaited_once()
-    body = json.loads(mock_ws.send.await_args.args[0])
+    goal_states = _frames_with_event(mock_ws, "goal_state")
+    assert len(goal_states) == 1
+    body = goal_states[0]
     assert body["event"] == "goal_state"
     assert body["chat_id"] == "chat-1"
     assert body["goal_state"]["active"] is True
@@ -3817,7 +3854,9 @@ async def test_hydrate_restores_blocked_attention_on_disk() -> None:
 
     await channel._outbound.hydrate("chat-1")
 
-    body = json.loads(mock_ws.send.await_args.args[0])
+    goal_states = _frames_with_event(mock_ws, "goal_state")
+    assert len(goal_states) == 1
+    body = goal_states[0]
     assert body["goal_state"] == {
         "active": False,
         "status": "blocked",
@@ -3836,7 +3875,8 @@ async def test_hydrate_skips_when_no_active_turn() -> None:
 
     wth._WEBSOCKET_TURN_WALL_STARTED_AT.clear()
     await channel._outbound.hydrate("chat-1")
-    mock_ws.send.assert_not_called()
+    # 没有进行中的回合就不回放回合状态，只剩契约要求的快照帧。
+    assert [frame["event"] for frame in _sent_frames(mock_ws)] == [_TELEMETRY_EVENT]
 
 
 @pytest.mark.asyncio
@@ -3854,14 +3894,20 @@ async def test_hydrate_replays_running_turn() -> None:
     finally:
         wth._WEBSOCKET_TURN_WALL_STARTED_AT.pop("chat-1", None)
 
-    mock_ws.send.assert_awaited_once()
-    body = json.loads(mock_ws.send.await_args.args[0])
+    # hydrate 回放进行中的回合，并按契约补发一帧子智能体执行快照。
+    goal_statuses = _frames_with_event(mock_ws, "goal_status")
+    assert len(goal_statuses) == 1
+    body = goal_statuses[0]
     assert body == {
         "event": "goal_status",
         "chat_id": "chat-1",
         "status": "running",
         "started_at": 1_700_000_000.0,
     }
+    assert [frame["event"] for frame in _sent_frames(mock_ws)] == [
+        "goal_status",
+        _TELEMETRY_EVENT,
+    ]
 
 
 @pytest.mark.asyncio
@@ -5198,7 +5244,7 @@ async def test_multiplex_legacy_still_works(bus: MagicMock) -> None:
 
     try:
         async with websockets.connect(f"ws://127.0.0.1:{port}/ws?client_id=legacy") as client:
-            ready = json.loads(await client.recv())
+            ready = await _recv_frame(client)
             default_chat = ready["chat_id"]
 
             # Plain text frame routes to default chat_id
@@ -5218,7 +5264,7 @@ async def test_multiplex_legacy_still_works(bus: MagicMock) -> None:
             await channel.send(
                 OutboundMessage(channel="websocket", chat_id=default_chat, content="reply")
             )
-            reply = json.loads(await client.recv())
+            reply = await _recv_frame(client)
             assert reply["event"] == "message"
             assert reply["chat_id"] == default_chat
             assert reply["text"] == "reply"
@@ -5236,11 +5282,11 @@ async def test_multiplex_new_chat_roundtrip(bus: MagicMock) -> None:
 
     try:
         async with websockets.connect(f"ws://127.0.0.1:{port}/ws?client_id=mp") as client:
-            ready = json.loads(await client.recv())
+            ready = await _recv_frame(client)
             default_chat = ready["chat_id"]
 
             await client.send(json.dumps({"type": "new_chat"}))
-            attached = json.loads(await client.recv())
+            attached = await _recv_frame(client)
             assert attached["event"] == "attached"
             new_chat = attached["chat_id"]
             assert new_chat and new_chat != default_chat
@@ -5258,9 +5304,9 @@ async def test_multiplex_new_chat_roundtrip(bus: MagicMock) -> None:
             await channel.send(
                 OutboundMessage(channel="websocket", chat_id=new_chat, content="ok")
             )
-            reply = json.loads(await client.recv())
+            reply = await _recv_frame(client)
             if reply["event"] == "session_updated":
-                reply = json.loads(await client.recv())
+                reply = await _recv_frame(client)
             assert reply["event"] == "message"
             assert reply["chat_id"] == new_chat
             assert reply["text"] == "ok"
@@ -5409,21 +5455,21 @@ async def test_multiplex_invalid_frames_return_error(bus: MagicMock) -> None:
 
     try:
         async with websockets.connect(f"ws://127.0.0.1:{port}/ws?client_id=bad") as client:
-            await client.recv()  # ready
+            await _recv_frame(client)  # ready
 
             # attach with bad chat_id
             await client.send(json.dumps({"type": "attach", "chat_id": "has space"}))
-            err1 = json.loads(await client.recv())
+            err1 = await _recv_frame(client)
             assert err1["event"] == "error"
 
             # message with missing content
             await client.send(json.dumps({"type": "message", "chat_id": "abc", "content": ""}))
-            err2 = json.loads(await client.recv())
+            err2 = await _recv_frame(client)
             assert err2["event"] == "error"
 
             # unknown type
             await client.send(json.dumps({"type": "nope"}))
-            err3 = json.loads(await client.recv())
+            err3 = await _recv_frame(client)
             assert err3["event"] == "error"
 
             # Connection survives: legacy frame still works.

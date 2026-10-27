@@ -413,7 +413,13 @@ async def test_end_to_end_team_flow(
 
     # 依赖顺序：c 一定在 a 之后开始。
     order = [title for title in gateway.executor.started]
-    assert gateway.executor.activities == ["任务 a", "任务 b", "任务 c"]
+    # a、b 是**并行**成员：契约只让「声明的依赖」定序，两个无依赖成员的先后没有契约
+    # 保证（同一用例里 `peak == 2` 已经证明二者并发跑）。因此这里断言「三条活动各出现
+    # 一次」与「依赖顺序 c 在 a 之后」，不去断言 a/b 的相对先后 —— 那属于调度竞态，
+    # 不是行为契约。
+    activities = gateway.executor.activities
+    assert sorted(activities) == ["任务 a", "任务 b", "任务 c"]
+    assert activities.index("任务 c") > activities.index("任务 a")
     actions = {item["title"]: item["lastAction"] for item in gateway.tasks_of(run_id)}
     assert actions["任务 a"] == "read_file ok #1", "工具活动摘要要能进卡片"
     assert order.index("任务 c") > order.index("任务 a")
@@ -482,6 +488,9 @@ async def test_cancel_from_a_foreign_session_is_refused(
     gateway: TeamGateway, member_ids: list[str]
 ) -> None:
     """别的会话拿着 runId 也停不了这条运行（契约 §3/§5，验收 A18）。"""
+    # 挡住成员：否则这条运行可能在断言之前就自己跑完，状态断言变成竞态。
+    # 与上面的取消用例同一手法 —— 先把运行钉在非终态，再断言状态。
+    gateway.executor.block()
     dispatch = asyncio.create_task(
         gateway.leader_turn("batch-1", [_task("a", member_ids[0], resource="file:a")])
     )
@@ -495,6 +504,7 @@ async def test_cancel_from_a_foreign_session_is_refused(
     assert gateway.status_of(run_id) == "running"
 
     await gateway.controller.cancel_run(run_id, caller_chats=(CHAT_ID,))
+    gateway.executor.release.set()
     await asyncio.wait_for(dispatch, timeout=10)
 
 

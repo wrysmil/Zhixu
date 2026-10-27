@@ -2156,6 +2156,10 @@ def test_heartbeat_empty_response_is_not_evaluated(
             return None
 
     class _FakeChannelManager:
+        # Mirrors ChannelManager.webui_gateway: this double builds no
+        # channel, so there is no embedded WebUI gateway to hand over.
+        webui_gateway = None
+
         def __init__(self, *_args, **_kwargs) -> None:
             self.enabled_channels = ["telegram"]
 
@@ -2882,12 +2886,18 @@ def _patch_serve_runtime(monkeypatch, config: Config, seen: dict[str, object]) -
         request_timeout: float,
         api_key: str = "",
         prepare_agent=None,
+        session_manager=None,
+        event_bus=None,
     ):
+        # create_app() also takes the session manager and the message bus so the
+        # API can serve session endpoints; record them instead of dropping them.
         seen["agent_loop"] = agent_loop
         seen["model_name"] = model_name
         seen["request_timeout"] = request_timeout
         seen["api_key"] = api_key
         seen["prepare_agent"] = prepare_agent
+        seen["session_manager"] = session_manager
+        seen["event_bus"] = event_bus
         return _FakeApiApp()
 
     def _fake_run_app(api_app, host: str, port: int, print):
@@ -3400,6 +3410,9 @@ def test_gateway_local_trigger_queue_submits_agent_turns(
 
     class _FakeChannelManager:
         enabled_channels: list[str] = []
+        # Mirrors ChannelManager.webui_gateway: this double builds no
+        # channel, so there is no embedded WebUI gateway to hand over.
+        webui_gateway = None
 
         def __init__(self, *_args, **_kwargs) -> None:
             return None
@@ -3646,6 +3659,10 @@ def test_gateway_health_endpoint_binds_and_serves_expected_responses(
             return None
 
     class _FakeChannelManager:
+        # Mirrors ChannelManager.webui_gateway: this double builds no
+        # channel, so there is no embedded WebUI gateway to hand over.
+        webui_gateway = None
+
         def __init__(self, _config, _bus, **_kwargs) -> None:
             self.enabled_channels = ["telegram", "discord"]
 
@@ -3881,6 +3898,10 @@ def test_gateway_agent_task_owns_initial_mcp_provider_close(
             return {"ok": True}
 
     class _FakeChannelManager:
+        # Mirrors ChannelManager.webui_gateway: this double builds no
+        # channel, so there is no embedded WebUI gateway to hand over.
+        webui_gateway = None
+
         def __init__(self, _config, _bus, **_kwargs) -> None:
             self.enabled_channels = ["telegram"]
 
@@ -3993,6 +4014,10 @@ def test_gateway_shutdown_event_exits_forever_runtime_tasks(
             seen["agent_stopped"] = True
 
     class _FakeChannelManager:
+        # Mirrors ChannelManager.webui_gateway: this double builds no
+        # channel, so there is no embedded WebUI gateway to hand over.
+        webui_gateway = None
+
         def __init__(self, _config, _bus, **_kwargs) -> None:
             self.enabled_channels = ["websocket"]
 
@@ -4104,6 +4129,8 @@ def test_serve_uses_api_config_defaults_and_workspace_override(
     assert seen["port"] == 18900
     assert seen["request_timeout"] == 45.0
     assert seen["api_key"] == "secret"
+    assert isinstance(seen["session_manager"], _EmptyGatewaySessionManager)
+    assert isinstance(seen["event_bus"], MessageBus)
 
 
 def test_trigger_cli_queues_message_in_workspace(

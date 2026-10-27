@@ -50,6 +50,27 @@ def _isolate_sessions_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> I
 
 
 @pytest.fixture(autouse=True)
+def _isolate_proxy_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make proxy detection read environment variables only.
+
+    ``urllib.request.getproxies()`` merges the environment with the OS-level
+    proxy configuration (on macOS: SystemConfiguration). A developer machine
+    with a system-wide proxy therefore flips every proxy-sensitive assertion:
+    ``env_proxy_applies_to_url`` reports "proxied", the direct-TCP probe is
+    skipped, and the pinned-DNS transport is bypassed by the proxy mounts. Tests
+    that care about proxying set ``HTTP_PROXY``/``NO_PROXY`` themselves, so the
+    OS source has to be taken out of the picture for the suite to be
+    reproducible on any machine.
+    """
+    from urllib.request import getproxies_environment
+
+    monkeypatch.setattr(
+        "nanobot.security.network.getproxies",
+        getproxies_environment,
+    )
+
+
+@pytest.fixture(autouse=True)
 def _isolate_pairing_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep channel pairing tests out of the user's active pairing store."""
     pairing_path = tmp_path / "pairing.json"

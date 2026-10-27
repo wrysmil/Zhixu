@@ -26,6 +26,8 @@ from nanobot.evaluation.processes import (
 )
 
 IS_WINDOWS = sys.platform == "win32"
+# 进程组枚举靠 /proc；没有 /proc 的平台拿不到快照，但回收契约仍成立。
+HAS_PROC = Path("/proc").is_dir()
 
 # 子进程桩：先落 ready，再按模式继续。GRANDCHILD=1 时派一个孙进程并把它的 pid 写进文件。
 STUB = textwrap.dedent(
@@ -166,7 +168,9 @@ async def test_grandchild_is_recycled_with_the_job_tree(tmp_path: Path) -> None:
 
     errors = await worker.cancel()
     assert worker.exit_code is not None
-    assert grandchild in worker.descendant_pids or IS_WINDOWS
+    # descendant_pids 的枚举走 /proc（Linux 专有），macOS 等平台拿不到进程组快照；
+    # 真正的回收契约是下面那条：孙进程必须随进程组一起死。
+    assert grandchild in worker.descendant_pids or IS_WINDOWS or not HAS_PROC
     assert wait_until_dead(grandchild), "孙进程必须随 owner 一起回收，不能靠进程名批量杀"
     assert any(code == "WORKER_CANCELLED" for code, _ in errors)
 

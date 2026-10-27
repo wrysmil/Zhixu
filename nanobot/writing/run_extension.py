@@ -17,6 +17,7 @@ from typing import Any, Protocol, cast
 from loguru import logger
 
 from nanobot.agent.tools.base import Tool
+from nanobot.webui.session_identity import WEBUI_SESSION_STORAGE_PREFIX
 from nanobot.writing.database import WritingDatabase
 from nanobot.writing.session_binding import (
     WRITING_ARTICLE_METADATA_KEY,
@@ -148,7 +149,7 @@ class WritingRunExtension:
     def _trusted_session(self, session: Any, msg: Any) -> str | None:
         """可信写作会话返回文章 id；任何一项不满足都返回 ``None``。"""
         session_key = str(getattr(session, "key", "") or "")
-        if not session_key.startswith("websocket:"):
+        if not session_key.startswith(WEBUI_SESSION_STORAGE_PREFIX):
             return None
         if str(getattr(msg, "channel", "") or "") != "websocket":
             return None

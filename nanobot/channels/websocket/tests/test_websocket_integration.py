@@ -344,7 +344,9 @@ async def test_same_session_projects_one_turn_to_both_clients(bus: MagicMock) ->
                 chat_id = (await a.recv_ready()).chat_id
                 await b.recv_ready()
                 await b.send_json({"type": "attach", "chat_id": chat_id})
-                attached = await b.recv()
+                # attach 会触发 hydrate，契约要求同时补发 subagent_execution_snapshot，
+                # 所以这里取业务帧而不是下一帧。
+                attached = await b.recv_business()
                 assert attached.event == "attached"
                 assert attached.chat_id == chat_id
 
@@ -358,8 +360,8 @@ async def test_same_session_projects_one_turn_to_both_clients(bus: MagicMock) ->
                     }
                 )
 
-                accepted = await a.recv()
-                projected = await b.recv()
+                accepted = await a.recv_business()
+                projected = await b.recv_business()
                 assert accepted.event == "message_accepted"
                 assert accepted.raw["turn_id"] == "turn-a"
                 assert accepted.raw["starts_turn"] is True

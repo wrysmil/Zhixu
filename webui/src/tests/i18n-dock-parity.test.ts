@@ -38,6 +38,8 @@ const DOCK_KEYS = [
   "searchFailed",
   "copied",
   "historyTruncated",
+  "openTerminal",
+  "terminalTheme",
 ];
 
 function loadLocale(lang: string): Record<string, Record<string, string>> {

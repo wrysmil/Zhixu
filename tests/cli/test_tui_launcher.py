@@ -214,6 +214,11 @@ def test_launcher_keeps_the_tui_alive_while_an_existing_gateway_recovers(
                 log_path=tmp_path / "gateway.log",
             )
 
+        def process_is_running(self, _pid: int) -> bool:
+            # GatewayRuntime exposes this hook, and the client lease prefers it
+            # over the OS-level probe when the runtime can answer.
+            return True
+
     class FakeProcess:
         def poll(self) -> None:
             return None
@@ -228,9 +233,17 @@ def test_launcher_keeps_the_tui_alive_while_an_existing_gateway_recovers(
 
     monkeypatch.setattr("nanobot.gateway.GatewayRuntime", FakeRuntime)
     monkeypatch.setattr("nanobot.cli.tui_launcher._resolve_tui_command", lambda: ["nanobot-tui"])
+    # Patch the launcher's own view of subprocess: `tui_launcher.subprocess` is
+    # the stdlib module, so replacing `Popen` on it would leak into every other
+    # module that spawns processes during this test.
     monkeypatch.setattr(
-        "nanobot.cli.tui_launcher.subprocess.Popen",
-        lambda *args, **kwargs: FakeProcess(),
+        tui_launcher,
+        "subprocess",
+        SimpleNamespace(
+            Popen=lambda *args, **kwargs: FakeProcess(),
+            TimeoutExpired=subprocess.TimeoutExpired,
+            run=subprocess.run,
+        ),
     )
     monkeypatch.setattr(
         "nanobot.cli.tui_launcher._webui_endpoint_reachable",

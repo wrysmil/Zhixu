@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from nanobot.agent.context import TranscriptInput
+from nanobot.agent.runner import AgentRunResult
 from nanobot.agent.tools.context import RequestContext
 from nanobot.config.schema import AgentDefaults
 from nanobot.providers.base import GenerationSettings
@@ -33,9 +34,10 @@ async def test_run_inline_returns_result_without_announcement(tmp_path):
         bus=MessageBus(),
         max_tool_result_chars=_MAX_TOOL_RESULT_CHARS,
     )
-    manager.runner.run = AsyncMock(return_value=SimpleNamespace(
+    manager.runner.run = AsyncMock(return_value=AgentRunResult(
         stop_reason="done",
         final_content="review result",
+        messages=[],
         error=None,
         tool_events=[],
         usage=None,
@@ -67,9 +69,10 @@ async def test_run_inline_returns_structured_error(tmp_path):
         bus=MessageBus(),
         max_tool_result_chars=_MAX_TOOL_RESULT_CHARS,
     )
-    manager.runner.run = AsyncMock(return_value=SimpleNamespace(
+    manager.runner.run = AsyncMock(return_value=AgentRunResult(
         stop_reason="error",
         final_content=None,
+        messages=[],
         error="subagent failed",
         tool_events=[],
         usage=None,
@@ -85,6 +88,54 @@ async def test_run_inline_returns_structured_error(tmp_path):
     assert is_tool_error_result(result)
     assert manager._running_tasks == {}
     assert manager._session_tasks == {}
+
+
+@pytest.mark.asyncio
+async def test_timeout_failure_is_classified_as_structured_timeout(tmp_path):
+    """超时必须按结构化错误类型分类，不能和普通失败混成一类。
+
+    契约：运行超时 → outcome=failed、stopReason=timeout、errorCode=timeout；
+    给旧调用方读的文本仍保持 runner 的原话，不被结构化类型改写。
+    """
+    from nanobot.agent.subagent import SubagentManager
+    from nanobot.agents.runtime import ResolvedAgent
+    from nanobot.bus.queue import MessageBus
+
+    manager = SubagentManager(
+        workspace=tmp_path,
+        bus=MessageBus(),
+        max_tool_result_chars=_MAX_TOOL_RESULT_CHARS,
+    )
+    manager.runner.run = AsyncMock(return_value=AgentRunResult(
+        stop_reason="error",
+        final_content=None,
+        messages=[],
+        error="subagent failed",
+        failure_error_kind="timeout",
+        tool_events=[],
+        usage=None,
+    ))
+
+    result = await manager.execute_frozen(
+        "review this",
+        execution_id="exec-1",
+        label="lbl",
+        origin={"channel": "team", "chat_id": "run-1", "session_key": None},
+        agent=ResolvedAgent(
+            id="m-reviewer",
+            name="评审员",
+            description="",
+            model_id=None,
+            prompt="做事。",
+            tool_names=frozenset({"read_file"}),
+        ),
+        runtime=_runtime(MagicMock()),
+    )
+
+    assert result.outcome == "failed"
+    assert result.stop_reason == "timeout"
+    assert result.error_code == "timeout"
+    assert result.final_content == "subagent failed"
 
 
 @pytest.mark.asyncio
@@ -110,9 +161,10 @@ async def test_subagent_exec_tool_receives_allowed_env_keys(tmp_path):
         exec_tool = spec.tools.get("exec")
         assert exec_tool is not None
         assert exec_tool.allowed_env_keys == ["GOPATH", "JAVA_HOME"]
-        return SimpleNamespace(
+        return AgentRunResult(
             stop_reason="done",
             final_content="done",
+            messages=[],
             error=None,
             tool_events=[],
             usage=None,
@@ -154,9 +206,10 @@ async def test_subagent_uses_configured_max_iterations(tmp_path):
 
     async def fake_run(spec):
         assert spec.max_iterations == 37
-        return SimpleNamespace(
+        return AgentRunResult(
             stop_reason="done",
             final_content="done",
+            messages=[],
             error=None,
             tool_events=[],
             usage=None,
@@ -201,8 +254,13 @@ async def test_spawn_forwards_temperature_to_run_spec(tmp_path):
     async def fake_run(spec):
         seen["temperature"] = spec.runtime.generation.temperature
         seen["runtime"] = spec.runtime
-        return SimpleNamespace(
-            stop_reason="done", final_content="done", error=None, tool_events=[], usage=None,
+        return AgentRunResult(
+            final_content="done",
+            messages=[],
+            stop_reason="done",
+            error=None,
+            tool_events=[],
+            usage=None,
         )
 
     mgr.runner.run = AsyncMock(side_effect=fake_run)
@@ -246,9 +304,10 @@ async def test_background_spawn_waits_for_concurrency_capacity(tmp_path):
         else:
             second_entered.set()
             await release_second.wait()
-        return SimpleNamespace(
+        return AgentRunResult(
             stop_reason="done",
             final_content="done",
+            messages=[],
             error=None,
             tool_events=[],
             usage=None,
@@ -345,9 +404,10 @@ async def test_inline_spawn_waits_for_concurrency_capacity(tmp_path):
         else:
             second_entered.set()
             await release_second.wait()
-        return SimpleNamespace(
+        return AgentRunResult(
             stop_reason="done",
             final_content="done",
+            messages=[],
             error=None,
             tool_events=[],
             usage=None,
@@ -407,9 +467,10 @@ async def test_runner_executes_inline_spawn_batch_concurrently(tmp_path):
         if len(entered) == 2:
             both_entered.set()
         await release.wait()
-        return SimpleNamespace(
+        return AgentRunResult(
             stop_reason="done",
             final_content=spec.initial_messages[-1]["content"],
+            messages=[],
             error=None,
             tool_events=[],
             usage=None,
@@ -562,12 +623,12 @@ async def test_agent_loop_syncs_updated_max_iterations_before_run(tmp_path):
     async def fake_run(spec):
         assert spec.max_iterations == 55
         assert loop.subagents.max_iterations == 55
-        return SimpleNamespace(
+        return AgentRunResult(
             stop_reason="done",
             final_content="done",
+            messages=[],
             error=None,
             tool_events=[],
-            messages=[],
             usage=None,
             had_injections=False,
             tools_used=[],
@@ -604,12 +665,12 @@ async def test_drain_pending_no_block_when_no_subagents(tmp_path):
         nonlocal injection_callback, terminal_injection_callback
         injection_callback = spec.injection_callback
         terminal_injection_callback = spec.terminal_injection_callback
-        return SimpleNamespace(
+        return AgentRunResult(
             stop_reason="done",
             final_content="done",
+            messages=[],
             error=None,
             tool_events=[],
-            messages=[],
             usage=None,
             had_injections=False,
             tools_used=[],
@@ -655,12 +716,12 @@ async def test_terminal_drain_timeout(tmp_path):
     async def fake_runner_run(spec):
         nonlocal terminal_injection_callback
         terminal_injection_callback = spec.terminal_injection_callback
-        return SimpleNamespace(
+        return AgentRunResult(
             stop_reason="done",
             final_content="done",
+            messages=[],
             error=None,
             tool_events=[],
-            messages=[],
             usage=None,
             had_injections=False,
             tools_used=[],
@@ -731,12 +792,12 @@ async def test_terminal_drain_reuses_one_timeout_budget(tmp_path):
     async def fake_runner_run(spec):
         nonlocal terminal_injection_callback
         terminal_injection_callback = spec.terminal_injection_callback
-        return SimpleNamespace(
+        return AgentRunResult(
             stop_reason="done",
             final_content="done",
+            messages=[],
             error=None,
             tool_events=[],
-            messages=[],
             usage=None,
             had_injections=False,
             tools_used=[],

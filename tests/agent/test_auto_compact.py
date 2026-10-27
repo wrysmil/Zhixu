@@ -184,8 +184,12 @@ class TestIdleScanThrottling:
 
     def test_configured_idle_scan_interval_throttles_checks(self, tmp_path, monkeypatch):
         """The configured interval should reach the loop and gate session scans."""
-        ticks = iter((1_000.0, 1_000.0, 1_009.999, 1_010.0))
-        monkeypatch.setattr("nanobot.agent.loop.time.monotonic", lambda: next(ticks))
+        # 用可控游标而不是固定长度的 tick 迭代器：monkeypatch 改的是全局 time 模块对象，
+        # asyncio 与其他模块的 time.monotonic() 调用也会被消耗（构造 AgentLoop 时
+        # SubagentExecutionRepository.prune 就会读一次时钟），迭代器长度与实际调用
+        # 次数耦合，换个平台或新增一个读时钟的模块就会 StopIteration。
+        clock = {"now": 1_000.0}
+        monkeypatch.setattr("nanobot.agent.loop.time.monotonic", lambda: clock["now"])
         config = Config.model_validate({
             "agents": {
                 "defaults": {
@@ -203,10 +207,17 @@ class TestIdleScanThrottling:
         )
         loop.auto_compact.check_expired = MagicMock()
 
+        # 首次扫描放行；同刻与未到间隔都应被节流；到达间隔再放行一次。
+        clock["now"] = 1_000.0
         loop._check_expired_sessions_if_due()
         loop.auto_compact.check_expired.assert_called_once()
+        clock["now"] = 1_000.0
         loop._check_expired_sessions_if_due()
         loop.auto_compact.check_expired.assert_called_once()
+        clock["now"] = 1_009.999
+        loop._check_expired_sessions_if_due()
+        loop.auto_compact.check_expired.assert_called_once()
+        clock["now"] = 1_010.0
         loop._check_expired_sessions_if_due()
 
         assert loop.auto_compact.check_expired.call_count == 2

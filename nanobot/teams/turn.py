@@ -128,7 +128,8 @@ class TeamLeaderTurns:
     skill_names: Callable[[], Sequence[str]] = field(default=lambda: ())
     # 每次开新运行取「当回合的默认执行配置」；装配时抓一份会在换模型后过期。
     runtime_provider: Callable[[], Any] | None = None
-    # 按会话解析（协作会话键 ``websocket:<chat_id>``）；取到就用它，取不到回落上面那份。
+    # 按会话解析（协作会话键的前缀由 ``nanobot.webui.session_identity`` 统一拥有）；
+    # 取到就用它，取不到回落上面那份。
     session_runtime_provider: Callable[[str], Any] | None = None
     # 重试前的 preset 可用性检查要用；按名字解析且不改默认选择（契约 §5）。
     preset_resolver: Callable[[str], Any] | None = None

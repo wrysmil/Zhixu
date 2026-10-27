@@ -184,9 +184,16 @@ describe("WorkspaceNavigation", () => {
 
     const live = renderNav({ preview: false });
     expect(live.container.querySelector("[data-preview-badge]")).toBeNull();
+    // 聊天视图展开聊天栏时，收起入口交给顶部品牌行，rail 里不再重复提供。
+    expect(
+      within(live.container).queryByRole("button", { name: "Collapse sidebar" }),
+    ).not.toBeInTheDocument();
+    live.unmount();
+
+    const creative = renderNav({ preview: false, activeView: "creative" });
     fireEvent.click(
-      within(live.container).getByRole("button", { name: "Collapse sidebar" }),
+      within(creative.container).getByRole("button", { name: "Collapse sidebar" }),
     );
-    expect(live.onToggleCollapsed).toHaveBeenCalledTimes(1);
+    expect(creative.onToggleCollapsed).toHaveBeenCalledTimes(1);
   });
 });

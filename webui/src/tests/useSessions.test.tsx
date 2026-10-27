@@ -76,7 +76,8 @@ describe("useSessions", () => {
       updatedAt: "2026-04-16T10:00:00Z",
       title: "",
       preview: "hi",
-    })).toBe("New topic");
+      // 低信息兜底标题会带上 updatedAt 短日期，用于区分多个未命名会话。
+    })).toBe("New topic · 4/16");
 
     expect(sessionTitle({
       key: "websocket:chat-work",

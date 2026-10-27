@@ -3536,6 +3536,11 @@ describe("App layout", () => {
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
     expect(await within(sidebar).findByRole("button", { name: "Group: Research" }))
       .toBeInTheDocument();
+    // 工作台线程是惰性挂载的，挂载时会自动聚焦 composer；若在聚焦完成前打开
+    // 侧栏动作菜单，焦点被夺走会让 Radix 立即关闭菜单。等聚焦稳定后再交互。
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Message New topic" })).toHaveFocus(),
+    );
     fireEvent.pointerDown(within(sidebar).getByRole("button", {
       name: "New topic pane actions",
     }), { button: 0, ctrlKey: false });

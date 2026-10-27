@@ -339,8 +339,9 @@ async def test_image_only_message_allows_empty_text(tmp_path) -> None:
         await channel._dispatch_envelope(mock_conn, "client-1", envelope)
 
     channel._handle_message.assert_awaited_once()
-    # Error event NOT sent.
-    mock_conn.send.assert_not_awaited()
+    # 不发错误帧；attach 触发 hydrate 时按契约补发的快照帧不算错误。
+    frames = [json.loads(call.args[0]) for call in mock_conn.send.await_args_list]
+    assert [frame for frame in frames if frame.get("event") == "error"] == []
 
 
 @pytest.mark.asyncio

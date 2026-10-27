@@ -216,7 +216,8 @@ def build_writing_collab_runner(
     ``OutboundMessage`` 投进总线，交给既有的 WebUI 投影出口扇出。
 
     ``model_id`` 仍是「本批冻结的模型标识」的来源，只是**取值口径变了**：优先按协作会话
-    （``websocket:<chat_id>``）解析出的 runtime，该会话没有 preset 或跑不起解析时才回落到
+    （前缀由 ``nanobot.webui.session_identity`` 拥有的协作会话键）解析出的 runtime，
+    该会话没有 preset 或跑不起解析时才回落到
     这个零参回调（装配期的全局模型名）。批次 runtime 与冻结记录因此是同一份解析结果。
     """
     from nanobot.agent.skills import SkillsLoader

@@ -352,6 +352,7 @@ def test_session_checkpoint_path_fits_windows_limit() -> None:
     checkpoint 临时文件长度达到 276，写盘直接 FileNotFoundError。
     """
     import base64
+    from pathlib import PureWindowsPath
 
     from nanobot.evaluation.runtime_factory import (
         attempt_paths,
@@ -360,11 +361,17 @@ def test_session_checkpoint_path_fits_windows_limit() -> None:
 
     attempt_id = "4d75f38c-0aac-4e10-ab80-cd792d8d2175"
     # 140 字符左右的目录在真实 Windows 用户目录里很常见（用户名 + 多级工作区）。
-    base = "D:/" + "x" * 135
+    windows_base = PureWindowsPath("D:/" + "x" * 135)
+    # attempt_paths 只接受绝对路径，而 "D:/..." 在 POSIX 下不算绝对路径，
+    # 原来的写法在非 Windows 上直接 ValueError（Linux CI 同样挂）。
+    # 这里用等长的 POSIX 绝对路径跑同一套字符数断言：分隔符数量一致，
+    # 推导出的路径长度与 Windows 场景逐字符相同，阈值结论完全等价。
+    posix_base = "/" + "x" * 137
+    assert len(str(windows_base)) == len(posix_base) == 138
     paths = attempt_paths(
         attempt_id=attempt_id,
-        runtime_root=base + "/runs/" + attempt_id + "/runtime",
-        workspace=base + "/runs/" + attempt_id + "/workspace",
+        runtime_root=posix_base + "/runs/" + attempt_id + "/runtime",
+        workspace=posix_base + "/runs/" + attempt_id + "/workspace",
     )
     key = compact_session_key(attempt_id)
     assert len(key) <= 21
@@ -385,3 +392,12 @@ def test_session_checkpoint_path_fits_windows_limit() -> None:
     )
     assert len(str(legacy)) > 260, len(str(legacy))
     assert len(str(checkpoint)) <= 260, len(str(checkpoint))
+
+    # 再用 Windows 语义复核一遍同一套命名，确保上面的字符数结论对真 Windows 成立。
+    windows_sessions_root = windows_base / "runs" / "s"
+    windows_checkpoint = windows_sessions_root / ("0" * 32) / f".{encoded}{suffix}"
+    windows_legacy = (
+        windows_sessions_root.parent / "sessions" / ("0" * 32) / f".{legacy_encoded}{suffix}"
+    )
+    assert len(str(windows_legacy)) > 260, len(str(windows_legacy))
+    assert len(str(windows_checkpoint)) <= 260, len(str(windows_checkpoint))

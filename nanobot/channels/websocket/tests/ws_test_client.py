@@ -29,6 +29,12 @@ from nanobot.webui.http_utils import http_response
 
 _IN_PROCESS_HTTP_CHANNELS: dict[int, InProcessHttpChannel] = {}
 
+#: Hydrate 会按 subagent-observability 契约补发 ``subagent_execution_snapshot``：
+#: 新连接挂到已有会话时，服务端把该会话的子智能体执行快照整帧推过来。它是带外遥测，
+#: 与业务帧（ready/message/delta/...）不在同一条序列上，断言业务帧的用例应当
+#: 跳过它，而不是假设它是第一帧或最后一帧。
+TELEMETRY_EVENTS = frozenset({"subagent_execution_snapshot"})
+
 
 class _HttpConnection:
     remote_address = ("127.0.0.1", 12345)
@@ -184,21 +190,33 @@ class WsTestClient:
         data = await self.recv_raw(timeout)
         return WsMessage(event=data.get("event", ""), raw=data)
 
+    async def recv_business(self, timeout: float = 10.0) -> WsMessage:
+        """Receive the next non-telemetry frame.
+
+        Telemetry frames (``subagent_execution_snapshot``) ride the same
+        connection as business frames; skip them so callers can keep asserting
+        on the frame they actually care about.
+        """
+        while True:
+            msg = await self.recv(timeout)
+            if msg.event not in TELEMETRY_EVENTS:
+                return msg
+
     async def recv_ready(self, timeout: float = 5.0) -> WsMessage:
         """Receive and validate the 'ready' event."""
-        msg = await self.recv(timeout)
+        msg = await self.recv_business(timeout)
         assert msg.event == "ready", f"Expected 'ready' event, got '{msg.event}'"
         return msg
 
     async def recv_message(self, timeout: float = 10.0) -> WsMessage:
         """Receive and validate a 'message' event."""
-        msg = await self.recv(timeout)
+        msg = await self.recv_business(timeout)
         assert msg.event == "message", f"Expected 'message' event, got '{msg.event}'"
         return msg
 
     async def recv_delta(self, timeout: float = 10.0) -> WsMessage:
         """Receive and validate a 'delta' event."""
-        msg = await self.recv(timeout)
+        msg = await self.recv_business(timeout)
         assert msg.event == "delta", f"Expected 'delta' event, got '{msg.event}'"
         return msg
 
@@ -206,7 +224,7 @@ class WsTestClient:
         """Collect all deltas and the final stream_end into a list."""
         messages: list[WsMessage] = []
         while True:
-            msg = await self.recv(timeout)
+            msg = await self.recv_business(timeout)
             messages.append(msg)
             if msg.event == "stream_end":
                 break
@@ -214,7 +232,7 @@ class WsTestClient:
 
     async def recv_n(self, n: int, timeout: float = 10.0) -> list[WsMessage]:
         """Receive exactly *n* messages."""
-        return [await self.recv(timeout) for _ in range(n)]
+        return [await self.recv_business(timeout) for _ in range(n)]
 
     # -- Sending ----------------------------------------------------------
 
