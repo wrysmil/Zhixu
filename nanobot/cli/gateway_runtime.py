@@ -374,20 +374,30 @@ async def _start_embedded_evaluation(
     from nanobot.evaluation.server import create_eval_app
     from nanobot.evaluation.services import default_profiles
 
-    origins = frozenset(
-        {
-            f"http://127.0.0.1:{gateway_port}",
-            f"http://localhost:{gateway_port}",
-            "http://127.0.0.1:5173",
-            "http://localhost:5173",
-        }
+    origins = {
+        f"http://127.0.0.1:{gateway_port}",
+        f"http://localhost:{gateway_port}",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    }
+    # WebUI 由 websocket 通道端口提供，与 gateway HTTP 端口不同源；不补进白名单
+    # 时浏览器对评估 API 的请求会被 403，页面显示「离线/请求失败」。
+    webui_channel = getattr(config.channels, "websocket", None)
+    webui_port = (
+        webui_channel.get("port")
+        if isinstance(webui_channel, dict)
+        else getattr(webui_channel, "port", None)
     )
+    if isinstance(webui_port, int) and not isinstance(webui_port, bool):
+        origins.add(f"http://127.0.0.1:{webui_port}")
+        origins.add(f"http://localhost:{webui_port}")
+    allowed_origins = frozenset(origins)
     runner: Any = None
     try:
         app = create_eval_app(
             data_dir=get_data_dir() / "evaluation",
             passphrase=secret,
-            allowed_origins=origins,
+            allowed_origins=allowed_origins,
             profiles=(*build_profiles_from_config(config), *default_profiles()),
             team_runner=team_runner,
         )
