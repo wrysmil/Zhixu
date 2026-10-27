@@ -47,6 +47,17 @@ function renderDialog(onConfirm = vi.fn()) {
 
 const PICKER_BUTTON = "Add a folder from this computer";
 
+/**
+ * The picker stays disabled until the gateway answers whether it can pick a
+ * folder, so the click has to wait for that answer: clicking a disabled button
+ * is a no-op and the pick never happens.
+ */
+async function clickPicker(): Promise<void> {
+  const picker = await screen.findByRole("button", { name: PICKER_BUTTON });
+  await waitFor(() => expect(picker).toBeEnabled());
+  fireEvent.click(picker);
+}
+
 beforeEach(() => {
   mocks.requestMutation.mockReset();
   mocks.fetchWorkspaces.mockReset();
@@ -81,7 +92,7 @@ describe("AddProjectDialog", () => {
     mocks.requestMutation.mockResolvedValue({ path: "/Users/me/Photos/" });
     const { onConfirm } = renderDialog();
 
-    fireEvent.click(await screen.findByRole("button", { name: PICKER_BUTTON }));
+    await clickPicker();
     await waitFor(() =>
       expect(mocks.requestMutation).toHaveBeenCalledWith(
         "workspace.pick_folder",
@@ -107,7 +118,7 @@ describe("AddProjectDialog", () => {
     mocks.requestMutation.mockResolvedValue({ path: "/Users/me/photos" });
     const { onConfirm } = renderDialog();
 
-    fireEvent.click(await screen.findByRole("button", { name: PICKER_BUTTON }));
+    await clickPicker();
     await waitFor(() => expect(screen.getByTitle("/Users/me/photos")).toBeInTheDocument());
 
     fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "Family" } });
@@ -120,7 +131,7 @@ describe("AddProjectDialog", () => {
     mocks.requestMutation.mockResolvedValue({ path: null });
     const { onConfirm } = renderDialog();
 
-    fireEvent.click(await screen.findByRole("button", { name: PICKER_BUTTON }));
+    await clickPicker();
     await waitFor(() => expect(mocks.requestMutation).toHaveBeenCalled());
 
     expect(screen.getByRole("button", { name: PICKER_BUTTON })).toBeEnabled();
@@ -137,10 +148,10 @@ describe("AddProjectDialog", () => {
     (window as { mira?: unknown }).mira = { pickFolder };
     const { onConfirm } = renderDialog();
 
-    fireEvent.click(await screen.findByRole("button", { name: PICKER_BUTTON }));
+    await clickPicker();
     await waitFor(() => expect(screen.getByTitle("/Users/me/photos")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: PICKER_BUTTON }));
+    await clickPicker();
     await waitFor(() =>
       expect(screen.getByText("A folder picker is already open")).toBeInTheDocument(),
     );
@@ -158,7 +169,7 @@ describe("AddProjectDialog", () => {
       <AddProjectDialog open onOpenChange={onOpenChange} onConfirm={onConfirm} />,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: PICKER_BUTTON }));
+    await clickPicker();
     await waitFor(() => expect(screen.getByTitle("/Users/me/photos")).toBeInTheDocument());
 
     rerender(
@@ -205,7 +216,7 @@ describe("sidebar add-project entry", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add project" }));
     expect(await screen.findByRole("dialog", { name: "Create project" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: PICKER_BUTTON }));
+    await clickPicker();
     await waitFor(() => expect(screen.getByTitle("/Users/me/photos")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Create project" }));

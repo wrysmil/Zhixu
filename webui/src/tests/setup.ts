@@ -1,7 +1,13 @@
 import "@testing-library/jest-dom/vitest";
 import { beforeAll, beforeEach } from "vitest";
+import { configure } from "@testing-library/react";
 
 import i18n, { initializeI18n, loadAllLocaleResources } from "@/i18n";
+
+// The default 1s async-assertion budget is not enough once the whole suite
+// runs in parallel on a busy machine: assertions that wait for a rendered
+// element then fail on timing alone.
+configure({ asyncUtilTimeout: 5000 });
 
 function createTestStorage(): Storage {
   const store = new Map<string, string>();

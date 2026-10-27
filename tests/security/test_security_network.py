@@ -382,7 +382,31 @@ def test_bracketed_naive_no_proxy_entry_breaks_httpx_client():
             httpx.Client(timeout=1).close()
 
 
-def test_sanitize_no_proxy_env_unbrackets_ipv6_entries(monkeypatch):
+def _clear_other_no_proxy_key(monkeypatch: pytest.MonkeyPatch, keep: str) -> None:
+    """Drop the ``no_proxy``/``NO_PROXY`` spelling the test does not assert on.
+
+    Windows ``os.environ`` is case-insensitive, so the two spellings are one
+    variable there and deleting the "other" one would delete the value under
+    test as well.
+    """
+    if os.name == "nt":
+        return
+    other = "no_proxy" if keep == "NO_PROXY" else "NO_PROXY"
+    monkeypatch.delenv(other, raising=False)
+
+
+@pytest.mark.parametrize("env_key", ["NO_PROXY", "no_proxy"])
+def test_sanitize_no_proxy_env_unbrackets_ipv6_entries(monkeypatch, env_key):
+    monkeypatch.setenv(env_key, "localhost,127.0.0.1,::1,[::1]")
+    _clear_other_no_proxy_key(monkeypatch, env_key)
+
+    assert sanitize_no_proxy_env() is True
+
+    assert os.environ[env_key] == "localhost,127.0.0.1,::1"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows merges both spellings into one key")
+def test_sanitize_no_proxy_env_unbrackets_both_spellings_at_once(monkeypatch):
     monkeypatch.setenv("NO_PROXY", "localhost,127.0.0.1,::1,[::1]")
     monkeypatch.setenv("no_proxy", "localhost,[::1]:8080")
 
@@ -407,7 +431,7 @@ def test_sanitize_no_proxy_env_makes_httpx_client_constructible(monkeypatch):
 
 def test_sanitize_no_proxy_env_is_noop_without_brackets(monkeypatch):
     monkeypatch.setenv("NO_PROXY", "localhost,127.0.0.1,::1")
-    monkeypatch.delenv("no_proxy", raising=False)
+    _clear_other_no_proxy_key(monkeypatch, "NO_PROXY")
 
     assert sanitize_no_proxy_env() is False
     assert os.environ["NO_PROXY"] == "localhost,127.0.0.1,::1"
@@ -415,6 +439,7 @@ def test_sanitize_no_proxy_env_is_noop_without_brackets(monkeypatch):
 
 def test_sanitize_no_proxy_env_is_idempotent(monkeypatch):
     monkeypatch.setenv("NO_PROXY", "localhost,[::1]")
+    _clear_other_no_proxy_key(monkeypatch, "NO_PROXY")
 
     assert sanitize_no_proxy_env() is True
     assert sanitize_no_proxy_env() is False
@@ -423,7 +448,7 @@ def test_sanitize_no_proxy_env_is_idempotent(monkeypatch):
 
 def test_sanitize_no_proxy_env_keeps_irrelevant_entries(monkeypatch):
     monkeypatch.setenv("NO_PROXY", "*,example.com,.corp.internal,[::1]")
-    monkeypatch.delenv("no_proxy", raising=False)
+    _clear_other_no_proxy_key(monkeypatch, "NO_PROXY")
 
     sanitize_no_proxy_env()
 

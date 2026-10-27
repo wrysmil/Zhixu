@@ -352,6 +352,7 @@ def test_session_checkpoint_path_fits_windows_limit() -> None:
     checkpoint 临时文件长度达到 276，写盘直接 FileNotFoundError。
     """
     import base64
+    import os
     from pathlib import PureWindowsPath
 
     from nanobot.evaluation.runtime_factory import (
@@ -363,15 +364,14 @@ def test_session_checkpoint_path_fits_windows_limit() -> None:
     # 140 字符左右的目录在真实 Windows 用户目录里很常见（用户名 + 多级工作区）。
     windows_base = PureWindowsPath("D:/" + "x" * 135)
     # attempt_paths 只接受绝对路径，而 "D:/..." 在 POSIX 下不算绝对路径，
-    # 原来的写法在非 Windows 上直接 ValueError（Linux CI 同样挂）。
-    # 这里用等长的 POSIX 绝对路径跑同一套字符数断言：分隔符数量一致，
-    # 推导出的路径长度与 Windows 场景逐字符相同，阈值结论完全等价。
-    posix_base = "/" + "x" * 137
-    assert len(str(windows_base)) == len(posix_base) == 138
+    # "/" + ... 在 Windows 下同样不算（缺盘符）。两种平台各用等长的本地绝对
+    # 路径跑同一套字符数断言：分隔符数量一致，推导出的路径长度逐字符相同。
+    long_base = ("D:/" + "x" * 135) if os.name == "nt" else ("/" + "x" * 137)
+    assert len(str(windows_base)) == len(long_base) == 138
     paths = attempt_paths(
         attempt_id=attempt_id,
-        runtime_root=posix_base + "/runs/" + attempt_id + "/runtime",
-        workspace=posix_base + "/runs/" + attempt_id + "/workspace",
+        runtime_root=long_base + "/runs/" + attempt_id + "/runtime",
+        workspace=long_base + "/runs/" + attempt_id + "/workspace",
     )
     key = compact_session_key(attempt_id)
     assert len(key) <= 21
