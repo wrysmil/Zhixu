@@ -197,3 +197,29 @@ def test_handle_scratchpad_save_round_trip(handler):
 def test_handle_memory_unknown_action_returns_404(handler):
     result = handler.handle("memory-frobnicate", _request())
     assert result.status == 404
+
+
+def test_handle_memory_list_combines_all_query_filters(handler, operations):
+    created = operations.create_memory(content="Python 规则", type="rule")
+    project = created["memory"]["workspaces"][0]["id"]
+    operations.create_memory(content="Rust 规则", type="rule")
+    result = handler.handle("memory-list", _request(query={
+        "q": ["Python"], "origin": ["manual"], "workspace": [project],
+        "priority": ["long_term"], "type": ["rule"], "order": ["updated"],
+    }))
+    assert result.status == 200
+    assert result.payload["total"] == 1
+    assert result.payload["items"][0]["id"] == created["memory"]["id"]
+
+
+def test_handle_memory_filters_reject_arbitrary_workspace_path(handler):
+    result = handler.handle("memory-list", _request(query={"workspace": ["D:/private"]}))
+    assert result.status == 400
+
+
+def test_handle_memory_create_allows_explicit_unassigned_workspace(handler):
+    result = handler.handle("memory-create", _request(payload={
+        "content": "不属于项目的记忆", "workspace": "unassigned",
+    }))
+    assert result.status == 200
+    assert result.payload["memory"]["workspaces"] == []

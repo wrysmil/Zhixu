@@ -8,6 +8,8 @@ per workspace and share it across the gateway lifetime.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable
 
 from nanobot.memory.database import MemoryDatabase
 
@@ -23,9 +25,13 @@ class MemoryServices:
 
     workspace_id: str
     database: MemoryDatabase
+    session_metadata: Callable[[str], dict[str, Any] | None] | None = None
 
     @classmethod
-    def for_workspace(cls, workspace_id: str, workspace_path) -> "MemoryServices":
+    def for_workspace(
+        cls, workspace_id: str, workspace_path: Path,
+        *, session_metadata: Callable[[str], dict[str, Any] | None] | None = None,
+    ) -> "MemoryServices":
         """Build a ready-to-use services instance for the given workspace path.
 
         The schema is created lazily the first time it is absent, so
@@ -33,4 +39,4 @@ class MemoryServices:
         """
         database = MemoryDatabase(workspace_path)
         database.ensure_schema()
-        return cls(workspace_id=workspace_id, database=database)
+        return cls(workspace_id=workspace_id, database=database, session_metadata=session_metadata)

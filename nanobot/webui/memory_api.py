@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from loguru import logger
@@ -30,7 +31,6 @@ from nanobot.memory.repository import (
     get_scratchpad,
     list_episodes,
     list_memories,
-    search_memories,
     upsert_scratchpad,
 )
 from nanobot.memory.repository import (
@@ -50,6 +50,12 @@ from nanobot.memory.vector.indexer import (
     get_active_store,
     index_memory_best_effort,
     remove_memory_best_effort,
+)
+from nanobot.webui.memory_presentation import (
+    PresentationContext,
+    episode_in_store,
+    filter_result,
+    workspace_options,
 )
 from nanobot.webui.memory_services import MemoryServices
 from nanobot.webui.settings_contracts import WebUISettingsError
@@ -71,7 +77,7 @@ class WebUIMemoryError(WebUISettingsError):
 # ---- payload converters -----------------------------------------------------
 
 
-def memory_payload(m: Memory) -> dict[str, Any]:
+def memory_payload(m: Memory, context: PresentationContext | None = None) -> dict[str, Any]:
     """Serialise a ``Memory`` to the JSON shape the WebUI expects."""
     return {
         "id": m.id,
@@ -95,10 +101,11 @@ def memory_payload(m: Memory) -> dict[str, Any]:
         "created_at": m.created_at,
         "updated_at": m.updated_at,
         "metadata": dict(m.metadata),
+        **(context or PresentationContext(None, [])).fields(m),
     }
 
 
-def episode_payload(ep: Episode) -> dict[str, Any]:
+def episode_payload(ep: Episode, context: PresentationContext | None = None) -> dict[str, Any]:
     return {
         "id": ep.id,
         "session_id": ep.session_id,
@@ -115,6 +122,8 @@ def episode_payload(ep: Episode) -> dict[str, Any]:
         "tags": list(ep.tags),
         "importance_score": ep.importance_score,
         "access_count": ep.access_count,
+        "metadata": dict(getattr(ep, "metadata", {})),
+        **(context or PresentationContext(None, [])).fields(ep),
     }
 
 
@@ -143,9 +152,16 @@ def _parse_optional_enum(raw: str | None, choices: set[str], field: str) -> str 
 
 
 def _now_iso() -> str:
-    from datetime import datetime, timezone
-
     return datetime.now(timezone.utc).isoformat()
+
+
+def _time_order(value: str) -> float:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        # Historical writer timestamps without an offset were stored in UTC.
+        return parsed.replace(tzinfo=timezone.utc).timestamp() if parsed.tzinfo is None else parsed.timestamp()
+    except (ValueError, OverflowError, OSError):
+        return float("-inf")
 
 
 # ---- read actions -----------------------------------------------------------
@@ -157,22 +173,33 @@ def list_memories_payload(
     type: str | None = None,
     order: str = "created",
     limit: int | None = None,
+    priority: str | None = None,
+    origin: str | None = None,
+    workspace: str | None = None,
+    q: str | None = None,
 ) -> dict[str, Any]:
     type_value = _parse_optional_enum(type, _VALID_MEMORY_TYPES, "type")
-    if order not in {"created", "importance"}:
-        raise WebUIMemoryError("order must be 'created' or 'importance'")
-    if limit is not None and limit < 1:
-        raise WebUIMemoryError("limit must be >= 1")
-
-    with services.database.connect() as conn:
-        rows = list_memories(
-            conn,
-            type=MemoryType(type_value) if type_value else None,
-            workspace_id=services.workspace_id,
-            order_by=order,
-            limit=limit,
-        )
-    return {"items": [memory_payload(r) for r in rows]}
+    priority_value = _parse_optional_enum(priority, _VALID_MEMORY_PRIORITIES, "priority")
+    if order not in {"created", "updated", "importance"}:
+        raise WebUIMemoryError("order must be 'created', 'updated' or 'importance'")
+    rows, episodes, context = _read_presentation(services)
+    payloads = [memory_payload(row, context) for row in rows]
+    options = workspace_options(services, [*payloads, *[episode_payload(ep, context) for ep in episodes]])
+    needle = (q or "").strip().casefold()
+    filtered = [
+        item for item in payloads
+        if (not type_value or item["type"] == type_value)
+        and (not priority_value or item["priority"] == priority_value)
+        and (not needle or needle in " ".join([
+            item["content"], item["subject"], item["predicate"], *item["tags"],
+        ]).casefold())
+    ]
+    field = {"created": "created_at", "updated": "updated_at", "importance": "importance_score"}[order]
+    filtered.sort(key=lambda item: (
+        float(item[field]) if order == "importance" else _time_order(item[field]),
+        _time_order(item["created_at"]), item["id"],
+    ), reverse=True)
+    return _filtered_result(filtered, options, origin=origin, workspace=workspace, limit=limit)
 
 
 def search_memories_payload(
@@ -181,27 +208,48 @@ def search_memories_payload(
     *,
     type: str | None = None,
     limit: int | None = None,
+    priority: str | None = None,
+    origin: str | None = None,
+    workspace: str | None = None,
+    order: str = "created",
 ) -> dict[str, Any]:
-    type_value = _parse_optional_enum(type, _VALID_MEMORY_TYPES, "type")
     if not query.strip():
         raise WebUIMemoryError("query must not be empty")
+    return {
+        **list_memories_payload(
+            services, type=type, order=order, limit=limit, priority=priority,
+            origin=origin, workspace=workspace, q=query,
+        ),
+        "query": query,
+    }
+
+
+def _read_presentation(
+    services: MemoryServices,
+) -> tuple[list[Memory], list[Episode], PresentationContext]:
     with services.database.connect() as conn:
-        rows = search_memories(
-            conn,
-            query,
-            type=MemoryType(type_value) if type_value else None,
-            workspace_id=services.workspace_id,
-            limit=limit,
-        )
-    return {"items": [memory_payload(r) for r in rows], "query": query}
+        rows = list_memories(conn, workspace_id=services.workspace_id)
+        episodes = [ep for ep in list_episodes(conn) if episode_in_store(ep, services)]
+    return rows, episodes, PresentationContext(services, episodes)
+
+
+def _filtered_result(
+    items: list[dict[str, Any]], options: list[dict[str, str]], *,
+    origin: str | None, workspace: str | None, limit: int | None,
+) -> dict[str, Any]:
+    try:
+        return filter_result(items, options=options, origin=origin, workspace=workspace, limit=limit)
+    except WebUISettingsError as exc:
+        raise WebUIMemoryError(exc.message, status=exc.status) from exc
 
 
 def fetch_memory_payload(services: MemoryServices, memory_id: str) -> dict[str, Any]:
     with services.database.connect() as conn:
         row = get_memory(conn, memory_id)
-    if row is None:
+    if row is None or row.workspace_id != services.workspace_id:
         raise WebUIMemoryError("memory not found", status=404)
-    return {"memory": memory_payload(row)}
+    _, _, context = _read_presentation(services)
+    return {"memory": memory_payload(row, context)}
 
 
 def list_episodes_payload(
@@ -209,20 +257,37 @@ def list_episodes_payload(
     *,
     session_id: str | None = None,
     limit: int | None = None,
+    origin: str | None = None,
+    workspace: str | None = None,
+    q: str | None = None,
+    order: str = "created",
 ) -> dict[str, Any]:
-    if limit is not None and limit < 1:
-        raise WebUIMemoryError("limit must be >= 1")
-    with services.database.connect() as conn:
-        rows = list_episodes(conn, session_id=session_id, limit=limit)
-    return {"items": [episode_payload(r) for r in rows]}
+    if order not in {"created", "importance"}:
+        raise WebUIMemoryError("order must be 'created' or 'importance'")
+    memories, rows, context = _read_presentation(services)
+    payloads = [episode_payload(row, context) for row in rows]
+    options = workspace_options(services, [*payloads, *[memory_payload(m, context) for m in memories]])
+    needle = (q or "").strip().casefold()
+    filtered = [
+        item for item in payloads
+        if (not session_id or item["session_id"] == session_id)
+        and (not needle or needle in " ".join([
+            item["summary"], item["goal"], *item["tags"], *item["entities"], *item["tools_used"],
+        ]).casefold())
+    ]
+    filtered.sort(key=lambda item: (
+        float(item["importance_score"]) if order == "importance" else _time_order(item["started_at"]),
+        _time_order(item["started_at"]), item["id"],
+    ), reverse=True)
+    return _filtered_result(filtered, options, origin=origin, workspace=workspace, limit=limit)
 
 
 def fetch_episode_payload(services: MemoryServices, episode_id: str) -> dict[str, Any]:
     with services.database.connect() as conn:
         row = get_episode(conn, episode_id)
-    if row is None:
+    if row is None or not episode_in_store(row, services):
         raise WebUIMemoryError("episode not found", status=404)
-    return {"episode": episode_payload(row)}
+    return {"episode": episode_payload(row, PresentationContext(services, [row]))}
 
 
 def scratchpad_payload(
@@ -513,6 +578,7 @@ def create_memory(
     subject: str = "",
     predicate: str = "",
     metadata: dict[str, Any] | None = None,
+    workspace: str | None = None,
 ) -> dict[str, Any]:
     if not (isinstance(content, str) and content.strip()):
         raise WebUIMemoryError("content must be a non-empty string")
@@ -522,6 +588,24 @@ def create_memory(
         raise WebUIMemoryError(f"invalid priority: {priority!r}")
     if not (0.0 <= float(importance_score) <= 1.0):
         raise WebUIMemoryError("importance_score must be in [0, 1]")
+    memories, episodes, context = _read_presentation(services)
+    options = workspace_options(services, [
+        *[memory_payload(item, context) for item in memories],
+        *[episode_payload(item, context) for item in episodes],
+    ])
+    if workspace is None or workspace == "":
+        selected_workspaces = workspace_options(services, [])
+    elif workspace == "unassigned":
+        selected_workspaces = []
+    else:
+        selected_workspaces = [option for option in options if option["id"] == workspace]
+        if not selected_workspaces:
+            raise WebUIMemoryError("invalid workspace")
+    saved_metadata = dict(metadata or {})
+    saved_metadata["provenance"] = {
+        "generation_method": "manual", "trigger_mode": "manual", "trigger_reason": "manual",
+        "workspaces": selected_workspaces, "store_workspace_id": services.workspace_id,
+    }
     memory_id = str(uuid.uuid4())
     now = _now_iso()
     memory = Memory(
@@ -533,7 +617,7 @@ def create_memory(
         tags=list(tags or []),
         subject=subject,
         predicate=predicate,
-        metadata=dict(metadata or {}),
+        metadata=saved_metadata,
         source="manual",
         workspace_id=services.workspace_id,
         created_at=now,
@@ -560,7 +644,7 @@ def fetch_and_index(services: MemoryServices, memory_id: str) -> Memory:
     """
     with services.database.connect() as conn:
         row = get_memory(conn, memory_id)
-    if row is None:
+    if row is None or row.workspace_id != services.workspace_id:
         raise WebUIMemoryError("memory not found", status=404)
     index_memory_best_effort(row)
     return row
@@ -602,23 +686,33 @@ def update_memory(
         kwargs["subject"] = subject
     if predicate is not None:
         kwargs["predicate"] = predicate
-    if metadata is not None:
-        kwargs["metadata"] = dict(metadata)
     try:
         with services.database.connect() as conn:
+            existing = get_memory(conn, memory_id)
+            if existing is None or existing.workspace_id != services.workspace_id:
+                raise WebUIMemoryError("memory not found", status=404)
+            if metadata is not None:
+                merged_metadata = {**existing.metadata, **metadata}
+                # Editing content cannot change the immutable generation provenance.
+                if "provenance" in existing.metadata:
+                    merged_metadata["provenance"] = existing.metadata["provenance"]
+                else:
+                    merged_metadata.pop("provenance", None)
+                kwargs["metadata"] = merged_metadata
             _repo_update_memory(conn, memory_id, **kwargs)
     except KeyError:
         raise WebUIMemoryError("memory not found", status=404)
     updated = fetch_and_index(services, memory_id)
     # 🆕 WU-3: 触发 MEMORY.md 派生
     _refresh_memory_md_after_mutation(services.workspace_id, services)
-    return {"memory": memory_payload(updated)}
+    _, _, context = _read_presentation(services)
+    return {"memory": memory_payload(updated, context)}
 
 
 def delete_memory(services: MemoryServices, memory_id: str) -> dict[str, Any]:
     with services.database.connect() as conn:
-        cur = conn.execute("SELECT 1 FROM memories WHERE id = ?", (memory_id,))
-        if cur.fetchone() is None:
+        existing = get_memory(conn, memory_id)
+        if existing is None or existing.workspace_id != services.workspace_id:
             raise WebUIMemoryError("memory not found", status=404)
         _repo_delete_memory(conn, memory_id)
     # 向量挂钩：SQLite 删除成功后 best-effort 移除索引
@@ -648,6 +742,9 @@ def update_episode(
         kwargs["importance_score"] = float(importance_score)
     try:
         with services.database.connect() as conn:
+            existing = get_episode(conn, episode_id)
+            if existing is None or not episode_in_store(existing, services):
+                raise WebUIMemoryError("episode not found", status=404)
             _repo_update_episode(conn, episode_id, **kwargs)
     except KeyError:
         raise WebUIMemoryError("episode not found", status=404)
@@ -657,6 +754,9 @@ def update_episode(
 def delete_episode(services: MemoryServices, episode_id: str) -> dict[str, Any]:
     try:
         with services.database.connect() as conn:
+            existing = get_episode(conn, episode_id)
+            if existing is None or not episode_in_store(existing, services):
+                raise WebUIMemoryError("episode not found", status=404)
             _repo_delete_episode(conn, episode_id)
     except KeyError:
         raise WebUIMemoryError("episode not found", status=404)

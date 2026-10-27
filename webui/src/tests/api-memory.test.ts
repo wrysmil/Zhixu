@@ -65,6 +65,12 @@ describe("memory api helpers", () => {
     );
   });
 
+  it("combines memory provenance, workspace, query and priority filters", async () => {
+    await listMemories("tok", { origin: "manual", workspace: "ws-1", q: "边界", priority: "long_term", order: "updated" });
+    const url = new URL(vi.mocked(fetch).mock.calls[0][0] as string, "http://localhost");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ origin: "manual", workspace: "ws-1", q: "边界", priority: "long_term", order: "updated" });
+  });
+
   it("searches memories with q and type filters", async () => {
     await searchMemories("tok", "Python", { type: "fact", limit: 20 });
 

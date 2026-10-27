@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-
-import { PageHeading } from "@/components/workspace/PageHeading";
 import { MemorySection } from "@/components/settings/memory/MemorySection";
 import type { SettingsPayload } from "@/lib/types";
 
@@ -31,24 +29,16 @@ export function MemoryPage({
 
   return (
     <div className="assistant-page">
-      <PageHeading
-        kicker={t("settings.memory.pageEyebrow", { defaultValue: "Memory center" })}
-        title={t("settings.nav.memory", { defaultValue: "Memory" })}
-        description={t("settings.memory.pageSubtitle", {
-          defaultValue:
-            "Long-term facts and conversation excerpts the agent keeps across sessions. Toggle automatic extraction here, or just browse and curate what's already there.",
-        })}
-        illustration={{ src: "/illustrations/zhixu-toolbox.webp", size: "compact" }}
+      <p className="assistant-page-kicker mb-4">
+        {t("settings.memory.pageEyebrow", { defaultValue: "Memory center" })}
+      </p>
+      <MemorySection
+        settings={payload}
+        onSettingsChange={(next) => {
+          setPayload(next);
+          onSettingsChange(next);
+        }}
       />
-      <div className="mt-5">
-        <MemorySection
-          settings={payload}
-          onSettingsChange={(next) => {
-            setPayload(next);
-            onSettingsChange(next);
-          }}
-        />
-      </div>
     </div>
   );
 }

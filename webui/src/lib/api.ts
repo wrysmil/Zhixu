@@ -16,6 +16,8 @@ import type {
   McpOAuthFlowPayload,
   MarketplaceProvider,
   MemoryPayload,
+  MemoryListResult,
+  MemoryOrigin,
   MemoryPriority,
   MemoryStats,
   MemoryType,
@@ -1230,7 +1232,11 @@ const MEMORY_BASE = "/api/settings/memory";
 
 export interface ListMemoriesOpts {
   type?: MemoryType;
-  order?: "created" | "importance";
+  order?: "created" | "updated" | "importance";
+  priority?: MemoryPriority;
+  origin?: MemoryOrigin;
+  workspace?: string;
+  q?: string;
   limit?: number;
 }
 
@@ -1238,13 +1244,17 @@ export async function listMemories(
   token: string,
   opts: ListMemoriesOpts = {},
   base: string = "",
-): Promise<{ items: MemoryPayload[] }> {
+): Promise<MemoryListResult<MemoryPayload>> {
   const params = new URLSearchParams();
   if (opts.type) params.set("type", opts.type);
   if (opts.order) params.set("order", opts.order);
   if (opts.limit != null) params.set("limit", String(opts.limit));
+  if (opts.priority) params.set("priority", opts.priority);
+  if (opts.origin) params.set("origin", opts.origin);
+  if (opts.workspace) params.set("workspace", opts.workspace);
+  if (opts.q) params.set("q", opts.q);
   const qs = params.toString();
-  return request<{ items: MemoryPayload[] }>(
+  return request<MemoryListResult<MemoryPayload>>(
     `${base}${MEMORY_BASE}/memories${qs ? `?${qs}` : ""}`,
     token,
     undefined,
@@ -1255,13 +1265,17 @@ export async function listMemories(
 export async function searchMemories(
   token: string,
   query: string,
-  opts: { type?: MemoryType; limit?: number } = {},
+  opts: Omit<ListMemoriesOpts, "q"> = {},
   base: string = "",
-): Promise<{ items: MemoryPayload[]; query: string }> {
+): Promise<MemoryListResult<MemoryPayload> & { query: string }> {
   const params = new URLSearchParams({ q: query });
   if (opts.type) params.set("type", opts.type);
   if (opts.limit != null) params.set("limit", String(opts.limit));
-  return request<{ items: MemoryPayload[]; query: string }>(
+  if (opts.priority) params.set("priority", opts.priority);
+  if (opts.origin) params.set("origin", opts.origin);
+  if (opts.workspace) params.set("workspace", opts.workspace);
+  if (opts.order) params.set("order", opts.order);
+  return request<MemoryListResult<MemoryPayload> & { query: string }>(
     `${base}${MEMORY_BASE}/memories/search?${params.toString()}`,
     token,
     undefined,
@@ -1284,14 +1298,18 @@ export async function fetchMemory(
 
 export async function listEpisodes(
   token: string,
-  opts: { session_id?: string; limit?: number } = {},
+  opts: { session_id?: string; limit?: number; origin?: MemoryOrigin; workspace?: string; q?: string; order?: "created" | "importance" } = {},
   base: string = "",
-): Promise<{ items: EpisodePayload[] }> {
+): Promise<MemoryListResult<EpisodePayload>> {
   const params = new URLSearchParams();
   if (opts.session_id) params.set("session_id", opts.session_id);
+  if (opts.order) params.set("order", opts.order);
   if (opts.limit != null) params.set("limit", String(opts.limit));
+  if (opts.origin) params.set("origin", opts.origin);
+  if (opts.workspace) params.set("workspace", opts.workspace);
+  if (opts.q) params.set("q", opts.q);
   const qs = params.toString();
-  return request<{ items: EpisodePayload[] }>(
+  return request<MemoryListResult<EpisodePayload>>(
     `${base}${MEMORY_BASE}/episodes${qs ? `?${qs}` : ""}`,
     token,
     undefined,
@@ -1342,6 +1360,7 @@ export interface CreateMemoryInput {
   subject?: string;
   predicate?: string;
   metadata?: Record<string, unknown>;
+  workspace?: string;
 }
 
 export async function createMemory(
@@ -1359,6 +1378,7 @@ export async function createMemory(
     ...(input.subject !== undefined ? { subject: input.subject } : {}),
     ...(input.predicate !== undefined ? { predicate: input.predicate } : {}),
     ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+    ...(input.workspace !== undefined ? { workspace: input.workspace } : {}),
   });
 }
 

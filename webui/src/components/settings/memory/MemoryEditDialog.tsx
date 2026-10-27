@@ -14,9 +14,10 @@ import { formControlFocusClassName } from "@/components/ui/form-control";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { createMemory, updateMemory } from "@/lib/api";
-import type { MemoryPayload, MemoryPriority, MemoryType } from "@/lib/types";
+import type { MemoryPayload, MemoryPriority, MemoryType, MemoryWorkspace } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useClient } from "@/providers/ClientProvider";
+import { useMemoryCopy } from "./MemoryPresentation";
 
 const MEMORY_TYPES: MemoryType[] = ["fact", "preference", "skill", "error", "rule", "experience"];
 const MEMORY_PRIORITIES: MemoryPriority[] = ["short_term", "long_term"];
@@ -29,12 +30,16 @@ interface MemoryEditDialogProps {
   memory: MemoryPayload | null;
   onClose: () => void;
   onSaved: () => void;
+  workspaces?: MemoryWorkspace[];
+  initialWorkspace?: string;
 }
 
-export function MemoryEditDialog({ memory, onClose, onSaved }: MemoryEditDialogProps) {
+export function MemoryEditDialog({ memory, onClose, onSaved, workspaces = [], initialWorkspace }: MemoryEditDialogProps) {
   const { t } = useTranslation();
   const tx = (key: string, fallback: string) => t(key, { defaultValue: fallback });
   const { client } = useClient();
+  const { text } = useMemoryCopy();
+  const [workspace, setWorkspace] = useState(initialWorkspace ?? "");
 
   const [content, setContent] = useState(memory?.content ?? "");
   const [type, setType] = useState<MemoryType>(memory?.type ?? "fact");
@@ -67,7 +72,7 @@ export function MemoryEditDialog({ memory, onClose, onSaved }: MemoryEditDialogP
       if (memory) {
         await updateMemory(client, memory.id, input);
       } else {
-        await createMemory(client, input);
+        await createMemory(client, { ...input, ...(workspace ? { workspace } : {}) });
       }
       onSaved();
     } catch (reason) {
@@ -78,7 +83,7 @@ export function MemoryEditDialog({ memory, onClose, onSaved }: MemoryEditDialogP
   };
 
   return (
-    <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
+    <Dialog open onOpenChange={(open) => (!open && !busy ? onClose() : undefined)}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
@@ -92,6 +97,7 @@ export function MemoryEditDialog({ memory, onClose, onSaved }: MemoryEditDialogP
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
+          {!memory && <label className="grid gap-1.5 text-[12.5px] font-medium text-muted-foreground">{text("工作区", "Workspace")}<select value={workspace} onChange={(event) => setWorkspace(event.target.value)} className={cn(FIELD_CLASS, "h-9 rounded-control border border-input bg-background px-2 text-[13px] text-foreground", formControlFocusClassName)}><option value="">{text("默认工作区", "Default workspace")}</option>{workspaces.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}<option value="unassigned">{text("全局记忆", "Global memory")}</option></select></label>}
           <div className="grid gap-1.5">
             <span className="block text-[12.5px] font-medium text-muted-foreground">{tx("settings.memory.fieldContent", "Content")} *</span>
             <Textarea

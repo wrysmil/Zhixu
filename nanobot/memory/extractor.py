@@ -135,6 +135,7 @@ DEFAULT_IMPORTANCE = 0.7
 # source 字符串 → EpisodeSource 映射（FIX-2 Sec-C-β：``deletion`` 现在有专属枚举，
 # 不再折叠到 SESSION_END；保留 provenance 用于审计 / 调优）
 _SOURCE_MAP: dict[str, EpisodeSource] = {
+    "manual": EpisodeSource.MANUAL,
     "session_end": EpisodeSource.SESSION_END,
     "context_compress": EpisodeSource.CONTEXT_COMPRESS,
     "topic_change": EpisodeSource.TOPIC_CHANGE,
@@ -854,6 +855,7 @@ class MemoryExtractor:
             key=session.key,
             messages=[dict(message) for message in new_messages],
             created_at=session.created_at,
+            metadata=dict(session.metadata),
         )
         try:
             system = self._system_extract(slice_session)
@@ -1462,6 +1464,7 @@ class MemoryExtractor:
         self,
         conn: sqlite3.Connection,
         item: LLMMemoryItem,
+        provenance: dict[str, Any] | None = None,
     ) -> str | None:
         """命中同一 ``subject``+``predicate`` 的既有画像时增量合并。
 
@@ -1504,15 +1507,18 @@ class MemoryExtractor:
         if result.action == "create_new":
             return None
         try:
+            from nanobot.memory.provenance import merge_workspace_provenance
+
+            metadata = merge_workspace_provenance(existing.metadata, provenance or {})
             if result.action == "update" and result.merged is not None:
                 update_memory(
                     conn,
                     existing.id,
                     content=result.merged.get("content") or existing.content,
                     importance_score=result.merged.get("importance"),
+                    metadata=metadata,
                 )
             elif result.action == "keep_old_with_conflict" and result.existing is not None:
-                metadata = dict(existing.metadata or {})
                 metadata["conflicts_with"] = list(
                     result.existing.get("conflicts_with") or []
                 )
@@ -1528,7 +1534,11 @@ class MemoryExtractor:
         session: Session,
         source: str,
     ) -> PersistenceResult:
+        from nanobot.memory.provenance import extraction_provenance
+
         now = _now_iso()
+        provenance = extraction_provenance(session, source)
+        provenance["store_workspace_id"] = self.workspace_id
         saved_memory_ids: list[str] = []
         saved_episode_ids: list[str] = []
 
@@ -1541,7 +1551,7 @@ class MemoryExtractor:
             for item in filtered.memories:
                 # S3 Track 1：命中同一 subject+predicate 的既有画像 → 增量合并，
                 # 不再新建。修复「同一偏好被反复抽成多条」的根因。
-                merged_id = self._merge_into_existing(conn, item)
+                merged_id = self._merge_into_existing(conn, item, provenance)
                 if merged_id is not None:
                     saved_memory_ids.append(merged_id)
                     if item.subject:
@@ -1563,6 +1573,7 @@ class MemoryExtractor:
                     user_id=self.user_id,
                     created_at=now,
                     updated_at=now,
+                    metadata={"provenance": provenance},
                 )
                 ok = self._safe_write_with_fallback(
                     conn,
@@ -1625,6 +1636,7 @@ class MemoryExtractor:
                     importance_score=episode.importance if episode is not None else 0.7,
                     started_at=_iso(session.created_at),
                     ended_at=now,
+                    metadata={"provenance": provenance},
                 )
                 episode_ok = self._safe_write_with_fallback(
                     conn,
@@ -1679,7 +1691,10 @@ class MemoryExtractor:
         """从整段对话转录生成一个情节记忆（不入库，由调用方决定）。"""
         from datetime import datetime, timezone
 
+        from nanobot.session.manager import Session as _Session
+
         from .models import Episode, EpisodeOutcome
+        from .provenance import extraction_provenance
 
         if not transcript:
             return None
@@ -1695,6 +1710,12 @@ class MemoryExtractor:
             source=self._map_source(source),
             outcome=EpisodeOutcome.COMPLETED,
             action_nodes=action_nodes,
+            metadata={
+                "provenance": {
+                    **extraction_provenance(_Session(key=session_key), source),
+                    "store_workspace_id": self.workspace_id,
+                }
+            },
         )
 
         if self.runtime is not None:

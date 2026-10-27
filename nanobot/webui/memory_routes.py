@@ -105,6 +105,10 @@ def dispatch(
             type=query_first(query, "type"),
             order=query_first(query, "order") or "created",
             limit=_maybe_int(query_first(query, "limit")),
+            priority=query_first(query, "priority"),
+            origin=query_first(query, "origin"),
+            workspace=query_first(query, "workspace"),
+            q=query_first(query, "q"),
         )
 
     if action == "memory-search":
@@ -115,6 +119,10 @@ def dispatch(
             text,
             type=query_first(query, "type"),
             limit=_maybe_int(query_first(query, "limit")),
+            priority=query_first(query, "priority"),
+            origin=query_first(query, "origin"),
+            workspace=query_first(query, "workspace"),
+            order=query_first(query, "order") or "created",
         )
 
     if action == "memory-get":
@@ -133,6 +141,10 @@ def dispatch(
         return operations.list_episodes(
             session_id=query_first(query, "session_id"),
             limit=_maybe_int(query_first(query, "limit")),
+            origin=query_first(query, "origin"),
+            workspace=query_first(query, "workspace"),
+            q=query_first(query, "q"),
+            order=query_first(query, "order") or "created",
         )
 
     if action == "episode-get":
@@ -153,6 +165,7 @@ def dispatch(
             subject=payload.get("subject", ""),
             predicate=payload.get("predicate", ""),
             metadata=payload.get("metadata"),
+            workspace=payload.get("workspace"),
         )
 
     if action == "memory-update":

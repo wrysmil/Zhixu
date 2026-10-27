@@ -102,9 +102,12 @@ def build_memory_operations(
     *,
     workspace_id: str,
     workspace_path: Path,
+    session_metadata: Callable[[str], dict[str, Any] | None] | None = None,
 ) -> MemorySettingsOperations:
     """Wire the real ``memory_api`` actions to a workspace-scoped database."""
-    services = MemoryServices.for_workspace(workspace_id, workspace_path)
+    services = MemoryServices.for_workspace(
+        workspace_id, workspace_path, session_metadata=session_metadata,
+    )
     return MemorySettingsOperations(
         list_memories=partial(memory_api.list_memories_payload, services),
         search_memories=partial(memory_api.search_memories_payload, services),
@@ -766,6 +769,9 @@ def build_gateway_services(
         memory_operations=build_memory_operations(
             workspace_id="default",
             workspace_path=workspace_path,
+            session_metadata=(
+                session_manager.read_session_metadata if session_manager is not None else None
+            ),
         ),
         identity_operations=build_identity_operations(
             workspace_id="default",

@@ -31,11 +31,11 @@ def test_sync_state_records_error(tmp_path):
 
 
 def test_schema_version_bumped(tmp_path):
-    """ensure_schema 后 _schema_meta.version 必须是 "2"。"""
+    """ensure_schema 后 _schema_meta.version 必须是 "3"（episodes 增加 workspace_id 列）。"""
     db = MemoryDatabase(tmp_path)
     db.ensure_schema()
     with db.connect() as conn:
         row = conn.execute(
             "SELECT value FROM _schema_meta WHERE key = 'version'"
         ).fetchone()
-    assert row[0] == "2"
+    assert row[0] == "3"

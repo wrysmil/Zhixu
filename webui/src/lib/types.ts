@@ -1815,7 +1815,31 @@ export type MemoryPriority = "short_term" | "long_term";
 
 export type EpisodeOutcome = "completed" | "partial" | "failed" | "ongoing";
 
-export interface MemoryPayload {
+export type MemoryOrigin = "ai" | "manual" | "unknown";
+
+export interface MemoryWorkspace {
+  id: string;
+  name: string;
+  path: string;
+}
+
+export interface MemoryPresentation {
+  origin_kind?: MemoryOrigin;
+  generation_method?: MemoryOrigin;
+  trigger_mode?: "automatic" | "manual" | "unknown";
+  trigger_reason?: string;
+  workspaces?: MemoryWorkspace[];
+}
+
+export interface MemoryListResult<T> {
+  items: T[];
+  total?: number;
+  source_counts?: Record<MemoryOrigin | "all", number>;
+  workspace_options?: MemoryWorkspace[];
+  scope?: "current_store";
+}
+
+export interface MemoryPayload extends MemoryPresentation {
   id: string;
   content: string;
   type: MemoryType;
@@ -1839,7 +1863,7 @@ export interface MemoryPayload {
   metadata: Record<string, unknown>;
 }
 
-export interface EpisodePayload {
+export interface EpisodePayload extends MemoryPresentation {
   id: string;
   session_id: string;
   summary: string;
@@ -1855,6 +1879,7 @@ export interface EpisodePayload {
   tags: string[];
   importance_score: number;
   access_count: number;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ScratchpadPayload {

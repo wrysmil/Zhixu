@@ -74,8 +74,8 @@ export function MemorySection({
     : "Save useful details from chats for future conversations. You can still review and manage saved content when this is off.";
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-border/60 pb-3">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border/60 pb-2">
         <SegmentedControl
           mode="tabs"
           ariaLabel={tx("settings.memory.tabsLabel", "Memory sections")}
