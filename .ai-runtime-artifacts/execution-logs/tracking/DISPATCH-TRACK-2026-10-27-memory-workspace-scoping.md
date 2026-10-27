@@ -202,3 +202,30 @@ Next: WU-01c + WU-01d 返回 → 跑 tests/memory 全量 → 顺序派 WU-02/03/
 
 
 
+
+---
+
+## 恢复批次（2026-10-27 会话恢复）
+
+[2026-10-27 22:05] RESUME | Leader | Status: completed
+Detail: 依据 `.ai-runtime-artifacts/execution-logs/HANDOFF.md`（status: in-progress）恢复。先 `git fetch --all --prune` + 拉取 `harness/agent-evaluation-calibration`（1fcc74d→2b447c6，8 commits，+5462/-1108），并快进 `feature/memory-system`（3bbaef5→b02b5d7，78 commits）；`git worktree prune` 清掉 5 条失效 worktree 记录。工作区干净（`nanobot/ webui/ tests/` 无未提交改动）
+GROUP: 2 | WU: 全批 | ITER: 1 | STEP: baseline-check
+State: WU-01(b/c/d) 已落地并提交（1290f86 / 2630a7c）；WU-02/03/04/05 经逐文件核实**全部未开工**（extractor 无行归属打标；retrieval/agent 无 workspace_ids 透传；memory_api 仍按 store 标签过滤；前端仍用 value="" / value="unassigned" 旧口径）
+Next: 派发 WU-02/03/04/05
+
+[2026-10-27 22:08] DISPATCH-GROUP-2 | Leader | Status: started
+Detail: **并行度恢复为 4 路**。dispatch 原定「顺序执行」的理由是 worktree 播种/移植机制，该机制已于 19:55 随 WU-01c/01d 取消（代码全部落在主 checkout 当前分支）；dispatch §并行边界表的文件归属表经复核**互不相交**，故按 AGENTS.md「独立并行子任务」改回并行。写域互斥：WU-02{extractor,provenance,test_extractor_workspace} / WU-03{retrieval/**,agent/context,agent/loop,agent/tools/memory_search,tests} / WU-04{webui/memory_api,memory_presentation,memory_routes,session_workbench,memory/repository(update_memory),tests/webui} / WU-05{webui/src/**}
+GROUP: 2 | WU: WU-02, WU-03, WU-04, WU-05 | ITER: 1 | STEP: implement
+Tests: 基线 tests/memory+test_workspace_identity = 925 passed（交接文档 §2）
+Sub-agents: 4
+Execution: Codex native subagent（agent_type=default, model=gpt-6.1-sol, reasoning=high）；**禁用 executor 角色**——其锁定 gpt-5.2-codex，ChatGPT 账户不支持（见本文件下方「模型路由事故」）
+Closeout: collective-test=<pending> verdict=pending | code-review=<pending> verdict=pending | status=in-progress
+Next: 等 4 路返回 → Leader 逐路审查 diff → 串行跑全量 pytest + 前端 vitest/build → 尾盘三层审查 → 落盘 verification/collective-test/reviews
+
+### 本批次执行约束（已写进每个 worker 的 prompt）
+
+- 禁止 `git commit` / `push` / `add` / `stash` / `checkout --` / `restore` / `reset`；禁止整文件覆盖式重写（并行会话在同仓库作业）。
+- 必须 TDD：先红后绿，回报里带先红/后绿的真实命令与输出。
+- worker 不写 `.ai-runtime-artifacts/` 产物（Leader 统一落盘）。
+- `bun` 本机不可用 → 前端用 `npx vitest run`。
+- 仓库根 `memory/state.db` 是被跟踪的运行时二进制库，跑测会改动它 → 不进任何提交。

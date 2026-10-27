@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Callable
 
@@ -90,6 +91,7 @@ class RetrievalEngine:
         active_persona: Any = None,
         max_tokens: int | None = None,
         precomputed_keywords: list[str] | None = None,
+        workspace_ids: Sequence[str] | None = None,
     ) -> str:
         """执行检索；gate skip / 无候选时返回 ``""``。
 
@@ -102,6 +104,7 @@ class RetrievalEngine:
             active_persona=active_persona,
             max_tokens=max_tokens,
             precomputed_keywords=precomputed_keywords,
+            workspace_ids=workspace_ids,
         )
         return block
 
@@ -113,6 +116,7 @@ class RetrievalEngine:
         active_persona: Any = None,
         max_tokens: int | None = None,
         precomputed_keywords: list[str] | None = None,
+        workspace_ids: Sequence[str] | None = None,
     ) -> tuple[str, list[str]]:
         """执行检索并同时返回 ``(注入块, 本次注入的 memory_id 列表)``。
 
@@ -159,6 +163,7 @@ class RetrievalEngine:
                 keywords=keywords,
                 limit=_SEMANTIC_LIMIT,
                 compute_recency=recency,
+                workspace_ids=workspace_ids,
             )
         )
         eps_task = asyncio.create_task(
@@ -169,6 +174,7 @@ class RetrievalEngine:
                 keywords=keywords,
                 limit=_EPISODES_LIMIT,
                 compute_recency=recency,
+                workspace_ids=workspace_ids,
             )
         )
         rec_task = asyncio.create_task(
@@ -179,6 +185,7 @@ class RetrievalEngine:
                 keywords=keywords,
                 limit=_RECENT_LIMIT,
                 compute_recency=recency,
+                workspace_ids=workspace_ids,
             )
         )
         att_task = asyncio.create_task(

@@ -12,7 +12,7 @@ import logging
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 from loguru import logger
 
@@ -29,6 +29,7 @@ from nanobot.memory.repository import (
     get_episode,
     get_memory,
     get_scratchpad,
+    known_workspace_ids,
     list_episodes,
     list_memories,
     upsert_scratchpad,
@@ -108,6 +109,7 @@ def memory_payload(m: Memory, context: PresentationContext | None = None) -> dic
 def episode_payload(ep: Episode, context: PresentationContext | None = None) -> dict[str, Any]:
     return {
         "id": ep.id,
+        "workspace_id": getattr(ep, "workspace_id", "default"),
         "session_id": ep.session_id,
         "summary": ep.summary,
         "goal": ep.goal,
@@ -228,7 +230,7 @@ def _read_presentation(
     services: MemoryServices,
 ) -> tuple[list[Memory], list[Episode], PresentationContext]:
     with services.database.connect() as conn:
-        rows = list_memories(conn, workspace_id=services.workspace_id)
+        rows = list_memories(conn)
         episodes = [ep for ep in list_episodes(conn) if episode_in_store(ep, services)]
     return rows, episodes, PresentationContext(services, episodes)
 
@@ -246,7 +248,7 @@ def _filtered_result(
 def fetch_memory_payload(services: MemoryServices, memory_id: str) -> dict[str, Any]:
     with services.database.connect() as conn:
         row = get_memory(conn, memory_id)
-    if row is None or row.workspace_id != services.workspace_id:
+    if row is None:
         raise WebUIMemoryError("memory not found", status=404)
     _, _, context = _read_presentation(services)
     return {"memory": memory_payload(row, context)}
@@ -412,7 +414,7 @@ def stats_payload(
     counters: dict[str, int] = {t.value: 0 for t in MemoryType}
     total = 0
     with services.database.connect() as conn:
-        rows = list_memories(conn, workspace_id=services.workspace_id)
+        rows = list_memories(conn)
     for r in rows:
         counters[r.type.value] = counters.get(r.type.value, 0) + 1
         total += 1
@@ -593,14 +595,16 @@ def create_memory(
         *[memory_payload(item, context) for item in memories],
         *[episode_payload(item, context) for item in episodes],
     ])
-    if workspace is None or workspace == "":
-        selected_workspaces = workspace_options(services, [])
-    elif workspace == "unassigned":
-        selected_workspaces = []
-    else:
+    with services.database.connect() as conn:
+        known = known_workspace_ids(conn)
+    if workspace in (None, "", "unassigned", "default"):
+        row_workspace_id = "default"
+        selected_workspaces: list[dict[str, str]] = []
+    elif workspace in known:
+        row_workspace_id = workspace
         selected_workspaces = [option for option in options if option["id"] == workspace]
-        if not selected_workspaces:
-            raise WebUIMemoryError("invalid workspace")
+    else:
+        raise WebUIMemoryError("invalid workspace")
     saved_metadata = dict(metadata or {})
     saved_metadata["provenance"] = {
         "generation_method": "manual", "trigger_mode": "manual", "trigger_reason": "manual",
@@ -619,7 +623,7 @@ def create_memory(
         predicate=predicate,
         metadata=saved_metadata,
         source="manual",
-        workspace_id=services.workspace_id,
+        workspace_id=row_workspace_id,
         created_at=now,
         updated_at=now,
     )
@@ -644,7 +648,7 @@ def fetch_and_index(services: MemoryServices, memory_id: str) -> Memory:
     """
     with services.database.connect() as conn:
         row = get_memory(conn, memory_id)
-    if row is None or row.workspace_id != services.workspace_id:
+    if row is None:
         raise WebUIMemoryError("memory not found", status=404)
     index_memory_best_effort(row)
     return row
@@ -662,6 +666,7 @@ def update_memory(
     subject: str | None = None,
     predicate: str | None = None,
     metadata: dict[str, Any] | None = None,
+    workspace: str | None = None,
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {}
     if content is not None:
@@ -686,18 +691,45 @@ def update_memory(
         kwargs["subject"] = subject
     if predicate is not None:
         kwargs["predicate"] = predicate
+    options: list[dict[str, str]] = []
+    if workspace not in (None, "", "unassigned", "default"):
+        memories, episodes, context = _read_presentation(services)
+        options = workspace_options(services, [
+            *[memory_payload(item, context) for item in memories],
+            *[episode_payload(item, context) for item in episodes],
+        ])
     try:
         with services.database.connect() as conn:
             existing = get_memory(conn, memory_id)
-            if existing is None or existing.workspace_id != services.workspace_id:
+            if existing is None:
                 raise WebUIMemoryError("memory not found", status=404)
             if metadata is not None:
                 merged_metadata = {**existing.metadata, **metadata}
-                # Editing content cannot change the immutable generation provenance.
+                # 普通元数据编辑不能覆盖原始生成来源。
                 if "provenance" in existing.metadata:
                     merged_metadata["provenance"] = existing.metadata["provenance"]
                 else:
                     merged_metadata.pop("provenance", None)
+                kwargs["metadata"] = merged_metadata
+            if workspace is not None:
+                known = known_workspace_ids(conn)
+                if workspace in ("", "unassigned", "default"):
+                    new_workspace_id = "default"
+                    new_workspaces: list[dict[str, str]] = []
+                elif workspace in known:
+                    new_workspace_id = workspace
+                    new_workspaces = [option for option in options if option["id"] == workspace]
+                else:
+                    raise WebUIMemoryError("invalid workspace")
+                merged_metadata = dict(kwargs.get("metadata", existing.metadata))
+                existing_provenance = existing.metadata.get("provenance")
+                provenance = (
+                    dict(cast(dict[str, Any], existing_provenance))
+                    if isinstance(existing_provenance, dict) else {}
+                )
+                provenance["workspaces"] = new_workspaces
+                merged_metadata["provenance"] = provenance
+                kwargs["workspace_id"] = new_workspace_id
                 kwargs["metadata"] = merged_metadata
             _repo_update_memory(conn, memory_id, **kwargs)
     except KeyError:
@@ -712,7 +744,7 @@ def update_memory(
 def delete_memory(services: MemoryServices, memory_id: str) -> dict[str, Any]:
     with services.database.connect() as conn:
         existing = get_memory(conn, memory_id)
-        if existing is None or existing.workspace_id != services.workspace_id:
+        if existing is None:
             raise WebUIMemoryError("memory not found", status=404)
         _repo_delete_memory(conn, memory_id)
     # 向量挂钩：SQLite 删除成功后 best-effort 移除索引

@@ -110,6 +110,14 @@ def _resolve(workspace: Path) -> str:
     elif marker.exists():
         logger.warning("workspace identity marker is invalid, rotating: workspace={}", workspace)
     created = secrets.token_hex(16)
+    if not workspace.is_dir():
+        # 工作区目录不存在 → 绝不为了写 marker 而创建它（``mkdir(parents=True)``
+        # 会凭空造出目录树：POSIX 上 ``C:\Work\A`` 这类路径会被当成相对目录，
+        # 直接在进程 cwd 里长出一层同名目录）。退化为 path 哈希。
+        logger.warning(
+            "workspace directory does not exist, using path hash: workspace={}", workspace
+        )
+        return path_fallback_id(workspace)
     try:
         _write_marker(marker, created)
     except OSError as exc:

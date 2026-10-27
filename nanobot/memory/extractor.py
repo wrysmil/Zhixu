@@ -55,6 +55,7 @@ from nanobot.memory.prompts import (
     EPISODE_EXTRACTION_PROMPT,
     SEMANTIC_EXTRACTION_PROMPT,
 )
+from nanobot.memory.provenance import extraction_provenance, session_memory_workspace_id
 from nanobot.memory.repository import (
     add_episode,
     add_memory,
@@ -761,7 +762,10 @@ class MemoryExtractor:
         # LLM 抽取
         llm_result = await self._llm_extract(session, system)
 
-        existing_memories = self._load_existing_memories(llm_result.memories)
+        row_workspace_id = self._row_workspace_id(session)
+        existing_memories = self._load_existing_memories(
+            llm_result.memories, workspace_id=row_workspace_id
+        )
 
         # 去重
         filtered = self._apply_filters(llm_result, existing_memories)
@@ -796,7 +800,8 @@ class MemoryExtractor:
                 LLMMemoryItem(content=fragment, type=_QUICK_FACT_TYPE)
                 for fragment in fragments
             ]
-            existing = self._load_existing_memories(candidates)
+            row_workspace_id = self._row_workspace_id(session)
+            existing = self._load_existing_memories(candidates, workspace_id=row_workspace_id)
             filtered = self._apply_filters(
                 LLMExtractionResult(memories=candidates),
                 existing,
@@ -862,7 +867,10 @@ class MemoryExtractor:
             llm_result = await self._llm_extract(
                 slice_session, system, cited_memories=cited_memories
             )
-            existing = self._load_existing_memories(llm_result.memories)
+            row_workspace_id = self._row_workspace_id(slice_session)
+            existing = self._load_existing_memories(
+                llm_result.memories, workspace_id=row_workspace_id
+            )
             filtered = self._apply_filters(llm_result, existing)
             persisted = self._persist(filtered, slice_session, source=source)
         except Exception as exc:  # noqa: BLE001 - 增量抽取失败绝不能上抛
@@ -1291,7 +1299,14 @@ class MemoryExtractor:
     # 阶段3：防污染过滤
     # ------------------------------------------------------------------
 
-    def _load_existing_memories(self, candidates: list[LLMMemoryItem]) -> list[Memory]:
+    @staticmethod
+    def _row_workspace_id(session: Session) -> str:
+        """会话工作区对应的记忆隔离键；无工作区时归全局。"""
+        return session_memory_workspace_id(session)
+
+    def _load_existing_memories(
+        self, candidates: list[LLMMemoryItem], *, workspace_id: str
+    ) -> list[Memory]:
         types: set[str] = set()
         for item in candidates:
             type_key = item.type.strip().lower()
@@ -1307,7 +1322,7 @@ class MemoryExtractor:
                     list_memories(
                         conn,
                         type=MemoryType(type_key),
-                        workspace_id=self.workspace_id,
+                        workspace_id=workspace_id,
                         limit=self.EXISTING_MEMORY_LIMIT,
                     )
                 )
@@ -1465,6 +1480,8 @@ class MemoryExtractor:
         conn: sqlite3.Connection,
         item: LLMMemoryItem,
         provenance: dict[str, Any] | None = None,
+        *,
+        workspace_id: str,
     ) -> str | None:
         """命中同一 ``subject``+``predicate`` 的既有画像时增量合并。
 
@@ -1481,7 +1498,7 @@ class MemoryExtractor:
         绝不让画像合并失败阻断整批落库。
         """
         existing = find_memory_by_subject_predicate(
-            conn, item.subject, item.predicate, workspace_id=self.workspace_id
+            conn, item.subject, item.predicate, workspace_id=workspace_id
         )
         if existing is None:
             return None
@@ -1534,10 +1551,9 @@ class MemoryExtractor:
         session: Session,
         source: str,
     ) -> PersistenceResult:
-        from nanobot.memory.provenance import extraction_provenance
-
         now = _now_iso()
-        provenance = extraction_provenance(session, source)
+        row_workspace_id = self._row_workspace_id(session)
+        provenance = extraction_provenance(session, source, workspace_id=row_workspace_id)
         provenance["store_workspace_id"] = self.workspace_id
         saved_memory_ids: list[str] = []
         saved_episode_ids: list[str] = []
@@ -1551,7 +1567,9 @@ class MemoryExtractor:
             for item in filtered.memories:
                 # S3 Track 1：命中同一 subject+predicate 的既有画像 → 增量合并，
                 # 不再新建。修复「同一偏好被反复抽成多条」的根因。
-                merged_id = self._merge_into_existing(conn, item, provenance)
+                merged_id = self._merge_into_existing(
+                    conn, item, provenance, workspace_id=row_workspace_id
+                )
                 if merged_id is not None:
                     saved_memory_ids.append(merged_id)
                     if item.subject:
@@ -1569,7 +1587,7 @@ class MemoryExtractor:
                     tags=list(item.tags),
                     subject=item.subject,
                     predicate=item.predicate,
-                    workspace_id=self.workspace_id,
+                    workspace_id=row_workspace_id,
                     user_id=self.user_id,
                     created_at=now,
                     updated_at=now,
@@ -1625,6 +1643,7 @@ class MemoryExtractor:
                 record = Episode(
                     id=episode_id,
                     session_id=session.key,
+                    workspace_id=row_workspace_id,
                     summary=episode.summary if episode is not None else "",
                     goal=episode.goal if episode is not None else "",
                     outcome=_normalize_outcome(episode.outcome if episode is not None else None),

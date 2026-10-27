@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Callable
 
@@ -30,6 +31,7 @@ def search_episodes(
     keywords: list[str] | None = None,
     limit: int,
     compute_recency: Callable[[datetime], float],
+    workspace_ids: Sequence[str] | None = None,
 ) -> list[RetrievalCandidate]:
     """按 query 中的实体名关联 Episode，命中固定给 0.6 相关性。"""
     entities = _extract_query_entities(query)[:3]
@@ -41,7 +43,10 @@ def search_episodes(
     entities = entities[:3]
     candidates: list[RetrievalCandidate] = []
     for entity in entities:
-        eps = store.search_episodes(entity=entity, limit=3)
+        eps = store.search_episodes(
+            entity=entity, limit=3,
+            **({"workspace_ids": workspace_ids} if workspace_ids is not None else {}),
+        )
         for ep in eps:
             candidates.append(
                 RetrievalCandidate(

@@ -7,6 +7,7 @@ This is the "active recall" path (vs. Layer 4 automatic injection):
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Callable, ClassVar
 
 from nanobot.agent.tools.base import Tool, tool_parameters
@@ -56,6 +57,7 @@ class MemorySearchTool(Tool):
         self,
         retrieval_engine_provider: Callable[[], "RetrievalEngine | None"],
         sessions: "SessionManager | None" = None,
+        workspace_ids_provider: Callable[[str], Sequence[str]] | None = None,
     ) -> None:
         self._get_engine = retrieval_engine_provider
         # RCA 2026-09-15 根因 3：此前 ``execute`` 里判断的是
@@ -65,6 +67,7 @@ class MemorySearchTool(Tool):
         # ``short_without_context`` 门禁。改为在 ``create`` 阶段经
         # ``ToolContext.sessions`` 注入，与 ``long_task.py::_GoalToolsMixin`` 同模式。
         self._sessions = sessions
+        self._workspace_ids_provider = workspace_ids_provider
 
     @classmethod
     def create(cls, ctx: ToolContext) -> Tool:
@@ -74,9 +77,16 @@ class MemorySearchTool(Tool):
             attrs = getattr(ctx, "attributes", {})
             return attrs.get("retrieval_engine")
 
+        def workspace_ids_provider(session_key: str) -> tuple[str, ...]:
+            resolve = getattr(ctx, "attributes", {}).get("memory_workspace_ids")
+            if resolve is None:
+                return ("default",)
+            return tuple(resolve(session_key))
+
         return cls(
             retrieval_engine_provider=provider,
             sessions=getattr(ctx, "sessions", None),
+            workspace_ids_provider=workspace_ids_provider,
         )
 
     @classmethod
@@ -101,10 +111,20 @@ class MemorySearchTool(Tool):
                 query=query,
                 recent_messages=recent,
                 max_tokens=max_tokens,
+                workspace_ids=self._workspace_ids_for(session_key),
             )
             return result if result else ""
         except Exception:
             return ""
+
+    def _workspace_ids_for(self, session_key: str | None) -> tuple[str, ...]:
+        """解析当前会话可见集合，解析器缺失或异常时只检索全局。"""
+        if self._workspace_ids_provider is None or not session_key:
+            return ("default",)
+        try:
+            return tuple(self._workspace_ids_provider(session_key))
+        except Exception:
+            return ("default",)
 
     @property
     def read_only(self) -> bool:

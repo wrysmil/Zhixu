@@ -140,7 +140,8 @@ def test_workbench_unavailable_memory_is_explicit_and_bounded(tmp_path):
     assert "secret" not in json.dumps(result)
 
 
-def test_real_memory_store_excludes_unrelated_sessions(tmp_path):
+@pytest.mark.parametrize("workspace_id", ["default", "ws-a"])
+def test_workbench_memory_items_carry_workspace(tmp_path, workspace_id):
     from functools import partial
 
     from nanobot.memory.models import Episode, Memory, ScratchpadEntry
@@ -152,7 +153,8 @@ def test_real_memory_store_excludes_unrelated_sessions(tmp_path):
     services = MemoryServices.for_workspace("default", tmp_path)
     with services.database.connect() as conn:
         for key in ("a", "b"):
-            add_memory(conn, Memory(id="memory-" + key, content="memory " + key, created_at="now"))
+            add_memory(conn, Memory(id="memory-" + key, content="memory " + key,
+                                   created_at="now", workspace_id=workspace_id))
             add_episode(conn, Episode(id="episode-" + key, session_id="websocket:" + key,
                 summary="episode " + key, started_at="now", ended_at="now", linked_memory_ids=["memory-" + key]))
             upsert_scratchpad(conn, ScratchpadEntry(user_id=key, workspace_id="default",
@@ -167,6 +169,10 @@ def test_real_memory_store_excludes_unrelated_sessions(tmp_path):
     assert [row["content"] for row in result["memories"]] == ["focus a", "memory a"]
     assert "memory b" not in json.dumps(result)
     assert "focus b" not in json.dumps(result)
+    assert result["memories"][0]["workspace_id"] == "default"
+    assert result["memories"][0]["is_global"] is True
+    assert result["memories"][1]["workspace_id"] == workspace_id
+    assert result["memories"][1]["is_global"] is (workspace_id == "default")
 
 
 def test_projection_bounds_historical_records_and_content(tmp_path):

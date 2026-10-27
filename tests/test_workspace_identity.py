@@ -84,6 +84,24 @@ def test_copied_workspace_gets_a_new_identity(tmp_path: Path) -> None:
     assert workspace_identity_id(project) == original
 
 
+def test_missing_workspace_is_not_created_on_disk(tmp_path: Path) -> None:
+    """不存在的工作区不得被 marker 写入凭空造出来。
+
+    ``_write_marker`` 用 ``mkdir(parents=True)`` 建 ``.nanobot/``：如果工作区
+    目录本身不存在，就会连工作区一起凭空创建——POSIX 上 ``C:\\Work\\A`` 这类
+    Windows 路径被 ``pathlib`` 当成相对目录，直接在进程 cwd 里长出一层同名
+    目录。身份解析必须退化为 path 哈希，且不碰文件系统。
+    """
+    missing = tmp_path / "does-not-exist"
+
+    identity = workspace_identity_id(missing)
+
+    assert _FALLBACK_RE.fullmatch(identity)
+    assert identity == path_fallback_id(missing)
+    assert not missing.exists()
+    assert not workspace_marker_path(missing).exists()
+
+
 def test_unwritable_workspace_falls_back_to_path_hash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

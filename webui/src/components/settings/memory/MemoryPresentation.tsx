@@ -100,7 +100,6 @@ export function MemoryFilters({ query, onQuery, origin, onOrigin, workspace, onW
         <select aria-label={text("工作区", "Workspace")} className="min-w-0 max-w-36 bg-transparent text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={workspace} onChange={(event) => onWorkspace(event.target.value)}>
           <option value="">{text("全部工作区", "All workspaces")}</option>
           {result.workspace_options?.map((option) => <option key={option.id} value={option.id} title={option.path}>{option.name}</option>)}
-          <option value="unassigned">{text("全局记忆", "Global memory")}</option>
         </select>
       </label>
       {children}

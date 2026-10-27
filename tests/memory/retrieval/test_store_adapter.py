@@ -321,3 +321,58 @@ async def test_engine_channel_failure_is_logged_not_silent():
         "retrieval channel semantic failed" in m and "AttributeError" in m
         for m in messages
     ), f"通道异常未被记录：{messages}"
+
+
+@pytest.mark.parametrize("vector_only", [False, True])
+@pytest.mark.parametrize("workspace_ids", [None, (), ("default", "ws-a")])
+def test_search_semantic_scored_filters_by_workspace_ids(tmp_path, vector_only, workspace_ids):
+    """FTS5 和向量独有候选均按 SQLite 权威归属过滤，向量不传 where。"""
+    database = MemoryDatabase(tmp_path)
+    database.ensure_schema()
+    with database.connect() as conn:
+        for index, workspace in enumerate(("default", "ws-a", "ws-b")):
+            add_memory(conn, Memory(
+                id=f"m-{index}",
+                content="创作灵感 共享",
+                type=MemoryType.FACT,
+                created_at=_now_iso(),
+                updated_at=_now_iso(),
+                workspace_id=workspace,
+            ))
+
+    class _Vectors:
+        def search(self, query, *, limit):
+            return [(f"m-{index}", 0.9) for index in range(3)]
+
+    adapter = MemoryStoreAdapter(database, vector_store=_Vectors() if vector_only else None)
+    hits = adapter.search_semantic_scored(
+        "向量独有查询" if vector_only else "创作灵感",
+        limit=10,
+        workspace_ids=workspace_ids,
+    )
+    expected = {"default", "ws-a", "ws-b"} if workspace_ids is None else set(workspace_ids)
+    assert {mem.workspace_id for mem, _ in hits} == expected
+
+
+def test_episode_and_recent_queries_filter_by_workspace_ids(tmp_path):
+    """情节和近期通道复用 repository 的可见集合过滤。"""
+    database = MemoryDatabase(tmp_path)
+    database.ensure_schema()
+    with database.connect() as conn:
+        for index, workspace in enumerate(("default", "ws-a", "ws-b")):
+            add_memory(conn, Memory(
+                id=f"m-{index}", content="创作灵感", type=MemoryType.FACT,
+                created_at=_now_iso(), updated_at=_now_iso(),
+                importance_score=0.9, workspace_id=workspace,
+            ))
+            add_episode(conn, Episode(
+                id=f"e-{index}", session_id="s1", summary="创作灵感",
+                started_at=_now_iso(), ended_at=_now_iso(), workspace_id=workspace,
+            ))
+    adapter = MemoryStoreAdapter(database)
+    assert {row.id for row in adapter.search_episodes(
+        entity="创作灵感", workspace_ids=("default", "ws-a")
+    )} == {"e-0", "e-1"}
+    assert {row.id for row in adapter.query_semantic(
+        min_importance=0.6, since_days=3, limit=10, workspace_ids=("default", "ws-a")
+    )} == {"m-0", "m-1"}

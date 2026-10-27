@@ -67,6 +67,7 @@ def test_filters_compose_before_limit_and_counts_ignore_origin(services: MemoryS
 
 def test_workspaces_recover_only_from_saved_session_metadata_and_cache(services: MemoryServices):
     calls: list[str] = []
+    project = workspace_from_path("D:/projects/zhixu")
 
     def metadata(key: str) -> dict[str, object]:
         calls.append(key)
@@ -76,8 +77,8 @@ def test_workspaces_recover_only_from_saved_session_metadata_and_cache(services:
     seed(
         scoped,
         Episode("ep", "websocket:chat", "完成任务", "2026-10-27", "2026-10-27"),
-        memory("a", source_episode_id="ep"),
-        memory("b", source_episode_id="ep"),
+        memory("a", source_episode_id="ep", workspace_id=project["id"]),
+        memory("b", source_episode_id="ep", workspace_id=project["id"]),
         memory("unknown"),
     )
     result = memory_api.list_memories_payload(scoped)
@@ -87,7 +88,7 @@ def test_workspaces_recover_only_from_saved_session_metadata_and_cache(services:
     assert calls == ["websocket:chat"]
     selected = memory_api.list_memories_payload(scoped, workspace=workspace["id"])
     assert {item["id"] for item in selected["items"]} == {"a", "b"}
-    missing = memory_api.list_memories_payload(scoped, workspace="unassigned")
+    missing = memory_api.list_memories_payload(scoped, workspace="default")
     assert [item["id"] for item in missing["items"]] == ["unknown"]
 
 
@@ -125,11 +126,12 @@ def test_invalid_filter_rejected(services: MemoryServices, filters: dict[str, ob
         memory_api.list_memories_payload(services, **filters)  # type: ignore[arg-type]
 
 
-def test_manual_create_default_workspace_and_edit_preserves_provenance(services: MemoryServices):
+def test_manual_create_global_workspace_and_edit_preserves_provenance(services: MemoryServices):
     created = memory_api.create_memory(services, content="需要记住")
     row = created["memory"]
     assert row["trigger_mode"] == "manual"
-    assert row["workspaces"][0]["path"] == str(services.database.workspace)
+    assert row["workspace_id"] == "default"
+    assert row["workspaces"] == []
     updated = memory_api.update_memory(
         services, row["id"], content="编辑后的事实", metadata={"provenance": {"trigger_mode": "automatic"}},
     )
@@ -139,18 +141,15 @@ def test_manual_create_default_workspace_and_edit_preserves_provenance(services:
     assert unassigned["memory"]["workspaces"] == []
 
 
-def test_memory_get_update_delete_are_store_scoped(services: MemoryServices):
-    seed(services, memory("foreign", workspace_id="another-store"))
-    for action in (
-        lambda: memory_api.fetch_memory_payload(services, "foreign"),
-        lambda: memory_api.update_memory(services, "foreign", content="bad"),
-        lambda: memory_api.delete_memory(services, "foreign"),
-    ):
-        with pytest.raises(memory_api.WebUIMemoryError) as exc:
-            action()
-        assert exc.value.status == 404
+def test_memory_get_update_delete_accept_all_rows_in_database(services: MemoryServices):
+    seed(services, memory("project", workspace_id="another-workspace"))
+    assert memory_api.fetch_memory_payload(services, "project")["memory"]["workspace_id"] == "another-workspace"
+    updated = memory_api.update_memory(services, "project", content="changed")["memory"]
+    assert updated["workspace_id"] == "another-workspace"
+    assert updated["content"] == "changed"
+    assert memory_api.delete_memory(services, "project") == {"ok": True}
     with services.database.connect() as conn:
-        assert get_memory(conn, "foreign").content == "Python 项目约定"
+        assert get_memory(conn, "project") is None
 
 
 def test_search_combines_priority_origin_and_keeps_unknown_source(services: MemoryServices):
@@ -161,14 +160,41 @@ def test_search_combines_priority_origin_and_keeps_unknown_source(services: Memo
 
 
 def test_saved_project_snapshot_wins_over_changed_session(services: MemoryServices):
+    """已保存的项目快照优先于会话当前作用域（会话后来换了项目）。"""
     scoped = replace(services, session_metadata=lambda _: {
         "metadata": {"workspace_scope": {"project_path": "D:/projects/new"}},
     })
-    seed(scoped, memory("old", metadata={"provenance": {
+    original_id = workspace_from_path("D:/projects/original")["id"]
+    seed(scoped, memory("old", workspace_id=original_id, metadata={"provenance": {
         "session_id": "chat", "workspaces": [{"path": "D:/projects/original"}],
     }}))
     result = memory_api.fetch_memory_payload(scoped, "old")
     assert result["memory"]["workspaces"][0]["name"] == "original"
+
+
+def test_ownership_follows_column_not_snapshot(services: MemoryServices):
+    """归属以行的 ``workspace_id`` 列为准。
+
+    历史数据可能「列是全局、快照指向项目」：这类记忆实际全局可见，若按快照
+    显示成项目记忆就是误导（也会让旧快照 id 进筛选下拉却筛不出东西）。
+    """
+    seed(services, memory("legacy", metadata={"provenance": {
+        "session_id": "chat", "workspaces": [{"path": "D:/projects/original"}],
+    }}))
+    result = memory_api.fetch_memory_payload(services, "legacy")
+    assert result["memory"]["workspace_id"] == "default"
+    assert result["memory"]["workspaces"] == []
+
+
+def test_ownership_without_snapshot_falls_back_to_column_placeholder(
+    services: MemoryServices,
+) -> None:
+    """非全局行没有快照时，用归属列派生一个占位归属。"""
+    seed(services, memory("orphan", workspace_id="ws-a"))
+    result = memory_api.fetch_memory_payload(services, "orphan")
+    workspaces = result["memory"]["workspaces"]
+    assert [item["id"] for item in workspaces] == ["ws-a"]
+    assert workspaces[0]["name"].startswith("未登记工作区")
 
 
 def test_invalid_persisted_provenance_is_displayed_as_unknown_not_crash(services: MemoryServices):
@@ -222,12 +248,12 @@ def test_importance_order_preserves_combined_filters_and_counts(
     other = {"provenance": {"workspaces": [{"path": "D:/projects/other"}]}}
     seed(
         services,
-        memory("low", importance_score=0.1, metadata=provenance),
-        memory("high", importance_score=0.95, metadata=provenance),
-        memory("middle", importance_score=0.72, metadata=provenance),
-        memory("manual", source="manual", importance_score=1.0, metadata=provenance),
+        memory("low", importance_score=0.1, metadata=provenance, workspace_id=workspace["id"]),
+        memory("high", importance_score=0.95, metadata=provenance, workspace_id=workspace["id"]),
+        memory("middle", importance_score=0.72, metadata=provenance, workspace_id=workspace["id"]),
+        memory("manual", source="manual", importance_score=1.0, metadata=provenance, workspace_id=workspace["id"]),
         memory("other-project", importance_score=1.0, metadata=other),
-        memory("other-query", content="Rust", importance_score=1.0, metadata=provenance),
+        memory("other-query", content="Rust", importance_score=1.0, metadata=provenance, workspace_id=workspace["id"]),
     )
     filters = {
         "order": "importance", "origin": "ai", "workspace": workspace["id"],
@@ -249,21 +275,21 @@ def test_episode_importance_sort_works_with_combined_filters(services: MemorySer
         services,
         Episode(
             "low", "chat-a", "Python", "2026-10-27", "2026-10-27",
-            importance_score=0.12, metadata=provenance,
+            importance_score=0.12, metadata=provenance, workspace_id=workspace["id"],
         ),
         Episode(
             "high", "chat-b", "Python", "2026-10-26", "2026-10-26",
-            importance_score=0.91, metadata=provenance,
+            importance_score=0.91, metadata=provenance, workspace_id=workspace["id"],
         ),
         Episode(
             "manual", "chat-c", "Python", "2026-10-27", "2026-10-27",
-            importance_score=1.0, metadata={"provenance": {
+            importance_score=1.0, workspace_id=workspace["id"], metadata={"provenance": {
                 "workspaces": [workspace], "trigger_mode": "manual",
             }},
         ),
         Episode(
             "wrong-query", "chat-d", "Rust", "2026-10-27", "2026-10-27",
-            importance_score=1.0, metadata=provenance,
+            importance_score=1.0, metadata=provenance, workspace_id=workspace["id"],
         ),
     )
     result = memory_api.list_episodes_payload(
@@ -277,3 +303,32 @@ def test_episode_importance_sort_works_with_combined_filters(services: MemorySer
 def test_episode_rejects_unrecognized_sort(services: MemoryServices):
     with pytest.raises(memory_api.WebUIMemoryError):
         memory_api.list_episodes_payload(services, order="random")
+
+
+def test_workspace_options_keep_global_first_and_include_ids_without_snapshots(services: MemoryServices):
+    snapshot = {"id": "stable-id", "name": "AAA 项目", "path": "/projects/stable"}
+    seed(services,
+         memory("known", workspace_id="stable-id", metadata={"provenance": {"workspaces": [snapshot]}}),
+         memory("missing", workspace_id="no-snapshot"),
+         Episode("ep-only", "chat", "episode", "now", "now", workspace_id="episode-only"))
+    result = memory_api.list_memories_payload(services)
+    assert result["workspace_options"][0] == {"id": "default", "name": "全局记忆", "path": ""}
+    assert {item["id"] for item in result["workspace_options"]} == {
+        "default", "stable-id", "no-snapshot", "episode-only",
+    }
+    assert snapshot in result["workspace_options"]
+    missing = next(item for item in result["workspace_options"] if item["id"] == "no-snapshot")
+    assert missing == {"id": "no-snapshot", "name": "未登记工作区 no-snaps", "path": ""}
+
+
+def test_workspace_filter_uses_row_ownership_instead_of_snapshot(services: MemoryServices):
+    snapshot = {"id": "ws-a", "name": "项目 A", "path": "/projects/a"}
+    seed(services,
+         memory("global", metadata={"provenance": {"workspaces": [snapshot]}}),
+         memory("scoped", workspace_id="ws-a"))
+    result = memory_api.list_memories_payload(services, workspace="ws-a")
+    assert [item["id"] for item in result["items"]] == ["scoped"]
+    result = memory_api.list_memories_payload(services, workspace="default")
+    assert [item["id"] for item in result["items"]] == ["global"]
+    with pytest.raises(memory_api.WebUIMemoryError, match="invalid workspace"):
+        memory_api.list_memories_payload(services, workspace="unassigned")

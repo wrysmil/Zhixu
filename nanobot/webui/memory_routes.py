@@ -177,7 +177,7 @@ def dispatch(
             )
             if key in payload
         }
-        return operations.update_memory(_id(query, payload), **kwargs)
+        return operations.update_memory(_id(query, payload), workspace=payload.get("workspace"), **kwargs)
 
     if action == "memory-delete":
         return operations.delete_memory(_id(query, payload))

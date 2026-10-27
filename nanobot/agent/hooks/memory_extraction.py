@@ -212,6 +212,7 @@ class MemoryExtractionHook(AgentHook):
         idle_seconds: float | None = None,
         cited_memory_ids: list[str] | None = None,
         label: str = "",
+        workspace_scope: dict[str, str] | None = None,
     ) -> None:
         super().__init__()
         self._extractor = extractor
@@ -233,6 +234,13 @@ class MemoryExtractionHook(AgentHook):
         # that flipping it in the WebUI takes effect without restarting the
         # gateway.
         self._memory_enabled_provider = memory_enabled_provider
+        # 会话归属工作区（记忆隔离口径）。idle / 增量提取会**重建** Session，
+        # 若不把归属带过去，重建出来的 Session 没有 ``workspace_scope``，
+        # 提取落库会退化成全局记忆（workspace_id='default'）→ 其他工作区
+        # 也能召回本工作区的记忆（跨工作区泄漏）。
+        self._workspace_scope: dict[str, str] | None = (
+            dict(workspace_scope) if workspace_scope else None
+        )
 
         # WU-A: 允许通过构造参数覆盖 idle 阈值(供 AgentDefaults.memory_idle_seconds
         # 等配置源注入)。实例属性优先于类属性。
@@ -581,6 +589,12 @@ class MemoryExtractionHook(AgentHook):
         )
         await self._run_idle_extraction(context)
 
+    def _session_metadata(self) -> dict[str, Any]:
+        """重建 Session 时使用的元数据（携带归属工作区）。"""
+        if not self._workspace_scope:
+            return {}
+        return {"workspace_scope": dict(self._workspace_scope)}
+
     async def _run_idle_extraction(self, context: AgentRunHookContext) -> None:
         """构造 Session 并调用 ``MemoryExtractor.run_idle_extraction``。
 
@@ -589,6 +603,7 @@ class MemoryExtractionHook(AgentHook):
         session = Session(
             key=self._session_key,
             messages=[dict(message) for message in context.messages],
+            metadata=self._session_metadata(),
         )
         try:
             result = await self._extractor.run_idle_extraction(
@@ -621,6 +636,7 @@ class MemoryExtractionHook(AgentHook):
         session = Session(
             key=self._session_key,
             messages=[dict(message) for message in messages],
+            metadata=self._session_metadata(),
         )
         try:
             await asyncio.wait_for(
@@ -653,6 +669,7 @@ def create_memory_extraction_hook_factory(
     memory_enabled_provider: Callable[[], bool] | None = None,
     label_provider: Callable[[str], str] | None = None,
     idle_seconds: float | None = None,
+    workspace_scope_provider: Callable[[AgentTurnHookContext], dict[str, str] | None] | None = None,
 ) -> AgentTurnHookFactory:
     """返回 ``AgentTurnHookFactory``：从 ``AgentTurnHookContext`` 取 ``session_key``
     构造 :class:`MemoryExtractionHook`。
@@ -731,6 +748,16 @@ def create_memory_extraction_hook_factory(
                     session_key,
                 )
 
+        workspace_scope: dict[str, str] | None = None
+        if workspace_scope_provider is not None:
+            try:
+                workspace_scope = workspace_scope_provider(context)
+            except Exception:
+                logger.exception(
+                    "memory extraction hook factory: workspace_scope_provider failed for {}",
+                    session_key,
+                )
+
         return MemoryExtractionHook(
             extractor,
             session_key,
@@ -740,6 +767,7 @@ def create_memory_extraction_hook_factory(
             idle_seconds=idle_seconds,
             cited_memory_ids=list(context.cited_memory_ids or []),
             label=label,
+            workspace_scope=workspace_scope,
         )
 
     return _factory

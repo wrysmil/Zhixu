@@ -50,22 +50,31 @@ def workspace_from_path(path: str) -> dict[str, str]:
     }
 
 
-def extraction_provenance(session: Session, source: str) -> dict[str, Any]:
-    """Capture the actual trigger and workspace at extraction time."""
+def extraction_provenance(
+    session: Session, source: str, *, workspace_id: str | None = None
+) -> dict[str, Any]:
+    """捕获提取来源与工作区快照，显式归全局时不保留工作区。
+
+    调用方传入落库隔离键时，快照 id 与该键一致；省略参数保留旧快照行为。
+    """
     trigger_mode = (
         "automatic" if source in _AUTOMATIC_SOURCES
         else "manual" if source == "manual"
         else "unknown"
     )
     workspaces: list[dict[str, str]] = []
-    scope = session.metadata.get("workspace_scope")
-    if isinstance(scope, dict):
-        project_path = cast(dict[str, Any], scope).get("project_path")
-        if isinstance(project_path, str):
-            try:
-                workspaces.append(workspace_from_path(project_path))
-            except ValueError:
-                pass
+    if workspace_id != GLOBAL_MEMORY_WORKSPACE_ID:
+        scope = session.metadata.get("workspace_scope")
+        if isinstance(scope, dict):
+            project_path = cast(dict[str, Any], scope).get("project_path")
+            if isinstance(project_path, str):
+                try:
+                    snapshot = workspace_from_path(project_path)
+                    if workspace_id is not None:
+                        snapshot["id"] = workspace_id
+                    workspaces.append(snapshot)
+                except ValueError:
+                    pass
     return {
         "origin_kind": "manual" if trigger_mode == "manual" else "ai",
         "generation_method": "ai",

@@ -1820,7 +1820,7 @@ export type MemoryOrigin = "ai" | "manual" | "unknown";
 export interface MemoryWorkspace {
   id: string;
   name: string;
-  path: string;
+  path?: string;
 }
 
 export interface MemoryPresentation {
@@ -1857,7 +1857,7 @@ export interface MemoryPayload extends MemoryPresentation {
   superseded_by: string | null;
   source_episode_id: string | null;
   scope: string;
-  workspace_id: string;
+  workspace_id?: string;
   created_at: string;
   updated_at: string;
   metadata: Record<string, unknown>;
@@ -1865,6 +1865,7 @@ export interface MemoryPayload extends MemoryPresentation {
 
 export interface EpisodePayload extends MemoryPresentation {
   id: string;
+  workspace_id?: string;
   session_id: string;
   summary: string;
   goal: string;

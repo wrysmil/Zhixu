@@ -1,6 +1,7 @@
 """近期通道：近 3 天 + importance ≥ 0.6。recency < 0.3 跳过。命中关键词 0.5~0.7；未命中 0.2。"""
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Callable
 
@@ -19,12 +20,14 @@ def search_recent(
     keywords: list[str],
     limit: int,
     compute_recency: Callable[[datetime], float],
+    workspace_ids: Sequence[str] | None = None,
 ) -> list[RetrievalCandidate]:
     """召回近 3 天的高重要性记忆；recency 过低直接丢弃，命中关键词加权。"""
     memories = store.query_semantic(
         min_importance=_MIN_IMPORTANCE,
         since_days=3,
         limit=limit * 2,
+        **({"workspace_ids": workspace_ids} if workspace_ids is not None else {}),
     )
     candidates: list[RetrievalCandidate] = []
     for mem in memories:

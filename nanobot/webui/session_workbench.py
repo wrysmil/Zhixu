@@ -159,7 +159,8 @@ def session_workbench_payload(
                                      "title": _text(row.get("current_focus"), 100) or "工作记忆",
                                      "content": content, "source": "session_scratchpad",
                                      "updated_at": _text(row.get("updated_at"), 80) or None,
-                                     "persisted": True})
+                                     "persisted": True,
+                                     "workspace_id": "default", "is_global": True})
         except Exception:
             unavailable("working_memory")
         try:
@@ -181,12 +182,15 @@ def session_workbench_payload(
                         unavailable("linked_memory")
                         continue
                     if row is not None and _text(row.get("content")):
+                        workspace_id = _text(row.get("workspace_id"), 64) or "default"
                         memories.append({"id": _text(row.get("id"), 100), "kind": "long_term",
                                          "title": _text(row.get("content"), 80),
                                          "content": _text(row.get("content")),
                                          "source": "episode:" + _text(episode.get("id"), 100),
                                          "updated_at": _text(row.get("updated_at"), 80) or None,
-                                         "persisted": True})
+                                         "persisted": True,
+                                         "workspace_id": workspace_id,
+                                         "is_global": workspace_id == "default"})
         except Exception:
             unavailable("session_memories")
 

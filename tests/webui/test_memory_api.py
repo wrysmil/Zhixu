@@ -30,6 +30,7 @@ from nanobot.webui.memory_api import (
     delete_episode,
     delete_memory,
     episode_payload,
+    fetch_memory_payload,
     list_episodes_payload,
     list_memories_payload,
     memory_payload,
@@ -326,3 +327,90 @@ def test_stats_memory_md_no_lifecycle(services: MemoryServices):
     assert md["draft_age_seconds"] is None
     assert md["current_chars"] == 0
     assert md["max_chars"] == 1500
+
+
+@pytest.fixture
+def workspace_services(services: MemoryServices) -> MemoryServices:
+    with services.database.connect() as conn:
+        add_memory(conn, _mem(id="global-memory"))
+        add_memory(conn, _mem(id="ws-memory", workspace_id="ws-a", metadata={
+            "custom": "保留", "provenance": {
+                "workspaces": [{"id": "ws-a", "name": "项目 A", "path": "/projects/a"}],
+                "store_workspace_id": "default", "generation_method": "ai",
+                "trigger_mode": "automatic", "trigger_reason": "idle", "origin_kind": "ai",
+            },
+        }))
+    return services
+
+
+def test_list_includes_workspace_memories(workspace_services: MemoryServices) -> None:
+    payload = list_memories_payload(workspace_services)
+    assert {item["workspace_id"] for item in payload["items"]} == {"default", "ws-a"}
+    assert stats_payload(workspace_services)["total"] == 2
+
+
+def test_fetch_workspace_memory_is_not_404(workspace_services: MemoryServices) -> None:
+    payload = fetch_memory_payload(workspace_services, "ws-memory")
+    assert payload["memory"]["workspace_id"] == "ws-a"
+
+
+@pytest.mark.parametrize("workspace", [None, "", "unassigned", "default"])
+def test_create_memory_defaults_to_global(
+    workspace_services: MemoryServices, workspace: str | None,
+) -> None:
+    row = create_memory(workspace_services, content="手动新增", workspace=workspace)["memory"]
+    assert row["workspace_id"] == "default"
+    assert row["workspaces"] == []
+
+
+@pytest.mark.parametrize("with_snapshot", [False, True])
+def test_create_memory_can_target_a_known_workspace(
+    workspace_services: MemoryServices, with_snapshot: bool,
+) -> None:
+    workspace_id = "ws-a" if with_snapshot else "episode-only"
+    with workspace_services.database.connect() as conn:
+        add_episode(conn, _ep(workspace_id="episode-only"))
+    row = create_memory(workspace_services, content="项目记忆", workspace=workspace_id)["memory"]
+    assert row["workspace_id"] == workspace_id
+    assert [item["id"] for item in row["workspaces"]] == [workspace_id]
+    assert row["metadata"]["provenance"]["workspaces"] == row["workspaces"]
+
+
+def test_create_memory_rejects_unknown_workspace(workspace_services: MemoryServices) -> None:
+    with pytest.raises(WebUIMemoryError, match="invalid workspace"):
+        create_memory(workspace_services, content="手动新增", workspace="ws-unknown")
+
+
+@pytest.mark.parametrize("workspace", ["default", "", "unassigned", "ws-a"])
+def test_update_memory_can_reassign_workspace(
+    workspace_services: MemoryServices, workspace: str,
+) -> None:
+    with workspace_services.database.connect() as conn:
+        add_memory(conn, _mem(id="target", workspace_id="target-ws"))
+    updated = update_memory(
+        workspace_services, "ws-memory", workspace=workspace,
+        content="归属变更", metadata={"extra": 1, "provenance": {"trigger_mode": "manual"}},
+    )["memory"]
+    expected_id = "ws-a" if workspace == "ws-a" else "default"
+    assert updated["workspace_id"] == expected_id
+    expected_workspaces = ([{"id": "ws-a", "name": "项目 A", "path": "/projects/a"}]
+                           if workspace == "ws-a" else [])
+    assert updated["workspaces"] == expected_workspaces
+    assert updated["metadata"]["provenance"] == {
+        "workspaces": expected_workspaces, "store_workspace_id": "default",
+        "generation_method": "ai", "trigger_mode": "automatic", "trigger_reason": "idle",
+        "origin_kind": "ai",
+    }
+    assert updated["metadata"]["custom"] == "保留"
+    assert updated["metadata"]["extra"] == 1
+    assert updated["origin_kind"] == "ai"
+    reassigned = update_memory(workspace_services, "ws-memory", workspace="target-ws")["memory"]
+    assert reassigned["workspace_id"] == "target-ws"
+    assert [item["id"] for item in reassigned["workspaces"]] == ["target-ws"]
+    assert fetch_memory_payload(workspace_services, "ws-memory")["memory"] == reassigned
+
+
+def test_update_memory_rejects_unknown_workspace(workspace_services: MemoryServices) -> None:
+    with pytest.raises(WebUIMemoryError, match="invalid workspace"):
+        update_memory(workspace_services, "ws-memory", workspace="ws-unknown", content="不该落库")
+    assert fetch_memory_payload(workspace_services, "ws-memory")["memory"]["content"] == "用户偏好 Python"

@@ -168,6 +168,17 @@ describe("memory api helpers", () => {
     );
   });
 
+  it("passes the selected workspace through memory updates", async () => {
+    const patch = { workspace: "default" };
+    await updateMemory(mutationTransport, "mem_1", patch);
+
+    expect(requestMutation).toHaveBeenCalledWith(
+      "memory.update",
+      { id: "mem_1", workspace: "default" },
+      20_000,
+    );
+  });
+
   it("deletes memories and episodes over the WebSocket", async () => {
     await deleteMemory(mutationTransport, "mem_1");
     expect(requestMutation).toHaveBeenLastCalledWith("memory.delete", { id: "mem_1" }, 20_000);

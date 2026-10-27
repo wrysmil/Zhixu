@@ -10,7 +10,7 @@ import inspect
 import os
 import time
 import weakref
-from collections.abc import Coroutine, Iterable, Mapping
+from collections.abc import Coroutine, Iterable, Mapping, Sequence
 from contextlib import AbstractContextManager, ExitStack, nullcontext, suppress
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -27,7 +27,7 @@ from nanobot.agent.autocompact import AutoCompact
 from nanobot.agent.automation_turns import publish_next_deferred_turn
 from nanobot.agent.context import ContextBuilder, PersistedPromptContextResolver, TranscriptInput
 from nanobot.agent.cron_turns import CronTurnCoordinator
-from nanobot.agent.hook import AgentHook, AgentTurnHookFactory
+from nanobot.agent.hook import AgentHook, AgentTurnHookContext, AgentTurnHookFactory
 from nanobot.agent.memory import Consolidator
 from nanobot.agent.model_runtime import ModelRuntimeResolver
 from nanobot.agent.runner import (
@@ -68,6 +68,7 @@ from nanobot.command.router import normalize_command_text
 from nanobot.config.schema import AgentDefaults, ModelPresetConfig
 from nanobot.events import NO_EVENTS, AgentEvent, EventSink
 from nanobot.llm_usage.context import source_from_request
+from nanobot.memory.provenance import memory_visibility_ids, memory_workspace_id
 from nanobot.providers.base import LLMProvider, LLMUsage, ProviderConversationState
 from nanobot.providers.factory import ProviderSnapshot
 from nanobot.runtime_context import (
@@ -143,6 +144,28 @@ _SUBAGENT_PROVIDER_TASK_META = "subagent_provider_task_id"
 # 会话上「实际执行过的团队」（``团队 id @ 修订``）。只在 Team 回合写入；与选定绑定分开，
 # 见 ``AgentLoop._stamp_team_revision``。
 _TEAM_REVISION_METADATA_KEY = "teamAppliedSignature"
+
+
+def _has_explicit_workspace_scope(
+    message_metadata: dict[str, Any] | None,
+    session_metadata: dict[str, Any] | None,
+) -> bool:
+    """消息或会话里是否带了**显式**的工作区作用域。
+
+    「显式」= 携带 ``workspace_scope.project_path``；没有显式作用域时，
+    ``WorkspaceScopeResolver.for_turn`` 会回退到默认执行目录，而默认执行目录
+    不是记忆归属（D3：没有工作区的会话只见全局记忆）。
+    """
+    for source in (message_metadata, session_metadata):
+        if not isinstance(source, dict):
+            continue
+        scope = source.get("workspace_scope")
+        if not isinstance(scope, dict):
+            continue
+        project_path = scope.get("project_path")
+        if isinstance(project_path, str) and project_path:
+            return True
+    return False
 
 
 def _team_signature(team: LeaderTurnContext) -> str:
@@ -800,6 +823,7 @@ class AgentLoop:
                 runtime_provider=_runtime_for_key,
                 memory_enabled_provider=_memory_enabled_provider,
                 label_provider=_session_label_for_key,
+                workspace_scope_provider=self._memory_workspace_scope_for_context,
             )
         )
 
@@ -1051,7 +1075,10 @@ class AgentLoop:
             timezone=self.context.timezone or "UTC",
             workspace_sandbox=self.workspace_scopes.sandbox_status,
             runtime_control=AgentRuntimeControl(self),
-            attributes={"retrieval_engine": self._retrieval_engine},
+            attributes={
+                "retrieval_engine": self._retrieval_engine,
+                "memory_workspace_ids": self._memory_workspace_ids_for_key,
+            },
         )
         loader = ToolLoader()
         registered = loader.load(ctx, self.tools)
@@ -2614,6 +2641,7 @@ class AgentLoop:
             await self._compute_retrieval_section(
                 query=ctx.msg.content,
                 recent_messages=list(ctx.history),
+                workspace_ids=self._memory_workspace_ids_for_turn(ctx),
             )
         )
         # Working Memory: 同样在 BUILD 阶段预计算并门控完毕，只把最终字符串
@@ -2623,11 +2651,103 @@ class AgentLoop:
             is_subagent=is_subagent,
         )
 
+    @staticmethod
+    def _memory_workspace_ids_for_path(path: str | None) -> tuple[str, ...]:
+        """路径 → 本轮可见的记忆隔离键（全局 + 所属工作区）。"""
+        return memory_visibility_ids(memory_workspace_id(path))
+
+    def _memory_workspace_project_path(
+        self,
+        *,
+        channel: str,
+        message_metadata: dict[str, Any] | None,
+        session_metadata: dict[str, Any] | None,
+    ) -> str | None:
+        """会话的记忆归属工作区路径 —— 记忆隔离口径的**唯一真相源**。
+
+        - 受管渠道（WebUI）：取该轮生效的工作区作用域。
+        - 其它渠道：渠道的默认执行目录**不是**记忆归属，只认会话显式记录的
+          ``workspace_scope``；没有显式归属 → ``None``（按 D3 只见全局记忆）。
+
+        写入侧（提取打标）、读取侧（检索可见集合）、面板侧（归属筛选）都必须
+        走这一个入口，否则同一会话会出现多套可见集合。
+        """
+        if channel != self.workspace_scopes.scoped_channel:
+            # 其它渠道：只认会话显式记录的归属。
+            scope_metadata = (
+                cast(dict[str, Any], session_metadata).get("workspace_scope")
+                if isinstance(session_metadata, dict)
+                else None
+            )
+            project_path = (
+                cast(dict[str, Any], scope_metadata).get("project_path")
+                if isinstance(scope_metadata, dict)
+                else None
+            )
+            return project_path if isinstance(project_path, str) and project_path else None
+        # 受管渠道：没有**显式**作用域时不得把默认执行目录当成归属——
+        # 那会让「没选项目」的会话拥有一套与写入侧不同的可见集合（D3）。
+        if not _has_explicit_workspace_scope(message_metadata, session_metadata):
+            return None
+        scope = self.workspace_scopes.for_turn(
+            channel=channel,
+            message_metadata=message_metadata,
+            session_metadata=session_metadata,
+        )
+        return str(scope.project_path)
+
+    def _memory_workspace_scope_for_context(
+        self, context: AgentTurnHookContext
+    ) -> dict[str, str] | None:
+        """提取 hook 的归属工作区（记忆隔离口径）。
+
+        idle / 增量提取会**重建** Session；不把归属带过去，落库就会退化成全局
+        记忆（``workspace_id='default'``）→ 其他工作区也能召回本工作区的记忆。
+        这里与读取侧共用 ``_memory_workspace_project_path``，保证同一会话只有
+        一套可见集合。
+        """
+        session_metadata: dict[str, Any] | None = None
+        if context.session_key:
+            cached = self.sessions.get_cached(context.session_key)
+            if cached is not None:
+                session_metadata = cached.metadata
+        project_path = self._memory_workspace_project_path(
+            channel=context.channel,
+            message_metadata=context.metadata,
+            session_metadata=session_metadata,
+        )
+        if not project_path:
+            return None
+        return {"project_path": project_path}
+
+    def _memory_workspace_ids_for_turn(self, ctx: TurnContext) -> tuple[str, ...]:
+        """按本轮工作区作用域计算可见集合，渠道无归属时只读全局。"""
+        project_path = self._memory_workspace_project_path(
+            channel=ctx.msg.channel,
+            message_metadata=ctx.msg.metadata,
+            session_metadata=ctx.session.metadata if ctx.session is not None else None,
+        )
+        return self._memory_workspace_ids_for_path(project_path)
+
+    def _memory_workspace_ids_for_key(self, session_key: str) -> tuple[str, ...]:
+        """工具侧只读会话内存缓存解析归属，未命中时退化为全局集合。"""
+        session = self.sessions.get_cached(session_key)
+        if session is None:
+            return self._memory_workspace_ids_for_path(None)
+        scope = session.metadata.get("workspace_scope")
+        project_path = (
+            cast(dict[str, Any], scope).get("project_path") if isinstance(scope, dict) else None
+        )
+        return self._memory_workspace_ids_for_path(
+            project_path if isinstance(project_path, str) else None
+        )
+
     async def _compute_retrieval_section(
         self,
         *,
         query: str,
         recent_messages: list[dict[str, Any]],
+        workspace_ids: Sequence[str] | None = None,
     ) -> tuple[str, list[str]]:
         """Compute the Layer 4 retrieval markdown block (T-13) + injected ids (WU-B).
 
@@ -2641,6 +2761,7 @@ class AgentLoop:
             return await self.context._build_memory_section_with_ids(
                 query=query,
                 recent_messages=recent_messages,
+                workspace_ids=workspace_ids,
             )
         except Exception:
             logger.warning(

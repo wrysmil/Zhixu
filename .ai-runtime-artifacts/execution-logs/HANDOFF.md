@@ -5,15 +5,21 @@ plan: .ai-runtime-artifacts/plans/2026-10-27-memory-workspace-scoping-plan.md
 dispatch: .ai-runtime-artifacts/plans/2026-10-27-memory-workspace-scoping-dispatch.md
 tracking: .ai-runtime-artifacts/execution-logs/tracking/DISPATCH-TRACK-2026-10-27-memory-workspace-scoping.md
 created_at: 2026-10-27
-status: in-progress
+status: completed
 branch: harness/agent-evaluation-calibration
+closed_at: 2026-10-27
 ---
 
 # 交接文档 — 记忆工作区隔离改造
 
 ## 一句话现状
 
-**存储基座已落地并全绿（925 passed）；写入打标、检索过滤、面板归属、前端四个 WU 未开工。** 恢复后从 WU-02 开始即可。
+**全批已完成并全绿：后端 10256 passed / 前端 1931 passed；写入打标、检索过滤、面板归属、前端四个 WU 全部落地。**
+尾盘三层审查提出 1 个代码 P1（生产 idle 提取丢失工作区 → 跨工作区泄漏）与 1 个性能 P1
+（工作区过滤把 FTS5 查询计划换成索引驱动 → 5 万行单工作区 25ms 退化到 4867ms），**均已修复并各配会变红的回归测试**。
+收口明细见本文件末尾「§8 收口记录」，验证与审查产物见
+`verifications/2026-10-27-memory-workspace-scoping-{verification-lite,collective-test}.md`
+与 `reviews/2026-10-27-memory-workspace-scoping-*.md`。
 
 ---
 
@@ -124,3 +130,45 @@ cd D:/studyspace/project/Zhixu
 4. 每个 WU 的 prompt 要点：必读 `.claude/agents/coder.md`（角色检查表 + 返回格式，含 `### Skills 使用`）；必 Load `test-driven-development` / `verification-before-completion` / `incremental-implementation`；禁 Load `brainstorming` / `writing-plans` / `git-xywh` / `orchestration`；worker 不 commit/push。
 5. 尾盘：集体测试（`pytest tests/memory tests/webui tests/agent` + `cd webui && bun run test && bun run build`）→ 三层审查（reviewer / security-auditor / perf-auditor）→ 落盘 `verifications/*-collective-test.md` 与 `reviews/*`。
 6. Qoder 平台无 `coder` 子代理类型 → 用 `general-purpose` + prompt 强制加载 `.claude/agents/coder.md` 替代平台自动加载。
+
+---
+
+## 8. 收口记录（2026-10-27）
+
+### 8.1 已完成的 WU
+
+| WU | 落地 | 产物 |
+| --- | --- | --- |
+| WU-02 | 提取落库按会话工作区打标；画像合并按工作区隔离；`extraction_provenance` 增 `workspace_id` 形参 | `nanobot/memory/extractor.py`、`nanobot/memory/provenance.py`、`tests/memory/test_extractor_workspace.py` |
+| WU-03 | 检索链路透传可见集合；每轮计算可见集合并注入；`memory_search` 工具侧解析 | `nanobot/memory/retrieval/**`、`nanobot/agent/{context,loop}.py`、`nanobot/agent/tools/memory_search.py`、`tests/agent/test_memory_visibility.py` |
+| WU-04 | 面板读写不再按 store 标签过滤；`create_memory` 可选归属；`update_memory` 可改归属；工作台记忆项带归属 | `nanobot/webui/memory_{api,presentation,routes}.py`、`session_workbench.py`、`nanobot/memory/repository.py` |
+| WU-05 | 前端筛选下拉含「全局记忆」；编辑态可改归属 | `webui/src/lib/{types,api}.ts`、`webui/src/components/settings/memory/**`、`webui/src/tests/memory-workspace-filter.test.tsx` |
+
+### 8.2 Leader 补修（尾盘审查发现）
+
+1. **P1（跨工作区泄漏）** `nanobot/agent/hooks/memory_extraction.py`：idle / 增量提取重建 `Session` 时丢失
+   `workspace_scope` → 记忆落成全局 → 其它工作区可召回。已修：hook 携带归属；loop 侧抽出
+   `_memory_workspace_project_path` 作为读写唯一真相源。回归 `tests/memory/test_hook_workspace_scoping.py`。
+2. **P1（性能）** `nanobot/memory/repository.py`：工作区过滤把 FTS5 查询计划换成「索引驱动 + 逐行全扫 FTS5」，
+   5 万行单工作区 25ms → 4867ms。已修：两处 FTS 查询改 `CROSS JOIN` 强制 FTS5 驱动 → 9.2ms。
+   回归 `tests/memory/test_fts_workspace_filter_plan.py`。
+3. **P2（口径不同源）** `nanobot/webui/memory_presentation.py`：面板归属改为以行 `workspace_id` 列为准，
+   快照只补名称；`nanobot/agent/loop.py`：无显式工作区一律只见全局（D3）。
+4. **P2（既有缺陷）** `nanobot/workspace_identity.py`：为**不存在**的工作区写 marker 会凭空创建目录树
+   （POSIX 上 `C:\Work\A` 这类路径被 `pathlib` 当相对目录，直接在仓库根长出同名目录）。已修：不存在的
+   工作区退化为 path 哈希。回归 `tests/test_workspace_identity.py::test_missing_workspace_is_not_created_on_disk`。
+
+### 8.3 契约变更（需要后续知悉）
+
+- **跨工作区不再合并画像**：同一 subject+predicate 在不同工作区各自成行（原契约是合并成一行并累积项目快照）。
+  `tests/memory/test_provenance.py` 已按新契约拆分。
+- **编辑可改归属（D8）**：与 `contracts/2026-10-27-contract-memory-presentation.md` 的「编辑不改项目归属」相反，
+  按用户复核意见改为**只改归属**（不动 `store_workspace_id` / `trigger_*` / `generation_method` / `origin_kind`）。
+- **取消「默认工作区」概念（D2）**：`workspace_id='default'` 即全局记忆。
+
+### 8.4 遗留项
+
+- 真机场景验证未做（需用户参与）：两个会话切到不同项目 → 互不可见；面板工作区筛选；工作台归属标签。
+- `nanobot/memory/lifecycle.py:116` 的 MEMORY.md 派生过滤 `scope="user"` 恒空 —— 独立缺陷（plan §6 R5）。
+- 既有红灯 `tests/agent/test_mcp_reconnect_crash.py::test_mcp_reconnect_during_shutdown_does_not_crash`
+  —— 已在 HEAD `2b447c6` 的独立 worktree 复现，与本批无关。

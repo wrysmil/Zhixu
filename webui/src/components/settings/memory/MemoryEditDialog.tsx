@@ -39,7 +39,9 @@ export function MemoryEditDialog({ memory, onClose, onSaved, workspaces = [], in
   const tx = (key: string, fallback: string) => t(key, { defaultValue: fallback });
   const { client } = useClient();
   const { text } = useMemoryCopy();
-  const [workspace, setWorkspace] = useState(initialWorkspace ?? "");
+  const [workspace, setWorkspace] = useState(
+    memory ? memory.workspace_id ?? "default" : initialWorkspace || "default",
+  );
 
   const [content, setContent] = useState(memory?.content ?? "");
   const [type, setType] = useState<MemoryType>(memory?.type ?? "fact");
@@ -70,9 +72,9 @@ export function MemoryEditDialog({ memory, onClose, onSaved, workspaces = [], in
         predicate: predicate.trim(),
       };
       if (memory) {
-        await updateMemory(client, memory.id, input);
+        await updateMemory(client, memory.id, { ...input, workspace });
       } else {
-        await createMemory(client, { ...input, ...(workspace ? { workspace } : {}) });
+        await createMemory(client, { ...input, workspace });
       }
       onSaved();
     } catch (reason) {
@@ -97,7 +99,13 @@ export function MemoryEditDialog({ memory, onClose, onSaved, workspaces = [], in
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          {!memory && <label className="grid gap-1.5 text-[12.5px] font-medium text-muted-foreground">{text("工作区", "Workspace")}<select value={workspace} onChange={(event) => setWorkspace(event.target.value)} className={cn(FIELD_CLASS, "h-9 rounded-control border border-input bg-background px-2 text-[13px] text-foreground", formControlFocusClassName)}><option value="">{text("默认工作区", "Default workspace")}</option>{workspaces.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}<option value="unassigned">{text("全局记忆", "Global memory")}</option></select></label>}
+          <label className="grid gap-1.5 text-[12.5px] font-medium text-muted-foreground">
+            {text("工作区", "Workspace")}
+            <select aria-label={text("工作区", "Workspace")} value={workspace} onChange={(event) => setWorkspace(event.target.value)} className={cn(FIELD_CLASS, "h-9 rounded-control border border-input bg-background px-2 text-[13px] text-foreground", formControlFocusClassName)}>
+              <option value="default">{text("全局记忆", "Global memory")}</option>
+              {workspaces.filter((option) => option.id !== "default").map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+            </select>
+          </label>
           <div className="grid gap-1.5">
             <span className="block text-[12.5px] font-medium text-muted-foreground">{tx("settings.memory.fieldContent", "Content")} *</span>
             <Textarea

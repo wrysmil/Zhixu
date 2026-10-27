@@ -227,3 +227,33 @@ async def test_engine_output_is_markdown_string():
     assert "## 相关记忆" in out
     assert "\n" in out
     assert "- " in out  # markdown bullet
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["retrieve", "retrieve_with_ids"])
+async def test_engine_passes_workspace_ids_to_channels(method):
+    """两个检索入口均将可见集合传至三条记忆通道。"""
+    seen: dict[str, object] = {}
+
+    class _Store:
+        def search_semantic_scored(self, query, *, keywords=None, limit=30, workspace_ids=None):
+            seen["semantic"] = workspace_ids
+            return []
+
+        def search_episodes(self, *, entity, limit=5, workspace_ids=None):
+            seen["episodes"] = workspace_ids
+            return []
+
+        def query_semantic(self, *, min_importance, since_days, limit, workspace_ids=None):
+            seen["recent"] = workspace_ids
+            return []
+
+        def search_attachments(self, term, *, intent, limit=5):
+            return []
+
+    engine = RetrievalEngine(store=_Store())
+    await getattr(engine, method)(
+        query="创作灵感", recent_messages=[], precomputed_keywords=["创作灵感"],
+        workspace_ids=("default", "ws-a"),
+    )
+    assert seen == dict.fromkeys(("semantic", "episodes", "recent"), ("default", "ws-a"))

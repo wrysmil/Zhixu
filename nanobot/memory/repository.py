@@ -211,6 +211,7 @@ def update_memory(
     decay_rate: float | None = None,
     expires_at: str | None = None,
     metadata: dict[str, Any] | None = None,
+    workspace_id: str | None = None,
 ) -> None:
     """Partially update a memory row by id.
 
@@ -238,6 +239,9 @@ def update_memory(
             continue
         sets.append(f"{column} = ?")
         params.append(value)
+    if workspace_id is not None:
+        sets.append("workspace_id = ?")
+        params.append(workspace_id)
     sets.append("updated_at = ?")
     params.append(now)
     params.append(memory_id)
@@ -534,11 +538,16 @@ def search_memories(
     _SELECT_MEMORY_COLUMNS_PREFIXED = ", ".join(
         f"m.{col.strip()}" for col in _SELECT_MEMORY_COLUMNS.split(",")
     )
+    # ``CROSS JOIN`` 强制 FTS5 驱动（SQLite 里的 CROSS JOIN 会锁死连接顺序）：
+    # 普通 JOIN 下，只要 ``m.workspace_id IN (...)`` 可用索引，SQLite 就会改成
+    # 用 ``idx_memories_owner`` 驱动，对命中集里的每一行再全量扫一次 FTS5 虚表
+    # —— 实测 5 万行 / 1 个工作区下 25ms → 4867ms。过滤必须发生在 FTS5 召回
+    # 之后（FTS5 驱动 + 行级判定），而不是换驱动表。
     sql = (
         f"SELECT {_SELECT_MEMORY_COLUMNS_PREFIXED} "
-        f"FROM memories m JOIN memories_fts f ON f.rowid = m.rowid "
+        f"FROM memories_fts CROSS JOIN memories m ON m.rowid = memories_fts.rowid "
         f"WHERE {where} "
-        f"ORDER BY rank, m.importance_score DESC{limit_sql}"
+        f"ORDER BY memories_fts.rank, m.importance_score DESC{limit_sql}"
     )
     try:
         rows = conn.execute(sql, params).fetchall()
@@ -794,9 +803,11 @@ def search_semantic_scored(
     where = "memories_fts MATCH ?"
     if condition:
         where = f"{where} AND {condition}"
+    # 同 ``search_memories``：``CROSS JOIN`` 强制 FTS5 驱动，避免工作区过滤
+    # 把计划换成「索引驱动 + 逐行全扫 FTS5」而放大千倍延迟。
     sql = (
         f"SELECT {flat}, bm25(memories_fts) AS _rank "
-        f"FROM memories m JOIN memories_fts f ON f.rowid = m.rowid "
+        f"FROM memories_fts CROSS JOIN memories m ON m.rowid = memories_fts.rowid "
         f"WHERE {where} "
         f"ORDER BY _rank LIMIT ?"
     )

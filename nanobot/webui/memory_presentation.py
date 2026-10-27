@@ -12,6 +12,7 @@ from loguru import logger
 
 from nanobot.memory.models import Episode, Memory
 from nanobot.memory.provenance import workspace_from_path
+from nanobot.memory.repository import known_workspace_ids
 from nanobot.webui.memory_services import MemoryServices
 from nanobot.webui.settings_contracts import WebUISettingsError
 
@@ -72,12 +73,47 @@ class PresentationContext:
         return self.session_workspaces[session_id]
 
     def workspaces(self, item: Memory | Episode) -> list[dict[str, str]]:
+        """该条记录的归属工作区。
+
+        **归属以行的 ``workspace_id`` 列为准**（列与快照同源，D4）：快照只用来补
+        名称与路径，不决定归属。否则会出现「列是全局、快照指向项目」这类历史数据
+        被显示成项目记忆（实际却全局可见），旧快照 id 还会进筛选下拉却筛不出东西。
+        """
+        row_workspace_id = getattr(item, "workspace_id", None) or "default"
+        snapshots = self._snapshot_workspaces(item)
+        if row_workspace_id == "default":
+            return []
+        matched = next(
+            (workspace for workspace in snapshots if workspace["id"] == row_workspace_id),
+            None,
+        )
+        if matched is not None:
+            return [matched]
+        return [
+            {
+                "id": row_workspace_id,
+                "name": f"未登记工作区 {row_workspace_id[:8]}",
+                "path": "",
+            }
+        ]
+
+    def _snapshot_workspaces(self, item: Memory | Episode) -> list[dict[str, str]]:
         provenance = provenance_for(item)
         snapshots = provenance.get("workspaces")
         if isinstance(snapshots, list):
             result: dict[str, dict[str, str]] = {}
             for snapshot in cast(list[object], snapshots):
-                path = _object_dict(snapshot).get("path")
+                saved = _object_dict(snapshot)
+                workspace_id = saved.get("id")
+                path = saved.get("path")
+                if isinstance(workspace_id, str) and workspace_id and isinstance(path, str):
+                    name = saved.get("name")
+                    result[workspace_id] = {
+                        "id": workspace_id,
+                        "name": name if isinstance(name, str) and name else f"未登记工作区 {workspace_id[:8]}",
+                        "path": path,
+                    }
+                    continue
                 if isinstance(path, str) and path.strip():
                     try:
                         workspace = workspace_from_path(path)
@@ -95,7 +131,7 @@ class PresentationContext:
             episodes = [self.episodes[item.source_episode_id], *episodes]
         result = {}
         for episode in episodes:
-            for workspace in self.workspaces(episode):
+            for workspace in self._snapshot_workspaces(episode):
                 result[workspace["id"]] = workspace
         return list(result.values())
 
@@ -127,12 +163,22 @@ class PresentationContext:
 def workspace_options(
     services: MemoryServices, items: list[dict[str, Any]],
 ) -> list[dict[str, str]]:
-    default = workspace_from_path(str(services.database.workspace))
-    options = {default["id"]: default}
+    global_option = {"id": "default", "name": "全局记忆", "path": ""}
+    options = {"default": global_option}
     for item in items:
         for workspace in item["workspaces"]:
-            options[workspace["id"]] = workspace
-    return sorted(options.values(), key=lambda workspace: (workspace["name"].casefold(), workspace["path"]))
+            if workspace["id"] != "default":
+                options[workspace["id"]] = workspace
+    with services.database.connect() as conn:
+        for workspace_id in sorted(known_workspace_ids(conn)):
+            if workspace_id not in options:
+                options[workspace_id] = {
+                    "id": workspace_id, "name": f"未登记工作区 {workspace_id[:8]}", "path": "",
+                }
+    return [global_option, *sorted(
+        (option for key, option in options.items() if key != "default"),
+        key=lambda workspace: (workspace["name"].casefold(), workspace["path"]),
+    )]
 
 
 def filter_result(
@@ -143,14 +189,10 @@ def filter_result(
         raise WebUISettingsError("invalid origin")
     if limit is not None and limit < 1:
         raise WebUISettingsError("limit must be >= 1")
-    if workspace and workspace != "unassigned" and workspace not in {option["id"] for option in options}:
+    if workspace and workspace not in {option["id"] for option in options}:
         raise WebUISettingsError("invalid workspace")
     if workspace:
-        items = [
-            item for item in items
-            if (not item["workspaces"] if workspace == "unassigned" else
-                any(option["id"] == workspace for option in item["workspaces"]))
-        ]
+        items = [item for item in items if item.get("workspace_id") == workspace]
     counts = {"all": len(items), "ai": 0, "manual": 0, "unknown": 0}
     for item in items:
         counts[item["origin_kind"]] += 1

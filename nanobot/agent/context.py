@@ -191,6 +191,7 @@ class ContextBuilder:
         *,
         query: str,
         recent_messages: list[Any],
+        workspace_ids: Sequence[str] | None = None,
     ) -> tuple[str, list[str]]:
         """Return ``(retrieval block, 本次注入的 memory_id 列表)``。
 
@@ -212,6 +213,7 @@ class ContextBuilder:
             retrieved = await self._retrieval_engine.retrieve_with_ids(
                 query=prepared.cleaned_query,
                 recent_messages=recent_messages,
+                workspace_ids=workspace_ids,
             )
         except Exception:
             logger.warning(

@@ -25,9 +25,12 @@ class _FakeEngine:
     def __init__(self) -> None:
         self.calls: list[dict] = []
 
-    async def retrieve(self, *, query: str, recent_messages: list, max_tokens: int):
+    async def retrieve(
+        self, *, query: str, recent_messages: list, max_tokens: int, workspace_ids=None
+    ):
         self.calls.append(
-            {"query": query, "recent_messages": recent_messages, "max_tokens": max_tokens}
+            {"query": query, "recent_messages": recent_messages, "max_tokens": max_tokens,
+             "workspace_ids": workspace_ids}
         )
         return "## 相关记忆（自动检索）\n- 命中"
 
@@ -67,6 +70,48 @@ async def test_execute_tolerates_session_not_cached():
 
     assert sessions.calls == ["s1"]
     assert engine.calls[0]["recent_messages"] == []
+
+
+@pytest.mark.asyncio
+async def test_tool_scopes_retrieval_to_session_workspace():
+    """create 从 attributes 解析当前请求会话的可见集合。"""
+    engine = _FakeEngine()
+    seen = []
+
+    def resolve(key):
+        seen.append(key)
+        return ("default", "ws-a")
+
+    tool = MemorySearchTool.create(SimpleNamespace(
+        sessions=None,
+        attributes={"retrieval_engine": engine, "memory_workspace_ids": resolve},
+    ))
+    with request_context(RequestContext(channel="websocket", chat_id="c1", session_key="s1")):
+        result = await tool.execute(query="创作灵感")
+    assert result.startswith("## 相关记忆")
+    assert seen == ["s1"]
+    assert engine.calls[0]["workspace_ids"] == ("default", "ws-a")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["missing", "error", "no_session"])
+async def test_tool_visibility_falls_back_to_global(mode):
+    """缺解析器、解析异常或无请求会话时仅检索全局。"""
+    engine = _FakeEngine()
+
+    def resolve(key):
+        raise RuntimeError("无法解析工作区")
+
+    tool = MemorySearchTool(
+        retrieval_engine_provider=lambda: engine,
+        workspace_ids_provider=None if mode == "missing" else resolve,
+    )
+    with request_context(RequestContext(
+        channel="websocket", chat_id="c1", session_key=None if mode == "no_session" else "s1"
+    )):
+        result = await tool.execute(query="创作灵感")
+    assert result.startswith("## 相关记忆")
+    assert engine.calls[0]["workspace_ids"] == ("default",)
 
 
 @pytest.mark.asyncio

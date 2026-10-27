@@ -74,11 +74,15 @@ def test_extraction_provenance_does_not_infer_unknown_triggers(source: str, expe
 
 
 def test_persist_freezes_workspace_and_original_trigger(db: MemoryDatabase):
+    """同一工作区内重复落库：仍是一行，原 trigger 与工作区快照保持冻结。
+
+    隔离语义（plan R6）下画像合并只在**同一工作区**内发生；跨工作区的重复
+    落库另立一行，见 ``test_cross_workspace_persist_does_not_merge_profiles``。
+    """
     extractor = _make_extractor(db, _FakeProvider())
     session = Session(key="websocket:s", metadata={"workspace_scope": {"project_path": r"C:\Work\A"}})
     item = LLMMemoryItem(content="prefer concise responses", type="preference", subject="user", predicate="style")
     result = extractor._persist(FilteredExtractionResult(memories=[item], episode=LLMEpisodeItem(summary="summary")), session, "manual")
-    session.metadata["workspace_scope"]["project_path"] = r"D:\Work\B"
     extractor._persist(FilteredExtractionResult(memories=[item]), session, "idle")
     with db.connect() as conn:
         rows = list_memories(conn)
@@ -86,9 +90,42 @@ def test_persist_freezes_workspace_and_original_trigger(db: MemoryDatabase):
     assert len(rows) == 1
     provenance = rows[0].metadata["provenance"]
     assert provenance["trigger_mode"] == "manual"
-    assert {item["name"] for item in provenance["workspaces"]} == {"A", "B"}
+    assert {item["name"] for item in provenance["workspaces"]} == {"A"}
     assert episode.metadata["provenance"]["workspaces"][0]["name"] == "A"
     assert episode.metadata["provenance"]["trigger_mode"] == "manual"
+
+
+def test_cross_workspace_persist_does_not_merge_profiles(db: MemoryDatabase):
+    """跨工作区的同一 subject+predicate 不合并：各工作区各一行、各自归属。
+
+    旧契约是「跨项目合并成一行并累积项目快照」；工作区隔离后该行为被推翻
+    （plan §6 R6）：归属不同的记忆互不污染。
+    """
+    from nanobot.memory.provenance import memory_workspace_id
+
+    extractor = _make_extractor(db, _FakeProvider())
+    session = Session(key="websocket:s", metadata={"workspace_scope": {"project_path": r"C:\Work\A"}})
+    item = LLMMemoryItem(content="prefer concise responses", type="preference", subject="user", predicate="style")
+    extractor._persist(FilteredExtractionResult(memories=[item]), session, "manual")
+    session.metadata["workspace_scope"]["project_path"] = r"D:\Work\B"
+    extractor._persist(FilteredExtractionResult(memories=[item]), session, "idle")
+
+    with db.connect() as conn:
+        rows = list_memories(conn)
+
+    assert len(rows) == 2
+    assert {row.workspace_id for row in rows} == {
+        memory_workspace_id(r"C:\Work\A"),
+        memory_workspace_id(r"D:\Work\B"),
+    }
+    by_workspace = {row.workspace_id: row for row in rows}
+    first = by_workspace[memory_workspace_id(r"C:\Work\A")]
+    second = by_workspace[memory_workspace_id(r"D:\Work\B")]
+    assert first.metadata["provenance"]["trigger_mode"] == "manual"
+    assert second.metadata["provenance"]["trigger_mode"] == "automatic"
+    assert second.metadata["provenance"]["trigger_reason"] == "idle"
+    assert {item["name"] for item in first.metadata["provenance"]["workspaces"]} == {"A"}
+    assert {item["name"] for item in second.metadata["provenance"]["workspaces"]} == {"B"}
 
 
 async def test_incremental_slice_preserves_session_workspace(db: MemoryDatabase):

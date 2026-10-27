@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Any
 
@@ -55,7 +56,12 @@ class MemoryStoreAdapter:
 
     # ----- 语义通道 -----
     def search_semantic_scored(
-        self, query: str, *, keywords: list[str] | None = None, limit: int = 30
+        self,
+        query: str,
+        *,
+        keywords: list[str] | None = None,
+        limit: int = 30,
+        workspace_ids: Sequence[str] | None = None,
     ) -> list[tuple[Any, float]]:
         """语义召回：FTS5 ∪ 向量，按 RRF 融合（spec §3.4）。
 
@@ -77,7 +83,7 @@ class MemoryStoreAdapter:
         fts5_hits: list[tuple[Any, float]] = []
         with self._database.connect() as conn:
             fts5_hits = repository.search_semantic_scored(
-                conn, query, keywords=keywords, limit=limit * 3
+                conn, query, keywords=keywords, limit=limit * 3, workspace_ids=workspace_ids
             )
         for rank, (mem, _score) in enumerate(fts5_hits, start=1):
             rrf[mem.id] = rrf.get(mem.id, 0.0) + 1.0 / (k + rank)
@@ -99,18 +105,21 @@ class MemoryStoreAdapter:
         out: list[tuple[Any, float]] = []
         fts5_by_id = {mem.id: mem for mem, _s in fts5_hits}
         content_by_id = {mem.id: mem.content for mem, _ in fts5_hits}
-        # 向量独有 id 在活性过滤中被丢弃的（superseded / 已过期 / 行已删）
+        # 向量独有 id 在活性或可见性过滤中被丢弃的
         discarded_ids: list[str] = []
         with self._database.connect() as conn:
             for mid, rrf_score in ordered:
                 mem = fts5_by_id.get(mid)
                 if mem is None:
-                    # 向量独有 id：回查 SQLite 权威行并做活性过滤
+                    # 向量独有 id：回查 SQLite 权威行并做活性与可见性过滤
                     mem = repository.get_memory(conn, mid)
-                    if mem is None or not _is_live(mem):
+                    if mem is None or not _is_live(mem) or not _is_visible(mem, workspace_ids):
                         discarded_ids.append(mid)
                         continue
                     content_by_id[mid] = mem.content
+                elif not _is_visible(mem, workspace_ids):
+                    discarded_ids.append(mid)
+                    continue
                 # 绝对归一化：单条候选 relevance < 1.0
                 relevance = min(1.0, rrf_score / rrf_max)
                 out.append((mem, relevance))
@@ -128,14 +137,19 @@ class MemoryStoreAdapter:
         return out
 
     # ----- 情节通道 -----
-    def search_episodes(self, *, entity: str, limit: int = 5) -> list[Any]:
+    def search_episodes(
+        self, *, entity: str, limit: int = 5, workspace_ids: Sequence[str] | None = None
+    ) -> list[Any]:
         """按实体名召回 episode。"""
         with self._database.connect() as conn:
-            return repository.search_episodes(conn, entity=entity, limit=limit)
+            return repository.search_episodes(
+                conn, entity=entity, limit=limit, workspace_ids=workspace_ids
+            )
 
     # ----- 近期通道 -----
     def query_semantic(
-        self, *, min_importance: float, since_days: int, limit: int
+        self, *, min_importance: float, since_days: int, limit: int,
+        workspace_ids: Sequence[str] | None = None,
     ) -> list[Any]:
         """近期高重要性记忆。"""
         with self._database.connect() as conn:
@@ -144,6 +158,7 @@ class MemoryStoreAdapter:
                 min_importance=min_importance,
                 since_days=since_days,
                 limit=limit,
+                workspace_ids=workspace_ids,
             )
 
     # ----- 附件通道 -----
@@ -178,6 +193,14 @@ class MemoryStoreAdapter:
         except sqlite3.OperationalError as exc:
             logger.debug("attachments channel unavailable: {}", exc)
             return []
+
+
+def _is_visible(memory: Any, workspace_ids: Sequence[str] | None) -> bool:
+    """回表后按权威行判定可见性；FTS5 侧已由 SQL 过滤。"""
+    if workspace_ids is None:
+        return True
+    allowed = {str(item) for item in workspace_ids}
+    return str(getattr(memory, "workspace_id", "default") or "default") in allowed
 
 
 def _is_live(memory: Any) -> bool:

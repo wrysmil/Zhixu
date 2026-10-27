@@ -201,7 +201,7 @@ def test_handle_memory_unknown_action_returns_404(handler):
 
 def test_handle_memory_list_combines_all_query_filters(handler, operations):
     created = operations.create_memory(content="Python 规则", type="rule")
-    project = created["memory"]["workspaces"][0]["id"]
+    project = created["memory"]["workspace_id"]
     operations.create_memory(content="Rust 规则", type="rule")
     result = handler.handle("memory-list", _request(query={
         "q": ["Python"], "origin": ["manual"], "workspace": [project],
@@ -223,3 +223,18 @@ def test_handle_memory_create_allows_explicit_unassigned_workspace(handler):
     }))
     assert result.status == 200
     assert result.payload["memory"]["workspaces"] == []
+
+
+def test_handle_memory_update_forwards_workspace(handler, operations, services):
+    with services.database.connect() as conn:
+        add_episode(conn, Episode("known", "chat", "项目情节", "now", "now", workspace_id="ws-a"))
+    memory_id = operations.create_memory(content="归属待改")["memory"]["id"]
+    result = handler.handle("memory-update", _request(
+        query={"id": [memory_id]}, payload={"workspace": "ws-a"},
+    ))
+    assert result.status == 200
+    assert result.payload["memory"]["workspace_id"] == "ws-a"
+    invalid = handler.handle("memory-update", _request(
+        query={"id": [memory_id]}, payload={"workspace": "unknown"},
+    ))
+    assert invalid.status == 400

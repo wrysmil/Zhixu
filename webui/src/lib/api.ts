@@ -1391,6 +1391,7 @@ export interface MemoryPatch {
   subject?: string;
   predicate?: string;
   metadata?: Record<string, unknown>;
+  workspace?: string;
 }
 
 export async function updateMemory(
@@ -1410,6 +1411,7 @@ export async function updateMemory(
     ...(patch.subject !== undefined ? { subject: patch.subject } : {}),
     ...(patch.predicate !== undefined ? { predicate: patch.predicate } : {}),
     ...(patch.metadata !== undefined ? { metadata: patch.metadata } : {}),
+    ...(patch.workspace !== undefined ? { workspace: patch.workspace } : {}),
   });
 }
 
