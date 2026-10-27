@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Sequence
 from typing import Any, Literal
 
 from loguru import logger
@@ -104,17 +105,35 @@ def get_memory(conn: sqlite3.Connection, memory_id: str) -> Memory | None:
     return _row_to_memory(row) if row else None
 
 
+def _workspace_ids_condition(
+    column: str, workspace_ids: Sequence[str] | None
+) -> tuple[str, list[Any]]:
+    """可见集合 → (SQL 条件, 参数)。
+
+    ``None`` 表示不过滤（管理面 / 全量读）；空元组表示"什么都看不到"，必须返回
+    恒假条件而不是退化成不过滤——否则会泄漏其他工作区的记忆。
+    """
+    if workspace_ids is None:
+        return "", []
+    ids = [str(item) for item in workspace_ids if str(item)]
+    if not ids:
+        return "0 = 1", []
+    placeholders = ", ".join("?" for _ in ids)
+    return f"{column} IN ({placeholders})", ids
+
+
 def list_memories(
     conn: sqlite3.Connection,
     *,
     type: MemoryType | None = None,
     workspace_id: str | None = None,
+    workspace_ids: Sequence[str] | None = None,
     order_by: Literal["created", "importance"] = "created",
     limit: int | None = None,
     scope: str | None = None,
     min_importance: float | None = None,
 ) -> list[Memory]:
-    clauses = []
+    clauses: list[str] = []
     params: list[Any] = []
     if type is not None:
         clauses.append("type = ?")
@@ -122,6 +141,10 @@ def list_memories(
     if workspace_id is not None:
         clauses.append("workspace_id = ?")
         params.append(workspace_id)
+    condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
+    if condition:
+        clauses.append(condition)
+        params.extend(condition_params)
     if scope is not None:
         clauses.append("scope = ?")
         params.append(scope)
@@ -281,13 +304,13 @@ _INSERT_EPISODE_SQL = """
         started_at, ended_at,
         action_nodes, entities, tools_used, linked_memory_ids, tags,
         importance_score, access_count,
-        compaction_checkpoint_id, workspace_snapshot_id
+        compaction_checkpoint_id, workspace_snapshot_id, workspace_id, metadata
     ) VALUES (
         :id, :session_id, :summary, :goal, :outcome, :source,
         :started_at, :ended_at,
         :action_nodes, :entities, :tools_used, :linked_memory_ids, :tags,
         :importance_score, :access_count,
-        :compaction_checkpoint_id, :workspace_snapshot_id
+        :compaction_checkpoint_id, :workspace_snapshot_id, :workspace_id, :metadata
     )
 """
 
@@ -301,7 +324,7 @@ _SELECT_EPISODE_COLUMNS = """
     started_at, ended_at,
     action_nodes, entities, tools_used, linked_memory_ids, tags,
     importance_score, access_count,
-    compaction_checkpoint_id, workspace_snapshot_id
+    compaction_checkpoint_id, workspace_snapshot_id, workspace_id, metadata
 """
 
 
@@ -324,6 +347,8 @@ def _row_to_episode(row: sqlite3.Row) -> Episode:
         access_count=row['access_count'],
         compaction_checkpoint_id=row['compaction_checkpoint_id'],
         workspace_snapshot_id=row['workspace_snapshot_id'],
+        workspace_id=row['workspace_id'],
+        metadata=json.loads(row['metadata']) if row['metadata'] else {},
     )
 
 
@@ -357,6 +382,7 @@ def list_episodes(
     conn: sqlite3.Connection,
     *,
     session_id: str | None = None,
+    workspace_ids: Sequence[str] | None = None,
     limit: int | None = None,
 ) -> list[Episode]:
     """List episodes, most recent first. Optionally filter by session_id."""
@@ -366,6 +392,10 @@ def list_episodes(
     if session_id is not None:
         clauses.append("session_id = ?")
         params.append(session_id)
+    condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
+    if condition:
+        clauses.append(condition)
+        params.extend(condition_params)
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
     sql = (
@@ -475,12 +505,16 @@ def search_memories(
     *,
     type: MemoryType | None = None,
     workspace_id: str | None = None,
+    workspace_ids: Sequence[str] | None = None,
     limit: int | None = None,
 ) -> list[Memory]:
     """FTS5 全文检索 memories。
 
     检索字段: content / subject / predicate / tags。
     排序: BM25 rank（FTS5 内置）；相同 rank 时按 importance_score 降序。
+
+    ``workspace_ids`` 是可见集合（全局 + 当前工作区）；``None`` 表示不过滤，
+    空集合表示什么都看不到。
     """
     clauses = ["memories_fts MATCH ?"]
     params: list[Any] = [query]
@@ -490,6 +524,10 @@ def search_memories(
     if workspace_id is not None:
         clauses.append("m.workspace_id = ?")
         params.append(workspace_id)
+    condition, condition_params = _workspace_ids_condition("m.workspace_id", workspace_ids)
+    if condition:
+        clauses.append(condition)
+        params.extend(condition_params)
     where = " AND ".join(clauses)
     limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
     # Prefix all memories columns with m. to avoid ambiguity with memories_fts.content
@@ -533,7 +571,12 @@ def search_memories(
     # tokenize='unicode61'，连续 CJK 被切成一个整 token，因此「创作」永远匹配
     # 不到 content 里的「用户热爱创作，…」。无此回退时中文查询恒空。
     return _search_memories_like(
-        conn, query, type=type, workspace_id=workspace_id, limit=limit
+        conn,
+        query,
+        type=type,
+        workspace_id=workspace_id,
+        workspace_ids=workspace_ids,
+        limit=limit,
     )
 
 
@@ -571,6 +614,7 @@ def _search_memories_like(
     *,
     type: MemoryType | None,
     workspace_id: str | None,
+    workspace_ids: Sequence[str] | None = None,
     limit: int | None,
 ) -> list[Memory]:
     """FTS5 零结果 / 语法错误时的 ``LIKE %query%`` 子串回退。
@@ -598,6 +642,10 @@ def _search_memories_like(
     if workspace_id is not None:
         clauses.append("workspace_id = ?")
         params.append(workspace_id)
+    condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
+    if condition:
+        clauses.append(condition)
+        params.extend(condition_params)
     where = " AND ".join(clauses)
     limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
     sql = (
@@ -721,6 +769,7 @@ def search_semantic_scored(
     *,
     keywords: list[str] | None = None,
     limit: int = 30,
+    workspace_ids: Sequence[str] | None = None,
 ) -> list[tuple[Memory, float]]:
     """语义召回：FTS5 真实 ``bm25()`` 分（页内归一化）。
 
@@ -741,14 +790,18 @@ def search_semantic_scored(
     match_expr = " OR ".join(f'"{t}"' for t in terms)
 
     flat = ", ".join(f"m.{c.strip()}" for c in _SELECT_MEMORY_COLUMNS.split(","))
+    condition, condition_params = _workspace_ids_condition("m.workspace_id", workspace_ids)
+    where = "memories_fts MATCH ?"
+    if condition:
+        where = f"{where} AND {condition}"
     sql = (
         f"SELECT {flat}, bm25(memories_fts) AS _rank "
         f"FROM memories m JOIN memories_fts f ON f.rowid = m.rowid "
-        f"WHERE memories_fts MATCH ? "
+        f"WHERE {where} "
         f"ORDER BY _rank LIMIT ?"
     )
     try:
-        rows = conn.execute(sql, (match_expr, int(limit))).fetchall()
+        rows = conn.execute(sql, [match_expr, *condition_params, int(limit)]).fetchall()
     except sqlite3.OperationalError as exc:
         if _is_fts_syntax_error(exc):
             logger.debug("FTS5 MATCH syntax error in semantic scored: {}", exc)
@@ -776,12 +829,20 @@ def search_semantic_scored(
         hit_exprs.append("content LIKE ? ESCAPE '\\'")
     flat = " ".join(_SELECT_MEMORY_COLUMNS.split())
     _hits_clause = " + ".join(f"CASE WHEN {e} THEN 1 ELSE 0 END" for e in hit_exprs)
+    like_where = f"({' OR '.join(hit_exprs)})"
+    like_condition, like_condition_params = _workspace_ids_condition(
+        "workspace_id", workspace_ids
+    )
+    if like_condition:
+        like_where = f"{like_where} AND {like_condition}"
     sql = (
         f"SELECT {flat}, ({_hits_clause}) AS _hits "
-        f"FROM memories WHERE ({' OR '.join(hit_exprs)}) "
+        f"FROM memories WHERE {like_where} "
         f"ORDER BY _hits DESC, importance_score DESC LIMIT {int(limit)}"
     )
-    rows = conn.execute(sql, [*like_params, *like_params]).fetchall()
+    rows = conn.execute(
+        sql, [*like_params, *like_params, *like_condition_params]
+    ).fetchall()
     return [(_row_to_memory(r), _pseudo_bm25_score(float(idx))) for idx, r in enumerate(rows)]
 
 
@@ -790,6 +851,7 @@ def search_episodes(
     *,
     entity: str,
     limit: int = 5,
+    workspace_ids: Sequence[str] | None = None,
 ) -> list["_EpisodeRow"]:
     """按实体名 LIKE 模糊匹配 episodes 表。
 
@@ -808,11 +870,14 @@ def search_episodes(
     entity ``a_c.py`` 会命中 ``abc.py`` / ``aXc.py``（过召回，非注入）。
     """
     pattern = f"%{_escape_like(entity)}%"
+    # OR 分支必须先加括号：否则追加的 AND 条件会被 OR 吃掉（可见性过滤失效）。
+    where = "(summary LIKE ? ESCAPE '\\' OR session_id LIKE ? ESCAPE '\\')"
+    condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
+    if condition:
+        where = f"{where} AND {condition}"
     cur = conn.execute(
-        "SELECT id, summary, ended_at FROM episodes "
-        "WHERE summary LIKE ? ESCAPE '\\' OR session_id LIKE ? ESCAPE '\\' "
-        "LIMIT ?",
-        (pattern, pattern, limit),
+        f"SELECT id, summary, ended_at FROM episodes WHERE {where} LIMIT ?",
+        [pattern, pattern, *condition_params, limit],
     )
     return [
         _EpisodeRow(id=row[0], summary=row[1], updated_at=row[2])
@@ -826,6 +891,7 @@ def query_semantic(
     min_importance: float,
     since_days: int,
     limit: int,
+    workspace_ids: Sequence[str] | None = None,
 ) -> list["_MemoryRow"]:
     """近期高重要性记忆：``importance >= min_importance`` 且 ``updated_at`` 在窗口内。"""
     from datetime import datetime, timedelta, timezone
@@ -840,12 +906,16 @@ def query_semantic(
     # ``datetime()`` 把两侧都归一后再比，对两种格式与 ``+00:00`` 偏移都成立，
     # 使查询不再耦合于存储端的文本格式（实测 sqlite 3.52；EXPLAIN QUERY PLAN 与
     # 旧写法一致，仍走 idx_memories_importance）。
+    condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
+    where = "importance_score >= ? AND datetime(updated_at) >= datetime(?)"
+    if condition:
+        where = f"{where} AND {condition}"
     cur = conn.execute(
-        "SELECT id, content, importance_score, updated_at, access_count "
-        "FROM memories "
-        "WHERE importance_score >= ? AND datetime(updated_at) >= datetime(?) "
-        "ORDER BY importance_score DESC LIMIT ?",
-        (min_importance, cutoff.isoformat(), limit),
+        f"SELECT id, content, importance_score, updated_at, access_count "
+        f"FROM memories "
+        f"WHERE {where} "
+        f"ORDER BY importance_score DESC LIMIT ?",
+        (min_importance, cutoff.isoformat(), *condition_params, limit),
     )
     return [
         _MemoryRow(
@@ -885,6 +955,22 @@ def search_attachments(
 def _pseudo_bm25_score(rank: float) -> float:
     """``bm25_rank_to_score`` 内联版：避免在既有文件中新增顶层 import。"""
     return 1.0 / (1.0 + max(0.0, rank))
+
+
+def known_workspace_ids(conn: sqlite3.Connection) -> set[str]:
+    """库中已出现的工作区键（memories + episodes）。
+
+    面板手动新增/改归属时用它校验目标工作区是否已登记。表缺失（未初始化 schema
+    的库）时跳过该表，不抛异常。
+    """
+    ids: set[str] = set()
+    for table in ("memories", "episodes"):
+        try:
+            rows = conn.execute(f"SELECT DISTINCT workspace_id FROM {table}").fetchall()
+        except sqlite3.OperationalError:
+            continue
+        ids.update(str(row[0]) for row in rows if row[0])
+    return ids
 
 
 @dataclass

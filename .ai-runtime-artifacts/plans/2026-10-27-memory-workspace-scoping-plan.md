@@ -20,8 +20,9 @@ source:
   - .ai-runtime-artifacts/research/2026-10-27-chroma-where-bench.py（实测数据）
 created_at: 2026-10-27
 updated_at: 2026-10-27
-status: draft
-approved: false
+status: approved
+approved: true
+approval_evidence: 用户在本会话回复「并行执行」
 ---
 
 # 记忆工作区隔离实施计划
@@ -64,13 +65,15 @@ approved: false
 
 | 编号 | 决策 | 理由 |
 | --- | --- | --- |
-| **D1** | `workspace_id='default'` 表示**全局记忆**；工作区记忆用 `workspace_from_path(project_path)['id']`（sha256(normcase(normpath(path)))[:24]） | 历史 17 条已是 `'default'`，零迁移；列已有索引；id 稳定且不含明文路径 |
-| **D2** | **取消“默认工作区”这个概念**：任何工作区路径（含 agent 默认工作区）都按路径哈希归属，互不相同；只有「显式全局」与历史数据才是 `'default'` | 用户复核意见。语义更简单：归属只由「路径 vs 无路径」决定；面板上「默认工作区」这一项随之取消，工作区下拉里只剩「全局记忆」与各工作区 |
+| **D1** | `workspace_id='default'` 表示**全局记忆**；工作区记忆用**稳定工作区身份 id**（`<工作区>/.nanobot/workspace-id`，32 位 hex） | 用户复核：不能按 path 找。仓库已有同构机制（`SessionManager._load_or_create_workspace_id`），语义是「改名/移动跟随、复制目录换 id」；path 哈希在改名后会永久失联且不可改归属 |
+| **D2** | **取消“默认工作区”这个概念**：任何工作区目录（含 agent 默认工作区）都按自己的身份 id 归属，互不相同；只有「显式全局」与历史数据才是 `'default'` | 用户复核意见。语义只由「有无工作区」决定；面板上「默认工作区」这一项随之取消，工作区下拉里只剩「全局记忆」与各工作区 |
 | **D3** | 可见集合 = `('default', 当前工作区键)`；会话没有工作区（如非 WebUI 渠道）时 = `('default',)` | 一条规则覆盖“全局 + 工作区都读”；非当前工作区的记忆不可见 |
 | **D4** | provenance 快照与 `workspace_id` **同源**：都由 `session_memory_workspace_id(session)` 推导；会话无工作区时 provenance 不写 `workspaces`（= 全局） | 避免两套口径漂移；面板「全局记忆」标签与检索可见性一致 |
 | **D5** | `services.workspace_id` 保留为 **store 标签**（恒 `'default'`），只用于 `provenance.store_workspace_id` 与 scratchpad 主键，不再作为记忆行过滤条件 | 现有两处引用不断裂，改动面最小 |
 | **D6** | episodes 新增 `workspace_id` 列（幂等 `ALTER`），与 memories 对齐 | 情节通道（`search_episodes`）目前完全没有归属信息，无法隔离 |
 | **D7** | **手动新增记忆**：可显式选「全局记忆」或某个工作区；省略选择时归全局 | 用户复核意见。归属由调用方显式表达，避免默认落到某个项目 |
+| **D8** | **允许事后改归属**：记忆编辑可换工作区，同时更新 `workspace_id` 列与 `metadata.provenance.workspaces` 快照 | 用户复核意见。兜底改名/迁移/误归类场景（面板里改一次即可，不必动数据库） |
+| **D9** | 身份 marker 写在 `<工作区>/.nanobot/workspace-id`；**目录不可写时回退 path 哈希**（面板标注为派生归属） | 与既有 session 机制同构；只读工作区不强行落盘 |
 
 ---
 
@@ -78,10 +81,11 @@ approved: false
 
 | 文件 | 职责变化 |
 | --- | --- |
+| `nanobot/workspace_identity.py`（**新建**） | 稳定工作区身份：读/建 `<工作区>/.nanobot/workspace-id`、复制检测轮换、只读目录回退 path 哈希、进程内缓存 |
 | `nanobot/memory/provenance.py` | 新增工作区键推导与可见集合函数；`extraction_provenance` 支持全局态 |
 | `nanobot/memory/models.py` | `Episode` 增加 `workspace_id` 字段 |
 | `nanobot/memory/database.py` | `episodes` 表加 `workspace_id` 列 + 幂等迁移 + 索引；schema 版本 2→3 |
-| `nanobot/memory/repository.py` | 查询函数接受 `workspace_ids`；新增「库中已登记工作区」查询；episode 读写带列 |
+| `nanobot/memory/repository.py` | 查询函数接受 `workspace_ids`；新增「库中已登记工作区」查询；`update_memory` 支持改 `workspace_id`；episode 读写带列 |
 | `nanobot/memory/extractor.py` | 提取写入按会话工作区打标；画像合并按工作区隔离 |
 | `nanobot/memory/retrieval/store_adapter.py` | 透传可见集合；向量候选回表后判定可见性 |
 | `nanobot/memory/retrieval/channels/{semantic,recent,episodes}.py` | 通道接受并转发 `workspace_ids` |
@@ -89,10 +93,11 @@ approved: false
 | `nanobot/agent/context.py` | `_build_memory_section_with_ids` 接受 `workspace_ids` |
 | `nanobot/agent/loop.py` | 每轮按有效工作区计算可见集合；注册内存态解析器给工具 |
 | `nanobot/agent/tools/memory_search.py` | 工具按会话解析可见集合后检索 |
-| `nanobot/webui/memory_api.py` | 面板读写不再按 store 标签过滤；手动新增按归属写列；payload 暴露 `workspace_id` |
+| `nanobot/webui/memory_api.py` | 面板读写不再按 store 标签过滤；手动新增/编辑按归属写列并同步 provenance 快照；payload 暴露 `workspace_id` |
+| `nanobot/webui/memory_routes.py` | `memory-update` 透传 `workspace` 参数 |
 | `nanobot/webui/memory_presentation.py` | 工作区选项与筛选以 `workspace_id` 为准，含固定「全局记忆」项，取消「默认工作区」 |
 | `nanobot/webui/session_workbench.py` | 工作台记忆项带归属标记 |
-| `webui/src/lib/types.ts`、`webui/src/components/settings/memory/*` | 前端类型、筛选下拉、标签 |
+| `webui/src/lib/types.ts`、`webui/src/components/settings/memory/*` | 前端类型、筛选下拉、标签、编辑弹窗可改归属 |
 
 > `nanobot/memory/vector/store.py` **不改**：向量侧不做库内过滤（依据 §5 实测），可见性统一在 SQLite 侧判定。
 
@@ -101,10 +106,11 @@ approved: false
 ## 4. WU 划分与依赖
 
 ```
-WU-1 存储基座 ──┬──> WU-2 写入归属（extractor）
-（helpers/模型/  ├──> WU-3 检索可见性（retrieval/agent）
- schema/repository）├──> WU-4 面板与工作台（webui）
-                   └──> WU-5 前端（依赖 WU-4）
+WU-1 存储基座（Task 1a 身份模块 / 1b 隔离键委托 / 2 episode 列 / 3 repository 过滤）
+   ├──> WU-2 写入归属（Task 4 extractor）
+   ├──> WU-3 检索可见性（Task 5-6 retrieval/agent）
+   ├──> WU-4 面板与工作台（Task 7-8 webui，含归属可改）
+   └──> WU-5 前端（Task 9，含编辑态改归属；依赖 WU-4 的 payload 契约）
 ```
 
 ---
@@ -159,15 +165,245 @@ USE TEMP B-TREE FOR ORDER BY
 | --- | --- | --- |
 | Layer 4 自动注入（每轮都跑，含首轮） | **≈ 0 ms** | 见 5.2；默认 `memory_search_backend=fts5`，向量层默认关闭 |
 | 向量后端（opt-in） | **≈ 0 ms** | 不使用 Chroma `where`（5.3），改 SQLite 侧判定 |
-| 每轮计算可见集合 | µs 级 | 1 次 sha256（路径）+ 1 次会话 metadata 字典读取（已在内存） |
+| 每轮计算可见集合 | µs 级 | 1 次会话 metadata 字典读取（已在内存）+ 1 次工作区身份解析 |
+| 工作区身份解析（marker 方案新增） | 首次 ~1 ms（写 marker），之后 **µs 级** | 身份解析带**进程内缓存**（`nanobot/workspace_identity._CACHE`），同一路径每轮只做一次字典查找；marker 只在首次解析时读/写一次 |
 | `memory_search` 工具 | ≈ 0 ms | 复用工具本来就取过的 `get_cached` 会话对象，**不新增磁盘读**；会话未命中缓存时退化为全局集合，不做 `read_session_metadata` 磁盘 I/O |
 | 记忆面板（设置页，非对话路径） | 无回归 | 改造前 `list_memories(conn, workspace_id='default')` 已返回全部行（历史数据全是 `'default'`），改造后 `list_memories(conn)` 集合相同 |
 
-**结论：对首次对话没有可感知影响。** 唯一需要守住的是「工具侧不得为拿工作区归属而新增磁盘读」，Task 6 用 `get_cached` 实现。
+**结论：对首次对话没有可感知影响。** 需要守住两条：①「工具侧不得为拿工作区归属而新增磁盘读」（Task 6 用 `get_cached`）；②「身份解析必须带进程内缓存」（Task 1a），否则每轮一次 stat+read 会在高频会话里累积。
 
 ---
 
-## Task 1（WU-1）: 工作区键推导与可见集合
+## Task 1a（WU-01）: 稳定工作区身份模块
+
+**Files:**
+- Create: `nanobot/workspace_identity.py`
+- Test: `tests/test_workspace_identity.py`（新建）
+
+- [ ] **Step 1: 写失败测试**
+
+```python
+# tests/test_workspace_identity.py
+import os
+import re
+import shutil
+from pathlib import Path
+
+from nanobot.workspace_identity import workspace_identity_id
+
+
+def test_first_call_creates_marker_and_returns_stable_id(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    first = workspace_identity_id(project)
+    assert re.fullmatch(r"[0-9a-f]{32}", first)
+    marker = project / ".nanobot" / "workspace-id"
+    assert marker.is_file()
+    assert marker.read_text(encoding="utf-8").strip() == first
+    assert workspace_identity_id(project) == first
+
+
+def test_renamed_workspace_keeps_identity(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    original = workspace_identity_id(project)
+    moved = tmp_path / "proj-renamed"
+    shutil.move(str(project), str(moved))
+    assert workspace_identity_id(moved) == original
+
+
+def test_copied_workspace_gets_a_new_identity(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    original = workspace_identity_id(project)
+    copy = tmp_path / "proj-copy"
+    shutil.copytree(str(project), str(copy))
+    assert workspace_identity_id(copy) != original
+
+
+def test_unwritable_workspace_falls_back_to_path_hash(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    original = workspace_identity_id(project)
+    # 让 marker 目录不可写，模拟只读工作区
+    os.chmod(project / ".nanobot", 0o500)
+    try:
+        fallback = workspace_identity_id(tmp_path / "proj2")
+    finally:
+        os.chmod(project / ".nanobot", 0o700)
+    assert re.fullmatch(r"[0-9a-f]{24}", fallback)
+    assert fallback != original
+```
+
+- [ ] **Step 2: 运行测试确认失败**
+
+Run: `uv run --no-sync pytest tests/test_workspace_identity.py -q`
+Expected: FAIL — `ModuleNotFoundError: No module named 'nanobot.workspace_identity'`
+
+- [ ] **Step 3: 实现**
+
+新建 `nanobot/workspace_identity.py`：
+
+```python
+"""稳定工作区身份。
+
+与 ``nanobot.session.manager`` 的会话命名空间同构：身份写在工作区内的
+``.nanobot/workspace-id``（32 位 hex），因此**改名/移动后 id 不变**，而把目录
+复制到别处时会轮换出新 id（副本不继承原目录的记忆）。
+
+工作区只读时无法落盘 marker，回退到 path 哈希——这种归属是"派生的"，
+改名后会失联，面板需标注。
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import ntpath
+import os
+import posixpath
+import re
+import secrets
+import threading
+from pathlib import Path, PurePosixPath, PureWindowsPath
+
+_MARKER_DIR = ".nanobot"
+_MARKER_NAME = "workspace-id"
+_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+_FALLBACK_LEN = 24
+_LOCK = threading.Lock()
+_CACHE: dict[str, str] = {}
+
+
+def workspace_marker_path(workspace: Path) -> Path:
+    return Path(workspace) / _MARKER_DIR / _MARKER_NAME
+
+
+def path_fallback_id(workspace: Path) -> str:
+    """不可写工作区的降级身份：路径归一化后的哈希。"""
+    raw = str(Path(workspace).expanduser())
+    windows_path = PureWindowsPath(raw)
+    if windows_path.is_absolute():
+        identity = ntpath.normcase(ntpath.normpath(raw))
+    elif PurePosixPath(raw).is_absolute():
+        identity = posixpath.normpath(raw)
+    else:
+        identity = raw
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()[:_FALLBACK_LEN]
+
+
+def workspace_identity_id(workspace: Path) -> str:
+    """工作区 → 稳定身份 id。
+
+    顺序：已有 marker → 复制检测 → 新建 marker → 不可写时回退 path 哈希。
+    任何异常都不得冒泡：记忆链路不能因为身份解析失败而整体中断。
+    """
+    resolved = Path(workspace).expanduser()
+    cache_key = str(resolved)
+    cached = _CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    with _LOCK:
+        cached = _CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+        value = _resolve(resolved)
+        _CACHE[cache_key] = value
+        return value
+
+
+def _resolve(workspace: Path) -> str:
+    marker = workspace_marker_path(workspace)
+    try:
+        existing = _read_marker(marker)
+    except Exception:
+        existing = None
+    if existing is not None and not _is_claimed_by_other_path(existing, workspace):
+        return existing
+    try:
+        created = existing or secrets.token_hex(16)
+        _write_marker(marker, created)
+        _claim(created, workspace)
+        return created
+    except OSError:
+        return path_fallback_id(workspace)
+```
+
+配套私有函数（同一文件内）：
+
+```python
+def _read_marker(marker: Path) -> str | None:
+    if marker.is_symlink():
+        return None
+    try:
+        value = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return value if _ID_RE.fullmatch(value) else None
+
+
+def _write_marker(marker: Path, value: str) -> None:
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    tmp = marker.with_name(f".{marker.name}.{secrets.token_hex(8)}.tmp")
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            os.write(fd, f"{value}\n".encode("ascii"))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(tmp, marker)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _registry_dir() -> Path:
+    from nanobot.config.paths import get_runtime_subdir
+
+    return get_runtime_subdir("workspace-registry")
+
+
+def _claim(workspace_id: str, workspace: Path) -> None:
+    directory = _registry_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"{workspace_id}.json").write_text(
+        json.dumps({"path": str(workspace)}, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def _is_claimed_by_other_path(workspace_id: str, workspace: Path) -> bool:
+    """复制检测：同一 id 被另一个**仍然存在**的路径占用 → 视为副本。"""
+    record = _registry_dir() / f"{workspace_id}.json"
+    try:
+        data = json.loads(record.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    other = data.get("path") if isinstance(data, dict) else None
+    if not isinstance(other, str) or not other:
+        return False
+    try:
+        if Path(other).resolve(strict=False) == Path(workspace).resolve(strict=False):
+            return False
+        return Path(other).exists()
+    except OSError:
+        return False
+```
+
+- [ ] **Step 4: 运行测试确认通过**
+
+Run: `uv run --no-sync pytest tests/test_workspace_identity.py -q`
+Expected: PASS（4 passed；复制检测用例依赖注册表目录，测试需用 `monkeypatch` 把 `nanobot.config.paths.get_runtime_subdir` 指向 `tmp_path`，否则会写真实数据目录——实现时按此调整测试）
+
+- [ ] **Step 5: 提交**
+
+```bash
+git add nanobot/workspace_identity.py tests/test_workspace_identity.py
+git commit -m "feat(workspace): 新增稳定工作区身份模块"
+```
+
+---
+
+## Task 1b（WU-01）: 记忆隔离键委托给身份模块
 
 **Files:**
 - Modify: `nanobot/memory/provenance.py`
@@ -177,57 +413,67 @@ USE TEMP B-TREE FOR ORDER BY
 
 ```python
 # tests/memory/test_workspace_scope.py
+import re
+from pathlib import Path
+
 from nanobot.memory.provenance import (
+    GLOBAL_MEMORY_WORKSPACE_ID,
     memory_visibility_ids,
     memory_workspace_id,
     session_memory_workspace_id,
-    workspace_from_path,
 )
 
 
-def test_valid_project_path_maps_to_stable_hash() -> None:
-    key = memory_workspace_id("/tmp/proj-a")
-    assert key == workspace_from_path("/tmp/proj-a")["id"]
-    assert key != "default"
+def test_workspace_id_comes_from_stable_identity(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    key = memory_workspace_id(str(project))
+    assert re.fullmatch(r"[0-9a-f]{32}", key)
+    assert key != GLOBAL_MEMORY_WORKSPACE_ID
 
 
 def test_missing_or_invalid_path_is_global() -> None:
-    assert memory_workspace_id(None) == "default"
-    assert memory_workspace_id("") == "default"
-    assert memory_workspace_id("relative/path") == "default"
+    assert memory_workspace_id(None) == GLOBAL_MEMORY_WORKSPACE_ID
+    assert memory_workspace_id("") == GLOBAL_MEMORY_WORKSPACE_ID
+    assert memory_workspace_id("relative/path") == GLOBAL_MEMORY_WORKSPACE_ID
 
 
-def test_default_workspace_is_not_special_cased() -> None:
-    """取消“默认工作区”概念：默认工作区与任何项目目录一样按路径哈希归属。"""
-    key = memory_workspace_id("/home/u/.nanobot/workspace")
-    assert key != "default"
-    assert key == workspace_from_path("/home/u/.nanobot/workspace")["id"]
+def test_default_workspace_is_not_special_cased(tmp_path: Path) -> None:
+    """取消“默认工作区”概念：默认工作区与任何项目目录一样按自己的身份归属。"""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    key = memory_workspace_id(str(workspace))
+    assert key != GLOBAL_MEMORY_WORKSPACE_ID
+    assert re.fullmatch(r"[0-9a-f]{32}", key)
 
 
 def test_visibility_always_includes_global() -> None:
-    assert memory_visibility_ids("default") == ("default",)
+    assert memory_visibility_ids(GLOBAL_MEMORY_WORKSPACE_ID) == ("default",)
     assert memory_visibility_ids("abc123") == ("default", "abc123")
     assert memory_visibility_ids("") == ("default",)
 
 
-def test_session_workspace_id_reads_session_scope() -> None:
-    class _Session:
-        metadata: dict = {"workspace_scope": {"project_path": "/tmp/proj-a"}}
+def test_session_workspace_id_reads_session_scope(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
 
-    assert session_memory_workspace_id(_Session()) == memory_workspace_id("/tmp/proj-a")
+    class _Session:
+        metadata: dict = {"workspace_scope": {"project_path": str(project)}}
+
+    assert session_memory_workspace_id(_Session()) == memory_workspace_id(str(project))
 
 
 def test_session_without_scope_is_global() -> None:
     class _Session:
         metadata: dict = {}
 
-    assert session_memory_workspace_id(_Session()) == "default"
+    assert session_memory_workspace_id(_Session()) == GLOBAL_MEMORY_WORKSPACE_ID
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
 
 Run: `uv run --no-sync pytest tests/memory/test_workspace_scope.py -q`
-Expected: FAIL — `ImportError: cannot import name 'memory_workspace_id'`
+Expected: FAIL — `ImportError: cannot import name 'GLOBAL_MEMORY_WORKSPACE_ID'`
 
 - [ ] **Step 3: 实现**
 
@@ -240,14 +486,15 @@ GLOBAL_MEMORY_WORKSPACE_ID = "default"
 def memory_workspace_id(project_path: str | None) -> str:
     """工作区路径 → 记忆隔离键。
 
-    没有任何路径特例：默认工作区与普通项目目录一样按路径哈希归属（取消"默认
-    工作区"概念）。缺失或非法路径 → ``'default'``（全局记忆）。
+    走稳定工作区身份（``nanobot.workspace_identity``）：id 写在工作区内的
+    ``.nanobot/workspace-id``，改名/移动后不变，复制目录会换新 id。缺失或
+    非法路径 → ``'default'``（全局记忆）。
     """
     if not isinstance(project_path, str) or not project_path.strip() or "\x00" in project_path:
         return GLOBAL_MEMORY_WORKSPACE_ID
     try:
-        return workspace_from_path(project_path)["id"]
-    except ValueError:
+        return workspace_identity_id(Path(project_path))
+    except Exception:
         return GLOBAL_MEMORY_WORKSPACE_ID
 
 
@@ -266,16 +513,18 @@ def memory_visibility_ids(workspace_id: str) -> tuple[str, ...]:
     return (GLOBAL_MEMORY_WORKSPACE_ID, key)
 ```
 
+并加 import：`from pathlib import Path`、`from nanobot.workspace_identity import workspace_identity_id`。
+
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `uv run --no-sync pytest tests/memory/test_workspace_scope.py -q`
-Expected: PASS（6 passed）
+Run: `uv run --no-sync pytest tests/memory/test_workspace_scope.py tests/test_workspace_identity.py -q`
+Expected: PASS（10 passed）
 
 - [ ] **Step 5: 提交**
 
 ```bash
 git add nanobot/memory/provenance.py tests/memory/test_workspace_scope.py
-git commit -m "feat(memory): 新增工作区隔离键推导与可见集合函数"
+git commit -m "feat(memory): 记忆隔离键改用稳定工作区身份"
 ```
 
 ---
@@ -1070,8 +1319,8 @@ git commit -m "feat(agent): 每轮按工作区计算记忆可见集合并注入�
 ## Task 7（WU-4）: 面板读写与归属口径
 
 **Files:**
-- Modify: `nanobot/webui/memory_api.py`、`nanobot/webui/memory_presentation.py`
-- Test: `tests/webui/test_memory_api.py`、`tests/webui/test_memory_presentation_api.py`
+- Modify: `nanobot/webui/memory_api.py`、`nanobot/webui/memory_presentation.py`、`nanobot/webui/memory_routes.py`
+- Test: `tests/webui/test_memory_api.py`、`tests/webui/test_memory_presentation_api.py`、`tests/webui/test_memory_routes.py`
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1112,6 +1361,23 @@ def test_create_memory_rejects_unknown_workspace(services) -> None:
 
     with pytest.raises(WebUISettingsError):
         create_memory(services, content="手动新增", workspace="ws-unknown")
+
+
+def test_update_memory_can_reassign_workspace(services) -> None:
+    from nanobot.webui.memory_api import update_memory
+
+    payload = update_memory(services, "ws-memory", workspace="default")
+    assert payload["memory"]["workspace_id"] == "default"
+    assert payload["memory"]["workspaces"] == []
+
+
+def test_update_memory_rejects_unknown_workspace(services) -> None:
+    import pytest
+    from nanobot.webui.memory_api import update_memory
+    from nanobot.webui.settings_contracts import WebUISettingsError
+
+    with pytest.raises(WebUISettingsError):
+        update_memory(services, "ws-memory", workspace="ws-unknown")
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -1161,7 +1427,34 @@ def _read_presentation(
 
 并把 `Memory(... workspace_id=services.workspace_id ...)` 改为 `workspace_id=row_workspace_id`。
 
-5) `stats_payload` 的 `list_memories(conn, workspace_id=services.workspace_id)` 改为 `list_memories(conn)`（统计全量）。
+5) **归属可改（D8）**：`update_memory` 增加 `workspace: str | None = None` 参数。传入时：
+
+```python
+    if workspace is not None:
+        with services.database.connect() as conn:
+            known = known_workspace_ids(conn)
+        if workspace in ("", "unassigned", "default"):
+            new_workspace_id = "default"
+            new_workspaces: list[dict[str, str]] = []
+        elif workspace in known:
+            new_workspace_id = workspace
+            new_workspaces = [option for option in options if option["id"] == workspace]
+        else:
+            raise WebUIMemoryError("invalid workspace")
+        kwargs["workspace_id"] = new_workspace_id
+        # provenance 快照同步：列与展示口径必须一致（D4）
+        provenance = dict(existing_metadata.get("provenance") or {})
+        provenance["workspaces"] = new_workspaces
+        merged = dict(existing_metadata)
+        merged["provenance"] = provenance
+        kwargs["metadata"] = merged
+```
+
+`repository.update_memory` 需支持 `workspace_id` 形参并落到 `SET workspace_id = :workspace_id`（SQL 用具名参数，不拼串）。
+
+`nanobot/webui/memory_routes.py` 的 `memory-update` 分支透传 `workspace=payload.get("workspace")`。
+
+6) `stats_payload` 的 `list_memories(conn, workspace_id=services.workspace_id)` 改为 `list_memories(conn)`（统计全量）。
 
 `nanobot/webui/memory_presentation.py`：
 
@@ -1295,18 +1588,38 @@ it("工作区筛选包含全局记忆项", async () => {
     loading={false} />);
   expect(screen.getByRole("option", { name: "全局记忆" })).toBeTruthy();
 });
+
+it("编辑态可以选择归属工作区并提交", async () => {
+  const updateMemory = vi.fn().mockResolvedValue(undefined);
+  vi.mock("@/lib/api", () => ({ updateMemory, createMemory: vi.fn() }));
+  render(<MemoryEditDialog
+    memory={{ id: "m-1", content: "旧内容", workspace_id: "ws-a" } as MemoryPayload}
+    onClose={() => {}} onSaved={() => {}}
+    workspaces={[{ id: "ws-a", name: "项目A", path: "/tmp/a" }, { id: "default", name: "全局记忆", path: "" }]}
+    initialWorkspace="ws-a" />);
+  await userEvent.selectOptions(screen.getByLabelText("工作区"), "default");
+  await userEvent.click(screen.getByRole("button", { name: /保存|Save/ }));
+  expect(updateMemory).toHaveBeenCalledWith(expect.anything(), "m-1", expect.objectContaining({ workspace: "default" }));
+});
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
 
 Run: `cd webui && bun run test memory-workspace-filter`
-Expected: FAIL — 找不到「全局记忆」选项
+Expected: FAIL — 编辑态找不到「工作区」下拉；`updateMemory` 未收到 `workspace`
 
 - [ ] **Step 3: 实现**
 
-- `webui/src/lib/types.ts`：`MemoryWorkspace` 增加可选 `path?: string`；`MemoryPayload` 增加 `workspace_id?: string`；`EpisodePayload` 增加 `workspace_id?: string`。
+- `webui/src/lib/types.ts`：`MemoryWorkspace` 增加可选 `path?: string`；`MemoryPayload` 增加 `workspace_id?: string`；`EpisodePayload` 增加 `workspace_id?: string`；`updateMemory` 的入参类型增加 `workspace?: string`。
+- `webui/src/lib/api.ts`：`updateMemory` 透传 `workspace` 字段（body 里带 `workspace`，缺省不发）。
 - `MemoryPresentation.tsx`：`MemoryFilters` 的下拉第一项保持「全部工作区」，其余由 `workspace_options` 渲染（后端已提供「全局记忆」项与各工作区项）。
 - `MemoryListView.tsx` / `EpisodeListView.tsx`：筛选值继续用 `workspace` 参数直传（`'default'` 即全局）。
+- `MemoryEditDialog.tsx`（**归属可改 D8**）：
+  - 工作区 `<select>` 在**新增与编辑两种态都渲染**；编辑态初值取 `memory.workspace_id`（缺省 `"default"`）。
+  - 选项语义：`<option value="default">全局记忆</option>` + `workspaces.map(...)`（含各工作区）；**移除**原来的空值「默认工作区」项与 `unassigned` 项（`unassigned` 与 `default` 语义重复）。
+  - 保存时：`memory` 分支传 `workspace`（始终传当前选择，未改动也传当前归属，保持幂等）；新增分支维持传 `workspace`。
+  - `<select>` 需有可访问名称（`aria-label` 或 `<label>`），测试用 `getByLabelText("工作区")` 定位。
+- `MemoryListView.tsx`：编辑弹窗的 `initialWorkspace` 改为 `editing?.workspace_id ?? workspace`（编辑已有记忆时带出其当前归属，而不是当前筛选值）。
 
 - [ ] **Step 4: 运行测试确认通过**
 
@@ -1371,16 +1684,21 @@ Expected：1k/10k/50k 各档的「有过滤 − 无过滤」差值仍在 ±3ms �
 
 | 编号 | 风险 / 缺口 | 处置 |
 | --- | --- | --- |
-| R1 | 工作区目录改名或移动 → `workspace_from_path` 的 id 变化，旧记忆留在旧 id 下不可见 | 本次不做迁移（改名低频）；记忆详情展示 path 便于判断 |
+| R1 | 工作区目录改名或移动 → 稳定 id **不变**（marker 随目录走），记忆跟随 | 已由 D1/D9 解决；复制目录会轮换新 id，副本不继承原目录记忆 |
+| R8 | **用户项目目录会出现 `.nanobot/workspace-id`**（git 里显示 untracked） | 用户已知情选择；文件为隐藏单文件、0o600、内容是随机 id，不含路径明文 |
+| R9 | 只读工作区无法写 marker → 回退 path 哈希，该归属是**派生的**，改名后会失联 | 面板对派生归属标注提示；用户可在编辑弹窗里改归属（D8）迁到正式工作区 |
+| R10 | 复制检测依赖 `~/.nanobot/workspace-registry/` 注册表；删掉注册表后复制检测失效 | 退化行为：副本与原目录共享 id（记忆互通）。注册表丢失不影响 marker 本身 |
 | R2 | 向量路不做库内过滤 → 向量 top-N 中属于其它工作区的候选被丢弃，有效命中可能少于 FTS5 路 | 召回变少而非泄漏；向量层默认关闭（`memory_search_backend=fts5`） |
 | R3 | 向量 top-N 被过滤后可能不足 `limit`，注入块变短 | 已知折中，写入验证记录；若实测影响明显再单独评估 |
 | R4 | 面板详情/删除守卫放宽（去掉 `workspace_id != services.workspace_id`） | 单库部署下等价于"库内即可访问"；跨库场景不存在（每 gateway 一个库） |
 | R5 | `nanobot/memory/lifecycle.py:116` 的 MEMORY.md 派生过滤 `scope="user"`，而生产写入全是 `scope="global"`，导致 MEMORY.md 实际恒空（实测文件仅 3 字节） | **本次不修**，属独立缺陷，不在计划范围 |
 | R6 | 画像合并按工作区隔离后，同一 subject+predicate 在不同工作区会产生两条记忆 | 符合隔离语义；跨工作区不互相污染 |
 | R7 | FTS5 查询 `ORDER BY rank` 会物化全部命中再排序（`LIMIT` 不裁剪扫描量），5 万行全命中时约 27ms | 既有架构问题，与本次无关；若要优化需单独立项改召回 SQL |
+| R11 | 改归属（D8）会改写 `metadata.provenance.workspaces` 快照，与「编辑不改原始来源」的旧契约相反 | 用户复核明确要求可改归属；`store_workspace_id` 与 `trigger_*`/`generation_method` 仍保持原值，只改归属部分 |
 
 ## 7. 自检（writing-plans §Self-Review）
 
-- **需求覆盖**：工作区隔离（D1–D6 + Task 1–4）✅；全局 + 工作区都读（D3 + Task 3/5/6）✅；与工作台产出一致（Task 7 面板口径 + Task 8 工作台归属）✅；取消默认工作区概念（D2 + Task 1/7 测试）✅；手动新增可选全局或工作区（D7 + Task 7）✅；性能评估（§5 + Task 10 Step 3）✅。
+- **需求覆盖**：工作区隔离（D1/D9 + Task 1a/1b/2/3）✅；全局 + 工作区都读（D3 + Task 3/5/6）✅；与工作台产出一致（Task 7 面板口径 + Task 8 工作台归属）✅；取消默认工作区概念（D2 + Task 1b 测试）✅；手动新增可选全局或工作区（D7 + Task 7）✅；**归属事后可改（D8 + Task 7 步骤 5 + Task 9 编辑态）**✅；性能评估（§5 + Task 10 Step 3）✅。
 - **占位符扫描**：无 TBD/TODO；每步均给出文件、代码与命令。
-- **类型一致性**：`workspace_ids` 在 repository → store_adapter → channels → engine → context/loop/tool 全链同名同义（`Sequence[str] | None`）；`memory_visibility_ids` 返回 `tuple[str, ...]`；`memory_workspace_id(path)` 单参、无 `default_workspace`（D2 取消特例后的唯一签名）。
+- **类型一致性**：`workspace_ids` 在 repository → store_adapter → channels → engine → context/loop/tool 全链同名同义（`Sequence[str] | None`）；`memory_visibility_ids` 返回 `tuple[str, ...]`；`memory_workspace_id(path)` 单参；身份 id 为 32 位 hex（`GLOBAL_MEMORY_WORKSPACE_ID='default'` 是唯一的非 hex 值）；`workspace_identity_id(path)` 在 `nanobot/workspace_identity.py`。
+- **与既有契约的冲突**：`2026-10-27-contract-memory-presentation.md` 写的是「编辑不改原始来源与项目归属」，与 D8 冲突——已按用户复核意见改写归属规则（只改归属，不动 `trigger_*`/`generation_method`/`store_workspace_id`），需在尾盘 review 时显式记录该偏离。

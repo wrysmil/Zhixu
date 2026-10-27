@@ -94,7 +94,7 @@ class TestSchema:
             ver = conn.execute(
                 "SELECT value FROM _schema_meta WHERE key='version'"
             ).fetchone()[0]
-        assert ver == '2'
+        assert ver == '3'
 
     def test_init_schema_is_idempotent(self, workspace: Path):
         db = MemoryDatabase(workspace)
@@ -139,7 +139,7 @@ class TestSchema:
                 "SELECT value FROM _schema_meta WHERE key='version'"
             ).fetchall()
             raw.commit()
-            assert rows and rows[0][0] == "2", "_schema_meta 应升至 v2"
+            assert rows and rows[0][0] == "3", "_schema_meta 应升至 v3"
         # 关闭旧连接
         del db
 
@@ -197,6 +197,93 @@ class TestSchema:
                 if r['pk'] > 0
             ]
         assert pk_cols == ['user_id', 'workspace_id']
+
+    def test_episodes_table_has_workspace_id_column(self, workspace: Path):
+        """episodes 表带工作区列（D6：情节通道同样要能隔离）。"""
+        db = MemoryDatabase(workspace)
+        db.init_schema()
+        with db.connect() as conn:
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(episodes)").fetchall()}
+        assert 'workspace_id' in cols
+
+    def test_legacy_episodes_table_gets_workspace_id_column(self, workspace: Path):
+        """旧库（无 workspace_id 列）必须被幂等 ALTER 补齐。"""
+        db = MemoryDatabase(workspace)
+        with db.connect() as conn:
+            conn.execute("CREATE TABLE episodes (id TEXT PRIMARY KEY)")  # 极简旧表
+        db.ensure_schema()
+        with db.connect() as conn:
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(episodes)")}
+        assert "workspace_id" in columns
+
+    def test_legacy_episodes_migration_is_idempotent(self, workspace: Path):
+        """重复 ensure_schema 不会因已存在该列而报错。"""
+        db = MemoryDatabase(workspace)
+        db.ensure_schema()
+        db.ensure_schema()
+        with db.connect() as conn:
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(episodes)")}
+        assert "workspace_id" in columns
+
+    def test_realistic_legacy_episodes_table_gets_workspace_id(self, workspace: Path):
+        """真实旧库（v2 完整表结构、缺 workspace_id/metadata）迁移后列齐全且数据不丢。"""
+        db = MemoryDatabase(workspace)
+        with db.connect() as conn:
+            conn.execute(
+                """
+                CREATE TABLE episodes (
+                    id          TEXT    PRIMARY KEY,
+                    session_id  TEXT    NOT NULL,
+                    summary     TEXT    NOT NULL,
+                    goal        TEXT    NOT NULL DEFAULT '',
+                    outcome     TEXT    NOT NULL DEFAULT 'completed',
+                    source      TEXT    NOT NULL DEFAULT 'session_end',
+                    started_at  TEXT    NOT NULL,
+                    ended_at    TEXT    NOT NULL,
+                    action_nodes      TEXT NOT NULL DEFAULT '[]',
+                    entities          TEXT NOT NULL DEFAULT '[]',
+                    tools_used        TEXT NOT NULL DEFAULT '[]',
+                    linked_memory_ids TEXT NOT NULL DEFAULT '[]',
+                    tags              TEXT NOT NULL DEFAULT '[]',
+                    importance_score  REAL NOT NULL DEFAULT 0.5,
+                    access_count      INTEGER NOT NULL DEFAULT 0,
+                    compaction_checkpoint_id TEXT NOT NULL DEFAULT '',
+                    workspace_snapshot_id    TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+            conn.execute(
+                "INSERT INTO episodes (id, session_id, summary, started_at, ended_at) "
+                "VALUES ('ep-old', 'ws:1', '旧情节', '2026-01-01T00:00:00+00:00', "
+                "'2026-01-01T00:01:00+00:00')"
+            )
+        db.ensure_schema()
+        with db.connect() as conn:
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(episodes)")}
+            row = conn.execute(
+                "SELECT id, workspace_id FROM episodes WHERE id = 'ep-old'"
+            ).fetchone()
+            idx_names = {
+                r[0] for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='episodes'"
+                ).fetchall()
+            }
+        assert "workspace_id" in columns
+        assert "metadata" in columns
+        assert row is not None and row["workspace_id"] == "default"
+        assert 'idx_episodes_workspace' in idx_names
+
+    def test_init_schema_creates_workspace_index(self, workspace: Path):
+        """工作区列有索引（避免过滤查询全表扫描）。"""
+        db = MemoryDatabase(workspace)
+        db.init_schema()
+        with db.connect() as conn:
+            idx_names = {
+                r[0] for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='episodes'"
+                ).fetchall()
+            }
+        assert 'idx_episodes_workspace' in idx_names
 
 
 class TestFts5:

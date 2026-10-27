@@ -30,6 +30,7 @@ class EpisodeOutcome(str, Enum):
 
 
 class EpisodeSource(str, Enum):
+    MANUAL = 'manual'
     SESSION_END = 'session_end'
     CONTEXT_COMPRESS = 'context_compress'
     TOPIC_CHANGE = 'topic_change'
@@ -150,6 +151,8 @@ class Episode:
     access_count: int = 0
     compaction_checkpoint_id: str = ''
     workspace_snapshot_id: str = ''
+    workspace_id: str = 'default'
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_row(self) -> dict[str, Any]:
         return {
@@ -170,6 +173,8 @@ class Episode:
             'access_count': self.access_count,
             'compaction_checkpoint_id': self.compaction_checkpoint_id,
             'workspace_snapshot_id': self.workspace_snapshot_id,
+            'workspace_id': self.workspace_id,
+            'metadata': json.dumps(self.metadata, ensure_ascii=False),
         }
 
     @classmethod
@@ -200,6 +205,12 @@ class Episode:
             access_count=row['access_count'],
             compaction_checkpoint_id=row['compaction_checkpoint_id'],
             workspace_snapshot_id=row['workspace_snapshot_id'],
+            workspace_id=row.get('workspace_id') or 'default',
+            metadata=(
+                json.loads(row['metadata']) if isinstance(row.get('metadata'), str) and row['metadata']
+                else dict(row['metadata']) if isinstance(row.get('metadata'), dict)
+                else {}
+            ),
         )
 
 

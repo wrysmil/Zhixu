@@ -210,3 +210,34 @@ def test_list_memories_with_workspace_filter(db):
         add_memory(conn, m2)
         only_a = list_memories(conn, workspace_id="ws-A")
     assert len(only_a) == 1 and only_a[0].id == m1.id
+
+
+# ---- episode 工作区列 -------------------------------------------------------
+
+
+def test_episode_roundtrip_keeps_workspace_id(db):
+    """Episode 携带工作区列：写入 → 读回不丢归属（D6）。"""
+    ep = _make_episode(workspace_id="ws-abc")
+    with db.connect() as conn:
+        add_episode(conn, ep)
+        loaded = get_episode(conn, ep.id)
+    assert loaded is not None
+    assert loaded.workspace_id == "ws-abc"
+
+
+def test_episode_defaults_to_global_workspace(db):
+    """未显式指定时归属全局（``default``）。"""
+    ep = _make_episode()
+    with db.connect() as conn:
+        add_episode(conn, ep)
+        loaded = get_episode(conn, ep.id)
+    assert loaded is not None
+    assert loaded.workspace_id == "default"
+
+
+def test_episode_to_row_and_from_row_roundtrip_workspace_id():
+    """``to_row`` / ``from_row`` 同步工作区列（fallback replay 依赖该对称性）。"""
+    ep = _make_episode(workspace_id="ws-roundtrip")
+    restored = Episode.from_row(ep.to_row())
+    assert restored.workspace_id == "ws-roundtrip"
+    assert restored.metadata == {}

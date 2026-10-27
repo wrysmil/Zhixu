@@ -17,7 +17,7 @@ from nanobot.memory.repository import (
     update_memory_source_episode,
 )
 
-_SCHEMA_VERSION = "2"
+_SCHEMA_VERSION = "3"
 
 _SCHEMA_STATEMENTS = [
     # ----- _schema_meta -----
@@ -83,13 +83,16 @@ _SCHEMA_STATEMENTS = [
         importance_score  REAL NOT NULL DEFAULT 0.5,
         access_count      INTEGER NOT NULL DEFAULT 0,
         compaction_checkpoint_id TEXT NOT NULL DEFAULT '',
-        workspace_snapshot_id    TEXT NOT NULL DEFAULT ''
+        workspace_snapshot_id    TEXT NOT NULL DEFAULT '',
+        workspace_id            TEXT NOT NULL DEFAULT 'default',
+        metadata                 TEXT NOT NULL DEFAULT '{}'
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_episodes_session    ON episodes(session_id)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_time       ON episodes(started_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_outcome    ON episodes(outcome)",
     "CREATE INDEX IF NOT EXISTS idx_episodes_importance ON episodes(importance_score DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_episodes_workspace  ON episodes(workspace_id)",
     # ----- scratchpad -----
     """
     CREATE TABLE IF NOT EXISTS scratchpad (
@@ -164,6 +167,25 @@ _SCHEMA_STATEMENTS = [
 ]
 
 
+def _execute_schema_statement(conn: sqlite3.Connection, stmt: str) -> None:
+    """执行一条 schema 语句；索引语句遇到「列不存在」时降级跳过。
+
+    旧库里可能存在**残缺**的表（例如只建了主键的 ``episodes``），按列建索引会
+    抛 ``no such column``。索引缺失只影响查询性能、不影响正确性，因此这里降级
+    为告警并继续——绝不让 schema 初始化失败把整个 gateway 卡在起不来。表结构
+    本身的缺陷仍会在后续查询时暴露。
+
+    非索引语句的异常照旧冒泡：那是真正的 schema 缺陷，必须让调用方看到。
+    """
+    try:
+        conn.execute(stmt)
+    except sqlite3.OperationalError as exc:
+        if stmt.lstrip().upper().startswith("CREATE INDEX") and "no such column" in str(exc):
+            logger.warning("memory schema index skipped (legacy table missing column): {}", exc)
+            return
+        raise
+
+
 class MemoryDatabase:
     """nanobot 记忆系统的 SQLite 入口。
 
@@ -206,8 +228,23 @@ class MemoryDatabase:
     def init_schema(self) -> None:
         """幂等地创建所有表、索引与版本元数据。"""
         with self.connect() as conn:
+            # Serialize schema discovery + ALTER across gateway/worker processes.
+            conn.execute("BEGIN IMMEDIATE")
             for stmt in _SCHEMA_STATEMENTS:
-                conn.execute(stmt)
+                _execute_schema_statement(conn, stmt)
+            # CREATE TABLE IF NOT EXISTS does not add columns to legacy stores.
+            episode_columns = {row[1] for row in conn.execute("PRAGMA table_info(episodes)")}
+            if "metadata" not in episode_columns:
+                conn.execute("ALTER TABLE episodes ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'")
+            if "workspace_id" not in episode_columns:
+                conn.execute(
+                    "ALTER TABLE episodes ADD COLUMN workspace_id TEXT NOT NULL DEFAULT 'default'"
+                )
+            # 旧库补列后重建工作区索引：语句列表里的同名索引在旧库上因列不存在
+            # 被跳过，这里补建（``IF NOT EXISTS`` 保证幂等）。
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_episodes_workspace ON episodes(workspace_id)"
+            )
             conn.execute(
                 "INSERT OR REPLACE INTO _schema_meta (key, value) VALUES (?, ?)",
                 ("version", _SCHEMA_VERSION),
