@@ -16,15 +16,28 @@
     "dist:all": "electron-builder"
   },
   "devDependencies": {
-    "electron": "^33.2.0",
+    "electron": "^45.0.0",
     "electron-builder": "^25.1.8"
   },
   "build": {
     "appId": "ai.zhixu.desktop",
     "productName": "知序",
-    "directories": { "output": "release" },
-    "files": ["main.cjs", "preload.cjs", "browser-policy.cjs", "boot.html", "assets/**"],
-    "win": { "target": ["nsis"], "icon": "assets/icon.png" },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "browser-policy.cjs",
+      "boot.html",
+      "assets/**"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.png"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
