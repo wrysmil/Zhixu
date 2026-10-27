@@ -44,9 +44,11 @@ from nanobot.session.summary import (
 from nanobot.utils.helpers import (
     estimate_message_tokens,
     estimate_prompt_tokens_chain,
+    estimate_text_tokens,
     find_legal_message_start,
     maybe_persist_tool_result,
     truncate_text,
+    truncate_text_to_tokens,
 )
 from nanobot.utils.runtime import ensure_nonempty_tool_result
 
@@ -68,6 +70,10 @@ SNIP_SAFETY_BUFFER = 1024
 # read_file is the recovery path for persisted results; exempting it prevents persist->read->persist loops.
 TOOL_RESULT_OFFLOAD_EXEMPT_TOOLS = frozenset({"read_file"})
 BACKFILL_CONTENT = "[Tool result unavailable — call was interrupted or lost]"
+#: 摘要压缩时每轮多砍掉的余量，用来吸收重新估算请求体积产生的误差。
+SUMMARY_SHRINK_MARGIN_TOKENS = 48
+#: 摘要压缩的最大轮数：每一轮按当前请求体积重算，够把溢出吃干净。
+SUMMARY_SHRINK_MAX_STEPS = 8
 PLACEHOLDER_TEXTS = frozenset({
     "[Previous assistant message omitted.]",
 })
@@ -538,13 +544,12 @@ class ContextGovernor:
                 )
 
             compaction.active_summary = summary
-            prepared = self.prepare_messages_for_model(
+            prepared = self._fit_summary_to_budget(
                 state.config,
-                [
-                    *self._summary_transcript(compaction, summary),
-                    {"role": "user", "content": SUMMARY_CONTINUATION_TEXT},
-                    *delta_messages,
-                ],
+                compaction,
+                summary,
+                delta_messages,
+                tool_definitions=tool_definitions,
             )
             # Responses-style state is append-only. Replacing H with a
             # checkpoint requires a fresh request; a successful response may
@@ -690,6 +695,74 @@ class ContextGovernor:
         )
         budget = config.context_window_tokens - max_output - SNIP_SAFETY_BUFFER
         return budget if budget > 0 else 0
+
+    def _fit_summary_to_budget(
+        self,
+        config: ContextGovernanceConfig,
+        compaction: ContextCompactionState,
+        summary: str,
+        delta_messages: list[dict[str, Any]],
+        *,
+        tool_definitions: list[dict[str, Any]] | None,
+    ) -> list[dict[str, Any]]:
+        """Shrink the replacement summary until the compacted request fits.
+
+        The consolidation budget sizes the summary without knowing how much of
+        the request budget the system prompt already took. Once the prompt grew
+        past its share, the summary alone pushed the request over the limit and
+        the whole turn died with ``ContextWindowExceededError``; cutting the
+        summary keeps the turn alive with less history instead.
+        """
+        def build(current: str) -> list[dict[str, Any]]:
+            return self.prepare_messages_for_model(
+                config,
+                [
+                    *self._summary_transcript(compaction, current),
+                    {"role": "user", "content": SUMMARY_CONTINUATION_TEXT},
+                    *delta_messages,
+                ],
+            )
+
+        prepared = build(summary)
+        budget = self.input_budget(config)
+        if budget <= 0:
+            return prepared
+
+        for _ in range(SUMMARY_SHRINK_MAX_STEPS):
+            estimated, _source = estimate_prompt_tokens_chain(
+                config.provider,
+                config.model,
+                prepared,
+                tool_definitions,
+            )
+            if estimated <= budget:
+                return prepared
+            overflow = estimated - budget
+            target = (
+                estimate_text_tokens(summary)
+                - overflow
+                - SUMMARY_SHRINK_MARGIN_TOKENS
+            )
+            if target <= 0:
+                break
+            summary = truncate_text_to_tokens(summary, target)
+            compaction.active_summary = summary
+            prepared = build(summary)
+
+        estimated, _source = estimate_prompt_tokens_chain(
+            config.provider,
+            config.model,
+            prepared,
+            tool_definitions,
+        )
+        logger.warning(
+            "Compacted request for {} still exceeds the input budget "
+            "({} > {}); the summary was truncated as far as possible",
+            config.session_key or "default",
+            estimated,
+            budget,
+        )
+        return prepared
 
     @staticmethod
     def normalize_tool_result(

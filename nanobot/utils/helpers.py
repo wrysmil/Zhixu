@@ -432,6 +432,21 @@ def truncate_text_to_tokens(text: str, max_tokens: int) -> str:
         return body + _TRUNCATED_SUFFIX
 
 
+def estimate_text_tokens(text: str) -> int:
+    """Count the tokens a text blob costs inside a prompt.
+
+    Uses the same encoder as :func:`truncate_text_to_tokens` so a token budget
+    measured here and a truncation applied with it stay on the same scale.
+    """
+    if not text:
+        return 0
+    try:
+        enc = _get_token_encoding()
+        return len(enc.encode(text))
+    except Exception:
+        return len(text.encode("utf-8"))
+
+
 def _truncate_text_to_utf8_bytes(text: str, max_bytes: int) -> str:
     """Return the longest code-point prefix within a UTF-8 byte budget."""
     if max_bytes <= 0:
