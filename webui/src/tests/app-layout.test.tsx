@@ -504,8 +504,9 @@ describe("App layout", () => {
     const main = container.querySelector("main");
     expect(main).toBeInTheDocument();
     expect(main).not.toHaveAttribute("style");
-    expect(screen.getByTestId("sidebar-brand-row")).toHaveClass("pt-3");
-    expect(screen.getByTestId("sidebar-brand-row")).not.toHaveClass("pt-8");
+    expect(screen.getByTestId("sidebar-rail")).toHaveClass("pt-4");
+    expect(screen.getAllByTestId("sidebar-rail-brand")).toHaveLength(1);
+    expect(screen.queryByTestId("sidebar-brand-row")).not.toBeInTheDocument();
 
     const asideClassNames = Array.from(container.querySelectorAll("aside")).map(
       (el) => el.className,
@@ -550,6 +551,55 @@ describe("App layout", () => {
 
     await waitFor(() => expect(window.location.hash).toBe("#/memory"));
     expect(await screen.findByTestId("memory-master-toggle")).toBeInTheDocument();
+  });
+
+  it("restores the selected assistant session and collapse preference after Creative and Settings", async () => {
+    mockSessions = [{
+      key: "websocket:chat-a", channel: "websocket", chatId: "chat-a",
+      createdAt: "2026-04-16T10:00:00Z", updatedAt: "2026-04-16T10:00:00Z", preview: "Existing chat",
+    }];
+    window.history.replaceState(null, "", "#/chat/websocket%3Achat-a");
+    mockFetchRoutes({ "/api/settings": baseSettingsPayload() });
+    render(<App />);
+    await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+    const navigation = screen.getByRole("navigation", { name: "Sidebar navigation" });
+    const column = screen.getByTestId("sidebar-chat-column");
+    fireEvent.click(within(navigation).getByRole("button", { name: "Creative" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/creative"));
+    fireEvent.click(within(navigation).getByRole("button", { name: "Assistant" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/chat/websocket%3Achat-a"));
+    expect(screen.getByTestId("sidebar-chat-column")).toBe(column);
+    fireEvent.click(within(navigation).getByRole("button", { name: "Collapse sidebar" }));
+    fireEvent.click(within(navigation).getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("navigation", { name: "Sidebar navigation" })).toBe(navigation);
+    expect(screen.getByTestId("host-sidebar-flow")).toHaveStyle({ width: "54px" });
+    expect(within(navigation).getByTestId("sidebar-rail-toggle")).toBeDisabled();
+    fireEvent.click(within(navigation).getByRole("button", { name: "Assistant" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/chat/websocket%3Achat-a"));
+    expect(screen.getByTestId("host-sidebar-flow")).toHaveStyle({ width: "54px" });
+    expect(within(navigation).getByRole("button", { name: "Toggle sidebar" })).toBeEnabled();
+  });
+
+  it("dismisses a project dialog when browser navigation hides the persistent conversation list", async () => {
+    mockSessions = [{
+      key: "websocket:chat-a", channel: "websocket", chatId: "chat-a",
+      createdAt: "2026-04-16T10:00:00Z", updatedAt: "2026-04-16T10:00:00Z", preview: "Existing chat",
+    }];
+    mockFetchRoutes({
+      "/api/settings": baseSettingsPayload(),
+      "/api/settings/memory/memories?order=created": { items: [] },
+    });
+    render(<App />);
+    await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Add project" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    act(() => {
+      window.history.replaceState(null, "", "#/memory");
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("opens Identity directly through the real sidebar and App routing", async () => {
@@ -1075,7 +1125,7 @@ describe("App layout", () => {
         screen.queryByRole("button", { name: "Open details for custom-skill" }),
       ).not.toBeInTheDocument();
     });
-    expect(screen.getByText("No matching skills.")).toBeInTheDocument();
+    expect(await screen.findByText("No matching skills.")).toBeInTheDocument();
   });
 
   it("discovers and installs a skill from skills.sh", async () => {
@@ -1604,8 +1654,8 @@ describe("App layout", () => {
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const flowSidebar = screen.getByTestId("host-sidebar-flow");
     expect(flowSidebar).toHaveStyle({ width: "264px" });
-    expect(screen.getByTestId("sidebar-brand-row")).toHaveClass("pt-8");
-    expect(screen.getByTestId("sidebar-brand-row")).not.toHaveClass("pt-3");
+    expect(screen.getByTestId("sidebar-rail")).toHaveClass("pt-12");
+    expect(screen.getAllByTestId("sidebar-rail-brand")).toHaveLength(1);
     expect(screen.queryByTestId("host-sidebar-toggle")).not.toBeInTheDocument();
     expect(
       screen.getByRole("navigation", { name: "Sidebar navigation" }),
@@ -1667,7 +1717,7 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     await waitFor(() => {
-      expect(screen.getByTestId("sidebar-brand-row")).toHaveClass("pt-8");
+      expect(screen.getByTestId("sidebar-rail")).toHaveClass("pt-12");
     });
     expect(document.documentElement).toHaveClass("native-host");
   });
@@ -2532,7 +2582,7 @@ describe("App layout", () => {
     expect(screen.getByTestId("overview-logo-openrouter")).toBeInTheDocument();
     expect(screen.queryByTestId("overview-logo-nanobot-gateway")).not.toBeInTheDocument();
     expect(screen.queryByTestId("overview-logo-nanobot-workspace")).not.toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "Sidebar navigation" })).not.toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Sidebar navigation" })).toBeInTheDocument();
     const settingsNav = screen.getByRole("navigation", { name: "Settings sections" });
     expect(settingsNav.className).not.toContain("overflow-x-auto");
     expect(within(settingsNav).getByRole("button", { name: "Settings: Overview" })).toBeInTheDocument();
@@ -3671,6 +3721,41 @@ describe("App layout", () => {
     );
   });
 
+  it.each([false, true])("keeps the selected overflow sidebar row mounted off Assistant (grouped=%s)", async (grouped) => {
+    mockSessions = Array.from({ length: 170 }, (_, index) => ({
+      key: `websocket:bulk-${index}`, channel: "websocket" as const, chatId: `bulk-${index}`,
+      createdAt: new Date(Date.UTC(2026, 3, 16, 12, -index)).toISOString(),
+      updatedAt: new Date(Date.UTC(2026, 3, 16, 12, -index)).toISOString(),
+      title: index === 169 ? "Overflow selected" : `Bulk chat ${index}`, preview: "",
+    }));
+    window.history.replaceState(null, "", "#/chat/websocket%3Abulk-169");
+    mockFetchRoutes({
+      "/api/settings": baseSettingsPayload(),
+      "/api/webui/sidebar-state": {
+        workbench: { version: 1, tabs: grouped ? {
+          "tab:websocket:bulk-168": {
+            explicit: true, title: "Overflow selected",
+            paneKeys: ["websocket:bulk-168", "websocket:bulk-169"], layout: "columns",
+          },
+        } : {} },
+      },
+    });
+    render(<App />);
+    await waitFor(() => expect(connectSpy).toHaveBeenCalled());
+    const column = screen.getByTestId("sidebar-chat-column");
+    const name = grouped ? "Group: Overflow selected" : "Overflow selected";
+    const selected = await within(column).findByRole("button", { name, exact: true });
+    const rows = Array.from(column.querySelectorAll("[data-chat-row], [data-sidebar-tab-group]"));
+    const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Creative" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/creative"));
+    expect(selected).toBeInTheDocument();
+    expect(within(column).getByRole("button", { name, exact: true, hidden: true })).toBe(selected);
+    expect(Array.from(column.querySelectorAll("[data-chat-row], [data-sidebar-tab-group]"))).toEqual(rows);
+    fireEvent.click(within(sidebar).getByRole("button", { name: "Assistant" }));
+    expect(within(column).getByRole("button", { name, exact: true })).toBe(selected);
+  });
+
   it("keeps large sidebars light while search still covers every chat", async () => {
     mockSessions = Array.from({ length: 170 }, (_, index) => {
       const chatId = `chat-${index}`;
@@ -3745,7 +3830,7 @@ describe("App layout", () => {
     expect(within(rail).getByRole("button", { name: "More" })).toBeInTheDocument();
     expect(within(rail).queryByRole("button", { name: "New chat" })).not.toBeInTheDocument();
     expect(within(rail).queryByRole("button", { name: "View" })).not.toBeInTheDocument();
-    expect(within(rail).queryByText("Existing chat")).not.toBeInTheDocument();
+    expect(within(rail).getByText("Existing chat").closest('[aria-hidden="true"]')).not.toBeNull();
 
     fireEvent.click(within(rail).getByRole("button", { name: "Toggle sidebar" }));
     await waitFor(() => expect(sidebarAside.style.width).toBe("264px"));

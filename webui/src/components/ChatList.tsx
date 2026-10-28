@@ -236,6 +236,8 @@ interface ChatListProps {
   showArchived?: boolean;
   defaultWorkspacePath?: string | null;
   actionMenuPortalContainer?: HTMLElement | null;
+  /** Persistent sidebars disable their portalled menus while off screen. */
+  actionsEnabled?: boolean;
   loading?: boolean;
   emptyLabel?: string;
 }
@@ -284,6 +286,7 @@ export const ChatList = memo(function ChatList({
   showArchived = false,
   defaultWorkspacePath,
   actionMenuPortalContainer,
+  actionsEnabled = true,
   loading,
   emptyLabel,
 }: ChatListProps) {
@@ -419,24 +422,29 @@ export const ChatList = memo(function ChatList({
   const hiddenSessionCount = Math.max(0, totalSessionCount - visibleSessionCount);
   const handleActionMenuOpenChange = useCallback((id: string, open: boolean) => {
     setOpenActionMenuId((current) => {
+      if (!actionsEnabled) return null;
       if (open) return id;
       return current === id ? null : current;
     });
-  }, []);
+  }, [actionsEnabled]);
   const openActionMenuFromContextMenu = useCallback((
     event: ReactMouseEvent<HTMLElement>,
     id: string,
   ) => {
     event.preventDefault();
     event.stopPropagation();
-    if (deleteSelectionMode) return;
+    if (deleteSelectionMode || !actionsEnabled) return;
     setOpenActionMenuId(id);
-  }, [deleteSelectionMode]);
+  }, [deleteSelectionMode, actionsEnabled]);
   const actionMenus: SidebarActionMenuController = {
-    openId: openActionMenuId,
+    openId: actionsEnabled ? openActionMenuId : null,
     onOpenChange: handleActionMenuOpenChange,
     openFromContextMenu: openActionMenuFromContextMenu,
   };
+
+  useEffect(() => {
+    if (!actionsEnabled) setOpenActionMenuId(null);
+  }, [actionsEnabled]);
 
   useEffect(() => {
     setVisibleLimit(INITIAL_VISIBLE_SESSIONS);
@@ -723,7 +731,7 @@ export const ChatList = memo(function ChatList({
               <span className="text-[11px] text-muted-foreground/55">{projectGroupCount}</span>
             ) : null}
           </button>
-          {onNewChatInProject ? (
+          {onNewChatInProject && actionsEnabled ? (
             <AddProjectButton onAdd={onNewChatInProject} />
           ) : null}
         </div>

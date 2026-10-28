@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, Suspense, lazy } from "react";
+import { useCallback, useEffect, useRef, useState, Suspense, lazy } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquareMore, Moon, Plus, Search, Sun } from "lucide-react";
 
@@ -49,6 +49,10 @@ export default function PreviewApp() {
   const [route, setRoute] = useState<WorkspaceRoute>(() =>
     parseWorkspaceHash(window.location.hash),
   );
+  const lastAssistantKeyRef = useRef(route.chatKey);
+  useEffect(() => {
+    if (route.view === "chat") lastAssistantKeyRef.current = route.chatKey;
+  }, [route.view, route.chatKey]);
   const narrowQuery = "(max-width: 767px)";
   const [collapsed, setCollapsed] = useState(() => window.matchMedia(narrowQuery).matches);
   const [narrow, setNarrow] = useState(() => window.matchMedia(narrowQuery).matches);
@@ -82,21 +86,24 @@ export default function PreviewApp() {
   }, []);
 
   const navigate = useCallback((next: WorkspaceRoute) => {
-    const hash = workspaceRouteHash(next);
-    setRoute(next);
+    const restored = next.view === "chat" && next.chatKey === undefined
+      ? { ...next, chatKey: lastAssistantKeyRef.current }
+      : next;
+    const hash = workspaceRouteHash(restored);
+    setRoute(restored);
     if (narrow) setCollapsed(true);
     // Preserve the `?preview=1` query by assigning only the hash fragment.
     if (window.location.hash !== hash) {
       window.location.hash = hash;
     }
-  }, []);
+  }, [narrow]);
 
   return (
     <ThemeProvider theme={appearance.theme} appearance={appearance}>
     <div className="preview-app-shell relative flex h-[100dvh] w-full overflow-hidden bg-background text-foreground">
       <div
         className={cn(
-          "shrink-0 border-r border-sidebar-border",
+          "workspace-sidebar-flow shrink-0 overflow-hidden border-r border-sidebar-border",
           route.view === "chat" && !collapsed ? "w-[264px]" : "w-rail",
           narrow && route.view === "chat" && !collapsed &&
             "absolute inset-y-0 left-0 z-30 shadow-[0_0_0_100vmax_rgb(0_0_0/0.28)]",
@@ -127,7 +134,10 @@ export default function PreviewApp() {
               })}
             </span>
           }
-          chatNavigation={<PreviewChatColumn activeKey={route.chatKey} onNavigate={navigate}
+          chatNavigation={<PreviewChatColumn
+            activeKey={route.view === "chat" ? route.chatKey : lastAssistantKeyRef.current}
+            onNavigate={navigate}
+            actionsEnabled={route.view === "chat" && !collapsed}
             projects={projects} onSelectWorkspace={selectWorkspace} />}
         />
       </div>
@@ -181,11 +191,12 @@ export default function PreviewApp() {
   );
 }
 
-function PreviewChatColumn({ activeKey, onNavigate, projects, onSelectWorkspace }: {
+function PreviewChatColumn({ activeKey, onNavigate, projects, onSelectWorkspace, actionsEnabled }: {
   activeKey?: string | null;
   onNavigate: (route: WorkspaceRoute) => void;
   projects: SidebarProjectEntry[];
   onSelectWorkspace: (scope: WorkspaceScopePayload) => void;
+  actionsEnabled: boolean;
 }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
@@ -216,7 +227,7 @@ function PreviewChatColumn({ activeKey, onNavigate, projects, onSelectWorkspace 
       </div>
       <div className="flex min-h-0 flex-1 flex-col">
         <ChatList sessions={sessions.filter((row) => (titleOverrides[row.key] || row.title || "").includes(query))}
-          activeKey={activeKey ?? null} projectEntries={projects}
+          activeKey={activeKey ?? null} projectEntries={projects} actionsEnabled={actionsEnabled}
           defaultWorkspacePath={PREVIEW_DEFAULT_SCOPE.project_path}
           onSelect={(key) => {
             const scope = sessions.find((session) => session.key === key)?.workspaceScope;

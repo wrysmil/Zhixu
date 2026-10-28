@@ -70,4 +70,29 @@ describe("PreviewApp narrow shell", () => {
     );
     expect(screen.queryByRole("button", { name: "Close sidebar" })).not.toBeInTheDocument();
   });
+
+  it("restores the desktop session filter and collapse preference after switching views", () => {
+    stubNarrowViewport(false);
+    render(<PreviewApp />);
+    const search = screen.getByRole("textbox", { name: /search/i });
+    fireEvent.change(search, { target: { value: "论文" } });
+    fireEvent.click(screen.getByRole("button", { name: "Memory" }));
+    expect(screen.queryByRole("textbox", { name: /search/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    expect(screen.getByRole("textbox", { name: /search/i })).toHaveValue("论文");
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Memory" }));
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    expect(screen.queryByRole("textbox", { name: /search/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle sidebar" })).toBeEnabled();
+  });
+
+  it("restores the selected preview session when returning to Assistant", async () => {
+    stubNarrowViewport(false);
+    window.location.hash = "#/chat/demo-2";
+    render(<PreviewApp />);
+    fireEvent.click(screen.getByRole("button", { name: "Memory" }));
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    await waitFor(() => expect(window.location.hash).toContain("demo-2"));
+  });
 });

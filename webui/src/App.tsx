@@ -1047,6 +1047,10 @@ function Shell({
     initialRouteRef.current.activeKey,
   );
   const [view, setView] = useState<ShellView>(initialRouteRef.current.view);
+  const lastAssistantKeyRef = useRef(initialRouteRef.current.activeKey);
+  useEffect(() => {
+    if (view === "chat") lastAssistantKeyRef.current = activeKey;
+  }, [view, activeKey]);
   const [temporarySessions, setTemporarySessions] = useState<Record<string, ChatSummary>>({});
   // 临时聊天的开关按钮已下线，状态保留：运行时（侧栏分区、关闭动作、#/temporary 路由）
   // 仍然完整，重新接回开关即可恢复新建临时聊天。
@@ -1120,7 +1124,6 @@ function Shell({
   const effectiveRuntimeSurface =
     settingsSnapshot?.surface ?? settingsSnapshot?.runtime_surface ?? runtimeSurface;
   const showHostChrome = isNativeRuntime(effectiveRuntimeSurface);
-  const showMainSidebar = view !== "settings";
   const activeTemporarySession = activeKey ? temporarySessions[activeKey] ?? null : null;
   const temporaryChatId = activeTemporarySession?.chatId ?? null;
   const temporaryChatActive = view === "chat" && temporaryChatId !== null;
@@ -2081,9 +2084,14 @@ function Shell({
 
   const onOpenAssistant = useCallback(() => {
     setSessionSearchOpen(false);
-    navigate({ view: "chat", activeKey, settingsSection: "overview" });
+    const previousKey = lastAssistantKeyRef.current;
+    const restoredKey = previousKey && (
+      topicSessions.some((session) => session.key === previousKey)
+      || temporarySessions[previousKey]
+    ) ? previousKey : null;
+    navigate({ view: "chat", activeKey: restoredKey, settingsSection: "overview" });
     setMobileSidebarOpen(false);
-  }, [activeKey, navigate]);
+  }, [navigate, topicSessions, temporarySessions]);
 
   const onOpenCreative = useCallback(() => {
     setSessionSearchOpen(false);
@@ -2650,13 +2658,18 @@ function Shell({
         orderedTab.tabKey === activeTabKey
       ))?.rowKey ?? activeKey
     : activeKey;
+  const assistantSidebarKey = temporaryChatActive ? activeKey : activeSidebarKey;
+  const lastAssistantSidebarKeyRef = useRef(assistantSidebarKey);
+  useEffect(() => {
+    if (view === "chat") lastAssistantSidebarKeyRef.current = assistantSidebarKey;
+  }, [view, assistantSidebarKey]);
 
   const sidebarProps = {
     sessions: sidebarTopicSessions,
     temporarySessions: temporarySessionList,
     activeKey: view === "chat"
-      ? (temporaryChatActive ? activeKey : activeSidebarKey)
-      : null,
+      ? assistantSidebarKey
+      : lastAssistantSidebarKeyRef.current,
     loading,
     newChatActive: view === "chat" && activeKey === null,
     onNewChat,
@@ -2774,13 +2787,11 @@ function Shell({
           )}
         >
           {/* Host sidebar: in normal flow, so the thread area width stays honest. */}
-          {showMainSidebar ? (
             <aside
               data-testid="host-sidebar-flow"
               className={cn(
                 "relative z-20 hidden shrink-0 overflow-hidden lg:block",
-                "transition-[width] duration-150 ease-out",
-                "host-sidebar-aside",
+                "workspace-sidebar-flow host-sidebar-aside",
               )}
               style={{
                 width: hostSidebarFlowWidth,
@@ -2803,9 +2814,7 @@ function Shell({
                 />
               </div>
             </aside>
-          ) : null}
 
-          {showMainSidebar ? (
             <Sheet
               open={mobileSidebarOpen}
               onOpenChange={(open) => setMobileSidebarOpen(open)}
@@ -2825,7 +2834,6 @@ function Shell({
                 />
               </SheetContent>
             </Sheet>
-          ) : null}
 
           {sessionSearchOpen ? (
             <Suspense fallback={null}>

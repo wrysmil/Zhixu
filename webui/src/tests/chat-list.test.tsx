@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatList } from "@/components/ChatList";
@@ -65,6 +65,25 @@ describe("ChatList", () => {
 
     expect(onTogglePin).toHaveBeenCalledWith("websocket:review");
   });
+
+  it("closes portalled actions when the persistent conversation list becomes inactive", async () => {
+    const props = {
+      sessions: [session({ chatId: "review", title: "Review the patch" })],
+      activeKey: "websocket:review", onSelect: vi.fn(), onRequestDelete: vi.fn(),
+      onTogglePin: vi.fn(), onRequestRename: vi.fn(), onToggleArchive: vi.fn(),
+    };
+    const { rerender } = render(<ChatList {...props} />);
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Review the patch" }).closest("[data-chat-row]")!);
+    const pin = await screen.findByRole("menuitem", { name: "Pin" });
+    act(() => pin.focus());
+    rerender(<ChatList {...props} actionsEnabled={false} />);
+    expect(screen.queryByRole("menuitem", { name: "Pin" })).not.toBeInTheDocument();
+    expect(document.activeElement).not.toBe(screen.getByRole("button", { name: "Review the patch" }));
+    rerender(<ChatList {...props} actionsEnabled />);
+    expect(screen.queryByRole("menuitem", { name: "Pin" })).not.toBeInTheDocument();
+    expect(props.onTogglePin).not.toHaveBeenCalled();
+  });
+
 
   it("marks a team-bound chat in the sidebar", () => {
     render(

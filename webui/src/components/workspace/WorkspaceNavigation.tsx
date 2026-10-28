@@ -1,6 +1,7 @@
 import {
   type ReactNode,
   useCallback,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -145,21 +146,34 @@ export function WorkspaceNavigation({
   const { t, i18n } = useTranslation();
   const activeActionRef = useRef<HTMLButtonElement>(null);
   const activeRailRef = useRef<HTMLButtonElement>(null);
+  const chatColumnRef = useRef<HTMLDivElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const selectionActiveId = newChatActive
+  const showChatColumn = activeView === "chat" && !collapsed;
+  const highlightNewChat = showChatColumn && newChatActive;
+  const selectionActiveId = highlightNewChat
     ? "new-chat"
     : activeUtility
       ? `utility:${activeUtility}`
       : null;
 
-  const showChatColumn = activeView === "chat" && !collapsed;
   const chatSlot: ReactNode =
     typeof chatNavigation === "function"
       ? (chatNavigation as (ctx: WorkspaceNavigationSlotContext) => ReactNode)({
           activeActionRef,
         })
       : chatNavigation;
+
+  useLayoutEffect(() => {
+    const column = chatColumnRef.current;
+    if (!column) return;
+    if (!showChatColumn && column.contains(document.activeElement)) {
+      activeRailRef.current?.focus({ preventScroll: true });
+    }
+    // React 18 does not expose inert as a typed JSX boolean attribute.
+    // https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/inert
+    column.toggleAttribute("inert", !showChatColumn);
+  }, [showChatColumn, activeView]);
 
   const topInset = hostChromeInset ? "pt-12" : "pt-4";
 
@@ -290,7 +304,7 @@ export function WorkspaceNavigation({
     >
       <TooltipProvider delayDuration={150}>
       <SidebarSelectionHighlight
-        targetRef={newChatActive ? activeActionRef : activeRailRef}
+        targetRef={highlightNewChat ? activeActionRef : activeRailRef}
         activeId={selectionActiveId}
         scope="actions"
         className="relative flex h-full w-full min-w-0 flex-row"
@@ -302,11 +316,9 @@ export function WorkspaceNavigation({
             topInset,
           )}
         >
-          {!showChatColumn ? (
-            <div className="flex shrink-0 items-center justify-center pb-3">
-              <BrandMark className="h-9" />
-            </div>
-          ) : null}
+          <div data-testid="sidebar-rail-brand" className="flex shrink-0 items-center justify-center pb-3">
+            <BrandMark className="h-9" />
+          </div>
           {preview ? (
             <span
               data-preview-badge
@@ -324,18 +336,21 @@ export function WorkspaceNavigation({
           <div className="flex shrink-0 flex-col items-center gap-2 pb-1">
             {renderItem(SETTINGS_ITEM)}
             {footerAction}
-            {/* 展开聊天栏时由顶部品牌行提供同一个收起入口，避免重复按钮。 */}
-            {!showChatColumn ? (
-              <RailToggleButton
-                collapsed={collapsed}
-                label={
-                  collapsed
-                    ? t("thread.header.toggleSidebar")
-                    : t("sidebar.collapse")
-                }
-                onClick={onToggleCollapsed}
-              />
-            ) : null}
+            <RailToggleButton
+              collapsed={collapsed}
+              disabled={activeView !== "chat"}
+              label={
+                collapsed
+                  ? t("thread.header.toggleSidebar")
+                  : t("sidebar.collapse")
+              }
+              description={activeView !== "chat" ? t("workspace.nav.chatListUnavailable", {
+                defaultValue: i18n.resolvedLanguage?.startsWith("zh")
+                  ? "返回助手后可展开会话列表"
+                  : "Return to Assistant to expand the conversation list",
+              }) : undefined}
+              onClick={onToggleCollapsed}
+            />
           </div>
 
           {!collapsed && !showChatColumn && connectionStatus ? (
@@ -344,8 +359,14 @@ export function WorkspaceNavigation({
             </div>
           ) : null}
         </div>
-        {showChatColumn ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background/50">
+        {chatNavigation ? (
+          <div
+            ref={chatColumnRef}
+            data-testid="sidebar-chat-column"
+            data-expanded={showChatColumn}
+            aria-hidden={!showChatColumn || undefined}
+            className="workspace-chat-column flex min-h-0 flex-col bg-background/50"
+          >
             {chatSlot}
           </div>
         ) : null}
@@ -358,10 +379,14 @@ export function WorkspaceNavigation({
 function RailToggleButton({
   collapsed,
   label,
+  disabled,
+  description,
   onClick,
 }: {
   collapsed: boolean;
   label: string;
+  disabled: boolean;
+  description?: string;
   onClick: () => void;
 }) {
   return (
@@ -371,7 +396,9 @@ function RailToggleButton({
       size="icon"
       data-testid="sidebar-rail-toggle"
       aria-label={label}
-      title={label}
+      aria-expanded={!collapsed && !disabled}
+      title={description ?? label}
+      disabled={disabled}
       onClick={onClick}
       className={cn(
         "host-no-drag flex cursor-pointer items-center justify-center gap-2 rounded-control text-muted-foreground hover:bg-sidebar-foreground/[0.06] hover:text-sidebar-foreground",

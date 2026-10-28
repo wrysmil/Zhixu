@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
@@ -148,7 +149,7 @@ describe("WorkspaceNavigation", () => {
     }
   });
 
-  it("only shows the chat-context column on the assistant view", () => {
+  it("keeps the chat-context column mounted but inert away from the assistant", () => {
     const chatColumn = <div data-testid="chat-slot">chat column</div>;
     const { rerender } = render(
       <WorkspaceNavigation
@@ -160,7 +161,9 @@ describe("WorkspaceNavigation", () => {
         chatNavigation={chatColumn}
       />,
     );
-    expect(screen.queryByTestId("chat-slot")).not.toBeInTheDocument();
+    expect(screen.getByTestId("chat-slot")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-chat-column")).toHaveAttribute("inert");
+    expect(screen.getByTestId("sidebar-chat-column")).toHaveAttribute("aria-hidden", "true");
 
     rerender(
       <WorkspaceNavigation
@@ -173,6 +176,44 @@ describe("WorkspaceNavigation", () => {
       />,
     );
     expect(screen.getByTestId("chat-slot")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-chat-column")).not.toHaveAttribute("inert");
+    expect(screen.getByTestId("sidebar-chat-column")).not.toHaveAttribute("aria-hidden");
+  });
+
+  it("preserves chat-local state and moves hidden focus to the active rail item", () => {
+    function ChatColumn() {
+      const [query, setQuery] = useState("");
+      return <input aria-label="Session filter" value={query} onChange={(e) => setQuery(e.target.value)} />;
+    }
+    const props: WorkspaceNavigationProps = {
+      activeView: "chat", collapsed: false, preview: false,
+      onNavigate: vi.fn(), onToggleCollapsed: vi.fn(), chatNavigation: <ChatColumn />,
+    };
+    const { rerender } = render(<WorkspaceNavigation {...props} />);
+    const input = screen.getByRole("textbox", { name: "Session filter" });
+    fireEvent.change(input, { target: { value: "remember this filter" } });
+    input.focus();
+    rerender(<WorkspaceNavigation {...props} activeView="memory" />);
+    expect(screen.queryByRole("textbox", { name: "Session filter" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Memory" })).toHaveFocus();
+    rerender(<WorkspaceNavigation {...props} />);
+    expect(screen.getByRole("textbox", { name: "Session filter" })).toHaveValue("remember this filter");
+  });
+
+  it("keeps one rail brand and toggle across routes without targeting hidden new-chat actions", () => {
+    const props: WorkspaceNavigationProps = {
+      activeView: "chat", collapsed: false, preview: false, newChatActive: true,
+      onNavigate: vi.fn(), onToggleCollapsed: vi.fn(), chatNavigation: <button>New chat slot</button>,
+    };
+    const { rerender } = render(<WorkspaceNavigation {...props} />);
+    const brand = screen.getByTestId("sidebar-rail-brand");
+    const toggle = screen.getByTestId("sidebar-rail-toggle");
+    expect(toggle).toBeEnabled();
+    rerender(<WorkspaceNavigation {...props} activeView="creative" />);
+    expect(screen.getByTestId("sidebar-rail-brand")).toBe(brand);
+    expect(screen.getByTestId("sidebar-rail-toggle")).toBe(toggle);
+    expect(toggle).toBeDisabled();
+    expect(screen.getByTestId("actions-selection-highlight")).not.toHaveAttribute("data-active-id", "new-chat");
   });
 
   it("shows the preview badge only in preview mode and calls the collapse toggle", () => {
@@ -184,16 +225,14 @@ describe("WorkspaceNavigation", () => {
 
     const live = renderNav({ preview: false });
     expect(live.container.querySelector("[data-preview-badge]")).toBeNull();
-    // 聊天视图展开聊天栏时，收起入口交给顶部品牌行，rail 里不再重复提供。
-    expect(
-      within(live.container).queryByRole("button", { name: "Collapse sidebar" }),
-    ).not.toBeInTheDocument();
+    fireEvent.click(within(live.container).getByRole("button", { name: "Collapse sidebar" }));
+    expect(live.onToggleCollapsed).toHaveBeenCalledTimes(1);
     live.unmount();
 
     const creative = renderNav({ preview: false, activeView: "creative" });
-    fireEvent.click(
-      within(creative.container).getByRole("button", { name: "Collapse sidebar" }),
-    );
-    expect(creative.onToggleCollapsed).toHaveBeenCalledTimes(1);
+    const toggle = within(creative.container).getByTestId("sidebar-rail-toggle");
+    expect(toggle).toBeDisabled();
+    fireEvent.click(toggle);
+    expect(creative.onToggleCollapsed).not.toHaveBeenCalled();
   });
 });

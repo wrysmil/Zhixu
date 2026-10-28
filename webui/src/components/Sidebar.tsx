@@ -16,7 +16,6 @@ import {
   SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
 } from "@/components/SidebarSelectionHighlight";
 import { WorkspaceNavigation } from "@/components/workspace/WorkspaceNavigation";
-import { BrandMark } from "@/components/workspace/BrandMark";
 import type { WorkspaceView } from "@/components/workspace/contracts";
 import type { SettingsSectionKey } from "@/components/settings/contracts";
 import { Button } from "@/components/ui/button";
@@ -181,16 +180,7 @@ export function Sidebar(props: SidebarProps) {
           ref={props.containActionMenus ? setMenuPortalContainer : undefined}
           className="flex min-h-0 min-w-0 flex-1 flex-col"
         >
-          <div
-            data-testid="sidebar-brand-row"
-            className={cn(
-              "flex items-center gap-2 px-3 pb-1",
-              props.hostChromeInset ? "pt-8" : "pt-3",
-            )}
-          >
-            <BrandMark className="shrink-0 text-[18px]" />
-          </div>
-          <div className="space-y-0.5 px-2 pb-2 pt-1">
+          <div className={cn("space-y-0.5 px-2 pb-2", props.hostChromeInset ? "pt-12" : "pt-4")}>
             <SidebarActionButton
               label={t("sidebar.newChat")}
               onClick={props.onNewChat}
@@ -262,6 +252,7 @@ export function Sidebar(props: SidebarProps) {
               actionMenuPortalContainer={
                 props.containActionMenus ? menuPortalContainer : undefined
               }
+              actionsEnabled={activeView === "chat" && !props.collapsed}
             />
           </div>
         </div>
