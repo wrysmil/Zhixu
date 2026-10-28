@@ -110,6 +110,9 @@ def build_memory_operations(
     )
     return MemorySettingsOperations(
         list_memories=partial(memory_api.list_memories_payload, services),
+        list_memories_by_session=partial(
+            memory_api.list_memories_by_session_payload, services
+        ),
         search_memories=partial(memory_api.search_memories_payload, services),
         fetch_memory=partial(memory_api.fetch_memory_payload, services),
         list_episodes=partial(memory_api.list_episodes_payload, services),

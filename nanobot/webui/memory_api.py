@@ -24,6 +24,7 @@ from nanobot.memory.models import (
     MemoryType,
     ScratchpadEntry,
 )
+from nanobot.memory.provenance import memory_visibility_ids
 from nanobot.memory.repository import (
     add_memory,
     get_episode,
@@ -32,6 +33,7 @@ from nanobot.memory.repository import (
     known_workspace_ids,
     list_episodes,
     list_memories,
+    list_memories_by_session,
     upsert_scratchpad,
 )
 from nanobot.memory.repository import (
@@ -252,6 +254,27 @@ def fetch_memory_payload(services: MemoryServices, memory_id: str) -> dict[str, 
         raise WebUIMemoryError("memory not found", status=404)
     _, _, context = _read_presentation(services)
     return {"memory": memory_payload(row, context)}
+
+
+def list_memories_by_session_payload(
+    services: MemoryServices,
+    *,
+    session_id: str,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """本会话产出的记忆（按 ``provenance.session_id`` 反查 + 工作区可见性过滤）。
+
+    工作台用它回答「这次对话攒下了什么记忆」——不依赖 episode 的
+    ``linked_memory_ids``（那条链路历史上恒为空），且**必须**按可见集合过滤：
+    按 id 直取（``fetch_memory``）不带可见性判定，会显示其他工作区的记忆。
+    """
+    visible = memory_visibility_ids(services.workspace_id)
+    with services.database.connect() as conn:
+        rows = list_memories_by_session(
+            conn, session_id, workspace_ids=visible, limit=limit
+        )
+    _, _, context = _read_presentation(services)
+    return {"items": [memory_payload(row, context) for row in rows]}
 
 
 def list_episodes_payload(

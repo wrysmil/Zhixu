@@ -170,6 +170,37 @@ def list_memories(
     return [_row_to_memory(r) for r in rows]
 
 
+def list_memories_by_session(
+    conn: sqlite3.Connection,
+    session_id: str,
+    *,
+    workspace_ids: Sequence[str] | None = None,
+    limit: int = 20,
+) -> list[Memory]:
+    """按抽取来源会话反查记忆（``metadata.provenance.session_id``）。
+
+    与 episode 的 ``linked_memory_ids`` 互补：那条链路依赖 LLM 是否填了
+    subject，历史数据普遍为空；``provenance.session_id`` 由抽取器直接写入，
+    是「这条记忆由哪次会话产出」的可靠依据。
+
+    代价：``metadata`` 上的 JSON 路径无索引 → 全表扫。只在打开工作台时触发
+    一次（不是每轮检索），memories 量级下可接受；上万行需加表达式索引。
+    """
+    condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
+    clauses = ["json_extract(metadata, '$.provenance.session_id') = ?"]
+    params: list[Any] = [session_id]
+    if condition:
+        clauses.append(condition)
+        params.extend(condition_params)
+    flat = " ".join(_SELECT_MEMORY_COLUMNS.split())
+    sql = (
+        f"SELECT {flat} FROM memories WHERE {' AND '.join(clauses)} "
+        "ORDER BY created_at DESC LIMIT ?"
+    )
+    rows = conn.execute(sql, [*params, int(limit)]).fetchall()
+    return [_row_to_memory(r) for r in rows]
+
+
 def delete_memory(conn: sqlite3.Connection, memory_id: str) -> None:
     conn.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
 

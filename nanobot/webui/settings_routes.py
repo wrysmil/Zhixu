@@ -374,6 +374,7 @@ def _null_memory_operations() -> MemorySettingsOperations:
         sync_vector=_unavailable,
         refresh_memory_md=_unavailable,  # 🆕 WU-4
         get_memory_md_content=_unavailable,  # 🆕 WU-6
+        list_memories_by_session=_unavailable,
     )
 
 

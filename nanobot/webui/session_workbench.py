@@ -163,34 +163,57 @@ def session_workbench_payload(
                                      "workspace_id": "default", "is_global": True})
         except Exception:
             unavailable("working_memory")
+        # 本会话产出的长期记忆：优先按 provenance.session_id 反查（抽取器直接写入，
+        # 带工作区可见性过滤）；episode 的 linked_memory_ids 仅作兜底——那条链路
+        # 历史上因模型不填 subject 而恒为空，且原有实现按 id 直取、不带可见性判定。
+        seen: set[str] = set()
+
+        def _append_long_term(row: dict[str, Any], source: str) -> None:
+            content = _text(row.get("content"))
+            memory_id = _text(row.get("id"), 100)
+            if not content or not memory_id or memory_id in seen or len(memories) >= 20:
+                return
+            seen.add(memory_id)
+            workspace_id = _text(row.get("workspace_id"), 64) or "default"
+            memories.append({
+                "id": memory_id,
+                "kind": "long_term",
+                "title": content[:80],
+                "content": content,
+                "source": source,
+                "updated_at": _text(row.get("updated_at"), 80) or None,
+                "persisted": True,
+                "workspace_id": workspace_id,
+                "is_global": workspace_id == "default",
+            })
+
+        resolver = getattr(memory_operations, "list_memories_by_session", None)
+        if resolver is not None:
+            try:
+                session_rows = resolver(session_id=session.key, limit=20).get("items", [])
+                for row in _rows(session_rows, 20):
+                    _append_long_term(row, "session:" + session.key)
+            except Exception:
+                unavailable("session_memories")
+
         try:
             episodes = memory_operations.list_episodes(session_id=session.key, limit=20)
-            seen: set[str] = set()
             for episode in _rows(episodes.get("items"), 20):
                 linked = episode.get("linked_memory_ids")
                 if not isinstance(linked, list):
                     continue
                 for memory_id in cast(list[Any], linked)[:20]:
-                    if len(memories) >= 20 or len(seen) >= 20:
+                    if len(memories) >= 20:
                         break
                     if not isinstance(memory_id, str) or memory_id in seen:
                         continue
-                    seen.add(memory_id)
                     try:
                         row = _mapping(memory_operations.fetch_memory(memory_id).get("memory"))
                     except Exception:
                         unavailable("linked_memory")
                         continue
-                    if row is not None and _text(row.get("content")):
-                        workspace_id = _text(row.get("workspace_id"), 64) or "default"
-                        memories.append({"id": _text(row.get("id"), 100), "kind": "long_term",
-                                         "title": _text(row.get("content"), 80),
-                                         "content": _text(row.get("content")),
-                                         "source": "episode:" + _text(episode.get("id"), 100),
-                                         "updated_at": _text(row.get("updated_at"), 80) or None,
-                                         "persisted": True,
-                                         "workspace_id": workspace_id,
-                                         "is_global": workspace_id == "default"})
+                    if row is not None:
+                        _append_long_term(row, "episode:" + _text(episode.get("id"), 100))
         except Exception:
             unavailable("session_memories")
 

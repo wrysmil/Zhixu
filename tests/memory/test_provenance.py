@@ -7,7 +7,12 @@ import pytest
 from nanobot.memory.database import MemoryDatabase
 from nanobot.memory.extractor import FilteredExtractionResult, LLMEpisodeItem, LLMMemoryItem
 from nanobot.memory.models import Episode
-from nanobot.memory.repository import add_episode, get_episode, list_memories
+from nanobot.memory.repository import (
+    add_episode,
+    get_episode,
+    list_memories,
+    list_memories_by_session,
+)
 from nanobot.session.manager import Session
 from tests.memory.test_extractor import _FakeProvider, _make_extractor
 
@@ -150,3 +155,32 @@ async def test_generate_episode_keeps_manual_trigger_without_inventing_workspace
     assert episode is not None
     assert episode.metadata["provenance"]["trigger_mode"] == "manual"
     assert episode.metadata["provenance"]["workspaces"] == []
+
+
+def test_list_memories_by_session_filters_by_provenance_and_workspace(db: MemoryDatabase):
+    """按 provenance.session_id 反查，并受可见集合约束。
+
+    这条链路不依赖 episode 的 linked_memory_ids（那条依赖 LLM 填 subject，
+    历史数据普遍为空），是工作台「本会话产出的记忆」的可靠依据。
+    """
+    extractor = _make_extractor(db, _FakeProvider())
+    for key, content in (
+        ("websocket:session-a", "会话 A 产出的偏好"),
+        ("websocket:session-b", "会话 B 产出的偏好"),
+    ):
+        extractor._persist(
+            FilteredExtractionResult(memories=[LLMMemoryItem(content=content, type="preference")]),
+            Session(key=key),
+            "idle",
+        )
+
+    with db.connect() as conn:
+        rows = list_memories_by_session(conn, "websocket:session-a")
+        hidden = list_memories_by_session(
+            conn, "websocket:session-a", workspace_ids=("not-visible",)
+        )
+        manual = list_memories_by_session(conn, "manual-entry")
+
+    assert [row.content for row in rows] == ["会话 A 产出的偏好"]
+    assert hidden == []
+    assert manual == []

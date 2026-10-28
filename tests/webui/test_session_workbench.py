@@ -175,6 +175,59 @@ def test_workbench_memory_items_carry_workspace(tmp_path, workspace_id):
     assert result["memories"][1]["is_global"] is (workspace_id == "default")
 
 
+def test_workbench_lists_memories_extracted_from_current_session(tmp_path):
+    """抽取产出、但 episode 没有关联的记忆也必须出现在工作台。
+
+    现实里 ``episode.linked_memory_ids`` 常为空（模型不填 subject），
+    工作台必须按 ``provenance.session_id`` 反查，否则恒显示「No memories linked」。
+    """
+    from functools import partial
+
+    from nanobot.memory.models import Memory
+    from nanobot.memory.repository import add_memory
+    from nanobot.webui import memory_api
+    from nanobot.webui.memory_services import MemoryServices
+    from nanobot.webui.session_workbench import session_workbench_payload
+
+    services = MemoryServices.for_workspace("default", tmp_path)
+    with services.database.connect() as conn:
+        add_memory(conn, Memory(
+            id="m-mine", content="本会话抽出的约定", created_at="now",
+            workspace_id="default",
+            metadata={"provenance": {"session_id": "websocket:a"}},
+        ))
+        add_memory(conn, Memory(
+            id="m-other-session", content="别的会话的记忆", created_at="now",
+            workspace_id="default",
+            metadata={"provenance": {"session_id": "websocket:b"}},
+        ))
+        add_memory(conn, Memory(
+            id="m-other-workspace", content="别的工作区的记忆", created_at="now",
+            workspace_id="ws-x",
+            metadata={"provenance": {"session_id": "websocket:a"}},
+        ))
+    operations = SimpleNamespace(
+        fetch_scratchpad=partial(memory_api.scratchpad_payload, services),
+        list_episodes=partial(memory_api.list_episodes_payload, services),
+        fetch_memory=partial(memory_api.fetch_memory_payload, services),
+        list_memories_by_session=partial(
+            memory_api.list_memories_by_session_payload, services
+        ),
+    )
+    session = SessionManager(tmp_path).get_or_create("websocket:a")
+
+    result = session_workbench_payload(session, memory_operations=operations)
+
+    long_term = [row for row in result["memories"] if row["kind"] == "long_term"]
+    assert [row["content"] for row in long_term] == ["本会话抽出的约定"]
+    assert {row["source"] for row in long_term} == {"session:websocket:a"}
+    assert long_term[0]["workspace_id"] == "default"
+    assert long_term[0]["is_global"] is True
+    rendered = json.dumps(result, ensure_ascii=False)
+    assert "别的会话的记忆" not in rendered
+    assert "别的工作区的记忆" not in rendered
+
+
 def test_projection_bounds_historical_records_and_content(tmp_path):
     from nanobot.webui.session_workbench import session_workbench_payload
 

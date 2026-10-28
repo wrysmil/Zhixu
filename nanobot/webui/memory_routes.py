@@ -54,12 +54,14 @@ class MemorySettingsOperations:
     sync_vector: Callable[[], dict[str, Any]]
     refresh_memory_md: Callable[..., dict[str, Any]]  # 🆕 WU-4
     get_memory_md_content: Callable[..., dict[str, Any]]  # 🆕 WU-6: 读取 MEMORY.md 内容
+    #: 按来源会话反查（工作台用）。默认 None，保持既有测试替身与旧接线可用。
+    list_memories_by_session: Callable[..., dict[str, Any]] | None = None
 
 
 # Canonical set of actions this domain understands; the settings router uses
 # it to route ``("system", action)`` into this handler.
 MEMORY_ACTION_NAMES = frozenset({
-    "memory-list", "memory-search", "memory-get", "memory-stats",
+    "memory-list", "memory-list-by-session", "memory-search", "memory-get", "memory-stats",
     "memory-create", "memory-update", "memory-delete",
     "episode-list", "episode-get", "episode-update", "episode-delete",
     "scratchpad-get", "scratchpad-save",
@@ -109,6 +111,15 @@ def dispatch(
             origin=query_first(query, "origin"),
             workspace=query_first(query, "workspace"),
             q=query_first(query, "q"),
+        )
+
+    if action == "memory-list-by-session":
+        session_id = (query_first(query, "session_id") or "").strip()
+        if not session_id:
+            raise WebUISettingsError("session_id is required")
+        return operations.list_memories_by_session(
+            session_id=session_id,
+            limit=_maybe_int(query_first(query, "limit")) or 20,
         )
 
     if action == "memory-search":
