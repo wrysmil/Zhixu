@@ -1666,14 +1666,31 @@ class MemoryExtractor:
                             exc,
                         )
 
-            # 阶段 4b：反向关联（subject == entity 匹配）
+            # 阶段 4b：反向关联
             episode = filtered.episode
             linked_ids: list[str] = []
+            semantic_ids: list[str] = []
             if episode is not None:
+                # 语义关联：episode.entities 命中本批次记忆的 subject
                 for entity in episode.entities:
                     memory_id = memory_by_subject.get(entity)
-                    if memory_id is not None and memory_id not in linked_ids:
+                    if memory_id is not None and memory_id not in semantic_ids:
+                        semantic_ids.append(memory_id)
+                # 兜底：本批次产出的记忆一律挂到本情节上。此前只靠
+                # entities ↔ subject 的字符串相等，而抽取 prompt 从不要求 subject
+                # → subject 常为空 → 关联整条断裂，工作台与 Episodes 页签恒为
+                # 「0 条关联记忆」，记忆的 source_episode_id 也一直是空的。
+                linked_ids.extend(saved_memory_ids)
+                for memory_id in semantic_ids:
+                    if memory_id not in linked_ids:
                         linked_ids.append(memory_id)
+                logger.info(
+                    "memory episode linkage: session={} semantic={} batch={} total={}",
+                    session.key,
+                    len(semantic_ids),
+                    len(saved_memory_ids),
+                    len(linked_ids),
+                )
 
             # 阶段 4c：写入 episode（即使 LLM 失败也写，仅 action_nodes）
             if episode is not None or filtered.action_nodes:

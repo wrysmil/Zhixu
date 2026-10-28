@@ -20,7 +20,9 @@ SEMANTIC_EXTRACTION_PROMPT = """
       "type": "FACT | PREFERENCE | RULE | SKILL | ERROR",
       "priority": "long_term | short_term",
       "importance": 0.5-1.0,
-      "tags": ["tag1", "tag2"]
+      "tags": ["tag1", "tag2"],
+      "subject": "主语短语",
+      "predicate": "谓语短语"
     }
   ],
   "experiences": [
@@ -29,7 +31,9 @@ SEMANTIC_EXTRACTION_PROMPT = """
       "type": "EXPERIENCE | SKILL | ERROR",
       "priority": "long_term | short_term",
       "importance": 0.5-1.0,
-      "tags": ["tag1", "tag2"]
+      "tags": ["tag1", "tag2"],
+      "subject": "主语短语",
+      "predicate": "谓语短语"
     }
   ]
 }
@@ -57,6 +61,10 @@ SEMANTIC_EXTRACTION_PROMPT = """
 
 ### 质量要求
 - content 用第一人称"用户"或第三人称描述，不是"你"
+- **subject**：这条记忆的**主语短语**（如「用户」「项目 alpha-app」「部署流程」）。尽量与
+  情节记忆的 entities 用同一说法，便于两者互相关联；判断不出精确主语时给最贴近的，
+  **不要留空**
+- **predicate**：主语与内容之间的关系短语（如「使用」「位于」「偏好」）
 - FACT 必须是用户明确说过或可从上下文直接推断的，不是 AI 猜测
 - 不做过度泛化（"用户总是..."）
 - importance 默认 0.7；需要优先召回的设为 0.9+；低价值设为 0.5
@@ -66,7 +74,7 @@ SEMANTIC_EXTRACTION_PROMPT = """
 输出：
 {
   "memories": [
-    {"content": "用户有使用命令行处理文件的习惯", "type": "PREFERENCE", "priority": "long_term", "importance": 0.6, "tags": ["cli"]}
+    {"content": "用户有使用命令行处理文件的习惯", "type": "PREFERENCE", "priority": "long_term", "importance": 0.6, "tags": ["cli"], "subject": "用户", "predicate": "有使用命令行处理文件的习惯"}
   ],
   "experiences": [
     {"content": "使用 ls -lS 可按大小排序文件", "type": "SKILL", "priority": "short_term", "importance": 0.7, "tags": ["cli", "文件操作"]}

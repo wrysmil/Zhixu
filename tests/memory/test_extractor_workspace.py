@@ -153,6 +153,38 @@ def test_load_existing_memories_only_reads_requested_workspace(
     assert existing[0].workspace_id == workspace_id
 
 
+def test_episode_links_batch_memories_when_subject_is_empty(
+    extractor: MemoryExtractor, tmp_path: Path
+) -> None:
+    """抽取 prompt 不要求 subject，subject 为空时与情节的关联也必须建立。
+
+    根因：关联此前只靠 ``episode.entities`` 与 ``memory.subject`` 的字符串相等，
+    而抽取 prompt 从不要求模型填 subject → subject 常为空 → 关联整条断裂，
+    工作台与 Episodes 页签恒显示 0 条关联记忆。
+    """
+    session = _session(tmp_path, "project")
+    blank = LLMMemoryItem(content="部署顺序是 pnpm install → pnpm test → deploy.sh", type="fact")
+    assert blank.subject == ""
+    episode = LLMEpisodeItem(
+        summary="用户要求记住部署顺序",
+        entities=["alpha-app", "scripts/deploy.sh"],  # 与任何 subject 都不相等
+    )
+
+    result = extractor._persist(
+        FilteredExtractionResult(memories=[blank], episode=episode),
+        session,
+        "idle",
+    )
+
+    assert len(result.memory_ids) == len(result.episode_ids) == 1
+    with extractor.database.connect() as conn:
+        memory = get_memory(conn, result.memory_ids[0])
+        stored_episode = get_episode(conn, result.episode_ids[0])
+    assert stored_episode is not None and memory is not None
+    assert result.memory_ids[0] in stored_episode.linked_memory_ids
+    assert memory.source_episode_id == result.episode_ids[0]
+
+
 @pytest.mark.parametrize("entrypoint", ["session", "incremental", "quick_facts"])
 async def test_extraction_entrypoints_deduplicate_only_in_session_workspace(
     extractor: MemoryExtractor,

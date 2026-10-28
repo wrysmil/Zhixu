@@ -58,6 +58,7 @@ from nanobot.memory.database import MemoryDatabase
 from nanobot.memory.extractor import MemoryExtractor
 from nanobot.memory.models import EpisodeSource, MemoryType
 from nanobot.memory.repository import (
+    get_episode,
     get_extraction_state,
     get_memory,
     get_scratchpad,
@@ -598,8 +599,14 @@ class TestSourceEpisodeBackfill:
         assert memory is not None
         assert memory.source_episode_id == episode_id
 
-    async def test_empty_linked_memory_ids_is_noop(self, tmp_path: Path):
-        """episode 无 entities → 无 linked_memory_ids → 回填空跑（不抛、不写）。"""
+    async def test_episode_without_entities_still_backfills_batch_memories(self, tmp_path: Path):
+        """episode 无 entities 时，本批次产出的记忆仍要回填 source_episode_id。
+
+        旧行为：``linked_memory_ids`` 只由 entities↔subject 字符串匹配产生，
+        entities 为空即整条空 → 回填跳过。这依赖模型自发填 subject（抽取 prompt
+        从不要求），实践中关联几乎从未建立。新语义：本批次产出的记忆一律挂到
+        本情节上，entities 只补充语义关联。
+        """
         db = _init_db(tmp_path)
         semantic = json.dumps(
             {
@@ -616,7 +623,7 @@ class TestSourceEpisodeBackfill:
             },
             ensure_ascii=False,
         )
-        # entities 为空 → linked_memory_ids == []
+        # entities 为空：语义关联为空，但本批次兜底仍应建立关联
         episode_payload = json.dumps(
             {
                 "summary": "无关联记忆的 episode",
@@ -641,9 +648,10 @@ class TestSourceEpisodeBackfill:
         assert len(result.episode_ids) == 1
         with db.connect() as conn:
             memory = get_memory(conn, result.memory_ids[0])
-        assert memory is not None
-        # 回填空跑：source_episode_id 应仍为 None
-        assert memory.source_episode_id is None
+            episode = get_episode(conn, result.episode_ids[0])
+        assert memory is not None and episode is not None
+        assert memory.source_episode_id == result.episode_ids[0]
+        assert result.memory_ids[0] in episode.linked_memory_ids
 
     async def test_backfill_failure_does_not_raise(self, tmp_path: Path, monkeypatch):
         """FIX-6：单条回填失败仅 warning，不影响 episode 持久化与后续回填。"""

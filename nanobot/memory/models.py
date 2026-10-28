@@ -145,6 +145,7 @@ class Episode:
     action_nodes: list[dict[str, Any]] = field(default_factory=list)
     entities: list[str] = field(default_factory=list)
     tools_used: list[str] = field(default_factory=list)
+    #: 与本情节关联的记忆：本批次产出的记忆 ∪ 按 subject↔entities 语义命中的记忆。
     linked_memory_ids: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     importance_score: float = 0.5
