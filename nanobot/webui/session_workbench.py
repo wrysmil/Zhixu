@@ -11,6 +11,7 @@ from loguru import logger
 
 from nanobot.agent.tools.mcp import _tool_prefix  # pyright: ignore[reportPrivateUsage]
 from nanobot.agent.tools.update_plan import MAX_PLAN_STEPS, PLAN_KEY, PLAN_STATUSES
+from nanobot.memory.provenance import memory_visibility_ids, session_memory_workspace_id
 from nanobot.memory.scratchpad_writer import ScratchpadWriter
 from nanobot.session.goal_state import goal_state_raw, parse_goal_state
 from nanobot.session.manager import Session
@@ -190,7 +191,14 @@ def session_workbench_payload(
         resolver = getattr(memory_operations, "list_memories_by_session", None)
         if resolver is not None:
             try:
-                session_rows = resolver(session_id=session.key, limit=20).get("items", [])
+                # 可见集合按**会话自身作用域**算：网关把记忆服务绑在 "default"，
+                # 而记忆行按会话的项目工作区打标，用 store 作用域会漏掉本会话的记忆。
+                session_workspace = session_memory_workspace_id(session)
+                session_rows = resolver(
+                    session_id=session.key,
+                    limit=20,
+                    workspace_ids=memory_visibility_ids(session_workspace),
+                ).get("items", [])
                 for row in _rows(session_rows, 20):
                     _append_long_term(row, "session:" + session.key)
             except Exception:

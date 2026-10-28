@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Any, cast
 
@@ -268,14 +269,24 @@ def list_memories_by_session_payload(
     *,
     session_id: str,
     limit: int = 20,
+    workspace_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """本会话产出的记忆（按 ``provenance.session_id`` 反查 + 工作区可见性过滤）。
 
     工作台用它回答「这次对话攒下了什么记忆」——不依赖 episode 的
     ``linked_memory_ids``（那条链路历史上恒为空），且**必须**按可见集合过滤：
     按 id 直取（``fetch_memory``）不带可见性判定，会显示其他工作区的记忆。
+
+    ``workspace_ids`` 由调用方按**会话作用域**给出（``memory_visibility_ids(
+    session_memory_workspace_id(session))``）。不传则退回 ``services.workspace_id``——
+    注意网关把记忆服务绑在 ``"default"``，而记忆行按会话的项目工作区打标，
+    两者并不相等，工作台必须显式传会话作用域，否则看不到本会话的记忆。
     """
-    visible = memory_visibility_ids(services.workspace_id)
+    visible = (
+        tuple(workspace_ids)
+        if workspace_ids is not None
+        else memory_visibility_ids(services.workspace_id)
+    )
     with services.database.connect() as conn:
         rows = list_memories_by_session(
             conn, session_id, workspace_ids=visible, limit=limit
