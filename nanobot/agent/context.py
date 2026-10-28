@@ -215,9 +215,11 @@ class ContextBuilder:
                 recent_messages=recent_messages,
                 workspace_ids=workspace_ids,
             )
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - 记忆注入失败不该打断对话
             logger.warning(
-                "Active retrieval failed; continuing without Layer 4 block"
+                "Active retrieval failed; continuing without Layer 4 block: {}: {!r}",
+                type(exc).__name__,
+                exc,
             )
             return "", []
         block, ids = retrieved

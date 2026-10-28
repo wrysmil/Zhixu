@@ -10,6 +10,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Callable, ClassVar
 
+from loguru import logger
+
 from nanobot.agent.tools.base import Tool, tool_parameters
 from nanobot.agent.tools.context import ToolContext, current_request_session_key
 from nanobot.agent.tools.schema import IntegerSchema, StringSchema, tool_parameters_schema
@@ -114,7 +116,16 @@ class MemorySearchTool(Tool):
                 workspace_ids=self._workspace_ids_for(session_key),
             )
             return result if result else ""
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - 检索失败不应打断对话，但必须留痕
+            # 静默返回空串会让模型以为「记忆里没有」，进而放弃记忆改用文件搜索
+            # 之类的笨办法；异常必须落到日志里才能定位。
+            logger.warning(
+                "memory_search retrieval failed: query={!r} session={} error={}: {!r}",
+                query,
+                session_key,
+                type(exc).__name__,
+                exc,
+            )
             return ""
 
     def _workspace_ids_for(self, session_key: str | None) -> tuple[str, ...]:
@@ -123,7 +134,14 @@ class MemorySearchTool(Tool):
             return ("default",)
         try:
             return tuple(self._workspace_ids_provider(session_key))
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - 退化为全局，但必须留痕
+            logger.warning(
+                "memory_search workspace scope resolution failed, degrading to global: "
+                "session={} error={}: {!r}",
+                session_key,
+                type(exc).__name__,
+                exc,
+            )
             return ("default",)
 
     @property

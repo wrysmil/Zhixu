@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import sqlite3
+import time
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Any
@@ -82,9 +83,11 @@ class MemoryStoreAdapter:
         # FTS5 路
         fts5_hits: list[tuple[Any, float]] = []
         with self._database.connect() as conn:
+            fts5_started = time.perf_counter()
             fts5_hits = repository.search_semantic_scored(
                 conn, query, keywords=keywords, limit=limit * 3, workspace_ids=workspace_ids
             )
+            fts5_ms = (time.perf_counter() - fts5_started) * 1000
         for rank, (mem, _score) in enumerate(fts5_hits, start=1):
             rrf[mem.id] = rrf.get(mem.id, 0.0) + 1.0 / (k + rank)
 
@@ -105,24 +108,38 @@ class MemoryStoreAdapter:
         out: list[tuple[Any, float]] = []
         fts5_by_id = {mem.id: mem for mem, _s in fts5_hits}
         content_by_id = {mem.id: mem.content for mem, _ in fts5_hits}
-        # 向量独有 id 在活性或可见性过滤中被丢弃的
-        discarded_ids: list[str] = []
+        # 丢弃分两类：行没了/作废/过期（活性），以及命中但不在可见集合内（工作区隔离）。
+        discarded_inactive: list[str] = []
+        discarded_invisible: list[str] = []
         with self._database.connect() as conn:
             for mid, rrf_score in ordered:
                 mem = fts5_by_id.get(mid)
                 if mem is None:
                     # 向量独有 id：回查 SQLite 权威行并做活性与可见性过滤
                     mem = repository.get_memory(conn, mid)
-                    if mem is None or not _is_live(mem) or not _is_visible(mem, workspace_ids):
-                        discarded_ids.append(mid)
+                    if mem is None or not _is_live(mem):
+                        discarded_inactive.append(mid)
+                        continue
+                    if not _is_visible(mem, workspace_ids):
+                        discarded_invisible.append(mid)
                         continue
                     content_by_id[mid] = mem.content
                 elif not _is_visible(mem, workspace_ids):
-                    discarded_ids.append(mid)
+                    discarded_invisible.append(mid)
                     continue
                 # 绝对归一化：单条候选 relevance < 1.0
                 relevance = min(1.0, rrf_score / rrf_max)
                 out.append((mem, relevance))
+
+        # 诊断：可见集合内一条都没有时，回答「是没匹配上还是被工作区挡掉」。
+        # FTS5 侧的工作区过滤是 SQL 预过滤，被挡的行不进命中列表 → 只看结果
+        # 分辨不出来，故补一次**忽略可见性**的计数（仅此空结果路径付开销）。
+        unfiltered_matches: dict[str, int] | None = None
+        if not out and workspace_ids is not None:
+            with self._database.connect() as conn:
+                unfiltered_matches = repository.count_semantic_matches_unfiltered(
+                    conn, query, keywords=keywords
+                )
 
         trace.hybrid(
             query=query,
@@ -131,9 +148,12 @@ class MemoryStoreAdapter:
             merged=rrf,
             out=out,
             content_by_id=content_by_id,
-            discarded_ids=discarded_ids,
+            discarded_inactive=discarded_inactive,
+            discarded_invisible=discarded_invisible,
+            unfiltered_matches=unfiltered_matches,
             limit=limit,
         )
+        trace.elapsed(stage="语义路 FTS5 查询", ms=fts5_ms)
         return out
 
     # ----- 情节通道 -----

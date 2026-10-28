@@ -33,6 +33,10 @@ from nanobot.memory.models import (
 
 # ---------- memories ----------
 
+#: ``count_semantic_matches_unfiltered`` 的计数上限。诊断只关心「有没有匹配上」，
+#: 封顶避免宽泛词（如单字）触发全表扫描。
+_MATCH_COUNT_CAP = 500
+
 _INSERT_MEMORY_SQL = """
     INSERT INTO memories (
         id, content, type, priority, source,
@@ -855,6 +859,57 @@ def search_semantic_scored(
         sql, [*like_params, *like_params, *like_condition_params]
     ).fetchall()
     return [(_row_to_memory(r), _pseudo_bm25_score(float(idx))) for idx, r in enumerate(rows)]
+
+
+def count_semantic_matches_unfiltered(
+    conn: sqlite3.Connection,
+    query: str,
+    *,
+    keywords: list[str] | None = None,
+) -> dict[str, int]:
+    """统计文本命中数（**忽略工作区可见性条件**）。
+
+    用途：区分「检索 0 条」是**词没匹配上**，还是**匹配上了但被工作区隔离挡掉**
+    ——后者在可见集合过滤下根本不进命中列表，只看结果日志无法分辨。
+
+    只在可见集合内结果为空时调用（诊断用途），常态热路径不付这份开销。
+    计数有上限（``_MATCH_COUNT_CAP``）：诊断只关心「有没有匹配上」，
+    不需要精确总数，封顶避免宽泛词触发全表扫描。
+    """
+    terms = _search_terms(query, keywords)
+    match_expr = " OR ".join(f'"{t}"' for t in terms)
+
+    fts5_count = 0
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM ("
+            "SELECT 1 FROM memories_fts WHERE memories_fts MATCH ? LIMIT ?"
+            ")",
+            [match_expr, _MATCH_COUNT_CAP],
+        ).fetchone()
+        fts5_count = int(row[0]) if row else 0
+    except sqlite3.OperationalError as exc:
+        logger.debug("FTS5 MATCH syntax error in match count: {}", exc)
+
+    like_count = 0
+    hit_exprs: list[str] = []
+    like_params: list[str] = []
+    for tok in terms:
+        escaped = _escape_like(tok)
+        like_params.append(f"%{escaped}%")
+        hit_exprs.append("content LIKE ? ESCAPE '\\'")
+    if hit_exprs:
+        like_where = f"({' OR '.join(hit_exprs)})"
+        try:
+            row = conn.execute(
+                f"SELECT COUNT(*) FROM (SELECT 1 FROM memories WHERE {like_where} LIMIT ?)",
+                [*like_params, _MATCH_COUNT_CAP],
+            ).fetchone()
+            like_count = int(row[0]) if row else 0
+        except sqlite3.OperationalError as exc:
+            logger.debug("LIKE match count failed: {}", exc)
+
+    return {"fts5": fts5_count, "like": like_count}
 
 
 def search_episodes(

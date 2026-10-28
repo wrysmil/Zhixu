@@ -6,6 +6,8 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 
+from loguru import logger
+
 _PATH_RE = re.compile(r"[A-Za-z]:\\[^\s\"']+")
 _FILE_EXT_RE = re.compile(r"\.\w{1,5}\b")
 _STOPWORDS = frozenset({
@@ -56,8 +58,14 @@ class QueryDecomposer:
                         intent=parsed["intent"],
                         used_llm=True,
                     )
-            except Exception:
-                pass  # 降级到规则
+            except Exception as exc:  # noqa: BLE001 - 拆解失败退化为规则，不打断检索
+                # 降级是允许的，但「这次检索的关键词是规则拆的、不是模型拆的」
+                # 必须可见——否则召回质量下降时无从判断是不是拆解退化造成的。
+                logger.warning(
+                    "query decomposition via llm failed, degrading to rules: {}: {!r}",
+                    type(exc).__name__,
+                    exc,
+                )
         return self._rule_decompose(query)
 
     def _build_prompt(self, query: str) -> str:

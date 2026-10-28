@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Callable
@@ -130,11 +131,13 @@ class RetrievalEngine:
             return "", []
 
         tokens = max_tokens if max_tokens is not None else self._default_max_tokens
+        retrieval_started = time.perf_counter()
         trace.start(
             raw_query=query,
             cleaned_query=prepared.cleaned_query,
             recent_count=len(recent_messages or []),
             tokens=tokens,
+            workspace_ids=workspace_ids,
         )
 
         # 1) 拆解（关键词 + 意图）
@@ -262,6 +265,10 @@ class RetrievalEngine:
         # 最终产物：真正拼进 system prompt 的那段 markdown 原文
         block = _render_injection_block(items)
         trace.injection(block=block, ids=[it["memory_id"] for it in items])
+        trace.elapsed(
+            stage="检索全流程",
+            ms=(time.perf_counter() - retrieval_started) * 1000,
+        )
         return block, [it["memory_id"] for it in items]
 
 

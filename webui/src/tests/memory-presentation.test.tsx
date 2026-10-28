@@ -4,7 +4,7 @@ import i18n from "@/i18n";
 import { MemoryListView } from "@/components/settings/memory/MemoryListView";
 import { EpisodeListView } from "@/components/settings/memory/EpisodeListView";
 import { MemoryPage } from "@/components/workspace/MemoryPage";
-import type { EpisodePayload, MemoryPayload } from "@/lib/types";
+import type { EpisodePayload, MemoryPayload, SettingsPayload } from "@/lib/types";
 
 const api = vi.hoisted(() => ({ listMemories: vi.fn(), listEpisodes: vi.fn(), fetchMemory: vi.fn(), fetchEpisode: vi.fn(), deleteMemory: vi.fn(), deleteEpisode: vi.fn() }));
 vi.mock("@/lib/api", async (original) => ({ ...await original<typeof import("@/lib/api")>(), ...api }));
@@ -128,5 +128,19 @@ describe("记忆页面信息与筛选", () => {
     expect(await within(toolbar).findByLabelText("加载中")).toBeInTheDocument();
     expect(screen.getByText(episode.summary)).toBeInTheDocument();
     expect(screen.queryByText("按当前记忆库中保存的工作区归属筛选。")).toBeNull();
+  });
+
+  it("深链直开时跟随后端异步加载到的设置同步自动记忆开关", async () => {
+    const { rerender } = render(<MemoryPage settingsSnapshot={null} onSettingsChange={vi.fn()} />);
+    const toggle = await screen.findByRole("switch");
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+
+    rerender(
+      <MemoryPage
+        settingsSnapshot={{ runtime: { memory_enabled: true } } as unknown as SettingsPayload}
+        onSettingsChange={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true"));
   });
 });

@@ -5,6 +5,8 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Callable
 
+from loguru import logger
+
 from nanobot.memory.retrieval.candidate import RetrievalCandidate
 
 _MIN_IMPORTANCE = 0.6
@@ -30,9 +32,11 @@ def search_recent(
         **({"workspace_ids": workspace_ids} if workspace_ids is not None else {}),
     )
     candidates: list[RetrievalCandidate] = []
+    stale_dropped = 0
     for mem in memories:
         recency = compute_recency(mem.updated_at)
         if recency < _RECENCY_FLOOR:
+            stale_dropped += 1
             continue
         hit = any(kw.lower() in mem.content.lower() for kw in keywords)
         relevance = (
@@ -51,5 +55,12 @@ def search_recent(
                 access_frequency_score=0.0,
                 raw=mem,
             )
+        )
+    if stale_dropped:
+        # 静默丢弃会让「近期通道 0 条」无法区分是没召回到还是召回到了但太旧。
+        logger.info(
+            "recent channel dropped {} stale candidate(s) below recency floor {}",
+            stale_dropped,
+            _RECENCY_FLOOR,
         )
     return candidates[:limit]

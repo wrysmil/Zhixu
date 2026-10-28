@@ -19,11 +19,12 @@ import json
 import math
 import re
 import sqlite3
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 from uuid import uuid4
 
 from loguru import logger
@@ -239,6 +240,8 @@ class FilteredExtractionResult:
     action_nodes: list[ActionNode] = field(default_factory=list)
     citation_scores: list[dict[str, Any]] = field(default_factory=list)
     cited_memory_ids: list[str] = field(default_factory=list)
+    #: 各丢弃原因的条数（``skipped`` 只有总数，排障时看不出丢在哪一步）。
+    skipped_reasons: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -756,6 +759,7 @@ class MemoryExtractor:
         source: str = "session_end",
     ) -> ExtractionResult:
         """执行完整 4 阶段提取，返回写入统计。"""
+        started = time.perf_counter()
         # 系统性读取
         system = self._system_extract(session)
 
@@ -771,6 +775,12 @@ class MemoryExtractor:
         filtered = self._apply_filters(llm_result, existing_memories)
         persisted = self._persist(filtered, session, source)
         skipped = len(llm_result.memories) - len(filtered.memories)
+        logger.info(
+            "memory extraction elapsed: session={} source={} elapsed_ms={:.0f}",
+            session.key,
+            source,
+            (time.perf_counter() - started) * 1000,
+        )
         return ExtractionResult(
             memory_ids=persisted.memory_ids,
             episode_ids=persisted.episode_ids,
@@ -1342,30 +1352,43 @@ class MemoryExtractor:
 
         kept: list[LLMMemoryItem] = []
         seen_hashes: set[str] = set()
+        skipped_reasons: dict[str, int] = {}
+
+        def _skip(reason: str) -> None:
+            skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
+
         for item in llm_result.memories:
             content = item.content
             if is_task_artifact(content) or is_ai_self_talk(content):
+                _skip("task_artifact_or_ai_self_talk")
                 continue
 
             type_key = item.type.strip().lower()
             if type_key not in _VALID_TYPES:
                 logger.warning("skipping memory with invalid type {!r}", item.type)
+                _skip("invalid_type")
                 continue
 
             priority_raw = (item.priority or "").strip().lower()
             if priority_raw and priority_raw not in _VALID_PRIORITIES:
                 logger.warning("skipping memory with invalid priority {!r}", item.priority)
+                _skip("invalid_priority")
                 continue
 
             content_hash = compute_content_hash(content, item.subject, item.predicate)
             if content_hash in existing_hashes or content_hash in seen_hashes:
+                _skip("duplicate")
                 continue
 
             if self._has_high_similarity(content, type_key, existing_by_type):
+                _skip("high_similarity")
                 continue
 
             seen_hashes.add(content_hash)
             kept.append(item)
+
+        if skipped_reasons:
+            logger.info("memory extraction skipped breakdown: {}", skipped_reasons)
 
         return FilteredExtractionResult(
             memories=kept,
@@ -1373,6 +1396,7 @@ class MemoryExtractor:
             action_nodes=list(llm_result.action_nodes),
             citation_scores=list(llm_result.citation_scores),
             cited_memory_ids=list(llm_result.cited_memory_ids),
+            skipped_reasons=skipped_reasons,
         )
 
     @staticmethod
@@ -1558,6 +1582,20 @@ class MemoryExtractor:
         saved_memory_ids: list[str] = []
         saved_episode_ids: list[str] = []
 
+        # 归属判定结论必须落在日志里：记忆隔离按「写进哪个 workspace_id」生效，
+        # 归属算错时面板归属、可见集合、召回都会跟着错，而此前这条结论只在
+        # 数据库里——排查必须回查 DB。project_path 一并打出，便于把 id 对回目录。
+        scope_raw = session.metadata.get("workspace_scope")
+        scope = cast(dict[str, Any], scope_raw) if isinstance(scope_raw, dict) else None
+        project_path = scope.get("project_path") if scope is not None else None
+        logger.info(
+            "memory attribution resolved: session={} workspace_id={} project_path={} source={}",
+            session.key,
+            row_workspace_id,
+            project_path or "<none/global>",
+            source,
+        )
+
         # WU-3B: 每条真实写入通过 _safe_write_with_fallback 路由。
         # 成功 → 返回 True → id 进入 saved_*_ids;失败 → 整条 payload 落 fallback
         # 文件 → 返回 False → id 不进 saved_*_ids(对外统计保持「真实成功」语义)。
@@ -1684,6 +1722,13 @@ class MemoryExtractor:
                 else:
                     logger.error("episode insert failed (saved to fallback)")
 
+        logger.info(
+            "memory extraction persisted: workspace_id={} memories={} ids={} episodes={}",
+            row_workspace_id,
+            len(saved_memory_ids),
+            saved_memory_ids,
+            len(saved_episode_ids),
+        )
         return PersistenceResult(
             memory_ids=saved_memory_ids,
             episode_ids=saved_episode_ids,

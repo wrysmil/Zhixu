@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from loguru import logger
@@ -68,6 +69,7 @@ def start(
     cleaned_query: str,
     recent_count: int,
     tokens: int,
+    workspace_ids: Sequence[str] | None = None,
 ) -> None:
     """阶段零：一次检索的开始（原始 query → 清洗后 query）。"""
     if not ENABLED:
@@ -78,8 +80,26 @@ def start(
         f"  清洗后 query: {cleaned_query!r}（调用方已清洗时两者相同）",
         f"  上下文消息数: {recent_count} 条",
         f"  token 预算  : {tokens}",
+        f"  可见集合    : {_fmt_workspace_ids(workspace_ids)}",
     ]
     _emit(lines)
+
+
+def _fmt_workspace_ids(workspace_ids: Sequence[str] | None) -> str:
+    """可见集合 → 日志文本。``None`` = 管理面全量读（不过滤）。"""
+    if workspace_ids is None:
+        return "（未限定 = 全量读，不过滤工作区）"
+    ids = [str(item) for item in workspace_ids if str(item)]
+    if not ids:
+        return "（空集 = 什么都看不到）"
+    return ", ".join(ids)
+
+
+def elapsed(*, stage: str, ms: float) -> None:
+    """阶段耗时（ms）。"""
+    if not ENABLED:
+        return
+    _emit([f"【记忆检索·耗时】{stage} {ms:.1f}ms"])
 
 
 def skipped(*, query: str, reason: str) -> None:
@@ -216,10 +236,19 @@ def hybrid(
     merged: dict[str, float],
     out: list[tuple[Any, float]],
     content_by_id: dict[str, str],
-    discarded_ids: list[str],
+    discarded_inactive: list[str],
+    discarded_invisible: list[str],
+    unfiltered_matches: dict[str, int] | None = None,
     limit: int,
 ) -> None:
-    """语义路融合明细：FTS5 ∪ 向量（同 id 取最高分）→ 活性过滤 → 返回。"""
+    """语义路融合明细：FTS5 ∪ 向量（同 id 取最高分）→ 活性过滤 → 返回。
+
+    ``discarded_inactive`` 与 ``discarded_invisible`` 分开统计：前者是行没了/
+    作废/过期，后者是**命中了但不在可见集合内**——后者才是「工作区隔离挡掉了」。
+
+    ``unfiltered_matches`` 只在可见集合内结果为空时给出（忽略可见性条件的
+    文本命中数），用来回答「0 条」是没匹配上还是被隔离挡掉。
+    """
     if not ENABLED:
         return
     fts5_ids = [mem.id for mem, _ in fts5_hits]
@@ -251,10 +280,30 @@ def hybrid(
         f"仅 FTS5 {len(fts5_set - vector_set)} / 仅向量 {len(vector_set - fts5_set)}）"
     )
 
-    if discarded_ids:
-        lines.append(f"  · 活性过滤丢弃 {len(discarded_ids)} 条（已作废 / 已过期 / 行已删）:")
-        for mid in discarded_ids[:MAX_ITEMS]:
+    if discarded_inactive:
+        lines.append(f"  · 活性过滤丢弃 {len(discarded_inactive)} 条（已作废 / 已过期 / 行已删）:")
+        for mid in discarded_inactive[:MAX_ITEMS]:
             lines.append(f"      [丢弃] [{str(mid)[:8]}]")
+    if discarded_invisible:
+        lines.append(
+            f"  · 工作区可见性丢弃 {len(discarded_invisible)} 条"
+            "（命中但不在可见集合内）:"
+        )
+        for mid in discarded_invisible[:MAX_ITEMS]:
+            lines.append(f"      [丢弃] [{str(mid)[:8]}]")
+
+    if unfiltered_matches is not None:
+        fts5_total = int(unfiltered_matches.get("fts5", 0))
+        like_total = int(unfiltered_matches.get("like", 0))
+        if fts5_total or like_total:
+            lines.append(
+                f"  · 诊断: 文本命中 FTS5={fts5_total} / LIKE={like_total}"
+                "（忽略可见集合）→ 命中但被工作区可见性挡掉"
+            )
+        else:
+            lines.append(
+                "  · 诊断: 忽略可见集合也 0 条文本命中 → 与工作区无关，是词没匹配上"
+            )
 
     lines.append(f"  · 按分排序取前 {limit} → 返回 {len(out)} 条")
     for mem, score in out:

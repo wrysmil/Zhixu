@@ -2763,10 +2763,12 @@ class AgentLoop:
                 recent_messages=recent_messages,
                 workspace_ids=workspace_ids,
             )
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - 记忆注入失败不该打断对话
             logger.warning(
                 "Active retrieval failed during _build_turn; "
-                "system prompt will omit the Layer 4 block"
+                "system prompt will omit the Layer 4 block: {}: {!r}",
+                type(exc).__name__,
+                exc,
             )
             return "", []
 

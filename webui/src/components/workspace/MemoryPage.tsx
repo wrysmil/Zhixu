@@ -25,6 +25,14 @@ export function MemoryPage({
     setHydrated(true);
   }, []);
 
+  // The gateway loads the settings snapshot asynchronously, so a deep link that
+  // lands straight on this page mounts it while the snapshot is still null.
+  // Without this sync the copy above stays null forever and the master toggle
+  // keeps rendering the fallback (off) instead of the backend value.
+  useEffect(() => {
+    if (settingsSnapshot) setPayload(settingsSnapshot);
+  }, [settingsSnapshot]);
+
   if (!hydrated) return null;
 
   return (
