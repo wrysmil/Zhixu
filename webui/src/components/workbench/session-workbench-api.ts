@@ -16,7 +16,7 @@ export interface SessionWorkbenchSnapshot {
   tasks: WorkbenchTask[];
   plan: { explanation: string; steps: WorkbenchTask[]; updated_at: string | null } | null;
   agents: { id: string; name: string; status: string; detail: string; invocation_id: string }[];
-  memories: { id: string; kind: "working" | "long_term"; title: string; content: string; source: string; updated_at: string | null; persisted: boolean }[];
+  memories: { id: string; kind: "working" | "long_term"; title: string; content: string; source: string; updated_at: string | null; persisted: boolean; workspace_id?: string; is_global?: boolean }[];
   skills: { name: string; status: "available" | "always_loaded" | "used"; source: string }[];
   mcp: { name: string; status: string; calls: number; successes: number | null; failures: number | null }[];
   limitations: string[];
@@ -41,7 +41,9 @@ function validSnapshot(data: unknown, sessionKey: string): data is SessionWorkbe
     && (data.plan === null || (record(data.plan) && string(data.plan.explanation) && rows(data.plan.steps, task) && nullableString(data.plan.updated_at)))
     && rows(data.agents, (row) => [row.id, row.name, row.status, row.detail, row.invocation_id].every(string))
     && rows(data.memories, (row) => [row.id, row.title, row.content, row.source].every(string)
-      && (row.kind === "working" || row.kind === "long_term") && typeof row.persisted === "boolean" && nullableString(row.updated_at))
+      && (row.kind === "working" || row.kind === "long_term") && typeof row.persisted === "boolean" && nullableString(row.updated_at)
+      && (row.workspace_id === undefined || string(row.workspace_id))
+      && (row.is_global === undefined || typeof row.is_global === "boolean"))
     && rows(data.skills, (row) => string(row.name) && string(row.source) && string(row.status) && ["available", "always_loaded", "used"].includes(row.status))
     && rows(data.mcp, (row) => string(row.name) && string(row.status) && count(row.calls) && nullableCount(row.successes) && nullableCount(row.failures))
     && Array.isArray(data.limitations) && data.limitations.every(string);

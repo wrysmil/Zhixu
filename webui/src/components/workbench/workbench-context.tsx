@@ -27,7 +27,8 @@ export function WorkbenchMemories({ snapshot, onOpenFilePreview }: {
         <summary className="cursor-pointer text-[11px] text-muted-foreground">{text("查看内容", "View content")}</summary>
         <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{memory.content}</p>
       </details>
-      <p className="mt-2 text-[10px] text-muted-foreground [overflow-wrap:anywhere]">{text("来源", "Source")}: {memory.source === "session_scratchpad" ? text("本会话工作记忆", "Session scratchpad") : memory.source.startsWith("episode:") ? `${text("会话经历", "Session episode")} ${memory.source.slice(8)}` : memory.source}</p>
+      <p className="mt-2 text-[10px] text-muted-foreground [overflow-wrap:anywhere]">{text("来源", "Source")}: {memory.source === "session_scratchpad" ? text("本会话工作记忆", "Session scratchpad") : memory.source.startsWith("episode:") ? `${text("会话经历", "Session episode")} ${memory.source.slice(8)}` : memory.source.startsWith("session:") ? text("本会话抽取", "Extracted in this session") : memory.source}</p>
+      {memory.kind === "long_term" && <span className="mt-1 block text-[10px] text-muted-foreground [overflow-wrap:anywhere]">{memory.is_global ? text("归属：全局记忆", "Ownership: global memory") : text(`归属：工作区 ${(memory.workspace_id ?? "").slice(0, 8)}`, `Ownership: workspace ${(memory.workspace_id ?? "").slice(0, 8)}`)}</span>}
       {memory.updated_at && <time dateTime={memory.updated_at} className="mt-1 block text-[10px] text-muted-foreground">{formatTime(memory.updated_at)}</time>}
       {memory.source.startsWith("/") && onOpenFilePreview && <button type="button" className="mt-2 text-[11px] text-primary hover:underline" onClick={() => onOpenFilePreview(memory.source)}>{text("打开来源文件", "Open source file")}</button>}
     </li>)}</ul> : <WorkbenchEmpty>{text("尚无与本会话关联的记忆。其他会话的长期记忆不会混入这里。", "No memories linked to this session. Memories from other sessions are excluded.")}</WorkbenchEmpty>}
