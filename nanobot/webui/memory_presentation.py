@@ -49,6 +49,7 @@ class PresentationContext:
         }
         self.linked_episodes: dict[str, list[Episode]] = {}
         self.session_workspaces: dict[str, list[dict[str, str]]] = {}
+        self._session_titles: dict[str, str | None] = {}
         for episode in self.episodes.values():
             for memory_id in episode.linked_memory_ids:
                 self.linked_episodes.setdefault(memory_id, []).append(episode)
@@ -71,6 +72,28 @@ class PresentationContext:
                     except ValueError:
                         pass
         return self.session_workspaces[session_id]
+
+    def session_label(self, session_id: str | None) -> str | None:
+        """会话 id → 可读标题；取不到返回 ``None``（调用方降级显示 key 截断）。
+
+        同一次请求内按 session_id 缓存，避免 N 条记忆各查一次会话元数据。
+        """
+        if not session_id:
+            return None
+        if session_id not in self._session_titles:
+            self._session_titles[session_id] = self._resolve_session_title(session_id)
+        return self._session_titles[session_id]
+
+    def _resolve_session_title(self, session_id: str) -> str | None:
+        if self.services is None or self.services.session_metadata is None:
+            return None
+        try:
+            payload = self.services.session_metadata(session_id)
+        except Exception as exc:  # 标题解析失败不得隐藏记录本身
+            logger.warning("memory session title unavailable: {}", type(exc).__name__)
+            return None
+        raw = _object_dict(payload).get("title")
+        return raw.strip() if isinstance(raw, str) and raw.strip() else None
 
     def workspaces(self, item: Memory | Episode) -> list[dict[str, str]]:
         """该条记录的归属工作区。

@@ -9,7 +9,7 @@ import { deleteMemory, fetchMemory, listMemories, type ListMemoriesOpts } from "
 import type { MemoryOrigin, MemoryPayload, MemoryPriority, MemoryType } from "@/lib/types";
 import { useClient } from "@/providers/ClientProvider";
 import { MemoryEditDialog } from "./MemoryEditDialog";
-import { DetailFields, DetailProvenance, ImportanceBadge, MemoryActions, MemoryFilters, MemoryLoadState, MemoryTime, SourceBadge, WorkspaceLabels, memoryRowClass, memorySelectClass, useMemoryCopy, useMemoryDetails, useMemoryList } from "./MemoryPresentation";
+import { DetailFields, DetailProvenance, ImportanceBadge, MemoryActions, MemoryFilters, MemoryLoadState, MemoryTime, SessionBadge, SourceBadge, WorkspaceLabels, memoryRowClass, memorySelectClass, useMemoryCopy, useMemoryDetails, useMemoryList } from "./MemoryPresentation";
 
 const TYPES: MemoryType[] = ["fact", "preference", "skill", "error", "rule", "experience"];
 
@@ -56,7 +56,7 @@ export function MemoryListView() {
     {!error && result.items.length > 0 && <ul className="divide-y divide-border/55" aria-label={text("长期信息列表", "Saved memories")} aria-busy={loading}>{result.items.map((memory) => <li key={memory.id} className={memoryRowClass}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]"><SourceBadge record={memory} /><WorkspaceLabels workspaces={memory.workspaces} /><span className="text-muted-foreground">{t(`settings.memory.type.${memory.type}`, { defaultValue: memory.type })}</span><span className="text-muted-foreground">{t(`settings.memory.priority.${memory.priority}`, { defaultValue: memory.priority })}</span>{memory.superseded_by && <span className="text-amber-700 dark:text-amber-400">{text("已被替代", "Superseded")}</span>}{memory.expires_at && new Date(memory.expires_at).getTime() < Date.now() && <span className="text-amber-700 dark:text-amber-400">{text("已过期", "Expired")}</span>}</div>
+          <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]"><SourceBadge record={memory} /><WorkspaceLabels workspaces={memory.workspaces} />{memory.session_id && <SessionBadge record={memory} />}<span className="text-muted-foreground">{t(`settings.memory.type.${memory.type}`, { defaultValue: memory.type })}</span><span className="text-muted-foreground">{t(`settings.memory.priority.${memory.priority}`, { defaultValue: memory.priority })}</span>{memory.superseded_by && <span className="text-amber-700 dark:text-amber-400">{text("已被替代", "Superseded")}</span>}{memory.expires_at && new Date(memory.expires_at).getTime() < Date.now() && <span className="text-amber-700 dark:text-amber-400">{text("已过期", "Expired")}</span>}</div>
           <p className="line-clamp-3 whitespace-pre-wrap break-words text-[13px] font-normal leading-6 text-foreground [overflow-wrap:anywhere]">{memory.content}</p>
         </div>
         <MemoryActions onDetails={() => void details.open(memory)} onEdit={() => setEditing(memory)} onDelete={() => { setMutationError(null); setDeleteCandidate(memory); }} busy={deleting} />
@@ -75,6 +75,7 @@ function MemoryDetailFields({ memory }: { memory: MemoryPayload }) {
   const { t } = useTranslation();
   return <div className="space-y-5"><p className="whitespace-pre-wrap break-words text-[13px] leading-6 [overflow-wrap:anywhere]">{memory.content}</p><DetailFields fields={[
     [text("来源", "Source"), <DetailProvenance record={memory} />],
+    [text("来源会话", "Source session"), <SessionBadge record={memory} />],
     [text("工作区", "Workspace"), <div className="flex flex-wrap gap-2"><WorkspaceLabels workspaces={memory.workspaces} /></div>],
     [text("创建时间", "Created"), <MemoryTime value={memory.created_at} detailed />],
     [text("更新时间", "Updated"), <MemoryTime value={memory.updated_at} detailed />],

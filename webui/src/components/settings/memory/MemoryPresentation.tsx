@@ -57,6 +57,15 @@ export function WorkspaceLabels({ workspaces }: { workspaces?: MemoryWorkspace[]
   return <>{workspaces.map((workspace) => <span key={workspace.id} title={workspace.path} className="max-w-56 truncate text-muted-foreground">{workspace.name}</span>)}</>;
 }
 
+export function SessionBadge({ record }: { record: Pick<MemoryPresentation, "session_id" | "session_title"> }) {
+  const { text } = useMemoryCopy();
+  if (!record.session_id) {
+    return <span className="text-muted-foreground">{text("来源会话未记录", "Source session not recorded")}</span>;
+  }
+  const label = record.session_title || record.session_id.slice(0, 18);
+  return <span title={record.session_id} className="max-w-56 truncate text-muted-foreground">{text(`会话：${label}`, `Session: ${label}`)}</span>;
+}
+
 export function ImportanceBadge({ value }: { value: number }) {
   const { text } = useMemoryCopy();
   const score = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : null;

@@ -1829,6 +1829,10 @@ export interface MemoryPresentation {
   trigger_mode?: "automatic" | "manual" | "unknown";
   trigger_reason?: string;
   workspaces?: MemoryWorkspace[];
+  /** 产出这条记忆的会话 id；手动新增的记忆为 null。 */
+  session_id?: string | null;
+  /** 该会话的可读标题；取不到时为 null（前端降级显示 id 截断）。 */
+  session_title?: string | null;
 }
 
 export interface MemoryListResult<T> {

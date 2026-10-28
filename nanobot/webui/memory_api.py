@@ -82,6 +82,11 @@ class WebUIMemoryError(WebUISettingsError):
 
 def memory_payload(m: Memory, context: PresentationContext | None = None) -> dict[str, Any]:
     """Serialise a ``Memory`` to the JSON shape the WebUI expects."""
+    presentation = context or PresentationContext(None, [])
+    metadata = m.metadata if isinstance(m.metadata, dict) else {}
+    provenance = metadata.get("provenance")
+    raw_session = provenance.get("session_id") if isinstance(provenance, dict) else None
+    session_id = raw_session if isinstance(raw_session, str) and raw_session else None
     return {
         "id": m.id,
         "content": m.content,
@@ -104,7 +109,9 @@ def memory_payload(m: Memory, context: PresentationContext | None = None) -> dic
         "created_at": m.created_at,
         "updated_at": m.updated_at,
         "metadata": dict(m.metadata),
-        **(context or PresentationContext(None, [])).fields(m),
+        "session_id": session_id,
+        "session_title": presentation.session_label(session_id),
+        **presentation.fields(m),
     }
 
 

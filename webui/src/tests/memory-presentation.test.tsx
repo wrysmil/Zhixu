@@ -130,6 +130,18 @@ describe("记忆页面信息与筛选", () => {
     expect(screen.queryByText("按当前记忆库中保存的工作区归属筛选。")).toBeNull();
   });
 
+  it("展示记忆的来源会话，缺标题时降级显示会话 id，手动记忆不显示", async () => {
+    api.listMemories.mockResolvedValue(result([
+      { ...memory, id: "m-titled", session_id: "websocket:deploy-2026", session_title: "部署流程讨论" },
+      { ...memory, id: "m-untitled", session_id: "websocket:deleted-session", session_title: null },
+      { ...memory, id: "m-manual", session_id: null },
+    ]));
+    render(<MemoryListView />);
+    expect(await screen.findByText("会话：部署流程讨论")).toBeInTheDocument();
+    expect(screen.getByText("会话：websocket:deleted-")).toBeInTheDocument();
+    expect(screen.queryByText("来源会话未记录")).toBeNull();
+  });
+
   it("深链直开时跟随后端异步加载到的设置同步自动记忆开关", async () => {
     const { rerender } = render(<MemoryPage settingsSnapshot={null} onSettingsChange={vi.fn()} />);
     const toggle = await screen.findByRole("switch");

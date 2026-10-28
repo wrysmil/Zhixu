@@ -92,6 +92,33 @@ def test_workspaces_recover_only_from_saved_session_metadata_and_cache(services:
     assert [item["id"] for item in missing["items"]] == ["unknown"]
 
 
+def test_memory_payload_exposes_source_session(services: MemoryServices):
+    """记忆条目顶层带来源会话与可读标题；取不到标题时为 None。"""
+    titles = {"websocket:deploy": "部署流程讨论"}
+
+    def metadata(key: str) -> dict[str, object] | None:
+        if key not in titles:
+            return None
+        return {"title": titles[key], "metadata": {}}
+
+    scoped = replace(services, session_metadata=metadata)
+    seed(
+        scoped,
+        memory("m1", metadata={"provenance": {"session_id": "websocket:deploy"}}),
+        memory("m2", metadata={"provenance": {"session_id": "websocket:deleted"}}),
+        memory("m3"),
+    )
+
+    items = {item["id"]: item for item in memory_api.list_memories_payload(scoped)["items"]}
+
+    assert items["m1"]["session_id"] == "websocket:deploy"
+    assert items["m1"]["session_title"] == "部署流程讨论"
+    assert items["m2"]["session_id"] == "websocket:deleted"
+    assert items["m2"]["session_title"] is None
+    assert items["m3"]["session_id"] is None
+    assert items["m3"]["session_title"] is None
+
+
 def test_no_session_scope_does_not_fabricate_default_project(services: MemoryServices):
     scoped = replace(services, session_metadata=lambda _: {"metadata": {}})
     seed(scoped, Episode("ep", "old-chat", "旧对话", "2026-10-27", "2026-10-27"))
