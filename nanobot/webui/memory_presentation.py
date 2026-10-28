@@ -92,8 +92,15 @@ class PresentationContext:
         except Exception as exc:  # 标题解析失败不得隐藏记录本身
             logger.warning("memory session title unavailable: {}", type(exc).__name__)
             return None
-        raw = _object_dict(payload).get("title")
-        return raw.strip() if isinstance(raw, str) and raw.strip() else None
+        # ``SessionMetadataPayload`` 是 {key, created_at, updated_at, metadata}，
+        # 标题在 ``metadata.title`` 里，顶层没有 title。没有自动命名/未改名的会话
+        # 只有 ``session_handle``（聊天头显示的那个 @handle），用它兜底。
+        metadata = _object_dict(_object_dict(payload).get("metadata"))
+        for field in ("title", "session_handle"):
+            raw = metadata.get(field)
+            if isinstance(raw, str) and raw.strip():
+                return raw.strip()
+        return None
 
     def workspaces(self, item: Memory | Episode) -> list[dict[str, str]]:
         """该条记录的归属工作区。

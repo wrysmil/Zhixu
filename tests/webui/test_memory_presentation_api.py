@@ -97,9 +97,14 @@ def test_memory_payload_exposes_source_session(services: MemoryServices):
     titles = {"websocket:deploy": "部署流程讨论"}
 
     def metadata(key: str) -> dict[str, object] | None:
+        if key == "websocket:handle-only":
+            return {"key": key, "created_at": None, "updated_at": None,
+                    "metadata": {"session_handle": "kevu"}}
         if key not in titles:
             return None
-        return {"title": titles[key], "metadata": {}}
+        # SessionMetadataPayload: 标题在 metadata.title，顶层没有 title
+        return {"key": key, "created_at": None, "updated_at": None,
+                "metadata": {"title": titles[key]}}
 
     scoped = replace(services, session_metadata=metadata)
     seed(
@@ -107,6 +112,7 @@ def test_memory_payload_exposes_source_session(services: MemoryServices):
         memory("m1", metadata={"provenance": {"session_id": "websocket:deploy"}}),
         memory("m2", metadata={"provenance": {"session_id": "websocket:deleted"}}),
         memory("m3"),
+        memory("m4", metadata={"provenance": {"session_id": "websocket:handle-only"}}),
     )
 
     items = {item["id"]: item for item in memory_api.list_memories_payload(scoped)["items"]}
@@ -117,6 +123,7 @@ def test_memory_payload_exposes_source_session(services: MemoryServices):
     assert items["m2"]["session_title"] is None
     assert items["m3"]["session_id"] is None
     assert items["m3"]["session_title"] is None
+    assert items["m4"]["session_title"] == "kevu"
 
 
 def test_no_session_scope_does_not_fabricate_default_project(services: MemoryServices):
