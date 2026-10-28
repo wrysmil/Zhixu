@@ -133,6 +133,19 @@ INFO | memory attribution resolved: session=probe-global workspace_id=default
 
 参考对照（同一 5 万行库）：现有「工作区过滤 + 取行」21.7ms；不过滤的 COUNT 2.6ms。
 
+## 截图证据
+
+真机 Chrome（CDP 驱动，1440×1200）截取，落在 `.ai-runtime-artifacts/verifications/2026-10-28-memory-workspace-e2e/`：
+
+| 截图 | 证明什么 |
+| --- | --- |
+| `01-memory-center-all.jpg` | 记忆中心全量：**Auto-remember 开关为 On**（D1 修复后与后端 `memory_enabled=true` 一致）、10 条记忆、每条卡片带**工作区归属标签**（Global memory / alpha-app / beta-service / workspace） |
+| `02-memory-workspace-alpha.jpg` | 工作区筛选到 alpha-app：**4 条且全部归属 alpha-app**，beta-service 的记忆不再出现 |
+| `03-memory-detail-dialog.jpg` | 记忆详情弹窗：来源 / 触发方式 / **工作区归属** / 创建更新时间 / 引用次数 |
+
+（内置浏览器无可视视口、截不了图，故改用 CDP 驱动本机 Chrome；原始 PNG 在
+`C:/Users/Huangqh/AppData/Local/Temp/zhixu-mem-e2e/shots/`。）
+
 ## 未验证项
 
 - 未在**真实对话**里重跑一次完整抽取来确认新日志串起来的效果（需要 LLM + 120s 空闲触发）；
