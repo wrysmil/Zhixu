@@ -7,7 +7,7 @@ provider 层在 HTTP 失败时**不抛异常**，而是返回
 记忆抽取原先只看 ``content``，于是 403 被报成 ``unparseable JSON``，
 错误文本甚至会被当成草稿本正文落库。
 
-本文件用复刻真实字段名的鸭子类型响应，验证六个调用点都先问 ``response_error``。
+本文件用复刻真实字段名的鸭子类型响应，验证仍在用的调用点都先问 ``response_error``。
 """
 
 from __future__ import annotations
@@ -19,11 +19,9 @@ import pytest
 from loguru import logger
 
 from nanobot.memory.database import MemoryDatabase
-from nanobot.memory.experience_extractor import ExperienceExtractor
 from nanobot.memory.extractor import MemoryExtractor
 from nanobot.memory.llm_error import response_error
 from nanobot.memory.profile_extractor import ProfileExtractor
-from nanobot.memory.scratchpad_writer import ScratchpadWriter
 
 # 真实错误体（来自 2026-09-15 22:10 的 gateway 日志）。
 _AUTH_ERROR_BODY = (
@@ -172,30 +170,7 @@ class TestCallTrack:
 
 
 # ---------------------------------------------------------------------------
-# 会话结束时用 LLM 补全 episode 摘要
-# ---------------------------------------------------------------------------
-
-
-class TestEpisodeSummaryCompletion:
-    async def test_error_response_keeps_fallback_summary(self, db):
-        records: list[str] = []
-        sink = _capture(records)
-        try:
-            extractor = MemoryExtractor(db, _FakeRuntime(_ErrorResponse()))
-            episode = await extractor.generate_episode(
-                [{"role": "user", "content": "帮我实现爬虫"}], "s1"
-            )
-        finally:
-            logger.remove(sink)
-        assert episode is not None
-        # 兜底摘要仍在（行为不变），但日志要说得清是 LLM 报错。
-        assert episode.summary
-        assert not any(_AUTH_ERROR_BODY in (e.summary or "") for e in [episode])
-        assert any("403" in r for r in records)
-
-
-# ---------------------------------------------------------------------------
-# ProfileExtractor / ExperienceExtractor
+# ProfileExtractor
 # ---------------------------------------------------------------------------
 
 
@@ -212,40 +187,3 @@ class TestProfileExtractor:
         assert result.error is not None
         assert "403" in result.error
         assert result.error != "invalid_json"
-
-
-class TestExperienceExtractor:
-    async def test_returns_empty_and_warns(self):
-        records: list[str] = []
-        sink = _capture(records)
-        try:
-            extractor = ExperienceExtractor(_FakeRuntime(_ErrorResponse()))
-            items = await extractor.extract(
-                [
-                    {"role": "user", "content": "帮我看看金价"},
-                    {"role": "assistant", "content": "第一步"},
-                    {"role": "assistant", "content": "第二步"},
-                ],
-                "ep-1",
-            )
-        finally:
-            logger.remove(sink)
-        assert items == []
-        assert any("403" in r for r in records)
-
-
-# ---------------------------------------------------------------------------
-# ScratchpadWriter：错误文本绝不能落库
-# ---------------------------------------------------------------------------
-
-
-class TestScratchpadWriter:
-    async def test_error_text_never_becomes_scratchpad_content(self, db):
-        writer = ScratchpadWriter(
-            db, user_id="u1", runtime=_FakeRuntime(_ErrorResponse())
-        )
-        entry = await writer.format_with_llm(None, "用户咨询金价")
-        content = entry.content or ""
-        assert "Authentication failed" not in content
-        assert "permission_error" not in content
-        assert "Error:" not in content

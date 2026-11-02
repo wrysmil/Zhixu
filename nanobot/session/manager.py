@@ -58,6 +58,21 @@ _PROVIDER_STATE_RECORD_PREFIX_RE = re.compile(
 _RUNTIME_CHECKPOINT_KEY = "runtime_checkpoint"
 _RUNTIME_CHECKPOINT_VERSION = 1
 _RUNTIME_CHECKPOINT_SUFFIX = ".checkpoint.json"
+# 持久消息坐标（契约 §1）：generation 是会话创建一次并持久保存的随机标识，
+# next_seq 是该 generation 内下一个可用正整数；消息上的 memory_seq 是原始消息
+# 身份。三者只供持久化与记忆消费，不进入 provider 请求。
+_MEMORY_GENERATION_KEY = "memory_generation"
+_MEMORY_NEXT_SEQ_KEY = "memory_next_seq"
+_MEMORY_SEQ_MESSAGE_KEY = "memory_seq"
+_MEMORY_GENERATION_BYTES = 16
+# provider 请求允许携带的消息字段；坐标字段刻意不在其中。
+_PROVIDER_MESSAGE_KEYS = (
+    "tool_calls",
+    "tool_call_id",
+    "name",
+    "reasoning_content",
+    "thinking_blocks",
+)
 _FORK_VOLATILE_METADATA_KEYS = {
     "goal_state",
     "pending_user_turn",
@@ -286,6 +301,12 @@ class Session:
     last_consolidated: int = 0
     provider_state: ProviderConversationState | None = field(default=None, repr=False)
     policy: SessionPolicy = field(default_factory=SessionPolicy, repr=False, compare=False)
+    # Durable memory coordinates (contract §1). They live at the top level of the
+    # session file's metadata record, not in ``metadata``, so persistence and
+    # memory consumption are their only readers. Empty/zero means "not assigned
+    # yet"; the save path fills them once and keeps them stable afterwards.
+    memory_generation: str = ""
+    memory_next_seq: int = 0
 
     def __post_init__(self) -> None:
         if not isinstance(cast(object, self.metadata), dict):
@@ -436,7 +457,9 @@ class Session:
                 if not any(key in message for key in ("tool_calls", "reasoning_content", "thinking_blocks")):
                     continue
             entry: dict[str, Any] = {"role": message["role"], "content": content}
-            for key in ("tool_calls", "tool_call_id", "name", "reasoning_content", "thinking_blocks"):
+            # Provider requests carry only wire fields: durable identity such as
+            # ``memory_seq`` stays private to persistence and memory consumption.
+            for key in _PROVIDER_MESSAGE_KEYS:
                 if key in message:
                     entry[key] = message[key]
             out.append(entry)
@@ -475,12 +498,127 @@ class Session:
         return out
 
     def clear(self) -> None:
-        """Clear all messages and reset session to initial state."""
+        """Clear all messages and reset session to initial state.
+
+        A cleared transcript starts a new memory generation, so sequence
+        coordinates from the previous conversation are never reused under the
+        same session key.
+        """
         self.messages = []
         self.last_archived = 0
         self.provider_state = None
         self.updated_at = datetime.now()
         self.metadata.pop("_last_summary", None)
+        self.memory_generation = ""
+        self.memory_next_seq = 0
+
+
+class MemoryCoordinateError(RuntimeError):
+    """Durable memory coordinates are corrupt or contradictory.
+
+    Raised while saving a session so conflicting or duplicate identifiers are
+    reported instead of being silently renumbered; the save aborts before the
+    atomic replace, leaving the stored file untouched.
+    """
+
+    def __init__(self, session_key: str, reason: str) -> None:
+        super().__init__(f"session {session_key!r} memory coordinates: {reason}")
+        self.session_key = session_key
+        self.reason = reason
+
+
+def _positive_int(value: object) -> int | None:
+    """Return *value* when it is a positive integer (booleans excluded)."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if value > 0 else None
+
+
+def _memory_coordinates(record: dict[str, Any]) -> tuple[str, int]:
+    """Read raw durable coordinates from a metadata record.
+
+    Values are returned unvalidated and ``0``/``""`` mean "not assigned yet".
+    ``_assign_memory_coordinates`` turns anything else invalid into a reported
+    conflict instead of silently replacing persisted identifiers.
+    """
+    raw_generation = cast(object, record.get(_MEMORY_GENERATION_KEY))
+    raw_next_seq = cast(object, record.get(_MEMORY_NEXT_SEQ_KEY))
+    generation = cast(str, raw_generation) if raw_generation is not None else ""
+    next_seq = cast(int, raw_next_seq) if raw_next_seq is not None else 0
+    return generation, next_seq
+
+
+def _assign_memory_coordinates(session: Session) -> bool:
+    """Number every message inside the session's durable memory generation.
+
+    Existing identifiers are preserved, so loading and saving a session again
+    never renumbers it. A message inserted before numbered messages (for example
+    a compaction summary boundary) takes the next free number: transcript
+    position is not the identity. Conflicts (invalid field types, duplicate
+    sequences, a ``memory_next_seq`` that does not exceed the assigned
+    sequences) raise :class:`MemoryCoordinateError`; the save path reports them
+    and aborts.
+
+    Returns ``True`` when any coordinate was written.
+    """
+    changed = False
+    raw_generation = cast(object, session.memory_generation)
+    if raw_generation == "":
+        session.memory_generation = secrets.token_hex(_MEMORY_GENERATION_BYTES)
+        changed = True
+    elif not isinstance(raw_generation, str) or not raw_generation.strip():
+        raise MemoryCoordinateError(
+            session.key,
+            f"memory_generation is invalid: {raw_generation!r}",
+        )
+
+    raw_next_seq = cast(object, session.memory_next_seq)
+    next_seq = _positive_int(raw_next_seq)
+    if raw_next_seq != 0 and next_seq is None:
+        raise MemoryCoordinateError(
+            session.key,
+            f"memory_next_seq is invalid: {raw_next_seq!r}",
+        )
+
+    assigned: set[int] = set()
+    for index, message in enumerate(session.messages):
+        raw_seq = cast(object, message.get(_MEMORY_SEQ_MESSAGE_KEY))
+        if raw_seq is None:
+            continue
+        seq = _positive_int(raw_seq)
+        if seq is None:
+            raise MemoryCoordinateError(
+                session.key,
+                f"message #{index} memory_seq is invalid: {raw_seq!r}",
+            )
+        if seq in assigned:
+            raise MemoryCoordinateError(
+                session.key,
+                f"duplicate memory_seq {seq} at message #{index}",
+            )
+        assigned.add(seq)
+
+    highest = max(assigned, default=0)
+    if next_seq is None:
+        next_seq = highest + 1
+    elif next_seq <= highest:
+        raise MemoryCoordinateError(
+            session.key,
+            f"memory_next_seq {next_seq} does not exceed assigned memory_seq {highest}",
+        )
+
+    for message in session.messages:
+        if message.get(_MEMORY_SEQ_MESSAGE_KEY) is not None:
+            continue
+        message[_MEMORY_SEQ_MESSAGE_KEY] = next_seq
+        next_seq += 1
+        changed = True
+
+    if session.memory_next_seq != next_seq:
+        session.memory_next_seq = next_seq
+        changed = True
+    return changed
+
 
 class SessionPayload(TypedDict):
     key: str
@@ -1050,6 +1188,8 @@ class JsonlSessionStore:
             created_at: datetime | None = None
             updated_at: datetime | None = None
             last_consolidated = 0
+            memory_generation = ""
+            memory_next_seq = 0
             provider_state: ProviderConversationState | None = None
 
             with open(path, encoding="utf-8") as f:
@@ -1082,6 +1222,7 @@ class JsonlSessionStore:
                             else None
                         )
                         last_consolidated = _archive_offset(data)
+                        memory_generation, memory_next_seq = _memory_coordinates(data)
                     elif record_type == _PROVIDER_STATE_RECORD_TYPE:
                         provider_state = ProviderConversationState.from_private_record(
                             data.get("state")
@@ -1097,6 +1238,8 @@ class JsonlSessionStore:
                 metadata=metadata,
                 last_consolidated=last_consolidated,
                 provider_state=provider_state,
+                memory_generation=memory_generation,
+                memory_next_seq=memory_next_seq,
             )
             self._overlay_runtime_checkpoint_unlocked(session, path)
             if _migrate_legacy_exec_session_records(session.messages, session.metadata):
@@ -1129,6 +1272,8 @@ class JsonlSessionStore:
             created_at: datetime | None = None
             updated_at: datetime | None = None
             last_consolidated = 0
+            memory_generation = ""
+            memory_next_seq = 0
             provider_state: ProviderConversationState | None = None
             skipped = 0
 
@@ -1164,6 +1309,7 @@ class JsonlSessionStore:
                             with suppress(ValueError):
                                 updated_at = datetime.fromisoformat(updated_at_value)
                         last_consolidated = _archive_offset(data)
+                        memory_generation, memory_next_seq = _memory_coordinates(data)
                     elif record_type == _PROVIDER_STATE_RECORD_TYPE:
                         candidate = ProviderConversationState.from_private_record(
                             data.get("state")
@@ -1189,6 +1335,8 @@ class JsonlSessionStore:
                 metadata=metadata,
                 last_consolidated=last_consolidated,
                 provider_state=provider_state,
+                memory_generation=memory_generation,
+                memory_next_seq=memory_next_seq,
             )
             self._overlay_runtime_checkpoint_unlocked(session, path)
             if _migrate_legacy_exec_session_records(session.messages, session.metadata):
@@ -1312,6 +1460,26 @@ class JsonlSessionStore:
                     checkpoint_path.unlink()
 
     def _save_unlocked(self, session: Session, *, fsync: bool = False) -> None:
+        # Backfill runs under the caller's session files lock and before the
+        # temporary file is created: a coordinate conflict aborts the save with
+        # nothing written, so the stored transcript stays authoritative.
+        try:
+            assigned = _assign_memory_coordinates(session)
+        except MemoryCoordinateError as exc:
+            logger.error(
+                "memory coordinates rejected for session {}: {}",
+                session.key,
+                exc.reason,
+            )
+            raise
+        if assigned:
+            logger.debug(
+                "assigned memory coordinates for session {} (messages={}, next_seq={})",
+                session.key,
+                len(session.messages),
+                session.memory_next_seq,
+            )
+
         path = self.get_session_path(session.key)
         tmp_path = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
 
@@ -1327,6 +1495,8 @@ class JsonlSessionStore:
                     # Keep old nanobot releases able to read sessions written
                     # during the field-name migration.
                     "last_consolidated": session.last_consolidated,
+                    "memory_generation": session.memory_generation,
+                    "memory_next_seq": session.memory_next_seq,
                 }
                 f.write(json.dumps(metadata_line, ensure_ascii=False) + "\n")
                 if session.provider_state is not None:
@@ -1958,6 +2128,10 @@ class SessionManager:
             metadata.pop("_last_summary", None)
             last_consolidated = 0
 
+        # A fork is a distinct conversation: it deliberately starts a new memory
+        # generation (the empty fields below) instead of inheriting the source's.
+        # Copied messages keep their sequence numbers; the save path numbers any
+        # message that has none yet and advances ``memory_next_seq`` from there.
         now = datetime.now()
         target = Session(
             key=target_key,

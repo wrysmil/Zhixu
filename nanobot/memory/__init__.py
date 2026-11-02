@@ -9,7 +9,6 @@
 """
 
 from nanobot.memory.database import MemoryDatabase
-from nanobot.memory.experience_extractor import ExperienceExtractor
 from nanobot.memory.models import (
     Episode,
     EpisodeOutcome,
@@ -19,8 +18,7 @@ from nanobot.memory.models import (
     MemoryType,
     ScratchpadEntry,
 )
-from nanobot.memory.orchestrator import SessionEndOrchestrator
-from nanobot.memory.profile_extractor import ProfileExtractor, merge_profile_incremental
+from nanobot.memory.profile_extractor import ProfileExtractor
 from nanobot.memory.repository import (
     add_episode,
     add_memory,
@@ -33,12 +31,7 @@ from nanobot.memory.repository import (
     search_memories,
     upsert_scratchpad,
 )
-
-# S1-S5 hardening exports（plan 2026-09-12）。
-# 注意：硬化 API 不进入 ``__all__``，避免破坏既有 test_public_api 严格校验。
-# 调用方用 ``from nanobot.memory import SessionEndOrchestrator`` 直接按名取。
 from nanobot.memory.session_end_event import SessionEndEvent, SessionEndReason
-from nanobot.memory.topic_prefilter import TopicChangeGate, compute_topic_hash
 
 __all__ = [
     "MemoryDatabase",

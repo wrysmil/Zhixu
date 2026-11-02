@@ -396,12 +396,23 @@ def serve(
         )
     console.print()
 
+    session_end_consumer = None
+    extractor_provider = agent_loop.memory_extractor_provider
+    if extractor_provider is not None:
+        from nanobot.memory.session_end_event import SessionEndFlushConsumer
+
+        session_end_consumer = SessionEndFlushConsumer(
+            extractor_provider,
+            workspace_id=agent_loop.memory_extraction_workspace_id,
+        )
+
     api_app = create_app(
         agent_loop, model_name=model_name, request_timeout=timeout,
         api_key=api_key,
         prepare_agent=mcp_provider.connect,
         session_manager=session_manager,
         event_bus=bus,
+        session_end_consumer=session_end_consumer,
     )
 
     async def on_startup(_app: Any) -> None:

@@ -59,8 +59,8 @@ class TestScratchpadWriterPerSessionKey:
                 user_id=ScratchpadWriter.user_id_for_key("telegram:chat-bob"),
                 workspace_id="ws",
             )
-            await writer_a.update_focus("telegram:chat-alice", "Alice 的任务")
-            await writer_b.update_focus("telegram:chat-bob", "Bob 的任务")
+            await writer_a.update_focus("Alice 的任务")
+            await writer_b.update_focus("Bob 的任务")
 
         asyncio.run(_run())
 
@@ -96,7 +96,7 @@ class TestUpdateFocus:
     async def test_update_focus_sets_current_focus(self, db):
         """update_focus 后 get_scratchpad 读到 current_focus。"""
         writer = ScratchpadWriter(db, user_id="default")
-        await writer.update_focus(session_key="s1", new_focus="Implement authentication")
+        await writer.update_focus(new_focus="Implement authentication")
 
         with db.connect() as conn:
             entry = get_scratchpad(conn, "default", "default")
@@ -108,7 +108,7 @@ class TestUpdateFocus:
         """new_focus 超过 200 字符时被截断。"""
         writer = ScratchpadWriter(db, user_id="default")
         long_focus = "x" * 500
-        await writer.update_focus(session_key="s1", new_focus=long_focus)
+        await writer.update_focus(new_focus=long_focus)
 
         with db.connect() as conn:
             entry = get_scratchpad(conn, "default", "default")
@@ -122,9 +122,9 @@ class TestUpdateFocus:
         writer = ScratchpadWriter(db, user_id="default")
 
         # 第一次更新
-        await writer.update_focus(session_key="s1", new_focus="First task")
+        await writer.update_focus(new_focus="First task")
         # 第二次更新
-        await writer.update_focus(session_key="s1", new_focus="Second task")
+        await writer.update_focus(new_focus="Second task")
 
         with db.connect() as conn:
             entry = get_scratchpad(conn, "default", "default")
@@ -142,8 +142,8 @@ class TestUpdateFocus:
         """两次相同 focus 不产生重复 active_projects 条目。"""
         writer = ScratchpadWriter(db, user_id="default")
 
-        await writer.update_focus(session_key="s1", new_focus="Same task")
-        await writer.update_focus(session_key="s1", new_focus="Same task")
+        await writer.update_focus(new_focus="Same task")
+        await writer.update_focus(new_focus="Same task")
 
         with db.connect() as conn:
             entry = get_scratchpad(conn, "default", "default")
@@ -157,7 +157,7 @@ class TestUpdateFocus:
         """从空 focus 更新到非空，不产生 active_projects 条目（无旧 focus 可归档）。"""
         writer = ScratchpadWriter(db, user_id="default")
 
-        await writer.update_focus(session_key="s1", new_focus="First focus")
+        await writer.update_focus(new_focus="First focus")
 
         with db.connect() as conn:
             entry = get_scratchpad(conn, "default", "default")
@@ -172,7 +172,7 @@ class TestUpdateFocus:
 
         # 更新 7 次，产生 6 个 historical 项目
         for i in range(7):
-            await writer.update_focus(session_key="s1", new_focus=f"Task {i}")
+            await writer.update_focus(new_focus=f"Task {i}")
 
         with db.connect() as conn:
             entry = get_scratchpad(conn, "default", "default")
@@ -229,7 +229,7 @@ class TestUpdateFocusArchiveDedupe:
         writer = ScratchpadWriter(db, user_id="default")
 
         # 第 1 次：old_focus 归一化后等于列表里的条目 → 不归档（长度仍为 1）
-        await writer.update_focus(session_key="s1", new_focus="Ship the release")
+        await writer.update_focus(new_focus="Ship the release")
         with db.connect() as conn:
             after_first = get_scratchpad(conn, "default", "default")
         assert after_first is not None
@@ -237,14 +237,14 @@ class TestUpdateFocusArchiveDedupe:
         assert after_first.current_focus == "Ship the release"
 
         # 第 2 次：不同 focus → 正常归档
-        await writer.update_focus(session_key="s1", new_focus="Write the RFC")
+        await writer.update_focus(new_focus="Write the RFC")
         with db.connect() as conn:
             after_second = get_scratchpad(conn, "default", "default")
         assert after_second is not None
         assert len(after_second.active_projects) == 2
 
         # 第 3 次：仍是不同 focus → 正常归档，长度继续增长
-        await writer.update_focus(session_key="s1", new_focus="Fix the flaky test")
+        await writer.update_focus(new_focus="Fix the flaky test")
         with db.connect() as conn:
             entry = get_scratchpad(conn, "default", "default")
         assert entry is not None
@@ -255,11 +255,11 @@ class TestUpdateFocusArchiveDedupe:
         """focus 在 A/B 间来回切换时，已归档的 A 不会被再次插入。"""
         writer = ScratchpadWriter(db, user_id="default")
 
-        await writer.update_focus(session_key="s1", new_focus="Task A")
-        await writer.update_focus(session_key="s1", new_focus="Task B")
-        await writer.update_focus(session_key="s1", new_focus="Task A")
+        await writer.update_focus(new_focus="Task A")
+        await writer.update_focus(new_focus="Task B")
+        await writer.update_focus(new_focus="Task A")
         # 第四次：old_focus = "Task A"，已在 active_projects 中 → 不归档
-        await writer.update_focus(session_key="s1", new_focus="Task C")
+        await writer.update_focus(new_focus="Task C")
 
         with db.connect() as conn:
             entry = get_scratchpad(conn, "default", "default")
@@ -278,7 +278,7 @@ class TestUpdateFocusArchiveDedupe:
         )
         writer = ScratchpadWriter(db, user_id="default")
 
-        await writer.update_focus(session_key="s1", new_focus="Next thing")
+        await writer.update_focus(new_focus="Next thing")
 
         with db.connect() as conn:
             entry = get_scratchpad(conn, "default", "default")
@@ -297,7 +297,7 @@ class TestUpdateFocusArchiveDedupe:
         )
         writer = ScratchpadWriter(db, user_id="default")
 
-        await writer.update_focus(session_key="s1", new_focus="别的任务")
+        await writer.update_focus(new_focus="别的任务")
 
         with db.connect() as conn:
             entry = get_scratchpad(conn, "default", "default")
@@ -312,7 +312,7 @@ class TestUpdateFocusArchiveDedupe:
         writer = ScratchpadWriter(db, user_id="default")
 
         for i in range(7):
-            await writer.update_focus(session_key="s1", new_focus=f"Task {i}")
+            await writer.update_focus(new_focus=f"Task {i}")
 
         with db.connect() as conn:
             entry = get_scratchpad(conn, "default", "default")

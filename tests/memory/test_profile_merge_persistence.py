@@ -1,9 +1,9 @@
-"""ProfileExtractor 接入流水线后的合并且落库行为（S3 Track 1）。
+"""抽取流水线落库时的写入决策（spec §5.4 / D08）。
 
-覆盖 plan §3.4 DoD：
-- 同一 subject+predicate 二次提取 → 行数不增，content/importance 被更新
-- 语义冲突（否定词反向）→ 保留旧 content + metadata.conflicts_with 记录
-- subject 或 predicate 缺失 → 退化为新建，不误合并
+覆盖：
+- 同属性二次提取但未显式纠正 → 旧值保留，新值作为 uncertain 冲突候选并存
+- 否定词不再决定冲突（不再有「不/没/无」终判）
+- subject 或 predicate 缺失 → 无合并语义，新建
 """
 
 from __future__ import annotations
@@ -103,9 +103,13 @@ def _rows(db: MemoryDatabase):
 # ---------------------------------------------------------------------------
 
 
-class TestProfileMergeOnPersist:
-    async def test_same_subject_predicate_updates_instead_of_inserting(self, db: MemoryDatabase):
-        """同一 subject+predicate 二次提取 → 行数不增，content/importance 更新。"""
+class TestWriteDecisionOnPersist:
+    """D08：写入决策表取代旧「同 subject+predicate 自动覆盖 / 否定词终判」。"""
+
+    async def test_same_attribute_without_explicit_correction_keeps_candidate(
+        self, db: MemoryDatabase
+    ):
+        """自动模型候选未显式纠正 → 不覆盖旧值，另存带 uncertain 标记的候选。"""
         await _extract(
             db,
             _semantic(
@@ -121,7 +125,6 @@ class TestProfileMergeOnPersist:
         )
         assert len(_rows(db)) == 1
 
-        # 第二次：同 subject+predicate，内容是明显不同的措辞（避开 _apply_filters 的相似度拦截）。
         await _extract(
             db,
             _semantic(
@@ -137,12 +140,15 @@ class TestProfileMergeOnPersist:
         )
 
         rows = _rows(db)
-        assert len(rows) == 1, "同 subject+predicate 必须合并而非新建"
-        assert rows[0].content == "用户偏好手冲咖啡的冲泡流程"
-        assert rows[0].importance_score == pytest.approx(0.9)
+        assert len(rows) == 2, "条件/时间不清时不得自动覆盖，必须保留冲突候选"
+        old = next(row for row in rows if row.content == "用户喜欢美咖啡")
+        candidate = next(row for row in rows if row.content == "用户偏好手冲咖啡的冲泡流程")
+        assert old.metadata.get("uncertain") is None
+        assert candidate.metadata["uncertain"] is True
+        assert candidate.metadata["conflicts_with"] == [old.id]
 
     async def test_conflicting_content_keeps_old_and_records_conflicts(self, db: MemoryDatabase):
-        """否定词反向 → 保留旧 content，metadata.conflicts_with 记录新值标识。"""
+        """否定词不再决定冲突：新值作为 uncertain 候选保留，旧值不被覆盖。"""
         await _extract(
             db,
             _semantic(
@@ -169,10 +175,13 @@ class TestProfileMergeOnPersist:
         )
 
         rows = _rows(db)
-        assert len(rows) == 1
-        assert rows[0].content == "用户不喜欢咖啡", "冲突时必须保留旧值"
-        conflicts = rows[0].metadata.get("conflicts_with")
-        assert conflicts, "冲突应记入 metadata.conflicts_with"
+        assert len(rows) == 2
+        old = next(row for row in rows if row.content == "用户不喜欢咖啡")
+        candidate = next(row for row in rows if row.content == "用户喜欢喝咖啡")
+        assert old.metadata.get("conflicts_with") is None, "旧值不是冲突候选"
+        assert candidate.metadata["conflicts_with"] == [old.id]
+        assert candidate.metadata["uncertain"] is True
+
 
     async def test_missing_subject_falls_back_to_new_row(self, db: MemoryDatabase):
         """subject 为空 → 不具备合并语义，必须新建。"""

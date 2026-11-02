@@ -1,16 +1,17 @@
 """Tests for Phase 2 anti-pollution filters.
 
-Covers: is_task_artifact / is_ai_self_talk / compute_content_hash / ngram_similarity.
+Covers: is_task_artifact / is_ai_self_talk / compute_content_hash.
+
+相似度丢弃与 FilterResult 已随 D08 删除：去重/纠正/冲突统一由
+``nanobot.memory.writer`` 的写入决策表判断（见 ``test_writer.py``）。
 """
 
 from __future__ import annotations
 
 from nanobot.memory.filters import (
-    FilterResult,
     compute_content_hash,
     is_ai_self_talk,
     is_task_artifact,
-    ngram_similarity,
 )
 
 
@@ -192,111 +193,3 @@ class TestComputeContentHash:
         h2 = compute_content_hash("", "", "")
         assert h1 == h2
         assert len(h1) == 40
-
-
-class TestNgramSimilarity:
-    """N-gram Jaccard similarity tests (plan §5.2 / §10 Task 1 Step 1)."""
-
-    def test_identical_text_high_similarity(self):
-        """重复的内容 -> 高相似度 > 0.8"""
-        sim = ngram_similarity("重复的内容", "重复的内容", n=3)
-        assert sim > 0.8
-
-    def test_similar_text_moderate_similarity(self):
-        """用户喜欢 Python vs 用户偏好 Python -> 介于 0.3-0.8"""
-        sim = ngram_similarity("用户喜欢 Python", "用户偏好 Python", n=3)
-        assert 0.3 < sim <= 0.8
-
-    def test_completely_different_text_low_similarity(self):
-        """完全不同的内容 -> 低相似度 < 0.3"""
-        sim = ngram_similarity("完全不同的内容", "另一个话题", n=3)
-        assert sim < 0.3
-
-    def test_similar_meaning_different_words(self):
-        """语义相近但用词不同 -> 中等相似度"""
-        sim = ngram_similarity("我喜欢使用 Python", "我更倾向于 Python", n=3)
-        assert 0.2 < sim < 0.8
-
-    def test_empty_strings_return_zero(self):
-        assert ngram_similarity("", "text", n=3) == 0.0
-        assert ngram_similarity("text", "", n=3) == 0.0
-        assert ngram_similarity("", "", n=3) == 0.0
-
-    def test_short_text_edge_case(self):
-        """短文本边界情况"""
-        # 文本长度 < n
-        sim = ngram_similarity("ab", "ab", n=3)
-        assert sim == 1.0  # 短文本作为整体比较
-
-    def test_single_char_ngram(self):
-        """1-gram 相似度"""
-        sim = ngram_similarity("hello", "hallo", n=1)
-        assert 0.0 < sim < 1.0
-
-    def test_large_ngram(self):
-        """较大的 n 值"""
-        sim = ngram_similarity("hello world", "hello world", n=5)
-        assert sim > 0.8
-
-    def test_perfect_similarity_boundaries(self):
-        """完美相似的上界是 1.0"""
-        sim = ngram_similarity("test", "test", n=3)
-        assert sim == 1.0
-
-    def test_similarity_is_symmetric(self):
-        """相似度是对称的"""
-        sim_ab = ngram_similarity("用户喜欢 Python", "用户偏好 Python", n=3)
-        sim_ba = ngram_similarity("用户偏好 Python", "用户喜欢 Python", n=3)
-        assert sim_ab == sim_ba
-
-
-class TestFilterResult:
-    """FilterResult dataclass tests."""
-
-    def test_keep_with_ok_reason(self):
-        result = FilterResult(keep=True, reason=FilterResult.REASON_OK)
-        assert result.keep is True
-        assert result.reason == "ok"
-        assert result.merged_with is None
-
-    def test_task_artifact_rejection(self):
-        result = FilterResult(
-            keep=False, reason=FilterResult.REASON_TASK_ARTIFACT
-        )
-        assert result.keep is False
-        assert result.reason == "task_artifact"
-
-    def test_ai_self_talk_rejection(self):
-        result = FilterResult(
-            keep=False, reason=FilterResult.REASON_AI_SELF_TALK
-        )
-        assert result.keep is False
-        assert result.reason == "ai_self_talk"
-
-    def test_exact_duplicate_rejection(self):
-        result = FilterResult(
-            keep=False,
-            reason=FilterResult.REASON_EXACT_DUPLICATE,
-            merged_with="mem-123",
-        )
-        assert result.keep is False
-        assert result.reason == "exact_duplicate"
-        assert result.merged_with == "mem-123"
-
-    def test_high_similarity_with_merge_target(self):
-        result = FilterResult(
-            keep=True,
-            reason=FilterResult.REASON_HIGH_SIMILARITY,
-            merged_with="mem-456",
-        )
-        assert result.keep is True
-        assert result.reason == "high_similarity"
-        assert result.merged_with == "mem-456"
-
-    def test_reason_constants_match_values(self):
-        """Reason constants must match their string values."""
-        assert FilterResult.REASON_OK == "ok"
-        assert FilterResult.REASON_TASK_ARTIFACT == "task_artifact"
-        assert FilterResult.REASON_AI_SELF_TALK == "ai_self_talk"
-        assert FilterResult.REASON_EXACT_DUPLICATE == "exact_duplicate"
-        assert FilterResult.REASON_HIGH_SIMILARITY == "high_similarity"

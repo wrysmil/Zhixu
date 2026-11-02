@@ -227,12 +227,14 @@ class MemoryStore:
             suffix += 1
         return candidate
 
-    # -- MEMORY.md (long-term facts) -----------------------------------------
+    # -- MEMORY.md (核心视图的导出文件；注入侧不读它) -------------------------
 
     def read_memory(self) -> str:
+        """读 MEMORY.md 导出文件（用户查看/编辑用，不参与 prompt 注入）。"""
         return self.read_file(self.memory_file)
 
     def write_memory(self, content: str) -> None:
+        """写 MEMORY.md（导出文件；用户编辑走 MemoryLifecycle 的保存路由）。"""
         self.memory_file.write_text(content, encoding="utf-8")
 
     # -- SOUL.md -------------------------------------------------------------
@@ -250,12 +252,6 @@ class MemoryStore:
 
     def write_user(self, content: str) -> None:
         self.user_file.write_text(content, encoding="utf-8")
-
-    # -- context injection (used by context.py) ------------------------------
-
-    def get_memory_context(self) -> str:
-        long_term = self.read_memory()
-        return f"## Long-term Memory\n{long_term}" if long_term else ""
 
     # -- history.jsonl — append-only, JSONL format ---------------------------
 
@@ -548,8 +544,11 @@ class MemoryStore:
 
         Returns ``(prompt, last_cursor)`` or ``None`` if nothing to process.
 
-        The current contents of the durable memory files (SOUL.md, USER.md,
-        memory/MEMORY.md) reach Dream through the normal agent system context.
+        The current contents of the durable memory files (SOUL.md, USER.md)
+        reach Dream through the normal agent system context. ``memory/MEMORY.md``
+        is only the export of the core view; the facts themselves are read from
+        SQLite by the context builder, so a Dream run and a chat turn see the
+        same core memory.
         """
         last_cursor = self.get_last_dream_cursor()
         entries = self.read_unprocessed_history(since_cursor=last_cursor)

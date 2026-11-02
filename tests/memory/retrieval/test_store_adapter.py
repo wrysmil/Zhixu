@@ -112,17 +112,15 @@ def test_search_memories_tolerates_fts_syntax_error(db: MemoryDatabase):
 
 
 def test_adapter_exposes_channel_contract(db: MemoryDatabase):
-    """通道调用的 4 个方法必须存在且可调用（此前全是 AttributeError）。"""
+    """通道调用的方法必须存在且可调用（此前全是 AttributeError）。"""
     adapter = MemoryStoreAdapter(db)
     scored = adapter.search_semantic_scored("创作", limit=15)
     assert scored and scored[0][0].id == "m1"
 
-    recent = adapter.query_semantic(min_importance=0.6, since_days=3, limit=5)
+    recent = adapter.list_recent_memories(since_days=3, limit=5)
     assert {m.id for m in recent} == {"m1", "m2"}
 
     assert adapter.search_episodes(entity="不存在", limit=3) == []
-    # attachments 表未进 schema v1：必须返回 []，不得抛 OperationalError
-    assert adapter.search_attachments("图片", intent="search_file", limit=5) == []
 
 
 def test_search_episodes_returns_seeded_episode(db: MemoryDatabase):
@@ -150,11 +148,132 @@ def test_search_episodes_returns_seeded_episode(db: MemoryDatabase):
     rows = MemoryStoreAdapter(db).search_episodes(entity="main.py", limit=3)
     assert [r.id for r in rows] == ["e1"]
     assert rows[0].summary == "调试 main.py 脚本"
-    # _EpisodeRow.updated_at 承载 ``ended_at``（字段名是通道 compute_recency 的契约）
-    assert rows[0].updated_at == ended.isoformat()
+    # 结构化检索需要来源会话 / 作用域 / 发生时间
+    assert rows[0].session_id == "s1"
+    assert rows[0].workspace_id == "default"
+    assert rows[0].ended_at == ended.isoformat()
 
 
-def test_query_semantic_includes_boundary_day(db: MemoryDatabase):
+def test_search_episodes_matches_entities_goal_and_tools_columns(db: MemoryDatabase):
+    """检索面必须覆盖 ``entities`` / ``goal`` / ``tools_used``（spec §6.1）。
+
+    背景（2026-11-02 调查）：LLM 写的技术词标签只存在于 ``episodes.entities``，
+    中文意图在 ``goal``，工具名在 ``tools_used``，而 ``repository.search_episodes``
+    的 WHERE 此前只比 summary/session_id → ``entity="storage.py"`` 在一条 entities
+    里有、summary 里没有的 episode 上 **0 命中**。
+    """
+    started = datetime(2026, 11, 1, 10, 0, 0, tzinfo=timezone.utc)
+    ended = datetime(2026, 11, 1, 11, 0, 0, tzinfo=timezone.utc)
+    with db.connect() as conn:
+        add_episode(
+            conn,
+            Episode(
+                id="e-projection",
+                session_id="s1",
+                summary="用户请求重构记忆系统",
+                goal="记忆系统重构",
+                started_at=started.isoformat(),
+                ended_at=ended.isoformat(),
+                entities=["memory", "storage.py"],
+                tools_used=["write_file"],
+            ),
+        )
+    adapter = MemoryStoreAdapter(db)
+    assert [r.id for r in adapter.search_episodes(entity="storage.py", limit=3)] == [
+        "e-projection"
+    ]
+    assert [r.id for r in adapter.search_episodes(entity="记忆系统重构", limit=3)] == [
+        "e-projection"
+    ]
+    assert [r.id for r in adapter.search_episodes(entity="write_file", limit=3)] == [
+        "e-projection"
+    ]
+
+
+def test_search_episodes_matches_like_substring(db: MemoryDatabase):
+    """投影匹配是子串语义：``storage`` 能命中 entities 里的 ``storage.py``。"""
+    started = datetime(2026, 11, 1, 10, 0, 0, tzinfo=timezone.utc)
+    with db.connect() as conn:
+        add_episode(
+            conn,
+            Episode(
+                id="e-substring",
+                session_id="s1",
+                summary="调试脚本",
+                started_at=started.isoformat(),
+                ended_at=(started + timedelta(hours=1)).isoformat(),
+                entities=["storage.py"],
+            ),
+        )
+    assert [
+        r.id for r in MemoryStoreAdapter(db).search_episodes(entity="storage", limit=3)
+    ] == ["e-substring"]
+
+
+def test_search_episodes_excludes_action_nodes_from_projection(db: MemoryDatabase):
+    """``action_nodes`` 是按需证据，不进检索投影（否则整包动作明细都会被搜出来）。"""
+    started = datetime(2026, 11, 1, 10, 0, 0, tzinfo=timezone.utc)
+    with db.connect() as conn:
+        add_episode(
+            conn,
+            Episode(
+                id="e-nodes",
+                session_id="s1",
+                summary="执行一次重构",
+                started_at=started.isoformat(),
+                ended_at=(started + timedelta(hours=1)).isoformat(),
+                action_nodes=[{"tool": "run_shell", "input": "pytest -q"}],
+            ),
+        )
+    assert MemoryStoreAdapter(db).search_episodes(entity="pytest", limit=3) == []
+
+
+def test_search_episodes_returns_freshest_match_first(db: MemoryDatabase):
+    """命中多条时必须先给**最新**的，且顺序稳定。
+
+    此前 SQL 没有 ``ORDER BY`` → SQLite 按 rowid（插入序）返回 → ``LIMIT`` 只拿到
+    最老的几条，表现为「明明有记录却一条都召不回」。
+    """
+    base = datetime(2026, 11, 1, 10, 0, 0, tzinfo=timezone.utc)
+    with db.connect() as conn:
+        for day in (1, 2, 3):  # 依次更旧，但插入顺序是最新→最旧
+            started = base - timedelta(days=day)
+            add_episode(
+                conn,
+                Episode(
+                    id=f"e-{day}",
+                    session_id="s1",
+                    summary=f"第 {day} 天的 memory 重构",
+                    started_at=started.isoformat(),
+                    ended_at=(started + timedelta(hours=1)).isoformat(),
+                ),
+            )
+    rows = MemoryStoreAdapter(db).search_episodes(entity="memory", limit=3)
+    assert [r.id for r in rows] == ["e-1", "e-2", "e-3"]
+
+
+def test_search_episodes_order_is_deterministic_on_equal_timestamps(db: MemoryDatabase):
+    """同一 ``ended_at`` 也必须给出稳定次序（不能靠插入顺序）。"""
+    stamp = datetime(2026, 11, 1, 10, 0, 0, tzinfo=timezone.utc).isoformat()
+    with db.connect() as conn:
+        for episode_id in ("e-b", "e-a", "e-c"):
+            add_episode(
+                conn,
+                Episode(
+                    id=episode_id,
+                    session_id="s1",
+                    summary="memory 重构",
+                    started_at=stamp,
+                    ended_at=stamp,
+                ),
+            )
+    first = [r.id for r in MemoryStoreAdapter(db).search_episodes(entity="memory", limit=3)]
+    second = [r.id for r in MemoryStoreAdapter(db).search_episodes(entity="memory", limit=3)]
+    assert first == second
+    assert len(first) == 3
+
+
+def test_list_recent_memories_includes_boundary_day(db: MemoryDatabase):
     """TEXT 时间比较必须对存储格式不敏感（空格分隔 vs ``'T'`` 分隔）。
 
     探针取 ``cutoff + 1s`` 并以**空格分隔**格式写入：它落在 3 天窗口之内，且与
@@ -186,9 +305,7 @@ def test_query_semantic_includes_boundary_day(db: MemoryDatabase):
             "UPDATE memories SET updated_at = ? WHERE id = 'm1'",
             (probe.strftime("%Y-%m-%d %H:%M:%S.%f+00:00"),),
         )
-    got = adapter.query_semantic(
-        min_importance=0.6, since_days=since_days, limit=5
-    )
+    got = adapter.list_recent_memories(since_days=since_days, limit=5)
     assert "m1" in {m.id for m in got}, "边界当天记录被整批排除"
 
 
@@ -200,11 +317,8 @@ async def test_retrieve_with_ids_returns_chinese_memories(db: MemoryDatabase):
     """向临时库写入记忆后，中文 query 必须召回非空注入块。
 
     覆盖范围（2026-09-15 代码审查 C-2 更正）：本用例**只**守住**根因 1**
-    （store 适配层）。经变异实验证实，把 ``repository._search_memories_like``
-    整个禁掉后本用例**仍然通过** —— 因为 ``recent`` 通道
-    （``query_semantic``：importance ≥ 0.6 且 3 天窗口）**与 query 文本无关**，
-    单靠它就足以产出非空块。故「中文 query」在本用例中是**无关变量**，
-    原 docstring 声称的「覆盖根因 5」不成立。
+    （store 适配层）。独立 recent 通道删除后（D09 2026-11-02），非空块只能由
+    文本命中产生——本用例因此在文本召回失效时会响亮失败。
 
     根因 5（CJK 子串 LIKE 回退）的判别性覆盖见
     ``test_semantic_channel_alone_recovers_chinese_substring``（下方）与
@@ -215,7 +329,7 @@ async def test_retrieve_with_ids_returns_chinese_memories(db: MemoryDatabase):
     """
     engine = RetrievalEngine(store=MemoryStoreAdapter(db), brain=None)
     block, ids = await engine.retrieve_with_ids(
-        query="我正在规划创作选题",
+        query="创作灵感",
         recent_messages=[{"role": "user", "content": "在吗"}, {"role": "assistant", "content": "在"}],
     )
     assert block.startswith("## 相关记忆（自动检索）")
@@ -228,9 +342,8 @@ async def test_semantic_channel_alone_recovers_chinese_substring(tmp_path: Path)
     """根因 5 的**判别性**测试：只有语义通道能救回这条记忆。
 
     构造手法（2026-09-15 代码审查 C-2 要求）：把记忆的 ``updated_at`` 设为
-    ``now - 30 天``，使其**超出 ``recent`` 通道的 3 天窗口**；episodes 通道需要
-    query 含路径/扩展名实体（本 query 无）；attachments 通道被媒体词闸门挡住。
-    → 四路里**只有 semantic** 可能产出候选。
+    ``now - 30 天``，使时间浏览窗口看不见它；query 不含路径/扩展名实体，
+    episodes 通道也不会触发 → 只有 semantic 可能产出候选。
 
     因此：把 ``_search_memories_like`` 禁掉 → 块必为空（变异实验成立）；
     保留它 → 块非空。这正是原验收测试缺失的判别力。
@@ -252,8 +365,8 @@ async def test_semantic_channel_alone_recovers_chinese_substring(tmp_path: Path)
         )
 
     adapter = MemoryStoreAdapter(database)
-    # 前置断言：窗外交付给 recent 通道看不见（否则本用例失去判别力）
-    assert adapter.query_semantic(min_importance=0.6, since_days=3, limit=5) == []
+    # 前置断言：窗外交给时间浏览看不见（否则本用例失去判别力）
+    assert adapter.list_recent_memories(since_days=3, limit=5) == []
     # semantic 通道凭 LIKE 子串命中。用 4 字的「创作灵感」而非 2 字的「创作」
     # ——后者会被 ``too_short`` 门禁（≤3 字且无锚点）拦掉，令本用例失败于无关原因。
     assert [m.id for m, _ in adapter.search_semantic_scored("创作灵感", limit=15)] == ["old1"]
@@ -271,7 +384,7 @@ async def test_semantic_channel_alone_recovers_chinese_substring(tmp_path: Path)
 
 
 class _BrokenSemanticStore:
-    """四路通道契约齐全，但 semantic 抛异常——复刻根因 1 的装配级故障。"""
+    """两路通道契约齐全，但 semantic 抛异常——复刻根因 1 的装配级故障。"""
 
     def search_semantic_scored(self, query, *, keywords=None, limit=None):
         raise AttributeError(
@@ -281,10 +394,7 @@ class _BrokenSemanticStore:
     def search_episodes(self, *, entity: str, limit: int = 5):
         return []
 
-    def query_semantic(self, *, min_importance: float, since_days: int, limit: int):
-        return []
-
-    def search_attachments(self, term: str, *, intent: str, limit: int = 5):
+    def list_recent_memories(self, *, since_days: int, limit: int):
         return []
 
 
@@ -355,7 +465,7 @@ def test_search_semantic_scored_filters_by_workspace_ids(tmp_path, vector_only, 
 
 
 def test_episode_and_recent_queries_filter_by_workspace_ids(tmp_path):
-    """情节和近期通道复用 repository 的可见集合过滤。"""
+    """情节通道与显式时间浏览复用 repository 的可见集合过滤。"""
     database = MemoryDatabase(tmp_path)
     database.ensure_schema()
     with database.connect() as conn:
@@ -373,6 +483,84 @@ def test_episode_and_recent_queries_filter_by_workspace_ids(tmp_path):
     assert {row.id for row in adapter.search_episodes(
         entity="创作灵感", workspace_ids=("default", "ws-a")
     )} == {"e-0", "e-1"}
-    assert {row.id for row in adapter.query_semantic(
-        min_importance=0.6, since_days=3, limit=10, workspace_ids=("default", "ws-a")
+    assert {row.id for row in adapter.list_recent_memories(
+        since_days=3, limit=10, workspace_ids=("default", "ws-a")
     )} == {"m-0", "m-1"}
+
+
+# ---------- 统一有效性过滤（契约 §3）----------
+
+
+def _seed_lifecycle(db: MemoryDatabase) -> None:
+    """当前 / 被替代 / 已过期 / 删除 四种状态的事实。"""
+    now = _now_iso()
+    past = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    with db.connect() as conn:
+        add_memory(conn, Memory(
+            id="cur", content="创作灵感 当前有效", type=MemoryType.FACT,
+            created_at=now, updated_at=now,
+        ))
+        add_memory(conn, Memory(
+            id="old", content="创作灵感 已被替代", type=MemoryType.FACT,
+            created_at=now, updated_at=now, superseded_by="cur",
+        ))
+        add_memory(conn, Memory(
+            id="gone", content="创作灵感 已过期", type=MemoryType.FACT,
+            created_at=now, updated_at=now, expires_at=past,
+        ))
+
+
+def test_semantic_query_excludes_inactive_by_default(tmp_path):
+    """SQL 候选与向量回表使用同一有效性语义：作废/过期不进自动召回。"""
+    database = MemoryDatabase(tmp_path)
+    database.ensure_schema()
+    _seed_lifecycle(database)
+    adapter = MemoryStoreAdapter(database)
+
+    assert {m.id for m, _ in adapter.search_semantic_scored("创作灵感", limit=10)} == {"cur"}
+    assert {m.id for m in adapter.list_recent_memories(since_days=3, limit=10)} == {"cur"}
+
+    # 管理查询显式 include_inactive 才看得到失效记录
+    assert {m.id for m, _ in adapter.search_semantic_scored(
+        "创作灵感", limit=10, include_inactive=True
+    )} == {"cur", "old", "gone"}
+    assert {m.id for m in adapter.list_recent_memories(
+        since_days=3, limit=10, include_inactive=True
+    )} == {"cur", "old", "gone"}
+
+
+@pytest.mark.parametrize("include_inactive", [False, True])
+def test_vector_only_candidates_use_same_validity_rule(tmp_path, include_inactive):
+    """向量独有 id 回表复用 current_memory_sql，不再自带第二套判定。"""
+    database = MemoryDatabase(tmp_path)
+    database.ensure_schema()
+    _seed_lifecycle(database)
+
+    class _Vectors:
+        def search(self, query, *, limit):
+            return [("cur", 0.9), ("old", 0.8), ("gone", 0.7)]
+
+    adapter = MemoryStoreAdapter(database, vector_store=_Vectors())
+    got = {
+        m.id for m, _ in adapter.search_semantic_scored(
+            "向量独有查询", limit=10, include_inactive=include_inactive
+        )
+    }
+    expected = {"cur", "old", "gone"} if include_inactive else {"cur"}
+    assert got == expected
+
+
+def test_management_queries_can_exclude_inactive(tmp_path):
+    """管理查询默认展示失效记录，也可显式 include_inactive=False 只看当前事实。"""
+    from nanobot.memory.repository import list_memories, search_memories
+
+    database = MemoryDatabase(tmp_path)
+    database.ensure_schema()
+    _seed_lifecycle(database)
+    with database.connect() as conn:
+        assert {m.id for m in list_memories(conn)} == {"cur", "old", "gone"}
+        assert {m.id for m in list_memories(conn, include_inactive=False)} == {"cur"}
+        assert {m.id for m in search_memories(conn, "创作灵感")} == {"cur", "old", "gone"}
+        assert {
+            m.id for m in search_memories(conn, "创作灵感", include_inactive=False)
+        } == {"cur"}

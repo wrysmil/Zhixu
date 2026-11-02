@@ -50,7 +50,6 @@ import pytest
 
 from nanobot.agent.hook import AgentRunHookContext
 from nanobot.agent.hooks.memory_extraction import (
-    _BACKGROUND_TASKS,
     _PENDING_IDLE_TIMERS,
     MemoryExtractionHook,
 )
@@ -258,13 +257,9 @@ _IDLE_EPISODE_JSON = json.dumps(
 
 @pytest.fixture(autouse=True)
 async def _cleanup_background_tasks():
-    """Drain and cancel module-level fire-and-forget tasks between tests."""
+    """Drain and cancel module-level idle timers between tests."""
     yield
-    for task in list(_BACKGROUND_TASKS):
-        task.cancel()
-    await asyncio.sleep(0)
-    _BACKGROUND_TASKS.clear()
-    # WU-A: also drain idle timers so a stuck timer can't leak across tests.
+    # WU-A: drain idle timers so a stuck timer can't leak across tests.
     for task in list(_PENDING_IDLE_TIMERS.values()):
         if not task.done():
             task.cancel()
@@ -301,7 +296,7 @@ class TestFullLifecycle:
         )
 
         # T0 focus write (hook normally does this; integration test drives it directly).
-        await writer.update_focus(session.key, "我以后都用 uv")
+        await writer.update_focus("我以后都用 uv")
         # T1 extraction (full pipeline).
         result = await extractor.extract_session(session, source="session_end")
 
@@ -358,7 +353,7 @@ class TestFullLifecycle:
                 {"role": "assistant", "content": "好的"},
             ],
         )
-        await writer.update_focus(session.key, "我以后都用 uv")
+        await writer.update_focus("我以后都用 uv")
         await extractor.extract_session(session, source="session_end")
 
         # Close and reopen via a fresh MemoryDatabase pointing at the same db_path.
@@ -491,8 +486,8 @@ class TestSystemExtractActionNodes:
 
 
 class TestLLMTrackFailureIsolation:
-    async def test_episode_track_failure_does_not_block_semantic(self, tmp_path: Path):
-        """Invalid episode JSON is reported in ``failed_tracks`` while memory persists."""
+    async def test_episode_track_failure_defers_commit_until_retry(self, tmp_path: Path):
+        """单轨失败时整批不提交；重试补跑失败轨后完成写入（契约 §2.6）。"""
         db = _init_db(tmp_path)
         provider = _FakeProvider(semantic=SEMANTIC_OK, episode="not json at all")
         extractor = MemoryExtractor(db, _FakeRuntime(provider))
@@ -507,10 +502,21 @@ class TestLLMTrackFailureIsolation:
 
         result = await extractor.extract_session(session)
 
-        # episode track failed; semantic succeeded.
+        # episode track failed; semantic checkpointed but batch not committed.
         assert "episode" in result.failed_tracks
         assert "semantic" not in result.failed_tracks
-        # At least one memory persisted via the surviving semantic track.
+        assert result.memory_ids == []
+        with db.connect() as conn:
+            assert search_memories(conn, "uv") == []
+
+        retry_provider = _FakeProvider(semantic=SEMANTIC_OK, episode=EPISODE_OK)
+        retried = await MemoryExtractor(
+            db, _FakeRuntime(retry_provider)
+        ).extract_session(session)
+
+        assert retried.failed_tracks == []
+        # Retry only reruns the failed episode track.
+        assert len(retry_provider.calls) == 1
         with db.connect() as conn:
             hits = search_memories(conn, "uv")
         assert any(h.content in {"用户使用 Windows", "用户偏好 uv"} for h in hits)
@@ -653,8 +659,8 @@ class TestSourceEpisodeBackfill:
         assert memory.source_episode_id == result.episode_ids[0]
         assert result.memory_ids[0] in episode.linked_memory_ids
 
-    async def test_backfill_failure_does_not_raise(self, tmp_path: Path, monkeypatch):
-        """FIX-6：单条回填失败仅 warning，不影响 episode 持久化与后续回填。"""
+    async def test_backfill_failure_rolls_back_batch(self, tmp_path: Path, monkeypatch):
+        """FIX-6 + D07：回填在同一事务内，失败整批回滚并可重试，不静默吞错。"""
         from nanobot.memory import extractor as extractor_module
 
         db = _init_db(tmp_path)
@@ -708,7 +714,9 @@ class TestSourceEpisodeBackfill:
         assert len(result.episode_ids) == 1
         assert call_count["n"] == 1
 
-        # 真出错场景：直接让 update_memory_source_episode 抛异常，确认被吞掉
+        # 真出错场景：回填抛异常 → 整批回滚，回执报告失败而不是假成功。
+        original_update = extractor_module.update_memory_source_episode
+
         def _exploding_update(conn, memory_id, episode_id):
             raise RuntimeError("simulated sqlite error")
 
@@ -721,8 +729,20 @@ class TestSourceEpisodeBackfill:
                 {"role": "user", "content": "x"}
             ])
         )
-        # episode 仍写入
-        assert len(result2.episode_ids) == 1
+        assert result2.memory_ids == []
+        assert result2.episode_ids == []
+        assert result2.failed_tracks, "回填失败必须报告结构化失败"
+
+        # 恢复写入原语后重试：两轨 checkpoint 已就绪，直接补提交本批。
+        monkeypatch.setattr(
+            extractor_module, "update_memory_source_episode", original_update
+        )
+        retried = await MemoryExtractor(db, _FakeRuntime(provider)).extract_session(
+            Session(key="telegram:backfill-explode", messages=[
+                {"role": "user", "content": "x"}
+            ])
+        )
+        assert len(retried.episode_ids) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -954,19 +974,10 @@ class TestIdleExtractionIntegration:
                 extracted_at="2026-09-15T10:00:00+00:00",
             )
 
-        # Monkey-patch extract_incremental 让它抛错。
-        original_extract_incremental = extractor.extract_incremental
+        # 第一次跑:两轨 LLM 都返回坏 JSON → 批次失败,state 不推进。
+        provider.semantic = "bad json"
+        provider.episode = "bad json"
 
-        async def _raise_incremental(
-            *args: Any, **kwargs: Any
-        ) -> Any:
-            raise RuntimeError("simulated incremental failure")
-
-        monkeypatch.setattr(
-            extractor, "extract_incremental", _raise_incremental
-        )
-
-        # 第一次跑:失败,state 不推进。
         result = await extractor.run_idle_extraction(session)
         assert result.memory_ids == []
         assert result.episode_ids == []
@@ -978,10 +989,9 @@ class TestIdleExtractionIntegration:
         assert state.last_source == "session_end"  # 保持原 source
         assert state.last_extracted_at == "2026-09-15T10:00:00+00:00"
 
-        # 修复:还原 extract_incremental。
-        monkeypatch.setattr(
-            extractor, "extract_incremental", original_extract_incremental
-        )
+        # 修复:恢复有效输出。
+        provider.semantic = SEMANTIC_OK
+        provider.episode = EPISODE_OK
 
         # 第二次跑:成功,state 推进到 5。
         await extractor.run_idle_extraction(session)
@@ -994,5 +1004,5 @@ class TestIdleExtractionIntegration:
         # last_extracted_at 必须被刷新(不再是 10:00:00)。
         assert state.last_extracted_at != "2026-09-15T10:00:00+00:00"
 
-        # 重试成功时走了完整流水线 → 两路 LLM 各调一次。
-        assert len(provider.calls) == 2
+        # 第一次两轨均失败（无 checkpoint），重试时两轨各调一次：共 4 次。
+        assert len(provider.calls) == 4

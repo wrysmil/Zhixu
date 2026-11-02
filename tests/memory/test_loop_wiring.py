@@ -26,8 +26,8 @@ from nanobot.agent.hook import AgentTurnHookContext
 from nanobot.agent.hooks.memory_extraction import MemoryExtractionHook
 from nanobot.agent.loop import AgentLoop
 from nanobot.bus.queue import MessageBus
-from nanobot.providers.base import LLMProvider
 from nanobot.memory.scratchpad_writer import ScratchpadWriter
+from nanobot.providers.base import LLMProvider
 from nanobot.session.manager import Session, SessionManager
 from nanobot.webui.memory_services import MemoryServices
 
@@ -109,7 +109,10 @@ def test_delete_session_observer_receives_pre_deletion_session(tmp_path: Path) -
     assert deleted_keys == [key]
     assert len(captured) == 1
     assert captured[0].key == key
-    assert captured[0].messages == [{"role": "user", "content": "hello memory"}]
+    # 契约 §1：保存后消息带持久坐标（memory_seq），删除观察者看到的是最终形状。
+    assert captured[0].messages == [
+        {"role": "user", "content": "hello memory", "memory_seq": 1}
+    ]
 
 
 def test_delete_session_observer_absent_when_not_registered(tmp_path: Path) -> None:
@@ -187,6 +190,8 @@ def test_memory_extraction_disabled_by_default(tmp_path: Path) -> None:
     assert loop._memory_extraction_tasks == set()
     assert loop.sessions._delete_session_observer is None
     assert loop.auto_compact._quick_facts_hook is None
+    # 未启用抽取时 API 装配拿不到结束 flush 的 provider，端点按契约返回 503。
+    assert loop.memory_extractor_provider is None
 
 
 def test_memory_extraction_disabled_leaves_turn_hook_chain_clean(tmp_path: Path) -> None:
@@ -217,6 +222,9 @@ def test_memory_extraction_enabled_wires_all_three_points(tmp_path: Path) -> Non
     assert len(loop._hook_factories) == 1
     assert loop.sessions._delete_session_observer is not None
     assert loop.auto_compact._quick_facts_hook is not None
+    # API 装配（nanobot api）用同一 provider 与作用域构造 SessionEndFlushConsumer。
+    assert loop.memory_extractor_provider is not None
+    assert loop.memory_extraction_workspace_id == "default"
 
     created = loop._hook_factories[0](AgentTurnHookContext(session_key="websocket:abc"))
     assert isinstance(created, MemoryExtractionHook)
@@ -246,7 +254,17 @@ async def test_deletion_dispatches_background_extraction(
     await asyncio.gather(*tasks)
 
     assert _RecordingExtractor.calls == [
-        (key, "deletion", [{"role": "user", "content": "remember: prefer ruff over flake8"}]),
+        (
+            key,
+            "deletion",
+            [
+                {
+                    "role": "user",
+                    "content": "remember: prefer ruff over flake8",
+                    "memory_seq": 1,
+                }
+            ],
+        ),
     ]
 
 

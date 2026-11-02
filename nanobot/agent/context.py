@@ -30,6 +30,12 @@ from nanobot.identity.catalog import (
 )
 from nanobot.identity.compiler import read_compiled
 from nanobot.identity.store import IdentityStore, IdentityStoreError
+from nanobot.memory.context import (
+    RecalledMemorySection,
+    compose_memory_context,
+    select_memory_context,
+)
+from nanobot.memory.retrieval.candidate import MemoryHit, hit_from_memory
 from nanobot.runtime_context import (
     RUNTIME_CONTEXT_MESSAGE_META,
     RuntimeContextBlock,
@@ -39,15 +45,23 @@ from nanobot.security.workspace_access import WorkspaceScopeResolver
 from nanobot.session.keys import last_channel_from_metadata
 from nanobot.session.manager import Session
 from nanobot.session.summary import SessionSummary
-from nanobot.utils.helpers import detect_image_mime, load_bundled_template
+from nanobot.utils.helpers import (
+    detect_image_mime,
+    estimate_text_tokens,
+    load_bundled_template,
+)
 from nanobot.utils.prompt_templates import render_template
 
 if TYPE_CHECKING:
     from nanobot.memory.retrieval import RetrievalEngine
-    from nanobot.memory.retrieval.preprocessor import MemoryQueryPreprocessor
 else:
     RetrievalEngine = Any  # type: ignore[misc,assignment]
-    MemoryQueryPreprocessor = Any  # type: ignore[misc,assignment]
+
+
+#: 一次注入给记忆块的总预算（工作状态 + 核心事实 + 检索结果共用一份）。
+MEMORY_CONTEXT_MAX_TOKENS = 700
+#: 检索侧最多取多少条候选；真正的取舍由组装侧的预算决定。
+MEMORY_CONTEXT_HIT_LIMIT = 10
 
 
 def _strip_leading_h1(content: str) -> str:
@@ -151,6 +165,8 @@ class ContextBuilder:
         # via the provider closure, so toggling takes effect without restarting
         # the gateway.
         self._memory_enabled_provider = memory_enabled_provider
+        # 核心事实的库句柄：与 AgentLoop 的回退装配同源，按需解析并缓存。
+        self._core_services: Any | None = None
 
     def _should_retrieve(self) -> bool:
         """Combine wiring flags with the hot-switchable user toggle.
@@ -165,27 +181,6 @@ class ContextBuilder:
             return False
         return True
 
-    async def _build_memory_section(
-        self,
-        *,
-        query: str,
-        recent_messages: list[Any],
-    ) -> str:
-        """Return Layer 4 retrieval block (markdown), or ``""`` when disabled.
-
-        Failure-isolated: any retrieval exception is swallowed and logged so
-        the system prompt build never breaks because of retrieval.
-
-        兼容薄壳：只返回注入块。需要本次注入的 ``memory_id`` 集合的调用方
-        （WU-B 引用评分闭环）应使用 :meth:`_build_memory_section_with_ids`，
-        以在 idle 提取时把同一批记忆作为 ``cited_memories`` 送进评分 prompt。
-        """
-        block, _ids = await self._build_memory_section_with_ids(
-            query=query,
-            recent_messages=recent_messages,
-        )
-        return block
-
     async def _build_memory_section_with_ids(
         self,
         *,
@@ -193,37 +188,129 @@ class ContextBuilder:
         recent_messages: list[Any],
         workspace_ids: Sequence[str] | None = None,
     ) -> tuple[str, list[str]]:
-        """Return ``(retrieval block, 本次注入的 memory_id 列表)``。
+        """检索 + 核心事实在这里组装成一段记忆块，并返回本次注入的事实 id。
 
-        Failure-isolated: any retrieval exception is swallowed and logged so
-        the system prompt build never breaks because of retrieval. Disabled /
-        engine missing / gate skip → ``("", [])``。
+        返回值第一项是 :class:`RecalledMemorySection`：字符串值可直接拼接，
+        ``hits`` 携带结构化条目，供同步的 prompt 构建器连同工作状态与核心
+        事实一起走统一的组装函数（去重 / 信任说明 / 总预算只有一处）。
+
+        Failure-isolated: 检索异常被吞掉并记日志，system prompt 构建绝不因
+        检索失败而中断。未启用 / 引擎缺失 → ``("", [])``。
         """
         if not self._should_retrieve():
             return "", []
-        # Lazy import: keeps ``nanobot.agent.context`` importable without
-        # pulling the retrieval module eagerly (preserves the historical
-        # sync-only path for callers that never enable Layer 4).
-        from nanobot.memory.retrieval.preprocessor import MemoryQueryPreprocessor
+        engine = cast(Any, self._retrieval_engine)
+        if engine is None:
+            return "", []
 
         try:
-            prepared = MemoryQueryPreprocessor.prepare(query, recent_messages)
-            if prepared.skip:
-                return "", []
-            retrieved = await self._retrieval_engine.retrieve_with_ids(
-                query=prepared.cleaned_query,
+            hits = await engine.search_hits(
+                query=query,
                 recent_messages=recent_messages,
                 workspace_ids=workspace_ids,
+                limit=MEMORY_CONTEXT_HIT_LIMIT,
             )
         except Exception as exc:  # noqa: BLE001 - 记忆注入失败不该打断对话
             logger.warning(
-                "Active retrieval failed; continuing without Layer 4 block: {}: {!r}",
+                "Active retrieval failed; continuing without recalled memory: {}: {!r}",
                 type(exc).__name__,
                 exc,
             )
             return "", []
-        block, ids = retrieved
-        return block or "", list(ids)
+
+        recalled: list[MemoryHit] = list(hits or ())
+        selection = select_memory_context(
+            core_hits=self._load_core_hits(),
+            working_text="",
+            recalled_hits=recalled,
+            max_tokens=MEMORY_CONTEXT_MAX_TOKENS,
+            count_tokens=estimate_text_tokens,
+        )
+        # 只有「事实」类召回参与引用评分；情节条目的 id 不是记忆 id。
+        recalled_fact_keys: set[tuple[str, str]] = {
+            (hit.kind, hit.record_id) for hit in recalled if hit.kind == "memory"
+        }
+        cited = [
+            hit.record_id
+            for hit in selection.included
+            if (hit.kind, hit.record_id) in recalled_fact_keys
+        ]
+        return RecalledMemorySection(selection.text, recalled), cited
+
+    def _core_memory_services(self) -> Any | None:
+        """核心事实的来源：与 ``AgentLoop`` 回退装配同一个库（``workspace_id=default``）。
+
+        不在这里建库：构建 prompt 不该有副作用，库不存在就说明还没有事实。库
+        一旦存在就缓存服务实例，避免每轮重复建 schema。
+        """
+        if self._core_services is not None:
+            return self._core_services
+        if not (self.workspace / "memory" / "state.db").exists():
+            return None
+        try:
+            from nanobot.memory.provenance import GLOBAL_MEMORY_WORKSPACE_ID
+            from nanobot.webui.memory_services import MemoryServices
+
+            self._core_services = MemoryServices.for_workspace(
+                GLOBAL_MEMORY_WORKSPACE_ID, self.workspace
+            )
+        except Exception as exc:  # noqa: BLE001 - 记忆读失败不该打断对话
+            logger.warning(
+                "Core memory services unavailable; injecting no core facts: {}: {!r}",
+                type(exc).__name__,
+                exc,
+            )
+            return None
+        return self._core_services
+
+    def _load_core_hits(self) -> list[MemoryHit]:
+        """每轮从 SQLite 当前有效记录选取核心事实（沿用 scope=user + 重要性规则）。"""
+        if self._memory_enabled_provider is not None and not self._memory_enabled_provider():
+            return []
+        services = self._core_memory_services()
+        if services is None:
+            return []
+        try:
+            from nanobot.memory.lifecycle import select_core_facts
+
+            with services.database.connect() as conn:
+                facts = select_core_facts(conn, workspace_id=services.workspace_id)
+            return [hit_from_memory(fact) for fact in facts]
+        except Exception as exc:  # noqa: BLE001 - 记忆读失败不该打断对话
+            logger.warning(
+                "Core memory read failed; injecting no core facts: {}: {!r}",
+                type(exc).__name__,
+                exc,
+            )
+            return []
+
+    def _compose_memory_block(
+        self,
+        *,
+        working_text: str | None,
+        recalled_section: str | None,
+        include_memory: bool,
+    ) -> str:
+        """唯一的记忆组装入口：工作状态 + 核心事实 + 检索结果。
+
+        ``recalled_section`` 只接受检索引擎给出的 :class:`RecalledMemorySection`
+        （带结构化条目）。没有结构化条目的已渲染段落不再注入——注入路径只有
+        这一条，否则去重与预算就形同虚设。
+        """
+        recalled = getattr(recalled_section, "hits", None)
+        if recalled_section and recalled is None:
+            logger.debug(
+                "Ignoring caller-rendered memory section without structured hits; "
+                "recalled memory must come from the retrieval engine"
+            )
+        hits = list(cast(Sequence[MemoryHit], recalled)) if recalled is not None else []
+        return compose_memory_context(
+            core_hits=self._load_core_hits() if include_memory else [],
+            working_text=working_text,
+            recalled_hits=hits,
+            max_tokens=MEMORY_CONTEXT_MAX_TOKENS,
+            count_tokens=estimate_text_tokens,
+        )
 
     def build_system_prompt(
         self,
@@ -271,14 +358,14 @@ class ContextBuilder:
         # Working Memory：排在长期记忆**之前**——「我现在在做什么」是
         # 「我平时知道什么」的语境，反过来会让长期记忆抢掉当前任务的前景。
         # 门控（开关 / subagent / dream）全在 ``AgentLoop`` 侧求值完毕，这里
-        # 只判空：空串与 None 同样不 append，避免拼出只有分隔线的空壳段落。
-        if working_memory_section:
-            parts.append(working_memory_section)
-
-        if include_memory:
-            memory = self.memory.read_memory()
-            if memory and not self._is_template_content(memory, "memory/MEMORY.md"):
-                parts.append(f"# Memory\n\n## Long-term Memory\n{memory}")
+        # 只组装：工作状态、核心事实、检索结果由同一个函数去重并共用一份预算。
+        memory_block = self._compose_memory_block(
+            working_text=working_memory_section,
+            recalled_section=retrieved_memory_section,
+            include_memory=include_memory,
+        )
+        if memory_block:
+            parts.append(memory_block)
 
         excluded_skills = skill_exclude or set()
         active_skills = [
@@ -302,16 +389,6 @@ class ContextBuilder:
                 f"Previous conversation summary (last active {session_summary['last_active']}):\n"
                 f"{session_summary['text']}"
             )
-
-        # Layer 4 Active Retrieval block (T-13): only appended when the
-        # feature is enabled AND the engine is wired AND a non-empty section
-        # is supplied by the caller (typically pre-computed in
-        # ``AgentLoop._build_turn`` to keep the sync prompt builder API).
-        if (
-            self._should_retrieve()
-            and retrieved_memory_section
-        ):
-            parts.append(retrieved_memory_section)
 
         return "\n\n---\n\n".join(parts)
 

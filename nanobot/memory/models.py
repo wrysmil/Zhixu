@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 
 class MemoryType(str, Enum):
@@ -103,7 +103,7 @@ class Memory:
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> "Memory":
-        """从 ``to_row()`` 序列化得到的 dict 反构实例（WU-3B fallback replay 用）。"""
+        """从 ``to_row()`` 序列化得到的 dict 反构实例（旧 fallback 数据导入用）。"""
         return cls(
             id=row['id'],
             content=row['content'],
@@ -180,7 +180,7 @@ class Episode:
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> "Episode":
-        """从 ``to_row()`` 序列化得到的 dict 反构实例（WU-3B fallback replay 用）。"""
+        """从 ``to_row()`` 序列化得到的 dict 反构实例（旧 fallback 数据导入用）。"""
         def _load_json_list(value: Any) -> list[Any]:
             if isinstance(value, str):
                 return json.loads(value) if value else []
@@ -250,6 +250,11 @@ class ExtractionState:
       未来策略判定。
     - ``last_extracted_at``: 上次成功抽取的 ISO-8601 UTC 时间戳。
     - ``updated_at``: 本行任意字段最近一次写入时间（UPSERT 总会刷新）。
+
+    记忆减法（契约 §2.3）：
+    - ``generation``: 本行进度所属的持久记忆代；与请求代不同即视为无进度。
+    - ``last_seq``: 该 generation 内已提交到的持久消息坐标（唯一进度指针）。
+    - ``last_count`` 等旧字段只为兼容读取保留，不再作为第二条进度链。
     """
 
     session_key: str
@@ -257,3 +262,38 @@ class ExtractionState:
     last_source: str
     last_extracted_at: str
     updated_at: str
+    generation: str = ""
+    last_seq: int = 0
+
+
+@dataclass(frozen=True)
+class ExtractionRequest:
+    """一次记忆提取请求的稳定消费边界（契约 §2）。
+
+    ``(workspace_id, session_key, generation)`` 是消费键，``through_seq`` 是该
+    请求要处理到的持久消息坐标上界；``reason`` 保留现有审计来源值，
+    ``flush`` 表示调用方要求立即处理而非等待后台生命周期。
+    """
+
+    workspace_id: str
+    session_key: str
+    generation: str
+    through_seq: int
+    reason: str
+    flush: bool = False
+
+
+@dataclass(frozen=True)
+class BatchReceipt:
+    """一张 ``memory_extraction_batches`` 行的对外回执（契约 §2）。
+
+    ``status`` 只取契约列出的四个值；失败时 ``error_code`` 给出结构化错误码，
+    而不是把模型错误文本当作空成功。
+    """
+
+    batch_id: str
+    status: Literal["pending", "partial", "failed", "completed"]
+    through_seq: int
+    memory_ids: tuple[str, ...] = ()
+    episode_ids: tuple[str, ...] = ()
+    error_code: str | None = None

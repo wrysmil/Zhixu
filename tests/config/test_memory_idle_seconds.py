@@ -109,5 +109,5 @@ class _FakeExtractor:
 
 
 class _FakeWriter:
-    async def update_focus(self, _key: str, _focus: str) -> None:
+    async def update_focus(self, _focus: str) -> None:
         return None

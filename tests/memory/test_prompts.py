@@ -3,13 +3,9 @@
 验证 prompts.py 中的提示词常量符合规范。
 """
 
-import pytest
-
 from nanobot.memory.prompts import (
     EPISODE_EXTRACTION_PROMPT,
-    SCRATCHPAD_FORMAT_PROMPT,
     SEMANTIC_EXTRACTION_PROMPT,
-    TOPIC_CHANGE_DETECTION_PROMPT,
 )
 
 
@@ -107,71 +103,6 @@ class TestEpisodeExtractionPrompt:
         assert char_count < 16000, f"Prompt too long: {char_count} chars"
 
 
-class TestScratchpadFormatPrompt:
-    """§4.3 工作记忆格式化提示词测试"""
-
-    def test_contains_current_projects_section(self):
-        """应包含 ## 当前项目 Markdown 段标记"""
-        assert '## 当前项目' in SCRATCHPAD_FORMAT_PROMPT
-
-    def test_contains_recent_progress_section(self):
-        """应包含 ## 近期进展 Markdown 段标记"""
-        assert '## 近期进展' in SCRATCHPAD_FORMAT_PROMPT
-
-    def test_contains_open_questions_section(self):
-        """应包含 ## 未解决的问题 Markdown 段标记"""
-        assert '## 未解决的问题' in SCRATCHPAD_FORMAT_PROMPT
-
-    def test_contains_next_steps_section(self):
-        """应包含 ## 下一步 Markdown 段标记"""
-        assert '## 下一步' in SCRATCHPAD_FORMAT_PROMPT
-
-    def test_contains_character_limit(self):
-        """应包含 2000 字符限制说明"""
-        assert '2000' in SCRATCHPAD_FORMAT_PROMPT
-
-    def test_output_markdown_format(self):
-        """输出格式必须是 Markdown"""
-        # 检查包含 Markdown 格式元素
-        assert '## ' in SCRATCHPAD_FORMAT_PROMPT  # heading
-        assert '-' in SCRATCHPAD_FORMAT_PROMPT  # list item
-
-    def test_length_within_limit(self):
-        """提示词长度应小于 4000 tokens（约 16000 字符）"""
-        char_count = len(SCRATCHPAD_FORMAT_PROMPT)
-        assert char_count < 16000, f"Prompt too long: {char_count} chars"
-
-
-class TestTopicChangeDetectionPrompt:
-    """§4.4 话题切换检测提示词测试"""
-
-    def test_contains_same_topic_field(self):
-        """应包含 same_topic 字段"""
-        assert 'same_topic' in TOPIC_CHANGE_DETECTION_PROMPT
-
-    def test_contains_reason_field(self):
-        """应包含 reason 字段"""
-        assert 'reason' in TOPIC_CHANGE_DETECTION_PROMPT
-
-    def test_contains_recent_messages_placeholder(self):
-        """应包含 recent_messages 占位符"""
-        assert 'recent_messages' in TOPIC_CHANGE_DETECTION_PROMPT
-
-    def test_contains_latest_message_placeholder(self):
-        """应包含 latest_message 占位符"""
-        assert 'latest_message' in TOPIC_CHANGE_DETECTION_PROMPT
-
-    def test_output_json_format(self):
-        """输出格式必须是 JSON 结构"""
-        assert '"same_topic"' in TOPIC_CHANGE_DETECTION_PROMPT
-        assert '"reason"' in TOPIC_CHANGE_DETECTION_PROMPT
-
-    def test_length_within_limit(self):
-        """提示词长度应小于 4000 tokens（约 16000 字符）"""
-        char_count = len(TOPIC_CHANGE_DETECTION_PROMPT)
-        assert char_count < 16000, f"Prompt too long: {char_count} chars"
-
-
 class TestPromptModule:
     """prompts.py 模块整体测试"""
 
@@ -179,24 +110,15 @@ class TestPromptModule:
         """所有提示词常量都是字符串类型"""
         assert isinstance(SEMANTIC_EXTRACTION_PROMPT, str)
         assert isinstance(EPISODE_EXTRACTION_PROMPT, str)
-        assert isinstance(SCRATCHPAD_FORMAT_PROMPT, str)
-        assert isinstance(TOPIC_CHANGE_DETECTION_PROMPT, str)
 
     def test_all_prompts_are_non_empty(self):
         """所有提示词常量都有内容"""
         assert len(SEMANTIC_EXTRACTION_PROMPT) > 100
         assert len(EPISODE_EXTRACTION_PROMPT) > 100
-        assert len(SCRATCHPAD_FORMAT_PROMPT) > 100
-        assert len(TOPIC_CHANGE_DETECTION_PROMPT) > 100
 
     def test_no_sensitive_data_in_prompts(self):
         """提示词不应包含敏感信息占位符（防止意外泄露）"""
         sensitive_patterns = ['{password}', '{token}', '{api_key}', '{secret}']
-        all_prompts = (
-            SEMANTIC_EXTRACTION_PROMPT
-            + EPISODE_EXTRACTION_PROMPT
-            + SCRATCHPAD_FORMAT_PROMPT
-            + TOPIC_CHANGE_DETECTION_PROMPT
-        )
+        all_prompts = SEMANTIC_EXTRACTION_PROMPT + EPISODE_EXTRACTION_PROMPT
         for pattern in sensitive_patterns:
             assert pattern not in all_prompts

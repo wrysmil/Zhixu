@@ -629,23 +629,40 @@ class TestEphemeralDirect:
         assert "entry-60" not in request_text
 
     async def test_dream_turn_injects_memory_files_once_and_persists_session(self, tmp_path):
-        """Dream gets durable files from system context without losing its session record."""
+        """Dream 看到的是 SQLite 核心视图 + 身份文件；MEMORY.md 只是导出。"""
         from unittest.mock import MagicMock
 
         from nanobot.agent.loop import AgentLoop
         from nanobot.bus.queue import MessageBus
+        from nanobot.memory.database import MemoryDatabase
+        from nanobot.memory.models import Memory, MemoryType
+        from nanobot.memory.repository import add_memory
 
         markers = {
             "SOUL.md": "DREAM_SOUL_MARKER",
             "USER.md": "DREAM_USER_MARKER",
-            "memory/MEMORY.md": "DREAM_MEMORY_MARKER",
         }
         store = MemoryStore(tmp_path)
         store.write_soul(markers["SOUL.md"])
         store.write_user(markers["USER.md"])
-        store.write_memory(markers["memory/MEMORY.md"])
+        store.write_memory("DREAM_MEMORY_FILE_MARKER")
         store.append_history("history-marker")
         (tmp_path / "AGENTS.md").write_text("DREAM_AGENTS_MARKER", encoding="utf-8")
+
+        # 核心事实来自 SQLite（每轮现读），不是 MEMORY.md 文件
+        db = MemoryDatabase(tmp_path)
+        db.init_schema()
+        with db.connect() as conn:
+            add_memory(conn, Memory(
+                id="dream-core-fact",
+                content="DREAM_CORE_FACT_MARKER",
+                type=MemoryType.FACT,
+                importance_score=0.9,
+                scope="user",
+                workspace_id="default",
+                created_at="2026-11-02T10:00:00Z",
+                updated_at="2026-11-02T10:00:00Z",
+            ))
 
         result = store.build_dream_prompt()
         assert result is not None
@@ -680,9 +697,10 @@ class TestEphemeralDirect:
         messages = captured["messages"]
         system_prompt = str(messages[0]["content"])
         request_text = "\n".join(str(message.get("content", "")) for message in messages)
-        for marker in [*markers.values(), "DREAM_AGENTS_MARKER"]:
+        for marker in [*markers.values(), "DREAM_AGENTS_MARKER", "DREAM_CORE_FACT_MARKER"]:
             assert marker in system_prompt
             assert request_text.count(marker) == 1
+        assert "DREAM_MEMORY_FILE_MARKER" not in system_prompt
         assert loop.sessions._get_session_path(session_key).exists()
 
 

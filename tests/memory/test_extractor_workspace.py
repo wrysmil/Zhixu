@@ -109,7 +109,7 @@ def test_global_provenance_omits_workspace_snapshot(
 
 
 @pytest.mark.parametrize("other_project", ["other", None])
-def test_profile_merge_stays_within_session_workspace(
+def test_write_decisions_stay_within_session_workspace(
     extractor: MemoryExtractor, tmp_path: Path, other_project: str | None
 ) -> None:
     first_session = _session(tmp_path, "project")
@@ -127,30 +127,43 @@ def test_profile_merge_stays_within_session_workspace(
     )
 
     assert first.memory_ids != other.memory_ids
-    assert updated.memory_ids == first.memory_ids
+    assert updated.memory_ids != first.memory_ids, "未显式纠正 → 另存冲突候选"
     with extractor.database.connect() as conn:
         rows = list_memories(conn)
-    assert len(rows) == 2
-    by_workspace = {row.workspace_id: row for row in rows}
-    first_row = by_workspace[session_memory_workspace_id(first_session)]
-    other_row = by_workspace[session_memory_workspace_id(other_session)]
-    assert first_row.content == "用户偏好详细的中文说明"
-    assert other_row.content == "用户偏好英文回复"
+    assert len(rows) == 3
+    first_workspace = session_memory_workspace_id(first_session)
+    by_workspace: dict[str, list] = {}
+    for row in rows:
+        by_workspace.setdefault(row.workspace_id, []).append(row)
+    assert set(by_workspace) == {first_workspace, session_memory_workspace_id(other_session)}
+    assert {row.content for row in by_workspace[first_workspace]} == {
+        "用户偏好中文回复",
+        "用户偏好详细的中文说明",
+    }
+    assert [row.content for row in by_workspace[session_memory_workspace_id(other_session)]] == [
+        "用户偏好英文回复"
+    ]
 
 
-def test_load_existing_memories_only_reads_requested_workspace(
+def test_duplicate_detection_only_matches_same_workspace(
     extractor: MemoryExtractor, tmp_path: Path
 ) -> None:
     session = _session(tmp_path, "project")
     other_session = _session(tmp_path, "other")
-    for target in (session, other_session, _session(tmp_path, None)):
-        extractor._persist(FilteredExtractionResult(memories=[_item()]), target, "idle")
-    workspace_id = session_memory_workspace_id(session)
+    first = extractor._persist(
+        FilteredExtractionResult(memories=[_item()]), session, "idle"
+    )
+    extractor._persist(FilteredExtractionResult(memories=[_item()]), other_session, "idle")
+    again = extractor._persist(FilteredExtractionResult(memories=[_item()]), session, "idle")
 
-    existing = extractor._load_existing_memories([_item()], workspace_id=workspace_id)
-
-    assert len(existing) == 1
-    assert existing[0].workspace_id == workspace_id
+    assert again.memory_ids == first.memory_ids, "同工作区同内容幂等命中既有行"
+    with extractor.database.connect() as conn:
+        rows = list_memories(conn)
+    assert len(rows) == 2
+    assert {row.workspace_id for row in rows} == {
+        session_memory_workspace_id(session),
+        session_memory_workspace_id(other_session),
+    }
 
 
 def test_episode_links_batch_memories_when_subject_is_empty(

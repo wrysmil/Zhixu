@@ -1,18 +1,18 @@
-"""Phase 2 防污染过滤器：任务产物 / AI 自答 / 精确去重 / 相似度去重。
+"""Phase 2 防污染过滤器：任务产物 / AI 自答 / 精确哈希。
+
+写入去重、纠正与冲突判定统一由 :mod:`nanobot.memory.writer` 的写入决策表负责
+（D08）：本模块只保留内容合法性判断和哈希工具，不再用字符相似度丢弃候选。
 
 Public API:
-    FilterResult
     is_task_artifact()
     is_ai_self_talk()
     compute_content_hash()
-    ngram_similarity()
 """
 
 from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
 
 # ---------------------------------------------------------------------------
 # 正则规则
@@ -55,26 +55,6 @@ _AI_SELF_TALK: list[re.Pattern[str]] = [
     re.compile(r"^here(?:'s| is) (my|the) (suggestion|recommendation|advice)", re.IGNORECASE),
     re.compile(r"^according to (my|the) (analysis|knowledge)", re.IGNORECASE),
 ]
-
-
-# ---------------------------------------------------------------------------
-# 数据类
-# ---------------------------------------------------------------------------
-
-@dataclass
-class FilterResult:
-    """过滤器判定结果。"""
-
-    keep: bool
-    reason: str
-    merged_with: str | None = None
-
-    # 预定义 reason 常量
-    REASON_OK = "ok"
-    REASON_TASK_ARTIFACT = "task_artifact"
-    REASON_AI_SELF_TALK = "ai_self_talk"
-    REASON_EXACT_DUPLICATE = "exact_duplicate"
-    REASON_HIGH_SIMILARITY = "high_similarity"
 
 
 # ---------------------------------------------------------------------------
@@ -167,96 +147,3 @@ def content_hash_legacy(content: str) -> str:
     """
     return hashlib.sha1(content.strip().encode("utf-8")).hexdigest()
 
-
-# ---------------------------------------------------------------------------
-# N-Gram 相似度
-# ---------------------------------------------------------------------------
-
-
-def _extract_ngrams(text: str, n: int = 3) -> set[str]:
-    """提取字符级 n-gram 集合。
-
-    Args:
-        text: 输入文本。
-        n: n-gram 大小，默认 3。
-
-    Returns:
-        n-gram 字符串集合。
-    """
-    text = text.strip()
-    if len(text) < n:
-        if text:
-            return {text}
-        return set()
-
-    return {text[i:i + n] for i in range(len(text) - n + 1)}
-
-
-def ngram_similarity(a: str, b: str, n: int = 3) -> float:
-    """计算两个文本的字符级 n-gram Jaccard 相似度。
-
-    Jaccard = |A ∩ B| / |A ∪ B|
-
-    阈值约定：
-    - > 0.8: high_similarity（高度相似，可能重复）
-    - > 0.3 且 ≤ 0.8: candidate_merge（候选合并，Phase 2 仅标记）
-    - ≤ 0.3: 无需处理
-
-    Args:
-        a: 第一个文本。
-        b: 第二个文本。
-        n: n-gram 大小，默认 3。
-
-    Returns:
-        0.0 到 1.0 之间的相似度分数。
-    """
-    if not a or not b:
-        return 0.0
-
-    set_a = _extract_ngrams(a, n)
-    set_b = _extract_ngrams(b, n)
-
-    if not set_a or not set_b:
-        return 0.0
-
-    intersection = len(set_a & set_b)
-    union = len(set_a | set_b)
-
-    if union == 0:
-        return 0.0
-
-    return intersection / union
-
-
-# ---------------------------------------------------------------------------
-# 给话题预筛复用的判定辅助（plan 2026-09-12 S5）
-#
-# 注：原计划复用模块内 _CHAT_FULL/_FOLLOW_UP_CJK/_FOLLOW_UP_EN 私有正则，
-# 但 filters.py 经过一轮重构后这些私有变量已移除。为避免反向耦合，
-# 这里改为弱判定（短消息或以特定追问词开头即视为预筛跳过），
-# 实际预筛逻辑在 nanobot.memory.topic_prefilter 内独立实现。
-# ---------------------------------------------------------------------------
-
-
-def is_chat_only(content: str) -> bool:
-    """整句仅由短寒暄/控制词构成（弱判定，预筛的辅助信号之一）。"""
-    if not content or not content.strip():
-        return False
-    text = content.strip().lower()
-    return len(text) <= 2 and text in {
-        "好", "好呀", "嗯", "哦", "ok", "no", "hi", "yo", "嗨",
-    }
-
-
-def starts_with_follow_up(content: str) -> bool:
-    """以追问/承接词开头（弱判定，仅作为预筛辅助信号）。"""
-    if not content or not content.strip():
-        return False
-    s = content.strip()
-    heads = (
-        "那个", "这个", "它们", "它", "这些", "那些", "这", "那",
-        "继续", "接着", "接下来", "然后", "上次", "之前", "刚才", "还有",
-        "再问", "再说", "再来", "that", "this", "it", "these", "those",
-        "continue", "again", "once more",
-    )
-    return any(s.startswith(h) for h in heads)
