@@ -18,6 +18,11 @@ import type { SessionAutomationJob } from "@/lib/types";
 interface DeleteConfirmProps {
   open: boolean;
   title: string;
+  /**
+   * 调用方已给出一整句标题（如「删除这条记忆？」）时置 true，直接展示；
+   * 否则 `title` 视为对象名，套用「删除「{{title}}」？」模板。
+   */
+  titleIsSentence?: boolean;
   count?: number;
   automations?: SessionAutomationJob[];
   onCancel: () => void;
@@ -27,6 +32,7 @@ interface DeleteConfirmProps {
 export function DeleteConfirm({
   open,
   title,
+  titleIsSentence = false,
   count = 1,
   automations = [],
   onCancel,
@@ -38,6 +44,14 @@ export function DeleteConfirm({
   const multiple = count > 1;
   const visibleAutomations = automations.slice(0, 4);
   const hiddenCount = Math.max(0, automations.length - visibleAutomations.length);
+  const normalizedTitle = title.trim();
+  const singleTitle =
+    titleIsSentence && normalizedTitle
+      ? normalizedTitle
+      : t("deleteConfirm.titleNamed", {
+          title: normalizedTitle || t("deleteConfirm.untitled"),
+          defaultValue: "Delete this topic?",
+        });
   return (
     <AlertDialog open={open} onOpenChange={(o) => (!o ? onCancel() : undefined)}>
       <AlertDialogContent
@@ -55,7 +69,7 @@ export function DeleteConfirm({
                   defaultValue: "Delete {{count}} conversations?",
                   count,
                 })
-              : t("deleteConfirm.title", { title })}
+              : singleTitle}
           </AlertDialogTitle>
           <AlertDialogDescription className="mt-3 max-w-[17rem] text-center text-[14px] leading-6 text-muted-foreground">
             {hasAutomations
