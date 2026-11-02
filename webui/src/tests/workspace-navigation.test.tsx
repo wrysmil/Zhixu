@@ -22,21 +22,20 @@ function renderNav(overrides: Partial<WorkspaceNavigationProps> = {}) {
   };
 }
 
-const RAIL_ITEMS = ["Assistant", "Creative", "Agents", "Memory", "More", "Settings"];
-const GROUPED_ITEMS = [
+const RAIL_ITEMS = [
+  "Assistant",
+  "Agents",
+  "Memory",
   "Apps",
   "Skills",
   "Automations",
   "Teams",
   "Identity",
+  "Settings",
 ];
 
-function openMore() {
-  fireEvent.click(screen.getByRole("button", { name: "More" }));
-}
-
 describe("WorkspaceNavigation", () => {
-  it("renders a single named navigation landmark with the top-level entries", () => {
+  it("renders a single named navigation landmark with every destination on the rail", () => {
     renderNav();
     const landmarks = screen.getAllByRole("navigation");
     expect(landmarks).toHaveLength(1);
@@ -45,23 +44,9 @@ describe("WorkspaceNavigation", () => {
     for (const label of RAIL_ITEMS) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
-    for (const label of GROUPED_ITEMS) {
-      expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
-    }
+    expect(screen.queryByRole("button", { name: "More" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
-  });
-
-  it("opens the More menu with grouped legacy routes", () => {
-    renderNav();
-    openMore();
-
-    const menu = screen.getByRole("dialog");
-    expect(within(menu).getByText("Workspace")).toBeInTheDocument();
-    expect(within(menu).getByText("AI configuration")).toBeInTheDocument();
-    expect(within(menu).getByText("Personal")).toBeInTheDocument();
-    for (const label of GROUPED_ITEMS) {
-      expect(within(menu).getByRole("button", { name: label })).toBeInTheDocument();
-    }
+    expect(screen.queryByRole("button", { name: "Creative" })).not.toBeInTheDocument();
   });
 
   it("navigates with the matching route when a top-level entry is clicked", () => {
@@ -76,35 +61,26 @@ describe("WorkspaceNavigation", () => {
     ["Apps", "apps"],
     ["Skills", "skills"],
     ["Automations", "automations"],
-  ] as const)("navigates to %s from the More menu", (label, view) => {
+  ] as const)("navigates to %s straight from the rail", (label, view) => {
     const { onNavigate } = renderNav();
-    openMore();
     fireEvent.click(screen.getByRole("button", { name: label }));
     expect(onNavigate).toHaveBeenCalledWith({ view });
   });
 
   it("marks the active view item with aria-current=page", () => {
-    renderNav({ activeView: "creative" });
+    renderNav({ activeView: "agents" });
     expect(
-      screen.getByRole("button", { name: "Creative" }),
+      screen.getByRole("button", { name: "Agents" }),
     ).toHaveAttribute("aria-current", "page");
     expect(
       screen.getByRole("button", { name: "Assistant" }),
     ).not.toHaveAttribute("aria-current");
-    expect(
-      screen.getByRole("button", { name: "More" }),
-    ).not.toHaveAttribute("aria-current");
   });
 
   it.each(["identity", "teams", "apps", "skills", "automations"] as const)(
-    "marks More as current on the %s view and the entry inside the menu",
+    "marks the matching rail item as current on the %s view",
     (activeView) => {
       renderNav({ activeView });
-      const more = screen.getByRole("button", { name: "More" });
-      expect(more).toHaveAttribute("aria-current", "page");
-
-      openMore();
-      const menu = screen.getByRole("dialog");
       const label = {
         identity: "Identity",
         teams: "Teams",
@@ -112,9 +88,12 @@ describe("WorkspaceNavigation", () => {
         skills: "Skills",
         automations: "Automations",
       }[activeView];
-      expect(within(menu).getByRole("button", { name: label })).toHaveAttribute(
+      expect(screen.getByRole("button", { name: label })).toHaveAttribute(
         "aria-current",
         "page",
+      );
+      expect(screen.getByRole("button", { name: "Assistant" })).not.toHaveAttribute(
+        "aria-current",
       );
     },
   );
@@ -126,7 +105,6 @@ describe("WorkspaceNavigation", () => {
     const { onNavigate } = renderNav({ activeView });
     const item = screen.getByRole("button", { name: label });
     expect(item).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("button", { name: "More" })).not.toHaveAttribute("aria-current");
 
     fireEvent.click(item);
     expect(onNavigate).toHaveBeenCalledWith({ view: activeView });
@@ -135,39 +113,20 @@ describe("WorkspaceNavigation", () => {
   it("marks Settings as current for the settings view", () => {
     renderNav({ activeView: "settings" });
     expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("button", { name: "More" })).not.toHaveAttribute("aria-current");
   });
 
-  it("keeps grouped entries reachable when the rail is collapsed", () => {
+  it("keeps every entry reachable when the rail is collapsed", () => {
     renderNav({ collapsed: true });
     for (const label of RAIL_ITEMS) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
-    openMore();
-    for (const label of GROUPED_ITEMS) {
-      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
-    }
   });
 
-  it("keeps the chat-context column mounted but inert away from the assistant", () => {
+  it("keeps the chat-context column interactive on every menu and inert only when collapsed", () => {
     const chatColumn = <div data-testid="chat-slot">chat column</div>;
     const { rerender } = render(
       <WorkspaceNavigation
-        activeView="creative"
-        collapsed={false}
-        preview
-        onNavigate={vi.fn()}
-        onToggleCollapsed={vi.fn()}
-        chatNavigation={chatColumn}
-      />,
-    );
-    expect(screen.getByTestId("chat-slot")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-chat-column")).toHaveAttribute("inert");
-    expect(screen.getByTestId("sidebar-chat-column")).toHaveAttribute("aria-hidden", "true");
-
-    rerender(
-      <WorkspaceNavigation
-        activeView="chat"
+        activeView="memory"
         collapsed={false}
         preview
         onNavigate={vi.fn()}
@@ -178,9 +137,23 @@ describe("WorkspaceNavigation", () => {
     expect(screen.getByTestId("chat-slot")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-chat-column")).not.toHaveAttribute("inert");
     expect(screen.getByTestId("sidebar-chat-column")).not.toHaveAttribute("aria-hidden");
+
+    rerender(
+      <WorkspaceNavigation
+        activeView="memory"
+        collapsed
+        preview
+        onNavigate={vi.fn()}
+        onToggleCollapsed={vi.fn()}
+        chatNavigation={chatColumn}
+      />,
+    );
+    expect(screen.getByTestId("chat-slot")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-chat-column")).toHaveAttribute("inert");
+    expect(screen.getByTestId("sidebar-chat-column")).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("preserves chat-local state and moves hidden focus to the active rail item", () => {
+  it("keeps chat-local state and focus while switching menus", () => {
     function ChatColumn() {
       const [query, setQuery] = useState("");
       return <input aria-label="Session filter" value={query} onChange={(e) => setQuery(e.target.value)} />;
@@ -194,8 +167,8 @@ describe("WorkspaceNavigation", () => {
     fireEvent.change(input, { target: { value: "remember this filter" } });
     input.focus();
     rerender(<WorkspaceNavigation {...props} activeView="memory" />);
-    expect(screen.queryByRole("textbox", { name: "Session filter" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Memory" })).toHaveFocus();
+    expect(screen.getByRole("textbox", { name: "Session filter" })).toHaveValue("remember this filter");
+    expect(input).toHaveFocus();
     rerender(<WorkspaceNavigation {...props} />);
     expect(screen.getByRole("textbox", { name: "Session filter" })).toHaveValue("remember this filter");
   });
@@ -209,15 +182,15 @@ describe("WorkspaceNavigation", () => {
     const brand = screen.getByTestId("sidebar-rail-brand");
     const toggle = screen.getByTestId("sidebar-rail-toggle");
     expect(toggle).toBeEnabled();
-    rerender(<WorkspaceNavigation {...props} activeView="creative" />);
+    rerender(<WorkspaceNavigation {...props} activeView="memory" newChatActive={false} />);
     expect(screen.getByTestId("sidebar-rail-brand")).toBe(brand);
     expect(screen.getByTestId("sidebar-rail-toggle")).toBe(toggle);
-    expect(toggle).toBeDisabled();
+    expect(toggle).toBeEnabled();
     expect(screen.getByTestId("actions-selection-highlight")).not.toHaveAttribute("data-active-id", "new-chat");
   });
 
   it("shows the preview badge only in preview mode and calls the collapse toggle", () => {
-    const preview = renderNav({ preview: true, activeView: "creative" });
+    const preview = renderNav({ preview: true, activeView: "agents" });
     expect(
       preview.container.querySelector("[data-preview-badge]"),
     ).not.toBeNull();
@@ -229,10 +202,10 @@ describe("WorkspaceNavigation", () => {
     expect(live.onToggleCollapsed).toHaveBeenCalledTimes(1);
     live.unmount();
 
-    const creative = renderNav({ preview: false, activeView: "creative" });
-    const toggle = within(creative.container).getByTestId("sidebar-rail-toggle");
-    expect(toggle).toBeDisabled();
+    const capability = renderNav({ preview: false, activeView: "agents" });
+    const toggle = within(capability.container).getByTestId("sidebar-rail-toggle");
+    expect(toggle).toBeEnabled();
     fireEvent.click(toggle);
-    expect(creative.onToggleCollapsed).not.toHaveBeenCalled();
+    expect(capability.onToggleCollapsed).toHaveBeenCalledTimes(1);
   });
 });

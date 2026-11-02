@@ -67,7 +67,6 @@ interface SidebarProps {
   onOpenIdentity: () => void;
   onOpenSearch: () => void;
   onSettingsIntent?: () => void;
-  activeUtility?: "apps" | "skills" | "automations" | "agents" | null;
   onToggleArchived: () => void;
   onCollapse: () => void;
   onExpand?: () => void;
@@ -125,7 +124,6 @@ export function Sidebar(props: SidebarProps) {
       collapsed={Boolean(props.collapsed)}
       preview={false}
       newChatActive={props.newChatActive}
-      activeUtility={props.activeUtility ?? null}
       hostChromeInset={props.hostChromeInset}
       onToggleCollapsed={() => {
         if (props.collapsed) props.onExpand?.();

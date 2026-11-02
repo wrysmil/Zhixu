@@ -104,8 +104,8 @@ export default function PreviewApp() {
       <div
         className={cn(
           "workspace-sidebar-flow shrink-0 overflow-hidden border-r border-sidebar-border",
-          route.view === "chat" && !collapsed ? "w-[264px]" : "w-rail",
-          narrow && route.view === "chat" && !collapsed &&
+          !collapsed ? "w-[264px]" : "w-rail",
+          narrow && !collapsed &&
             "absolute inset-y-0 left-0 z-30 shadow-[0_0_0_100vmax_rgb(0_0_0/0.28)]",
         )}
       >
@@ -142,7 +142,7 @@ export default function PreviewApp() {
         />
       </div>
 
-      {narrow && route.view === "chat" && !collapsed ? (
+      {narrow && !collapsed ? (
         <button
           type="button"
           aria-label={t("sidebar.close", { defaultValue: "Close sidebar" })}

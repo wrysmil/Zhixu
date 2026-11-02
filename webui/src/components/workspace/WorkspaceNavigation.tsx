@@ -3,15 +3,12 @@ import {
   useCallback,
   useLayoutEffect,
   useRef,
-  useState,
 } from "react";
 import {
   Bot,
   BookOpen,
   CalendarClock,
-  Feather,
   MessagesSquare,
-  MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   Plug,
@@ -36,7 +33,6 @@ import { BrandMark } from "@/components/workspace/BrandMark";
 import { TeamStructureIcon } from "@/components/settings/teams/TeamVisuals";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface NavItem {
   view: WorkspaceView;
@@ -72,47 +68,21 @@ const TEAM_ITEM: NavItem = {
   icon: TeamStructureIcon,
 };
 
-// Keep the product's daily loop visible. Infrastructure and occasional
-// configuration live behind More so the rail stays useful without becoming a
-// miniature settings sidebar.
+// Keep the product's daily loop visible, then the capability pages. Every entry
+// lives on the rail so no menu is nested behind an extra click.
 const PRIMARY_ITEMS: NavItem[] = [
   { view: "chat", labelKey: "workspace.nav.assistant", labelDefault: "Assistant", icon: MessagesSquare },
-  { view: "creative", labelKey: "workspace.nav.creative", labelDefault: "Creative", icon: Feather },
   AGENTS_ITEM,
   MEMORY_ITEM,
 ];
 
-interface NavGroup {
-  key: string;
-  labelKey: string;
-  labelDefault: string;
-  items: NavItem[];
-}
-
-const MORE_GROUPS: NavGroup[] = [
-  {
-    key: "workspace",
-    labelKey: "workspace.nav.groups.workspace",
-    labelDefault: "Workspace",
-    items: [APP_ITEM, SKILLS_ITEM, AUTOMATIONS_ITEM],
-  },
-  {
-    key: "ai",
-    labelKey: "workspace.nav.groups.ai",
-    labelDefault: "AI configuration",
-    items: [TEAM_ITEM],
-  },
-  {
-    key: "personal",
-    labelKey: "workspace.nav.groups.personal",
-    labelDefault: "Personal",
-    items: [IDENTITY_ITEM],
-  },
+const CAPABILITY_ITEMS: NavItem[] = [
+  APP_ITEM,
+  SKILLS_ITEM,
+  AUTOMATIONS_ITEM,
+  TEAM_ITEM,
+  IDENTITY_ITEM,
 ];
-
-const MORE_VIEWS = new Set<WorkspaceView>(
-  MORE_GROUPS.flatMap((group) => group.items.map((item) => item.view)),
-);
 
 const SETTINGS_ITEM: NavItem = {
   view: "settings",
@@ -127,7 +97,8 @@ const SETTINGS_ITEM: NavItem = {
  * highlight, the nav entries and the collapse control. The chat-context column
  * and the connection status are injected by the caller through slots so the
  * live shell keeps owning ChatList callbacks while the preview injects
- * fixtures. Non-assistant pages render only the nav column.
+ * fixtures. The rail lists every destination directly; the conversation column
+ * stays visible until the user collapses it.
  */
 export function WorkspaceNavigation({
   activeView,
@@ -140,21 +111,25 @@ export function WorkspaceNavigation({
   connectionStatus,
   footerAction,
   newChatActive = false,
-  activeUtility = null,
   hostChromeInset = false,
 }: WorkspaceNavigationProps) {
   const { t, i18n } = useTranslation();
   const activeActionRef = useRef<HTMLButtonElement>(null);
   const activeRailRef = useRef<HTMLButtonElement>(null);
   const chatColumnRef = useRef<HTMLDivElement>(null);
-  const [moreOpen, setMoreOpen] = useState(false);
 
-  const showChatColumn = activeView === "chat" && !collapsed;
+  // The conversation column is part of the persistent left region: navigating to
+  // any menu keeps it in place, and only the explicit collapse control hides it.
+  const showChatColumn = !collapsed;
   const highlightNewChat = showChatColumn && newChatActive;
+  const railItemActive =
+    PRIMARY_ITEMS.some((item) => item.view === activeView)
+    || CAPABILITY_ITEMS.some((item) => item.view === activeView)
+    || SETTINGS_ITEM.view === activeView;
   const selectionActiveId = highlightNewChat
     ? "new-chat"
-    : activeUtility
-      ? `utility:${activeUtility}`
+    : railItemActive
+      ? `view:${activeView}`
       : null;
 
   const chatSlot: ReactNode =
@@ -184,10 +159,7 @@ export function WorkspaceNavigation({
 
   const renderItem = (item: NavItem) => {
     const label = t(item.labelKey, { defaultValue: item.labelDefault });
-    const matchesView = (
-      activeView === item.view ||
-      (item.view === "creative" && activeView === "article")
-    );
+    const matchesView = activeView === item.view;
     // activeSettingsSection is no longer used for highlighting the rail items
     // because every page is now its own view (Memory/Identity/Teams included),
     // but it stays in the prop shape so existing callers do not need to change.
@@ -224,76 +196,6 @@ export function WorkspaceNavigation({
     );
   };
 
-  const moreLabel = t("workspace.nav.more", { defaultValue: "More" });
-  const moreActive = MORE_VIEWS.has(activeView) || activeUtility !== null;
-
-  const renderMore = () => (
-    <Popover key="more" open={moreOpen} onOpenChange={setMoreOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={moreLabel}
-          aria-current={moreActive ? "page" : undefined}
-          aria-expanded={moreOpen}
-          title={moreLabel}
-          ref={moreActive ? activeRailRef : undefined}
-          className={cn(
-            "workspace-nav-item host-no-drag flex h-[48px] w-[46px] cursor-pointer flex-col items-center justify-center gap-1 rounded-control transition-colors duration-150",
-            SIDEBAR_SELECTION_ACTION_ITEM_CLASS,
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            moreActive
-              ? "font-medium text-[hsl(var(--nav-active-fg))]"
-              : "text-sidebar-foreground/85 hover:bg-sidebar-foreground/[0.05] hover:text-sidebar-foreground dark:hover:bg-white/[0.06]",
-          )}
-        >
-          <MoreHorizontal
-            className="h-[19px] w-[19px] shrink-0"
-            strokeWidth={1.65}
-            aria-hidden
-          />
-          <span className="workspace-nav-label" aria-hidden>
-            {i18n.resolvedLanguage?.startsWith("zh") ? "更多" : moreLabel}
-          </span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent side="right" align="start" className="w-56 p-1.5">
-        {MORE_GROUPS.map((group) => (
-          <div key={group.key} className="py-1 first:pt-0 last:pb-0">
-            <p className="px-1.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground">
-              {t(group.labelKey, { defaultValue: group.labelDefault })}
-            </p>
-            {group.items.map((item) => {
-              const label = t(item.labelKey, { defaultValue: item.labelDefault });
-              const Icon = item.icon;
-              const active = activeView === item.view;
-              return (
-                <button
-                  key={item.view}
-                  type="button"
-                  aria-label={label}
-                  aria-current={active ? "page" : undefined}
-                  onClick={() => {
-                    setMoreOpen(false);
-                    navigateTo(item.view);
-                  }}
-                  className={cn(
-                    "flex w-full cursor-pointer items-center gap-2 rounded-control px-1.5 py-1.5 text-left text-[12px] transition-colors",
-                    active
-                      ? "bg-[hsl(var(--nav-active-bg))] font-medium text-[hsl(var(--nav-active-fg))]"
-                      : "text-foreground hover:bg-accent/60",
-                  )}
-                >
-                  <Icon className="h-4 w-4 shrink-0" strokeWidth={1.65} aria-hidden />
-                  <span className="truncate">{label}</span>
-                </button>
-              );
-            })}
-          </div>
-        ))}
-      </PopoverContent>
-    </Popover>
-  );
-
   return (
     <nav
       aria-label={t("sidebar.navigation")}
@@ -327,10 +229,8 @@ export function WorkspaceNavigation({
               {t("workspace.preview.badge", { defaultValue: "界面预览 · 示例内容" })}
             </span>
           ) : null}
-          <div className="flex shrink-0 flex-col gap-1">{PRIMARY_ITEMS.map(renderItem)}</div>
-          <div className="my-1 h-px w-7 bg-sidebar-border" />
           <div className="flex shrink-0 flex-col gap-1">
-            {renderMore()}
+            {[...PRIMARY_ITEMS, ...CAPABILITY_ITEMS].map(renderItem)}
           </div>
           <div className="min-h-8 flex-1" />
           <div className="flex shrink-0 flex-col items-center gap-2 pb-1">
@@ -338,22 +238,16 @@ export function WorkspaceNavigation({
             {footerAction}
             <RailToggleButton
               collapsed={collapsed}
-              disabled={activeView !== "chat"}
               label={
                 collapsed
                   ? t("thread.header.toggleSidebar")
                   : t("sidebar.collapse")
               }
-              description={activeView !== "chat" ? t("workspace.nav.chatListUnavailable", {
-                defaultValue: i18n.resolvedLanguage?.startsWith("zh")
-                  ? "返回助手后可展开会话列表"
-                  : "Return to Assistant to expand the conversation list",
-              }) : undefined}
               onClick={onToggleCollapsed}
             />
           </div>
 
-          {!collapsed && !showChatColumn && connectionStatus ? (
+          {collapsed && connectionStatus ? (
             <div className="sr-only">
               {connectionStatus}
             </div>
@@ -379,14 +273,10 @@ export function WorkspaceNavigation({
 function RailToggleButton({
   collapsed,
   label,
-  disabled,
-  description,
   onClick,
 }: {
   collapsed: boolean;
   label: string;
-  disabled: boolean;
-  description?: string;
   onClick: () => void;
 }) {
   return (
@@ -396,9 +286,8 @@ function RailToggleButton({
       size="icon"
       data-testid="sidebar-rail-toggle"
       aria-label={label}
-      aria-expanded={!collapsed && !disabled}
-      title={description ?? label}
-      disabled={disabled}
+      aria-expanded={!collapsed}
+      title={label}
       onClick={onClick}
       className={cn(
         "host-no-drag flex cursor-pointer items-center justify-center gap-2 rounded-control text-muted-foreground hover:bg-sidebar-foreground/[0.06] hover:text-sidebar-foreground",

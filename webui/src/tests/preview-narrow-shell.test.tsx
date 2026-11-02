@@ -77,7 +77,7 @@ describe("PreviewApp narrow shell", () => {
     const search = screen.getByRole("textbox", { name: /search/i });
     fireEvent.change(search, { target: { value: "论文" } });
     fireEvent.click(screen.getByRole("button", { name: "Memory" }));
-    expect(screen.queryByRole("textbox", { name: /search/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /search/i })).toHaveValue("论文");
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     expect(screen.getByRole("textbox", { name: /search/i })).toHaveValue("论文");
     fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));

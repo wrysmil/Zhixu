@@ -134,7 +134,7 @@ const RESTART_STARTED_KEY = "zhixu-webui.restartStartedAt";
 const RESTART_ROUTE_KEY = "zhixu-webui.restartRoute";
 const RESTART_ROUTE_TTL_MS = 5 * 60 * 1000;
 // 视觉规格 v1.2：展开的聊天侧栏是单列（导航移到底部），折叠后仍为 54px 图标列。
-const SIDEBAR_WIDTH = 54;
+// 会话列表对所有菜单保持可见，只有显式折叠时才收成图标列。
 const SIDEBAR_RAIL_WIDTH = 54;
 const SIDEBAR_CHAT_WIDTH = 264;
 const MOBILE_SIDEBAR_WIDTH = `min(${SIDEBAR_CHAT_WIDTH}px, calc(100vw - 0.75rem))`;
@@ -2707,10 +2707,6 @@ function Shell({
     onOpenTeams,
     onSettingsIntent,
     onOpenSearch: onOpenSessionSearch,
-    activeUtility:
-      view === "apps" || view === "automations" || view === "skills" || view === "agents"
-        ? view
-        : null,
     onToggleArchived,
     pinnedKeys: sidebarPinnedTabKeys,
     archivedKeys: sidebarArchivedTabKeys,
@@ -2733,9 +2729,7 @@ function Shell({
   };
   const hostSidebarFlowWidth = !hostSidebarOpen
     ? SIDEBAR_RAIL_WIDTH
-    : view === "chat"
-      ? SIDEBAR_CHAT_WIDTH
-      : SIDEBAR_WIDTH;
+    : SIDEBAR_CHAT_WIDTH;
   const isSettingsLikeView =
     view === "settings"
     || view === "apps"

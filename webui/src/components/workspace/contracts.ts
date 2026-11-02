@@ -48,8 +48,6 @@ export interface WorkspaceNavigationProps {
   footerAction?: ReactNode;
   /** Marks the "New chat" affordance as the active selection. */
   newChatActive?: boolean;
-  /** Highlights the matching capability item as the active page. */
-  activeUtility?: "apps" | "skills" | "automations" | "agents" | null;
   hostChromeInset?: boolean;
 }
 
