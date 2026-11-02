@@ -102,3 +102,50 @@ def test_rerank_action_penalty_skips_non_fact():
         [c], query="x", persona=None, focus_terms=[]
     )
     assert out[0].composite_score == pytest.approx(0.74, abs=1e-3)
+
+
+def test_rerank_action_penalty_skips_fact_with_legit_subject():
+    """有合法主语的事实即使以动作词开头也不惩罚（抽取契约：主语开头）。"""
+    c = _cand("semantic", relevance=0.8, importance_score=0.8, recency_score=0.8,
+              content="部署项目统一使用 Jenkins",
+              raw=SimpleNamespace(type="fact", subject="项目 alpha-app"))
+    out = Reranker(fact_type_names=("fact",)).rerank(
+        [c], query="x", persona=None, focus_terms=[]
+    )
+    assert out[0].composite_score == pytest.approx(0.74, abs=1e-3)
+
+
+def test_rerank_action_penalty_skips_fact_with_user_subject():
+    """主语是"用户"→ 合法主语，不按操作指令处理。"""
+    c = _cand("semantic", relevance=0.8, importance_score=0.8, recency_score=0.8,
+              content="打开 Chrome 浏览器查看",
+              raw=SimpleNamespace(type="fact", subject="用户"))
+    out = Reranker(fact_type_names=("fact",)).rerank(
+        [c], query="x", persona=None, focus_terms=[]
+    )
+    assert out[0].composite_score == pytest.approx(0.74, abs=1e-3)
+
+
+def test_rerank_action_penalty_still_hits_assistant_subject():
+    """主语指向助手（你/AI）→ 那是执行者不是主体，仍判为操作指令 ×0.3。"""
+    c = _cand("semantic", relevance=0.8, importance_score=0.8, recency_score=0.995,
+              content="部署项目统一使用 Jenkins",
+              raw=SimpleNamespace(type="fact", subject="你"))
+    out = Reranker(fact_type_names=("fact",)).rerank(
+        [c], query="x", persona=None, focus_terms=[]
+    )
+    # recency=0.995 走冷启动豁免，保留候选以便直接读出系数
+    raw_score = 0.4 * 0.8 + 0.2 * 0.995 + 0.2 * 0.8 + 0.2 * 0.5  # 0.779
+    assert out[0].composite_score == pytest.approx(raw_score * 0.3, abs=1e-3)
+
+
+def test_rerank_action_penalty_hits_empty_subject():
+    """主语为空 → 缺少合法主语，按操作指令 ×0.3。"""
+    c = _cand("semantic", relevance=0.8, importance_score=0.8, recency_score=0.995,
+              content="部署项目统一使用 Jenkins",
+              raw=SimpleNamespace(type="fact", subject=""))
+    out = Reranker(fact_type_names=("fact",)).rerank(
+        [c], query="x", persona=None, focus_terms=[]
+    )
+    raw_score = 0.4 * 0.8 + 0.2 * 0.995 + 0.2 * 0.8 + 0.2 * 0.5  # 0.779
+    assert out[0].composite_score == pytest.approx(raw_score * 0.3, abs=1e-3)

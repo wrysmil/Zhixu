@@ -48,6 +48,14 @@ class TestSemanticExtractionPrompt:
         assert '"memories"' in SEMANTIC_EXTRACTION_PROMPT
         assert '"experiences"' in SEMANTIC_EXTRACTION_PROMPT
 
+    def test_requires_subject_first_content(self):
+        """事实类记忆必须以主语开头（检索期会把动词开头判为操作指令）"""
+        assert "主语开头" in SEMANTIC_EXTRACTION_PROMPT
+
+    def test_filters_operator_instructions(self):
+        """用户对助手的操作指令不是记忆，应被过滤"""
+        assert "操作指令" in SEMANTIC_EXTRACTION_PROMPT
+
     def test_length_within_limit(self):
         """提示词长度应小于 4000 tokens（约 16000 字符）"""
         # rough estimate: 1 token ≈ 4 chars for English

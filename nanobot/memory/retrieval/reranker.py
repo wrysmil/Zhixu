@@ -1,6 +1,6 @@
 """综合重排：score = 0.4×Rel + 0.2×Rec + 0.2×Imp + 0.2×AccessFreq
    + 焦点增强（×1.0~1.35）
-   + 动作词惩罚（fact 且起始动作词 × 0.3）
+   + 动作词惩罚（fact 且起始动作词、且缺少合法主语 × 0.3）
    + 冷启动豁免（recency ≥ 0.99）
    + 最小阈值（0.35）。"""
 from __future__ import annotations
@@ -9,6 +9,7 @@ import math
 import re
 from dataclasses import replace as _replace
 from datetime import datetime
+from typing import Any
 
 from nanobot.memory.retrieval.candidate import RetrievalCandidate
 
@@ -30,7 +31,6 @@ _CJK_PREFIXES = (
 _ASCII_PREFIXES = (
     "open", "run", "execute", "install", "deploy", "download", "delete",
 )
-_ACTION_PREFIXES = _CJK_PREFIXES + _ASCII_PREFIXES
 
 _ACTION_PATTERN = re.compile(
     r"^\s*(?:"
@@ -40,6 +40,36 @@ _ACTION_PATTERN = re.compile(
     + r")",
     re.IGNORECASE,
 )
+
+# 主语指向助手/第二人称：这类主语是"执行者"而不是"这件事的主体"，
+# 说明内容仍是一句让人去做的话，不是可复用的事实。
+_ASSISTANT_SUBJECT_CJK = ("你", "您", "助手", "助理", "智能体")
+_ASSISTANT_SUBJECT_ASCII = ("ai", "agent", "assistant", "chatbot", "llm")
+_ASSISTANT_SUBJECT_RE = re.compile(
+    r"\b(?:" + "|".join(_ASSISTANT_SUBJECT_ASCII) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def _subject_is_assistant(subject: str) -> bool:
+    """主语是否指向助手/第二人称（"你"、"助手"、"AI" 等）。"""
+    text = subject.strip()
+    if not text:
+        return False
+    if any(hint in text for hint in _ASSISTANT_SUBJECT_CJK):
+        return True
+    return bool(_ASSISTANT_SUBJECT_RE.search(text))
+
+
+def _has_legit_subject(raw: Any) -> bool:
+    """记忆是否带"合法主语"（非空、且不指向助手）。
+
+    合法主语是"这件事的主体"（用户 / 项目 alpha-app / 部署流程）。抽取契约要求
+    content 以主语开头，因此"以操作动词开头 + 没有合法主语"≈ 一条混进 fact 的
+    操作指令；反过来，有合法主语的内容是陈述事实，不该被动作词惩罚误伤。
+    """
+    subject = str(getattr(raw, "subject", "") or "")
+    return bool(subject.strip()) and not _subject_is_assistant(subject)
 
 
 def _compute_recency(updated_at: datetime, *, now: datetime | None = None) -> float:
@@ -74,10 +104,14 @@ class Reranker:
                 hits = sum(1 for ft in focus_terms if ft.lower() in c.content.lower())
                 boost = min(_FOCUS_BOOST_HI, _FOCUS_BOOST_LO + 0.1 * min(hits, 4))
                 base *= boost
-            # 动作词惩罚（仅对 fact 类型）
-            raw = getattr(c.raw, "type", None)
-            type_name = getattr(raw, "value", raw) if raw is not None else None
-            if type_name in self._fact_types and _ACTION_PATTERN.match(c.content):
+            # 动作词惩罚（仅对 fact 类型，且缺少合法主语）
+            type_raw = getattr(c.raw, "type", None)
+            type_name = getattr(type_raw, "value", type_raw) if type_raw is not None else None
+            if (
+                type_name in self._fact_types
+                and _ACTION_PATTERN.match(c.content)
+                and not _has_legit_subject(c.raw)
+            ):
                 base *= _ACTION_PENALTY
             scored.append(_replace(c, composite_score=base))
         # 冷启动豁免 + 阈值过滤
