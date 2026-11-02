@@ -1,5 +1,7 @@
 import sys
 
+import pytest
+
 from nanobot.agent.tools.apply_patch import ApplyPatchTool
 from nanobot.agent.tools.exec_session import ExecSessionTool, ListExecSessionsTool
 from nanobot.agent.tools.filesystem import EditFileTool, ReadFileTool, WriteFileTool
@@ -89,3 +91,20 @@ def test_exec_shell_parameter_guidance_matches_platform() -> None:
         assert "zsh" in shell_parameter
         assert "powershell" not in shell_parameter
         assert "cmd" not in shell_parameter
+
+
+def test_exec_accepts_an_optional_user_facing_purpose() -> None:
+    tool = ExecTool()
+    description = tool.parameters["properties"]["description"]
+    assert description["type"] == "string"
+    assert "user's language" in description["description"]
+    assert "description" not in tool.parameters.get("required", [])
+    assert tool.validate_params({"command": "echo hello", "description": "检查命令执行"}) == []
+    assert tool.validate_params({"command": "echo hello", "description": 42})
+
+
+@pytest.mark.asyncio
+async def test_exec_purpose_is_display_only() -> None:
+    result = await ExecTool().execute(command="echo safe-command", description="echo never-run")
+    assert "safe-command" in result
+    assert "never-run" not in result

@@ -1462,9 +1462,10 @@ class TestConsumeSse:
         await consume_sse_with_reasoning(response, on_tool_call_delta=cb)
 
         assert deltas == [
-            {"call_id": "c1", "name": "write_file", "arguments_delta": ""},
+            {"call_id": "c1", "item_id": "fc1", "name": "write_file", "arguments_delta": ""},
             {
                 "call_id": "c1",
+                "item_id": "fc1",
                 "name": "write_file",
                 "arguments": '{"path":"a.txt","content":"hello\\n"}',
             },
@@ -1816,15 +1817,17 @@ class TestConsumeSdkStream:
 
         await consume_sdk_stream(stream(), on_tool_call_delta=cb)
         assert deltas == [
-            {"call_id": "c1", "name": "write_file", "arguments_delta": ""},
+            {"call_id": "c1", "item_id": "fc1", "name": "write_file", "arguments_delta": ""},
             {
                 "call_id": "c1",
+                "item_id": "fc1",
                 "name": "write_file",
                 "arguments_delta": '{"path":"a.txt","content":"',
             },
-            {"call_id": "c1", "name": "write_file", "arguments_delta": "hello\\n"},
+            {"call_id": "c1", "item_id": "fc1", "name": "write_file", "arguments_delta": "hello\\n"},
             {
                 "call_id": "c1",
+                "item_id": "fc1",
                 "name": "write_file",
                 "arguments": '{"path":"a.txt","content":"hello\\n"}',
             },
@@ -1857,9 +1860,10 @@ class TestConsumeSdkStream:
         await consume_sdk_stream(stream(), on_tool_call_delta=cb)
 
         assert deltas == [
-            {"call_id": "c1", "name": "write_file", "arguments_delta": ""},
+            {"call_id": "c1", "item_id": "fc1", "name": "write_file", "arguments_delta": ""},
             {
                 "call_id": "c1",
+                "item_id": "fc1",
                 "name": "write_file",
                 "arguments": '{"path":"late.txt","content":"done\\n"}',
             },

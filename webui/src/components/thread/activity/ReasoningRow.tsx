@@ -35,10 +35,11 @@ export function ReasoningRow({
       marker={<ReasoningMarker streaming={streaming} />}
       active={streaming}
       tone={streaming ? "active" : "success"}
-      label={preview}
-      labelClassName="italic text-muted-foreground/78"
+      label={expanded ? fallback : preview}
+      labelClassName="text-foreground/85"
       contentClassName="overflow-hidden"
       detail={detail}
+      detailClassName="max-h-none overflow-visible rounded-none border-0 border-l-2 border-primary/25 bg-transparent py-1 pl-3 pr-0"
       detailExpanded={detail ? expanded : undefined}
       detailFollowBottom={streaming}
       onDetailExpandedChange={
@@ -74,7 +75,7 @@ function ReasoningMarker({ streaming }: { streaming: boolean }) {
       <CircleDashed
         data-testid="activity-reasoning-marker"
         data-state="thinking"
-        className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground/55"
+        className="h-3.5 w-3.5 shrink-0 animate-spin text-primary motion-reduce:animate-none"
         strokeWidth={1.8}
         aria-hidden
       />

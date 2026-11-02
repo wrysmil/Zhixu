@@ -517,6 +517,27 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     --cjk-line-height: 1.8;
   }
 
+  /* Activity panel: a thin accent sweep along the top edge while the turn is
+     running. It is the clearest "still working" cue at a glance. */
+  @keyframes activity-running-sweep {
+    0% {
+      transform: translateX(-110%);
+    }
+    100% {
+      transform: translateX(320%);
+    }
+  }
+  .activity-running-sweep {
+    animation: activity-running-sweep 1.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .activity-running-sweep {
+      animation: none;
+      transform: translateX(105%);
+      opacity: 0.55;
+    }
+  }
+
   /* L→R sheen clipped to live activity labels. The highlight lives inside
      the glyphs, not in the row background, so dark mode stays quiet. */
   @keyframes streaming-text-sheen-ltr {

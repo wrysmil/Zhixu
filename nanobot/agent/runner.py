@@ -940,10 +940,10 @@ class AgentRunner:
                 raise cancellation
 
         async def _provider_tool_event(event: dict[str, Any]) -> None:
-            if event.get("kind") != "hosted_tool":
-                return
             await _close_native_reasoning()
             await hook.on_provider_tool_event(context, event)
+            if event.get("kind") != "hosted_tool":
+                return
             call_id = event.get("call_id")
             if not call_id:
                 return

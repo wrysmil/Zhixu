@@ -35,8 +35,8 @@ from nanobot.agent.tools.sandbox import wrap_command
 from nanobot.agent.tools.schema import (
     BooleanSchema,
     IntegerSchema,
+    ObjectSchema,
     StringSchema,
-    tool_parameters_schema,
 )
 from nanobot.config.paths import get_media_dir
 from nanobot.config_base import Base
@@ -116,7 +116,15 @@ class _PreparedCommand:
 
 
 @tool_parameters(
-    tool_parameters_schema(
+    ObjectSchema(
+        {
+            "description": StringSchema(
+                "Briefly describe this command's purpose in the user's language for display. "
+                "Do not repeat the command or include sensitive information. Does not affect execution.",
+                max_length=120,
+            ),
+        },
+        additional_properties=False,
         command=StringSchema("The shell command to execute"),
         cmd=StringSchema("Compatibility alias for command"),
         working_dir=StringSchema("Optional working directory for the command"),
@@ -157,7 +165,7 @@ class _PreparedCommand:
             maximum=MAX_OUTPUT_CHARS,
             nullable=True,
         ),
-    )
+    ).to_json_schema()
 )
 class ExecTool(Tool):
     """Tool to execute shell commands."""

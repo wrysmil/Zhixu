@@ -174,6 +174,38 @@ function getScroller(container: HTMLElement): HTMLElement {
   return scroller;
 }
 
+function mockResponseLayout(container: HTMLElement, initialHeight = 40) {
+  const scroller = getScroller(container);
+  const content = scroller.firstElementChild as HTMLElement;
+  const gap = scroller.querySelector<HTMLElement>(".thread-message-end-gap")!;
+  let responseHeight = initialHeight;
+  const responseTop = 1100;
+  const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
+    if (this === scroller) return new DOMRect(0, 0, 800, 500);
+    if (this === content) {
+      return new DOMRect(0, -scroller.scrollTop, 800, responseTop + responseHeight);
+    }
+    const prompt = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-user-prompt-id]"),
+    ).at(-1);
+    if (this === prompt) return new DOMRect(0, 1020 - scroller.scrollTop, 800, 56);
+    if (this === prompt?.nextElementSibling) {
+      return new DOMRect(0, responseTop - scroller.scrollTop, 800, responseHeight);
+    }
+    return originalBounds.call(this);
+  });
+  Object.defineProperties(scroller, {
+    clientHeight: { configurable: true, value: 500 },
+    scrollTop: { configurable: true, writable: true, value: 0 },
+    scrollHeight: {
+      configurable: true,
+      get: () => responseTop + responseHeight + (Number.parseFloat(gap.style.minHeight) || 0) + 1,
+    },
+  });
+  return { scroller, gap, setResponseHeight: (height: number) => { responseHeight = height; } };
+}
+
 async function renderPromptRailViewport({
   scrollTo,
   messages: promptMessages = makePromptExchangeMessages(5),
@@ -234,6 +266,146 @@ function ViewportWithPromptNavigator({ messages }: { messages: UIMessage[] }) {
 }
 
 describe("ThreadViewport", () => {
+  it.each([false, true])("places a locally submitted AI response near the top, with output=%s", async (hasOutput) => {
+    const threaded: UIMessage[] = [
+      { id: "u1", role: "user", content: "old question", turnId: "turn-1", createdAt: 1 },
+      { id: "a1", role: "assistant", content: "old answer", turnId: "turn-1", createdAt: 2 },
+      { id: "u2", role: "user", content: "new question", turnId: "turn-2", createdAt: 3 },
+      ...(hasOutput ? [{ id: "a2", role: "assistant" as const, content: "Short response", turnId: "turn-2", isStreaming: true, createdAt: 4 }] : []),
+    ];
+    const props = {
+      messages: threaded,
+      isStreaming: true,
+      activeTurnId: "turn-2",
+      activeTurnStartedHere: true,
+      composer: <div>composer</div>,
+    };
+    const { container, rerender } = render(<ThreadViewport {...props} />);
+    const { scroller, gap, setResponseHeight } = mockResponseLayout(container);
+
+    act(() => window.dispatchEvent(new Event("resize")));
+    await flushAnimationFrame();
+
+    expect(gap).toHaveStyle({ minHeight: "443px" });
+    expect(scroller.scrollTop).toBe(1084);
+
+    setResponseHeight(100);
+    act(() => window.dispatchEvent(new Event("resize")));
+    await flushAnimationFrame();
+    expect(gap).toHaveStyle({ minHeight: "383px" });
+    expect(scroller.scrollTop).toBe(1084);
+
+    rerender(<ThreadViewport {...props} isStreaming={false} activeTurnId={null} />);
+    await flushAnimationFrame();
+    expect(gap).toHaveStyle({ minHeight: "383px" });
+    expect(scroller.scrollTop).toBe(1084);
+
+    rerender(<ThreadViewport {...props} conversationKey="another-chat" activeTurnStartedHere={false} />);
+    await flushAnimationFrame();
+    expect(gap.style.minHeight).toBe("");
+  });
+
+  it("follows long responses after reserved space is consumed and yields to history browsing", async () => {
+    const threaded: UIMessage[] = [
+      { id: "u2", role: "user", content: "new question", turnId: "turn-2", createdAt: 3 },
+      { id: "a2", role: "assistant", content: "Short response", turnId: "turn-2", isStreaming: true, createdAt: 4 },
+    ];
+    const { container } = render(
+      <ThreadViewport messages={threaded} isStreaming activeTurnId="turn-2" activeTurnStartedHere />,
+    );
+    const { scroller, gap, setResponseHeight } = mockResponseLayout(container);
+    act(() => window.dispatchEvent(new Event("resize")));
+    await flushAnimationFrame();
+    expect(scroller.scrollTop).toBe(1084);
+
+    setResponseHeight(800);
+    act(() => window.dispatchEvent(new Event("resize")));
+    await flushAnimationFrame();
+    expect(gap).toHaveStyle({ minHeight: "0px" });
+    expect(scroller.scrollTop).toBe(1401);
+
+    act(() => {
+      fireEvent.wheel(scroller, { deltaY: -100 });
+      scroller.scrollTop = 900;
+      scroller.dispatchEvent(new Event("scroll"));
+    });
+    setResponseHeight(1000);
+    act(() => window.dispatchEvent(new Event("resize")));
+    await flushAnimationFrame();
+    expect(scroller.scrollTop).toBe(900);
+  });
+
+  it.each([false, true])("consumes reserved space when canonical replay replaces the completed prompt, afterCompletion=%s", async (afterCompletion) => {
+    const threaded: UIMessage[] = [
+      { id: "u2", role: "user", content: "new question", turnId: "turn-2", createdAt: 3 },
+      { id: "a2", role: "assistant", content: "Short response", turnId: "turn-2", isStreaming: true, createdAt: 4 },
+    ];
+    const { container, rerender } = render(
+      <ThreadViewport messages={threaded} isStreaming activeTurnId="turn-2" activeTurnStartedHere />,
+    );
+    const { scroller, gap, setResponseHeight } = mockResponseLayout(container);
+    act(() => window.dispatchEvent(new Event("resize")));
+    await flushAnimationFrame();
+    expect(gap).toHaveStyle({ minHeight: "443px" });
+
+    if (afterCompletion) {
+      rerender(<ThreadViewport messages={threaded} isStreaming={false} activeTurnId={null} />);
+      await flushAnimationFrame();
+    }
+    setResponseHeight(800);
+    rerender(
+      <ThreadViewport
+        messages={[
+          { ...threaded[0], id: "canonical-user-2" },
+          { ...threaded[1], id: "canonical-answer-2", content: "A long final answer", isStreaming: false },
+        ]}
+        isStreaming={false}
+        activeTurnId={null}
+      />,
+    );
+    await flushAnimationFrame();
+
+    expect(gap).toHaveStyle({ minHeight: "0px" });
+    expect(scroller.scrollTop).toBe(1401);
+  });
+
+  it("clears reserved response space when the completed prompt disappears", async () => {
+    const threaded: UIMessage[] = [
+      { id: "u2", role: "user", content: "new question", turnId: "turn-2", createdAt: 3 },
+      { id: "a2", role: "assistant", content: "Short response", turnId: "turn-2", isStreaming: true, createdAt: 4 },
+    ];
+    const { container, rerender } = render(
+      <ThreadViewport messages={threaded} isStreaming activeTurnId="turn-2" activeTurnStartedHere />,
+    );
+    const { gap } = mockResponseLayout(container);
+    act(() => window.dispatchEvent(new Event("resize")));
+    await flushAnimationFrame();
+    expect(gap).toHaveStyle({ minHeight: "443px" });
+
+    rerender(<ThreadViewport messages={[threaded[1]]} isStreaming={false} activeTurnId={null} />);
+    await flushAnimationFrame();
+    expect(gap.style.minHeight).toBe("");
+  });
+
+  it("keeps restored running conversations at the real tail without reserving response space", async () => {
+    const { container } = render(
+      <ThreadViewport
+        messages={[
+          { id: "u2", role: "user", content: "question", turnId: "turn-2", createdAt: 3 },
+          { id: "a2", role: "assistant", content: "Short response", turnId: "turn-2", isStreaming: true, createdAt: 4 },
+        ]}
+        isStreaming
+        activeTurnId="turn-2"
+        activeTurnStartedHere={false}
+      />,
+    );
+    const { scroller, gap } = mockResponseLayout(container);
+    act(() => window.dispatchEvent(new Event("resize")));
+    await flushAnimationFrame();
+    expect(gap.style.minHeight).toBe("");
+    expect(scroller.scrollTop).toBe(641);
+  });
+
   it("keeps reasoning disclosure anchored for pointer and keyboard toggles", () => {
     const takeUserControl = vi.spyOn(
       ThreadMotionCoordinator.prototype,

@@ -1,20 +1,189 @@
 """Tests for runner progress hooks and provider event routing."""
 
 import asyncio
+import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from agent.runner_helpers import make_run_spec
+from nanobot.agent.hook import AgentHookContext, CompositeHook
 from nanobot.agent.hooks import FileEditActivityHook
 from nanobot.agent.progress_hook import AgentProgressHook
 from nanobot.agent.runner import AgentRunner
 from nanobot.agent.tools.filesystem import EditFileTool, WriteFileTool
 from nanobot.config.schema import AgentDefaults
 from nanobot.providers.base import LLMResponse, ToolCallRequest
+from nanobot.providers.openai_responses.parsing import (
+    consume_sdk_stream,
+    consume_sse_with_reasoning,
+)
 from nanobot.utils.progress_events import output_events
 
 _MAX_TOOL_RESULT_CHARS = AgentDefaults().max_tool_result_chars
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider_format", ["chat", "responses_sse", "responses_sdk"])
+async def test_runner_prepares_file_edit_before_arguments_finish_without_exposing_content(tmp_path, provider_format):
+    provider = MagicMock()
+    edits: list[dict] = []
+    calls = 0
+    tool = WriteFileTool(workspace=tmp_path)
+    expected_id = "write-1" if provider_format == "chat" else "write-1|fc1"
+
+    async def progress_cb(_content, *, file_edit_events=None, **kwargs):
+        edits.extend(file_edit_events or [])
+
+    class Tools:
+        def get_definitions(self):
+            return [{"type": "function", "function": {"name": "write_file"}}]
+
+        def prepare_call(self, name, params):
+            return tool, params, None
+
+    async def chat_stream_with_retry(*, on_tool_call_delta, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            return LLMResponse(content="done")
+        if provider_format != "chat":
+            async def response_events():
+                yield {
+                    "type": "response.output_item.added",
+                    "item": {"type": "function_call", "call_id": "write-1", "id": "fc1", "name": "write_file", "arguments": ""},
+                }
+                assert len(edits) == 1 and edits[0]["call_id"] == expected_id
+                assert not (tmp_path / "a.txt").exists()
+                yield {"type": "response.function_call_arguments.delta", "call_id": "write-1", "delta": '{"path":"a.txt","content":"private content"}'}
+                yield {
+                    "type": "response.output_item.done",
+                    "item": {"type": "function_call", "call_id": "write-1", "id": "fc1", "name": "write_file", "arguments": '{"path":"a.txt","content":"private content"}'},
+                }
+                yield {"type": "response.completed", "response": {"status": "completed"}}
+
+            if provider_format == "responses_sdk":
+                async def sdk_events():
+                    async for event in response_events():
+                        yield json.loads(json.dumps(event), object_hook=lambda data: SimpleNamespace(**data))
+
+                parsed = await consume_sdk_stream(sdk_events(), on_tool_call_delta=on_tool_call_delta)
+            else:
+                class SseResponse:
+                    async def aiter_lines(self):
+                        async for event in response_events():
+                            yield f"data: {json.dumps(event)}"
+                            yield ""
+
+                parsed = await consume_sse_with_reasoning(SseResponse(), on_tool_call_delta=on_tool_call_delta)
+            return LLMResponse(content=parsed[0] or None, tool_calls=parsed[1], finish_reason=parsed[2])
+        await on_tool_call_delta({"index": 0, "call_id": "write-1", "name": "write_file"})
+        assert edits == [{
+            "version": 1, "call_id": "write-1", "tool": "write_file", "path": "",
+            "phase": "start", "status": "editing", "pending": True,
+            "added": 0, "deleted": 0, "approximate": True,
+        }]
+        await on_tool_call_delta({"index": 0, "arguments_delta": '{"content":"private'})
+        await on_tool_call_delta({"index": 0, "arguments_delta": ' content","path":"a.txt"}'})
+        assert len(edits) == 1
+        assert not (tmp_path / "a.txt").exists()
+        return LLMResponse(content=None, tool_calls=[ToolCallRequest(
+            id="write-1", name="write_file", arguments={"path": "a.txt", "content": "private content"},
+        )])
+
+    provider.chat_stream_with_retry = chat_stream_with_retry
+    events = output_events(on_progress=progress_cb)
+    result = await AgentRunner().run(make_run_spec(
+        provider, initial_messages=[{"role": "user", "content": "write"}], tools=Tools(),
+        model="test-model", max_iterations=2, max_tool_result_chars=_MAX_TOOL_RESULT_CHARS,
+        workspace=tmp_path, hook=CompositeHook([
+            AgentProgressHook(events, streaming=True),
+            FileEditActivityHook(events=events, workspace=tmp_path),
+        ]),
+    ))
+
+    assert result.final_content == "done"
+    assert [(edit["phase"], edit["path"]) for edit in edits] == [
+        ("start", ""), ("start", "a.txt"), ("end", "a.txt"),
+    ]
+    assert all(edit["call_id"] == expected_id for edit in edits)
+    assert (tmp_path / "a.txt").read_text() == "private content"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ending", ["cancelled", "exception", "error", "omitted"])
+async def test_runner_closes_file_edit_preparation_when_no_tool_executes(tmp_path, ending):
+    edits: list[dict] = []
+    provider = MagicMock()
+
+    async def progress_cb(_content, *, file_edit_events=None, **kwargs):
+        edits.extend(file_edit_events or [])
+
+    async def chat_stream_with_retry(*, on_tool_call_delta, **kwargs):
+        await on_tool_call_delta({"call_id": "unfinished", "name": "edit_file"})
+        assert edits and edits[-1]["status"] == "editing"
+        if ending == "cancelled":
+            raise asyncio.CancelledError
+        if ending == "exception":
+            raise ValueError("provider failed")
+        if ending == "error":
+            return LLMResponse(content="provider failed", finish_reason="error")
+        return LLMResponse(content="no edit needed")
+
+    provider.chat_stream_with_retry = chat_stream_with_retry
+    tools = MagicMock()
+    tools.get_definitions.return_value = []
+    events = output_events(on_progress=progress_cb)
+    run = AgentRunner().run(make_run_spec(
+        provider, initial_messages=[{"role": "user", "content": "edit"}], tools=tools,
+        model="test-model", max_iterations=1, max_tool_result_chars=_MAX_TOOL_RESULT_CHARS,
+        hook=CompositeHook([
+            AgentProgressHook(events, streaming=True),
+            FileEditActivityHook(events=events, workspace=tmp_path),
+        ]),
+    ))
+    if ending == "cancelled":
+        with pytest.raises(asyncio.CancelledError):
+            await run
+    elif ending == "exception":
+        with pytest.raises(ValueError, match="provider failed"):
+            await run
+    else:
+        await run
+
+    assert [(edit["phase"], edit["call_id"]) for edit in edits] == [
+        ("start", "unfinished"), ("error", "unfinished"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_file_edit_preparation_remembers_index_identity_and_resets_each_iteration(tmp_path):
+    edits: list[dict] = []
+
+    async def progress_cb(_content, *, file_edit_events=None, **kwargs):
+        edits.extend(file_edit_events or [])
+
+    hook = FileEditActivityHook(events=output_events(on_progress=progress_cb), workspace=tmp_path)
+    context = AgentHookContext(iteration=0, messages=[])
+    await hook.before_iteration(context)
+    await hook.on_provider_tool_event(context, {"index": 0, "call_id": "a"})
+    await hook.on_provider_tool_event(context, {"index": 0, "name": "apply_patch"})
+    await hook.on_provider_tool_event(context, {"index": 0, "arguments_delta": "private"})
+    await hook.on_provider_tool_event(context, {"index": 1, "call_id": "b", "name": "read_file"})
+    assert [(edit["call_id"], edit["tool"]) for edit in edits] == [("a", "apply_patch")]
+    # A provider recovery may reuse an index before the next runner iteration.
+    await hook.on_provider_tool_event(context, {"index": 1, "call_id": "retry", "name": "write_file"})
+    await hook.on_provider_tool_event(context, {"index": 1, "name": "write_file"})
+    assert [(edit["call_id"], edit["tool"]) for edit in edits] == [
+        ("a", "apply_patch"), ("retry", "write_file"),
+    ]
+    await hook.after_iteration(context)
+    await hook.before_iteration(AgentHookContext(iteration=1, messages=[]))
+    await hook.on_provider_tool_event(context, {"index": 0, "call_id": "c", "name": "read_file"})
+    assert [(edit["call_id"], edit["phase"]) for edit in edits] == [
+        ("a", "start"), ("retry", "start"), ("a", "error"), ("retry", "error"),
+    ]
 
 
 @pytest.mark.asyncio

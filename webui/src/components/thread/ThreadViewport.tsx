@@ -76,6 +76,7 @@ const SOFT_KEYBOARD_MIN_INSET_PX = 80;
 const SESSION_HANDOFF_EXIT_DURATION_MS = 80;
 const SESSION_HANDOFF_ENTER_DURATION_MS = 140;
 const SESSION_HANDOFF_OPACITY = 0.82;
+const RESPONSE_TOP_INSET_PX = 16;
 export const INITIAL_HISTORY_WINDOW = 160;
 export const HISTORY_WINDOW_INCREMENT = 120;
 
@@ -259,6 +260,8 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
   const emptyStateRef = useRef<HTMLDivElement>(null);
   const composerDockRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const responseSpaceRef = useRef<{ turnId: string; promptId: string } | null>(null);
+  const messageEndGapRef = useRef<HTMLDivElement>(null);
   const lastConversationKeyRef = useRef<string | null>(conversationKey);
   const conversationHandoffPendingRef = useRef(false);
   const conversationHandoffAnimationRef = useRef<Animation | null>(null);
@@ -287,6 +290,34 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
         const composerHeight = composerDock
           ? composerDock.getBoundingClientRect().height || composerDock.offsetHeight
           : 0;
+        const reservedPrompt = responseSpaceRef.current
+          ? findPromptElement(scrollEl, responseSpaceRef.current.promptId)
+          : null;
+        const response = reservedPrompt?.nextElementSibling;
+        const messageContent = messageContentRef.current;
+        const endGap = messageEndGapRef.current;
+        if (
+          response instanceof HTMLElement
+          && !response.hasAttribute("data-user-prompt-id")
+          && messageContent
+          && endGap
+          && scrollEl.clientHeight > 0
+        ) {
+          const contentBounds = messageContent.getBoundingClientRect();
+          if (contentBounds.height > 0) {
+            // Reserve one viewport for a locally submitted response. As output
+            // grows, it consumes this space, so existing tail-follow naturally
+            // keeps short responses near the top and follows long ones.
+            const responseHeight = contentBounds.bottom - response.getBoundingClientRect().top;
+            const minHeight = Math.max(
+              0,
+              Math.ceil(scrollEl.clientHeight - RESPONSE_TOP_INSET_PX - responseHeight - 1),
+            );
+            endGap.style.minHeight = `${minHeight}px`;
+          }
+        } else if (!reservedPrompt && endGap) {
+          endGap.style.removeProperty("min-height");
+        }
         const prompt = promptId ? findPromptElement(scrollEl, promptId) : null;
         const scrollHeight = scrollEl.scrollHeight;
         const clientHeight = scrollEl.clientHeight;
@@ -559,6 +590,8 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
     pendingConversationScrollRef.current = true;
     historyScrollAnchorRef.current = null;
     restoreScrollAfterPrependRef.current = null;
+    responseSpaceRef.current = null;
+    messageEndGapRef.current?.style.removeProperty("min-height");
     threadMotionRef.current?.reset();
     setAtBottom(true);
     setVisibleMessageCount(INITIAL_HISTORY_WINDOW);
@@ -583,6 +616,18 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
       return;
     }
     if (!activeTurnId) {
+      const reservation = responseSpaceRef.current;
+      if (reservation) {
+        const completedPrompt = messages.find(
+          (message) => message.role === "user" && message.turnId === reservation.turnId,
+        );
+        if (completedPrompt) {
+          responseSpaceRef.current = { ...reservation, promptId: completedPrompt.id };
+        } else {
+          responseSpaceRef.current = null;
+          messageEndGapRef.current?.style.removeProperty("min-height");
+        }
+      }
       threadMotionRef.current?.completeTurn();
       return;
     }
@@ -600,6 +645,14 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
       pendingConversationScrollRef.current = false;
     }
     const prompt = promptIndex >= 0 ? messages[promptIndex] : null;
+    if (prompt && (activeTurnStartedHere || responseSpaceRef.current?.turnId === activeTurnId)) {
+      // Keep the reservation through completion and canonical prompt-id changes
+      // so a short answer does not drop back toward the composer at turn_end.
+      responseSpaceRef.current = { turnId: activeTurnId, promptId: prompt.id };
+    } else if (responseSpaceRef.current?.turnId !== activeTurnId) {
+      responseSpaceRef.current = null;
+      messageEndGapRef.current?.style.removeProperty("min-height");
+    }
     const hasOutput = promptIndex >= 0
       ? messages
           .slice(promptIndex + 1)
@@ -899,7 +952,7 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
                   onQuoteSelection={onQuoteSelection}
                 />
               </div>
-              <div aria-hidden className="thread-message-end-gap shrink-0" />
+              <div ref={messageEndGapRef} aria-hidden className="thread-message-end-gap shrink-0" />
               <div ref={bottomRef} aria-hidden className="h-px shrink-0" />
             </div>
           ) : (

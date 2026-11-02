@@ -14,6 +14,7 @@ import {
   Clock3,
   Copy,
   ImageIcon,
+  LoaderCircle,
   Quote,
   Wrench,
 } from "lucide-react";
@@ -474,6 +475,9 @@ export function MessageBubble({
 
   const showAssistantActions =
     message.role === "assistant" && !message.isStreaming && !isTurnStreaming && !empty;
+  const showRunningStatus = message.role === "assistant"
+    && !empty
+    && (!!message.isStreaming || isTurnStreaming);
   const showCopyButton = showCopyAction && showAssistantActions;
   const showForkButton = showAssistantActions && !!onForkFromHere;
   const forkLabel = t("message.forkFromHere");
@@ -499,7 +503,7 @@ export function MessageBubble({
   const assistantTimestampTitle = showAssistantTimestamp ? fmtDateTime(assistantTimestamp) : "";
   const showAutomationTrigger = showAssistantTimestamp && automationSourceLabel.length > 0;
   const showAssistantFooterRow =
-    showCopyButton || showForkButton || showAssistantTimestamp;
+    showRunningStatus || showCopyButton || showForkButton || showAssistantTimestamp;
   const showAssistantFooterSlot =
     message.role === "assistant"
     && (!empty || hasReasoning || media.length > 0);
@@ -543,6 +547,19 @@ export function MessageBubble({
                 : "pointer-events-none opacity-0",
             )}
           >
+            {showRunningStatus ? (
+              <span
+                role="status"
+                data-testid="assistant-running-status"
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[hsl(var(--workbench-accent))]"
+              >
+                <LoaderCircle
+                  className="h-3.5 w-3.5 shrink-0 animate-spin text-[hsl(var(--workbench-accent))] motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+                {t("thread.composer.placeholderStreaming")}
+              </span>
+            ) : null}
             {showCopyButton ? (
               <MessageCopyButton content={assistantContent} />
             ) : null}

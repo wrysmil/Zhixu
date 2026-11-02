@@ -844,7 +844,7 @@ describe("MessageBubble", () => {
     expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
   });
 
-  it("keeps assistant footer geometry mounted across stream completion", () => {
+  it("keeps a running status in the existing footer across stream completion", () => {
     const streaming: UIMessage = {
       id: "a-footer-stable",
       role: "assistant",
@@ -856,8 +856,11 @@ describe("MessageBubble", () => {
 
     const reservedFooter = container.querySelector("[data-assistant-footer]");
     expect(reservedFooter).not.toBeNull();
-    expect(reservedFooter).toHaveAttribute("data-state", "reserved");
-    expect(reservedFooter).toHaveClass("mt-2", "min-h-8", "opacity-0");
+    expect(reservedFooter).toHaveAttribute("data-state", "visible");
+    expect(reservedFooter).toHaveClass("mt-2", "min-h-8", "opacity-100");
+    expect(within(reservedFooter as HTMLElement).getByRole("status"))
+      .toHaveTextContent("Model is responding…");
+    expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
 
     rerender(
       <MessageBubble
@@ -873,6 +876,26 @@ describe("MessageBubble", () => {
     expect(visibleFooter).toBe(reservedFooter);
     expect(visibleFooter).toHaveAttribute("data-state", "visible");
     expect(visibleFooter).toHaveClass("mt-2", "min-h-8", "opacity-100");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("shows ongoing work after a text segment stops streaming until the turn ends", () => {
+    const message: UIMessage = {
+      id: "a-tool-arguments",
+      role: "assistant",
+      content: "First the plan, then the verification results.",
+      isStreaming: false,
+      createdAt: Date.now(),
+    };
+    const { rerender } = render(<MessageBubble message={message} isTurnStreaming />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Model is responding…");
+    expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
+
+    rerender(<MessageBubble message={message} isTurnStreaming={false} />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
   });
 
   it("does not show copy when showCopyAction is false", () => {
@@ -936,7 +959,7 @@ describe("MessageBubble", () => {
     expect(screen.queryByText("Code")).not.toBeInTheDocument();
   });
 
-  it("renders streaming reasoning as one compact line that already exposes its full text", () => {
+  it("shows a clear thinking heading and the full reasoning once while streaming", () => {
     const message: UIMessage = {
       id: "a-reasoning-streaming",
       role: "assistant",
@@ -949,18 +972,18 @@ describe("MessageBubble", () => {
     const { container } = render(<MessageBubble message={message} />);
 
     const line = screen.getByTestId("activity-line");
-    const preview = within(line).getByText("Step 1: parse intent. Step 2: compute.");
+    const preview = within(line).getByText("Thinking…");
     expect(preview).toBeInTheDocument();
     expect(container.querySelector(".reasoning-sheen-stripe")).not.toBeInTheDocument();
     expect(preview).toHaveClass("streaming-text-sheen");
     expect(preview).toHaveAttribute(
       "data-sheen-text",
-      "Step 1: parse intent. Step 2: compute.",
+      "Thinking…",
     );
     expect(screen.getByTestId("activity-step-detail")).toHaveTextContent(
       "Step 1: parse intent. Step 2: compute.",
     );
-    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Step 1: parse intent. Step 2: compute.")).toHaveLength(1);
     expect(screen.queryByRole("button", { name: /thinking/i })).not.toBeInTheDocument();
   });
 

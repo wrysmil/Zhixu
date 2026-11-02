@@ -98,7 +98,7 @@ class AgentHook:
         context: AgentHookContext,
         event: dict[str, Any],
     ) -> None:
-        """Observe a provider-hosted tool lifecycle event."""
+        """Observe provider tool-call deltas or hosted-tool lifecycle events."""
         pass
 
     async def before_execute_tools(self, context: AgentHookContext) -> None:

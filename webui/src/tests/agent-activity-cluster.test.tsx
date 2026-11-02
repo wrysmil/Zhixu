@@ -1384,8 +1384,9 @@ describe("AgentActivityCluster", () => {
       />,
     );
 
-    expect(screen.getByText("Planning a focused search for official sources")).toBeInTheDocument();
-    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+    expect(screen.getByTestId("activity-step-detail"))
+      .toHaveTextContent("**Planning** a focused search for official sources");
+    expect(screen.getByText("Thinking…")).toBeInTheDocument();
     expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
   });
 
@@ -2171,7 +2172,7 @@ describe("AgentActivityCluster", () => {
     expect(screen.queryByText("missing.png")).not.toBeInTheDocument();
   });
 
-  it("keeps every default activity action on one structural line", () => {
+  it("keeps each activity action in a readable row without clipping its title", () => {
     render(
       <AgentActivityCluster
         messages={[
@@ -2210,8 +2211,7 @@ describe("AgentActivityCluster", () => {
     for (const step of steps) {
       expect(step).toHaveClass("grid-cols-[1.125rem_minmax(0,1fr)]");
       const line = step.children[1]?.firstElementChild;
-      expect(line).toHaveClass("overflow-hidden");
-      expect(line).toHaveClass("whitespace-nowrap");
+      expect(line).not.toHaveClass("overflow-hidden", "whitespace-nowrap");
       expect(step.querySelector("br")).not.toBeInTheDocument();
       expect(step.querySelector('[data-testid="activity-evidence-preview"]')).not.toBeInTheDocument();
     }

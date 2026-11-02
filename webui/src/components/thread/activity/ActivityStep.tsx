@@ -20,6 +20,7 @@ export interface ActivityStepProps {
   onDetailExpandedChange?: (expanded: boolean) => void;
   /** Keep the detail box pinned to its newest content while streaming. */
   detailFollowBottom?: boolean;
+  detailClassName?: string;
   className?: string;
   contentClassName?: string;
   labelClassName?: string;
@@ -38,6 +39,7 @@ export function ActivityStep({
   detailExpanded,
   onDetailExpandedChange,
   detailFollowBottom = false,
+  detailClassName,
   className,
   contentClassName,
   labelClassName,
@@ -63,7 +65,7 @@ export function ActivityStep({
       data-testid="activity-step"
       aria-label={ariaLabel}
       className={cn(
-        "relative grid min-w-0 grid-cols-[1.125rem_minmax(0,1fr)] gap-2 py-0.5 text-[13px] leading-5",
+        "relative grid min-w-0 grid-cols-[1.125rem_minmax(0,1fr)] gap-2 py-1 text-[14px] leading-6",
         className,
       )}
       style={style}
@@ -105,18 +107,24 @@ export function ActivityStep({
         <div
           data-testid="activity-line"
           title={typeof label === "string" ? label : undefined}
-          className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap"
+          className="flex min-w-0 items-start gap-2"
         >
-          <StreamingLabelSheen
-            active={active}
-            className={cn(
-              "min-w-0 flex-1 truncate font-medium",
-              tone === "error" ? "text-destructive/78" : "text-muted-foreground/85",
+          {active ? (
+            <StreamingLabelSheen
+              active
+              className={cn("min-w-0 flex-1 font-medium text-foreground/90", labelClassName)}
+            >
+              {label}
+            </StreamingLabelSheen>
+          ) : (
+            <span className={cn(
+              "min-w-0 flex-1 break-words font-medium",
+              tone === "error" ? "text-destructive" : "text-foreground/80",
               labelClassName,
-            )}
-          >
-            {label}
-          </StreamingLabelSheen>
+            )}>
+              {label}
+            </span>
+          )}
           {detail ? (
             <button
               type="button"
@@ -124,8 +132,8 @@ export function ActivityStep({
               data-testid="activity-step-details-toggle"
               onClick={() => setDetailOpen(!detailOpen)}
               className={cn(
-                "ml-auto inline-flex shrink-0 cursor-pointer items-center gap-0.5 appearance-none border-0 bg-transparent p-0 text-[12px] font-normal",
-                "text-muted-foreground/65 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
+                "ml-auto inline-flex min-h-6 shrink-0 cursor-pointer items-center gap-0.5 appearance-none border-0 bg-transparent p-0 text-[12px] font-normal",
+                "text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
               )}
             >
               <ChevronRight
@@ -143,9 +151,10 @@ export function ActivityStep({
             data-testid="activity-step-detail"
             ref={detailBoxRef}
             className={cn(
-              "mt-1 max-h-64 min-w-0 overflow-y-auto whitespace-pre-wrap break-words rounded-control",
-              "border border-border/50 bg-muted/35 px-3 py-2 text-[12.5px] leading-5 text-muted-foreground",
+              "mt-2 max-h-96 min-w-0 overflow-y-auto whitespace-pre-wrap break-words rounded-control",
+              "border border-border/60 bg-background/60 px-3 py-3 text-[14px] leading-6 text-foreground/85",
               "scrollbar-thin scrollbar-track-transparent",
+              detailClassName,
             )}
           >
             {detail}

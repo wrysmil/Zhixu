@@ -399,6 +399,7 @@ async def consume_sse_with_reasoning(
                 if on_tool_call_delta:
                     await on_tool_call_delta({
                         "call_id": str(call_id),
+                        "item_id": str(tool_call_buffers[call_id]["id"]),
                         "name": str(item.get("name") or ""),
                         "arguments_delta": "",
                     })
@@ -477,6 +478,7 @@ async def consume_sse_with_reasoning(
                 if on_tool_call_delta and delta:
                     await on_tool_call_delta({
                         "call_id": str(call_id),
+                        "item_id": str(tool_call_buffers[call_id]["id"]),
                         "name": str(tool_call_buffers[call_id].get("name") or ""),
                         "arguments_delta": str(delta),
                     })
@@ -489,6 +491,7 @@ async def consume_sse_with_reasoning(
                     tool_call_args_emitted.add(str(call_id))
                     await on_tool_call_delta({
                         "call_id": str(call_id),
+                        "item_id": str(tool_call_buffers[call_id]["id"]),
                         "name": str(tool_call_buffers[call_id].get("name") or ""),
                         "arguments": "" if arguments is None else str(arguments),
                     })
@@ -506,6 +509,7 @@ async def consume_sse_with_reasoning(
                     tool_call_args_emitted.add(str(call_id))
                     await on_tool_call_delta({
                         "call_id": str(call_id),
+                        "item_id": str(buf.get("id") or item.get("id") or "fc_0"),
                         "name": str(buf.get("name") or item.get("name") or ""),
                         "arguments": str(args_raw),
                     })
@@ -710,6 +714,7 @@ async def consume_sdk_stream(
                 if on_tool_call_delta:
                     await on_tool_call_delta({
                         "call_id": str(call_id),
+                        "item_id": str(tool_call_buffers[call_id]["id"]),
                         "name": str(getattr(item, "name", None) or ""),
                         "arguments_delta": "",
                     })
@@ -769,6 +774,7 @@ async def consume_sdk_stream(
                 if on_tool_call_delta and delta:
                     await on_tool_call_delta({
                         "call_id": str(call_id),
+                        "item_id": str(tool_call_buffers[call_id]["id"]),
                         "name": str(tool_call_buffers[call_id].get("name") or ""),
                         "arguments_delta": str(delta),
                     })
@@ -781,6 +787,7 @@ async def consume_sdk_stream(
                     tool_call_args_emitted.add(str(call_id))
                     await on_tool_call_delta({
                         "call_id": str(call_id),
+                        "item_id": str(tool_call_buffers[call_id]["id"]),
                         "name": str(tool_call_buffers[call_id].get("name") or ""),
                         "arguments": "" if arguments is None else str(arguments),
                     })
@@ -801,6 +808,7 @@ async def consume_sdk_stream(
                     tool_call_args_emitted.add(str(call_id))
                     await on_tool_call_delta({
                         "call_id": str(call_id),
+                        "item_id": str(buf.get("id") or getattr(item, "id", None) or "fc_0"),
                         "name": str(buf.get("name") or getattr(item, "name", None) or ""),
                         "arguments": str(args_raw),
                     })

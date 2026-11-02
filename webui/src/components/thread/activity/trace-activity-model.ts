@@ -1,3 +1,5 @@
+import { currentLocale } from "@/i18n";
+
 import type { GenericToolStatus } from "./generic-tool-model";
 import { safeActivityDetail, summarizeShellCommand } from "./activity-text";
 import { presentWebSearchAction } from "./web-search-model";
@@ -93,24 +95,107 @@ function describeShellTrace(
   status: GenericToolStatus,
 ): TraceDescription {
   const command = shellCommandFromArgs(args) || fallback;
+  const chinese = /^zh/i.test(currentLocale());
+  const purpose = safeActivityDetail(traceFieldFromArgs(args, ["description", "ui_summary"]), 120);
+  if (purpose) {
+    return {
+      kind: "tool",
+      label: status === "error" ? `${chinese ? "失败：" : "Failed: "}${purpose}` : purpose,
+      detail: "",
+    };
+  }
   if (/^(?:\/(?:usr\/)?bin\/)?date(?:\s|$)/i.test(command.trim())) {
     return {
       kind: "tool",
       label: statusCopy(
         status,
-        "Checking current time",
-        "Checked current time",
-        "Could not check current time",
+        chinese ? "正在查看当前时间" : "Checking current time",
+        chinese ? "已查看当前时间" : "Checked current time",
+        chinese ? "查看当前时间失败" : "Could not check current time",
       ),
       detail: "",
       icon: "clock",
     };
   }
+  const action = shellAction(command);
+  if (action) {
+    const copy = SHELL_ACTION_COPY[action][chinese ? "zh" : "en"];
+    return { kind: "tool", label: statusCopy(status, ...copy), detail: "" };
+  }
   return {
     kind: "tool",
-    label: statusCopy(status, "Running command", "Ran command", "Command failed"),
+    label: statusCopy(
+      status,
+      chinese ? "正在执行命令" : "Running command",
+      chinese ? "已执行命令" : "Ran command",
+      chinese ? "命令执行失败" : "Command failed",
+    ),
     detail: summarizeShellCommand(command),
   };
+}
+
+type ShellAction = "test" | "build" | "lint" | "typecheck" | "search" | "list" | "read" | "changes";
+type StatusCopy = readonly [string, string, string];
+
+const SHELL_ACTION_COPY: Record<ShellAction, { en: StatusCopy; zh: StatusCopy }> = {
+  test: {
+    en: ["Running tests", "Ran tests", "Tests failed"],
+    zh: ["正在运行测试", "已运行测试", "测试失败"],
+  },
+  build: {
+    en: ["Building the app", "Built the app", "Build failed"],
+    zh: ["正在构建应用", "已构建应用", "构建失败"],
+  },
+  lint: {
+    en: ["Checking code style", "Checked code style", "Code style check failed"],
+    zh: ["正在检查代码规范", "已检查代码规范", "代码规范检查失败"],
+  },
+  typecheck: {
+    en: ["Checking types", "Checked types", "Type check failed"],
+    zh: ["正在检查类型", "已检查类型", "类型检查失败"],
+  },
+  search: {
+    en: ["Searching file contents", "Searched file contents", "File search failed"],
+    zh: ["正在搜索文件内容", "已搜索文件内容", "文件搜索失败"],
+  },
+  list: {
+    en: ["Listing files", "Listed files", "Could not list files"],
+    zh: ["正在查看文件列表", "已查看文件列表", "查看文件列表失败"],
+  },
+  read: {
+    en: ["Reading files", "Read files", "Could not read files"],
+    zh: ["正在读取文件", "已读取文件", "读取文件失败"],
+  },
+  changes: {
+    en: ["Checking workspace changes", "Checked workspace changes", "Could not check changes"],
+    zh: ["正在检查工作区改动", "已检查工作区改动", "检查工作区改动失败"],
+  },
+};
+
+/** Infer only a known leading command, never words embedded in scripts or quoted text. */
+function shellAction(command: string): ShellAction | undefined {
+  const firstLine = command.split(/\r?\n/, 1)[0].trim();
+  if (/<<|\|/.test(firstLine)) return undefined;
+  const executable = firstLine
+    .replace(/^(?:cd\s+(?:"[^"]*"|'[^']*'|[^&;\n]+)\s*&&\s*)+/, "")
+    .replace(/^(?:[A-Za-z_]\w*=(?:"[^"]*"|'[^']*'|[^\s]+)\s+)+/, "")
+    .replace(/^uv\s+run\s+(?:--[\w-]+\s+)*/, "");
+  const packageScript = /^(?:npm|pnpm|bun|yarn)\s+(?:(?:run|exec|x)\s+)?([\w:-]+)/.exec(executable)?.[1];
+  if (packageScript) {
+    if (/^(?:test|vitest|pytest)(?::|$)/.test(packageScript)) return "test";
+    if (/^build(?::|$)/.test(packageScript)) return "build";
+    if (/^lint(?::|$)/.test(packageScript)) return "lint";
+    if (/^(?:typecheck|type-check|tsc)(?::|$)/.test(packageScript)) return "typecheck";
+  }
+  if (/^(?:(?:\S*\/)?python[\d.]*\s+-m\s+)?(?:pytest|vitest)\b/.test(executable)) return "test";
+  if (/^node\s+\S*\/(?:vitest\/vitest\.mjs|jest\/bin\/jest\.js)\b/.test(executable)) return "test";
+  if (/^(?:ruff\s+check|eslint)\b/.test(executable)) return "lint";
+  if (/^(?:tsc|basedpyright|pyright)\b/.test(executable)) return "typecheck";
+  if (/^(?:rg|grep)\b/.test(executable)) return "search";
+  if (/^(?:ls|find)\b/.test(executable)) return "list";
+  if (/^(?:cat|head|tail)\b/.test(executable)) return "read";
+  if (/^git\s+(?:status|diff)\b/.test(executable)) return "changes";
+  return undefined;
 }
 
 function describeFileMutationTrace(

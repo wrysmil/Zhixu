@@ -1,0 +1,21 @@
+{
+  "checks": [
+    "等待模型时仍有持续运行指示，回复区靠上",
+    "思考详情可读，外层活动区超过旧180px上限",
+    "正文暂停后末尾仍显示运行状态",
+    "文件参数未生成完也显示准备编辑",
+    "长正文继续跟随末尾，用户上翻后不抢位置",
+    "整轮完成后运行提示消失",
+    "窄屏不横向溢出，活动详情可见",
+    "减少动态效果时停止旋转但保留指示"
+  ],
+  "screenshots": [
+    "2026-11-02-chat-activity-waiting.png",
+    "2026-11-02-chat-activity-thinking.png",
+    "2026-11-02-chat-activity-text.png",
+    "2026-11-02-chat-activity-file.png",
+    "2026-11-02-chat-activity-mobile.png",
+    "2026-11-02-chat-activity-dark.png"
+  ],
+  "errors": []
+}

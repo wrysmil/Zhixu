@@ -22,6 +22,45 @@ function renderShell(expanded: boolean) {
 }
 
 describe("ThinkingReasoningShell", () => {
+  it.each([
+    { expanded: true, hasDetails: true },
+    { expanded: false, hasDetails: true },
+    { expanded: false, hasDetails: false },
+  ])("keeps a visible running indicator with expanded=$expanded and hasDetails=$hasDetails", ({ expanded, hasDetails }) => {
+    const props = {
+      active: true,
+      expanded,
+      hasDetails,
+      label: "Working for 1m 17s",
+      viewportRef: () => undefined,
+      contentRef: () => undefined,
+      fadeTop: false,
+      fadeBottom: false,
+      onToggle: vi.fn(),
+      onScroll: vi.fn(),
+    };
+    const { rerender } = render(
+      <ThinkingReasoningShell {...props}>
+        <span>Completed tool</span>
+      </ThinkingReasoningShell>,
+    );
+
+    const indicator = screen.getByTestId("activity-running-indicator");
+    expect(indicator).toBeVisible();
+    expect(indicator).toHaveAttribute("aria-hidden", "true");
+    expect(indicator).toHaveClass("animate-spin", "motion-reduce:animate-none");
+    expect(indicator.parentElement).toHaveTextContent("Working for 1m 17s");
+
+    rerender(
+      <ThinkingReasoningShell {...props} active={false} label="Worked for 1m 18s">
+        <span>Completed tool</span>
+      </ThinkingReasoningShell>,
+    );
+
+    expect(screen.queryByTestId("activity-running-indicator")).not.toBeInTheDocument();
+    expect(screen.getByText("Worked for 1m 18s")).toBeVisible();
+  });
+
   it("makes collapsed descendants inert as well as visually hidden", () => {
     const { rerender } = renderShell(false);
     const disclosure = screen.getByRole("button", { name: "Thought" });
