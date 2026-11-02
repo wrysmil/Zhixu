@@ -188,13 +188,37 @@ class RetrievalEngine:
         if prepared.skip:
             trace.skipped(query=query, reason="预处理器判定跳过（空/控制词）")
             return []
-        candidates, _mode = await self._recall(
+        cap = max(1, int(limit))
+        tokens = cap * _TOKENS_PER_CANDIDATE
+        started = time.perf_counter()
+        # 自动注入与工具检索共用同一套 trace：没有 start 就没有 trace_id，
+        # 注入侧无法把「最终注入块」与这次召回对上（2026-11-02 日志暴露）。
+        trace.start(
+            raw_query=query,
+            cleaned_query=prepared.cleaned_query,
+            recent_count=len(recent_messages or []),
+            tokens=tokens,
+            workspace_ids=workspace_ids,
+        )
+        candidates, mode = await self._recall(
             query=prepared.cleaned_query,
             recent_messages=recent_messages,
             precomputed_keywords=None,
             workspace_ids=workspace_ids,
         )
-        return [c.hit for c in candidates[: max(1, int(limit))]]
+        selected = candidates[:cap]
+        trace.shortlist(
+            ranked=candidates,
+            selected=selected,
+            limit=cap,
+            tokens=tokens,
+            mode=mode,
+        )
+        trace.elapsed(
+            stage="结构化检索",
+            ms=(time.perf_counter() - started) * 1000,
+        )
+        return [c.hit for c in selected]
 
     async def retrieve_with_ids(
         self,
@@ -247,7 +271,14 @@ class RetrievalEngine:
         for candidate, item in zip(top, items, strict=True):
             item["kind"] = candidate.hit.kind
         block = _render_injection_block(items, mode=mode)
-        # 第二个返回值只给事实 id：引用评分只认 memories 表
+        # 仅统计最终工具输出；search_hits 的候选还需注入侧做预算选择。
+        record_accesses = getattr(self.store, "record_accesses", None)
+        if block and callable(record_accesses):
+            try:
+                record_accesses([candidate.hit for candidate in top])
+            except Exception as exc:  # noqa: BLE001 - 遥测失败不能丢失检索结果
+                logger.warning("Memory reference tracking failed: {!r}", exc)
+        # 兼容返回值仅含事实 ID；访问统计独立按 kind 处理事实与情节。
         injected = [it["memory_id"] for it in items if it.get("kind") == "memory"]
         trace.injection(block=block, ids=[it["memory_id"] for it in items])
         trace.elapsed(
