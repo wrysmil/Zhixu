@@ -43,7 +43,21 @@ _ACTION_PATTERN = re.compile(
 
 
 def _compute_recency(updated_at: datetime, *, now: datetime | None = None) -> float:
-    base = now or datetime.now(updated_at.tzinfo) if updated_at.tzinfo else (now or datetime.now())
+    """指数衰减的新鲜度分。
+
+    ``now`` 由调用方注入（评测时是 :class:`~nanobot.memory.clock.MemoryClock`
+    的虚拟日期）；缺省时用真实时间，行为与改造前一致。naive / aware 混用会被
+    归一到同一时区口径，避免比较时抛 ``TypeError``。
+    """
+    if now is None:
+        base = datetime.now(updated_at.tzinfo) if updated_at.tzinfo else datetime.now()
+    else:
+        base = now
+        if updated_at.tzinfo is None and base.tzinfo is not None:
+            # naive 存的时间戳按本地时间解读（与 datetime.now() 一致）。
+            base = base.astimezone().replace(tzinfo=None)
+        elif updated_at.tzinfo is not None and base.tzinfo is None:
+            base = base.replace(tzinfo=updated_at.tzinfo)
     days = (base - updated_at).total_seconds() / 86400.0
     return math.exp(-0.1 * max(0.0, days))
 

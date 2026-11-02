@@ -62,6 +62,41 @@ ERROR_STATUS: dict[str, int] = {
     "UNSUPPORTED_MEDIA_TYPE": 415,
     "METHOD_NOT_ALLOWED": 405,
     "NOT_FOUND": 404,
+    # ----- 记忆专项（契约 §6 错误表） -----
+    # 资源不存在：四个专项资源各有自己的 404 码，前端才能分辨该刷新哪一页。
+    "MEMORY_DATASET_NOT_FOUND": 404,
+    "MEMORY_SCENARIO_NOT_FOUND": 404,
+    "MEMORY_EXPERIMENT_NOT_FOUND": 404,
+    "MEMORY_IMPORT_NOT_FOUND": 404,
+    "MEMORY_COMPARISON_NOT_FOUND": 404,
+    # 状态冲突：能读到资源，但当前状态不允许这个动作。
+    "MEMORY_DATASET_NOT_READY": 409,
+    "MEMORY_EXPERIMENT_NOT_TERMINAL": 409,
+    "MEMORY_GRADING_REVISION_CONFLICT": 409,
+    "MEMORY_IMPORT_COUNT_MISMATCH": 409,
+    # 限额：单文件/单场景/条数超上限。
+    "MEMORY_IMPORT_TOO_LARGE": 413,
+    # 输入不合法（契约 §1/§2/§5 的各类门禁）。
+    "MEMORY_SCHEMA_INVALID": 422,
+    "MEMORY_EVIDENCE_INVALID": 422,
+    "MEMORY_BUDGET_EXCEEDED": 422,
+    "MEMORY_MODE_CONFLICT": 422,
+    "MEMORY_TARGET_UNSUPPORTED": 422,
+    "UNSUPPORTED_MEMORY_SETTING": 422,
+    "MEMORY_CAPABILITY_REQUIRED": 422,
+    "MEMORY_SOURCE_HASH_MISMATCH": 422,
+    "MEMORY_SPLIT_LEAK": 422,
+    "MEMORY_SCENARIO_REF_REQUIRED": 422,
+    "MEMORY_RESULT_MISSING": 422,
+    "MEMORY_RESULT_INVALID": 422,
+    "MEMORY_CANDIDATES_INVALID": 422,
+    "MEMORY_CANDIDATES_DUPLICATED": 422,
+    "MEMORY_CANDIDATE_UNKNOWN": 422,
+    "MEMORY_REPETITIONS_INVALID": 422,
+    "MEMORY_SCENARIOS_EMPTY": 422,
+    "MEMORY_SCENARIO_ID_MISMATCH": 422,
+    "MEMORY_TRACK_UNSUPPORTED": 422,
+    "TEMPLATE_FAMILY_CROSS_SPLIT": 422,
 }
 
 #: 服务内部故障：这些码**不回显 message**，只给一个固定文案。
@@ -91,6 +126,19 @@ def _default_message(code: str) -> str:
         "CSRF_INVALID": "缺少或无效的 CSRF 令牌",
         "ORIGIN_NOT_ALLOWED": "来源不被允许",
         "RATE_LIMITED": "请求过于频繁，请稍后再试",
+        "MEMORY_DATASET_NOT_FOUND": "记忆集合修订不存在",
+        "MEMORY_SCENARIO_NOT_FOUND": "记忆场景不存在",
+        "MEMORY_EXPERIMENT_NOT_FOUND": "记忆实验不存在",
+        "MEMORY_IMPORT_NOT_FOUND": "记忆集合导入作业不存在",
+        "MEMORY_COMPARISON_NOT_FOUND": "记忆比较不存在",
+        "MEMORY_DATASET_NOT_READY": "集合修订尚未就绪",
+        "MEMORY_EXPERIMENT_NOT_TERMINAL": "实验尚未进入终态",
+        "MEMORY_GRADING_REVISION_CONFLICT": "评分版本已更新，请刷新后重试",
+        "MEMORY_IMPORT_TOO_LARGE": "上传内容超过记忆集合限额",
+        "MEMORY_BUDGET_EXCEEDED": "实验预算不足",
+        "MEMORY_CAPABILITY_REQUIRED": "被测后端缺少该轨道所需能力",
+        "UNSUPPORTED_MEMORY_SETTING": "存在无法落到真实配置的记忆参数",
+        "MEMORY_SOURCE_HASH_MISMATCH": "上传内容与声明的摘要不一致",
     }.get(code, code)
 
 

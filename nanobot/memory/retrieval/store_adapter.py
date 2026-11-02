@@ -26,6 +26,7 @@ from typing import Any
 from loguru import logger
 
 from nanobot.memory import repository
+from nanobot.memory.clock import MemoryClock
 from nanobot.memory.database import MemoryDatabase
 from nanobot.memory.retrieval import trace
 
@@ -50,10 +51,22 @@ class MemoryStoreAdapter:
     """
 
     def __init__(
-        self, database: MemoryDatabase, *, vector_store: Any = None
+        self,
+        database: MemoryDatabase,
+        *,
+        vector_store: Any = None,
+        clock: MemoryClock | None = None,
     ) -> None:
         self._database = database
         self._vector_store = vector_store
+        # 评测时钟（可选）：TTL（expires_at）判定以注入时钟为准；缺省为真实时间。
+        self._clock = clock
+
+    def _now(self) -> datetime:
+        """当前墙上时间（注入时钟时为虚拟日期）。"""
+        if self._clock is not None:
+            return self._clock.wall_now()
+        return datetime.now(timezone.utc)
 
     # ----- 语义通道 -----
     def search_semantic_scored(
@@ -111,13 +124,15 @@ class MemoryStoreAdapter:
         # 丢弃分两类：行没了/作废/过期（活性），以及命中但不在可见集合内（工作区隔离）。
         discarded_inactive: list[str] = []
         discarded_invisible: list[str] = []
+        # TTL 判定基准：一次查询内取一次（提到循环外，避免重复计算）。
+        now = self._now()
         with self._database.connect() as conn:
             for mid, rrf_score in ordered:
                 mem = fts5_by_id.get(mid)
                 if mem is None:
                     # 向量独有 id：回查 SQLite 权威行并做活性与可见性过滤
                     mem = repository.get_memory(conn, mid)
-                    if mem is None or not _is_live(mem):
+                    if mem is None or not _is_live(mem, now=now):
                         discarded_inactive.append(mid)
                         continue
                     if not _is_visible(mem, workspace_ids):
@@ -223,18 +238,19 @@ def _is_visible(memory: Any, workspace_ids: Sequence[str] | None) -> bool:
     return str(getattr(memory, "workspace_id", "default") or "default") in allowed
 
 
-def _is_live(memory: Any) -> bool:
+def _is_live(memory: Any, *, now: datetime | None = None) -> bool:
     """向量独有候选的活性判定（spec §4.6）。
 
     Chroma 的 ``where`` 表达力不足，scope / superseded / expired 三类校验只能
-    在 SQLite 侧做。
+    在 SQLite 侧做。``now`` 由调用方注入（评测时是虚拟日期）；缺省为真实时间。
     """
     if getattr(memory, "superseded_by", None):
         return False
     expires_at = getattr(memory, "expires_at", None)
     if expires_at:
         try:
-            if datetime.fromisoformat(str(expires_at)) < datetime.now(timezone.utc):
+            reference = now if now is not None else datetime.now(timezone.utc)
+            if datetime.fromisoformat(str(expires_at)) < reference:
                 return False
         except (ValueError, TypeError):
             # 无法解析的 expires_at 视为未过期（宽松），避免误杀

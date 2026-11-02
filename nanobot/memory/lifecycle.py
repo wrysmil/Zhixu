@@ -17,6 +17,7 @@ from typing import Any
 
 from loguru import logger
 
+from nanobot.memory.clock import MemoryClock
 from nanobot.memory.filters import content_hash_legacy
 from nanobot.memory.models import Memory, MemoryType
 from nanobot.memory.repository import list_memories
@@ -76,7 +77,13 @@ class MemoryLifecycle:
     _last_refresh_trigger: dict[str, str] = {}  # "manual" | "auto"
     # NOTE: _derive_lock moved to instance-level in __init__ (fixes cross-workspace blocking)
 
-    def __init__(self, workspace_id: str, services: MemoryServices) -> None:
+    def __init__(
+        self,
+        workspace_id: str,
+        services: MemoryServices,
+        *,
+        clock: MemoryClock | None = None,
+    ) -> None:
         self.workspace_id = workspace_id
         self.services = services
         self.memory_dir: Path = services.database.workspace / "memory"
@@ -84,14 +91,33 @@ class MemoryLifecycle:
         self.draft_file: Path = self.memory_dir / "MEMORY.md.draft"
         # Instance-level lock: each workspace has its own lock (fixes cross-workspace blocking)
         self._derive_lock = threading.Lock()
+        # 评测时钟（可选）：派生文件刷新时间戳与去抖间隔走注入时钟；
+        # 缺省时与生产一致（真实时间）。
+        self._clock = clock
+
+    def _now_iso(self) -> str:
+        """当前 UTC 时间戳（注入时钟时为虚拟日期）。"""
+        if self._clock is not None:
+            return self._clock.wall_now().strftime("%Y-%m-%dT%H:%M:%SZ")
+        return _iso8601_now()
+
+    def _monotonic(self) -> float:
+        """策略单调时钟（去抖间隔口径）。"""
+        if self._clock is not None:
+            return self._clock.monotonic()
+        return time.monotonic()
 
     @classmethod
     def for_workspace(
-        cls, workspace_id: str, services: MemoryServices
+        cls,
+        workspace_id: str,
+        services: MemoryServices,
+        *,
+        clock: MemoryClock | None = None,
     ) -> "MemoryLifecycle":
         """Return the singleton MemoryLifecycle for the given workspace."""
         if workspace_id not in cls._instances:
-            cls._instances[workspace_id] = cls(workspace_id, services)
+            cls._instances[workspace_id] = cls(workspace_id, services, clock=clock)
         return cls._instances[workspace_id]
 
     # ------------------------------------------------------------------
@@ -139,7 +165,7 @@ class MemoryLifecycle:
 
                 self._safe_write_with_backup(self.memory_file, content)
 
-                self._last_refresh_iso[workspace_id] = _iso8601_now()
+                self._last_refresh_iso[workspace_id] = self._now_iso()
                 # Only stamp "manual" when called directly (sync path);
                 # async schedule_refresh_md pre-sets "auto" and we preserve it.
                 if self._last_refresh_trigger.get(workspace_id) != "auto":
@@ -192,7 +218,7 @@ class MemoryLifecycle:
         Only triggers a real refresh if debounce_seconds have elapsed since
         the last trigger. Cancels any in-flight refresh task.
         """
-        now = time.monotonic()
+        now = self._monotonic()
         last = self._last_refresh_at.get(workspace_id, 0.0)
 
         if now - last < debounce_seconds:

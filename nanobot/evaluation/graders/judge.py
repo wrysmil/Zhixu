@@ -23,7 +23,8 @@ import asyncio
 import json
 import re
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol
+from dataclasses import dataclass
+from typing import Any, Literal, Protocol
 
 from nanobot.evaluation.graders.rules import AttemptEvidenceView
 from nanobot.evaluation.judge_materials import JudgeMaterials, build_materials
@@ -33,6 +34,11 @@ from nanobot.evaluation.schemas import JudgeDimensionResult, JudgeResult
 GRADER_VERSION = "judge-v1"
 #: 提示词版本：与量表一起构成 judge_fingerprint 的成分（契约 §3.1）。
 PROMPT_VERSION = "judge-prompt-v1"
+#: 记忆专项等价判定的提示词版本（契约 §8.2）：换版本即换指纹，旧校准查不到。
+MEMORY_JUDGE_PROMPT_VERSION = "memory-judge-prompt/v1"
+#: 记忆事实等价判定的四值结论（契约 §8.2 第 2 步）。
+#: ``unknown`` **不是**"不相等"：它让对应指标变成 not_assessable。
+EquivalenceVerdict = Literal["equivalent", "contradictory", "unrelated", "unknown"]
 #: 默认总预算（含重试），plan T08 钉死 60 秒。
 DEFAULT_TIMEOUT_S = 60.0
 #: 物理请求上限：spec §7.1「最多重试一次」。
@@ -395,6 +401,111 @@ def _json_candidates(content: str) -> list[str]:
 
 
 # ------------------------------------------------------------------------ 小工具
+
+
+@dataclass(frozen=True)
+class EquivalenceJudgement:
+    """一次记忆事实等价判定的结论。
+
+    ``unknown`` 表示**判不出来**：调用方必须把它变成 ``not_assessable``，不能当成
+    "两条事实不相等"。
+    """
+
+    verdict: EquivalenceVerdict
+    reason: str = ""
+    evidence_refs: tuple[str, ...] = ()
+
+
+def memory_judge_fingerprint(
+    *,
+    profile: Mapping[str, Any],
+    rubric: Mapping[str, Any] | Any,
+    prompt_version: str = MEMORY_JUDGE_PROMPT_VERSION,
+) -> str:
+    """记忆等价判定的指纹——**复用**既有指纹算法，不另造一套。
+
+    换服务商/模型/提示词/量表任一项，指纹就变：旧校准在新指纹下查不到结论 →
+    未校准 → 对应指标 not_assessable。
+    """
+    from nanobot.evaluation.graders.calibration import judge_fingerprint
+
+    return judge_fingerprint(profile=profile, rubric=rubric, prompt_version=prompt_version)
+
+
+async def evaluate_memory_equivalence(
+    materials: str,
+    provider: JudgeProviderView,
+    *,
+    model: str | None = None,
+    generation: Mapping[str, Any] | None = None,
+    calibrated: bool = False,
+    timeout_s: float = DEFAULT_TIMEOUT_S,
+) -> EquivalenceJudgement:
+    """无工具的记忆等价判定调用（契约 §8.2 / §4）。
+
+    - **只请求、不执行**：``tools=None``；响应里出现 ``tool_calls`` 直接判非法；
+    - **材料是数据**：历史文本与回答里的指令只当数据，守卫语句写进系统提示；
+    - **只给四值结论**：不输出 0–4 量表——语义量表是诊断材料，二值准确率由
+      :mod:`nanobot.evaluation.memory.grading` 的规则层给。
+
+    任何失败都收敛成 ``unknown``：判不出来不是"不相等"。
+    """
+    used_model = model if model is not None else _default_model(provider)
+    messages = [
+        {"role": "system", "content": _memory_equivalence_prompt()},
+        {"role": "user", "content": materials},
+    ]
+    try:
+        async with asyncio.timeout(timeout_s):
+            response = await provider.chat_with_retry(
+                messages, None, used_model, **(dict(generation or {}))
+            )
+    except TimeoutError:
+        return EquivalenceJudgement("unknown", "JUDGE_TIMEOUT")
+    except Exception as exc:  # noqa: BLE001 - 原始异常留在 reason 里供复核
+        return EquivalenceJudgement("unknown", f"PROVIDER_ERROR: {type(exc).__name__}: {exc}")
+    if getattr(response, "tool_calls", None):
+        return EquivalenceJudgement("unknown", "TOOL_CALL_REJECTED: 评分响应请求调用工具")
+    content = getattr(response, "content", None)
+    if not isinstance(content, str) or not content.strip():
+        return EquivalenceJudgement("unknown", "OUTPUT_EMPTY")
+    payload, failure = _load_json_object(content)
+    if failure is not None or payload is None:
+        return EquivalenceJudgement("unknown", failure or "OUTPUT_INVALID")
+    verdict = payload.get("verdict")
+    if verdict not in ("equivalent", "contradictory", "unrelated", "unknown"):
+        return EquivalenceJudgement("unknown", f"VERDICT_INVALID: {verdict!r}")
+    reason = payload.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        return EquivalenceJudgement("unknown", "REASON_INVALID")
+    refs = payload.get("evidence_refs")
+    evidence_refs = tuple(str(item) for item in refs) if isinstance(refs, list) else ()
+    return EquivalenceJudgement(
+        verdict=verdict,  # type: ignore[arg-type]
+        reason=reason.strip(),
+        evidence_refs=evidence_refs,
+    )
+
+
+def _memory_equivalence_prompt() -> str:
+    return "\n".join(
+        [
+            "你是记忆事实的等价判定器。你的唯一任务是判断两条原子事实是否等价。",
+            "",
+            "评分守卫：",
+            *(f"- {phrase}" for phrase in SYSTEM_GUARD_PHRASES),
+            "",
+            "判定口径：",
+            "- equivalent：两条事实表达同一个事实（主体/属性/作用域/有效区间一致，值同义）。",
+            "- contradictory：两条事实对同一属性给出互斥的值。",
+            "- unrelated：两条事实不是同一个事实。",
+            "- unknown：材料不足以判断。**判不出来不等于不相等。**",
+            "",
+            "输出格式（严格 JSON，除此之外不输出任何内容）：",
+            '{"verdict":"<equivalent|contradictory|unrelated|unknown>",'
+            '"reason":"<简短中文理由>","evidence_refs":["<材料中的引用>"]}',
+        ]
+    )
 
 
 def _failed(model: str, errors: Sequence[str]) -> JudgeResult:

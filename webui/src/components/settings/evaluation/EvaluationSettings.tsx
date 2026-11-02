@@ -9,6 +9,7 @@ import {
 import { EvaluationDatasets } from "@/components/settings/evaluation/EvaluationDatasets";
 import { EvaluationRuns } from "@/components/settings/evaluation/EvaluationRuns";
 import { EvaluationStatusBadge } from "@/components/settings/evaluation/evaluation-status";
+import { MemoryEvaluation } from "@/components/settings/evaluation/memory/MemoryEvaluation";
 import {
   evaluationErrorText,
   formatDateTime,
@@ -24,7 +25,7 @@ import {
 } from "@/lib/evaluation-api";
 import { cn } from "@/lib/utils";
 
-type EvalTab = "overview" | "runs" | "datasets";
+type EvalTab = "overview" | "runs" | "datasets" | "memory";
 
 export function EvaluationSettings() {
   const { t } = useTranslation();
@@ -175,6 +176,7 @@ export function EvaluationSettings() {
             { value: "overview", label: t("settings.evaluation.tab.overview") },
             { value: "runs", label: t("settings.evaluation.tab.runs") },
             { value: "datasets", label: t("settings.evaluation.tab.datasets") },
+            { value: "memory", label: t("settings.evaluation.tab.memory") },
           ]}
         />
         <div className="flex items-center gap-2">
@@ -299,6 +301,7 @@ export function EvaluationSettings() {
 
       {tab === "runs" ? <EvaluationRuns refreshKey={refreshKey} initialRun={selectedRun} /> : null}
       {tab === "datasets" ? <EvaluationDatasets /> : null}
+      {tab === "memory" ? <MemoryEvaluation calibration={calibrationState} /> : null}
     </div>
   );
 }

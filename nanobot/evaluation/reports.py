@@ -24,6 +24,11 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import Any, TypedDict
 
+from nanobot.evaluation.assessment import (
+    TOOL_ARGUMENTS,
+    TOOL_SELECTION,
+    collect_decision_annotations,
+)
 from nanobot.evaluation.graders.rules import TOOL_ASSERTION_KINDS
 from nanobot.evaluation.schemas import UsageAggregate
 
@@ -76,6 +81,10 @@ class RunMetrics(TypedDict):
     task_outcomes: dict[str, Any]
     qualification: dict[str, Any]
     reliability: dict[str, Any]
+    #: 契约 §4 通用层补充：已判定口径的任务成功率（completed/已判定）。
+    judged_task_outcomes: dict[str, Any]
+    #: 契约 §4 通用层补充：工具选择/参数准确率与标注覆盖度。
+    tool_decision: dict[str, Any]
 
 
 def normalize_attempt_for_metrics(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -146,6 +155,8 @@ def aggregate_run(
         task_outcomes=aggregate_task_outcomes(attempts, planned_count),
         qualification=aggregate_qualification(attempts, planned_count),
         reliability=aggregate_reliability(attempts),
+        judged_task_outcomes=aggregate_judged_task_outcomes(attempts, planned_count),
+        tool_decision=aggregate_tool_decision_accuracy(attempts),
     )
 
 
@@ -600,6 +611,107 @@ def aggregate_task_outcomes(
         "task_success_rate": _ratio(completed, planned_count) if known else None,
         "partial_completion_rate": _ratio(partial, planned_count) if known else None,
         "task_assessment_coverage": _ratio(known, planned_count),
+    }
+
+
+def aggregate_judged_task_outcomes(
+    attempts: Sequence[Mapping[str, Any]], planned_count: int
+) -> dict[str, Any]:
+    """已判定口径的任务成功率（契约 §4 通用层补充）。
+
+    - ``task_success_rate_judged = completed / 已判定试验``；
+    - 已判定 = ``completed + partial + failed``（``unknown`` 不算已判定）；
+    - 没有已判定试验时返回 ``None``：把"没测"写成 0% 就是把未知当失败。
+
+    **旧口径不动**：``aggregate_task_outcomes`` 的 ``task_success_rate`` 仍然是
+    ``completed / planned``（交付口径），本函数用新字段名，不静默改旧分母。
+    """
+    completed = partial = failed = unknown = 0
+    for attempt in attempts:
+        evaluation = _evaluation_of(attempt)
+        if evaluation is None:
+            unknown += 1
+            continue
+        outcome = str(evaluation.get("task_outcome") or "unknown")
+        if outcome == "completed":
+            completed += 1
+        elif outcome == "partial":
+            partial += 1
+        elif outcome == "failed":
+            failed += 1
+        else:
+            unknown += 1
+    judged = completed + partial + failed
+    return {
+        "planned": planned_count,
+        "judged": judged,
+        "completed": completed,
+        "partial": partial,
+        "failed": failed,
+        "unknown": unknown,
+        "task_success_rate_judged": _ratio(completed, judged),
+        "judged_coverage": _ratio(judged, planned_count),
+    }
+
+
+def aggregate_tool_decision_accuracy(
+    attempts: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """工具选择/参数准确率与标注覆盖度（契约 §4 通用层补充）。
+
+    分母是**可判定的决策点**，不是工具调用数：
+
+    - ``tool_decision_accuracy``：选择正确的决策点 / 可判定的选择决策点；
+    - ``tool_argument_accuracy``：参数正确的决策点 / 可判定的参数决策点；
+    - ``annotation_coverage``：可判定的决策点 / 全部声明的决策点。
+
+    没有人工或声明式决策标注时，两个准确率都是 ``None``，覆盖度也如实为
+    ``None``——**不拿工具执行成功率顶替**：调用跑通不代表该选这个工具。
+    """
+    selection = {"annotated": 0, "judgeable": 0, "correct": 0}
+    arguments = {"annotated": 0, "judgeable": 0, "correct": 0}
+    mixed = 0
+    planned = 0
+    for attempt in attempts:
+        annotations = collect_decision_annotations(
+            case_snapshot=attempt.get("case_snapshot"),
+            rule_results=attempt.get("assertions") or (),
+            explicit=attempt.get("decision_annotations") or (),
+        )
+        for item in annotations:
+            planned += 1
+            if item.kind == TOOL_SELECTION:
+                selection["annotated"] += 1
+                bucket = selection
+            elif item.kind == TOOL_ARGUMENTS:
+                arguments["annotated"] += 1
+                bucket = arguments
+            else:
+                mixed += 1
+                continue
+            if item.passed is None:
+                continue
+            bucket["judgeable"] += 1
+            if item.passed:
+                bucket["correct"] += 1
+    reasons: list[str] = []
+    if planned == 0:
+        reasons.append("NO_DECISION_ANNOTATIONS")
+    if mixed:
+        reasons.append("MIXED_DECISION_POINTS")
+    return {
+        "tool_decision_accuracy": _ratio(selection["correct"], selection["judgeable"]),
+        "tool_argument_accuracy": _ratio(arguments["correct"], arguments["judgeable"]),
+        "annotation_coverage": _ratio(
+            selection["judgeable"] + arguments["judgeable"], planned
+        ),
+        "decision_points": planned,
+        "judgeable_decision_points": selection["judgeable"] + arguments["judgeable"],
+        "correct_decision_points": selection["correct"] + arguments["correct"],
+        "selection": dict(selection),
+        "arguments": dict(arguments),
+        "mixed_decision_points": mixed,
+        "reasons": reasons,
     }
 
 

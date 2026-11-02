@@ -32,8 +32,13 @@ def search_episodes(
     limit: int,
     compute_recency: Callable[[datetime], float],
     workspace_ids: Sequence[str] | None = None,
+    now: datetime | None = None,
 ) -> list[RetrievalCandidate]:
-    """按 query 中的实体名关联 Episode，命中固定给 0.6 相关性。"""
+    """按 query 中的实体名关联 Episode，命中固定给 0.6 相关性。
+
+    ``now`` 是「行没有 updated_at 时」用的默认时间戳（评测时注入虚拟日期）；
+    缺省时用真实时间，行为与改造前一致。
+    """
     entities = _extract_query_entities(query)[:3]
     # 关键词兜底：keywords 由 QueryDecomposer 产出，普通中文对话也能命中 episode
     if keywords:
@@ -41,6 +46,7 @@ def search_episodes(
             if kw and kw not in entities:
                 entities.append(kw)
     entities = entities[:3]
+    default_updated_at = now if now is not None else datetime.now()
     candidates: list[RetrievalCandidate] = []
     for entity in entities:
         eps = store.search_episodes(
@@ -55,7 +61,7 @@ def search_episodes(
                     source_channel="episodes",
                     relevance=_EPISODE_BASE_SCORE,
                     recency_score=compute_recency(
-                        getattr(ep, "updated_at", datetime.now())
+                        getattr(ep, "updated_at", default_updated_at)
                     ),
                     importance_score=0.5,
                     access_frequency_score=0.0,

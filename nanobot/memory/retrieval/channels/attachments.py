@@ -32,11 +32,15 @@ def search_attachments(
     intent: str,
     limit: int,
     compute_recency: Callable[[datetime], float],
+    now: datetime | None = None,
 ) -> list[RetrievalCandidate]:
     """媒体闸门：intent=search_file 或 query 命中媒体词才召回附件。
 
     逐 term 向 store 索取候选，按 id 去重后包装为 RetrievalCandidate。
     term 匹配语义由 store 实现方（T-12 repository）负责。
+
+    ``now`` 是「行没有 updated_at 时」用的默认时间戳（评测时注入虚拟日期）；
+    缺省时用真实时间，行为与改造前一致。
     """
     has_media_hint = intent == "search_file" or any(
         kw in raw_query for kw in _MEDIA_KEYWORDS
@@ -44,6 +48,7 @@ def search_attachments(
     if not has_media_hint:
         return []
 
+    default_updated_at = now if now is not None else datetime.now()
     search_terms = [raw_query] + list(keywords)
     candidates: list[RetrievalCandidate] = []
     seen: set[str] = set()
@@ -59,7 +64,7 @@ def search_attachments(
                     source_channel="attachments",
                     relevance=_ATTACHMENT_RELEVANCE,
                     recency_score=compute_recency(
-                        item.get("updated_at", datetime.now())
+                        item.get("updated_at", default_updated_at)
                     ),
                     importance_score=float(
                         item.get("importance_score", _DEFAULT_IMPORTANCE)

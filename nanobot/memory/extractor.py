@@ -29,6 +29,7 @@ from uuid import uuid4
 
 from loguru import logger
 
+from nanobot.memory.clock import MemoryClock
 from nanobot.memory.database import MemoryDatabase
 from nanobot.memory.filters import (
     compute_content_hash,
@@ -267,8 +268,12 @@ class ExtractionResult:
 # ---------------------------------------------------------------------------
 
 
-def _now_iso() -> str:
+def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+#: 历史名称别名（模块级函数 ``_now_iso`` 保留，避免外部引用断裂）。
+_now_iso = _utc_now_iso
 
 
 def _iso(value: Any) -> str:
@@ -713,11 +718,15 @@ class MemoryExtractor:
         runtime: LLMRuntime,
         workspace_id: str = "default",
         user_id: str = "default",
+        clock: MemoryClock | None = None,
     ) -> None:
         self.database = database
         self.runtime = runtime
         self.workspace_id = workspace_id
         self.user_id = user_id
+        # 评测时钟（可选）：默认时间戳（updated_at / 抽取 state / fallback 文件名）
+        # 走注入时钟；缺省时与生产一致（真实 UTC 时间）。
+        self._clock = clock
         # S3 Track 1：画像 + 引用评分 + 经验。SEMANTIC_EXTRACTION_PROMPT 是双轨输出，
         # 一次调用同时产出 memories / experiences，交给 ProfileExtractor 统一解析。
         self.profile_extractor = ProfileExtractor(runtime=runtime)
@@ -751,6 +760,12 @@ class MemoryExtractor:
     # ------------------------------------------------------------------
     # 主入口
     # ------------------------------------------------------------------
+
+    def _now_iso(self) -> str:
+        """当前时间戳：注入时钟时走注入时钟，否则用真实 UTC 时间。"""
+        if self._clock is not None:
+            return self._clock.iso_now()
+        return _utc_now_iso()
 
     async def extract_session(
         self,
@@ -1021,7 +1036,7 @@ class MemoryExtractor:
             # 成功后推进 state。失败的增量结果（memory_ids 为空）也算「执行过」，
             # 因为它是确定性无副作用的纯规则扫描；保留 last_count 推进语义
             # 可避免每次 idle 触发都重扫同一段历史。
-            now = _now_iso()
+            now = self._now_iso()
             try:
                 with self.database.connect() as conn:
                     upsert_extraction_state(
@@ -1457,7 +1472,7 @@ class MemoryExtractor:
                 )
                 return False
             try:
-                ts = _now_iso()
+                ts = self._now_iso()
                 uid = uuid.uuid4().hex[:8]
                 safe_kind = str(kind).replace("/", "_").replace("\\", "_")
                 # Windows 文件名保留字符处理:ISO 时间戳里的 `:` 不能出现在 NTFS
@@ -1575,7 +1590,7 @@ class MemoryExtractor:
         session: Session,
         source: str,
     ) -> PersistenceResult:
-        now = _now_iso()
+        now = self._now_iso()
         row_workspace_id = self._row_workspace_id(session)
         provenance = extraction_provenance(session, source, workspace_id=row_workspace_id)
         provenance["store_workspace_id"] = self.workspace_id
@@ -1770,8 +1785,6 @@ class MemoryExtractor:
         source: str = "session_end",
     ) -> Episode | None:
         """从整段对话转录生成一个情节记忆（不入库，由调用方决定）。"""
-        from datetime import datetime, timezone
-
         from nanobot.session.manager import Session as _Session
 
         from .models import Episode, EpisodeOutcome
@@ -1781,7 +1794,7 @@ class MemoryExtractor:
             return None
 
         action_nodes = self._extract_action_nodes(transcript)
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = self._now_iso()
         episode = Episode(
             id=str(uuid4()),
             session_id=session_key,

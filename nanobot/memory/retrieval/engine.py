@@ -25,6 +25,7 @@ from typing import Any, Callable
 
 from loguru import logger
 
+from nanobot.memory.clock import MemoryClock
 from nanobot.memory.retrieval import trace
 from nanobot.memory.retrieval.candidate import RetrievalCandidate
 from nanobot.memory.retrieval.channels.attachments import search_attachments
@@ -77,12 +78,41 @@ class RetrievalEngine:
         brain: Any = None,
         persona: Any = None,
         max_tokens: int = 700,
+        clock: MemoryClock | None = None,
+        event_sink: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self.store = store
         self._decomposer = QueryDecomposer(brain=brain)
         self._reranker = Reranker()
         self._persona = persona
         self._default_max_tokens = max(1, max_tokens)
+        # 评测时钟（可选）。缺省时新鲜度按真实时间计算，行为与改造前一致。
+        self._clock = clock
+        # 通道故障的结构化出口（可选）：让「通道失败」在完成信号里显式可见，
+        # 而不是被降级成「没召回到」。observer 抛异常不影响检索主流程。
+        self._event_sink = event_sink
+
+    def _now(self) -> datetime:
+        """当前墙上时间（注入时钟时为虚拟日期）。"""
+        if self._clock is not None:
+            return self._clock.wall_now()
+        return datetime.now()
+
+    def _emit_channel_error(self, channel: str, error: BaseException) -> None:
+        """把通道故障交给结构化 observer；observer 自身失败不影响检索。"""
+        if self._event_sink is None:
+            return
+        try:
+            self._event_sink(
+                {
+                    "event": "retrieval_channel_failed",
+                    "channel": channel,
+                    "error_type": type(error).__name__,
+                    "error": str(error),
+                }
+            )
+        except Exception as exc:  # noqa: BLE001 - observer 失败不得破坏检索
+            logger.warning("retrieval event sink failed: {}", exc)
 
     async def retrieve(
         self,
@@ -155,7 +185,7 @@ class RetrievalEngine:
 
       # _fn 是一个闭包（内部函数）
     # 即一个接收一个参数、返回一个结果的函数式接口。
-        recency = _build_recency_fn()
+        recency = _build_recency_fn(self._clock)
 
         # 2) 四路并行（同步通道 → asyncio.to_thread）
         sem_task = asyncio.create_task(
@@ -178,6 +208,7 @@ class RetrievalEngine:
                 limit=_EPISODES_LIMIT,
                 compute_recency=recency,
                 workspace_ids=workspace_ids,
+                now=self._now(),
             )
         )
         rec_task = asyncio.create_task(
@@ -200,6 +231,7 @@ class RetrievalEngine:
                 intent=intent,
                 limit=_ATTACHMENTS_LIMIT,
                 compute_recency=recency,
+                now=self._now(),
             )
         )
         sem, eps, rec, att = await asyncio.gather(
@@ -228,6 +260,7 @@ class RetrievalEngine:
                 )
                 channel_errors[channel_name] = f"{type(chunk).__name__}: {chunk}"
                 channel_items[channel_name] = []
+                self._emit_channel_error(channel_name, chunk)
                 continue
             channel_items[channel_name] = list(chunk)
 
@@ -307,24 +340,29 @@ def _dedupe_by_memory_id_detailed(
     return list(bucket.values()), dup_groups
 
 
-def _build_recency_fn() -> Callable[[Any], float]:
-    """构造通道 ``compute_recency`` 闭包：兼容 ``datetime`` 与 ISO 字符串。"""
+def _build_recency_fn(clock: MemoryClock | None = None) -> Callable[[Any], float]:
+    """构造通道 ``compute_recency`` 闭包：兼容 ``datetime`` 与 ISO 字符串。
+
+    ``clock`` 注入时以虚拟日期为新鲜度基准（评测可模拟「过了一天」）；缺省时
+    用真实时间，行为与改造前一致。
+    """
 
     def _fn(value: Any) -> float:
-        coerced = _coerce_dt(value)
-        return _compute_recency(coerced)
+        coerced = _coerce_dt(value, clock=clock)
+        now = clock.wall_now() if clock is not None else None
+        return _compute_recency(coerced, now=now)
 
     return _fn
 
 
-def _coerce_dt(value: Any) -> datetime:
+def _coerce_dt(value: Any, *, clock: MemoryClock | None = None) -> datetime:
     """``datetime`` 原样返回；ISO 字符串 → ``datetime.fromisoformat``；失败兜底。"""
     if isinstance(value, datetime):
         return value
     try:
         return datetime.fromisoformat(str(value))
     except (ValueError, TypeError):
-        return datetime.now()
+        return clock.wall_now() if clock is not None else datetime.now()
 
 
 def _render_injection_block(items: list[dict]) -> str:

@@ -33,6 +33,17 @@ from pydantic import (
     model_validator,
 )
 
+from nanobot.evaluation.memory.models import (
+    MemoryAdoptionPolicy,
+    MemoryBudgets,
+    MemoryCandidate,
+    MemoryDatasetSource,
+    MemoryGradingPolicy,
+    MemoryReviewRef,
+    MemoryScenario,
+    MemoryScenarioRef,
+    MemoryTrack,
+)
 from nanobot.evaluation.validation import validate_relative_path
 
 if sys.version_info >= (3, 12):  # pragma: no cover - 解释器版本分支
@@ -489,7 +500,10 @@ class _CaseFields(JsonModel):
     ] = Field(default_factory=list)
     enabled: StrictBool = True
     suite_id: Uuid
-    turns: Annotated[list[Turn], Field(min_length=1, max_length=20)]
+    # 普通 case 要求 1..20 轮、1..50 条断言；专项 case（带 memory_scenario_ref）
+    # 允许为空数组。两条路径的边界都在 ``_limits_and_shape`` 里按 ref 分流判定，
+    # 普通 case 的旧语义不变。
+    turns: Annotated[list[Turn], Field(max_length=20)]
     fixtures: Annotated[list[Fixture], Field(max_length=50)] = Field(default_factory=list)
     memory_seed: Annotated[
         list[MemorySeed], Field(max_length=20)
@@ -499,7 +513,7 @@ class _CaseFields(JsonModel):
         list[ToolFixture], Field(max_length=50)
     ] = Field(default_factory=list)
     execution: ExecutionConfig
-    assertions: Annotated[list[Assertion], Field(min_length=1, max_length=50)]
+    assertions: Annotated[list[Assertion], Field(max_length=50)]
     rubric: Rubric | None = None
     #: 离线脚本（仅 tool_mode=fixture 生效）；live 模式忽略。
     script: Annotated[list[ScriptStep], Field(max_length=20)] = Field(
@@ -521,6 +535,16 @@ class _CaseFields(JsonModel):
     required_inputs: Annotated[list[StrictStr], Field(max_length=50)] = Field(
         default_factory=list
     )
+    #: 契约 §1：记忆专项引用。给了它，本用例就是专项 case：turns/assertions 可以为空，
+    #: 场景正文与 gold 由评估服务按 ref 解析，case 快照只存 ref。
+    memory_scenario_ref: MemoryScenarioRef | None = None
+    #: 契约 §1/§3：专项 case 的执行轨道；只允许与 memory_scenario_ref 同现。
+    memory_track: Literal["extraction", "retrieval", "end_to_end"] = "end_to_end"
+    #: 契约 §1：专项 case 必须声明的必需 memory 指标判据（缺了就给不出专项 verdict）。
+    memory_required_metrics: Annotated[
+        list[Annotated[StrictStr, Field(min_length=1, max_length=120)]],
+        Field(max_length=50),
+    ] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _limits_and_shape(self) -> "_CaseFields":
@@ -539,14 +563,41 @@ class _CaseFields(JsonModel):
         self._check_dependencies()
         for assertion in self.assertions:
             _assertion_path_check(assertion)
-        if not self._has_required_rule():
-            raise ValueError("REQUIRED_RULE_OR_RUBRIC")
+        self._check_memory_shape()
         if self.evaluation is not None and "task" in self.evaluation.required_dimensions:
             has_milestone = bool(self.evaluation.milestones)
             has_judge = self.rubric is not None and self.rubric.required
             if not has_milestone and not has_judge:
                 raise ValueError("TASK_CRITERIA_MISSING")
         return self
+
+    def _check_memory_shape(self) -> None:
+        """普通 case 与专项 case 的形状分流（契约 §1）。
+
+        普通 case：轮次 1..20、断言 1..50、必须有必过规则或必需量表——旧语义不变。
+        专项 case：轮次与断言必须为空（不允许与普通 case 混写），且必须声明必需
+        memory 指标判据。
+        """
+        if self.memory_scenario_ref is None:
+            if not self.turns:
+                raise ValueError("CASE_TURNS_REQUIRED")
+            if not self.assertions:
+                raise ValueError("CASE_ASSERTIONS_REQUIRED")
+            if self.memory_required_metrics:
+                raise ValueError("MEMORY_METRICS_WITHOUT_SCENARIO_REF")
+            if self.memory_track != "end_to_end":
+                raise ValueError("MEMORY_TRACK_WITHOUT_SCENARIO_REF")
+            if not self._has_required_rule():
+                raise ValueError("REQUIRED_RULE_OR_RUBRIC")
+            return
+        if self.turns or self.assertions:
+            raise ValueError("MEMORY_CASE_MIXED_CONTENT")
+        if self.memory_seed:
+            raise ValueError("MEMORY_SEED_WITH_SCENARIO_REF")
+        if self.script:
+            raise ValueError("MEMORY_SCRIPT_WITH_SCENARIO_REF")
+        if not self.memory_required_metrics:
+            raise ValueError("MEMORY_CASE_REQUIRES_METRICS")
 
     def _check_dependencies(self) -> None:
         """声明了输入素材就必须真的有：缺依赖在入库时明示，不留到运行期。
@@ -733,6 +784,9 @@ class ManualReview(JsonModel):
     comment: StrictStr
     reviewer: StrictStr
     created_at: datetime
+    #: 契约 §4：逐 probe 复核引用。为 null 的是**整 attempt 验收**；非 null 的只针对
+    #: 某个 probe 的某个指标，不能当整任务通过。
+    memory_ref: MemoryReviewRef | None = None
 
 
 # ====================================================================== 读出模型
@@ -823,6 +877,9 @@ class RunMetrics(JsonModel):
     task_outcomes: JsonObject = Field(default_factory=dict)
     qualification: JsonObject = Field(default_factory=dict)
     reliability: JsonObject = Field(default_factory=dict)
+    #: 契约 §4 通用层补充：已判定口径的任务成功率与工具决策准确率。
+    judged_task_outcomes: JsonObject = Field(default_factory=dict)
+    tool_decision: JsonObject = Field(default_factory=dict)
 
 
 class RunRead(RunSummary):
@@ -981,8 +1038,15 @@ class Overview(JsonModel):
 
 
 class SampleImportRequest(JsonModel):
-    #: 内置样本 id：basic-v1 是基础回归集，reliability-v2 是 36 条分层样本。
-    sample_id: Literal["basic-v1", "reliability-v2"]
+    #: 内置样本 id：basic-v1 是基础回归集，reliability-v2 是 36 条分层样本；
+    #: memory-*-v1 是记忆专项的三个内置集合（契约 §6，走同一版本化导入器）。
+    sample_id: Literal[
+        "basic-v1",
+        "reliability-v2",
+        "memory-smoke-v1",
+        "memory-core-v1",
+        "memory-calibration-v1",
+    ]
 
 
 class ImportSuiteRequest(JsonModel):
@@ -1031,10 +1095,112 @@ class RerunCreate(JsonModel):
 class ManualReviewCreate(JsonModel):
     verdict: Literal["passed", "failed"]
     comment: StrictStr = ""
+    #: 契约 §4：可选的逐 probe 复核引用；缺省表示整 attempt 验收。
+    memory_ref: MemoryReviewRef | None = None
 
 
 class EmptyBody(JsonModel):
     """取消类路由的请求体：契约要求 `{}`，不接受额外字段。"""
+
+
+# ====================================================================== 记忆专项请求体
+# 契约 §6 的写请求边界。**schema 边界只解析一次**：这里用严格模型收口，服务层内部
+# 直接消费模型，不再对 dict 做二次嗅探。
+
+
+#: 契约 §1：split 闭集。
+MemorySplit = Literal["development", "calibration", "regression"]
+#: 契约 §1：场景/指标/候选标识上限 120 字符（与 memory.models.ShortId 一致）。
+MemoryId = Annotated[StrictStr, Field(min_length=1, max_length=120)]
+
+
+class MemoryDatasetImportMetadata(JsonModel):
+    """``POST /memory/datasets/import`` 的 metadata 部分（multipart 的文本字段）。
+
+    来源与文件 hash 必填（``source.sha256``）；``dataset_version`` 只有 LongMemEval
+    可以从上传内容推导，其余格式必须显式给出——版本号是历史可复现的锚点。
+    """
+
+    suite_id: Uuid | None = None
+    dataset_version: Annotated[StrictStr, Field(min_length=1, max_length=120)] | None = None
+    format: Literal["json", "jsonl", "longmemeval"] = "jsonl"
+    source: MemoryDatasetSource
+    #: 仅 LongMemEval 使用：落到哪个 split（缺省 development）。
+    split: MemorySplit | None = None
+    #: 仅 LongMemEval 使用：官方分层子集名。
+    subset: Annotated[StrictStr, Field(min_length=1, max_length=80)] | None = None
+
+    @model_validator(mode="after")
+    def _format_scoped_fields(self) -> "MemoryDatasetImportMetadata":
+        if self.format != "longmemeval" and (self.split or self.subset):
+            raise ValueError("MEMORY_SCHEMA_INVALID: split/subset only apply to longmemeval")
+        return self
+
+
+class MemoryRevisionCreate(JsonModel):
+    """``POST /memory/datasets/{id}/revisions``：CAS 编辑产生新修订。"""
+
+    base_revision: Annotated[StrictStr, Field(min_length=1, max_length=120)]
+    changes: Annotated[list[MemoryScenario], Field(min_length=1, max_length=2000)]
+
+
+class MemoryExperimentCreate(JsonModel):
+    """契约 §2 的实验创建体。字段与 ``MemoryExperimentCreate`` 逐项对应。"""
+
+    dataset_revision_id: Uuid
+    scenario_ids: Annotated[list[MemoryId], Field(max_length=2000)] | None = None
+    split: MemorySplit
+    track: MemoryTrack
+    candidates: Annotated[list[MemoryCandidate], Field(min_length=1, max_length=3)]
+    repetitions: Annotated[StrictInt, Field(ge=1, le=10)] = 1
+    model_mode: Literal["real", "scripted"] = "real"
+    #: 契约 §2：scripted 必须引用平台受控 fixture，real 禁止携带（互斥）。
+    script_fixture_id: Annotated[StrictStr, Field(min_length=1, max_length=120)] | None = None
+    judge_profile_id: MemoryId | None = None
+    budgets: MemoryBudgets = Field(default_factory=MemoryBudgets)
+    primary_metric: MemoryId | None = None
+    policy: MemoryGradingPolicy
+
+    @model_validator(mode="after")
+    def _mode_and_candidates(self) -> "MemoryExperimentCreate":
+        if len({item.id for item in self.candidates}) != len(self.candidates):
+            raise ValueError("MEMORY_CANDIDATES_DUPLICATED")
+        if self.model_mode == "scripted" and not self.script_fixture_id:
+            raise ValueError("MEMORY_MODE_CONFLICT: scripted requires script_fixture_id")
+        if self.model_mode == "real" and self.script_fixture_id:
+            raise ValueError("MEMORY_MODE_CONFLICT: real forbids script_fixture_id")
+        if self.scenario_ids is not None and len(set(self.scenario_ids)) != len(
+            self.scenario_ids
+        ):
+            raise ValueError("MEMORY_SCHEMA_INVALID: duplicated scenario_ids")
+        # 契约 §2：no_persistent_memory 只用于端到端对照，不能参与抽取算法排名。
+        if self.track != "end_to_end" and any(
+            item.mode == "no_persistent_memory" for item in self.candidates
+        ):
+            raise ValueError(
+                "MEMORY_MODE_CONFLICT: no_persistent_memory only applies to end_to_end"
+            )
+        return self
+
+
+class MemoryComparisonCreate(JsonModel):
+    """契约 §5 的比较创建体。"""
+
+    baseline_experiment_id: Uuid
+    candidate_experiment_id: Uuid
+    baseline_candidate_id: MemoryId
+    candidate_candidate_id: MemoryId
+    changed_fields: Annotated[
+        list[Annotated[StrictStr, Field(min_length=1, max_length=200)]],
+        Field(max_length=200),
+    ] = Field(default_factory=list)
+    policy: MemoryAdoptionPolicy = Field(default_factory=MemoryAdoptionPolicy)
+
+    @model_validator(mode="after")
+    def _distinct_experiments(self) -> "MemoryComparisonCreate":
+        if self.baseline_experiment_id == self.candidate_experiment_id:
+            raise ValueError("COMPARISON_INCOMPATIBLE: same experiment")
+        return self
 
 
 # =========================================================================== Trace 与 Worker IPC
@@ -1057,6 +1223,8 @@ class TraceEvent(JsonModel):
         "team.dispatch", "member.started", "member.completed",
         "tool.denied",
         "trace.incomplete",
+        # 契约 §4：记忆专项事件（kind/场景/probe/检查点/状态版本进 payload）。
+        "memory.event",
     ]
     turn: NonNegativeInt | None = None
     iteration: NonNegativeInt | None = None
@@ -1100,6 +1268,9 @@ class AgentWorkerBoot(_BootBase):
     case_snapshot: CaseWrite
     #: run 级限额（服务端已与用例取更严值）。为 None 时只用用例级限额。
     limits: RunLimits | None = None
+    #: 契约 §4：记忆专项执行载荷（``build_execution_input``/``execution_fields``
+    #: 的产物——**不含 gold、来源许可与评分判据**）。普通 case 恒为 None。
+    memory_execution: JsonObject | None = None
 
 
 class JudgeWorkerBoot(_BootBase):
@@ -1128,6 +1299,9 @@ class _ResultBase(JsonModel):
 class AgentWorkerResult(_ResultBase):
     final_answer: StrictStr | None = None
     stop_reason: StrictStr | None = None
+    #: 契约 §4：记忆专项产物（``MemoryScenarioRun`` 的 JSON 形状：trial + 失败账目
+    #: + 执行覆盖）。``final_answer`` 只是最后 probe 的摘要，不能代替全部 probe。
+    memory_result: JsonObject | None = None
 
 
 class JudgeWorkerResult(_ResultBase):

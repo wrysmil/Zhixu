@@ -66,6 +66,14 @@ from nanobot.agent.hook import (
 from nanobot.memory.intent import IntentType, classify_intent
 from nanobot.memory.llm_error import response_error
 from nanobot.memory.prompts import TOPIC_CHANGE_DETECTION_PROMPT
+from nanobot.memory.signals import (
+    IDLE_EXTRACTION_OP_ID,
+    STATUS_CANCELLED,
+    STATUS_FAILED,
+    MemoryOperationKey,
+    MemoryOperationRegistry,
+    classify_extraction_result,
+)
 from nanobot.session.labels import session_label_suffix
 from nanobot.session.manager import Session
 
@@ -213,6 +221,8 @@ class MemoryExtractionHook(AgentHook):
         cited_memory_ids: list[str] | None = None,
         label: str = "",
         workspace_scope: dict[str, str] | None = None,
+        operation_registry: MemoryOperationRegistry | None = None,
+        namespace: str = "default",
     ) -> None:
         super().__init__()
         self._extractor = extractor
@@ -241,6 +251,11 @@ class MemoryExtractionHook(AgentHook):
         self._workspace_scope: dict[str, str] | None = (
             dict(workspace_scope) if workspace_scope else None
         )
+        # 完成信号登记簿（可选注入）。缺省时**完全不与 registry 交互** ——
+        # 生产行为与改造前逐字一致。注入后：idle 抽取的**真实**结果
+        # （completed / failed / skipped / partial）可被等待，pending 任务可查。
+        self._operation_registry = operation_registry
+        self._namespace = namespace
 
         # WU-A: 允许通过构造参数覆盖 idle 阈值(供 AgentDefaults.memory_idle_seconds
         # 等配置源注入)。实例属性优先于类属性。
@@ -560,6 +575,11 @@ class MemoryExtractionHook(AgentHook):
         # 启动新任务。
         task = asyncio.create_task(self._wait_then_extract_idle(context))
         _PENDING_IDLE_TIMERS[self._session_key] = task
+        # 登记到完成信号（可选）：让评测能等到这次后台任务真的结束。
+        if self._operation_registry is not None:
+            self._operation_registry.register_pending(
+                self._namespace, self._session_key, task
+            )
 
         def _drop(_t: asyncio.Task[Any]) -> None:
             # 仅当当前 dict 仍持有此任务时才 pop,避免覆盖更近一次的 arm。
@@ -598,22 +618,34 @@ class MemoryExtractionHook(AgentHook):
     async def _run_idle_extraction(self, context: AgentRunHookContext) -> None:
         """构造 Session 并调用 ``MemoryExtractor.run_idle_extraction``。
 
-        失败隔离:任何异常仅 warning,绝不上抛。
+        失败隔离:任何异常仅 warning,绝不上抛。但**失败必须显式可见** ——
+        注入 registry 时登记为 ``failed``（绝不能因为「吞了异常 + 空结果」就被
+        当成成功）。
         """
         session = Session(
             key=self._session_key,
             messages=[dict(message) for message in context.messages],
             metadata=self._session_metadata(),
         )
+        op_key = self._start_extraction_operation()
         try:
             result = await self._extractor.run_idle_extraction(
                 session,
                 cited_memory_ids=self._cited_memory_ids,
             )
-        except Exception:
+        except asyncio.CancelledError:
+            self._finish_extraction_operation(
+                op_key, status=STATUS_CANCELLED, detail={"reason": "cancelled"}
+            )
+            raise
+        except Exception as exc:
             logger.warning(
-                "idle memory extraction failed for session {}",
+                "idle memory extraction failed for session {}: {}",
                 self._session_key,
+                exc,
+            )
+            self._finish_extraction_operation(
+                op_key, status=STATUS_FAILED, error=str(exc)
             )
             return
         logger.info(
@@ -626,6 +658,8 @@ class MemoryExtractionHook(AgentHook):
             getattr(result, "skipped", None),
             getattr(result, "failed_tracks", None),
         )
+        status, tracks, detail = classify_extraction_result(result)
+        self._finish_extraction_operation(op_key, status=status, tracks=tracks, detail=detail)
 
     async def _run_incremental_extraction(
         self,
@@ -638,20 +672,66 @@ class MemoryExtractionHook(AgentHook):
             messages=[dict(message) for message in messages],
             metadata=self._session_metadata(),
         )
+        op_key = self._start_extraction_operation()
         try:
-            await asyncio.wait_for(
+            result = await asyncio.wait_for(
                 self._extractor.extract_incremental(session, last_extracted_index),
                 timeout=30.0,
             )
-        except Exception:
+        except asyncio.CancelledError:
+            self._finish_extraction_operation(
+                op_key, status=STATUS_CANCELLED, detail={"reason": "cancelled"}
+            )
+            raise
+        except Exception as exc:
             logger.warning(
-                "incremental memory extraction failed for session {}",
+                "incremental memory extraction failed for session {}: {}",
                 self._session_key,
+                exc,
+            )
+            self._finish_extraction_operation(
+                op_key, status=STATUS_FAILED, error=str(exc)
             )
             return
         logger.info(
             "incremental memory extraction finished for session {}",
             self._session_key,
+        )
+        status, tracks, detail = classify_extraction_result(result)
+        self._finish_extraction_operation(op_key, status=status, tracks=tracks, detail=detail)
+
+    # ------------------------------------------------------------------
+    # 完成信号（可选注入）
+    # ------------------------------------------------------------------
+
+    def _start_extraction_operation(self) -> MemoryOperationKey | None:
+        if self._operation_registry is None:
+            return None
+        key = MemoryOperationKey(
+            namespace=self._namespace,
+            session_key=self._session_key,
+            op_id=IDLE_EXTRACTION_OP_ID,
+        )
+        self._operation_registry.start(key, tracks=("extraction",))
+        return key
+
+    def _finish_extraction_operation(
+        self,
+        op_key: MemoryOperationKey | None,
+        *,
+        status: str,
+        tracks: dict[str, str] | None = None,
+        detail: dict[str, Any] | None = None,
+        error: str | None = None,
+    ) -> None:
+        if self._operation_registry is None or op_key is None:
+            return
+        self._operation_registry.finish(
+            op_key,
+            status=status,
+            tracks=tracks,
+            detail=detail,
+            error=error,
         )
 
 
@@ -670,6 +750,8 @@ def create_memory_extraction_hook_factory(
     label_provider: Callable[[str], str] | None = None,
     idle_seconds: float | None = None,
     workspace_scope_provider: Callable[[AgentTurnHookContext], dict[str, str] | None] | None = None,
+    operation_registry: MemoryOperationRegistry | None = None,
+    namespace: str = "default",
 ) -> AgentTurnHookFactory:
     """返回 ``AgentTurnHookFactory``：从 ``AgentTurnHookContext`` 取 ``session_key``
     构造 :class:`MemoryExtractionHook`。
@@ -688,6 +770,9 @@ def create_memory_extraction_hook_factory(
             失败隔离：provider 抛错时按空标签处理。
         idle_seconds: WU-A 可选的 idle 阈值(秒),转发给 ``MemoryExtractionHook``。
             通常来自 ``AgentDefaults.memory_idle_seconds``。
+        operation_registry: 可选的完成信号登记簿。注入后 idle 抽取的真实结果
+            与后台 pending 任务可被等待；**缺省时完全不与 registry 交互**。
+        namespace: runtime namespace，pending 任务按它隔离。
 
     Returns:
         ``AgentTurnHookFactory``：``session_key`` 缺失或 provider 失败时返回 ``None``，
@@ -768,6 +853,8 @@ def create_memory_extraction_hook_factory(
             cited_memory_ids=list(context.cited_memory_ids or []),
             label=label,
             workspace_scope=workspace_scope,
+            operation_registry=operation_registry,
+            namespace=namespace,
         )
 
     return _factory

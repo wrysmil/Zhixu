@@ -195,7 +195,10 @@ def test_v1_database_migrates_to_v2_and_backfills_trials(tmp_path: Path) -> None
 
     database.init_schema()
 
-    assert database.schema_version() == int(SCHEMA_VERSION) == 2
+    # 迁移到**当前代码版本**即可：契约 §7 要求 SCHEMA_VERSION 本轮统一升到 "4"，
+    # 这里钉死具体数字会在下次升版时变成过期断言。本用例真正断言的是
+    # 「v1 旧库能一路迁到 head，并回填 trial_index / source_attempt_id」。
+    assert database.schema_version() == int(SCHEMA_VERSION)
     with database.connect() as conn:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(attempts)")}
         row = conn.execute(

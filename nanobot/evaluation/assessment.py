@@ -42,6 +42,16 @@ DISQUALIFIED = "disqualified"
 REVIEW_REQUIRED = "review_required"
 NOT_EVALUATED = "not_evaluated"
 
+#: 任务成功率「已判定」口径下的可判定结论（契约 §4 通用层补充）。
+#: ``unknown`` 不在其中——没测到不是失败，也不能算作已判定。
+JUDGED_TASK_OUTCOMES = (COMPLETED, PARTIAL, TASK_FAILED)
+
+#: 工具决策点的两类标注：选哪个工具 / 工具参数。
+TOOL_SELECTION = "tool_selection"
+TOOL_ARGUMENTS = "tool_arguments"
+#: 同时判选择与参数的混合决策点：不进任何准确率，只进覆盖分母。
+TOOL_DECISION_AND_ARGUMENTS = "tool_decision_and_arguments"
+
 #: 断言类别 → 维度。里程碑引用的断言归 task，其余必过断言归 constraints。
 _PROCESS_KINDS = frozenset({"tool_trajectory", "team_member_executed"})
 _EFFICIENCY_KINDS = frozenset({"usage_limit", "duration_limit"})
@@ -98,6 +108,102 @@ class Assessment:
             },
             "measurement_errors": list(self.measurement_errors),
         }
+
+
+@dataclass(frozen=True)
+class DecisionAnnotation:
+    """一个工具决策点的标注。
+
+    ``passed`` 为 ``None`` 表示**该决策点不可判定**（证据缺失），不是"错了"。
+    """
+
+    id: str
+    kind: str
+    passed: bool | None
+    source: str
+    message: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "passed": self.passed,
+            "source": self.source,
+            "message": self.message,
+        }
+
+
+def collect_decision_annotations(
+    *,
+    case_snapshot: Mapping[str, Any] | None = None,
+    rule_results: Sequence[Mapping[str, Any]] = (),
+    explicit: Sequence[Mapping[str, Any]] = (),
+) -> list[DecisionAnnotation]:
+    """收集工具决策点标注（契约 §4：``tool_decision_accuracy`` 的输入）。
+
+    两个来源，都必须是**对决策本身的判断**：
+
+    - **声明式**：用例快照里 required 的 ``tool_called`` 断言。``arguments_subset``
+      为空表示这条断言只判"该选哪个工具"；带参数子集表示选择与参数一起判，
+      属于混合决策点——它不能被拆成任何一个准确率，否则就是把"选择对参数错"
+      算成全对或全错。
+    - **显式**：运行结果里的 ``decision_annotations``（人工标注或评审结论）。
+
+    没有这些标注时，工具决策准确率只能是未知：工具**执行**成功率衡量的是调用
+    能不能跑通，不能顶替"该选哪个工具"的判断。
+    """
+    by_id = {
+        str(item.get("id")): item
+        for item in rule_results
+        if isinstance(item, Mapping) and item.get("id") is not None
+    }
+    annotations: dict[str, DecisionAnnotation] = {}
+    snapshot = case_snapshot if isinstance(case_snapshot, Mapping) else {}
+    for definition in snapshot.get("assertions") or ():
+        if not isinstance(definition, Mapping):
+            continue
+        if str(definition.get("kind") or "") != "tool_called":
+            continue
+        if definition.get("required") is not True:
+            continue
+        identifier = str(definition.get("id") or "")
+        if not identifier:
+            continue
+        arguments = definition.get("arguments_subset") or {}
+        kind = TOOL_SELECTION if not arguments else TOOL_DECISION_AND_ARGUMENTS
+        result = by_id.get(identifier)
+        passed = result.get("passed") if isinstance(result, Mapping) else None
+        annotations[f"declared:{identifier}"] = DecisionAnnotation(
+            id=identifier,
+            kind=kind,
+            passed=passed if isinstance(passed, bool) else None,
+            source="declared",
+            message=str(result.get("message") or "") if isinstance(result, Mapping) else "",
+        )
+    for item in explicit:
+        if not isinstance(item, Mapping):
+            continue
+        kind = str(item.get("kind") or "")
+        if kind not in (TOOL_SELECTION, TOOL_ARGUMENTS):
+            continue
+        identifier = str(item.get("id") or "")
+        passed = item.get("passed")
+        annotations[f"explicit:{identifier or kind}"] = DecisionAnnotation(
+            id=identifier or kind,
+            kind=kind,
+            passed=passed if isinstance(passed, bool) else None,
+            source="explicit",
+            message=str(item.get("message") or ""),
+        )
+    return list(annotations.values())
+
+
+def judged_task_outcome(task_outcome: str | None) -> str | None:
+    """把任务结论收敛成"已判定 / 未判定"；``unknown`` 不算已判定。"""
+    if task_outcome in JUDGED_TASK_OUTCOMES:
+        return task_outcome
+    return None
+
 
 
 def _kind_of(assertion: Any) -> str:
