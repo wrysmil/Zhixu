@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from nanobot.agent.tools.self import MyToolConfig
     from nanobot.agent.tools.shell import ExecToolConfig
     from nanobot.agent.tools.web import WebToolsConfig
+    from nanobot.memory.obs import MemoryLogSettings
 
 
 class ChannelsConfig(Base):
@@ -176,6 +177,47 @@ class MemoryVectorConfig(Base):
         )
 
 
+class MemoryLoggingConfig(Base):
+    """记忆链路日志配置（spec 2026-11-02 §2.3）。
+
+    默认开启、默认落盘到 ``<data_dir>/logs/memory.log``；结构化 JSONL 默认关闭，
+    测评/脚本需要机器可读证据时再开。开关通过 provider 在运行期读取，改配置
+    无需重启（与 ``memory_enabled`` 同一模式）。
+    """
+
+    enabled: bool = True  # 总开关：文本与结构化事件都受它控制
+    console_level: str = "INFO"  # 事件级别：INFO/DEBUG（大小写不敏感；未知值按 INFO）
+    include_content: bool = True  # 关后只记 id/长度，便于脱敏分享
+    max_content_chars: int = Field(default=240, ge=40, le=2000)  # 单条正文截断
+    max_items: int = Field(default=8, ge=1, le=50)  # 每段明细上限
+    file_enabled: bool = True  # 文本日志落盘
+    file_path: str = ""  # 空 = <data_dir>/logs/memory.log
+    events_enabled: bool = False  # 结构化 JSONL 落盘
+    events_path: str = ""  # 空 = <data_dir>/logs/memory-events.jsonl
+    rotation: str = "10 MB"  # 文本日志轮转
+    retention: str = "7 days"  # 文本日志保留
+    events_max_mb: int = Field(default=20, ge=1, le=500)  # 事件文件上限，超限转 .1
+
+    def to_settings(self) -> "MemoryLogSettings":
+        """转成运行时快照（obs 模块不反向依赖 schema）。"""
+        from nanobot.memory.obs import MemoryLogSettings
+
+        return MemoryLogSettings(
+            enabled=self.enabled,
+            console_level=self.console_level.strip().upper() or "INFO",
+            include_content=self.include_content,
+            max_content_chars=self.max_content_chars,
+            max_items=self.max_items,
+            file_enabled=self.file_enabled,
+            file_path=self.file_path,
+            events_enabled=self.events_enabled,
+            events_path=self.events_path,
+            rotation=self.rotation,
+            retention=self.retention,
+            events_max_mb=self.events_max_mb,
+        )
+
+
 class AgentDefaults(Base):
     """Default agent configuration."""
 
@@ -243,6 +285,11 @@ class AgentDefaults(Base):
         default_factory=MemoryVectorConfig,
         validation_alias=AliasChoices("memoryVector", "memory_vector"),
         serialization_alias="memoryVector",
+    )
+    memory_logging: MemoryLoggingConfig = Field(
+        default_factory=MemoryLoggingConfig,
+        validation_alias=AliasChoices("memoryLogging", "memory_logging"),
+        serialization_alias="memoryLogging",
     )
     dream: DreamConfig = Field(default_factory=DreamConfig)
 

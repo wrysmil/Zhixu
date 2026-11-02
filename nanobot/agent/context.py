@@ -30,11 +30,12 @@ from nanobot.identity.catalog import (
 )
 from nanobot.identity.compiler import read_compiled
 from nanobot.identity.store import IdentityStore, IdentityStoreError
+from nanobot.memory import obs
 from nanobot.memory.context import (
     RecalledMemorySection,
-    compose_memory_context,
     select_memory_context,
 )
+from nanobot.memory.retrieval import trace as memory_trace
 from nanobot.memory.retrieval.candidate import MemoryHit, hit_from_memory
 from nanobot.runtime_context import (
     RUNTIME_CONTEXT_MESSAGE_META,
@@ -210,6 +211,9 @@ class ContextBuilder:
                 workspace_ids=workspace_ids,
                 limit=MEMORY_CONTEXT_HIT_LIMIT,
             )
+            # search_hits 内部已调用 trace.start；在这里**立刻**取 id，避免同一
+            # 回合后续的工具检索覆盖 ContextVar 后串错关联。
+            trace_id = memory_trace.current_id()
         except Exception as exc:  # noqa: BLE001 - 记忆注入失败不该打断对话
             logger.warning(
                 "Active retrieval failed; continuing without recalled memory: {}: {!r}",
@@ -235,12 +239,16 @@ class ContextBuilder:
             for hit in selection.included
             if (hit.kind, hit.record_id) in recalled_fact_keys
         ]
-        return RecalledMemorySection(selection.text, recalled), cited
+        section = RecalledMemorySection(selection.text, recalled)
+        # 关联 id 与 query 随载体透传：注入侧打日志时才能与检索侧对上。
+        section.query = query
+        section.trace_id = trace_id
+        return section, cited
 
     def _core_memory_services(self) -> Any | None:
         """核心事实的来源：与 ``AgentLoop`` 回退装配同一个库（``workspace_id=default``）。
 
-        不在这里建库：构建 prompt 不该有副作用，库不存在就说明还没有事实。库
+        不在这里建库：库不存在就说明还没有事实，无需为构建 prompt 创建库。库
         一旦存在就缓存服务实例，避免每轮重复建 schema。
         """
         if self._core_services is not None:
@@ -290,6 +298,7 @@ class ContextBuilder:
         working_text: str | None,
         recalled_section: str | None,
         include_memory: bool,
+        track_memory_access: bool = True,
     ) -> str:
         """唯一的记忆组装入口：工作状态 + 核心事实 + 检索结果。
 
@@ -304,12 +313,87 @@ class ContextBuilder:
                 "recalled memory must come from the retrieval engine"
             )
         hits = list(cast(Sequence[MemoryHit], recalled)) if recalled is not None else []
-        return compose_memory_context(
+        selection = select_memory_context(
             core_hits=self._load_core_hits() if include_memory else [],
             working_text=working_text,
             recalled_hits=hits,
             max_tokens=MEMORY_CONTEXT_MAX_TOKENS,
             count_tokens=estimate_text_tokens,
+        )
+        self._log_injection(
+            selection,
+            query=getattr(recalled_section, "query", ""),
+            trace_id=getattr(recalled_section, "trace_id", ""),
+        )
+        if track_memory_access and selection.included:
+            try:
+                from nanobot.memory.retrieval.store_adapter import MemoryStoreAdapter
+
+                services = self._core_memory_services()
+                if services is not None:
+                    MemoryStoreAdapter(services.database).record_accesses(selection.included)
+            except Exception as exc:  # noqa: BLE001 - 统计失败不能影响 prompt
+                logger.warning("Memory reference tracking failed during injection: {!r}", exc)
+        return selection.text
+
+    @staticmethod
+    def _log_injection(selection: Any, *, query: str, trace_id: str = "") -> None:
+        """注入环节唯一日志点：最终块 + included/dropped + 预算提示。
+
+        检索侧 ``trace.injection`` 只覆盖召回块；这里才是「工作状态 + 核心事实 +
+        召回」去重、预算裁剪之后真正进入 system prompt 的内容。两者用同一个
+        ``trace_id`` 串联。
+        """
+        trace_id = trace_id or memory_trace.current_id()
+        included = list(getattr(selection, "included", ()))
+        dropped = list(getattr(selection, "dropped", ()))
+        text = getattr(selection, "text", "") or ""
+        hint = bool(getattr(selection, "hint", False))
+        if not text and not dropped and not query and not trace_id:
+            # 没有检索（无 query、无 trace）也没有条目：本轮不需要记忆，不刷日志。
+            return
+        if not text and not dropped:
+            obs.emit(
+                "injected",
+                "【记忆注入·组装】空（无记忆进入 system prompt）",
+                trace_id=trace_id,
+                source="agent_context",
+                query=obs.clip(query, limit=120),
+                ids=[],
+                dropped=0,
+                hint=hint,
+            )
+            return
+        lines = [
+            "【记忆注入·组装】"
+            f"trace={trace_id or '-'} 注入={len(included)} 条 "
+            f"丢弃={len(dropped)} 条 预算提示={'是' if hint else '否'} "
+            f"字符={len(text)} 估算tokens=~{len(text) // 2}",
+        ]
+        if included:
+            lines.append("  · 进入上下文:")
+            for hit in included:
+                lines.append(f"      [{hit.kind}:{hit.record_id[:8]}] {obs.clip(hit.content)}")
+        if dropped:
+            lines.append("  · 被去重/预算丢弃:")
+            for hit in dropped:
+                lines.append(f"      [丢弃] [{hit.kind}:{hit.record_id[:8]}] {obs.clip(hit.content)}")
+        if text:
+            lines.append("  ---------- 注入内容开始 ----------")
+            lines.extend(f"  {line}" for line in text.splitlines())
+            lines.append("  ---------- 注入内容结束 ----------")
+        obs.emit(
+            "injected",
+            "\n".join(lines),
+            trace_id=trace_id,
+            source="agent_context",
+            query=obs.clip(query, limit=120),
+            ids=[hit.record_id for hit in included],
+            dropped_ids=[hit.record_id for hit in dropped],
+            dropped=len(dropped),
+            hint=hint,
+            chars=len(text),
+            est_tokens=len(text) // 2,
         )
 
     def build_system_prompt(
@@ -319,6 +403,7 @@ class ContextBuilder:
         session_summary: SessionSummary | None = None,
         workspace: Path | None = None,
         include_memory: bool = True,
+        track_memory_access: bool = True,
         retrieved_memory_section: str | None = None,
         working_memory_section: str | None = None,
         role_section: str | None = None,
@@ -363,6 +448,7 @@ class ContextBuilder:
             working_text=working_memory_section,
             recalled_section=retrieved_memory_section,
             include_memory=include_memory,
+            track_memory_access=track_memory_access,
         )
         if memory_block:
             parts.append(memory_block)
@@ -570,6 +656,7 @@ class ContextBuilder:
         runtime_context_blocks: Sequence[RuntimeContextBlock] | None = None,
         workspace: Path | None = None,
         include_memory: bool = True,
+        track_memory_access: bool = True,
         retrieved_memory_section: str | None = None,
         working_memory_section: str | None = None,
     ) -> list[dict[str, Any]]:
@@ -586,6 +673,7 @@ class ContextBuilder:
             channel=channel,
             workspace=workspace,
             include_memory=include_memory,
+            track_memory_access=track_memory_access,
             retrieved_memory_section=retrieved_memory_section,
             working_memory_section=working_memory_section,
         )
@@ -614,6 +702,7 @@ class ContextBuilder:
         channel: str | None = None,
         workspace: Path | None = None,
         include_memory: bool = True,
+        track_memory_access: bool = True,
         retrieved_memory_section: str | None = None,
         working_memory_section: str | None = None,
         role_section: str | None = None,
@@ -629,6 +718,7 @@ class ContextBuilder:
                     session_summary=transcript.session_summary,
                     workspace=root,
                     include_memory=include_memory,
+                    track_memory_access=track_memory_access,
                     retrieved_memory_section=retrieved_memory_section,
                     working_memory_section=working_memory_section,
                     role_section=role_section,

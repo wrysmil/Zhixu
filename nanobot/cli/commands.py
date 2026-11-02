@@ -355,6 +355,9 @@ def serve(
     _set_nanobot_logs(verbose)
 
     runtime_config = _load_runtime_config(config, workspace)
+    from nanobot.memory.obs import configure_from_config as configure_memory_logging
+
+    configure_memory_logging(runtime_config)
     api_cfg = runtime_config.api
     host = host if host is not None else api_cfg.host
     port = port if port is not None else api_cfg.port

@@ -62,6 +62,12 @@ class RecalledMemorySection(str):
 
     hits: tuple[MemoryHit, ...]
 
+    #: 产生本段的检索 query（由 ``agent.context`` 回填，供注入侧日志关联）。
+    query: str = ""
+
+    #: 产生本段的检索 trace id（同样由 ``agent.context`` 回填）。
+    trace_id: str = ""
+
     def __new__(
         cls,
         text: str = "",

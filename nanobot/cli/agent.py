@@ -80,6 +80,9 @@ def agent(
 ):
     """Chat in the terminal or send one message non-interactively."""
     runtime_config = _load_runtime_config(config, workspace)
+    from nanobot.memory.obs import configure_from_config as configure_memory_logging
+
+    configure_memory_logging(runtime_config)
     theme = theme.strip().lower()
     if theme not in {"auto", "dark", "light"}:
         raise typer.BadParameter("must be auto, dark, or light", param_hint="--theme")

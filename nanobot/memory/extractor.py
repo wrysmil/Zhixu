@@ -33,6 +33,7 @@ from uuid import uuid4
 
 from loguru import logger
 
+from nanobot.memory import obs
 from nanobot.memory.clock import MemoryClock
 from nanobot.memory.database import (
     ExtractionBatchRow,
@@ -372,6 +373,9 @@ class PersistenceResult:
     episode_ids: list[str] = field(default_factory=list)
     #: 本次真正新增的行数；幂等命中的既有 id 会计入 ``memory_ids`` 但不计入这里。
     created_count: int = 0
+    #: 每条变更的写入决策 ``(kind, memory_id)``，与 ``filtered.memories`` 同序。
+    #: 只供观测层逐条打印，不参与业务判断。
+    outcomes: list[tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -915,6 +919,14 @@ class MemoryExtractor:
                 "session end flush skipped: session={} has no persisted memory snapshot",
                 session_key,
             )
+            obs.emit(
+                "extraction_skipped",
+                f"【记忆提取·跳过】session={session_key} reason=no_persisted_snapshot",
+                session=session_key,
+                workspace_id=workspace_id,
+                source=reason,
+                reason="no_persisted_snapshot",
+            )
             return None
         resolved_workspace = self._row_workspace_id(loaded)
         if workspace_id and workspace_id != resolved_workspace:
@@ -935,6 +947,16 @@ class MemoryExtractor:
                 session_key,
                 through,
                 last_seq,
+            )
+            obs.emit(
+                "extraction_skipped",
+                f"【记忆提取·跳过】session={session_key} reason=no_new_messages",
+                session=session_key,
+                workspace_id=resolved_workspace,
+                source=reason,
+                reason="no_new_messages",
+                through_seq=through,
+                last_seq=last_seq,
             )
             return BatchReceipt(
                 batch_id=_stable_batch_id(
@@ -1015,6 +1037,15 @@ class MemoryExtractor:
                     exc.code,
                     exc.detail,
                 )
+                obs.emit(
+                    "extraction_failed",
+                    f"【记忆提取·失败】session={request.session_key} code={exc.code}",
+                    level="WARNING",
+                    session=request.session_key,
+                    workspace_id=request.workspace_id,
+                    error_code=exc.code,
+                    detail=exc.detail[:500],
+                )
                 return self._error_receipt(request, 0, exc.code, exc.detail)
             except Exception as exc:  # noqa: BLE001 - 批次失败必须返回结构化回执
                 logger.opt(exception=exc).warning(
@@ -1022,6 +1053,15 @@ class MemoryExtractor:
                     request.session_key,
                     request.generation,
                     request.through_seq,
+                )
+                obs.emit(
+                    "extraction_failed",
+                    f"【记忆提取·失败】session={request.session_key} code={ERROR_UNEXPECTED}",
+                    level="WARNING",
+                    session=request.session_key,
+                    workspace_id=request.workspace_id,
+                    error_code=ERROR_UNEXPECTED,
+                    detail=str(exc)[:500],
                 )
                 return self._error_receipt(request, 0, ERROR_UNEXPECTED, str(exc))
 
@@ -1464,6 +1504,28 @@ class MemoryExtractor:
             # 另一执行方已提交（例如跨进程并发）：直接复用既有结果。
             return self._receipt_from_row(claim)
 
+        # 观测：本批输入坐标必须在调模型之前落日志——失败时才能回答
+        # 「哪一段会话、多少内容进了这一批」。
+        chars = sum(
+            len(_content_text(message.get("content")))
+            for _seq, message in evidence
+        )
+        obs.emit(
+            "extraction_started",
+            f"【记忆提取·开始】session={request.session_key} "
+            f"range=({row.start_seq}, {row.end_seq}] "
+            f"source={request.reason or 'extraction'} messages={len(evidence)}",
+            session=request.session_key,
+            workspace_id=request.workspace_id,
+            generation=request.generation,
+            batch_id=row.batch_id,
+            seq_start=row.start_seq,
+            seq_end=row.end_seq,
+            source=request.reason or "extraction",
+            message_count=len(evidence),
+            chars=chars,
+        )
+
         tracks = [
             track
             for track, checkpoint in (
@@ -1614,6 +1676,17 @@ class MemoryExtractor:
             failed,
             detail,
         )
+        obs.emit(
+            "extraction_failed",
+            f"【记忆提取·部分失败】batch={row.batch_id} ready={ready} failed={failed}",
+            level="WARNING",
+            session=row.session_key,
+            batch_id=row.batch_id,
+            status=status,
+            error_code=code,
+            failed_tracks=list(failed),
+            detail=detail[:500],
+        )
         return BatchReceipt(
             batch_id=row.batch_id,
             status=cast(Any, status),
@@ -1731,6 +1804,26 @@ class MemoryExtractor:
             len(persisted.episode_ids),
             skipped,
         )
+        obs.emit(
+            "extraction_completed",
+            f"【记忆提取·完成】batch={row.batch_id} session={row.session_key} "
+            f"memories={len(persisted.memory_ids)} episodes={len(persisted.episode_ids)} "
+            f"skipped={skipped}",
+            session=row.session_key,
+            batch_id=row.batch_id,
+            seq_start=row.start_seq,
+            seq_end=row.end_seq,
+            source=row.reason or request.reason or "extraction",
+            memories=len(persisted.memory_ids),
+            episodes=len(persisted.episode_ids),
+            skipped=skipped,
+            skipped_reasons=dict(filtered.skipped_reasons),
+            memory_ids=list(persisted.memory_ids),
+            episode_ids=list(persisted.episode_ids),
+        )
+        self._emit_memory_changes(
+            persisted, filtered, session, source=row.reason or request.reason or "extraction"
+        )
         return BatchReceipt(
             batch_id=row.batch_id,
             status="completed",
@@ -1804,6 +1897,14 @@ class MemoryExtractor:
                 )
         except Exception as exc:  # noqa: BLE001 - 记录失败不能掩盖原始结果
             logger.warning("memory batch failure record skipped for {}: {}", batch_id, exc)
+        obs.emit(
+            "extraction_failed",
+            f"【记忆提取·失败】batch={batch_id} code={code} detail={detail[:200]}",
+            level="WARNING",
+            batch_id=batch_id,
+            error_code=code,
+            detail=detail[:500],
+        )
 
     @staticmethod
     def _lease_deadline() -> str:
@@ -2011,6 +2112,15 @@ class MemoryExtractor:
                     through,
                     last_seq,
                 )
+                obs.emit(
+                    "extraction_skipped",
+                    f"【记忆提取·跳过】session={session_key} reason=no_new_messages",
+                    session=session_key,
+                    source="idle",
+                    reason="no_new_messages",
+                    through_seq=through,
+                    last_seq=last_seq,
+                )
                 return ExtractionResult()
 
             # 信号门槛：琐碎切片不调 LLM，否则一句「你好」也会触发两路 LLM 提取。
@@ -2029,6 +2139,14 @@ class MemoryExtractor:
                     len(new_slice),
                     self.IDLE_MIN_NEW_MESSAGES,
                     self.IDLE_MIN_SINGLE_USER_CHARS,
+                )
+                obs.emit(
+                    "extraction_skipped",
+                    f"【记忆提取·跳过】session={session_key} reason=signal_threshold",
+                    session=session_key,
+                    source="idle",
+                    reason="signal_threshold",
+                    message_count=len(new_slice),
                 )
                 return ExtractionResult()
 
@@ -2333,7 +2451,35 @@ class MemoryExtractor:
             )
         for memory in created:
             index_memory_best_effort(memory)
+        self._emit_memory_changes(persisted, filtered, session, source=source)
         return persisted
+
+    def _emit_memory_changes(
+        self,
+        persisted: PersistenceResult,
+        filtered: FilteredExtractionResult,
+        session: Session,
+        *,
+        source: str,
+    ) -> None:
+        """逐条打印写入决策（观测层）；不改变任何业务结果。"""
+        workspace_id = self._row_workspace_id(session)
+        for item, (kind, memory_id) in zip(
+            filtered.memories, persisted.outcomes, strict=False
+        ):
+            content = obs.clip(item.content)
+            obs.emit(
+                "memory_changed",
+                f"【记忆提取·写入】{kind} [{memory_id[:8] or '-'}] {content}",
+                session=session.key,
+                workspace_id=workspace_id,
+                memory_id=memory_id,
+                change=kind,
+                type=str(getattr(item, "type", "")),
+                priority=str(getattr(item, "priority", "")),
+                content=content,
+                source=source,
+            )
 
     def _write_extraction(
         self,
@@ -2396,6 +2542,7 @@ class MemoryExtractor:
             for item in filtered.memories
         ]
         written = apply_memory_changes(conn, changes, evidence_key=evidence_key)
+        outcome_pairs = [(str(outcome.kind), outcome.memory_id or "") for outcome in written.outcomes]
         saved_memory_ids = list(written.memory_ids)
         created_memories = list(written.created)
         memory_by_subject: dict[str, str] = {}
@@ -2468,6 +2615,7 @@ class MemoryExtractor:
                 memory_ids=saved_memory_ids,
                 episode_ids=saved_episode_ids,
                 created_count=len(created_memories),
+                outcomes=outcome_pairs,
             ),
             created_memories,
         )

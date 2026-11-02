@@ -37,6 +37,7 @@ from nanobot.cli.webui_support import (
 from nanobot.config.paths import get_data_dir, is_default_workspace
 from nanobot.config.schema import Config
 from nanobot.gateway.runtime import GatewayInstance
+from nanobot.memory.obs import configure_from_config as configure_memory_logging
 from nanobot.memory.retrieval import RetrievalEngine
 from nanobot.memory.retrieval.store_adapter import MemoryStoreAdapter
 from nanobot.memory.vector.indexer import MemoryIndexer, set_active_indexer
@@ -561,6 +562,9 @@ def _run_gateway(
     )
 
     # Build memory services and retrieval engine (always-on; runtime gate via provider).
+    # 记忆观测先装配：文本日志落 <data_dir>/logs/memory.log，结构化事件按配置可选。
+    # 与 memory_enabled 同一模式——provider 每次读最新配置，改配置免重启。
+    configure_memory_logging(config)
     _memory_services = MemoryServices.for_workspace(
         _MEMORY_WORKSPACE_ID, config.workspace_path,
     )
