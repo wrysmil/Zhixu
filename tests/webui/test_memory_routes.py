@@ -238,3 +238,18 @@ def test_handle_memory_update_forwards_workspace(handler, operations, services):
         query={"id": [memory_id]}, payload={"workspace": "unknown"},
     ))
     assert invalid.status == 400
+
+
+def test_handle_memory_delete_maps_locked_store_to_retryable_503(operations):
+    """SQLite 写锁竞争不能变成不可解释的 500（真机 delete 报错过）。"""
+    import dataclasses
+    import sqlite3
+
+    def locked(_memory_id: str) -> dict[str, Any]:
+        raise sqlite3.OperationalError("database is locked")
+
+    handler = MemorySettingsHandler(dataclasses.replace(operations, delete_memory=locked))
+    result = handler.handle("memory-delete", _request(payload={"id": "any"}))
+
+    assert result.status == 503
+    assert result.error is not None and "busy" in result.error

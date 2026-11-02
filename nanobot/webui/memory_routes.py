@@ -16,6 +16,7 @@ nor about the concrete persistence implementation; it only calls the
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -88,6 +89,19 @@ class MemorySettingsHandler:
             payload = dispatch(self._ops, action, request)
         except WebUISettingsError as exc:
             return SettingsRouteResult.failure(exc.status, exc.message)
+        except sqlite3.OperationalError as exc:
+            # 记忆库是单写者（SQLite）。idle 提取/批量写入提交时，WebUI 删除会
+            # 在 5s 默认 busy timeout 后抛 "database is locked"；上层统一兜成
+            # 500 "WebUI mutation failed"，用户只看到「报错了」。这里明确成
+            # 可重试的 503，并保留原始原因便于排障。
+            text = str(exc).lower()
+            if "locked" in text or "busy" in text:
+                return SettingsRouteResult.failure(
+                    503, "memory store is busy; retry in a moment"
+                )
+            return SettingsRouteResult.failure(503, f"memory store unavailable: {exc}")
+        except sqlite3.Error as exc:
+            return SettingsRouteResult.failure(500, f"memory store error: {exc}")
         return SettingsRouteResult.success(payload)
 
 

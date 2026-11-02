@@ -265,9 +265,13 @@ class MemoryDatabase:
     def connect(self) -> Iterator[sqlite3.Connection]:
         """获取一个 SQLite 连接；同一进程内由锁串行化。"""
         with self._lock:
-            conn = sqlite3.connect(self.db_path)
+            # SQLite 单写者：后台提取/索引提交时，WebUI 的删除/编辑会撞写锁。
+            # 默认 5s 会太早放弃（真机日志里表现为 delete 报 "WebUI mutation failed"），
+            # 这里放宽到 15s；仍超时则由 WebUI 路由映射成可重试的 503。
+            conn = sqlite3.connect(self.db_path, timeout=15.0)
             try:
                 conn.execute("PRAGMA foreign_keys = ON")
+                conn.execute("PRAGMA busy_timeout = 15000")
                 conn.row_factory = sqlite3.Row
                 yield conn
                 conn.commit()
