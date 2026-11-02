@@ -2619,6 +2619,8 @@
   },
   "deleteConfirm": {
     "title": "Xóa cuộc trò chuyện này?",
+    "titleNamed": "Xóa “{{title}}”?",
+    "untitled": "cuộc trò chuyện này",
     "titleMany": "Xóa {{count}} cuộc trò chuyện?",
     "description": "Không thể hoàn tác thao tác này.",
     "descriptionMany": "Không thể hoàn tác thao tác này.",

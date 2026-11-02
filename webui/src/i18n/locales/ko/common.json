@@ -2619,6 +2619,8 @@
   },
   "deleteConfirm": {
     "title": "이 채팅을 삭제할까요?",
+    "titleNamed": "‘{{title}}’ 삭제할까요?",
+    "untitled": "이 대화",
     "titleMany": "대화 {{count}}개를 삭제할까요?",
     "description": "이 작업은 되돌릴 수 없습니다.",
     "descriptionMany": "이 작업은 되돌릴 수 없습니다.",

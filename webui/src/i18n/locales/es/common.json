@@ -2619,6 +2619,8 @@
   },
   "deleteConfirm": {
     "title": "¿Eliminar este chat?",
+    "titleNamed": "¿Eliminar «{{title}}»?",
+    "untitled": "este tema",
     "titleMany": "¿Eliminar {{count}} conversaciones?",
     "description": "Esta acción no se puede deshacer.",
     "descriptionMany": "Esta acción no se puede deshacer.",

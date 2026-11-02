@@ -2619,6 +2619,8 @@
   },
   "deleteConfirm": {
     "title": "Supprimer cette discussion ?",
+    "titleNamed": "Supprimer « {{title}} » ?",
+    "untitled": "ce sujet",
     "titleMany": "Supprimer {{count}} conversations ?",
     "description": "Cette action est irréversible.",
     "descriptionMany": "Cette action est irréversible.",

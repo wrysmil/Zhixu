@@ -2619,6 +2619,8 @@
   },
   "deleteConfirm": {
     "title": "Excluir esta conversa?",
+    "titleNamed": "Excluir “{{title}}”?",
+    "untitled": "este tópico",
     "titleMany": "Excluir {{count}} conversas?",
     "description": "Esta ação não pode ser desfeita.",
     "descriptionMany": "Esta ação não pode ser desfeita.",

@@ -2619,6 +2619,8 @@
   },
   "deleteConfirm": {
     "title": "Hapus obrolan ini?",
+    "titleNamed": "Hapus “{{title}}”?",
+    "untitled": "obrolan ini",
     "titleMany": "Hapus {{count}} percakapan?",
     "description": "Tindakan ini tidak dapat dibatalkan.",
     "descriptionMany": "Tindakan ini tidak dapat dibatalkan.",

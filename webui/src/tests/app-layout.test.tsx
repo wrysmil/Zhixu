@@ -1769,7 +1769,7 @@ describe("App layout", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
 
     await waitFor(() =>
-      expect(screen.getByText("Delete this topic?")).toBeInTheDocument(),
+      expect(screen.getByText("Delete \u201cFirst chat\u201d?")).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
@@ -1781,7 +1781,7 @@ describe("App layout", () => {
         within(sidebar).getByRole("button", { name: /^Second chat$/ }),
       ).toBeInTheDocument(),
     );
-    expect(screen.queryByText("Delete this topic?")).not.toBeInTheDocument();
+    expect(screen.queryByText("Delete \u201cFirst chat\u201d?")).not.toBeInTheDocument();
     expect(document.body.style.pointerEvents).not.toBe("none");
   }, 15_000);
 
@@ -1959,7 +1959,7 @@ describe("App layout", () => {
 
     fireEvent.click(deleteItem);
     await waitFor(() =>
-      expect(screen.getByText("Delete this topic?")).toBeInTheDocument(),
+      expect(screen.getByText("Delete \u201cExisting chat\u201d?")).toBeInTheDocument(),
     );
   }, 15_000);
 
@@ -3602,7 +3602,7 @@ describe("App layout", () => {
       name: "New topic pane actions",
     }), { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
-    expect(await screen.findByText("Delete this topic?")).toBeInTheDocument();
+    expect(await screen.findByText("Delete \u201cNew topic\u201d?")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(deleteChatSpy).toHaveBeenCalledWith("websocket:new-pane"));
