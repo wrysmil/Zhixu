@@ -190,6 +190,8 @@ def test_memory_extraction_disabled_by_default(tmp_path: Path) -> None:
     assert loop._memory_extraction_tasks == set()
     assert loop.sessions._delete_session_observer is None
     assert loop.auto_compact._quick_facts_hook is None
+    # 未启用抽取时 API 装配拿不到结束 flush 的 provider，端点按契约返回 503。
+    assert loop.memory_extractor_provider is None
 
 
 def test_memory_extraction_disabled_leaves_turn_hook_chain_clean(tmp_path: Path) -> None:
@@ -220,6 +222,9 @@ def test_memory_extraction_enabled_wires_all_three_points(tmp_path: Path) -> Non
     assert len(loop._hook_factories) == 1
     assert loop.sessions._delete_session_observer is not None
     assert loop.auto_compact._quick_facts_hook is not None
+    # API 装配（nanobot api）用同一 provider 与作用域构造 SessionEndFlushConsumer。
+    assert loop.memory_extractor_provider is not None
+    assert loop.memory_extraction_workspace_id == "default"
 
     created = loop._hook_factories[0](AgentTurnHookContext(session_key="websocket:abc"))
     assert isinstance(created, MemoryExtractionHook)

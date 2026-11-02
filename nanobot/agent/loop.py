@@ -357,6 +357,16 @@ class AgentLoop:
     def model_preset(self) -> str | None:
         return self.runtime_resolver.model_preset
 
+    @property
+    def memory_extractor_provider(self) -> Callable[[str], Any] | None:
+        """会话结束 flush 用的提取器工厂；未启用记忆抽取时为 ``None``。"""
+        return self._memory_extractor_provider
+
+    @property
+    def memory_extraction_workspace_id(self) -> str:
+        """与逐轮抽取同一作用域，供 ``SessionEndFlushConsumer`` 使用。"""
+        return self._memory_extraction_workspace_id
+
     @model_preset.setter
     def model_preset(self, name: str | None) -> None:
         self.set_model_preset(name)
@@ -615,6 +625,10 @@ class AgentLoop:
         # to the pre-extraction loop. Strong refs to in-flight deletion
         # extraction tasks live here so the event loop cannot GC them early.
         self._memory_extraction_tasks: set[asyncio.Task[Any]] = set()
+        # API 装配需要同一 provider 构造 SessionEndFlushConsumer；未启用抽取时
+        # 保持 None，端点按契约返回 503 而不是假接受。
+        self._memory_extractor_provider: Callable[[str], Any] | None = None
+        self._memory_extraction_workspace_id: str = "default"
         quick_facts_hook: Callable[[Session], int] | None = None
         if memory_extraction_enabled:
             quick_facts_hook = self._wire_memory_extraction(memory_services)
@@ -793,6 +807,11 @@ class AgentLoop:
                 runtime if runtime is not None else self.llm_runtime(),
                 session_key,
             )
+
+        # 暴露给 API 装配：会话结束 flush 必须与逐轮抽取共用同一 provider 与
+        # workspace_id，否则批次消费键会指向另一个库/作用域。
+        self._memory_extractor_provider = _extractor_provider
+        self._memory_extraction_workspace_id = services.workspace_id
 
         def _session_label_for_key(session_key: str) -> str:
             """日志用的会话摘要：WebUI 侧边栏那一行（标题优先，空则首条用户消息）。"""
