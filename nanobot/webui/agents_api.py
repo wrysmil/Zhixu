@@ -7,7 +7,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, cast
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 from nanobot.agents.catalog import DEFAULT_TOOL_CATEGORY, TOOL_CATEGORIES, TOOL_RISK_OVERRIDES
 from nanobot.agents.models import AgentProfile, AgentProfileError
@@ -19,6 +20,9 @@ from nanobot.agents.store import (
 )
 from nanobot.config.schema import Config, ToolsConfig
 from nanobot.webui.settings_contracts import WebUISettingsError
+
+if TYPE_CHECKING:
+    from nanobot.agent.subagent import SubagentManager
 
 # 描述符首行截断长度：工具 description 动辄上千字符，前端列表用不上。
 _DESCRIPTION_LIMIT = 200
@@ -164,7 +168,16 @@ def _tool_descriptors(workspace: Path, tools_config: ToolsConfig) -> list[dict[s
     from nanobot.agent.tools.registry import ToolRegistry
 
     registry = ToolRegistry()
-    ctx = ToolContext(config=tools_config, workspace=str(Path(workspace).resolve()))
+    # spawn 工具的 create() 要求 ctx.subagent_manager 已初始化（真实运行路径
+    # 由 AgentLoop 注入）。目录枚举只用到它的 workspace 属性来列出 Agent
+    # 档案，因此给一个仅带 workspace 的轻量替身——否则 spawn 会在这里
+    # create 失败、从 catalog 中消失，并刷一条 ERROR traceback。
+    manager_stub = SimpleNamespace(workspace=Path(workspace).resolve())
+    ctx = ToolContext(
+        config=tools_config,
+        workspace=str(Path(workspace).resolve()),
+        subagent_manager=cast("SubagentManager", manager_stub),
+    )
     loader = ToolLoader()
     # 两个 scope 各打一次、进同一个 registry：同名工具后者覆盖前者，
     # 结果就是全部工具的并集。
