@@ -766,6 +766,15 @@ async def run_agent_worker(
         parent_execution_id=parent_execution_id,
     )
 
+    # 记忆专项 case：boot 带 memory_execution 就走专项 runner（真实产品装配），
+    # 普通 case 沿用旧的 turns 执行路径，行为一字不变（plan §6 Step 2）。
+    memory_execution = getattr(boot, "memory_execution", None)
+    if isinstance(memory_execution, Mapping) and memory_execution:
+        return await _run_memory_agent_worker(
+            boot, runtime=runtime, channel=channel, ledger=ledger,
+            recorder=recorder, errors=errors, started=started,
+        )
+
     case = boot.case_snapshot
     status: str = "succeeded"
     final_answer: str | None = None
@@ -876,6 +885,39 @@ async def run_agent_worker(
 
     # 工具使用事实进能力清单与 Trace：判分侧要能区分
     # 「真的读了素材」与「嘴上说读过」。
+    return _seal_agent_result(
+        boot=boot, runtime=runtime, channel=channel, ledger=ledger,
+        recorder=recorder, errors=errors, started=started,
+        status=status, final_answer=final_answer, stop_reason=stop_reason,
+        iterations=iterations, used_tools=used_tools, memory_result=None,
+        target_kind=target_kind or None, target_id=target_id or None,
+        skill_id=skill_id,
+    )
+
+
+def _seal_agent_result(
+    boot: AgentWorkerBoot,
+    runtime: AttemptRuntime,
+    channel: WorkerChannel,
+    ledger: UsageLedger,
+    recorder: TraceRecorder,
+    errors: list[AttemptError],
+    started: float,
+    *,
+    status: str,
+    final_answer: str | None,
+    stop_reason: str | None,
+    iterations: int,
+    used_tools: set[str],
+    memory_result: Mapping[str, Any] | None,
+    target_kind: str | None = None,
+    target_id: str | None = None,
+    skill_id: str | None = None,
+) -> AgentWorkerResult:
+    """执行段之后的共同收尾：能力清单、密封、产物索引、result 帧。
+
+    普通路径与记忆专项路径共用；记忆路径 ``memory_result`` 携带专项产物。
+    """
     runtime.capability["tools_used"] = sorted(used_tools)
     runtime.capability["read_file_executed"] = "read_file" in used_tools
 
@@ -885,8 +927,8 @@ async def run_agent_worker(
 
     answer_event = recorder.emit(
         "agent.completed" if status == "succeeded" else "agent.failed",
-        target_kind=target_kind or None,
-        target_id=target_id or None,
+        target_kind=target_kind,
+        target_id=target_id,
         skill_id=skill_id,
         payload={
             "execution_status": status,
@@ -900,6 +942,7 @@ async def run_agent_worker(
                 if final_answer
                 else None
             ),
+            "memory_result": bool(memory_result),
         },
     )
     # 最终回答的稳定引用：纯文本任务也能被 Judge 引用到具体证据行。
@@ -925,6 +968,7 @@ async def run_agent_worker(
         errors.append(AttemptError(phase="trace", code=exc.code, message=str(exc)))
 
     try:
+        case = boot.case_snapshot
         index = seal_attempt_artifacts(runtime, declared=case.artifact_paths)
         index["trace_complete"] = trace_complete
     except OSError as exc:
@@ -952,7 +996,106 @@ async def run_agent_worker(
             errors=errors,
             trace_complete=trace_complete,
             evidence_refs=[final_answer_ref] if final_answer_ref else [],
+            memory_result=dict(memory_result) if memory_result is not None else None,
         ),
+    )
+
+
+async def _run_memory_agent_worker(
+    boot: AgentWorkerBoot,
+    *,
+    runtime: AttemptRuntime,
+    channel: WorkerChannel,
+    ledger: UsageLedger,
+    recorder: TraceRecorder,
+    errors: list[AttemptError],
+    started: float,
+) -> AgentWorkerResult:
+    """记忆专项路径：boot.memory_execution → 真实产品装配的专项 runner。
+
+    失败账目（adapter 错 / settle 超时 / 观察者损坏 / skip 策略）保留在
+    ``memory_result.failure_ledger`` 里随 result 交给父评分端；执行状态只反映
+    子进程自身能否完成执行，不把账目失败伪装成成功，也不因账目失败剔除 trial。
+    """
+    from nanobot.evaluation.memory.worker_bridge import (
+        MemoryWorkerSetupError,
+        run_memory_worker_execution,
+    )
+
+    case = boot.case_snapshot
+    execution_payload = dict(boot.memory_execution or {})
+    status: str = "succeeded"
+    final_answer: str | None = None
+    stop_reason: str | None = None
+    memory_result_payload: dict[str, Any] | None = None
+    recorder.emit(
+        "attempt.started",
+        payload={
+            "role": runtime.role,
+            "tool_mode": case.execution.tool_mode,
+            "model": runtime.capability.get("model"),
+            "turns": 0,
+            "memory_scenario_id": str(execution_payload.get("scenario_id") or ""),
+            "memory_track": str(execution_payload.get("track") or ""),
+            "max_iterations": case.execution.max_iterations,
+            "timeout_s": case.execution.timeout_s,
+            "capability": runtime.capability,
+        },
+    )
+    recorder.emit(
+        "agent.started",
+        payload={
+            "role": runtime.role,
+            "memory_scenario_id": str(execution_payload.get("scenario_id") or ""),
+            "memory_track": str(execution_payload.get("track") or ""),
+            "provider": runtime.capability.get("provider"),
+            "model": runtime.capability.get("model"),
+        },
+    )
+    async with guarded_close(runtime, errors):
+        try:
+            async with asyncio.timeout(case.execution.timeout_s):
+                outcome = await run_memory_worker_execution(
+                    runtime, execution_payload, emit_event=recorder.emit
+                )
+                memory_result_payload = outcome.run.model_dump(mode="json")
+                for answer in (
+                    probe.execution.answer
+                    for probe in reversed(outcome.run.trial.probes)
+                ):
+                    if answer:
+                        final_answer = answer
+                        break
+                final_answer = final_answer or ""
+        except TimeoutError:
+            status = "timed_out"
+            errors.append(
+                AttemptError(
+                    phase="execution",
+                    code=WORKER_TIMED_OUT,
+                    message=f"attempt exceeded {case.execution.timeout_s}s",
+                )
+            )
+        except asyncio.CancelledError:
+            # 取消来自 worker 自身的任务调度；先落终态再返回，父进程仍可读到 result。
+            status = "cancelled"
+            errors.append(
+                AttemptError(phase="execution", code=WORKER_CANCELLED, message="attempt cancelled")
+            )
+        except MemoryWorkerSetupError as exc:
+            status = "failed"
+            errors.append(AttemptError(phase="setup", code=exc.code, message=str(exc)))
+        except Exception as exc:  # noqa: BLE001 - 保留原始异常文本
+            status = "failed"
+            errors.append(
+                AttemptError(phase="execution", code=_error_text(exc), message=str(exc))
+            )
+
+    return _seal_agent_result(
+        boot=boot, runtime=runtime, channel=channel, ledger=ledger,
+        recorder=recorder, errors=errors, started=started,
+        status=status, final_answer=final_answer, stop_reason=stop_reason,
+        iterations=0, used_tools=set(), memory_result=memory_result_payload,
     )
 
 

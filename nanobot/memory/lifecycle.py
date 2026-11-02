@@ -24,6 +24,7 @@ from typing import Any, Iterable
 
 from loguru import logger
 
+from nanobot.memory.clock import MemoryClock
 from nanobot.memory.context import CORE_NOTE_RECORD_ID_PREFIX, is_core_note_record
 from nanobot.memory.filters import content_hash_legacy
 from nanobot.memory.models import Memory, MemoryPriority, MemoryType
@@ -272,22 +273,40 @@ class MemoryLifecycle:
     _last_refresh_iso: dict[str, str] = {}
     _last_refresh_trigger: dict[str, str] = {}
 
-    def __init__(self, workspace_id: str, services: MemoryServices) -> None:
+    def __init__(
+        self,
+        workspace_id: str,
+        services: MemoryServices,
+        *,
+        clock: MemoryClock | None = None,
+    ) -> None:
         self.workspace_id = workspace_id
         self.services = services
+        # 评测可注入的时钟；缺省时全部走真实时间。
+        self._clock = clock
         self.memory_dir: Path = services.database.workspace / "memory"
         self.memory_file: Path = self.memory_dir / "MEMORY.md"
         self.draft_file: Path = self.memory_dir / "MEMORY.md.draft"
         # Instance-level lock: each workspace has its own lock.
         self._derive_lock = threading.Lock()
 
+    def _now_iso(self) -> str:
+        """当前 UTC 时间戳；注入 clock 时使用虚拟墙上时间。"""
+        if self._clock is not None:
+            return self._clock.wall_now().strftime("%Y-%m-%dT%H:%M:%SZ")
+        return _iso8601_now()
+
     @classmethod
     def for_workspace(
-        cls, workspace_id: str, services: MemoryServices
+        cls,
+        workspace_id: str,
+        services: MemoryServices,
+        *,
+        clock: MemoryClock | None = None,
     ) -> "MemoryLifecycle":
         """Return the singleton MemoryLifecycle for the given workspace."""
         if workspace_id not in cls._instances:
-            cls._instances[workspace_id] = cls(workspace_id, services)
+            cls._instances[workspace_id] = cls(workspace_id, services, clock=clock)
         return cls._instances[workspace_id]
 
     # ------------------------------------------------------------------
@@ -317,7 +336,7 @@ class MemoryLifecycle:
                     return {"status": "skipped", "reason": "no_change"}
 
                 self._safe_write_with_backup(self.memory_file, content)
-                self._last_refresh_iso[workspace_id] = _iso8601_now()
+                self._last_refresh_iso[workspace_id] = self._now_iso()
                 self._last_refresh_trigger[workspace_id] = "manual"
                 return {"status": "ok", "chars": len(content)}
 
@@ -370,7 +389,7 @@ class MemoryLifecycle:
                     self.memory_file,
                     self._render_export(facts, note),
                 )
-                self._last_refresh_iso[self.workspace_id] = _iso8601_now()
+                self._last_refresh_iso[self.workspace_id] = self._now_iso()
                 self._last_refresh_trigger[self.workspace_id] = "manual"
             except ValueError:
                 raise

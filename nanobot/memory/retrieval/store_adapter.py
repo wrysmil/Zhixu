@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from typing import Any
 
 from loguru import logger
@@ -56,10 +57,21 @@ class MemoryStoreAdapter:
     """
 
     def __init__(
-        self, database: MemoryDatabase, *, vector_store: Any = None
+        self,
+        database: MemoryDatabase,
+        *,
+        vector_store: Any = None,
+        clock: Any = None,
     ) -> None:
         self._database = database
         self._vector_store = vector_store
+        self._clock = clock
+
+    def _now(self) -> datetime:
+        """当前时间；注入 clock 时使用虚拟墙上时间。"""
+        if self._clock is not None:
+            return self._clock.wall_now()
+        return datetime.now(timezone.utc)
 
     # ----- 语义通道 -----
     def search_semantic_scored(

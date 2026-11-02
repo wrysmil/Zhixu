@@ -246,6 +246,59 @@ def lookup_calibration(
     )
 
 
+def grading_digest(
+    *,
+    policy: Any,
+    extra: Mapping[str, Any] | None = None,
+) -> str:
+    """判分证据摘要（契约 §8.5）。
+
+    判分策略的三个版本号、采用阈值与校准策略全部进摘要：评分器换了版本，
+    摘要就变，历史分数不能被当成同口径比较。
+    """
+    calibration = getattr(policy, "calibration", None)
+    payload: dict[str, Any] = {
+        "fact_matching_version": str(getattr(policy, "fact_matching_version", "") or ""),
+        "metric_aggregation_version": str(
+            getattr(policy, "metric_aggregation_version", "") or ""
+        ),
+        "bootstrap_version": str(getattr(policy, "bootstrap_version", "") or ""),
+        "minimum_effect_pp": getattr(policy, "minimum_effect_pp", None),
+        "calibration": _canonical(rubric_payload(calibration or {})),
+        "extra": dict(extra or {}),
+    }
+    return hashlib.sha256(_dump(payload).encode("utf-8")).hexdigest()
+
+
+def review_digest(
+    *,
+    grading_revision: int,
+    grading_digest_value: str,
+    metric_digests: Mapping[str, str] | None = None,
+) -> str:
+    """复核摘要：评分版本 + 判分证据 + 逐指标摘要。
+
+    重算会产生新的 ``grading_revision`` 与新的摘要——原分数保留不动，既有比较
+    快照不回写。
+    """
+    payload: dict[str, Any] = {
+        "grading_revision": int(grading_revision),
+        "grading_digest": str(grading_digest_value),
+        "metrics": {
+            str(key): str(value)
+            for key, value in sorted((metric_digests or {}).items(), key=lambda item: item[0])
+        },
+    }
+    return hashlib.sha256(_dump(payload).encode("utf-8")).hexdigest()
+
+
+def next_grading_revision(current: int | None) -> int:
+    """下一次判分的版本号：重算必须产生新版本，不复用旧版本号。"""
+    if current is None:
+        return 1
+    return max(1, int(current) + 1)
+
+
 def calibration_snapshot(
     *,
     profile: Mapping[str, Any],

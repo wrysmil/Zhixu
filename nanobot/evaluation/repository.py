@@ -33,6 +33,7 @@ from typing import Any, cast
 
 from nanobot.evaluation import manifests
 from nanobot.evaluation.database import EvaluationDatabase
+from nanobot.evaluation.memory.models import MemoryReviewRef, MemoryScenarioRef
 from nanobot.evaluation.schemas import CaseRead, CaseWrite, RunCreate, SuiteRead, SuiteWrite
 from nanobot.evaluation.validation import validate_relative_path
 
@@ -135,6 +136,24 @@ def _group_by_attempt(rows: Sequence[sqlite3.Row]) -> dict[str, list[dict[str, A
     for row in rows:
         grouped.setdefault(row["attempt_id"], []).append(dict(row))
     return grouped
+
+
+def _review_dict(row: sqlite3.Row) -> dict[str, Any]:
+    """复核行的统一读出形状。
+
+    ``memory_ref`` 为 null 的是整 attempt 验收；非 null 的只针对某个 probe 的某个
+    指标（契约 §4）。
+    """
+    raw = row["memory_ref_json"] if "memory_ref_json" in row.keys() else None
+    return {
+        "id": row["id"],
+        "attempt_id": row["attempt_id"],
+        "verdict": row["verdict"],
+        "comment": row["comment"],
+        "reviewer": row["reviewer"],
+        "created_at": row["created_at"],
+        "memory_ref": None if raw is None else json.loads(raw),
+    }
 
 class EvaluationRepository:
     """评估域唯一写入口；一个服务实例持有一个。"""
@@ -241,6 +260,9 @@ class EvaluationRepository:
         suite_id = str(write.suite_id)
         now = _utc_now_iso()
         with self._db.connect() as conn:
+            # 专项 case：ref 必须能解析到可评分场景，否则不入库（不留半个用例）。
+            if write.memory_scenario_ref is not None:
+                self._require_memory_scenario(conn, write.memory_scenario_ref)
             if case_id is None:
                 if write.base_revision is not None:
                     raise RevisionConflict(
@@ -281,10 +303,44 @@ class EvaluationRepository:
                 " created_at) VALUES (?, ?, ?, ?)",
                 (new_case_id, revision, _dump(definition), now),
             )
+            if write.memory_scenario_ref is not None:
+                # 场景行记住自己绑定的用例与用例修订（契约 §7 的 unique(case_id,
+                # case_revision)）：case 快照只存 ref，正文仍在场景侧。
+                conn.execute(
+                    "UPDATE memory_scenarios SET case_id = ?, case_revision = ?"
+                    " WHERE dataset_revision_id = ? AND scenario_id = ? AND revision = ?",
+                    (
+                        new_case_id,
+                        revision,
+                        str(write.memory_scenario_ref.dataset_revision_id),
+                        write.memory_scenario_ref.scenario_id,
+                        write.memory_scenario_ref.revision,
+                    ),
+                )
             conn.execute(
                 "UPDATE suites SET updated_at = ? WHERE id = ?", (now, suite_id)
             )
         return self.get_case(new_case_id)
+
+    @staticmethod
+    def _require_memory_scenario(
+        conn: sqlite3.Connection, reference: MemoryScenarioRef
+    ) -> None:
+        """专项 case 的 ref 必须能解析到可评分场景（契约 §1）。"""
+        row = conn.execute(
+            "SELECT 1 FROM memory_scenarios WHERE dataset_revision_id = ?"
+            " AND scenario_id = ? AND revision = ?",
+            (
+                str(reference.dataset_revision_id),
+                reference.scenario_id,
+                reference.revision,
+            ),
+        ).fetchone()
+        if row is None:
+            raise RecordNotFound(
+                f"MEMORY_SCENARIO_NOT_FOUND {reference.scenario_id}"
+                f"@{reference.revision}"
+            )
 
     def get_case(self, case_id: str) -> dict[str, Any]:
         with self._db.connect() as conn:
@@ -412,6 +468,19 @@ class EvaluationRepository:
                     " created_at) VALUES (?, 1, ?, ?)",
                     (case_id, _dump(definition), now),
                 )
+                if item.memory_scenario_ref is not None:
+                    self._require_memory_scenario(conn, item.memory_scenario_ref)
+                    conn.execute(
+                        "UPDATE memory_scenarios SET case_id = ?, case_revision = ?"
+                        " WHERE dataset_revision_id = ? AND scenario_id = ? AND revision = ?",
+                        (
+                            case_id,
+                            1,
+                            str(item.memory_scenario_ref.dataset_revision_id),
+                            item.memory_scenario_ref.scenario_id,
+                            item.memory_scenario_ref.revision,
+                        ),
+                    )
             case_count = conn.execute(
                 "SELECT COUNT(*) FROM cases WHERE suite_id = ? AND is_deleted = 0",
                 (suite_id,),
@@ -519,6 +588,8 @@ class EvaluationRepository:
         target: Mapping[str, Any] | None = None,
         frozen_cases: Sequence[Mapping[str, Any]] | None = None,
         effective_limits: Mapping[str, int] | None = None,
+        run_id: str | None = None,
+        snapshot_extra: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """幂等入队：key、request_hash、run 与 attempts 在**同一事务**内落库。
 
@@ -528,6 +599,11 @@ class EvaluationRepository:
 
         ``target`` 是服务层决定好的冻结载荷（Agent/Skill 目标的档案与文件在服务层
         落成 dict 后传入；仓储只负责进快照，不做二次解析）。
+
+        ``run_id`` 供记忆实验协调器使用：子 run 的 id 在实验计划里已经冻结，入队时
+        必须沿用同一个 id，否则「计划里的子 run」与「真正执行的 run」对不上。
+        ``snapshot_extra`` 只允许追加快照字段（例如 ``memory_experiment`` 组信息），
+        不允许覆盖既有键——执行期读到的快照口径必须保持单一来源。
         """
         digest = self.request_digest(json.loads(request.model_dump_json()))
         with self._db.connect(immediate=True) as conn:
@@ -535,7 +611,7 @@ class EvaluationRepository:
             if replay is not None:
                 return replay
 
-            run_id = _new_id()
+            new_run_id = run_id or _new_id()
             now = _utc_now_iso()
             snapshots = (
                 [dict(item) for item in frozen_cases]
@@ -579,12 +655,13 @@ class EvaluationRepository:
                 "effective_limits": _effective_limits_payload(snapshots),
                 "target": dict(target) if target else None,
                 "run_timeout_s": request.run_timeout_s,
+                **self._extra_snapshot(snapshot_extra),
             })
             conn.execute(
                 "INSERT INTO runs (id, suite_id, status, snapshot_json, request_hash,"
                 " parent_run_id, is_deleted, created_at) VALUES (?, ?, 'queued', ?, ?,"
                 " ?, 0, ?)",
-                (run_id, str(request.suite_id), snapshot_json, digest,
+                (new_run_id, str(request.suite_id), snapshot_json, digest,
                  parent_run_id, now),
             )
             position = 0
@@ -598,7 +675,7 @@ class EvaluationRepository:
                         " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', 'pending', 'not_evaluated')",
                         (
                             _new_id(),
-                            run_id,
+                            new_run_id,
                             position,
                             item["case_id"],
                             item["case_revision"],
@@ -607,13 +684,30 @@ class EvaluationRepository:
                             item.get("source_attempt_id"),
                         ),
                     )
-            response = self._run_dict(conn, run_id)
+            response = self._run_dict(conn, new_run_id)
             conn.execute(
                 "INSERT INTO idempotency (scope, endpoint, key, request_hash, run_id,"
                 " response_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (scope, RUNS_ENDPOINT, idempotency_key, digest, run_id, _dump(response), now),
+                (scope, RUNS_ENDPOINT, idempotency_key, digest, new_run_id,
+                 _dump(response), now),
             )
         return response
+
+    @staticmethod
+    def _extra_snapshot(extra: Mapping[str, Any] | None) -> dict[str, Any]:
+        """追加冻结快照字段；与既有键冲突时直接拒绝（不允许静默覆盖口径）。"""
+        if not extra:
+            return {}
+        reserved = {
+            "case_revisions", "agent_profile", "judge_profile", "rules_version",
+            "grader_version", "tool_mode", "tool_modes", "repetitions", "model_mode",
+            "manifest", "limits", "explicit_limits", "effective_limits", "target",
+            "run_timeout_s",
+        }
+        conflicts = sorted(reserved & {str(key) for key in extra})
+        if conflicts:
+            raise ValueError(f"VALIDATION_ERROR: reserved snapshot key {conflicts[0]}")
+        return {str(key): value for key, value in extra.items()}
 
     @staticmethod
     def _replay(
@@ -799,14 +893,7 @@ class EvaluationRepository:
         attempt_ids = [item["id"] for item in attempts]
         # 复核与产物各查一次再按 attempt_id 分桶：逐条查会让 200 用例的运行读放大到
         # 400 次查询。空 attempt 列表直接跳过 IN 查询。
-        reviews = _group_by_attempt(
-            self._rows_for_attempts(
-                conn,
-                "SELECT id, attempt_id, verdict, comment, reviewer, created_at"
-                " FROM reviews WHERE attempt_id IN ({slots}) ORDER BY created_at, id",
-                attempt_ids,
-            )
-        )
+        reviews = self._reviews_by_attempt(conn, attempt_ids)
         artifacts = _group_by_attempt(
             self._rows_for_attempts(
                 conn,
@@ -842,6 +929,26 @@ class EvaluationRepository:
         return conn.execute(
             sql.format(slots=_placeholders(len(attempt_ids))), list(attempt_ids)
         ).fetchall()
+
+    @staticmethod
+    def _reviews_by_attempt(
+        conn: sqlite3.Connection, attempt_ids: Sequence[str]
+    ) -> dict[str, list[dict[str, Any]]]:
+        """一次查询取回整份运行的复核，再按 attempt_id 分桶。
+
+        逐条查会让 200 用例的运行读放大到 200 次查询；空列表直接跳过 IN 查询。
+        """
+        rows = EvaluationRepository._rows_for_attempts(
+            conn,
+            "SELECT id, attempt_id, verdict, comment, reviewer, created_at,"
+            " memory_ref_json FROM reviews WHERE attempt_id IN ({slots})"
+            " ORDER BY created_at, id",
+            attempt_ids,
+        )
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            grouped.setdefault(row["attempt_id"], []).append(_review_dict(row))
+        return grouped
 
     @staticmethod
     def _attempt_dict(
@@ -1085,6 +1192,171 @@ class EvaluationRepository:
                 " ORDER BY created_at",
             ).fetchall()
         return [dict(row) for row in rows]
+
+    # ------------------------------------------------------- 记忆实验编排（WU-07）
+
+    def run_status(self, run_id: str) -> str | None:
+        """单个 run 的状态；不存在返回 None（恢复流程要区分「没有」与「未终结」）。"""
+        with self._db.connect() as conn:
+            row = conn.execute(
+                "SELECT status FROM runs WHERE id = ?", (run_id,)
+            ).fetchone()
+        return None if row is None else str(row["status"])
+
+    def memory_scenario_bindings(
+        self,
+        dataset_revision_id: str,
+        *,
+        split: str | None = None,
+        scenario_ids: Sequence[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """按 **scenario_id 固定顺序**读出场景的最新 revision 与绑定的 case。
+
+        固定顺序是分批可复现的前提：两个进程用同一份数据集修订必须切出同样的批次。
+        未绑定 case 的场景 ``case_id`` 为 None，由协调器补建专项 case。
+        """
+        sql = (
+            "SELECT s.scenario_id, s.revision, s.case_id, s.case_revision,"
+            " s.cluster_id, s.split FROM memory_scenarios s"
+            " JOIN (SELECT scenario_id, MAX(revision) AS revision FROM memory_scenarios"
+            "       WHERE dataset_revision_id = :revision_id GROUP BY scenario_id) latest"
+            "   ON latest.scenario_id = s.scenario_id AND latest.revision = s.revision"
+            " WHERE s.dataset_revision_id = :revision_id"
+        )
+        params: dict[str, Any] = {"revision_id": str(dataset_revision_id)}
+        if split is not None:
+            sql += " AND s.split = :split"
+            params["split"] = split
+        sql += " ORDER BY s.scenario_id, s.revision"
+        with self._db.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        wanted = None if not scenario_ids else {str(item) for item in scenario_ids}
+        return [
+            {
+                "scenario_id": str(row["scenario_id"]),
+                "revision": int(row["revision"]),
+                "case_id": None if row["case_id"] is None else str(row["case_id"]),
+                "case_revision": (
+                    None if row["case_revision"] is None else int(row["case_revision"])
+                ),
+                "cluster_id": str(row["cluster_id"]),
+                "split": str(row["split"]),
+            }
+            for row in rows
+            if wanted is None or str(row["scenario_id"]) in wanted
+        ]
+
+    def memory_experiment_of_run(self, run_id: str) -> str | None:
+        """子 run → 实验 id；普通 run 返回 None。"""
+        with self._db.connect() as conn:
+            row = conn.execute(
+                "SELECT experiment_id FROM memory_experiment_runs WHERE run_id = ?",
+                (str(run_id),),
+            ).fetchone()
+        return None if row is None else str(row["experiment_id"])
+
+    def list_memory_experiments(
+        self, *, suite_id: str | None = None, statuses: Sequence[str] | None = None
+    ) -> list[dict[str, Any]]:
+        sql = (
+            "SELECT id, suite_id, status, measurement_status, planned_trials"
+            " FROM memory_experiments"
+        )
+        where: list[str] = []
+        params: dict[str, Any] = {}
+        if suite_id is not None:
+            where.append("suite_id = :suite_id")
+            params["suite_id"] = str(suite_id)
+        if statuses:
+            placeholders = ", ".join(f":status{index}" for index in range(len(statuses)))
+            where.append(f"status IN ({placeholders})")
+            for index, status in enumerate(statuses):
+                params[f"status{index}"] = str(status)
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        sql += " ORDER BY created_at, id"
+        with self._db.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(row) for row in rows]
+
+    def attach_memory_manifest(
+        self, experiment_id: str, manifest: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """把冻结清单补进实验计划。
+
+        只在**尚未冻结**时写入：清单一旦落库就是历史证据，恢复流程不得用当前代码
+        重新算一遍覆盖它（否则「冻结」形同虚设）。返回实际生效的清单。
+        """
+        with self._db.connect(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT manifest_json FROM memory_experiments WHERE id = ?",
+                (str(experiment_id),),
+            ).fetchone()
+            if row is None:
+                raise RecordNotFound(f"MEMORY_EXPERIMENT_NOT_FOUND {experiment_id}")
+            current = _load(row["manifest_json"], {})
+            if isinstance(current, Mapping) and current.get("version"):
+                return dict(current)
+            payload = dict(manifest)
+            conn.execute(
+                "UPDATE memory_experiments SET manifest_json = ?, updated_at = ? WHERE id = ?",
+                (_dump(payload), _utc_now_iso(), str(experiment_id)),
+            )
+        return payload
+
+    def set_memory_experiment_status(
+        self,
+        experiment_id: str,
+        status: str,
+        *,
+        measurement_status: str | None = None,
+    ) -> dict[str, Any]:
+        """推进实验组状态；``measurement_status`` 只表示「能否评分」，与状态分离。"""
+        allowed = {
+            "queued", "running", "cancelling", "completed", "cancelled",
+            "interrupted", "timed_out",
+        }
+        if status not in allowed:
+            raise ValueError(f"VALIDATION_ERROR: unsupported experiment status {status}")
+        now = _utc_now_iso()
+        with self._db.connect(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM memory_experiments WHERE id = ?", (str(experiment_id),)
+            ).fetchone()
+            if row is None:
+                raise RecordNotFound(f"MEMORY_EXPERIMENT_NOT_FOUND {experiment_id}")
+            if measurement_status is None:
+                conn.execute(
+                    "UPDATE memory_experiments SET status = ?, updated_at = ? WHERE id = ?",
+                    (status, now, str(experiment_id)),
+                )
+            else:
+                if measurement_status not in ("complete", "incomplete"):
+                    raise ValueError(
+                        "VALIDATION_ERROR: unsupported measurement status"
+                    )
+                conn.execute(
+                    "UPDATE memory_experiments SET status = ?, measurement_status = ?,"
+                    " updated_at = ? WHERE id = ?",
+                    (status, measurement_status, now, str(experiment_id)),
+                )
+            updated = conn.execute(
+                "SELECT id, status, measurement_status FROM memory_experiments"
+                " WHERE id = ?",
+                (str(experiment_id),),
+            ).fetchone()
+        return dict(updated)
+
+    def update_memory_child_run_status(
+        self, experiment_id: str, run_id: str, status: str
+    ) -> None:
+        """把子 run 的真实状态回写到实验计划（计划状态只做投影，执行状态以 runs 为准）。"""
+        with self._db.connect(immediate=True) as conn:
+            conn.execute(
+                "UPDATE memory_experiment_runs SET status = ?"
+                " WHERE experiment_id = ? AND run_id = ?",
+                (str(status), str(experiment_id), str(run_id)),
+            )
 
     def mark_interrupted(self, run_id: str) -> dict[str, Any]:
         """重启后收口残留运行：连同待执行项一并终结，不自动补跑。"""
@@ -1359,13 +1631,31 @@ class EvaluationRepository:
     # ----------------------------------------------------------------- 复核与产物
 
     def append_review(
-        self, attempt_id: str, verdict: str, comment: str, *, reviewer: str
+        self,
+        attempt_id: str,
+        verdict: str,
+        comment: str,
+        *,
+        reviewer: str,
+        memory_ref: Mapping[str, Any] | MemoryReviewRef | None = None,
     ) -> dict[str, Any]:
-        """只追加，不回写自动 verdict（契约 §7.2）。"""
+        """只追加，不回写自动 verdict（契约 §7.2）。
+
+        ``memory_ref`` 是可选的逐 probe 复核引用（契约 §4）：旧调用不传它，行为与
+        之前完全一致——落库的是整 attempt 验收。
+        """
         if verdict not in ("passed", "failed"):
             raise ValueError(f"VALIDATION_ERROR: unsupported verdict {verdict}")
         if not reviewer.strip():
             raise ValueError("VALIDATION_ERROR: reviewer is required")
+        reference: dict[str, Any] | None = None
+        if memory_ref is not None:
+            parsed = (
+                memory_ref
+                if isinstance(memory_ref, MemoryReviewRef)
+                else MemoryReviewRef.model_validate(memory_ref)
+            )
+            reference = parsed.model_dump(mode="json")
         review_id = _new_id()
         created_at = _utc_now_iso()
         with self._db.connect() as conn:
@@ -1375,22 +1665,39 @@ class EvaluationRepository:
                 raise RecordNotFound(f"ATTEMPT_NOT_FOUND {attempt_id}")
             conn.execute(
                 "INSERT INTO reviews (id, attempt_id, verdict, comment, reviewer,"
-                " created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (review_id, attempt_id, verdict, comment, reviewer, created_at),
+                " created_at, memory_ref_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (review_id, attempt_id, verdict, comment, reviewer, created_at,
+                 None if reference is None else _dump(reference)),
             )
         return {
             "id": review_id, "attempt_id": attempt_id, "verdict": verdict,
             "comment": comment, "reviewer": reviewer, "created_at": created_at,
+            "memory_ref": reference,
         }
 
     def list_reviews(self, attempt_id: str) -> list[dict[str, Any]]:
         with self._db.connect() as conn:
             rows = conn.execute(
-                "SELECT id, attempt_id, verdict, comment, reviewer, created_at"
-                " FROM reviews WHERE attempt_id = ? ORDER BY created_at, id",
+                "SELECT id, attempt_id, verdict, comment, reviewer, created_at,"
+                " memory_ref_json FROM reviews WHERE attempt_id = ? ORDER BY created_at, id",
                 (attempt_id,),
             ).fetchall()
-        return [dict(row) for row in rows]
+        return [_review_dict(row) for row in rows]
+
+    def overall_review_verdict(self, attempt_id: str) -> str | None:
+        """整 attempt 的有效复核结论（契约 §4）。
+
+        **只读 ``memory_ref`` 为 null 的复核**：逐 probe 的复核只覆盖那个 probe 的
+        那个指标，把它当整任务通过会凭空造出一个"整任务已验收"的结论。没有整
+        attempt 复核时返回 None——缺证不是"通过"。
+        """
+        with self._db.connect() as conn:
+            row = conn.execute(
+                "SELECT verdict FROM reviews WHERE attempt_id = ?"
+                " AND memory_ref_json IS NULL ORDER BY created_at DESC, id DESC LIMIT 1",
+                (attempt_id,),
+            ).fetchone()
+        return None if row is None else str(row["verdict"])
 
     def append_artifact(
         self,

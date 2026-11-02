@@ -33,6 +33,11 @@ export type EvaluationCalibrationProps = {
   onRunCalibration?: () => void;
   /** 人工确认单个 gold 样例；组件不提供任何自动代签入口。 */
   onConfirmGold?: (sampleId: string) => void;
+  /**
+   * 复用同一份状态时的补充说明（记忆专项用它讲清「样本数量够了 ≠ Judge 已校准」）。
+   * null 时不渲染。
+   */
+  agreementUnavailableHint?: string | null;
   className?: string;
 };
 
@@ -54,6 +59,7 @@ export function EvaluationCalibration({
   busy = false,
   onRunCalibration,
   onConfirmGold,
+  agreementUnavailableHint = null,
   className,
 }: EvaluationCalibrationProps) {
   const { t } = useTranslation();
@@ -144,6 +150,11 @@ export function EvaluationCalibration({
         {agreementLow ? (
           <p data-testid="agreement-warning" className="text-[12px] text-amber-700 dark:text-amber-300">
             {t(base + "agreementThreshold", { threshold: Math.round(threshold * 100) })}
+          </p>
+        ) : null}
+        {agreement == null && agreementUnavailableHint ? (
+          <p data-testid="agreement-unavailable" className="text-[11px] text-muted-foreground">
+            {agreementUnavailableHint}
           </p>
         ) : null}
       </section>

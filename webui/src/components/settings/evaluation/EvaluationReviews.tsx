@@ -17,6 +17,16 @@ export type ReviewItem = {
   manual_note?: string | null;
   manual_reviewer?: string | null;
   manual_reviewed_at?: string | null;
+  /**
+   * 契约 §4：逐 probe 复核的引用（scenario/probe/metric + 评分版本）。
+   * 旧的整体验收 review 没有该字段，保持 null。
+   */
+  memory_ref?: {
+    scenario_id: string;
+    probe_id: string;
+    metric_id: string;
+    grading_revision: number;
+  } | null;
 };
 
 export type EvaluationReviewsProps = {
@@ -93,6 +103,17 @@ export function EvaluationReviews({
               {item.manual_reviewer ? (
                 <p className="text-[11px] text-muted-foreground">
                   {t(base + "reviewer") + ": " + item.manual_reviewer}
+                </p>
+              ) : null}
+              {item.memory_ref ? (
+                <p
+                  data-testid={"memory-ref-" + item.attempt_id}
+                  className="text-[11px] text-muted-foreground"
+                >
+                  {t(base + "memoryRef")}
+                  {": "}
+                  {item.memory_ref.scenario_id} / {item.memory_ref.probe_id} /{" "}
+                  {item.memory_ref.metric_id} · v{item.memory_ref.grading_revision}
                 </p>
               ) : null}
 

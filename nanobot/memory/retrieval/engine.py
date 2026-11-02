@@ -142,12 +142,15 @@ class RetrievalEngine:
         brain: Any = None,
         persona: Any = None,
         max_tokens: int = 700,
+        clock: Any = None,
     ) -> None:
         self.store = store
         self._decomposer = QueryDecomposer(brain=brain)
         self._reranker = Reranker()
         self._persona = persona
         self._default_max_tokens = max(1, max_tokens)
+        # 评测可注入时钟；当前检索链路只做确定性排序，保留入口以便评测对齐时间轴。
+        self._clock = clock
 
     async def retrieve(
         self,

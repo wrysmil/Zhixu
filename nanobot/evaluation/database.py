@@ -24,16 +24,35 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import ParamSpec, TypeVar
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "4"
 
 BUSY_TIMEOUT_MS = 5000
 
 P = ParamSpec("P")
 T = TypeVar("T")
 
+#: 迁移条目：普通 DDL 字符串，或需要按库现状判断的幂等步骤（callable）。
+#: ``ALTER TABLE ... ADD COLUMN`` 没有 IF NOT EXISTS，重复执行会抛
+#: ``duplicate column name``；迁移器只按 ``_schema_meta.version`` 跳过已执行版本，
+#: 遇到"版本号落后于实际结构"的旧库（手工改过版本号、或迁移中途失败留下半套结构）
+#: 会重跑该版本，这类步骤必须自带存在性判断。
+_MigrationStatement = str | Callable[[sqlite3.Connection], None]
+
+
+def _add_memory_ref_column(conn: sqlite3.Connection) -> None:
+    """幂等地给 reviews 追加可空的 memory_ref_json 列（契约 §7）。
+
+    列已存在时直接跳过，重复执行无副作用。
+    """
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(reviews)")}
+    if "memory_ref_json" in columns:
+        return
+    conn.execute("ALTER TABLE reviews ADD COLUMN memory_ref_json TEXT")
+
+
 #: 每个版本的 DDL 一次性建齐（首版即 14 张表，无中间态）。新增版本只能追加新元组，
 #: 绝不能改写已发布版本——否则已部署的库会被按新结构解读。
-_MIGRATIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+_MIGRATIONS: tuple[tuple[str, tuple[_MigrationStatement, ...]], ...] = (
     (
         "1",
         (
@@ -269,6 +288,139 @@ _MIGRATIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             " ON comparisons (scope, created_at)",
         ),
     ),
+    (
+        "4",
+        (
+            # ----- 记忆专项：集合版本 -----
+            """
+            CREATE TABLE IF NOT EXISTS memory_dataset_revisions (
+              id                TEXT    PRIMARY KEY,
+              suite_id          TEXT    NOT NULL,
+              dataset_version   TEXT    NOT NULL,
+              status            TEXT    NOT NULL DEFAULT 'staging',
+              split_counts_json TEXT    NOT NULL DEFAULT '{}',
+              source_json       TEXT    NOT NULL DEFAULT '{}',
+              definition_digest TEXT    NOT NULL,
+              created_at        TEXT    NOT NULL,
+              updated_at        TEXT    NOT NULL,
+              UNIQUE (suite_id, dataset_version),
+              FOREIGN KEY (suite_id) REFERENCES suites(id)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS memory_dataset_revisions_status_idx"
+            " ON memory_dataset_revisions (suite_id, status, created_at)",
+            # execution_json 与 gold_json 分列存储：执行端只读前者。
+            """
+            CREATE TABLE IF NOT EXISTS memory_scenarios (
+              dataset_revision_id TEXT    NOT NULL,
+              scenario_id         TEXT    NOT NULL,
+              revision            INTEGER NOT NULL,
+              case_id             TEXT,
+              case_revision       INTEGER,
+              split               TEXT    NOT NULL,
+              template_family     TEXT    NOT NULL,
+              cluster_id          TEXT    NOT NULL,
+              execution_json      TEXT    NOT NULL,
+              gold_json           TEXT    NOT NULL,
+              created_at          TEXT    NOT NULL,
+              PRIMARY KEY (dataset_revision_id, scenario_id, revision),
+              UNIQUE (case_id, case_revision),
+              FOREIGN KEY (dataset_revision_id) REFERENCES memory_dataset_revisions(id),
+              FOREIGN KEY (case_id) REFERENCES cases(id)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS memory_scenarios_lookup_idx"
+            " ON memory_scenarios (dataset_revision_id, scenario_id, revision)",
+            # ----- 记忆专项：导入作业 -----
+            """
+            CREATE TABLE IF NOT EXISTS memory_import_jobs (
+              id                  TEXT    PRIMARY KEY,
+              suite_id            TEXT    NOT NULL,
+              status              TEXT    NOT NULL DEFAULT 'staging',
+              expected_count      INTEGER,
+              observed_count      INTEGER,
+              dataset_revision_id TEXT,
+              source_json         TEXT    NOT NULL DEFAULT '{}',
+              errors_json         TEXT    NOT NULL DEFAULT '[]',
+              created_at          TEXT    NOT NULL,
+              updated_at          TEXT    NOT NULL,
+              FOREIGN KEY (suite_id) REFERENCES suites(id)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS memory_import_jobs_status_idx"
+            " ON memory_import_jobs (suite_id, status, created_at)",
+            # ----- 记忆专项：实验与子 run -----
+            """
+            CREATE TABLE IF NOT EXISTS memory_experiments (
+              id                  TEXT    PRIMARY KEY,
+              suite_id            TEXT    NOT NULL,
+              dataset_revision_id TEXT    NOT NULL,
+              split               TEXT    NOT NULL,
+              track               TEXT    NOT NULL,
+              candidates_json     TEXT    NOT NULL DEFAULT '[]',
+              repetitions         INTEGER NOT NULL DEFAULT 1,
+              model_mode          TEXT    NOT NULL DEFAULT 'real',
+              judge_profile_id    TEXT,
+              budgets_json        TEXT    NOT NULL DEFAULT '{}',
+              primary_metric      TEXT    NOT NULL,
+              policy_json         TEXT    NOT NULL DEFAULT '{}',
+              manifest_json       TEXT    NOT NULL DEFAULT '{}',
+              status              TEXT    NOT NULL DEFAULT 'queued',
+              measurement_status  TEXT    NOT NULL DEFAULT 'incomplete',
+              planned_trials      INTEGER NOT NULL DEFAULT 0,
+              plan_key            TEXT,
+              created_at          TEXT    NOT NULL,
+              updated_at          TEXT    NOT NULL,
+              FOREIGN KEY (suite_id) REFERENCES suites(id),
+              FOREIGN KEY (dataset_revision_id) REFERENCES memory_dataset_revisions(id)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS memory_experiments_status_idx"
+            " ON memory_experiments (suite_id, status, created_at)",
+            # 计划幂等键：同一 (suite_id, plan_key) 只允许一条实验计划。
+            "CREATE UNIQUE INDEX IF NOT EXISTS memory_experiments_plan_key_idx"
+            " ON memory_experiments (suite_id, plan_key)",
+            """
+            CREATE TABLE IF NOT EXISTS memory_experiment_runs (
+              id                 TEXT    PRIMARY KEY,
+              experiment_id      TEXT    NOT NULL,
+              candidate_id       TEXT    NOT NULL,
+              batch_index        INTEGER NOT NULL,
+              run_id             TEXT    NOT NULL UNIQUE,
+              scenario_ids_json  TEXT    NOT NULL DEFAULT '[]',
+              status             TEXT    NOT NULL DEFAULT 'queued',
+              created_at         TEXT    NOT NULL,
+              UNIQUE (experiment_id, candidate_id, batch_index),
+              FOREIGN KEY (experiment_id) REFERENCES memory_experiments(id)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS memory_experiment_runs_experiment_idx"
+            " ON memory_experiment_runs (experiment_id, candidate_id, batch_index)",
+            # ----- 记忆专项：配对比较（结果与引用快照一起冻结） -----
+            """
+            CREATE TABLE IF NOT EXISTS memory_comparisons (
+              id                       TEXT    PRIMARY KEY,
+              baseline_experiment_id    TEXT    NOT NULL,
+              candidate_experiment_id   TEXT    NOT NULL,
+              baseline_candidate_id     TEXT    NOT NULL,
+              candidate_candidate_id    TEXT    NOT NULL,
+              changed_fields_json       TEXT    NOT NULL DEFAULT '[]',
+              policy_json               TEXT    NOT NULL DEFAULT '{}',
+              status                    TEXT    NOT NULL DEFAULT 'pending',
+              result_json               TEXT    NOT NULL DEFAULT '{}',
+              snapshot_json             TEXT    NOT NULL DEFAULT '{}',
+              created_at                TEXT    NOT NULL,
+              FOREIGN KEY (baseline_experiment_id) REFERENCES memory_experiments(id),
+              FOREIGN KEY (candidate_experiment_id) REFERENCES memory_experiments(id)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS memory_comparisons_created_idx"
+            " ON memory_comparisons (created_at)",
+            # ----- 逐 probe 复核引用（旧记录保持 NULL） -----
+            # 幂等步骤而非裸 ALTER：列已存在时跳过（契约 §7 要求迁移 4 可重复执行）。
+            _add_memory_ref_column,
+        ),
+    ),
 )
 
 def _read_version(conn: sqlite3.Connection) -> int | None:
@@ -323,7 +475,11 @@ class EvaluationDatabase:
                 conn.close()
 
     def init_schema(self) -> None:
-        """把库推进到当前代码版本；已是最新则无操作。"""
+        """把库推进到当前代码版本；已是最新则无操作。
+
+        迁移条目必须幂等：跳过与否只看 ``_schema_meta.version``，当版本号落后于
+        实际结构时同一版本会被重跑（契约 §7）。
+        """
         with self.connect() as conn:
             current = _read_version(conn)
             if current is not None and current > int(SCHEMA_VERSION):
@@ -334,7 +490,11 @@ class EvaluationDatabase:
                 if current is not None and int(version) <= current:
                     continue
                 for statement in statements:
-                    conn.execute(statement)
+                    # 条目可以是 DDL 字符串，也可以是需要按库现状判断的幂等步骤。
+                    if callable(statement):
+                        statement(conn)
+                    else:
+                        conn.execute(statement)
             conn.execute(
                 "INSERT OR REPLACE INTO _schema_meta (key, value) VALUES ('version', ?)",
                 (SCHEMA_VERSION,),

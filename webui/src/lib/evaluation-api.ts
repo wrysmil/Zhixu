@@ -660,6 +660,25 @@ function withQuery(path: string, params: Record<string, string | undefined>): st
   return encoded ? `${path}?${encoded}` : path;
 }
 
+/**
+ * 共享请求面：会话/CSRF/幂等键/下载这四件事只在这里实现一次。
+ *
+ * 记忆专项客户端（`memory-evaluation-api.ts`）复用这些函数，**不复制**认证逻辑；
+ * 导出的是既有函数的引用，`evaluationApi` 的签名与行为完全不变。
+ */
+export const evaluationTransport = {
+  baseUrl: evaluationBase,
+  ensureSession,
+  request,
+  requestDownload,
+  idempotencyKey,
+  withQuery,
+  parseError,
+  resetSession: resetEvaluationSession,
+  /** 当前会话的 CSRF 令牌（上传走 XHR 时需要直接读它）。 */
+  getCsrfToken: () => csrfToken,
+};
+
 export const evaluationApi = {
   overview(): Promise<Overview> {
     return request<Overview>("/overview");

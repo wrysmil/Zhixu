@@ -11,13 +11,23 @@
 - gold 不入库——人工确认属于校准通道，样本里的 gold 一律 proposed。
 
 映射只做「搬运」，不改判据：断言、里程碑、量表原样进入用例。
+
+内存专项的三个内置集合（``memory-*-v1``）走的是**另一条路**：它们是记忆场景，
+不是普通用例，因此单独注册、单独入库——内部仍然调用同一个版本化导入器
+（:func:`nanobot.evaluation.memory.datasets.import_dataset`），并返回
+``suite_id`` 与 ``memory_dataset_revision_id``。旧 sample_id 与 xlsx 导入路径不受影响。
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
+from nanobot.evaluation.database import EvaluationDatabase
+from nanobot.evaluation.memory.datasets import import_dataset
 from nanobot.evaluation.schemas import CaseWrite
 
 #: 样本里允许进入用例模型的字段；其余一律当元数据处理。
@@ -40,6 +50,44 @@ CASE_FIELDS: tuple[str, ...] = (
 
 #: 需要经过适配才能入库的内置样本。
 ADAPTED_SAMPLE_IDS: frozenset[str] = frozenset({"reliability-v2"})
+
+#: 内置记忆集合（JSONL 场景文件，与旧样本的 .json 用例文件不是一回事）。
+MEMORY_SAMPLE_IDS: frozenset[str] = frozenset(
+    {"memory-smoke-v1", "memory-core-v1", "memory-calibration-v1"}
+)
+
+#: 每个内置记忆集合的登记信息：名称、split、来源与许可声明。
+MEMORY_SAMPLE_METADATA: dict[str, dict[str, Any]] = {
+    "memory-smoke-v1": {
+        "name": "中文记忆冒烟集",
+        "description": "20 条 development 场景，用于开发期快速发现明显问题。",
+        "tags": ["memory", "smoke", "development"],
+        "dataset_version": "memory-smoke-v1",
+        "split": "development",
+    },
+    "memory-core-v1": {
+        "name": "中文记忆核心回归集",
+        "description": "120 条 regression 场景，10 类各 12 条，发布候选重复 3 次。",
+        "tags": ["memory", "core", "regression"],
+        "dataset_version": "memory-core-v1",
+        "split": "regression",
+    },
+    "memory-calibration-v1": {
+        "name": "中文记忆校准集",
+        "description": "独立模板与人物的校准场景，gold 默认 proposed（未经人工确认）。",
+        "tags": ["memory", "calibration", "calibration"],
+        "dataset_version": "memory-calibration-v1",
+        "split": "calibration",
+    },
+}
+
+#: 内置记忆集合统一的来源声明：随包发布、无外部仓库、许可待确认。
+MEMORY_SAMPLE_SOURCE: dict[str, Any] = {
+    "repo_url": "local://nanobot/evaluation/samples",
+    "license": "internal-test-only",
+    "loader_version": "memory-dataset-loader/v1",
+    "grading_protocol": "memory-gold/v1",
+}
 
 
 def _dependencies(raw: Mapping[str, Any]) -> tuple[list[str], list[str]]:
@@ -137,4 +185,102 @@ def adapt_sample_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
         "schema_version": 1,
         "suite": dict(suite),
         "cases": adapted,
+    }
+
+
+# ---------------------------------------------------------------- 记忆专项内置集合
+
+
+def _samples_dir() -> Path:
+    return Path(__file__).parent / "samples"
+
+
+def memory_sample_path(sample_id: str) -> Path:
+    """内置记忆集合的随包文件路径（只读）。"""
+    if sample_id not in MEMORY_SAMPLE_IDS:
+        raise ValueError(f"SAMPLE_NOT_FOUND {sample_id}")
+    return _samples_dir() / f"{sample_id}.jsonl"
+
+
+def memory_sample_scenarios(sample_id: str) -> list[dict[str, Any]]:
+    """读出内置记忆集合的原始场景行（未做映射，保持文件原样）。"""
+    path = memory_sample_path(sample_id)
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def memory_sample_source(sample_id: str) -> dict[str, Any]:
+    """内置记忆集合的来源元数据（sha256 取随包文件的真实摘要）。"""
+    metadata = MEMORY_SAMPLE_METADATA[sample_id]
+    path = memory_sample_path(sample_id)
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    return {
+        "repo_url": MEMORY_SAMPLE_SOURCE["repo_url"],
+        "revision": metadata["dataset_version"],
+        "sha256": digest,
+        "license": MEMORY_SAMPLE_SOURCE["license"],
+        "original_ids": [str(row["scenario_id"]) for row in memory_sample_scenarios(sample_id)],
+        "loader_version": MEMORY_SAMPLE_SOURCE["loader_version"],
+        "grading_protocol": MEMORY_SAMPLE_SOURCE["grading_protocol"],
+    }
+
+
+def _memory_suite_tag(sample_id: str) -> str:
+    return f"memory-sample:{sample_id}"
+
+
+def import_memory_sample(
+    database: EvaluationDatabase, sample_id: str
+) -> dict[str, Any]:
+    """把内置记忆集合导入为版本化集合修订。
+
+    走的是**同一个版本化导入器**（:func:`import_dataset`）：先落 staging、再原子发布
+    ready；重复导入返回同一修订（幂等）。返回 ``suite_id`` 与
+    ``memory_dataset_revision_id``。
+    """
+    from nanobot.evaluation.repository import EvaluationRepository
+
+    if sample_id not in MEMORY_SAMPLE_IDS:
+        raise ValueError(f"SAMPLE_NOT_FOUND {sample_id}")
+    metadata = MEMORY_SAMPLE_METADATA[sample_id]
+    repository = EvaluationRepository(database)
+
+    tag = _memory_suite_tag(sample_id)
+    suite_id = ""
+    for suite in repository.list_suites():
+        if tag in (suite.get("tags") or []):
+            suite_id = str(suite["id"])
+            break
+    if not suite_id:
+        suite = repository.create_suite(
+            {
+                "name": str(metadata["name"]),
+                "description": str(metadata["description"]),
+                "tags": [tag, *[str(item) for item in metadata["tags"]]],
+                "base_revision": None,
+            }
+        )
+        suite_id = str(suite["id"])
+
+    path = memory_sample_path(sample_id)
+    with path.open("rb") as handle:
+        result = import_dataset(
+            database,
+            suite_id=suite_id,
+            dataset_version=str(metadata["dataset_version"]),
+            source=memory_sample_source(sample_id),
+            stream=handle,
+            format="jsonl",
+        )
+    return {
+        "suite_id": suite_id,
+        "memory_dataset_revision_id": result["dataset_revision_id"],
+        "dataset_revision_id": result["dataset_revision_id"],
+        "dataset_version": str(metadata["dataset_version"]),
+        "status": result["status"],
+        "scenario_count": int(result["scenario_count"]),
+        "split": str(metadata["split"]),
     }

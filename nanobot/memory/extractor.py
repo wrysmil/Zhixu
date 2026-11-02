@@ -33,6 +33,7 @@ from uuid import uuid4
 
 from loguru import logger
 
+from nanobot.memory.clock import MemoryClock
 from nanobot.memory.database import (
     ExtractionBatchRow,
     MemoryDatabase,
@@ -839,11 +840,14 @@ class MemoryExtractor:
         user_id: str = "default",
         *,
         session_loader: Callable[[str], Session | None] | None = None,
+        clock: MemoryClock | None = None,
     ) -> None:
         self.database = database
         self.runtime = runtime
         self.workspace_id = workspace_id
         self.user_id = user_id
+        # 评测可注入的时钟；缺省时全部走真实时间，生产行为不变。
+        self._clock = clock
         # S3 Track 1：画像 + 引用评分 + 经验。SEMANTIC_EXTRACTION_PROMPT 是双轨输出，
         # 一次调用同时产出 memories / experiences，交给 ProfileExtractor 统一解析。
         self.profile_extractor = ProfileExtractor(runtime=runtime)
@@ -854,6 +858,12 @@ class MemoryExtractor:
         self._session_loader = session_loader
         self._default_session_loader: Callable[[str], Session | None] | None = None
         self._default_session_loader_ready = False
+
+    def _now_iso(self) -> str:
+        """当前时间戳；注入 clock 时使用虚拟墙上时间（评测确定性）。"""
+        if self._clock is not None:
+            return self._clock.iso_now()
+        return _now_iso()
 
     # ------------------------------------------------------------------
     # 主入口
@@ -1276,7 +1286,7 @@ class MemoryExtractor:
             start_seq,
             end_seq,
         )
-        now = _now_iso()
+        now = self._now_iso()
         fresh = ExtractionBatchRow(
             batch_id=batch_id,
             workspace_id=request.workspace_id,
@@ -1530,7 +1540,7 @@ class MemoryExtractor:
         llm_result: LLMExtractionResult,
     ) -> BatchReceipt | None:
         """把成功的轨道写 checkpoint；有失败轨时返回非完成回执。"""
-        now = _now_iso()
+        now = self._now_iso()
         updates: dict[str, Any] = {
             "updated_at": now,
             "lease_expires_at": self._lease_deadline(),
@@ -1630,7 +1640,7 @@ class MemoryExtractor:
             )
         filtered = self._apply_filters(llm_result)
         skipped = len(llm_result.memories) - len(filtered.memories)
-        now = _now_iso()
+        now = self._now_iso()
         try:
             with self.database.connect() as conn:
                 persisted, indexed = self._write_extraction(
@@ -1777,7 +1787,7 @@ class MemoryExtractor:
 
     def _record_batch_failure(self, batch_id: str, code: str, detail: str) -> None:
         """把失败写回批次行；写回失败只告警（原始回执已经带 error_code）。"""
-        now = _now_iso()
+        now = self._now_iso()
         try:
             with self.database.connect() as conn:
                 update_extraction_batch(
@@ -2311,7 +2321,7 @@ class MemoryExtractor:
         批次协议路径（:meth:`_finalize_batch`）复用 :meth:`_write_extraction`，
         把 ``last_seq`` 与批次完成状态并入同一事务。
         """
-        now = _now_iso()
+        now = self._now_iso()
         with self.database.connect() as conn:
             persisted, created = self._write_extraction(
                 conn,

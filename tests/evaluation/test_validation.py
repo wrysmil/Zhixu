@@ -197,6 +197,11 @@ def test_case_write_field_set_matches_contract() -> None:
         "dependencies",
         # 契约 §3：运行期必需但故意不提供的输入（setup 必须报缺）。
         "required_inputs",
+        # 契约 §1：记忆专项引用与专项必需的 memory 指标判据。
+        "memory_scenario_ref",
+        # 契约 §1/§3：专项 case 的执行轨道。
+        "memory_track",
+        "memory_required_metrics",
     }
 
 

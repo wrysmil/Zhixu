@@ -619,13 +619,22 @@ def _safe_report_filename(run_id: str) -> str:
 
 
 async def add_review(request: web.Request) -> web.Response:
+    """追加人工复核。
+
+    带 ``memory_ref`` 时先校验引用确属该 attempt 且评分版本未过期（过期 409
+    ``MEMORY_GRADING_REVISION_CONFLICT``）；不带 ref 的旧请求形状完全不变。
+    """
     context = context_of(request)
     body = await _json_body(request, ManualReviewCreate)
+    attempt_id = request.match_info["id"]
+    if body.memory_ref is not None:
+        context.service.memory_validate_review_ref(attempt_id, body.memory_ref)
     review = context.repository.append_review(
-        request.match_info["id"],
+        attempt_id,
         verdict=body.verdict,
         comment=body.comment,
         reviewer=_scope(request),
+        memory_ref=body.memory_ref,
     )
     return web.json_response(review, status=201)
 
@@ -876,8 +885,25 @@ def create_app(
 ) -> web.Application:
     """装配应用；``cleanup_ctx`` 负责逆序回收。"""
     auth = AuthManager(auth_config)
+
+    # 记忆实验组（契约 §2）：调度器只认识「组闸」与「聚合回调」两个注入点，
+    # 组状态/聚合实现留在协调器里。缺这两个注入点会让子 run 跑完后实验永远停在
+    # queued、取消后剩余批次照样被领取——所以这里必须接上，且构造失败不能拖垮服务。
+    def _memory_group_status(experiment_id: str) -> str | None:
+        try:
+            return service.memory_experiment_coordinator().experiment_status(experiment_id)
+        except Exception:  # noqa: BLE001 - 组状态读不到时按「未停止」处理
+            return None
+
+    def _memory_run_settled(run_id: str) -> None:
+        service.memory_experiment_coordinator().on_run_settled(run_id)
+
     scheduler = Scheduler(
-        repository=repository, pipeline=service, config=scheduler_config
+        repository=repository,
+        pipeline=service,
+        config=scheduler_config,
+        group_status_provider=_memory_group_status,
+        run_settled=_memory_run_settled,
     )
     context = ServiceContext(
         repository=repository, service=service, scheduler=scheduler, auth=auth
@@ -902,6 +928,11 @@ def create_app(
         # （它持服务独占锁），退出时 aiohttp 自动逆序回收。
         service.seed_builtin_gold_samples()
         await scheduler.start()
+        # 记忆实验组的重启收口（契约 §2）：取消中的组要在这里落终态，否则重启后
+        # 它既不会再跑、也永远停在 cancelling；已完成/已取消的计划不重放。
+        # 先确保专项库到了当前版本：启动路径不假定「别人已经迁移过」。
+        service.memory_database.init_schema()
+        service.memory_experiment_coordinator().resume_all()
         try:
             yield
         finally:
@@ -915,7 +946,7 @@ def _routes() -> list[web.RouteDef]:
     def r(method: str, path: str, handler: Handler) -> web.RouteDef:
         return web.route(method, f"{API_PREFIX}{path}", handler)
 
-    return [
+    routes = [
         r("GET", "/health", health),
         r("POST", "/auth/login", login),
         r("GET", "/auth/session", session_info),
@@ -959,6 +990,12 @@ def _routes() -> list[web.RouteDef]:
         r("GET", "/suites/{id}/export.xlsx", export_suite_xlsx),
         r("GET", "/reports/summary", summary_report_route),
     ]
+    # 记忆专项路由（WU-09）挂进**同一个**列表：guard 中间件与未匹配方法的 405 兜底
+    # 都从这份清单推导，不能另建一套前缀相同但不受准入保护的路由表。
+    from nanobot.evaluation.memory.routes import memory_route_defs
+
+    routes.extend(memory_route_defs(API_PREFIX))
+    return routes
 
 
 def create_eval_app(

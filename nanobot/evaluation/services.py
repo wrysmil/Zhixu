@@ -35,6 +35,7 @@ from nanobot.evaluation.coverage import (
     evaluation_capability,
     summarize_coverage,
 )
+from nanobot.evaluation.errors import ERROR_STATUS
 from nanobot.evaluation.evidence import (
     AttemptEvidence,
     EvidenceArtifact,
@@ -51,6 +52,13 @@ from nanobot.evaluation.graders.calibration import (
 from nanobot.evaluation.graders.judge import JudgeResult
 from nanobot.evaluation.graders.rules import evaluate_rules
 from nanobot.evaluation.graders.verdict import derive_verdict, judge_state_of
+from nanobot.evaluation.memory.datasets import MemoryDatasetError
+from nanobot.evaluation.memory.experiments import (
+    MemoryBudgetExceeded,
+    MemoryBudgetGuard,
+    MemoryUnitPrice,
+)
+from nanobot.evaluation.memory.models import MemoryBudgets, MemoryDatasetRevision, MemoryScenario
 from nanobot.evaluation.observability import (
     build_execution_page,
     build_tool_calls,
@@ -65,7 +73,11 @@ from nanobot.evaluation.reports import (
     normalize_attempt_for_metrics,
     render_summary_html,
 )
-from nanobot.evaluation.repository import EvaluationRepository
+from nanobot.evaluation.repository import (
+    EvaluationRepository,
+    IdempotencyInProgress,
+    IdempotencyMismatch,
+)
 from nanobot.evaluation.runtime_factory import attempt_paths
 from nanobot.evaluation.scheduler import AttemptOutcome, CalibrationItemOutcome
 from nanobot.evaluation.schemas import (
@@ -108,6 +120,127 @@ JUDGE_BUDGET_S = 60
 _TERMINAL_RUN_STATUSES = frozenset(
     {"completed", "cancelled", "interrupted", "timed_out"}
 )
+
+# ---------------------------------------------------------------- 记忆专项常量（WU-09）
+
+#: 幂等键的作用域行：``idempotency`` 表按 ``scope+endpoint+key`` 唯一。
+MEMORY_EXPERIMENTS_ENDPOINT = "memory/experiments"
+MEMORY_IMPORTS_ENDPOINT = "memory/datasets/import"
+MEMORY_COMPARISONS_ENDPOINT = "memory/comparisons"
+
+#: 契约 §2：实验组的终态集合（终态实验才允许取消回放、才允许进入比较）。
+_MEMORY_TERMINAL_EXPERIMENT_STATUSES = frozenset(
+    {"completed", "cancelled", "interrupted", "timed_out"}
+)
+
+#: 记忆层会抛出、且**已经带着契约错误码**的异常类型。其余异常一律当内部错误（500），
+#: 不能被 4xx 化——那会把真实的程序缺陷伪装成「输入不合法」。
+_MEMORY_ERROR_TYPES = (MemoryDatasetError, LookupError, ValueError)
+
+#: 检索通道 → 需要的能力项。未知通道名按不支持处理（422），绝不静默忽略。
+_RETRIEVAL_CHANNEL_CAPABILITIES: dict[str, str] = {
+    "semantic": "semantic_recall",
+    "semantic_recall": "semantic_recall",
+    "episodes": "episodes",
+    "working_memory": "working_memory",
+    "profile": "profile",
+    "attachments": "episodes",
+}
+
+#: 允许被识别成「带码错误」的前缀：其余 message 前缀当作内部错误。
+_MEMORY_CODE_PREFIXES = (
+    "MEMORY_",
+    "SUITE_",
+    "COMPARISON_",
+    "TEMPLATE_",
+    "REVISION_",
+    "UNSUPPORTED_",
+)
+
+
+def _memory_exception_code(exc: BaseException, default: str) -> str:
+    """从记忆层异常里取契约错误码：先看 ``.code``，再看 message 前缀。"""
+    code = getattr(exc, "code", None)
+    if isinstance(code, str) and code in ERROR_STATUS:
+        return code
+    message = str(exc)
+    token = message.split(":", 1)[0].strip().split(" ", 1)[0] if message else ""
+    if token in ERROR_STATUS and token.startswith(_MEMORY_CODE_PREFIXES):
+        return token
+    return default
+
+
+def _memory_missing_capabilities(
+    capabilities: Any, track: str, candidates: Sequence[Any] = ()
+) -> list[str]:
+    """契约 §3/§6：轨道所需能力缺失时给出具体名字（不糊成一个「不支持」）。"""
+
+    def unsupported(name: str) -> bool:
+        capability = getattr(capabilities, name, None)
+        return capability is None or getattr(capability, "status", "unsupported") == "unsupported"
+
+    missing: list[str] = []
+    if track in ("extraction", "end_to_end") and unsupported("extraction"):
+        missing.append("extraction")
+    if track in ("retrieval", "end_to_end"):
+        channels = sorted(
+            {
+                str(channel)
+                for candidate in candidates
+                for channel in (
+                    candidate.memory_settings.retrieval_channels
+                    if getattr(candidate, "memory_settings", None) is not None
+                    else []
+                )
+            }
+        )
+        names = [
+            _RETRIEVAL_CHANNEL_CAPABILITIES.get(channel, "semantic_recall")
+            for channel in channels
+        ] or ["semantic_recall"]
+        if all(unsupported(name) for name in names):
+            missing.extend(sorted(set(names)))
+    return missing
+
+
+def _require_supported_settings(capabilities: Any, candidates: Sequence[Any]) -> None:
+    """无法落到真实配置的参数一律 422 ``UNSUPPORTED_MEMORY_SETTING``。"""
+    for candidate in candidates:
+        settings = candidate.memory_settings
+        if settings.extraction_enabled and (
+            getattr(capabilities.extraction, "status", "unsupported") == "unsupported"
+        ):
+            raise ServiceError("UNSUPPORTED_MEMORY_SETTING", "extraction_enabled")
+        for channel in settings.retrieval_channels:
+            name = _RETRIEVAL_CHANNEL_CAPABILITIES.get(str(channel))
+            if name is None:
+                raise ServiceError("UNSUPPORTED_MEMORY_SETTING", f"retrieval_channels={channel}")
+            if getattr(capabilities, name).status == "unsupported":
+                raise ServiceError("UNSUPPORTED_MEMORY_SETTING", f"retrieval_channels={channel}")
+
+
+def _memory_comparison_engine() -> Any | None:
+    """WU-08 比较引擎的接缝：模块尚未落地时返回 ``None``。
+
+    这里只做**惰性装配**，不复制配对/聚类/区间逻辑——比较口径必须只有一份实现。
+    """
+    try:
+        from nanobot.evaluation.memory import comparisons
+    except ImportError:
+        return None
+    return getattr(comparisons, "compare_memory_experiments", None)
+
+
+def _effective_candidate(snapshot: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """从子 run 的冻结快照里取生效候选（契约 §1「轨道与生效候选」）。
+
+    取不到时返回 ``None``：调用方据此不带候选（旧快照/非专项 run），绝不在这里
+    编一个默认候选冒充「候选已生效」。
+    """
+    info = snapshot.get("memory_experiment") if isinstance(snapshot, Mapping) else None
+    candidate = info.get("candidate") if isinstance(info, Mapping) else None
+    return candidate if isinstance(candidate, Mapping) else None
+
 
 #: 评分实现的可注入点：attempt 评分与校准项评分共用，生产默认是评分子进程。
 JudgeRunner = Callable[..., Awaitable[JudgeResult]]
@@ -176,6 +309,9 @@ class EvaluationService:
         team_snapshot_provider: TeamSnapshotProvider | None = None,
         team_runtime_factory: TeamRuntimeFactory | None = None,
         workspace: Path | None = None,
+        memory_unit_prices: MemoryUnitPrice | None = None,
+        memory_clock: Any = None,
+        memory_capabilities: Any = None,
     ) -> None:
         self._repository = repository
         self._data_dir = Path(data_dir)
@@ -191,8 +327,159 @@ class EvaluationService:
         self._team_runner = team_runner
         self._team_snapshot_provider = team_snapshot_provider
         self._team_runtime_factory = team_runtime_factory
+        # 记忆专项仓储惰性装配：只有专项 case 才需要它（evaluation.db 同库）。
+        self._memory_repository: Any = None
+        self._memory_db: Any = None
+        # 记忆实验组预算（WU-07）：单价由服务端配置注入，绝不读 .env。
+        self._memory_unit_prices = memory_unit_prices
+        self._memory_budgets: dict[str, MemoryBudgetGuard] = {}
+        self._memory_clock = memory_clock
+        self._memory_capabilities = memory_capabilities
+        self._memory_coordinator: Any = None
 
     # ------------------------------------------------------------------ 配置
+
+    @property
+    def memory_database(self) -> Any:
+        """记忆专项读写用的库句柄（与评估库同一个 evaluation.db 文件）。
+
+        进程内**只有一个**实例：每次请求新建 ``EvaluationDatabase`` 会各自拉起线程池，
+        连接数就会随请求数增长（WAL 下也不会自动回收）。
+        """
+        if self._memory_db is None:
+            from nanobot.evaluation.database import EvaluationDatabase
+
+            self._memory_db = EvaluationDatabase(self._data_dir / "evaluation.db")
+        return self._memory_db
+
+    @property
+    def memory_repository(self) -> Any:
+        """记忆仓储（惰性）：与评估库同一个 evaluation.db 文件。"""
+        if self._memory_repository is None:
+            from nanobot.evaluation.memory.repository import MemoryRepository
+
+            self._memory_repository = MemoryRepository(self.memory_database)
+        return self._memory_repository
+
+    def memory_experiment_coordinator(self) -> Any:
+        """实验组协调器（进程内单例）：WU-09 的路由用它创建/取消/恢复实验。"""
+        if self._memory_coordinator is None:
+            from nanobot.evaluation.memory.experiments import MemoryExperimentCoordinator
+
+            self._memory_coordinator = MemoryExperimentCoordinator(
+                repository=self._repository,
+                memory_repository=self.memory_repository,
+                clock=self._memory_clock,
+                capabilities=self._memory_capabilities,
+                prices=self._memory_unit_prices,
+                profile_resolver=self._memory_profile,
+            )
+        return self._memory_coordinator
+
+    def _memory_profile(self, profile_id: str) -> Mapping[str, Any] | None:
+        """候选/评分模型冻结：解析不到就返回 None（清单里显式记 unresolved）。"""
+        profile = self._profiles.get(profile_id)
+        if profile is None:
+            return None
+        return {
+            "id": profile.id,
+            "label": profile.label,
+            "provider": profile.provider,
+            "model": profile.model,
+            "kind": profile.kind,
+        }
+
+    def memory_budget_guard(
+        self, experiment_id: str, budgets: Mapping[str, Any] | MemoryBudgets
+    ) -> MemoryBudgetGuard:
+        """实验组预算守卫（同一实验在进程内只有一个实例）。
+
+        历史花费从库里回填：重启后账本不会归零，重试/失败的成本仍然计入同一组预算。
+        """
+        guard = self._memory_budgets.get(experiment_id)
+        if guard is not None:
+            return guard
+        parsed = (
+            budgets if isinstance(budgets, MemoryBudgets) else MemoryBudgets.model_validate(budgets)
+        )
+        guard = MemoryBudgetGuard(
+            parsed,
+            prices=self._memory_unit_prices,
+            spent=self.memory_experiment_coordinator().spent_usage(experiment_id),
+        )
+        self._memory_budgets[experiment_id] = guard
+        return guard
+
+    @staticmethod
+    def _memory_budget_of(
+        snapshot: Mapping[str, Any],
+    ) -> tuple[str, dict[str, Any], dict[str, Any]] | None:
+        """从冻结快照里取实验组预算；普通 run 返回 None。"""
+        info = snapshot.get("memory_experiment") if isinstance(snapshot, Mapping) else None
+        if not isinstance(info, Mapping):
+            return None
+        experiment_id = info.get("experiment_id")
+        budgets = info.get("budgets")
+        if not isinstance(experiment_id, str) or not isinstance(budgets, Mapping):
+            raise ServiceError(
+                "MEMORY_SCHEMA_INVALID", "memory_experiment snapshot incomplete"
+            )
+        estimate = info.get("trial_estimate")
+        return (
+            experiment_id,
+            dict(budgets),
+            dict(estimate) if isinstance(estimate, Mapping) else {},
+        )
+
+    def _reserve_memory_budget(
+        self, snapshot: Mapping[str, Any], *, attempt_id: str
+    ) -> tuple[MemoryBudgetGuard | None, Any]:
+        """实际请求前预留组预算；超限直接拒绝（不放行、不静默降级）。"""
+        context = self._memory_budget_of(snapshot)
+        if context is None:
+            return None, None
+        experiment_id, budgets, estimate = context
+        guard = self.memory_budget_guard(experiment_id, budgets)
+        try:
+            reservation = guard.reserve(
+                key=attempt_id,
+                model_requests=_optional_int(estimate.get("model_requests")),
+                input_tokens=_optional_int(estimate.get("input_tokens")),
+                output_tokens=_optional_int(estimate.get("output_tokens")),
+            )
+        except MemoryBudgetExceeded as exc:
+            raise ServiceError("MEMORY_BUDGET_EXCEEDED", str(exc)[:300]) from exc
+        return guard, reservation
+
+    @staticmethod
+    def _settle_memory_budget(
+        guard: MemoryBudgetGuard | None,
+        reservation: Any,
+        result: Mapping[str, Any] | None = None,
+        *,
+        failed: bool = False,
+    ) -> None:
+        """结算：失败/取消按全成本；成功但用量未知也按预留金额记账。"""
+        if guard is None or reservation is None:
+            return
+        if failed:
+            guard.charge_failed(reservation)
+            return
+        usage = None
+        if isinstance(result, Mapping):
+            reported = result.get("usage")
+            if isinstance(reported, Mapping):
+                agent = reported.get("agent") if "agent" in reported else reported
+                if isinstance(agent, Mapping):
+                    from nanobot.evaluation.memory.experiments import MemoryBudgetUsage
+
+                    usage = MemoryBudgetUsage(
+                        trials=1,
+                        model_requests=_optional_int(agent.get("physical_requests")),
+                        input_tokens=_optional_int(agent.get("input_tokens")),
+                        output_tokens=_optional_int(agent.get("output_tokens")),
+                    )
+        guard.settle(reservation, usage)
 
     @property
     def repository(self) -> EvaluationRepository:
@@ -216,12 +503,22 @@ class EvaluationService:
 
         带判据元数据的样本（reliability-v2）先过适配器：元数据进 tags 与描述，
         判据原样保留，gold 不入库（人工确认走校准通道）。
+
+        记忆专项的三个内置集合（``memory-*-v1``）走**同一条版本化导入器**：导入
+        结果里带 ``memory_dataset_revision_id``（契约 §6），旧 sample_id 的返回形状
+        不变。
         """
         from nanobot.evaluation.sample_cases import (
             ADAPTED_SAMPLE_IDS,
+            MEMORY_SAMPLE_IDS,
             adapt_sample_payload,
+            import_memory_sample,
         )
 
+        if sample_id in MEMORY_SAMPLE_IDS:
+            return self._memory_call(
+                "MEMORY_SCHEMA_INVALID", import_memory_sample, self.memory_database, sample_id
+            )
         path = self._sample_path(sample_id)
         if not path.is_file():
             raise ServiceError("SAMPLE_NOT_FOUND", sample_id)
@@ -606,6 +903,8 @@ class EvaluationService:
         paths.create()
         errors: list[AttemptError] = []
         boot = self._agent_boot(attempt_id, case, run, paths, limits=limits)
+        # 记忆实验组：**实际请求前**预留预算；预留不上就连 Worker 都不启动。
+        budget, reservation = self._reserve_memory_budget(snapshot, attempt_id=attempt_id)
         owner = WorkerProcess(
             attempt_id=attempt_id,
             command=[sys.executable, "-m", WORKER_MODULE, attempt_id],
@@ -616,9 +915,12 @@ class EvaluationService:
             self._record_process(attempt_id, owner)
             await owner.run_with_timeout(timeout_s=limits.timeout_s)
         except asyncio.CancelledError:
+            # 取消时物理请求可能已经发生：按全成本结算，不退款。
+            self._settle_memory_budget(budget, reservation, failed=True)
             await owner.cancel()
             raise
         except Exception as exc:
+            self._settle_memory_budget(budget, reservation, failed=True)
             errors.append(
                 AttemptError(phase="setup", code="WORKER_SETUP_FAILED", message=str(exc))
             )
@@ -632,6 +934,7 @@ class EvaluationService:
         execution_status = _execution_status(owner, result)
         errors.extend(_errors_of(result))
         if execution_status != "succeeded":
+            self._settle_memory_budget(budget, reservation, failed=True)
             return AttemptOutcome(
                 execution_status=execution_status,
                 grading_status="not_applicable",
@@ -644,6 +947,8 @@ class EvaluationService:
                     timing=owner.timing(),
                 ),
             )
+        # 成功：按上报用量结算；用量缺失按预留全成本，不当 0。
+        self._settle_memory_budget(budget, reservation, result)
 
         # 执行阶段结束、评分还没写库：让进度和重启恢复都能区分这两种等待。
         self._repository.mark_attempt_execution_done(
@@ -849,6 +1154,13 @@ class EvaluationService:
         profile = dict(snapshot.get("agent_profile") or {})
         # 凭据不再落入快照（S7）：执行时从启动时装入的 profile 重建。
         bundle = self._bundle_for(str(profile.get("id") or ""))
+        memory_execution: dict[str, Any] | None = None
+        if case.memory_scenario_ref is not None:
+            # 输入分离（契约 §1）：父进程解析 immutable ref，execution 载荷进子进程，
+            # gold 只留在评分端（_grade_memory_result），绝不随 boot 下发。
+            memory_execution = self._memory_execution_payload(
+                case, candidate=_effective_candidate(snapshot)
+            )
         return AgentWorkerBoot(
             type="boot",
             protocol_version=1,
@@ -861,7 +1173,94 @@ class EvaluationService:
             case_snapshot=case,
             target=(run.get("snapshot") or {}).get("target"),
             limits=limits,
+            memory_execution=memory_execution,
         )
+
+    def _memory_execution_payload(
+        self, case: CaseWrite, *, candidate: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """按 case 的 ref 解析专项场景，产出剥离 gold 的执行载荷。
+
+        只读 immutable revision：ref 带 revision，读取失败按服务错误上抛，
+        绝不静默降级为普通 Agent 用例。
+
+        ``candidate`` 是该子 run 冻结的**生效候选**：契约 §1 要求执行载荷带上
+        "轨道与生效候选"。缺了它，``no_persistent_memory`` 与候选记忆设置就无法
+        落到真实执行端（会被静默忽略，违反契约 §2）。
+        """
+        from nanobot.evaluation.memory.models import MemoryCandidate
+        from nanobot.evaluation.memory.repository import MemoryRecordNotFound
+
+        ref = case.memory_scenario_ref
+        if ref is None:  # pragma: no cover - 调用方已保证
+            raise ServiceError("MEMORY_SCENARIO_REF_REQUIRED")
+        candidates = (
+            [MemoryCandidate.model_validate(dict(candidate))]
+            if isinstance(candidate, Mapping)
+            else []
+        )
+        try:
+            return self.memory_repository.get_execution_input(
+                str(ref.dataset_revision_id),
+                ref.scenario_id,
+                revision=ref.revision,
+                track=case.memory_track,
+                candidates=candidates,
+            )
+        except MemoryRecordNotFound as exc:
+            raise ServiceError("MEMORY_SCENARIO_NOT_FOUND", str(exc)) from exc
+
+    def _grade_memory_result(
+        self, case: CaseWrite, result: Mapping[str, Any] | None
+    ) -> dict[str, Any]:
+        """父进程评分端：gold 只在这里展开，子进程从未见过它。
+
+        trial 由 worker 密封返回（含 tags 回填——runner 不知道场景 tags，由父进程
+        按 ref 补齐），再走 WU-03 的匹配 v1 判分。
+        """
+        from nanobot.evaluation.memory.grading import (
+            MemoryTrialExecution,
+            default_grading_policy,
+            grade_memory_trial,
+        )
+        from nanobot.evaluation.memory.models import MemoryScenario
+        from nanobot.evaluation.memory.repository import MemoryRecordNotFound
+
+        ref = case.memory_scenario_ref
+        if ref is None:  # pragma: no cover - 调用方已保证
+            raise ServiceError("MEMORY_SCENARIO_REF_REQUIRED")
+        memory_payload = (result or {}).get("memory_result")
+        if not isinstance(memory_payload, Mapping) or not memory_payload:
+            raise ServiceError("MEMORY_RESULT_MISSING")
+        # ``memory_result`` 是 ``MemoryScenarioRun`` 的 JSON 形状（trial + 失败账目 +
+        # 执行覆盖）；评分只消费其中的 trial（``MemoryTrialExecution``）。
+        try:
+            trial = MemoryTrialExecution.model_validate(memory_payload.get("trial") or {})
+        except ValueError as exc:
+            raise ServiceError("MEMORY_RESULT_INVALID", str(exc)) from exc
+        try:
+            scenario = MemoryScenario.model_validate(
+                self.memory_repository.get_scenario(
+                    str(ref.dataset_revision_id),
+                    ref.scenario_id,
+                    revision=ref.revision,
+                )
+            )
+        except (MemoryRecordNotFound, ValueError) as exc:
+            raise ServiceError("MEMORY_SCENARIO_NOT_FOUND", str(exc)) from exc
+        tagged = trial.model_copy(update={"tags": list(scenario.tags)})
+        try:
+            graded = grade_memory_trial(
+                execution=tagged, gold=scenario.gold, policy=default_grading_policy()
+            )
+        except Exception as exc:  # noqa: BLE001 - 评分故障降级为 grading_error，不中断密封
+            raise ServiceError("MEMORY_GRADING_FAILED", str(exc)[:300]) from exc
+        return {
+            "scenario_id": scenario.scenario_id,
+            "revision": scenario.revision,
+            "track": case.memory_track,
+            "metrics": graded.model_dump(mode="json"),
+        }
 
     def _record_process(self, attempt_id: str, owner: WorkerProcess) -> None:
         identity = owner.launch_identity or {}
@@ -961,6 +1360,21 @@ class EvaluationService:
         payload["coverage"] = coverage
         if assessment is not None:
             payload["evaluation"] = assessment.to_dict()
+        if case.memory_scenario_ref is not None:
+            # 记忆专项评分：gold 只在父进程展开；失败入账不中断密封结果。
+            try:
+                payload["memory"] = self._grade_memory_result(case, result)
+            except ServiceError as exc:
+                errors.append(
+                    AttemptError(phase="grading", code=exc.code, message=exc.message)
+                )
+                payload["memory"] = {
+                    "scenario_id": case.memory_scenario_ref.scenario_id,
+                    "revision": case.memory_scenario_ref.revision,
+                    "track": case.memory_track,
+                    "status": "grading_error",
+                    "error": exc.code,
+                }
         grading_status = "judge_error" if state == "error" and rubric is not None \
             and rubric.required else "completed"
         return AttemptOutcome(
@@ -1800,6 +2214,843 @@ class EvaluationService:
         body = export_run_json(detail, metrics, attempts)
         return body, "application/json; charset=utf-8", f"{run_id}.json"
 
+    # ------------------------------------------------------------------ 记忆专项（WU-09）
+    #
+    # 契约 §6 的读模型与写编排。三条口径：
+    #
+    # 1. **错误码只在服务层翻译一次**：记忆仓储抛的是带 message 前缀的异常
+    #    （如 ``MemoryRecordNotFound("MEMORY_DATASET_NOT_FOUND <id>")``），这里统一
+    #    收敛成 :class:`ServiceError`，路由层永远不自己拼错误体。
+    # 2. **读模型不分页**：稳定排序的完整序列交给路由层，游标是 HTTP 概念。
+    # 3. **写请求先原子 claim 幂等键**：同 key 异体 422、处理中 409；claim 与业务写入
+    #    之间没有第二把锁，崩溃只会留下「处理中」，不会重复创建子 run。
+
+    def memory_dataset_list(self, *, split: str | None = None) -> list[dict[str, Any]]:
+        """全部集合修订（created_at, id 稳定排序）。不带场景正文与 gold。"""
+        with self.memory_database.connect() as conn:
+            rows = conn.execute(
+                "SELECT id, suite_id, dataset_version, status, split_counts_json,"
+                " source_json, definition_digest, created_at, updated_at"
+                " FROM memory_dataset_revisions ORDER BY created_at, id"
+            ).fetchall()
+        revisions: list[dict[str, Any]] = []
+        for row in rows:
+            revision = MemoryDatasetRevision.model_validate(
+                {
+                    "id": str(row["id"]),
+                    "suite_id": str(row["suite_id"]),
+                    "dataset_version": row["dataset_version"],
+                    "status": row["status"],
+                    "split_counts": json.loads(row["split_counts_json"] or "{}"),
+                    "source": json.loads(row["source_json"] or "{}"),
+                    "definition_digest": row["definition_digest"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+            ).model_dump(mode="json")
+            if split is not None and split not in (revision.get("split_counts") or {}):
+                continue
+            revisions.append(revision)
+        return revisions
+
+    def memory_scenario_list(self, dataset_revision_id: str) -> list[dict[str, Any]]:
+        """场景摘要序列（scenario_id, revision 稳定排序）：不含 gold 正文。"""
+        self._memory_call(
+            "MEMORY_DATASET_NOT_FOUND",
+            self.memory_repository.get_dataset_revision,
+            str(dataset_revision_id),
+        )
+        with self.memory_database.connect() as conn:
+            rows = conn.execute(
+                "SELECT scenario_id, revision, split, template_family, cluster_id,"
+                " execution_json FROM memory_scenarios WHERE dataset_revision_id = ?"
+                " ORDER BY scenario_id, revision",
+                (str(dataset_revision_id),),
+            ).fetchall()
+        summaries: list[dict[str, Any]] = []
+        for row in rows:
+            execution = json.loads(row["execution_json"] or "{}")
+            summaries.append(
+                {
+                    "scenario_id": row["scenario_id"],
+                    "revision": int(row["revision"]),
+                    "split": row["split"],
+                    "template_family": row["template_family"],
+                    "cluster_id": row["cluster_id"],
+                    "tags": list(execution.get("tags") or []),
+                    "event_count": len(execution.get("events") or []),
+                    "probe_count": len(execution.get("probes") or []),
+                }
+            )
+        return summaries
+
+    def memory_scenario_detail(
+        self, dataset_revision_id: str, scenario_id: str, *, revision: int | None = None
+    ) -> dict[str, Any]:
+        """管理面读出：``{execution, gold, revision}``，gold 与执行载荷分列返回。"""
+        raw = self._memory_call(
+            "MEMORY_SCENARIO_NOT_FOUND",
+            self.memory_repository.get_scenario,
+            str(dataset_revision_id),
+            scenario_id,
+            revision=revision,
+        )
+        scenario = MemoryScenario.model_validate(raw)
+        payload = scenario.model_dump(mode="json")
+        gold = payload.pop("gold")
+        return {"execution": payload, "gold": gold, "revision": scenario.revision}
+
+    def memory_edit_dataset(
+        self, dataset_revision_id: str, *, base_revision: str, changes: Sequence[Any]
+    ) -> dict[str, Any]:
+        """CAS 编辑：生成**新修订**，原 ready 修订与 gold 原样保留（契约 §6）。"""
+        from nanobot.evaluation.memory.datasets import edit_dataset_revision
+
+        def action() -> dict[str, Any]:
+            base = self.memory_repository.get_dataset_revision(str(dataset_revision_id))
+            if str(base["dataset_version"]) != str(base_revision):
+                raise ServiceError("REVISION_CONFLICT", "base dataset revision changed")
+            siblings = self.memory_repository.list_dataset_revisions(str(base["suite_id"]))
+            prefix = f"{base_revision}+edit."
+            serial = sum(
+                1
+                for item in siblings
+                if str(item.get("dataset_version", "")).startswith(prefix)
+            )
+            new_version = f"{prefix}{serial + 1}"
+            result = edit_dataset_revision(
+                self.memory_database,
+                dataset_revision_id=str(dataset_revision_id),
+                base_dataset_version=str(base_revision),
+                new_dataset_version=new_version,
+                changes=[
+                    item.model_dump(mode="json") if hasattr(item, "model_dump") else dict(item)
+                    for item in changes
+                ],
+            )
+            return dict(result["dataset_revision"])
+
+        return self._memory_call("MEMORY_SCHEMA_INVALID", action)
+
+    def memory_capabilities_view(self) -> dict[str, Any]:
+        """契约 §6：支持轨道、设置白名单、候选 profile 与缺失能力。"""
+        from nanobot.evaluation.memory.experiments import (
+            default_primary_metric,
+            required_metrics_for_track,
+        )
+        from nanobot.evaluation.memory.models import MemoryCapabilities, MemorySettings
+
+        capabilities = self._memory_capabilities or MemoryCapabilities()
+        names = tuple(MemoryCapabilities.model_fields)
+        tracks = []
+        for track in ("extraction", "retrieval", "end_to_end"):
+            missing = _memory_missing_capabilities(capabilities, track, ())
+            tracks.append(
+                {
+                    "id": track,
+                    "supported": not missing,
+                    "missing": missing,
+                    "required_metrics": list(required_metrics_for_track(track)),
+                    "primary_metric": default_primary_metric(track),
+                }
+            )
+        return {
+            "tracks": tracks,
+            "settings": sorted(MemorySettings.model_fields),
+            "profiles": self.list_profiles(),
+            "capabilities": capabilities.model_dump(mode="json"),
+            "missing": [
+                name
+                for name in names
+                if getattr(capabilities, name).status == "unsupported"
+            ],
+            "retrieval_channels": sorted(_RETRIEVAL_CHANNEL_CAPABILITIES),
+        }
+
+    def memory_create_experiment(
+        self, payload: Any, *, idempotency_key: str, scope: str
+    ) -> dict[str, Any]:
+        """契约 §6：创建即返回 202 摘要；真正的 trial 由调度器领取。"""
+        return self._memory_idempotent(
+            endpoint=MEMORY_EXPERIMENTS_ENDPOINT,
+            scope=scope,
+            key=idempotency_key,
+            payload=payload.model_dump(mode="json"),
+            action=lambda: self._create_memory_experiment(
+                payload, idempotency_key=idempotency_key, scope=scope
+            ),
+        )
+
+    def _create_memory_experiment(
+        self, payload: Any, *, idempotency_key: str, scope: str
+    ) -> dict[str, Any]:
+        from nanobot.evaluation.memory.experiments import default_primary_metric
+        from nanobot.evaluation.memory.models import MemoryCapabilities
+
+        revision = self._memory_call(
+            "MEMORY_DATASET_NOT_FOUND",
+            self.memory_repository.get_dataset_revision,
+            str(payload.dataset_revision_id),
+        )
+        if str(revision["status"]) != "ready":
+            raise ServiceError("MEMORY_DATASET_NOT_READY", "")
+        capabilities = self._memory_capabilities or MemoryCapabilities()
+        missing = _memory_missing_capabilities(
+            capabilities, payload.track, payload.candidates
+        )
+        if missing:
+            raise ServiceError("MEMORY_CAPABILITY_REQUIRED", ", ".join(missing))
+        _require_supported_settings(capabilities, payload.candidates)
+        request = {
+            "suite_id": str(revision["suite_id"]),
+            "dataset_revision_id": str(payload.dataset_revision_id),
+            "split": payload.split,
+            "track": payload.track,
+            "candidates": [item.model_dump(mode="json") for item in payload.candidates],
+            "repetitions": payload.repetitions,
+            "model_mode": payload.model_mode,
+            "judge_profile_id": payload.judge_profile_id,
+            "budgets": payload.budgets.model_dump(mode="json"),
+            "primary_metric": payload.primary_metric
+            or default_primary_metric(payload.track),
+            "policy": payload.policy.model_dump(mode="json"),
+            "scenario_ids": list(payload.scenario_ids) if payload.scenario_ids else None,
+            # 幂等键同时落成计划键：即使进程在 claim 与计划之间崩溃，唯一索引也不会
+            # 让同一请求建出第二套子 run。
+            "plan_key": f"{scope}:{idempotency_key}"[:200],
+        }
+        created = self._memory_call(
+            "MEMORY_SCHEMA_INVALID",
+            self.memory_experiment_coordinator().create_experiment,
+            request,
+        )
+        experiment = created["experiment"]
+        return {
+            "id": str(experiment["id"]),
+            "status": experiment["status"],
+            "planned_trials": int(experiment["planned_trials"]),
+            "child_runs": experiment["child_runs"],
+            "suite_id": experiment["suite_id"],
+            "dataset_revision_id": experiment["dataset_revision_id"],
+            "track": experiment["track"],
+            "measurement_status": experiment["measurement_status"],
+            "repetitions": experiment["repetitions"],
+        }
+
+    def memory_experiment_list(
+        self, *, dataset_revision_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """实验摘要序列（created_at, id 稳定排序）；不展开子 run 与清单。"""
+        sql = (
+            "SELECT id, suite_id, dataset_revision_id, split, track, status,"
+            " measurement_status, planned_trials, repetitions, model_mode,"
+            " primary_metric, created_at, updated_at FROM memory_experiments"
+        )
+        params: tuple[Any, ...] = ()
+        if dataset_revision_id is not None:
+            sql += " WHERE dataset_revision_id = ?"
+            params = (str(dataset_revision_id),)
+        sql += " ORDER BY created_at, id"
+        with self.memory_database.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [
+            {
+                "id": str(row["id"]),
+                "suite_id": str(row["suite_id"]),
+                "dataset_revision_id": str(row["dataset_revision_id"]),
+                "split": row["split"],
+                "track": row["track"],
+                "status": row["status"],
+                "measurement_status": row["measurement_status"],
+                "planned_trials": int(row["planned_trials"]),
+                "repetitions": int(row["repetitions"]),
+                "model_mode": row["model_mode"],
+                "primary_metric": row["primary_metric"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+            for row in rows
+        ]
+
+    def memory_experiment_read(self, experiment_id: str) -> dict[str, Any]:
+        """实验详情：冻结清单、预算、measurement_status、覆盖与进度（只读投影）。"""
+        plan = self._memory_plan(experiment_id)
+        experiment = plan["experiment"]
+        attempts = self._memory_attempts_of(plan)
+        planned = int(experiment["planned_trials"])
+        statuses: dict[str, int] = {}
+        for child in plan["child_runs"]:
+            key = str(child["status"])
+            statuses[key] = statuses.get(key, 0) + 1
+        scored = sum(
+            1
+            for item in attempts
+            if item.get("grading_status") in ("completed", "judge_error")
+        )
+        from nanobot.evaluation.memory.experiments import measurement_status_of
+
+        return {
+            "id": experiment["id"],
+            "suite_id": experiment["suite_id"],
+            "dataset_revision_id": experiment["dataset_revision_id"],
+            "split": experiment["split"],
+            "track": experiment["track"],
+            "candidates": experiment["candidates"],
+            "repetitions": experiment["repetitions"],
+            "model_mode": experiment["model_mode"],
+            "judge_profile_id": experiment["judge_profile_id"],
+            "primary_metric": experiment["primary_metric"],
+            "policy": experiment["policy"],
+            "status": experiment["status"],
+            # 状态与「能不能评分」分开：技术完成不等于全部指标达标。
+            "measurement_status": experiment["measurement_status"],
+            "planned_trials": planned,
+            "frozen_manifest": experiment.get("manifest") or {},
+            "budget": experiment.get("budgets") or {},
+            "child_runs": plan["child_runs"],
+            "progress": {
+                "planned_trials": planned,
+                "child_runs": len(plan["child_runs"]),
+                "child_status_counts": statuses,
+                "attempts": len(attempts),
+                "terminal_attempts": scored,
+            },
+            "coverage": {
+                "measurement_status": measurement_status_of(
+                    attempts, planned_trials=planned
+                ),
+                "planned": planned,
+                "scored": scored,
+            },
+            "created_at": experiment["created_at"],
+            "updated_at": experiment["updated_at"],
+        }
+
+    async def memory_cancel_experiment(
+        self, experiment_id: str, *, scheduler: Any
+    ) -> tuple[dict[str, Any], bool]:
+        """取消实验组：已终态返回 ``(detail, False)``（路由答 200），否则回收后 202。"""
+        plan = self._memory_plan(experiment_id)
+        if str(plan["experiment"]["status"]) in _MEMORY_TERMINAL_EXPERIMENT_STATUSES:
+            return self.memory_experiment_read(experiment_id), False
+        await self.memory_experiment_coordinator().cancel(
+            experiment_id, scheduler=scheduler, reason="user"
+        )
+        return self.memory_experiment_read(experiment_id), True
+
+    def memory_experiment_metrics(self, experiment_id: str) -> dict[str, Any]:
+        """全实验范围的指标读模型。
+
+        这是 **probe micro 均值**（每个已评分指标值等权），不是契约 §8.4 的
+        scenario macro 主指标——主指标聚合与区间属于 WU-08 的比较引擎，这里不抢它的
+        分母，也不把未评分项填 0。
+        """
+        from nanobot.evaluation.memory.experiments import _attempt_metrics
+
+        plan = self._memory_plan(experiment_id)
+        attempts = self._memory_attempts_of(plan)
+        planned = int(plan["experiment"]["planned_trials"])
+        grouped: dict[str, dict[str, Any]] = {}
+        for attempt in attempts:
+            for metric in _attempt_metrics(attempt):
+                bucket = grouped.setdefault(
+                    str(metric.get("id")),
+                    {
+                        "unit": metric.get("unit"),
+                        "values": [],
+                        "planned": 0,
+                        "statuses": set(),
+                        "reasons": set(),
+                    },
+                )
+                bucket["planned"] += 1
+                value = metric.get("value")
+                if metric.get("status") == "scored" and isinstance(value, (int, float)):
+                    bucket["values"].append(float(value))
+                else:
+                    bucket["statuses"].add(str(metric.get("status") or "not_assessable"))
+                    bucket["reasons"].update(str(item) for item in metric.get("reasons") or [])
+        metrics: list[dict[str, Any]] = []
+        for metric_id in sorted(grouped):
+            bucket = grouped[metric_id]
+            values = bucket["values"]
+            scored = len(values)
+            metrics.append(
+                {
+                    "id": metric_id,
+                    "version": 1,
+                    "unit": bucket["unit"],
+                    "value": (sum(values) / scored) if scored else None,
+                    "numerator": scored if scored else None,
+                    "denominator": bucket["planned"],
+                    "status": "scored" if scored else "not_assessable",
+                    "scope": "dataset",
+                    "reasons": sorted(bucket["reasons"])[:10],
+                    "coverage": {
+                        "scored": scored,
+                        "planned": bucket["planned"],
+                        "reasons": sorted(bucket["reasons"])[:10],
+                    },
+                }
+            )
+        return {
+            "metrics_version": 1,
+            "aggregation": "probe_micro_mean/v1",
+            "metrics": metrics,
+            "scope": {
+                "experiment_id": str(experiment_id),
+                "planned_trials": planned,
+                "attempts": len(attempts),
+                "child_runs": len(plan["child_runs"]),
+            },
+            "coverage": {
+                "attempts": len(attempts),
+                "planned": planned,
+                "scored_trials": sum(
+                    1
+                    for item in attempts
+                    if item.get("grading_status") in ("completed", "judge_error")
+                ),
+                "reasons": [] if attempts else ["no_attempts"],
+            },
+        }
+
+    def memory_attempt_probes(self, attempt_id: str) -> list[dict[str, Any]]:
+        """逐 probe 执行/评分摘要；不含私有 gold 文件路径。"""
+        row = self._repository.get_attempt(attempt_id)
+        memory = (row.get("result") or {}).get("memory")
+        if not isinstance(memory, Mapping):
+            raise ServiceError("MEMORY_RESULT_MISSING", "")
+        graded = memory.get("metrics") if isinstance(memory.get("metrics"), Mapping) else {}
+        scenario_id = str(graded.get("scenario_id") or memory.get("scenario_id") or "")
+        probes: list[dict[str, Any]] = []
+        for probe in graded.get("probe_results") or []:
+            if not isinstance(probe, Mapping):
+                continue
+            probes.append(
+                {
+                    "scenario_id": scenario_id,
+                    "probe_id": probe.get("probe_id"),
+                    "trial_index": int(graded.get("trial_index") or 0),
+                    "category": probe.get("category"),
+                    "qa_correct": probe.get("qa_correct"),
+                    "qa_status": probe.get("qa_status"),
+                    "fact_coverage": probe.get("fact_coverage"),
+                    "grounded_memory_success": probe.get("grounded_memory_success"),
+                    "grading_revision": int(graded.get("grading_revision") or 1),
+                    "review_digest": graded.get("review_digest"),
+                    "reasons": list(probe.get("reasons") or []),
+                    "metrics": list(probe.get("metrics") or []),
+                }
+            )
+        probes.sort(
+            key=lambda item: (
+                str(item.get("scenario_id") or ""),
+                int(item.get("trial_index") or 0),
+                str(item.get("probe_id") or ""),
+            )
+        )
+        return probes
+
+    def memory_attempt_event_page(
+        self, attempt_id: str, *, after_seq: int = 0, limit: int = 200
+    ) -> dict[str, Any]:
+        """``memory.event`` 投影：沿用同一 Trace 权限与 artifact 引用。"""
+        self._repository.get_attempt(attempt_id)
+        events, sealed = self._trace_events(attempt_id)
+        filtered = [
+            event.model_dump(mode="json")
+            for event in events
+            if str(getattr(event, "type", "")) == "memory.event"
+            and int(getattr(event, "seq", 0)) > after_seq
+        ]
+        page = filtered[:limit]
+        last = int(page[-1]["seq"]) if page else after_seq
+        return {
+            "data": page,
+            "next_after_seq": last,
+            "has_more": len(filtered) > len(page),
+            "sealed": sealed,
+        }
+
+    def memory_import_dataset(
+        self, metadata: Any, *, file_path: Path, idempotency_key: str, scope: str
+    ) -> dict[str, Any]:
+        """走同一个版本化导入器；multipart 的临时文件由路由层负责清理。"""
+        return self._memory_idempotent(
+            endpoint=MEMORY_IMPORTS_ENDPOINT,
+            scope=scope,
+            key=idempotency_key,
+            payload=metadata.model_dump(mode="json"),
+            action=lambda: self._import_memory_dataset(metadata, file_path),
+        )
+
+    def _import_memory_dataset(self, metadata: Any, file_path: Path) -> dict[str, Any]:
+        from nanobot.evaluation.memory.datasets import import_dataset
+
+        if metadata.format == "longmemeval":
+            from nanobot.evaluation.memory.longmemeval import (
+                LongMemEvalFormatError,
+                load_longmemeval,
+            )
+
+            try:
+                dataset = load_longmemeval(
+                    file_path,
+                    split=metadata.split or "development",
+                    subset=metadata.subset,
+                )
+            except LongMemEvalFormatError as exc:
+                raise ServiceError(
+                    str(getattr(exc, "code", "") or "MEMORY_SCHEMA_INVALID"), ""
+                ) from exc
+            source = dataset.source_metadata()
+            version = str(
+                metadata.dataset_version
+                or source.get("revision")
+                or dataset.cleaned_revision
+                or "longmemeval-upload"
+            )
+            result = self._memory_call(
+                "MEMORY_SCHEMA_INVALID",
+                self.memory_repository.import_revision,
+                {
+                    "suite_id": self._memory_import_suite(metadata, version),
+                    "dataset_version": version,
+                    "source": source,
+                    "scenarios": [dict(item) for item in dataset.scenarios],
+                },
+            )
+        else:
+            if not metadata.dataset_version:
+                raise ServiceError("MEMORY_SCHEMA_INVALID", "dataset_version is required")
+            version = str(metadata.dataset_version)
+            suite_id = self._memory_import_suite(metadata, version)
+            with Path(file_path).open("rb") as handle:
+                result = self._memory_call(
+                    "MEMORY_SCHEMA_INVALID",
+                    import_dataset,
+                    self.memory_database,
+                    suite_id=suite_id,
+                    dataset_version=version,
+                    source=metadata.source.model_dump(mode="json"),
+                    stream=handle,
+                    format=metadata.format,
+                    # 上传内容必须与声明的来源摘要一致（契约 §6「文件 hash 必填」）。
+                    expected_sha256=metadata.source.sha256,
+                )
+        revision = result.get("dataset_revision") or {}
+        return {
+            "import_id": result.get("import_job_id"),
+            "status": result["status"],
+            "dataset_revision_id": result.get("dataset_revision_id")
+            or (str(revision["id"]) if revision else None),
+            "dataset_version": version,
+            "scenario_count": int(result.get("scenario_count") or 0),
+            "errors": list(result.get("errors") or [])[:20],
+        }
+
+    def _memory_import_suite(self, metadata: Any, version: str) -> str:
+        """导入目标集合：显式 suite_id 优先，否则按版本标签幂等复用/新建。"""
+        if metadata.suite_id is not None:
+            suite = self._repository.get_suite(str(metadata.suite_id))
+            return str(suite["id"])
+        tag = f"memory-dataset:{version}"[:120]
+        for suite in self._repository.list_suites():
+            if tag in (suite.get("tags") or []):
+                return str(suite["id"])
+        created = self._repository.create_suite(
+            {
+                "name": f"记忆集合 {version}"[:120],
+                "description": "由记忆集合导入创建；来源与许可随修订冻结。",
+                "tags": [tag],
+                "base_revision": None,
+            }
+        )
+        return str(created["id"])
+
+    def memory_import_read(self, import_id: str) -> dict[str, Any]:
+        """导入作业：状态、计数与（可选分页的）诊断。"""
+        with self.memory_database.connect() as conn:
+            row = conn.execute(
+                "SELECT id, suite_id, status, expected_count, observed_count,"
+                " dataset_revision_id, source_json, errors_json, created_at, updated_at"
+                " FROM memory_import_jobs WHERE id = ?",
+                (str(import_id),),
+            ).fetchone()
+        if row is None:
+            raise ServiceError("MEMORY_IMPORT_NOT_FOUND", "")
+        errors = json.loads(row["errors_json"] or "[]")
+        source = json.loads(row["source_json"] or "{}")
+        return {
+            "id": str(row["id"]),
+            "suite_id": str(row["suite_id"]),
+            "status": row["status"],
+            "counts": {
+                "expected": row["expected_count"],
+                "observed": row["observed_count"],
+                "rejected": len(errors),
+            },
+            "errors": errors,
+            "dataset_revision_id": row["dataset_revision_id"],
+            "dataset_version": source.get("revision"),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def memory_create_comparison(
+        self, payload: Any, *, idempotency_key: str, scope: str
+    ) -> dict[str, Any]:
+        """契约 §6：创建比较；终态/条件/变更白名单由比较引擎统一把门。"""
+        return self._memory_idempotent(
+            endpoint=MEMORY_COMPARISONS_ENDPOINT,
+            scope=scope,
+            key=idempotency_key,
+            payload=payload.model_dump(mode="json"),
+            action=lambda: self._create_memory_comparison(payload),
+        )
+
+    def _create_memory_comparison(self, payload: Any) -> dict[str, Any]:
+        engine = _memory_comparison_engine()
+        if engine is None:
+            # WU-08（memory/comparisons.py）未落地：宁可 500 也不编一份假比较。
+            raise ServiceError("MEMORY_COMPARISON_ENGINE_UNAVAILABLE", "")
+        baseline = self._memory_plan(str(payload.baseline_experiment_id))
+        candidate = self._memory_plan(str(payload.candidate_experiment_id))
+        comparison_id = str(uuid.uuid4())
+        result = self._memory_call(
+            "COMPARISON_INCOMPATIBLE",
+            engine,
+            baseline_experiment=baseline,
+            candidate_experiment=candidate,
+            baseline_attempts=self._memory_attempts_of(baseline),
+            candidate_attempts=self._memory_attempts_of(candidate),
+            baseline_candidate_id=str(payload.baseline_candidate_id),
+            candidate_candidate_id=str(payload.candidate_candidate_id),
+            changed_fields=list(payload.changed_fields),
+            policy=payload.policy,
+            comparison_id=comparison_id,
+        )
+        stored = self._memory_call(
+            "MEMORY_SCHEMA_INVALID",
+            self.memory_repository.save_comparison,
+            {
+                "id": comparison_id,
+                "baseline_experiment_id": str(payload.baseline_experiment_id),
+                "candidate_experiment_id": str(payload.candidate_experiment_id),
+                "baseline_candidate_id": str(payload.baseline_candidate_id),
+                "candidate_candidate_id": str(payload.candidate_candidate_id),
+                "changed_fields": list(payload.changed_fields),
+                "policy": payload.policy.model_dump(mode="json"),
+                "status": result.status or "completed",
+                "result": result.to_dict(),
+                # 引用快照：历史报告只读这一份，不回查当前 case/manifest。
+                "snapshot": {
+                    "comparison_id": comparison_id,
+                    "experiment_ids": {
+                        "baseline": str(payload.baseline_experiment_id),
+                        "candidate": str(payload.candidate_experiment_id),
+                    },
+                    "manifests": {
+                        "baseline": baseline["experiment"].get("manifest") or {},
+                        "candidate": candidate["experiment"].get("manifest") or {},
+                    },
+                },
+            },
+        )
+        return self._comparison_summary(stored)
+
+    def memory_comparison_read(
+        self,
+        comparison_id: str,
+        *,
+        status: str | None = None,
+        after_key: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """全量统计 + 当前页配对；统计量来自不可变快照，绝不按页重算。"""
+        from nanobot.evaluation.memory.comparisons import page_comparison_pairs
+
+        stored = self._memory_call(
+            "MEMORY_COMPARISON_NOT_FOUND",
+            self.memory_repository.get_comparison,
+            str(comparison_id),
+        )
+        result = dict(stored.get("result") or {})
+        if status is not None:
+            result["scene_pairs"] = [
+                item
+                for item in result.get("scene_pairs") or []
+                if str(item.get("status")) == status
+            ]
+        page = page_comparison_pairs(result, limit=limit, after_key=after_key)
+        return {
+            **self._comparison_summary(stored),
+            "statistics": page["statistics"],
+            "intervals": result.get("interval"),
+            "excluded": result.get("excluded") or [],
+            "reasons": result.get("reasons") or [],
+            "coverage": result.get("coverage"),
+            "data": page["data"],
+            "next_after_key": page["next_after_key"],
+        }
+
+    def memory_comparison_report(self, comparison_id: str) -> str:
+        """同一不可变快照的自包含 HTML（不含外部脚本与私有 gold 路径）。"""
+        from nanobot.evaluation.memory.report import render_memory_comparison_report
+
+        stored = self._memory_call(
+            "MEMORY_COMPARISON_NOT_FOUND",
+            self.memory_repository.get_comparison,
+            str(comparison_id),
+        )
+        result = stored.get("result") or {}
+        if not isinstance(result, Mapping) or not result:
+            raise ServiceError("MEMORY_COMPARISON_NOT_FOUND", "report")
+        return str(
+            self._memory_call(
+                "MEMORY_SCHEMA_INVALID",
+                render_memory_comparison_report,
+                dict(result),
+            )
+        )
+
+    @staticmethod
+    def _comparison_summary(stored: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            "id": stored["id"],
+            "baseline_experiment_id": stored["baseline_experiment_id"],
+            "candidate_experiment_id": stored["candidate_experiment_id"],
+            "baseline_candidate_id": stored["baseline_candidate_id"],
+            "candidate_candidate_id": stored["candidate_candidate_id"],
+            "changed_fields": stored.get("changed_fields") or [],
+            "policy": stored.get("policy") or {},
+            "status": stored.get("status") or "pending",
+            "created_at": stored.get("created_at"),
+        }
+
+    def memory_validate_review_ref(self, attempt_id: str, reference: Any) -> None:
+        """契约 §4：逐 probe 复核引用必须确属该 attempt，且评分版本未过期。"""
+        row = self._repository.get_attempt(attempt_id)
+        memory = (row.get("result") or {}).get("memory")
+        if not isinstance(memory, Mapping):
+            raise ServiceError("MEMORY_SCENARIO_REF_REQUIRED", "")
+        graded = memory.get("metrics") if isinstance(memory.get("metrics"), Mapping) else {}
+        scenario_id = str(graded.get("scenario_id") or memory.get("scenario_id") or "")
+        if scenario_id and scenario_id != str(reference.scenario_id):
+            raise ServiceError("MEMORY_EVIDENCE_INVALID", "scenario_id")
+        revision = int(graded.get("grading_revision") or 1)
+        if int(reference.grading_revision) != revision:
+            raise ServiceError("MEMORY_GRADING_REVISION_CONFLICT", "")
+        probes = [
+            item for item in graded.get("probe_results") or [] if isinstance(item, Mapping)
+        ]
+        if str(reference.probe_id) not in {str(item.get("probe_id")) for item in probes}:
+            raise ServiceError("MEMORY_EVIDENCE_INVALID", "probe_id")
+        metric_ids = {
+            str(metric.get("id"))
+            for item in probes
+            for metric in (item.get("metrics") or [])
+        }
+        metric_ids.update(str(metric.get("id")) for metric in graded.get("metrics") or [])
+        if str(reference.metric_id) not in metric_ids:
+            raise ServiceError("MEMORY_EVIDENCE_INVALID", "metric_id")
+
+    # -------------------------------------------------------------- 记忆辅助
+
+    def _memory_plan(self, experiment_id: str) -> dict[str, Any]:
+        return self._memory_call(
+            "MEMORY_EXPERIMENT_NOT_FOUND",
+            self.memory_repository.get_experiment,
+            str(experiment_id),
+        )
+
+    def _memory_attempts_of(self, plan: Mapping[str, Any]) -> list[dict[str, Any]]:
+        """子 run 的 attempt 摊平；子 run 还没入队时按空处理（不是错误）。"""
+        attempts: list[dict[str, Any]] = []
+        for child in plan.get("child_runs") or []:
+            try:
+                attempts.extend(
+                    self._repository.list_run_attempts(
+                        str(child["run_id"]), include_snapshot=True
+                    )
+                )
+            except Exception:  # noqa: BLE001 - 子 run 尚未入队/已清理都按空处理
+                continue
+        return attempts
+
+    @staticmethod
+    def _memory_call(default_code: str, func: Any, *args: Any, **kwargs: Any) -> Any:
+        """把记忆层的带码异常收敛成 :class:`ServiceError`（路由层只认 code）。
+
+        带登记错误码的 ``RuntimeError`` 子类（比较引擎的门禁错误）同样按码映射；
+        其余 ``RuntimeError`` 继续走 500——程序缺陷不能被伪装成「输入不合法」。
+        """
+        try:
+            return func(*args, **kwargs)
+        except ServiceError:
+            raise
+        except _MEMORY_ERROR_TYPES as exc:
+            raise ServiceError(_memory_exception_code(exc, default_code), "") from exc
+        except RuntimeError as exc:
+            code = getattr(exc, "code", None)
+            if isinstance(code, str) and code in ERROR_STATUS:
+                raise ServiceError(code, "") from exc
+            raise
+
+    def _memory_idempotent(
+        self,
+        *,
+        endpoint: str,
+        scope: str,
+        key: str,
+        payload: Mapping[str, Any],
+        action: Any,
+    ) -> dict[str, Any]:
+        """按 ``scope+endpoint+key`` 原子 claim；同 key 异体 422、处理中 409。
+
+        claim 行在业务写入**之前**用 ``INSERT`` 抢到（主键冲突即别人已持有）；业务
+        成功后才补 ``response_json``。崩溃只会留下「处理中」，不会重复建子 run 或
+        重复计费；失败路径会撤回未完成的 claim，避免一次校验失败把 key 永久锁死。
+        """
+        digest = self._repository.request_digest(payload)
+        now = datetime.now(timezone.utc).isoformat()
+        with self.memory_database.connect(immediate=True) as conn:
+            row = conn.execute(
+                "SELECT request_hash, response_json FROM idempotency"
+                " WHERE scope = ? AND endpoint = ? AND key = ?",
+                (scope, endpoint, key),
+            ).fetchone()
+            if row is None:
+                conn.execute(
+                    "INSERT INTO idempotency (scope, endpoint, key, request_hash,"
+                    " run_id, response_json, created_at) VALUES (?, ?, ?, ?, NULL, NULL, ?)",
+                    (scope, endpoint, key, digest, now),
+                )
+            elif row["request_hash"] != digest:
+                raise IdempotencyMismatch(f"IDEMPOTENCY_MISMATCH endpoint={endpoint}")
+            elif row["response_json"] is None:
+                raise IdempotencyInProgress(f"IDEMPOTENCY_IN_PROGRESS endpoint={endpoint}")
+            else:
+                return json.loads(row["response_json"])
+        try:
+            result = action()
+        except BaseException:
+            with self.memory_database.connect(immediate=True) as conn:
+                conn.execute(
+                    "DELETE FROM idempotency WHERE scope = ? AND endpoint = ? AND key = ?"
+                    " AND response_json IS NULL",
+                    (scope, endpoint, key),
+                )
+            raise
+        with self.memory_database.connect(immediate=True) as conn:
+            conn.execute(
+                "UPDATE idempotency SET response_json = ?"
+                " WHERE scope = ? AND endpoint = ? AND key = ?",
+                (json.dumps(result, ensure_ascii=False, sort_keys=True), scope, endpoint, key),
+            )
+        return result
+
     # -------------------------------------------------------------- 辅助函数
 
     def _setup_failure(self, errors: list[AttemptError]) -> AttemptOutcome:
@@ -1961,6 +3212,13 @@ def _empty_usage() -> dict[str, Any]:
         "physical_requests": 0, "iterations": 0, "missing_usage_calls": 0,
     }
     return {"agent": dict(empty), "judge": dict(empty)}
+
+
+def _optional_int(value: Any) -> int | None:
+    """把上报值收成非负整数；``None``/bool/越界一律按**未知**处理。"""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if value >= 0 else None
 
 
 def _text(result: Mapping[str, Any] | None, key: str) -> str | None:

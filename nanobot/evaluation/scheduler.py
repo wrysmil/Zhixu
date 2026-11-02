@@ -21,7 +21,7 @@ import contextlib
 import json
 import os
 import signal
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -37,6 +37,14 @@ DEFAULT_POLL_INTERVAL_S = 0.05
 
 #: 取消时等待 owner 回收进程树的上限；超时按人工处置记录，不再无限等。
 CANCEL_CLEANUP_TIMEOUT_S = 30.0
+
+#: 实验组状态来源（WU-07）：给 ``experiment_id`` 返回组状态；读不到返回 ``None``。
+GroupStatusProvider = Callable[[str], str | None]
+#: 子 run 终结回调（WU-07）：实验组协调器据此聚合状态与可评分性。
+RunSettledListener = Callable[[str], None]
+
+#: 实验组已停止的状态：不再为它领取新的 attempt。
+_STOPPED_GROUPS = frozenset({"cancelling", "cancelled", "interrupted", "timed_out"})
 
 
 class SchedulerAlreadyRunningError(RuntimeError):  # noqa: N818 - 名称由错误码映射锁定
@@ -149,10 +157,16 @@ class Scheduler:
         repository: EvaluationRepository,
         pipeline: AttemptPipeline,
         config: SchedulerConfig,
+        group_status_provider: GroupStatusProvider | None = None,
+        run_settled: RunSettledListener | None = None,
     ) -> None:
         self._repository = repository
         self._pipeline = pipeline
         self._config = config
+        # 记忆实验组（WU-07）：组闸与聚合都通过注入，不让调度器认识记忆表。
+        self._group_status_provider = group_status_provider
+        self._run_settled = run_settled
+        self._run_groups: dict[str, tuple[str, int] | None] = {}
         # Agent 与 Judge 共用的进程信号量：切换阶段必须先释放再申请。
         self._slots = asyncio.Semaphore(config.concurrency)
         self._tasks: dict[str, asyncio.Task[None]] = {}
@@ -268,6 +282,7 @@ class Scheduler:
         self._cancel_requests.discard(run_id)
         self._cancel_reasons.pop(run_id, None)
         self._deadlines.pop(run_id, None)
+        self._notify_settled(run_id)
 
     async def _finalize_cancelling(self, run_id: str) -> None:
         self._abort_tasks_for(run_id)
@@ -324,7 +339,17 @@ class Scheduler:
             run_id = str(row["id"])
             if run_id in self._cancel_requests:
                 continue
-            if self._inflight_for(run_id) >= self._run_limit(run_id):
+            limit = self._run_limit(run_id)
+            group = self._memory_group(run_id)
+            if group is not None:
+                experiment_id, group_limit = group
+                if self._group_stopped(experiment_id):
+                    # 组已取消/中断：不再领取它的任何子 run（新批也就无从开始）。
+                    continue
+                limit = max(
+                    min(limit, group_limit - self._inflight_for_group(experiment_id)), 0
+                )
+            if limit <= 0 or self._inflight_for(run_id) >= limit:
                 continue
             claimed = self._repository.claim_attempt(run_id=run_id)
             if claimed is None:
@@ -458,6 +483,63 @@ class Scheduler:
         value = limits.get("concurrency") if isinstance(limits, Mapping) else None
         return value if isinstance(value, int) and not isinstance(value, bool) else 1
 
+    def _memory_group(self, run_id: str) -> tuple[str, int] | None:
+        """读取 run 冻结快照里的实验组信息（读不到就不缓存，下轮再试）。"""
+        if run_id in self._run_groups:
+            return self._run_groups[run_id]
+        try:
+            snapshot = self._repository.get_run(run_id).get("snapshot") or {}
+        except Exception:  # noqa: BLE001 - 快照读失败不能当成「没有组」
+            return None
+        info = snapshot.get("memory_experiment") if isinstance(snapshot, Mapping) else None
+        group: tuple[str, int] | None = None
+        if isinstance(info, Mapping):
+            experiment_id = info.get("experiment_id")
+            concurrency = info.get("concurrency")
+            if (
+                isinstance(experiment_id, str)
+                and experiment_id
+                and isinstance(concurrency, int)
+                and not isinstance(concurrency, bool)
+                and concurrency >= 1
+            ):
+                # 组并发只能是服务总闸的更严值，不能反过来放大它。
+                group = (experiment_id, min(concurrency, SERVICE_CONCURRENCY_LIMIT))
+        self._run_groups[run_id] = group
+        return group
+
+    def _inflight_for_group(self, experiment_id: str) -> int:
+        """同组在飞数：子 run 共享同一个组闸，而不是各拿一份。"""
+        count = 0
+        for name, task in self._tasks.items():
+            if task.done() or not name.startswith("attempt:"):
+                continue
+            parts = name.split(":")
+            if len(parts) < 2:
+                continue
+            group = self._memory_group(parts[1])
+            if group is not None and group[0] == experiment_id:
+                count += 1
+        return count
+
+    def _group_stopped(self, experiment_id: str) -> bool:
+        provider = self._group_status_provider
+        if provider is None:
+            return False
+        try:
+            status = provider(experiment_id)
+        except Exception:  # noqa: BLE001 - 组状态读不到时不阻断调度
+            return False
+        return status in _STOPPED_GROUPS
+
+    def _notify_settled(self, run_id: str) -> None:
+        """子 run 终结后通知聚合方；监听器故障不能影响调度主循环。"""
+        listener = self._run_settled
+        if listener is None:
+            return
+        with contextlib.suppress(Exception):
+            listener(run_id)
+
     async def _run_attempt(self, claimed: Mapping[str, Any], run_id: str) -> None:
         attempt_id = str(claimed["id"])
         try:
@@ -483,6 +565,8 @@ class Scheduler:
                     )
                 ),
             )
+        finally:
+            self._notify_settled(run_id)
 
     def _cancelled(self, run_id: str) -> bool:
         """以持久状态为准。

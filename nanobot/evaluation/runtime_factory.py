@@ -20,7 +20,7 @@ from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from nanobot.agent.hooks import create_file_edit_activity_hook
 from nanobot.agent.loop import AgentLoop
@@ -277,6 +277,49 @@ def _sandbox_overlay(
     }
 
 
+def _memory_loop_wiring(
+    paths: AttemptPaths, memory_execution: Mapping[str, Any]
+) -> dict[str, Any]:
+    """专项 case 的显式记忆装配（plan §6 Step 2）。
+
+    被测 runtime 的记忆面指向 trial 评估根里的真实 ``MemoryServices`` /
+    ``RetrievalEngine``，WU-02 完成屏障入口必须可达——任何一项装不上都直接
+    setup 失败，绝不静默降级成普通聊天。
+    """
+    from nanobot.evaluation.memory.worker_bridge import memory_trial_paths
+    from nanobot.memory.provenance import memory_workspace_id
+    from nanobot.memory.retrieval.engine import RetrievalEngine
+    from nanobot.memory.retrieval.store_adapter import MemoryStoreAdapter
+    from nanobot.memory.signals import MemoryOperationRegistry, flush_session_memory
+    from nanobot.webui.memory_services import MemoryServices
+
+    scope = memory_execution.get("scope")
+    if not isinstance(scope, Mapping):
+        raise ValueError("MEMORY_EXECUTION_INVALID: scope missing")
+    trial_root = memory_trial_paths(paths, scope)
+    trial_root.mkdir(parents=True, exist_ok=True)
+    workspace = trial_root / "workspaces" / str(scope.get("workspace_id")) / str(
+        scope.get("subject_id")
+    )
+    workspace.mkdir(parents=True, exist_ok=True)
+    services = MemoryServices.for_workspace(
+        memory_workspace_id(str(workspace)), workspace
+    )
+    engine = RetrievalEngine(store=MemoryStoreAdapter(services.database))
+    # WU-02 完成信号：屏障入口与登记簿必须真实可用（importable + 可实例化），
+    # 这是「完成屏障可达」的装配检查；缺失即 setup 失败。
+    registry = MemoryOperationRegistry()
+    if not callable(flush_session_memory) or not hasattr(registry, "wait_pending"):
+        raise ValueError("MEMORY_BARRIER_UNAVAILABLE: settle barrier not wired")
+    return {
+        "memory_extraction_enabled": True,
+        "memory_services": services,
+        "active_retrieval_enabled": True,
+        "retrieval_engine": engine,
+        "memory_enabled_provider": lambda: True,
+    }
+
+
 def build_attempt_config(
     *,
     profile_bundle: Mapping[str, Any],
@@ -372,6 +415,14 @@ async def create_attempt(
     # 先设配置上下文，再构造 SDK：任何按 get_config_path() 派生路径的子系统都指向本 attempt。
     loader.set_config_path(paths.config_path)
 
+    # 专项 case：boot 带了 memory_execution 就必须显式装配记忆组件；装配失败直接
+    # setup 失败，不降级普通聊天（plan §6 Step 2）。普通 case 不走这条分支。
+    memory_execution = getattr(boot, "memory_execution", None)
+    memory_mode = isinstance(memory_execution, Mapping) and bool(memory_execution)
+    memory_wiring: dict[str, Any] = {}
+    if memory_mode:
+        memory_wiring = _memory_loop_wiring(paths, memory_execution)
+
     case = getattr(boot, "case_snapshot", None)
     execution = case.execution if isinstance(case, CaseWrite) else None
     allowed = list(execution.allowed_tools) if execution is not None else []
@@ -413,6 +464,21 @@ async def create_attempt(
             ),
             generation=dict(boot.profile_bundle.get("generation") or {}),
         )
+    elif provider is None and memory_mode and isinstance(
+        boot.profile_bundle.get("script"), list
+    ) and boot.profile_bundle["script"]:
+        # 专项 case 的 turns/script 恒为空（schema 禁止混写），probe 回答与抽取
+        # 直连 provider；受控候选离线评测时脚本经 profile bundle 下发（普通 case
+        # 语义不变：bundle 无 script 键时照常按配置构造真实 provider）。
+        from nanobot.evaluation.controlled_provider import (
+            ControlledProvider,
+            steps_from_script,
+        )
+
+        provider = ControlledProvider(
+            steps=steps_from_script(boot.profile_bundle["script"]),
+            generation=dict(boot.profile_bundle.get("generation") or {}),
+        )
 
     registry = ToolRegistry()
     # 不构造 MCPProvider：首版 Worker 没有自动连接外部 MCP 的入口。
@@ -427,6 +493,7 @@ async def create_attempt(
         hook_factories=[create_file_edit_activity_hook],
         provider=provider,
         session_manager=session_manager,
+        **memory_wiring,
     )
     table = FixtureTable.from_fixtures(
         _tool_fixtures(case if isinstance(case, CaseWrite) else None), clock=clock
@@ -445,7 +512,13 @@ async def create_attempt(
         if missing:
             # 缺输入是 setup 级失败：明确报缺，不让后续用空文件假装任务成功。
             raise ValueError(f"CASE_INPUT_MISSING: {', '.join(missing)}")
-        seeded = seed_memory(bot.memory, case.memory_seed, session_key=session_key)
+        if memory_mode:
+            # 专项 case 不走普通 Agent 的记忆种子通道：场景材料只经专项
+            # runner 进 trial 记忆库（RED 断言 seed_memory 未被调用）。
+            if case.memory_seed:
+                raise ValueError("MEMORY_SEED_WITH_SCENARIO_REF")
+        else:
+            seeded = seed_memory(bot.memory, case.memory_seed, session_key=session_key)
 
     capability = {
         "role": boot.role,
@@ -476,6 +549,19 @@ async def create_attempt(
             "restricted_to_frozen": True,
         },
     }
+    if memory_mode:
+        memory_execution_map = cast(Mapping[str, Any], memory_execution)
+        from nanobot.evaluation.memory.worker_bridge import MEMORY_TRIAL_DIRNAME
+
+        capability["memory_execution"] = {
+            "enabled": True,
+            "scenario_id": str(memory_execution_map.get("scenario_id") or ""),
+            "revision": memory_execution_map.get("revision"),
+            "track": str(memory_execution_map.get("track") or ""),
+            "extraction_enabled": True,
+            "settle_barrier": "flush_session_memory",
+            "trial_dirname": MEMORY_TRIAL_DIRNAME,
+        }
     return AttemptRuntime(
         attempt_id=str(boot.attempt_id),
         role=boot.role,
