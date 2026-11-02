@@ -251,20 +251,32 @@ def real_lifecycle(tmp_path: Path):
 def test_memory_md_write_through_real_lifecycle_creates_backup(
     workspace: Path, real_lifecycle
 ):
-    """端到端：identity_write_file -> MemoryLifecycle -> memory/MEMORY.md + .bak。"""
+    """端到端：identity_write_file -> core-note 记录 + 导出文件（.bak 语义保留）。"""
+    from nanobot.memory.lifecycle import read_core_note
+
     result = identity_api.identity_write_file(
         workspace, "MEMORY.md", "# 手工记忆", lifecycle=real_lifecycle
     )
 
     assert result == {"name": "MEMORY.md", "saved": True, "autoRegenerated": True}
+    with real_lifecycle.services.database.connect() as conn:
+        note = read_core_note(conn, "default")
+    assert note is not None and "手工记忆" in note.content
+
     memory_file = real_lifecycle.memory_file
-    assert memory_file.read_text(encoding="utf-8") == "# 手工记忆"
-    # 第二次写入必须先留下上一版的备份
+    content = memory_file.read_text(encoding="utf-8")
+    assert "zhixu:core-note:begin" in content
+    assert "手工记忆" in content
+    # 第一次写入前没有旧文件，因此没有备份
     assert not memory_file.with_suffix(".md.bak").exists()
 
-    identity_api.identity_write_file(workspace, "MEMORY.md", "# 第二版", lifecycle=real_lifecycle)
-    assert memory_file.read_text(encoding="utf-8") == "# 第二版"
-    assert memory_file.with_suffix(".md.bak").read_text(encoding="utf-8") == "# 手工记忆"
+    identity_api.identity_write_file(
+        workspace, "MEMORY.md", "# 第二版", lifecycle=real_lifecycle
+    )
+    assert "第二版" in memory_file.read_text(encoding="utf-8")
+    backup = memory_file.with_suffix(".md.bak").read_text(encoding="utf-8")
+    assert "手工记忆" in backup
+    assert "第二版" not in backup
 
 
 def test_memory_md_over_limit_through_real_lifecycle_is_4xx(workspace: Path, real_lifecycle):

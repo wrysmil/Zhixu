@@ -286,6 +286,146 @@ class TestSchema:
         assert 'idx_episodes_workspace' in idx_names
 
 
+class TestMemoryCoordinateSchema:
+    """记忆减法（契约 §2.3）：提取进度列与批次表的建表/迁移。"""
+
+    def test_extraction_state_has_coordinate_columns(self, workspace: Path):
+        db = MemoryDatabase(workspace)
+        db.init_schema()
+        with db.connect() as conn:
+            cols = {
+                row[1] for row in conn.execute("PRAGMA table_info(session_extraction_state)")
+            }
+        assert {"generation", "last_seq"}.issubset(cols)
+        # 旧字段只为兼容保留，不能被删掉
+        assert {"last_count", "last_source", "last_extracted_at", "updated_at"}.issubset(cols)
+
+    def test_legacy_extraction_state_gets_coordinate_columns(self, workspace: Path):
+        """WU-A 时期的旧表（无 generation/last_seq）必须被幂等 ALTER 补齐且数据不丢。"""
+        db = MemoryDatabase(workspace)
+        with db.connect() as conn:
+            conn.execute(
+                """
+                CREATE TABLE session_extraction_state (
+                    session_key      TEXT    PRIMARY KEY,
+                    last_count       INTEGER NOT NULL,
+                    last_source      TEXT    NOT NULL,
+                    last_extracted_at TEXT   NOT NULL,
+                    updated_at       TEXT    NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "INSERT INTO session_extraction_state "
+                "(session_key, last_count, last_source, last_extracted_at, updated_at) "
+                "VALUES ('ws:1', 4, 'idle', '2026-01-01T00:00:00+00:00', "
+                "'2026-01-01T00:00:00+00:00')"
+            )
+
+        db.ensure_schema()
+        db.ensure_schema()  # 幂等
+
+        with db.connect() as conn:
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(session_extraction_state)")
+            }
+            row = conn.execute(
+                "SELECT last_count, generation, last_seq FROM session_extraction_state "
+                "WHERE session_key = 'ws:1'"
+            ).fetchone()
+        assert "generation" in columns
+        assert "last_seq" in columns
+        assert row is not None
+        assert row["last_count"] == 4
+        assert row["generation"] == ""
+        assert row["last_seq"] == 0
+
+    def test_batch_table_has_required_columns_and_keys(self, workspace: Path):
+        db = MemoryDatabase(workspace)
+        db.init_schema()
+        with db.connect() as conn:
+            cols = {
+                row[1] for row in conn.execute("PRAGMA table_info(memory_extraction_batches)")
+            }
+            pk_cols = [
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(memory_extraction_batches)")
+                if row["pk"] > 0
+            ]
+        required = {
+            'batch_id',
+            'workspace_id',
+            'session_key',
+            'generation',
+            'reason',
+            'start_seq',
+            'end_seq',
+            'evidence_digest',
+            'status',
+            'semantic_output',
+            'episode_output',
+            'semantic_checkpoint_at',
+            'episode_checkpoint_at',
+            'claim_owner',
+            'claimed_at',
+            'lease_expires_at',
+            'error_code',
+            'error_detail',
+            'created_at',
+            'updated_at',
+        }
+        assert required.issubset(cols)
+        assert pk_cols == ['batch_id']
+
+    def test_batch_scope_and_boundaries_are_unique(self, workspace: Path):
+        """消费键 + 固定边界唯一：同一批次重试不会产生第二行。"""
+        import sqlite3
+
+        db = MemoryDatabase(workspace)
+        db.init_schema()
+        values = (
+            'batch-1', 'ws', 'cli:1', 'gen-1', 'idle', 0, 4, 'digest', 'pending',
+            '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00',
+        )
+        insert = (
+            "INSERT INTO memory_extraction_batches ("
+            "batch_id, workspace_id, session_key, generation, reason, start_seq, end_seq, "
+            "evidence_digest, status, created_at, updated_at"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        with db.connect() as conn:
+            conn.execute(insert, values)
+        with pytest.raises(sqlite3.IntegrityError):
+            with db.connect() as conn:
+                conn.execute(insert, ('batch-2', *values[1:]))
+
+    def test_batch_table_is_backfilled_on_existing_db(self, workspace: Path):
+        db = MemoryDatabase(workspace)
+        db.init_schema()
+        with db.connect() as conn:
+            conn.execute("DROP TABLE memory_extraction_batches")
+        db.ensure_schema()
+        with db.connect() as conn:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' "
+                "AND name='memory_extraction_batches'"
+            ).fetchone()[0]
+        assert count == 1
+
+    def test_batch_scope_index_exists(self, workspace: Path):
+        db = MemoryDatabase(workspace)
+        db.init_schema()
+        with db.connect() as conn:
+            indexes = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index' "
+                    "AND tbl_name='memory_extraction_batches'"
+                )
+            }
+        assert 'idx_batches_scope' in indexes
+
+
 class TestFts5:
     def test_memories_fts_table_exists(self, workspace: Path):
         db = MemoryDatabase(workspace)

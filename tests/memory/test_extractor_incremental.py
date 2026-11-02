@@ -321,7 +321,7 @@ class TestNoOpAndFailureIsolation:
         assert post.last_source == "idle"
 
     async def test_failure_does_not_advance_state(self, db: MemoryDatabase):
-        """``upsert_extraction_state`` 抛错时 state 保持预置值，调用方不抛。"""
+        """``set_extraction_seq`` 抛错时 state 保持预置值，调用方不抛。"""
         provider = _FakeProvider()
         extractor = _make_extractor(db, provider)
 
@@ -336,18 +336,18 @@ class TestNoOpAndFailureIsolation:
 
         from nanobot.memory import extractor as ext_module
 
-        original_upsert = ext_module.upsert_extraction_state
+        original_set = ext_module.set_extraction_seq
 
-        def _boom(_conn, _session_key, **_kwargs):
-            raise RuntimeError("simulated upsert failure")
+        def _boom(*_args, **_kwargs):
+            raise RuntimeError("simulated cursor write failure")
 
-        ext_module.upsert_extraction_state = _boom
+        ext_module.set_extraction_seq = _boom
         try:
             result = await extractor.run_idle_extraction(
                 _make_session(_build_messages(), key="s_upsert_fail")
             )
         finally:
-            ext_module.upsert_extraction_state = original_upsert
+            ext_module.set_extraction_seq = original_set
 
         assert result is not None
         with db.connect() as conn:
@@ -367,7 +367,7 @@ class TestNoOpAndFailureIsolation:
         assert result.memory_ids == []
         assert result.episode_ids == []
         assert set(result.failed_tracks) == {"semantic", "episode"}
+        # 契约 §2.6：模型失败不算空成功 → 进度不推进，等重试完成
         with db.connect() as conn:
             post = get_extraction_state(conn, "s_llm_fail")
-        assert post is not None
-        assert post.last_count == len(session.messages)
+        assert post is None or post.last_count == 0

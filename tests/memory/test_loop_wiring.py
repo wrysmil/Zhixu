@@ -26,8 +26,8 @@ from nanobot.agent.hook import AgentTurnHookContext
 from nanobot.agent.hooks.memory_extraction import MemoryExtractionHook
 from nanobot.agent.loop import AgentLoop
 from nanobot.bus.queue import MessageBus
-from nanobot.providers.base import LLMProvider
 from nanobot.memory.scratchpad_writer import ScratchpadWriter
+from nanobot.providers.base import LLMProvider
 from nanobot.session.manager import Session, SessionManager
 from nanobot.webui.memory_services import MemoryServices
 
@@ -109,7 +109,10 @@ def test_delete_session_observer_receives_pre_deletion_session(tmp_path: Path) -
     assert deleted_keys == [key]
     assert len(captured) == 1
     assert captured[0].key == key
-    assert captured[0].messages == [{"role": "user", "content": "hello memory"}]
+    # 契约 §1：保存后消息带持久坐标（memory_seq），删除观察者看到的是最终形状。
+    assert captured[0].messages == [
+        {"role": "user", "content": "hello memory", "memory_seq": 1}
+    ]
 
 
 def test_delete_session_observer_absent_when_not_registered(tmp_path: Path) -> None:
@@ -246,7 +249,17 @@ async def test_deletion_dispatches_background_extraction(
     await asyncio.gather(*tasks)
 
     assert _RecordingExtractor.calls == [
-        (key, "deletion", [{"role": "user", "content": "remember: prefer ruff over flake8"}]),
+        (
+            key,
+            "deletion",
+            [
+                {
+                    "role": "user",
+                    "content": "remember: prefer ruff over flake8",
+                    "memory_seq": 1,
+                }
+            ],
+        ),
     ]
 
 

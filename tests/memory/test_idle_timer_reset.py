@@ -18,7 +18,6 @@ import pytest
 
 from nanobot.agent.hook import AgentRunHookContext
 from nanobot.agent.hooks.memory_extraction import (
-    _BACKGROUND_TASKS,
     _PENDING_IDLE_TIMERS,
     MemoryExtractionHook,
 )
@@ -39,15 +38,13 @@ class _FakeExtractor:
     def __init__(self) -> None:
         self.idle_calls: list[Any] = []
 
-    async def run_idle_extraction(
-        self, session: Any, *, cited_memory_ids: list[str] | None = None
-    ) -> Any:
+    async def run_idle_extraction(self, session: Any) -> Any:
         self.idle_calls.append(session)
         return _FakeExtractionResult()
 
 
 class _FakeScratchpadWriter:
-    async def update_focus(self, session_key: str, new_focus: str) -> None:
+    async def update_focus(self, new_focus: str) -> None:
         return None
 
     async def archive_completed(self, resolved_items: list[str]) -> None:
@@ -75,13 +72,10 @@ class _FakeRuntime:
 @pytest.fixture(autouse=True)
 async def _cleanup():
     yield
-    for task in list(_BACKGROUND_TASKS):
-        task.cancel()
     for task in list(_PENDING_IDLE_TIMERS.values()):
         if not task.done():
             task.cancel()
     await asyncio.sleep(0)
-    _BACKGROUND_TASKS.clear()
     _PENDING_IDLE_TIMERS.clear()
 
 

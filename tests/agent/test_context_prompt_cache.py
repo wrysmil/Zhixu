@@ -249,14 +249,14 @@ def test_template_memory_md_is_skipped(tmp_path) -> None:
     assert "This file is automatically updated by Zhixu" not in prompt
 
 
-def test_customized_memory_md_is_injected(tmp_path, monkeypatch) -> None:
-    """A Dream-populated MEMORY.md should be injected normally."""
+def test_memory_md_file_is_not_injected(tmp_path, monkeypatch) -> None:
+    """MEMORY.md 只是核心视图的导出：注入不再读它，读的是 SQLite。"""
     workspace = _make_workspace(tmp_path)
     from nanobot.utils.helpers import sync_workspace_templates
     sync_workspace_templates(workspace, silent=True)
 
     (workspace / "memory" / "MEMORY.md").write_text(
-        "# Long-term Memory\n\nUser prefers dark mode.\n", encoding="utf-8"
+        "# 核心记忆\n\nUser prefers dark mode.\n", encoding="utf-8"
     )
 
     builder = ContextBuilder(workspace)
@@ -271,6 +271,5 @@ def test_customized_memory_md_is_injected(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(builder.memory, "read_memory", tracked_read_memory)
     prompt = builder.build_system_prompt()
 
-    assert "# Memory\n\n## Long-term Memory" in prompt
-    assert "User prefers dark mode" in prompt
-    assert calls == 1
+    assert "User prefers dark mode" not in prompt
+    assert calls == 0

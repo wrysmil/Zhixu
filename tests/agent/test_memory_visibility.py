@@ -72,20 +72,30 @@ def test_channel_without_workspace_sees_only_global(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_retrieval_section_forwards_visibility_to_engine(tmp_path: Path) -> None:
     """loop → context → engine 的自动注入保留可见集合。"""
+    from nanobot.memory.retrieval.candidate import MemoryHit
+
     seen = []
 
     class _Engine:
-        async def retrieve_with_ids(self, *, query, recent_messages, workspace_ids=None):
+        async def search_hits(self, *, query, recent_messages, workspace_ids=None, limit=10):
             seen.append(workspace_ids)
-            return "命中", ["m1"]
+            return [
+                MemoryHit(
+                    kind="memory",
+                    record_id="m1",
+                    content="命中",
+                    workspace_id="default",
+                )
+            ]
 
     loop = object.__new__(AgentLoop)
     loop.context = ContextBuilder(
         tmp_path, active_retrieval_enabled=True, retrieval_engine=cast(Any, _Engine()),
     )
-    assert await loop._compute_retrieval_section(
+    section = await loop._compute_retrieval_section(
         query="创作灵感", recent_messages=[], workspace_ids=("default", "ws-a"),
-    ) == ("命中", ["m1"])
+    )
+    assert "命中" in section
     assert seen == [("default", "ws-a")]
 
 

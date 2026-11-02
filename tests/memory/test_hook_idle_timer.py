@@ -31,10 +31,10 @@ from nanobot.agent.hooks.memory_extraction import (
 
 class _FakeScratchpadWriter:
     def __init__(self) -> None:
-        self.focus_calls: list[tuple[str, str]] = []
+        self.focus_calls: list[str] = []
 
-    async def update_focus(self, session_key: str, new_focus: str) -> None:
-        self.focus_calls.append((session_key, new_focus))
+    async def update_focus(self, new_focus: str) -> None:
+        self.focus_calls.append(new_focus)
 
 
 class _FakeExtractor:
@@ -44,9 +44,7 @@ class _FakeExtractor:
         self.idle_calls: list[Any] = []
         self.raise_exc = raise_exc
 
-    async def run_idle_extraction(
-        self, session: Any, *, cited_memory_ids: list[str] | None = None
-    ) -> Any:
+    async def run_idle_extraction(self, session: Any) -> Any:
         self.idle_calls.append(session)
         if self.raise_exc is not None:
             raise self.raise_exc

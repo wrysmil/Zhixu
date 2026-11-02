@@ -18,8 +18,15 @@ from aiohttp import web
 from loguru import logger
 
 from nanobot.agent.hook import AgentHook, AgentRunHookContext
-from nanobot.api.endpoints.sessions import handle_session_end
+from nanobot.api.endpoints.sessions import (
+    SESSION_END_CONSUMER_KEY,
+    SESSION_END_FLUSH_TASKS_KEY,
+    SessionEndConsumer,
+    cancel_pending_session_end_flushes,
+    handle_session_end,
+)
 from nanobot.config.paths import get_media_dir
+from nanobot.memory.session_end_event import SessionEndEvent
 from nanobot.providers.base import LLMUsage
 from nanobot.utils.helpers import safe_filename
 from nanobot.utils.media_decode import (
@@ -483,6 +490,7 @@ def create_app(
     prepare_agent: Callable[[], Awaitable[None]] | None = None,
     session_manager: "SessionManager | None" = None,
     event_bus: "MessageBus | None" = None,
+    session_end_consumer: SessionEndConsumer | None = None,
 ) -> web.Application:
     """Create the aiohttp application.
 
@@ -493,7 +501,11 @@ def create_app(
         api_key: Optional API key for Bearer-token authentication on API routes.
         prepare_agent: Optional application-owned readiness callback run before each turn.
         session_manager: Optional SessionManager for session-related API endpoints.
-        event_bus: Optional MessageBus for emitting events from API endpoints.
+        event_bus: Optional MessageBus; also carries session-end events to the
+            flush consumer assembled below.
+        session_end_consumer: Optional ``SessionEndEvent -> BatchReceipt`` consumer
+            (e.g. ``SessionEndFlushConsumer``). Without it ``/api/sessions/{key}/end``
+            returns 503 instead of accepting a request nobody processes.
     """
     app = web.Application(client_max_size=20 * 1024 * 1024)  # 20MB for base64 images
     app[_AGENT_LOOP_KEY] = agent_loop
@@ -507,6 +519,29 @@ def create_app(
         app["session_manager"] = session_manager
     if event_bus is not None:
         app["event_bus"] = event_bus
+    if session_end_consumer is not None:
+        # 装配处是「结束 → 统一 flush」的唯一接线点（契约 §5）：消费者存在即
+        # 端点可接受请求；同一消费者也订阅到既有 MessageBus，使其他发布
+        # SessionEndEvent 的路径落到同一个 flush，而不是第二套事件系统。
+        app[SESSION_END_CONSUMER_KEY] = session_end_consumer
+        # 任务集合在装配期创建：请求期再写 app 状态在 aiohttp 里已废弃。
+        app[SESSION_END_FLUSH_TASKS_KEY] = set()
+
+        async def _consume_session_end(event: SessionEndEvent) -> None:
+            await session_end_consumer(event)
+
+        unsubscribe = (
+            event_bus.subscribe(_consume_session_end, SessionEndEvent)
+            if event_bus is not None
+            else None
+        )
+
+        async def _cleanup_session_end(_app: web.Application) -> None:
+            if unsubscribe is not None:
+                unsubscribe()
+            await cancel_pending_session_end_flushes(_app)
+
+        app.on_cleanup.append(_cleanup_session_end)
 
     @web.middleware
     async def auth_middleware(

@@ -109,6 +109,51 @@ def get_memory(conn: sqlite3.Connection, memory_id: str) -> Memory | None:
     return _row_to_memory(row) if row else None
 
 
+def current_memory_sql(column: str = "memories") -> str:
+    """一条事实「仍有效」的统一 SQL 谓词（契约 §3）。
+
+    列级只有两条：未被替代（``superseded_by`` 为空）、未过期（``expires_at``
+    为空或仍晚于当前时间）。作用域可见由 ``_workspace_ids_condition`` 负责，
+    未删除由行存在性（JOIN / ``get_memory``）负责。
+
+    SQL 候选（``search_semantic_scored`` / ``list_recent_memories``）与向量回表
+    （``get_current_memory``）都复用这一处，禁止另写一套有效性判定。
+    """
+    return (
+        f"({column}.superseded_by IS NULL OR {column}.superseded_by = '')"
+        f" AND ({column}.expires_at IS NULL OR {column}.expires_at = ''"
+        f" OR datetime({column}.expires_at) >= datetime('now'))"
+    )
+
+
+def get_current_memory(
+    conn: sqlite3.Connection,
+    memory_id: str,
+    *,
+    workspace_ids: Sequence[str] | None = None,
+    include_inactive: bool = False,
+) -> Memory | None:
+    """按 id 取一条**当前有效**事实；``include_inactive=True`` 供管理查询显式放开。
+
+    向量命中的 id 没有走主干 SQL，回表时用它一次拿到「未删除 + 可见 + 有效」，
+    与 SQL 候选使用同一语义（契约 §3）。
+    """
+    clauses = ["id = ?"]
+    params: list[Any] = [memory_id]
+    condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
+    if condition:
+        clauses.append(condition)
+        params.extend(condition_params)
+    if not include_inactive:
+        clauses.append(current_memory_sql("memories"))
+    flat = " ".join(_SELECT_MEMORY_COLUMNS.split())
+    row = conn.execute(
+        f"SELECT {flat} FROM memories WHERE {' AND '.join(clauses)}",
+        params,
+    ).fetchone()
+    return _row_to_memory(row) if row else None
+
+
 def _workspace_ids_condition(
     column: str, workspace_ids: Sequence[str] | None
 ) -> tuple[str, list[Any]]:
@@ -136,7 +181,13 @@ def list_memories(
     limit: int | None = None,
     scope: str | None = None,
     min_importance: float | None = None,
+    include_inactive: bool = True,
 ) -> list[Memory]:
+    """管理面列事实：默认**包含**失效记录（契约 §3 的显式 include_inactive）。
+
+    自动召回不使用本函数——它走 ``search_semantic_scored`` /
+    ``list_recent_memories``，那里默认只返回当前有效事实。
+    """
     clauses: list[str] = []
     params: list[Any] = []
     if type is not None:
@@ -155,6 +206,8 @@ def list_memories(
     if min_importance is not None:
         clauses.append("importance_score >= ?")
         params.append(min_importance)
+    if not include_inactive:
+        clauses.append(current_memory_sql("memories"))
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     order_sql = {
         "created": "created_at DESC",
@@ -300,38 +353,128 @@ def find_memory_by_subject_predicate(
     两者任一为空直接返回 ``None``：空 subject/predicate 不具备合并语义，
     必须退化为新建，否则会把互不相关的记忆误判为「同一条」。
     """
+    rows = list_memories_by_subject_predicate(
+        conn, subject, predicate, workspace_id=workspace_id, limit=1
+    )
+    return rows[0] if rows else None
+
+
+def list_memories_by_subject_predicate(
+    conn: sqlite3.Connection,
+    subject: str,
+    predicate: str,
+    *,
+    workspace_id: str | None = None,
+    limit: int | None = None,
+) -> list[Memory]:
+    """按 ``subject`` + ``predicate`` 取同属性候选（写入决策表用）。
+
+    写入决策要区分「目标唯一」与「多值并存」，因此必须能拿到全部候选项；
+    ``find_memory_by_subject_predicate`` 只取第一条，保留作兼容入口。
+    """
     if not subject or not predicate:
-        return None
+        return []
     clauses = ["subject = ?", "predicate = ?"]
     params: list[Any] = [subject, predicate]
     if workspace_id is not None:
         clauses.append("workspace_id = ?")
         params.append(workspace_id)
     flat = " ".join(_SELECT_MEMORY_COLUMNS.split())
-    sql = f"SELECT {flat} FROM memories WHERE {' AND '.join(clauses)} LIMIT 1"
+    limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
+    sql = (
+        f"SELECT {flat} FROM memories WHERE {' AND '.join(clauses)} "
+        f"ORDER BY created_at DESC{limit_sql}"
+    )
+    rows = conn.execute(sql, params).fetchall()
+    return [_row_to_memory(r) for r in rows]
+
+
+def find_memories_by_content(
+    conn: sqlite3.Connection,
+    content: str,
+    *,
+    workspace_id: str | None = None,
+) -> list[Memory]:
+    """按 ``content`` 精确取候选（幂等判定：同内容+同属性不新增）。"""
+    if not content:
+        return []
+    clauses = ["content = ?"]
+    params: list[Any] = [content]
+    if workspace_id is not None:
+        clauses.append("workspace_id = ?")
+        params.append(workspace_id)
+    flat = " ".join(_SELECT_MEMORY_COLUMNS.split())
+    sql = f"SELECT {flat} FROM memories WHERE {' AND '.join(clauses)}"
+    rows = conn.execute(sql, params).fetchall()
+    return [_row_to_memory(r) for r in rows]
+
+
+def find_memory_by_evidence_key(
+    conn: sqlite3.Connection,
+    evidence_key: str,
+    *,
+    workspace_id: str | None = None,
+) -> Memory | None:
+    """按 ``metadata.evidence_keys`` 反查一条记忆（upsert-by-evidence 幂等键）。"""
+    if not evidence_key:
+        return None
+    clauses = [
+        "EXISTS (SELECT 1 FROM json_each(memories.metadata, '$.evidence_keys') "
+        "WHERE json_each.value = ?)"
+    ]
+    params: list[Any] = [evidence_key]
+    if workspace_id is not None:
+        clauses.append("workspace_id = ?")
+        params.append(workspace_id)
+    flat = " ".join(_SELECT_MEMORY_COLUMNS.split())
+    sql = (
+        f"SELECT {flat} FROM memories WHERE {' AND '.join(clauses)} "
+        "ORDER BY created_at DESC LIMIT 1"
+    )
     row = conn.execute(sql, params).fetchone()
     return _row_to_memory(row) if row is not None else None
 
 
-def bump_access_count(
+# ---------- 证据抑制（契约 §3：遗忘后旧证据不得复活） ----------
+
+
+def is_evidence_suppressed(
     conn: sqlite3.Connection,
-    memory_id: str,
-    delta: int = 1,
+    *,
+    workspace_id: str,
+    evidence_key: str,
+) -> bool:
+    if not evidence_key:
+        return False
+    row = conn.execute(
+        "SELECT 1 FROM memory_evidence_suppressions "
+        "WHERE workspace_id = ? AND evidence_key = ? LIMIT 1",
+        (workspace_id, evidence_key),
+    ).fetchone()
+    return row is not None
+
+
+def register_evidence_suppression(
+    conn: sqlite3.Connection,
+    *,
+    workspace_id: str,
+    evidence_key: str,
+    memory_id: str = "",
+    summary: str = "",
+    forgotten_at: str,
 ) -> None:
-    """自增一条记忆的 ``access_count``（WU-B 引用评分闭环）。
+    """登记被遗忘的证据键；重复登记保持首次时间（幂等）。
 
-    由 idle 提取把 LLM 判定 ``useful=true`` 的 ``citation_scores`` 落回
-    ``access_count``，reranker 的 ``access_frequency_score``（``log1p(count)/5``）
-    随之抬升，让“被证明有用”的记忆在后续检索里排更前。
-
-    刻意**不**动 ``updated_at``：那是 recency 的信号，把“最近有用”画上等号
-    会让被证明过一次的记忆同时吃 recency + access 双加成，形成正反馈循环。
-
-    行不存在时静默忽略（记忆可能已在提取间隙被删除），不抛异常。
+    ``summary`` 只存内容指纹等最小必要信息，不保存被遗忘正文。
     """
+    if not evidence_key:
+        return
     conn.execute(
-        "UPDATE memories SET access_count = access_count + ? WHERE id = ?",
-        (max(0, int(delta)), memory_id),
+        "INSERT INTO memory_evidence_suppressions "
+        "(workspace_id, evidence_key, memory_id, summary, forgotten_at) "
+        "VALUES (?, ?, ?, ?, ?) "
+        "ON CONFLICT(workspace_id, evidence_key) DO NOTHING",
+        (workspace_id, evidence_key, memory_id, summary, forgotten_at),
     )
 
 
@@ -546,14 +689,16 @@ def search_memories(
     workspace_id: str | None = None,
     workspace_ids: Sequence[str] | None = None,
     limit: int | None = None,
+    include_inactive: bool = True,
 ) -> list[Memory]:
-    """FTS5 全文检索 memories。
+    """FTS5 全文检索 memories（管理面：默认包含失效记录）。
 
     检索字段: content / subject / predicate / tags。
     排序: BM25 rank（FTS5 内置）；相同 rank 时按 importance_score 降序。
 
     ``workspace_ids`` 是可见集合（全局 + 当前工作区）；``None`` 表示不过滤，
-    空集合表示什么都看不到。
+    空集合表示什么都看不到。``include_inactive=False`` 时按契约 §3 只返回
+    当前有效事实（自动召回走 ``search_semantic_scored``，那里默认即如此）。
     """
     clauses = ["memories_fts MATCH ?"]
     params: list[Any] = [query]
@@ -567,6 +712,8 @@ def search_memories(
     if condition:
         clauses.append(condition)
         params.extend(condition_params)
+    if not include_inactive:
+        clauses.append(current_memory_sql("m"))
     where = " AND ".join(clauses)
     limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
     # Prefix all memories columns with m. to avoid ambiguity with memories_fts.content
@@ -588,7 +735,7 @@ def search_memories(
         rows = conn.execute(sql, params).fetchall()
     except sqlite3.OperationalError as exc:
         # FTS5 语法错误（query 含引号 / 连字符 / 未闭合短语等）不应让整条召回
-        # 失败——与 search_backend.Fts5SearchBackend._try_fts5 同策略。
+        # 失败——查询语法类错误按预期输入降级为 LIKE 回退（安全审查 M-1）。
         #
         # 安全审查 M-1（2026-09-15）：原实现无条件吞掉**所有** OperationalError，
         # 会把「表缺失 / database is locked / disk I/O error / readonly / no such
@@ -621,6 +768,7 @@ def search_memories(
         workspace_id=workspace_id,
         workspace_ids=workspace_ids,
         limit=limit,
+        include_inactive=include_inactive,
     )
 
 
@@ -660,22 +808,22 @@ def _search_memories_like(
     workspace_id: str | None,
     workspace_ids: Sequence[str] | None = None,
     limit: int | None,
+    include_inactive: bool = True,
 ) -> list[Memory]:
     """FTS5 零结果 / 语法错误时的 ``LIKE %query%`` 子串回退。
 
     为什么必需：``memories_fts`` 使用 ``tokenize='unicode61 remove_diacritics 2'``
     （``database.py`` §memories_fts），对连续 CJK 不做分词，整串是一个 token。
     因此任何**中文子串**查询（「创作」「记忆」）都命中不了 FTS5。
-    排序与 ``search_backend.Fts5SearchBackend._fallback_like`` 一致
-    （``ORDER BY importance_score DESC``）。
+    排序为 ``ORDER BY importance_score DESC``。
 
     已知不完整（非回归，2026-09-15 审查记录）：调用方 ``search_memories`` 只在
     FTS **零命中**时才走这里，因此「query 是 A 行的整 token、同时又是 B 行 content
     的子串」时 B 行不会入选（删除无关的 A 行反而会让 B 行出现）。彻底修需要把
     FTS 与 LIKE 两段 SELECT 用 ``UNION`` 合并并定义去重/排序语义，属独立改动。
 
-    与 ``_fallback_like`` 的唯一差异：本函数转义 LIKE 元字符（见 ``_escape_like``），
-    且额外支持 ``type`` / ``workspace_id`` 过滤。
+    本函数转义 LIKE 元字符（见 ``_escape_like``），且额外支持 ``type`` /
+    ``workspace_id`` 过滤。
     """
     flat = " ".join(_SELECT_MEMORY_COLUMNS.split())
     clauses = ["content LIKE ? ESCAPE '\\'"]
@@ -690,6 +838,8 @@ def _search_memories_like(
     if condition:
         clauses.append(condition)
         params.extend(condition_params)
+    if not include_inactive:
+        clauses.append(current_memory_sql("memories"))
     where = " AND ".join(clauses)
     limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
     sql = (
@@ -726,6 +876,8 @@ def _row_to_extraction_state(row: sqlite3.Row) -> ExtractionState:
         last_source=row["last_source"],
         last_extracted_at=row["last_extracted_at"],
         updated_at=row["updated_at"],
+        generation=row["generation"],
+        last_seq=row["last_seq"],
     )
 
 
@@ -735,7 +887,8 @@ def get_extraction_state(
 ) -> ExtractionState | None:
     """返回该 ``session_key`` 的最新提取游标；不存在返回 ``None``。"""
     row = conn.execute(
-        "SELECT session_key, last_count, last_source, last_extracted_at, updated_at "
+        "SELECT session_key, last_count, last_source, last_extracted_at, updated_at, "
+        "generation, last_seq "
         "FROM session_extraction_state WHERE session_key = ?",
         (session_key,),
     ).fetchone()
@@ -778,13 +931,101 @@ def reset_extraction_state(conn: sqlite3.Connection, session_key: str) -> None:
     )
 
 
+# ---------- generation-scoped last_seq（契约 §2.3） ----------
+# 批次协议的进度指针：``(session_key, generation) -> last_seq``。表主键仍是
+# ``session_key`` 单列，因此 generation 变化（fork / 清空后同名会话）在读取时
+# 表现为「无进度」，而不是另开一行；旧 ``last_count`` 只作为迁移种子。
+
+
+_UPDATE_EXTRACTION_SEQ_SQL = """
+    INSERT INTO session_extraction_state (
+        session_key, last_count, last_source, last_extracted_at, updated_at,
+        generation, last_seq
+    ) VALUES (
+        :session_key, :last_count, :last_source, :last_extracted_at, :updated_at,
+        :generation, :last_seq
+    )
+    ON CONFLICT (session_key) DO UPDATE SET
+        last_count = excluded.last_count,
+        last_source = excluded.last_source,
+        last_extracted_at = excluded.last_extracted_at,
+        updated_at = excluded.updated_at,
+        generation = excluded.generation,
+        last_seq = excluded.last_seq
+"""
+
+
+def get_extraction_seq(
+    conn: sqlite3.Connection,
+    session_key: str,
+    generation: str,
+) -> int:
+    """返回该 ``(session_key, generation)`` 已提交到的 last_seq。
+
+    - 行不存在 → ``0``（首次消费）。
+    - 行的 generation 与请求一致 → 返回 ``last_seq``。
+    - 行没有 generation（升级前写入的旧行）→ 用 ``last_count`` 作为迁移种子，
+      避免旧会话升级后被整段重抽。
+    - 行属于另一个 generation（fork / 清空）→ ``0``，新代从头消费。
+    """
+    row = conn.execute(
+        "SELECT generation, last_seq, last_count "
+        "FROM session_extraction_state WHERE session_key = ?",
+        (session_key,),
+    ).fetchone()
+    if row is None:
+        return 0
+    stored_generation = str(row["generation"] or "")
+    if stored_generation == generation:
+        return int(row["last_seq"] or 0)
+    if not stored_generation:
+        return int(row["last_count"] or 0)
+    return 0
+
+
+def set_extraction_seq(
+    conn: sqlite3.Connection,
+    session_key: str,
+    *,
+    generation: str,
+    last_seq: int,
+    source: str,
+    extracted_at: str,
+    last_count: int | None = None,
+) -> None:
+    """写入 generation 内的进度；旧字段作为兼容镜像一并刷新。
+
+    ``last_count`` 是旧游标的兼容镜像（只写不读），调用方传入本批覆盖到的
+    消息条数；省略时沿用当前行值（缺失则 0）。
+    """
+    mirror_count = last_count
+    if mirror_count is None:
+        row = conn.execute(
+            "SELECT last_count FROM session_extraction_state WHERE session_key = ?",
+            (session_key,),
+        ).fetchone()
+        mirror_count = int(row["last_count"]) if row is not None else 0
+    conn.execute(
+        _UPDATE_EXTRACTION_SEQ_SQL,
+        {
+            "session_key": session_key,
+            "last_count": int(mirror_count),
+            "last_source": source,
+            "last_extracted_at": extracted_at,
+            "updated_at": extracted_at,
+            "generation": generation,
+            "last_seq": int(last_seq),
+        },
+    )
+
+
 # ---------- T-12 retrieval adapters ----------
 # 注：本段由 Phase 3 GROUP-D T-12 追加；既有代码完全未改。通道函数
-# （channels/{semantic,episodes,recent,attachments}.py）期望 store 提供：
-#     search_semantic_scored(query, limit) -> list[(Memory, float)]
-#     search_episodes(entity, limit)       -> list[_EpisodeRow]
-#     query_semantic(*, min_importance, since_days, limit) -> list[_MemoryRow]
-#     search_attachments(term, *, intent, limit) -> list[_AttachmentRow]
+# （channels/{semantic,episodes}.py）期望 store 提供：
+#     search_semantic_scored(query, *, keywords, limit, workspace_ids, include_inactive)
+#     search_episodes(entity=..., limit=..., workspace_ids=...)
+#     list_recent_memories(*, since_days, limit, workspace_ids, include_inactive)
+# （独立 recent 通道已删除，D09 2026-11-02；时间条件改由受限时间列表承担。）
 # 真实实现在此；测试可用 stub 替代（见 tests/memory/retrieval/test_engine.py）。
 
 from dataclasses import dataclass  # T-12: row dataclasses（追加于 T-12）  # noqa: E402
@@ -814,8 +1055,13 @@ def search_semantic_scored(
     keywords: list[str] | None = None,
     limit: int = 30,
     workspace_ids: Sequence[str] | None = None,
+    include_inactive: bool = False,
 ) -> list[tuple[Memory, float]]:
     """语义召回：FTS5 真实 ``bm25()`` 分（页内归一化）。
+
+    有效性过滤（契约 §3）：默认只返回当前有效事实（未过期、未被替代），与向量
+    回表的 ``get_current_memory`` 使用同一个 ``current_memory_sql`` 谓词；管理
+    查询显式传 ``include_inactive=True`` 才放开。
 
     修正记录（2026-09-16）：原实现用 ``_pseudo_bm25_score(float(idx))``，即
     **枚举序号**而非 bm25 —— 首名恒 1.0、次名恒 0.5、第三名 0.333，形成阶梯。
@@ -838,6 +1084,8 @@ def search_semantic_scored(
     where = "memories_fts MATCH ?"
     if condition:
         where = f"{where} AND {condition}"
+    if not include_inactive:
+        where = f"{where} AND {current_memory_sql('m')}"
     # 同 ``search_memories``：``CROSS JOIN`` 强制 FTS5 驱动，避免工作区过滤
     # 把计划换成「索引驱动 + 逐行全扫 FTS5」而放大千倍延迟。
     sql = (
@@ -881,6 +1129,8 @@ def search_semantic_scored(
     )
     if like_condition:
         like_where = f"{like_where} AND {like_condition}"
+    if not include_inactive:
+        like_where = f"{like_where} AND {current_memory_sql('memories')}"
     sql = (
         f"SELECT {flat}, ({_hits_clause}) AS _hits "
         f"FROM memories WHERE {like_where} "
@@ -950,103 +1200,101 @@ def search_episodes(
     limit: int = 5,
     workspace_ids: Sequence[str] | None = None,
 ) -> list["_EpisodeRow"]:
-    """按实体名 LIKE 模糊匹配 episodes 表。
+    """按检索词 LIKE 子串匹配 episodes 的**可检索投影**。
 
-    真实 FTS5 关联属于未来增强（不在本 plan 范围）；最小实现用 LIKE 兜底。
+    投影 = ``summary`` + ``goal`` + ``entities`` + ``tools_used``：这四列是情节
+    对查询暴露的确定性文本面；``session_id`` 一并保留，供按会话定位。``action_nodes``
+    刻意不在投影内——它是按需证据，整包进检索面既放大载荷也带来大量误命中
+    （spec §6.1）。真实 FTS5 关联仍属未来增强，本函数保持 LIKE 兜底。
 
     列名修正（2026-09-15，与 RCA 根因 1 同族）：原实现选 ``updated_at``，但
     ``episodes`` 表自 schema v1 起就没有该列（只有 ``started_at`` / ``ended_at``），
     因此**每次调用**都抛 ``no such column: updated_at``。之所以从未暴露：episodes
-    通道仅在 query 含路径/扩展名实体时才走到这里（``channels/episodes.py:34``），
+    通道仅在 query 含路径/扩展名实体时才走到这里（``channels/episodes.py``），
     普通 query 直接返回 ``[]``，计数器显示的「OK n=0」从未真正执行 SQL。
-    改用 ``ended_at`` 作为时间戳，``_EpisodeRow.updated_at`` 字段名保持不变
-    （那是通道 ``compute_recency`` 依赖的契约）。
+    改用 ``ended_at`` 作为时间戳。
+
+    检索面扩容（2026-11-02）：此前只比 ``summary`` / ``session_id`` 两列，而 LLM
+    写的技术词标签只落在 ``entities``、中文意图在 ``goal``、工具名在 ``tools_used``
+    ——三列都存了却完全不参与检索（实测 ``entity="storage.py"`` 在一条 entities
+    命中的 episode 上 0 命中）。LIKE 的通配符只有 ``%`` 与 ``_``，``_escape_like``
+    已统一转义。
+
+    排序（2026-11-02）：此前无 ``ORDER BY``，SQLite 按 rowid（插入序）返回 →
+    命中多条时 ``LIMIT`` 只拿到**最老**的几条，表现为「明明有记录却召不回」。
+    同一通道内命中都是子串匹配、相关度相同，故按发生时间倒序；``ended_at`` 用
+    ``datetime()`` 归一后再比（兼容 ``'T'`` 与空格两种历史格式），``id`` 兜底
+    把次序补成全序，时间戳相同也稳定，不依赖插入顺序。
 
     安全审查 M-4（2026-09-15）：本函数同样要转义 LIKE 元字符。``entity`` 由
-    ``channels/episodes.py`` 的正则抽取，``_`` 属 ``\\w`` 可通过，未转义时
+    ``channels/episodes.py`` 的确定性投影产出，``_`` 属 ``\\w`` 可通过，未转义时
     entity ``a_c.py`` 会命中 ``abc.py`` / ``aXc.py``（过召回，非注入）。
     """
     pattern = f"%{_escape_like(entity)}%"
     # OR 分支必须先加括号：否则追加的 AND 条件会被 OR 吃掉（可见性过滤失效）。
-    where = "(summary LIKE ? ESCAPE '\\' OR session_id LIKE ? ESCAPE '\\')"
+    where = (
+        "(summary LIKE ? ESCAPE '\\' OR goal LIKE ? ESCAPE '\\' "
+        "OR entities LIKE ? ESCAPE '\\' OR tools_used LIKE ? ESCAPE '\\' "
+        "OR session_id LIKE ? ESCAPE '\\')"
+    )
     condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
     if condition:
         where = f"{where} AND {condition}"
     cur = conn.execute(
-        f"SELECT id, summary, ended_at FROM episodes WHERE {where} LIMIT ?",
-        [pattern, pattern, *condition_params, limit],
+        f"SELECT id, summary, session_id, workspace_id, ended_at "
+        f"FROM episodes WHERE {where} "
+        f"ORDER BY datetime(ended_at) DESC, id DESC LIMIT ?",
+        [pattern] * 5 + [*condition_params, limit],
     )
     return [
-        _EpisodeRow(id=row[0], summary=row[1], updated_at=row[2])
-        for row in cur.fetchall()
-    ]
-
-
-def query_semantic(
-    conn: sqlite3.Connection,
-    *,
-    min_importance: float,
-    since_days: int,
-    limit: int,
-    workspace_ids: Sequence[str] | None = None,
-) -> list["_MemoryRow"]:
-    """近期高重要性记忆：``importance >= min_importance`` 且 ``updated_at`` 在窗口内。"""
-    from datetime import datetime, timedelta, timezone
-
-    cutoff = datetime.now(timezone.utc) - timedelta(days=since_days)
-    # 时间比较**不能**直接比 TEXT：生产写入点（``extractor.py:1459``、
-    # ``webui/memory_api.py:268``、``update_memory``）都走 ``isoformat()``，即
-    # ``'T'`` 分隔；而把 ``datetime`` 对象直接绑进 SQLite 时（sqlite3 自 3.12 起
-    # 已弃用该隐式适配器）落库为**空格分隔**的 'YYYY-MM-DD HH:MM:SS.ffffff+00:00'。
-    # 两种格式混存时字符串比较会失准：日期相同时按第 10 位判大小，
-    # ``' '(0x20) < 'T'(0x54)`` → 空格分隔的**当日**记录被整批判为更早而排除。
-    # ``datetime()`` 把两侧都归一后再比，对两种格式与 ``+00:00`` 偏移都成立，
-    # 使查询不再耦合于存储端的文本格式（实测 sqlite 3.52；EXPLAIN QUERY PLAN 与
-    # 旧写法一致，仍走 idx_memories_importance）。
-    condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
-    where = "importance_score >= ? AND datetime(updated_at) >= datetime(?)"
-    if condition:
-        where = f"{where} AND {condition}"
-    cur = conn.execute(
-        f"SELECT id, content, importance_score, updated_at, access_count "
-        f"FROM memories "
-        f"WHERE {where} "
-        f"ORDER BY importance_score DESC LIMIT ?",
-        (min_importance, cutoff.isoformat(), *condition_params, limit),
-    )
-    return [
-        _MemoryRow(
+        _EpisodeRow(
             id=row[0],
-            content=row[1],
-            importance_score=row[2],
-            updated_at=row[3],
-            access_count=row[4],
+            summary=row[1],
+            session_id=row[2],
+            workspace_id=row[3],
+            ended_at=row[4],
         )
         for row in cur.fetchall()
     ]
 
 
-def search_attachments(
+def list_recent_memories(
     conn: sqlite3.Connection,
     *,
-    term: str,
-    intent: str,
-    limit: int = 5,
-) -> list["_AttachmentRow"]:
-    """附件搜索：LIKE 匹配（最小实现）。
+    since_days: int,
+    limit: int,
+    workspace_ids: Sequence[str] | None = None,
+    include_inactive: bool = False,
+) -> list[Memory]:
+    """受限时间列表：窗口内**当前有效**事实，按保存（更新）时间倒序。
 
-    注：``attachments`` 表当前未在 schema v1 内，此实现为预留接口；调用方须
-    保证 schema 已扩展（或用 stub store）。真实 term 匹配语义属于未来增强。
+    只服务于「最近保存的记忆」这类**明确纯时间查询**——时间浏览，不冒充相关性
+    匹配。普通查询的时间偏好由 ``reranker`` 的时效次级排序承担，本函数不参与
+    自动召回。
+
+    时间比较**不能**直接比 TEXT：生产写入点（``extractor.py``、
+    ``webui/memory_api.py``、``update_memory``）都走 ``isoformat()``，即 ``'T'``
+    分隔；把 ``datetime`` 对象直接绑进 SQLite 时落库为**空格分隔**格式。两种
+    格式混存时字符串比较会失准（``' '(0x20) < 'T'(0x54)``）→ 用 ``datetime()``
+    把两侧归一后再比，对两种格式与 ``+00:00`` 偏移都成立。
     """
-    cur = conn.execute(
-        "SELECT id, file_path, created_at FROM attachments "
-        "WHERE file_path LIKE ? LIMIT ?",
-        (f"%{term}%", limit),
-    )
-    return [
-        _AttachmentRow(id=row[0], content=row[1], updated_at=row[2])
-        for row in cur.fetchall()
-    ]
+    clauses = ["datetime(updated_at) >= datetime('now', ?)"]
+    params: list[Any] = [f"-{int(since_days)} days"]
+    condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
+    if condition:
+        clauses.append(condition)
+        params.extend(condition_params)
+    if not include_inactive:
+        clauses.append(current_memory_sql("memories"))
+    params.append(int(limit))
+    flat = " ".join(_SELECT_MEMORY_COLUMNS.split())
+    rows = conn.execute(
+        f"SELECT {flat} FROM memories "
+        f"WHERE {' AND '.join(clauses)} "
+        f"ORDER BY datetime(updated_at) DESC LIMIT ?",
+        params,
+    ).fetchall()
+    return [_row_to_memory(row) for row in rows]
 
 
 def _pseudo_bm25_score(rank: float) -> float:
@@ -1076,28 +1324,9 @@ class _EpisodeRow:
 
     id: str
     summary: str
-    updated_at: str
-
-
-@dataclass
-class _MemoryRow:
-    """``query_semantic`` 返回的轻量 row：与 ``channels/recent`` 期望属性对齐。"""
-
-    id: str
-    content: str
-    importance_score: float
-    updated_at: str
-    access_count: int
-
-
-@dataclass
-class _AttachmentRow:
-    """``search_attachments`` 返回的轻量 row：与 ``channels/attachments`` 期望属性对齐。"""
-
-    id: str
-    content: str = ""
-    updated_at: str = ""
-    importance_score: float = 0.5
+    session_id: str
+    workspace_id: str
+    ended_at: str
 
 
 # ---------- vector_sync_state ----------

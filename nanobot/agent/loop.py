@@ -208,9 +208,6 @@ class TurnContext:
     # produced in ``_build_turn`` and forwarded into the ``transcript_builder``
     # partial. Empty string when disabled / engine missing / query gated.
     pending_retrieved_memory_section: str = ""
-    # WU-B: 本次检索注入的记忆 id 集合（与上面 section 同源），供 idle 定时器
-    # 的引用评分（cited_memories）使用。空列表 = 无注入或链路未启用。
-    pending_cited_memory_ids: list[str] = field(default_factory=list)
 
     # Working Memory: ``_build_turn`` 里门控求值后的注入块，逐层透传给
     # ``build_system_prompt``。门控在 loop 侧做完，builder 侧只判空。
@@ -1532,7 +1529,6 @@ class AgentLoop:
         provider_state: ProviderConversationState | None = None,
         retrieved_memory_section: str = "",
         working_memory_section: str = "",
-        cited_memory_ids: list[str] | None = None,
     ) -> AgentRunResult:
         """Run the agent iteration loop.
 
@@ -1766,7 +1762,6 @@ class AgentLoop:
                 turn_hooks=list(hooks or []),
                 ephemeral=ephemeral,
                 run_extra_hooks_for_ephemeral=run_extra_hooks_for_ephemeral,
-                cited_memory_ids=list(cited_memory_ids or []),
             ))
             result = await self.runner.run(AgentRunSpec(
                 initial_messages=None,
@@ -2637,12 +2632,10 @@ class AgentLoop:
         # block here so the sync ``transcript_builder`` partial inside
         # ``_run_agent_loop`` can pick it up via ``build_system_prompt``.
         # Failure-isolated — never breaks BUILD even if retrieval errors out.
-        (ctx.pending_retrieved_memory_section, ctx.pending_cited_memory_ids) = (
-            await self._compute_retrieval_section(
-                query=ctx.msg.content,
-                recent_messages=list(ctx.history),
-                workspace_ids=self._memory_workspace_ids_for_turn(ctx),
-            )
+        ctx.pending_retrieved_memory_section = await self._compute_retrieval_section(
+            query=ctx.msg.content,
+            recent_messages=list(ctx.history),
+            workspace_ids=self._memory_workspace_ids_for_turn(ctx),
         )
         # Working Memory: 同样在 BUILD 阶段预计算并门控完毕，只把最终字符串
         # 交给同步的 transcript_builder 透传。失败隔离在方法内部。
@@ -2748,21 +2741,21 @@ class AgentLoop:
         query: str,
         recent_messages: list[dict[str, Any]],
         workspace_ids: Sequence[str] | None = None,
-    ) -> tuple[str, list[str]]:
-        """Compute the Layer 4 retrieval markdown block (T-13) + injected ids (WU-B).
+    ) -> str:
+        """Compute the Layer 4 retrieval markdown block (T-13).
 
-        Returns ``("", [])`` when the feature is disabled, when the engine is not
+        Returns ``""`` when the feature is disabled, when the engine is not
         wired, when the preprocessor gate short-circuits, or when retrieval
         raises. Never propagates exceptions to the caller — failures must not
-        block the BUILD stage. The ``memory_id`` list feeds the idle extraction
-        citation scoring.
+        block the BUILD stage.
         """
         try:
-            return await self.context._build_memory_section_with_ids(
+            section, _injected_ids = await self.context._build_memory_section_with_ids(
                 query=query,
                 recent_messages=recent_messages,
                 workspace_ids=workspace_ids,
             )
+            return section
         except Exception as exc:  # noqa: BLE001 - 记忆注入失败不该打断对话
             logger.warning(
                 "Active retrieval failed during _build_turn; "
@@ -2770,7 +2763,7 @@ class AgentLoop:
                 type(exc).__name__,
                 exc,
             )
-            return "", []
+            return ""
 
     async def _run_turn(self, ctx: TurnContext) -> None:
         runtime = ctx.require_runtime()
@@ -2797,7 +2790,6 @@ class AgentLoop:
                 provider_state=ctx.provider_state,
                 retrieved_memory_section=ctx.pending_retrieved_memory_section,
                 working_memory_section=ctx.pending_working_memory_section,
-                cited_memory_ids=ctx.pending_cited_memory_ids,
                 events=ctx.events,
             )
         ctx.final_content = result.final_content

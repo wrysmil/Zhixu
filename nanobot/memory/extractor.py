@@ -6,41 +6,54 @@
 流水线四阶段：
     阶段1 ``_system_extract``   纯结构化解析（ActionNode / 规则信号 / scratchpad 快照）
     阶段2 ``_llm_extract``      并发两路 LLM（语义 + 情节），失败隔离
-    阶段3 ``_apply_filters``    防污染 + 去重（任务产物 / AI 自答 / 精确哈希 / N-Gram）
-    阶段4 ``_persist``          写 SQLite（memories → episode 反向关联 → 逐条失败隔离）
+    阶段3 ``_apply_filters``    候选合法性（任务产物 / AI 自答 / 合法 type / 批内精确去重）
+    阶段4 ``_write_extraction`` 调用 :mod:`nanobot.memory.writer` 按写入决策表落库，
+                                episodes 与 derived 关联在同一调用方事务内完成
 
-本模块不修改 repository / models / filters / prompts，只通过它们的公开 API 协作。
+写入决策（幂等 / 纠正 / 冲突 / 多值 / 遗忘）只在 ``writer.apply_memory_changes``
+一处判断；本模块不再持有相似度丢弃或否定词冲突终判（D08）。
 """
 
 from __future__ import annotations
 
 import asyncio
+import dataclasses
+import hashlib
 import json
 import math
 import re
 import sqlite3
 import time
-import uuid
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 from uuid import uuid4
 
 from loguru import logger
 
-from nanobot.memory.database import MemoryDatabase
+from nanobot.memory.database import (
+    ExtractionBatchRow,
+    MemoryDatabase,
+    find_extraction_batch_by_bounds,
+    get_extraction_batch,
+    insert_extraction_batch,
+    list_incomplete_extraction_batches,
+    update_extraction_batch,
+)
 from nanobot.memory.filters import (
     compute_content_hash,
     is_ai_self_talk,
     is_task_artifact,
-    ngram_similarity,
 )
 from nanobot.memory.llm_error import response_error
 from nanobot.memory.models import (
+    BatchReceipt,
     Episode,
     EpisodeOutcome,
     EpisodeSource,
+    ExtractionRequest,
     Memory,
     MemoryPriority,
     MemoryType,
@@ -50,7 +63,6 @@ from nanobot.memory.profile_extractor import (
     ProfileExtractionResult,
     ProfileExtractor,
     ProfileItem,
-    merge_profile_incremental,
 )
 from nanobot.memory.prompts import (
     EPISODE_EXTRACTION_PROMPT,
@@ -59,19 +71,14 @@ from nanobot.memory.prompts import (
 from nanobot.memory.provenance import extraction_provenance, session_memory_workspace_id
 from nanobot.memory.repository import (
     add_episode,
-    add_memory,
-    bump_access_count,
-    find_memory_by_subject_predicate,
-    get_extraction_state,
-    get_memory,
+    get_extraction_seq,
     get_scratchpad,
-    list_memories,
     reset_extraction_state,
-    update_memory,
+    set_extraction_seq,
     update_memory_source_episode,
-    upsert_extraction_state,
 )
 from nanobot.memory.vector.indexer import index_memory_best_effort
+from nanobot.memory.writer import MemoryChange, apply_memory_changes
 from nanobot.session.labels import session_label, session_label_suffix
 
 if TYPE_CHECKING:
@@ -98,9 +105,6 @@ _SHORT_TERM_KEYWORDS = ("今天", "这周", "本月", "暂时", "先")
 # 合法枚举值
 _VALID_TYPES = frozenset(t.value for t in MemoryType)
 _VALID_PRIORITIES = frozenset(p.value for p in MemoryPriority)
-
-# L2 去重阈值（plan §5.2 防线3）
-_HIGH_SIMILARITY = 0.8
 
 # FIX-3 Sec-M-1: ActionNode 输入/输出截断阈值（防凭据外发注入攻击）
 ACTION_NODE_INPUT_MAX_CHARS = 512
@@ -145,6 +149,120 @@ _SOURCE_MAP: dict[str, EpisodeSource] = {
     "daily_consolidation": EpisodeSource.DAILY_CONSOLIDATION,
     "idle": EpisodeSource.IDLE,
 }
+
+# ---------------------------------------------------------------------------
+# 批次协议（契约 §2）
+# ---------------------------------------------------------------------------
+
+#: batch_id 摘要取前 32 个十六进制字符（128 bit，碰撞概率可忽略，日志可读）。
+_BATCH_ID_DIGEST_CHARS = 32
+
+#: 批次 claim 的租约时长（秒）。模型两路并发受 ``LLM_TIMEOUT`` 约束，120s 足够；
+#: 过期 owner 的提交会被 ``require_owner`` 条件拒绝。
+BATCH_LEASE_SECONDS = 120.0
+
+#: 从未持久化的会话（例如单测里直接构造的 ``Session``）使用临时 generation：
+#: 编号规则与保存路径一致，但不会写盘，也不会与持久 generation（32 位 hex）碰撞。
+_EPHEMERAL_GENERATION_PREFIX = "unsaved-"
+
+# 结构化错误码（BatchReceipt.error_code）。按「语义」而非自由文本记录，
+# 调用方据此判断重试价值；模型错误文本只进 error_detail / 日志。
+ERROR_SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
+ERROR_GENERATION_MISMATCH = "GENERATION_MISMATCH"
+ERROR_COORDINATE_INVALID = "MEMORY_COORDINATE_INVALID"
+ERROR_EVIDENCE_MISSING = "EVIDENCE_MISSING"
+ERROR_BATCH_PAYLOAD_MISMATCH = "BATCH_PAYLOAD_MISMATCH"
+ERROR_BATCH_CLAIMED = "BATCH_CLAIMED"
+ERROR_BATCH_CLAIM_LOST = "BATCH_CLAIM_LOST"
+ERROR_SEMANTIC_TRACK_FAILED = "SEMANTIC_TRACK_FAILED"
+ERROR_EPISODE_TRACK_FAILED = "EPISODE_TRACK_FAILED"
+ERROR_PERSISTENCE_FAILED = "PERSISTENCE_FAILED"
+ERROR_UNEXPECTED = "UNEXPECTED_ERROR"
+
+class _BatchError(RuntimeError):
+    """批次协议中的结构化失败（携带错误码，供回执直接使用）。"""
+
+    def __init__(self, code: str, detail: str = "") -> None:
+        super().__init__(f"{code}: {detail}" if detail else code)
+        self.code = code
+        self.detail = detail
+
+
+#: 进程内消费键串行锁。值为 ``(事件循环 id, asyncio.Lock)``：同一 session_key
+#: 的提取可能由不同的 extractor 实例（每轮工厂）发起，锁必须跨实例共享；
+#: 跨事件循环（测试里的多个 ``asyncio.run``）则重建，避免复用已绑定旧循环的锁。
+_CONSUMPTION_LOCKS: dict[tuple[str, str, str], tuple[int, asyncio.Lock]] = {}
+
+
+def _consumption_lock(key: tuple[str, str, str]) -> asyncio.Lock:
+    """取消费键的进程内串行锁（同一事件循环内复用）。"""
+    loop_id = id(asyncio.get_running_loop())
+    entry = _CONSUMPTION_LOCKS.get(key)
+    if entry is None or entry[0] != loop_id:
+        lock = asyncio.Lock()
+        _CONSUMPTION_LOCKS[key] = (loop_id, lock)
+        return lock
+    return entry[1]
+
+
+#: 默认会话快照读取器缓存（按 memory 库工作区）：``SessionManager`` 构造会做
+#: 目录迁移与文件锁，不能每次提取都重建；同一进程内按工作区复用一次。
+_SESSION_LOADERS: dict[str, Callable[[str], "Session | None"] | None] = {}
+
+
+def _positive_seq(message: dict[str, Any]) -> int | None:
+    """读取消息的 ``memory_seq``；缺失或非法返回 ``None``。"""
+    raw = message.get("memory_seq")
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw <= 0:
+        return None
+    return raw
+
+
+def _stable_batch_id(
+    workspace_id: str,
+    session_key: str,
+    generation: str,
+    start_seq: int,
+    end_seq: int,
+) -> str:
+    """从消费键 + 固定起止边界计算稳定 batch_id（重试不产生新 id）。"""
+    raw = "\x1f".join(
+        (
+            workspace_id,
+            session_key,
+            generation,
+            str(int(start_seq)),
+            str(int(end_seq)),
+        )
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:_BATCH_ID_DIGEST_CHARS]
+
+
+def _evidence_digest(messages: Sequence[tuple[int, dict[str, Any]]]) -> str:
+    """批次证据摘要：同一 ID 必须对应同一份原始消息切片。
+
+    只覆盖身份与载荷字段（seq / role / content / tool 调用 / 工具结果坐标），
+    不含「本轮追加的 assistant 回复」之类的外围字段，避免同一切片因无关字段
+    变化而被判成另一个载荷。
+    """
+    digest = hashlib.sha256()
+    for seq, message in messages:
+        canonical = json.dumps(
+            {
+                "seq": seq,
+                "role": message.get("role"),
+                "content": message.get("content"),
+                "tool_calls": message.get("tool_calls"),
+                "tool_call_id": message.get("tool_call_id"),
+                "name": message.get("name"),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
+        digest.update(canonical.encode("utf-8"))
+        digest.update(b"\n")
+    return digest.hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -215,20 +333,23 @@ class LLMExtractionResult:
     """阶段2 LLM 提取结果。
 
     ``action_nodes`` 承载阶段1 的系统提取结果，用于按 §7.4 的
-    ``_apply_filters(llm_result, existing_memories)`` 签名把 ActionNode 传递到阶段3/4。
+    ``_apply_filters(llm_result)`` 签名把 ActionNode 传递到阶段3/4。
 
-    ``citation_scores`` / ``cited_memory_ids``（WU-B）：semantic 路 ProfileExtractor
-    返回的引用评分（``[{memory_id, useful}]``）与本次注入记忆集合。仅当
-    ``cited_memory_ids`` 非空时才可能非空；``_persist`` 用它给 ``useful=true``
-    的记忆自增 ``access_count``（评分 id 不在集合内→丢弃，防 LLM 幻觉写错记忆）。
+    引用评分（``citation_scores`` / ``cited_memory_ids``）已随 D11 删除：排序不再
+    消费 ``access_count``，usefulness 写回没有下游消费者（spec §6.3）。
     """
 
     memories: list[LLMMemoryItem] = field(default_factory=list)
     episode: LLMEpisodeItem | None = None
     failed_tracks: list[str] = field(default_factory=list)
     action_nodes: list[ActionNode] = field(default_factory=list)
-    citation_scores: list[dict[str, Any]] = field(default_factory=list)
-    cited_memory_ids: list[str] = field(default_factory=list)
+    #: 批次协议（契约 §2.6）：本次实际尝试的轨道，以及各轨失败原因。
+    #: ``semantic_payload`` / ``episode_payload`` 是可直接落 checkpoint 的
+    #: 序列化输出；``episode_payload=None`` 且该轨无失败表示「有效空输出」。
+    attempted_tracks: list[str] = field(default_factory=list)
+    track_errors: dict[str, str] = field(default_factory=dict)
+    semantic_payload: dict[str, Any] | None = None
+    episode_payload: dict[str, Any] | None = None
 
 
 @dataclass
@@ -238,8 +359,6 @@ class FilteredExtractionResult:
     memories: list[LLMMemoryItem] = field(default_factory=list)
     episode: LLMEpisodeItem | None = None
     action_nodes: list[ActionNode] = field(default_factory=list)
-    citation_scores: list[dict[str, Any]] = field(default_factory=list)
-    cited_memory_ids: list[str] = field(default_factory=list)
     #: 各丢弃原因的条数（``skipped`` 只有总数，排障时看不出丢在哪一步）。
     skipped_reasons: dict[str, int] = field(default_factory=dict)
 
@@ -250,6 +369,8 @@ class PersistenceResult:
 
     memory_ids: list[str] = field(default_factory=list)
     episode_ids: list[str] = field(default_factory=list)
+    #: 本次真正新增的行数；幂等命中的既有 id 会计入 ``memory_ids`` 但不计入这里。
+    created_count: int = 0
 
 
 @dataclass
@@ -525,6 +646,43 @@ def _coerce_memory_item(raw: Any) -> LLMMemoryItem | None:
     )
 
 
+def _memory_item_to_dict(item: LLMMemoryItem) -> dict[str, Any]:
+    """把过滤前候选序列化进批次 checkpoint。"""
+    return {
+        "content": item.content,
+        "type": item.type,
+        "priority": item.priority,
+        "importance": item.importance,
+        "subject": item.subject,
+        "predicate": item.predicate,
+        "tags": list(item.tags),
+    }
+
+
+def _memory_item_from_dict(raw: Any) -> LLMMemoryItem | None:
+    """从批次 checkpoint 的序列化 dict 还原 ``LLMMemoryItem``（过滤前候选）。"""
+    if not isinstance(raw, dict):
+        return None
+    return _coerce_memory_item(raw)
+
+
+def _episode_item_to_dict(item: LLMEpisodeItem) -> dict[str, Any]:
+    """把情节候选序列化进批次 checkpoint（与 ``_coerce_episode_item`` 对称）。"""
+    return {
+        "summary": item.summary,
+        "goal": item.goal,
+        "outcome": item.outcome,
+        "entities": list(item.entities),
+        "tools_used": list(item.tools_used),
+        "importance": item.importance,
+    }
+
+
+async def _skipped_track() -> None:
+    """批次只重跑部分轨道时占位，保持 ``asyncio.gather`` 的两槽位形状。"""
+    return None
+
+
 def _coerce_episode_item(raw: dict[str, Any]) -> LLMEpisodeItem:
     outcome_raw = raw.get("outcome")
     entities_raw = raw.get("entities")
@@ -558,36 +716,6 @@ def _profile_item_to_llm(item: ProfileItem) -> LLMMemoryItem:
         predicate=item.predicate,
         tags=list(item.tags),
     )
-
-
-def _resolve_cited_memories(
-    database: MemoryDatabase,
-    memory_ids: list[str] | None,
-    limit: int = 20,
-) -> list[dict[str, Any]]:
-    """把记忆 id 列表解析成 ProfileExtractor 引用评分用的 ``[{id, content}]``。
-
-    单次事务批量读取，按 id 去重、截断到 ``limit`` 条，控制进 prompt 的引用体积
-    （CITATION_SCORING_SECTION 每条约 200 token）。记忆已被删除的 id 静默跳过，
-    ``None``/空输入返回 ``[]``——
-    这同时也是 plan §4.3「注入块不含 ID 或 cited_memories 为空 → 跳过评分段」的保底。
-    """
-    if not memory_ids:
-        return []
-    seen: set[str] = set()
-    out: list[dict[str, Any]] = []
-    with database.connect() as conn:
-        for memory_id in memory_ids:
-            if not memory_id or memory_id in seen:
-                continue
-            seen.add(memory_id)
-            if len(out) >= limit:
-                break
-            memory = get_memory(conn, memory_id)
-            if memory is None:
-                continue
-            out.append({"id": memory.id, "content": memory.content})
-    return out
 
 
 def _normalize_outcome(raw: str | None) -> EpisodeOutcome:
@@ -691,20 +819,16 @@ class MemoryExtractor:
     #: 单路 LLM 调用的超时（秒）；测试可覆盖实例属性以缩短超时。
     LLM_TIMEOUT: float = 30.0
 
-    #: 阶段3 预载同类型历史记忆的窗口大小（plan §5.2 比对集来源）。
-    EXISTING_MEMORY_LIMIT: int = 500
-
     #: idle 增量抽取的切片条数下限：连「user 提问 + assistant 回复」都不足时无内容可抽。
     #:
-    #: 刻意取 2，**不照搬** ``SessionEndOrchestrator`` 的 L1（``< 3``）：那边以「整个
-    #: 会话」为抽取单元，3 是会话的最小可观形态；idle 抽的是增量切片，一轮实质对话
-    #: （user + assistant 共 2 条）本身就是完整单元。区分「琐碎」与「实质」的职责交给
-    #: :data:`IDLE_MIN_SINGLE_USER_CHARS`（即 L2 口径）——一句「你好」仍会被它拦下。
-    #: 改本常量时须一并审视 ``orchestrator.py`` 的 L1/L2（那边是裸字面量 3 / 10）。
+    #: 取 2 而非 3：idle 抽的是增量切片，一轮实质对话（user + assistant 共 2 条）本身
+    #: 就是完整单元，不像「以整个会话为抽取单元」时那样需要 3 条才成形态。区分
+    #: 「琐碎」与「实质」的职责交给 :data:`IDLE_MIN_SINGLE_USER_CHARS` —— 一句「你好」
+    #: 仍会被它拦下。
     IDLE_MIN_NEW_MESSAGES: int = 2
 
     #: 新增切片只有一条 user 消息、内容短于该字符数且无工具调用 → 不调 LLM。
-    #: 切片内有工具调用则豁免（对齐 ``orchestrator.py`` 的 L2）。
+    #: 切片内有工具调用则豁免。
     IDLE_MIN_SINGLE_USER_CHARS: int = 10
 
     def __init__(
@@ -713,6 +837,8 @@ class MemoryExtractor:
         runtime: LLMRuntime,
         workspace_id: str = "default",
         user_id: str = "default",
+        *,
+        session_loader: Callable[[str], Session | None] | None = None,
     ) -> None:
         self.database = database
         self.runtime = runtime
@@ -721,32 +847,13 @@ class MemoryExtractor:
         # S3 Track 1：画像 + 引用评分 + 经验。SEMANTIC_EXTRACTION_PROMPT 是双轨输出，
         # 一次调用同时产出 memories / experiences，交给 ProfileExtractor 统一解析。
         self.profile_extractor = ProfileExtractor(runtime=runtime)
-        # WU-3B: fallback 目录。若 database 暴露了 fallback_dir(B 节),复用;
-        # 否则回退到 db_path.parent/_memory_fallback,确保 _safe_write_with_fallback
-        # 始终有可写目录。database 可能为 None(generate_episode 路径下),此时
-        # 不创建 fallback_dir,运行时再兜底。
-        self.fallback_dir: Path | None = None
-        if database is not None:
-            db_fb = getattr(database, "fallback_dir", None)
-            if isinstance(db_fb, Path):
-                self.fallback_dir = db_fb
-            else:
-                db_path = getattr(database, "db_path", None)
-                if db_path is not None:
-                    self.fallback_dir = Path(db_path).parent / "_memory_fallback"
-            if self.fallback_dir is not None:
-                try:
-                    self.fallback_dir.mkdir(parents=True, exist_ok=True)
-                except Exception as exc:  # noqa: BLE001 - fallback 目录建不出来不能阻断 extractor
-                    logger.warning("memory fallback dir unavailable ({}): {}", self.fallback_dir, exc)
-            # WU-3B: 启动时重放上轮未写入的 fallback 队列。任何异常仅 warning,
-            # 不影响 extractor 主流程。
-            replay_fn = getattr(database, "replay_fallback", None)
-            if callable(replay_fn):
-                try:
-                    replay_fn()
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("memory fallback replay skipped on init: {}", exc)
+        # 批次协议需要按 session_key 读取**持久**消息坐标（memory_generation /
+        # memory_seq）。hook 只能拿到剥掉身份字段的 provider 转录，因此由调用方
+        # 注入会话快照读取器；缺省时按 memory 库所在工作区惰性构造
+        # ``SessionManager.read_session_snapshot``（同进程默认数据目录）。
+        self._session_loader = session_loader
+        self._default_session_loader: Callable[[str], Session | None] | None = None
+        self._default_session_loader_ready = False
 
     # ------------------------------------------------------------------
     # 主入口
@@ -758,35 +865,1009 @@ class MemoryExtractor:
         *,
         source: str = "session_end",
     ) -> ExtractionResult:
-        """执行完整 4 阶段提取，返回写入统计。"""
+        """完整提取入口（薄适配）：把会话转换成 :class:`ExtractionRequest`。
+
+        进度、幂等与事务全部由 :meth:`process_request` 负责；本方法只负责
+        「会话 → 请求坐标」与「回执 → 旧返回类型」。保留原签名供删除路径、
+        手工调用与测试使用。
+        """
         started = time.perf_counter()
-        # 系统性读取
-        system = self._system_extract(session)
-
-        # LLM 抽取
-        llm_result = await self._llm_extract(session, system)
-
-        row_workspace_id = self._row_workspace_id(session)
-        existing_memories = self._load_existing_memories(
-            llm_result.memories, workspace_id=row_workspace_id
-        )
-
-        # 去重
-        filtered = self._apply_filters(llm_result, existing_memories)
-        persisted = self._persist(filtered, session, source)
-        skipped = len(llm_result.memories) - len(filtered.memories)
+        result = await self._submit_session_request(session, source=source)
         logger.info(
             "memory extraction elapsed: session={} source={} elapsed_ms={:.0f}",
             session.key,
             source,
             (time.perf_counter() - started) * 1000,
         )
-        return ExtractionResult(
-            memory_ids=persisted.memory_ids,
-            episode_ids=persisted.episode_ids,
-            skipped=skipped,
-            failed_tracks=list(llm_result.failed_tracks),
+        return result
+
+    async def flush_session(
+        self,
+        session_key: str,
+        *,
+        workspace_id: str,
+        reason: str = "session_end",
+    ) -> BatchReceipt | None:
+        """会话结束 flush（契约 §5）：立刻消费到当前持久上界。
+
+        - ``generation`` / ``through_seq`` 一律从带坐标的持久快照解析，与 idle /
+          增量 / 删除路径共用同一个消费键与 ``last_seq`` 真相源，不另建进度链。
+        - ``workspace_id`` 是调用方声明的记忆隔离键。与快照归属不一致时以快照
+          为准并告警：同一会话出现两条消费键会让相同消息被抽两次。
+        - 提交 ``ExtractionRequest(flush=True)`` 并走 :meth:`process_request`：
+          无新增消息时返回 ``completed`` 空回执；模型 / 持久化失败返回带
+          ``error_code`` 的失败回执，不伪装成空成功。
+        - 会话从未持久化（读不到快照）时没有可消费证据，返回 ``None``。
+        """
+        loaded = self.load_session(session_key)
+        if loaded is None or not loaded.memory_generation:
+            logger.info(
+                "session end flush skipped: session={} has no persisted memory snapshot",
+                session_key,
+            )
+            return None
+        resolved_workspace = self._row_workspace_id(loaded)
+        if workspace_id and workspace_id != resolved_workspace:
+            logger.warning(
+                "session end flush workspace mismatch: session={} declared={} session={}",
+                session_key,
+                workspace_id,
+                resolved_workspace,
+            )
+        through = self._through_seq(loaded)
+        last_seq = self._last_consumed_seq(loaded, loaded.memory_generation)
+        if through <= last_seq:
+            # 没有新增消息：flush 本身没有消费任何内容，返回 completed 空回执。
+            # 刻意不复用「重复上界返回既有批次」的 replay：上一批的 memory_ids
+            # 属于更早的触发，作为本次结束 flush 的产出回报会误导调用方。
+            logger.info(
+                "session end flush noop: session={} through={} <= last_seq={}",
+                session_key,
+                through,
+                last_seq,
+            )
+            return BatchReceipt(
+                batch_id=_stable_batch_id(
+                    resolved_workspace,
+                    session_key,
+                    loaded.memory_generation,
+                    last_seq,
+                    through,
+                ),
+                status="completed",
+                through_seq=through,
+            )
+        request = ExtractionRequest(
+            workspace_id=resolved_workspace,
+            session_key=session_key,
+            generation=loaded.memory_generation,
+            through_seq=through,
+            reason=reason,
+            flush=True,
         )
+        started = time.perf_counter()
+        receipt = await self.process_request(request, session=loaded)
+        logger.info(
+            "session end flush finished: session={} reason={} status={} through={} "
+            "error={} elapsed_ms={:.0f}",
+            session_key,
+            reason,
+            receipt.status,
+            receipt.through_seq,
+            receipt.error_code or "-",
+            (time.perf_counter() - started) * 1000,
+        )
+        return receipt
+
+    # ------------------------------------------------------------------
+    # 批次协议主入口（契约 §2）
+    # ------------------------------------------------------------------
+
+    async def process_request(
+        self,
+        request: ExtractionRequest,
+        *,
+        session: Session | None = None,
+        start_hint: int | None = None,
+    ) -> BatchReceipt:
+        """按消费键顺序消费 ``(last_seq, through_seq]``，返回结构化回执。
+
+        契约 §2 的批次协议主体：
+
+        - ``(workspace_id, session_key, generation)`` 是消费键；批次边界固定为
+          ``(start_seq, end_seq]``，batch_id 由二者做稳定摘要。
+        - 同一消费键下先续跑未完成批次，再处理新上界；重复请求相同上界返回
+          既有结果，不新建批次。
+        - 两轨各自 checkpoint，失败只重试失败轨；两轨就绪后事实/情节写入与
+          ``last_seq`` 在同一事务提交。
+        - 失败不静默：返回 ``pending / partial / failed / completed`` 回执，
+          ``error_code`` 是结构化错误码。
+
+        Args:
+            request: 消费边界与来源。
+            session: 可选的坐标承载会话。缺省时按 ``session_key`` 读取持久快照
+                （hook 只能拿到剥掉身份字段的 provider 转录）。
+            start_hint: 旧接口（``extract_incremental``）的起始下标提示。只在
+                「尚无任何已提交进度」时生效，用于迁移期把旧索引换算成 seq 起点；
+                它不推进游标，也不覆盖已记录的 ``last_seq``。
+        """
+        key = (request.workspace_id, request.session_key, request.generation)
+        lock = _consumption_lock(key)
+        async with lock:
+            try:
+                return await self._process_request_locked(request, session, start_hint)
+            except _BatchError as exc:
+                logger.warning(
+                    "memory batch rejected: session={} generation={} through={} code={} detail={}",
+                    request.session_key,
+                    request.generation,
+                    request.through_seq,
+                    exc.code,
+                    exc.detail,
+                )
+                return self._error_receipt(request, 0, exc.code, exc.detail)
+            except Exception as exc:  # noqa: BLE001 - 批次失败必须返回结构化回执
+                logger.opt(exception=exc).warning(
+                    "memory batch failed: session={} generation={} through={}",
+                    request.session_key,
+                    request.generation,
+                    request.through_seq,
+                )
+                return self._error_receipt(request, 0, ERROR_UNEXPECTED, str(exc))
+
+    # -- process_request 内部步骤 ---------------------------------------------
+
+    async def _process_request_locked(
+        self,
+        request: ExtractionRequest,
+        session: Session | None,
+        start_hint: int | None,
+    ) -> BatchReceipt:
+        through = int(request.through_seq)
+        if through < 0:
+            raise _BatchError(ERROR_EVIDENCE_MISSING, f"through_seq must be >= 0: {through}")
+        resolved = self._resolve_request_session(request, session)
+        if not request.generation:
+            # 调用方省略代时以持久会话为准；消费键、批次行与状态行必须同源。
+            request = dataclasses.replace(request, generation=resolved.memory_generation)
+        start = self._last_consumed_seq(resolved, request.generation)
+        if start_hint is not None and start == 0:
+            start = self._seq_start_from_index(resolved, start_hint, through)
+        if through <= start:
+            logger.info(
+                "memory batch replay: session={} generation={} through={} <= last_seq={}",
+                request.session_key,
+                request.generation,
+                through,
+                start,
+            )
+            return self._replay_receipt(request, start, through)
+
+        current = start
+        last_receipt: BatchReceipt | None = None
+        while True:
+            pending = self._oldest_incomplete_batch(request, current)
+            if pending is None:
+                break
+            receipt = await self._execute_batch(request, pending, resolved)
+            if receipt.status != "completed":
+                return receipt
+            last_receipt = receipt
+            current = receipt.through_seq
+            if current >= through:
+                return receipt
+
+        if current < through:
+            batch = self._ensure_batch(request, resolved, current, through)
+            receipt = await self._execute_batch(request, batch, resolved)
+            if receipt.status != "completed":
+                return receipt
+            last_receipt = receipt
+            current = receipt.through_seq
+
+        return last_receipt if last_receipt is not None else self._replay_receipt(
+            request, start, through
+        )
+
+    def _resolve_request_session(
+        self,
+        request: ExtractionRequest,
+        session: Session | None,
+    ) -> Session:
+        if session is not None:
+            resolved = self._resolve_session(session)
+            if request.generation and resolved.memory_generation != request.generation:
+                raise _BatchError(
+                    ERROR_GENERATION_MISMATCH,
+                    f"request generation={request.generation!r} "
+                    f"session generation={resolved.memory_generation!r}",
+                )
+            return resolved
+        loaded = self.load_session(request.session_key)
+        if loaded is None:
+            raise _BatchError(
+                ERROR_SESSION_UNAVAILABLE,
+                f"no persisted session snapshot for {request.session_key!r}",
+            )
+        if not loaded.memory_generation:
+            raise _BatchError(
+                ERROR_SESSION_UNAVAILABLE,
+                f"session {request.session_key!r} has no durable memory generation",
+            )
+        if request.generation and request.generation != loaded.memory_generation:
+            raise _BatchError(
+                ERROR_GENERATION_MISMATCH,
+                f"request generation={request.generation!r} "
+                f"session generation={loaded.memory_generation!r}",
+            )
+        return loaded
+
+    def _resolve_session(self, session: Session) -> Session:
+        """把调用方会话解析成「带持久坐标」的会话。
+
+        - 已带 generation：直接使用（删除路径传入的就是持久快照）。
+        - 没有 generation：按 key 读取持久快照（hook 重建的转录没有身份字段）；
+          快照也不存在（从未保存）时用保存路径同一规则就地编号，不写盘。
+        """
+        if session.memory_generation:
+            return session
+        loaded = self.load_session(session.key)
+        if loaded is not None and loaded.memory_generation:
+            # 重建的 Session 携带调用方最新的归属工作区，比磁盘上的旧值更可信。
+            scope = session.metadata.get("workspace_scope")
+            if isinstance(scope, dict) and scope:
+                loaded.metadata["workspace_scope"] = dict(scope)
+            return loaded
+        try:
+            from nanobot.session.manager import _assign_memory_coordinates
+
+            _assign_memory_coordinates(session)
+        except Exception as exc:  # noqa: BLE001 - 坐标非法必须报告，不能静默重编号
+            raise _BatchError(ERROR_COORDINATE_INVALID, str(exc)) from exc
+        if not session.memory_generation:
+            session.memory_generation = (
+                _EPHEMERAL_GENERATION_PREFIX + uuid4().hex
+            )
+        return session
+
+    def load_session(self, session_key: str) -> Session | None:
+        """读取持久会话快照（含坐标）；读取失败只告警并返回 ``None``。"""
+        loader = self._session_loader
+        if loader is None:
+            if not self._default_session_loader_ready:
+                self._default_session_loader = self._build_default_session_loader()
+                self._default_session_loader_ready = True
+            loader = self._default_session_loader
+        if loader is None:
+            return None
+        try:
+            return loader(session_key)
+        except Exception as exc:  # noqa: BLE001 - 快照读取失败按不可用处理
+            logger.warning(
+                "memory batch: session snapshot load failed for {}: {}",
+                session_key,
+                exc,
+            )
+            return None
+
+    def _build_default_session_loader(self) -> Callable[[str], Session | None] | None:
+        workspace = getattr(self.database, "workspace", None)
+        if workspace is None:
+            return None
+        cache_key = str(Path(workspace))
+        if cache_key in _SESSION_LOADERS:
+            return _SESSION_LOADERS[cache_key]
+        loader: Callable[[str], Session | None] | None = None
+        try:
+            from nanobot.session.manager import SessionManager
+
+            manager = SessionManager(Path(workspace))
+            loader = manager.read_session_snapshot
+        except Exception as exc:  # noqa: BLE001 - 无会话存储时退化为不可用
+            logger.warning(
+                "memory batch: session store unavailable under {}: {}", workspace, exc
+            )
+        _SESSION_LOADERS[cache_key] = loader
+        return loader
+
+    def _last_consumed_seq(self, session: Session, generation: str) -> int:
+        with self.database.connect() as conn:
+            return get_extraction_seq(conn, session.key, generation)
+
+    def _through_seq(self, session: Session) -> int:
+        highest = max(
+            (seq for seq in (_positive_seq(m) for m in session.messages) if seq is not None),
+            default=0,
+        )
+        if session.memory_generation and session.memory_next_seq > 0:
+            return max(highest, session.memory_next_seq - 1)
+        return highest
+
+    def _request_for_session(
+        self,
+        session: Session,
+        reason: str,
+        *,
+        through_seq: int | None = None,
+    ) -> ExtractionRequest:
+        return ExtractionRequest(
+            workspace_id=self._row_workspace_id(session),
+            session_key=session.key,
+            generation=session.memory_generation,
+            through_seq=self._through_seq(session) if through_seq is None else int(through_seq),
+            reason=reason,
+        )
+
+    def _seq_start_from_index(
+        self,
+        session: Session,
+        start_index: int,
+        through: int,
+    ) -> int:
+        """把旧接口的消息下标换算成 seq 起点（仅迁移期使用）。"""
+        index = max(0, int(start_index))
+        if index >= len(session.messages):
+            return through
+        seq = _positive_seq(session.messages[index])
+        return max(0, (seq - 1) if seq is not None else 0)
+
+    def _slice_evidence(
+        self,
+        session: Session,
+        start_seq: int,
+        end_seq: int,
+    ) -> list[tuple[int, dict[str, Any]]]:
+        pairs = [
+            (seq, message)
+            for message in session.messages
+            if (seq := _positive_seq(message)) is not None and start_seq < seq <= end_seq
+        ]
+        pairs.sort(key=lambda item: item[0])
+        return pairs
+
+    def _evidence_session(
+        self,
+        session: Session,
+        evidence: Sequence[tuple[int, dict[str, Any]]],
+    ) -> Session:
+        """把本批证据包成 ``Session``，供 prompt / 系统提取只看到该切片。"""
+        from nanobot.session.manager import Session as _Session
+
+        return _Session(
+            key=session.key,
+            messages=[dict(message) for _, message in evidence],
+            created_at=session.created_at,
+            metadata=dict(session.metadata),
+        )
+
+    def _oldest_incomplete_batch(
+        self,
+        request: ExtractionRequest,
+        after_seq: int,
+    ) -> ExtractionBatchRow | None:
+        with self.database.connect() as conn:
+            rows = list_incomplete_extraction_batches(
+                conn,
+                workspace_id=request.workspace_id,
+                session_key=request.session_key,
+                generation=request.generation,
+                after_seq=after_seq,
+            )
+        return rows[0] if rows else None
+
+    def _ensure_batch(
+        self,
+        request: ExtractionRequest,
+        session: Session,
+        start_seq: int,
+        end_seq: int,
+    ) -> ExtractionBatchRow:
+        evidence = self._slice_evidence(session, start_seq, end_seq)
+        if not evidence:
+            raise _BatchError(
+                ERROR_EVIDENCE_MISSING,
+                f"no messages with memory_seq in ({start_seq}, {end_seq}]",
+            )
+        digest = _evidence_digest(evidence)
+        batch_id = _stable_batch_id(
+            request.workspace_id,
+            request.session_key,
+            request.generation,
+            start_seq,
+            end_seq,
+        )
+        now = _now_iso()
+        fresh = ExtractionBatchRow(
+            batch_id=batch_id,
+            workspace_id=request.workspace_id,
+            session_key=request.session_key,
+            generation=request.generation,
+            reason=request.reason,
+            start_seq=int(start_seq),
+            end_seq=int(end_seq),
+            evidence_digest=digest,
+            status="pending",
+            semantic_output="",
+            episode_output="",
+            semantic_checkpoint_at="",
+            episode_checkpoint_at="",
+            claim_owner="",
+            claimed_at="",
+            lease_expires_at="",
+            error_code="",
+            error_detail="",
+            created_at=now,
+            updated_at=now,
+        )
+        with self.database.connect() as conn:
+            existing = get_extraction_batch(conn, batch_id)
+            if existing is not None:
+                return self._require_matching_payload(existing, digest)
+            if insert_extraction_batch(conn, fresh):
+                return fresh
+            # 唯一约束冲突：并发方已插入同一批次，按既有行继续（仍要校验载荷）。
+            existing = get_extraction_batch(conn, batch_id)
+        if existing is None:
+            raise _BatchError(
+                ERROR_BATCH_CLAIM_LOST,
+                f"batch row vanished after insert conflict: {batch_id}",
+            )
+        return self._require_matching_payload(existing, digest)
+
+    def _require_matching_payload(
+        self,
+        row: ExtractionBatchRow,
+        digest: str,
+    ) -> ExtractionBatchRow:
+        if row.evidence_digest == digest:
+            return row
+        if row.status != "completed":
+            self._record_batch_failure(
+                row.batch_id,
+                ERROR_BATCH_PAYLOAD_MISMATCH,
+                f"stored digest={row.evidence_digest} incoming digest={digest}",
+            )
+        raise _BatchError(
+            ERROR_BATCH_PAYLOAD_MISMATCH,
+            f"batch {row.batch_id} evidence digest changed",
+        )
+
+    def _replay_receipt(
+        self,
+        request: ExtractionRequest,
+        start_seq: int,
+        through: int,
+    ) -> BatchReceipt:
+        """重复请求相同上界：返回已落库结果，不新建批次。"""
+        with self.database.connect() as conn:
+            row = find_extraction_batch_by_bounds(
+                conn,
+                workspace_id=request.workspace_id,
+                session_key=request.session_key,
+                generation=request.generation,
+                end_seq=through,
+            )
+        if row is None:
+            return BatchReceipt(
+                batch_id=_stable_batch_id(
+                    request.workspace_id,
+                    request.session_key,
+                    request.generation,
+                    start_seq,
+                    through,
+                ),
+                status="completed",
+                through_seq=through,
+            )
+        return self._receipt_from_row(row)
+
+    def _receipt_from_row(self, row: ExtractionBatchRow) -> BatchReceipt:
+        memory_ids: tuple[str, ...] = ()
+        episode_ids: tuple[str, ...] = ()
+        try:
+            stored = json.loads(row.semantic_output or "{}")
+        except (json.JSONDecodeError, ValueError):
+            stored = {}
+        committed = stored.get("committed") if isinstance(stored, dict) else None
+        if isinstance(committed, dict):
+            memory_ids = tuple(str(item) for item in committed.get("memory_ids") or ())
+            episode_ids = tuple(str(item) for item in committed.get("episode_ids") or ())
+        status = row.status if row.status in ("pending", "partial", "failed", "completed") else "failed"
+        return BatchReceipt(
+            batch_id=row.batch_id,
+            status=cast(Any, status),
+            through_seq=row.end_seq,
+            memory_ids=memory_ids,
+            episode_ids=episode_ids,
+            error_code=row.error_code or None,
+        )
+
+    def _error_receipt(
+        self,
+        request: ExtractionRequest,
+        start_seq: int,
+        code: str,
+        detail: str,
+    ) -> BatchReceipt:
+        return BatchReceipt(
+            batch_id=_stable_batch_id(
+                request.workspace_id,
+                request.session_key,
+                request.generation,
+                start_seq,
+                request.through_seq,
+            ),
+            status="failed",
+            through_seq=int(request.through_seq),
+            error_code=code,
+        )
+
+    # -- 单批执行 ------------------------------------------------------------
+
+    async def _execute_batch(
+        self,
+        request: ExtractionRequest,
+        row: ExtractionBatchRow,
+        session: Session,
+    ) -> BatchReceipt:
+        evidence = self._slice_evidence(session, row.start_seq, row.end_seq)
+        if not evidence:
+            self._record_batch_failure(
+                row.batch_id,
+                ERROR_EVIDENCE_MISSING,
+                f"no messages in ({row.start_seq}, {row.end_seq}]",
+            )
+            return BatchReceipt(
+                batch_id=row.batch_id,
+                status="failed",
+                through_seq=row.end_seq,
+                error_code=ERROR_EVIDENCE_MISSING,
+            )
+        digest = _evidence_digest(evidence)
+        if digest != row.evidence_digest:
+            if row.status != "completed":
+                self._record_batch_failure(
+                    row.batch_id,
+                    ERROR_BATCH_PAYLOAD_MISMATCH,
+                    f"stored digest={row.evidence_digest} incoming digest={digest}",
+                )
+            return BatchReceipt(
+                batch_id=row.batch_id,
+                status="failed",
+                through_seq=row.end_seq,
+                error_code=ERROR_BATCH_PAYLOAD_MISMATCH,
+            )
+
+        owner = uuid4().hex
+        claim = self._claim_batch(row.batch_id, owner)
+        if claim is None:
+            current = self._get_batch(row.batch_id)
+            if current is not None and current.status == "completed":
+                return self._receipt_from_row(current)
+            return BatchReceipt(
+                batch_id=row.batch_id,
+                status="pending",
+                through_seq=row.end_seq,
+                error_code=ERROR_BATCH_CLAIMED,
+            )
+        if claim.status == "completed":
+            # 另一执行方已提交（例如跨进程并发）：直接复用既有结果。
+            return self._receipt_from_row(claim)
+
+        tracks = [
+            track
+            for track, checkpoint in (
+                ("semantic", claim.semantic_checkpoint_at),
+                ("episode", claim.episode_checkpoint_at),
+            )
+            if not checkpoint
+        ]
+        if tracks:
+            # 模型只看到本批证据：切片会话与原会话同 key / 元数据，但 messages
+            # 仅含 (start_seq, end_seq] 的原始消息（契约 §2.1「会话内顺序消费」）。
+            evidence_session = self._evidence_session(session, evidence)
+            system = self._system_extract(evidence_session)
+            llm_result = await self._llm_extract(
+                evidence_session,
+                system,
+                tracks=tuple(tracks),
+            )
+            receipt = self._checkpoint_tracks(claim, owner, tracks, llm_result)
+            if receipt is not None:
+                return receipt
+
+        return await self._finalize_batch(
+            request,
+            self._get_batch(row.batch_id) or claim,
+            owner,
+            session,
+        )
+
+    def _claim_batch(self, batch_id: str, owner: str) -> ExtractionBatchRow | None:
+        """认领批次（带 owner + lease）；被别的活 owner 持有时返回 ``None``。"""
+        now = datetime.now(timezone.utc)
+        deadline = (now + timedelta(seconds=BATCH_LEASE_SECONDS)).isoformat()
+        with self.database.connect() as conn:
+            row = get_extraction_batch(conn, batch_id)
+            if row is None:
+                return None
+            if row.status == "completed":
+                return row
+            holding_lease = (
+                row.claim_owner
+                and row.claim_owner != owner
+                and row.lease_expires_at
+                and row.lease_expires_at > now.isoformat()
+            )
+            if holding_lease:
+                logger.info(
+                    "memory batch {} is claimed by {} until {}; leaving it to the owner",
+                    batch_id,
+                    row.claim_owner,
+                    row.lease_expires_at,
+                )
+                return None
+            claimed = update_extraction_batch(
+                conn,
+                batch_id,
+                updates={
+                    "claim_owner": owner,
+                    "claimed_at": now.isoformat(),
+                    "lease_expires_at": deadline,
+                    "updated_at": now.isoformat(),
+                },
+            )
+            if not claimed:
+                return None
+            row = get_extraction_batch(conn, batch_id)
+        return row
+
+    def _checkpoint_tracks(
+        self,
+        row: ExtractionBatchRow,
+        owner: str,
+        tracks: Sequence[str],
+        llm_result: LLMExtractionResult,
+    ) -> BatchReceipt | None:
+        """把成功的轨道写 checkpoint；有失败轨时返回非完成回执。"""
+        now = _now_iso()
+        updates: dict[str, Any] = {
+            "updated_at": now,
+            "lease_expires_at": self._lease_deadline(),
+        }
+        if "semantic" in tracks and "semantic" not in llm_result.failed_tracks:
+            semantic_payload = llm_result.semantic_payload
+            if semantic_payload is None:
+                # 兼容测试/扩展点直接构造 LLMExtractionResult 的情况：没有显式
+                # payload 时用候选本身序列化，checkpoint 语义不变。
+                semantic_payload = {
+                    "memories": [_memory_item_to_dict(item) for item in llm_result.memories],
+                }
+            updates["semantic_output"] = json.dumps(
+                semantic_payload, ensure_ascii=False, default=str
+            )
+            updates["semantic_checkpoint_at"] = now
+        if "episode" in tracks and "episode" not in llm_result.failed_tracks:
+            episode_payload = llm_result.episode_payload
+            if episode_payload is None and llm_result.episode is not None:
+                episode_payload = _episode_item_to_dict(llm_result.episode)
+            updates["episode_output"] = json.dumps(
+                episode_payload or {}, ensure_ascii=False, default=str
+            )
+            updates["episode_checkpoint_at"] = now
+
+        failed = [track for track in tracks if track in llm_result.failed_tracks]
+        if not failed:
+            self._update_batch(row.batch_id, updates, owner=owner)
+            return None
+
+        ready = [
+            track
+            for track, checkpoint in (
+                ("semantic", updates.get("semantic_checkpoint_at") or row.semantic_checkpoint_at),
+                ("episode", updates.get("episode_checkpoint_at") or row.episode_checkpoint_at),
+            )
+            if checkpoint
+        ]
+        status = "partial" if ready else "failed"
+        first_failed = failed[0]
+        code = (
+            ERROR_SEMANTIC_TRACK_FAILED
+            if first_failed == "semantic"
+            else ERROR_EPISODE_TRACK_FAILED
+        )
+        detail = "; ".join(
+            f"{track}: {llm_result.track_errors.get(track, 'unknown')}" for track in failed
+        )
+        updates.update(
+            {
+                "status": status,
+                "error_code": code,
+                "error_detail": detail,
+                # 立即释放 claim：同一进程的下一次请求（或重试）可以只重跑失败轨。
+                "claim_owner": "",
+                "lease_expires_at": "",
+            }
+        )
+        if not self._update_batch(row.batch_id, updates, owner=owner):
+            logger.warning("memory batch {} lost its claim before checkpoint", row.batch_id)
+            return BatchReceipt(
+                batch_id=row.batch_id,
+                status="failed",
+                through_seq=row.end_seq,
+                error_code=ERROR_BATCH_CLAIM_LOST,
+            )
+        logger.warning(
+            "memory batch {} partially checkpointed: ready={} failed={} detail={}",
+            row.batch_id,
+            ready,
+            failed,
+            detail,
+        )
+        return BatchReceipt(
+            batch_id=row.batch_id,
+            status=cast(Any, status),
+            through_seq=row.end_seq,
+            error_code=code,
+        )
+
+    async def _finalize_batch(
+        self,
+        request: ExtractionRequest,
+        row: ExtractionBatchRow,
+        owner: str,
+        session: Session,
+    ) -> BatchReceipt:
+        """两轨就绪：事实/情节写入 + last_seq + 批次完成，同一事务提交。"""
+        llm_result = self._restore_checkpointed_result(row)
+        # 系统提取是确定性输入，不随 checkpoint 持久化；还原后补回，
+        # 否则「有效空情节 + 工具动作」的重试批次会丢掉 action_nodes。
+        evidence = self._slice_evidence(session, row.start_seq, row.end_seq)
+        if evidence:
+            system = self._system_extract(self._evidence_session(session, evidence))
+            llm_result = dataclasses.replace(
+                llm_result, action_nodes=list(system.action_nodes)
+            )
+        filtered = self._apply_filters(llm_result)
+        skipped = len(llm_result.memories) - len(filtered.memories)
+        now = _now_iso()
+        try:
+            with self.database.connect() as conn:
+                persisted, indexed = self._write_extraction(
+                    conn,
+                    filtered,
+                    session=session,
+                    source=row.reason or request.reason or "extraction",
+                    now=now,
+                    evidence_key=row.batch_id,
+                )
+                stored = json.loads(row.semantic_output or "{}")
+                if not isinstance(stored, dict):
+                    stored = {}
+                stored["committed"] = {
+                    "memory_ids": list(persisted.memory_ids),
+                    "episode_ids": list(persisted.episode_ids),
+                    "skipped": skipped,
+                }
+                completed = update_extraction_batch(
+                    conn,
+                    row.batch_id,
+                    updates={
+                        "status": "completed",
+                        "semantic_output": json.dumps(stored, ensure_ascii=False, default=str),
+                        "semantic_checkpoint_at": row.semantic_checkpoint_at or now,
+                        "episode_checkpoint_at": row.episode_checkpoint_at or now,
+                        "error_code": "",
+                        "error_detail": "",
+                        "claim_owner": "",
+                        "lease_expires_at": "",
+                        "updated_at": now,
+                    },
+                    require_owner=owner,
+                )
+                if not completed:
+                    raise _BatchError(
+                        ERROR_BATCH_CLAIM_LOST,
+                        f"batch {row.batch_id} claim expired before commit",
+                    )
+                consumed = sum(
+                    1
+                    for message in session.messages
+                    if (seq := _positive_seq(message)) is not None
+                    and seq <= row.end_seq
+                )
+                set_extraction_seq(
+                    conn,
+                    row.session_key,
+                    generation=row.generation,
+                    last_seq=row.end_seq,
+                    source=row.reason or request.reason or "extraction",
+                    extracted_at=now,
+                    # 旧 ``last_count`` 只作兼容镜像：记录已消费条数，不再驱动进度。
+                    last_count=consumed,
+                )
+        except _BatchError as exc:
+            # 认领已失效说明另一个执行方可能正在提交：不能把它的批次标成失败。
+            if exc.code != ERROR_BATCH_CLAIM_LOST:
+                self._record_batch_failure(row.batch_id, exc.code, exc.detail)
+            return BatchReceipt(
+                batch_id=row.batch_id,
+                status="failed",
+                through_seq=row.end_seq,
+                error_code=exc.code,
+            )
+        except Exception as exc:  # noqa: BLE001 - 事务已回滚，报告为持久化失败
+            logger.opt(exception=exc).warning(
+                "memory batch {} persistence failed", row.batch_id
+            )
+            self._record_batch_failure(row.batch_id, ERROR_PERSISTENCE_FAILED, str(exc))
+            return BatchReceipt(
+                batch_id=row.batch_id,
+                status="failed",
+                through_seq=row.end_seq,
+                error_code=ERROR_PERSISTENCE_FAILED,
+            )
+
+        # 向量刷新在数据库提交之后：失败只记 dirty（index hook 自身绝不抛）。
+        for memory in indexed:
+            index_memory_best_effort(memory)
+        logger.info(
+            "memory batch completed: batch={} session={} range=({}, {}] memories={} episodes={} skipped={}",
+            row.batch_id,
+            row.session_key,
+            row.start_seq,
+            row.end_seq,
+            len(persisted.memory_ids),
+            len(persisted.episode_ids),
+            skipped,
+        )
+        return BatchReceipt(
+            batch_id=row.batch_id,
+            status="completed",
+            through_seq=row.end_seq,
+            memory_ids=tuple(persisted.memory_ids),
+            episode_ids=tuple(persisted.episode_ids),
+        )
+
+    def _restore_checkpointed_result(
+        self, row: ExtractionBatchRow,
+    ) -> LLMExtractionResult:
+        """从两轨 checkpoint 还原过滤前的候选（不再调模型）。"""
+        try:
+            semantic = json.loads(row.semantic_output or "{}")
+        except (json.JSONDecodeError, ValueError):
+            semantic = {}
+        if not isinstance(semantic, dict):
+            semantic = {}
+        memories = [
+            item
+            for raw in semantic.get("memories") or ()
+            if (item := _memory_item_from_dict(raw)) is not None
+        ]
+        episode_payload: dict[str, Any] | None = None
+        if row.episode_checkpoint_at:
+            try:
+                parsed = json.loads(row.episode_output or "{}")
+            except (json.JSONDecodeError, ValueError):
+                parsed = {}
+            if isinstance(parsed, dict):
+                episode_payload = parsed
+        # 空 dict 表示「有效空输出」：与旧的 (None, None) 一致，不产生空 episode 行。
+        episode = _coerce_episode_item(episode_payload) if episode_payload else None
+        return LLMExtractionResult(
+            memories=memories,
+            episode=episode,
+        )
+
+    def _get_batch(self, batch_id: str) -> ExtractionBatchRow | None:
+        with self.database.connect() as conn:
+            return get_extraction_batch(conn, batch_id)
+
+    def _update_batch(
+        self,
+        batch_id: str,
+        updates: dict[str, Any],
+        *,
+        owner: str,
+    ) -> bool:
+        with self.database.connect() as conn:
+            return update_extraction_batch(
+                conn, batch_id, updates=updates, require_owner=owner
+            )
+
+    def _record_batch_failure(self, batch_id: str, code: str, detail: str) -> None:
+        """把失败写回批次行；写回失败只告警（原始回执已经带 error_code）。"""
+        now = _now_iso()
+        try:
+            with self.database.connect() as conn:
+                update_extraction_batch(
+                    conn,
+                    batch_id,
+                    updates={
+                        "status": "failed",
+                        "error_code": code,
+                        "error_detail": detail[:2000],
+                        "claim_owner": "",
+                        "lease_expires_at": "",
+                        "updated_at": now,
+                    },
+                )
+        except Exception as exc:  # noqa: BLE001 - 记录失败不能掩盖原始结果
+            logger.warning("memory batch failure record skipped for {}: {}", batch_id, exc)
+
+    @staticmethod
+    def _lease_deadline() -> str:
+        return (
+            datetime.now(timezone.utc) + timedelta(seconds=BATCH_LEASE_SECONDS)
+        ).isoformat()
+
+    async def _submit_session_request(
+        self,
+        session: Session,
+        *,
+        source: str,
+        start_hint: int | None = None,
+    ) -> ExtractionResult:
+        """会话 → 请求 → 回执 → 旧返回类型（薄适配共用）。"""
+        try:
+            resolved = self._resolve_session(session)
+        except _BatchError as exc:
+            logger.warning(
+                "memory extraction rejected for session {}: {} ({})",
+                session.key,
+                exc.code,
+                exc.detail,
+            )
+            return ExtractionResult(failed_tracks=["batch"])
+        request = self._request_for_session(resolved, source)
+        receipt = await self.process_request(
+            request,
+            session=resolved,
+            start_hint=start_hint,
+        )
+        return self._to_extraction_result(receipt)
+
+    def _to_extraction_result(self, receipt: BatchReceipt) -> ExtractionResult:
+        """回执 → ``ExtractionResult``：失败以 failed_tracks 明确报告。"""
+        if receipt.status == "completed":
+            return ExtractionResult(
+                memory_ids=list(receipt.memory_ids),
+                episode_ids=list(receipt.episode_ids),
+                skipped=self._committed_skipped(receipt.batch_id),
+            )
+        failed_tracks = self._failed_tracks(receipt.batch_id)
+        if not failed_tracks:
+            failed_tracks = ["batch"]
+        return ExtractionResult(failed_tracks=failed_tracks)
+
+    def _committed_skipped(self, batch_id: str) -> int:
+        row = self._get_batch(batch_id)
+        if row is None:
+            return 0
+        try:
+            stored = json.loads(row.semantic_output or "{}")
+        except (json.JSONDecodeError, ValueError):
+            return 0
+        committed = stored.get("committed") if isinstance(stored, dict) else None
+        if not isinstance(committed, dict):
+            return 0
+        try:
+            return int(committed.get("skipped") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _failed_tracks(self, batch_id: str) -> list[str]:
+        row = self._get_batch(batch_id)
+        if row is None:
+            return []
+        return [
+            track
+            for track, checkpoint in (
+                ("semantic", row.semantic_checkpoint_at),
+                ("episode", row.episode_checkpoint_at),
+            )
+            if not checkpoint
+        ]
 
     # ------------------------------------------------------------------
     # Quick Facts：压缩后规则信号提取（无需 LLM；plan §10 Task 9）
@@ -811,17 +1892,19 @@ class MemoryExtractor:
                 for fragment in fragments
             ]
             row_workspace_id = self._row_workspace_id(session)
-            existing = self._load_existing_memories(candidates, workspace_id=row_workspace_id)
-            filtered = self._apply_filters(
-                LLMExtractionResult(memories=candidates),
-                existing,
-            )
+            filtered = self._apply_filters(LLMExtractionResult(memories=candidates))
             if not filtered.memories:
                 return 0
+            logger.debug(
+                "quick facts candidates: session={} workspace_id={} kept={}",
+                session.key,
+                row_workspace_id,
+                len(filtered.memories),
+            )
             # 只填 memories（无 episode / action_nodes），故 _persist 仅写 memories，
             # source 仅用于（可能存在的）episode 映射，此处取压缩触发语义。
             persisted = self._persist(filtered, session, source="context_compress")
-            return len(persisted.memory_ids)
+            return persisted.created_count
         except Exception as exc:  # noqa: BLE001 - 快速事实失败绝不能上抛
             logger.opt(exception=exc).warning("quick facts extraction failed: {}", exc)
             return 0
@@ -832,79 +1915,24 @@ class MemoryExtractor:
         last_extracted_index: int,
         *,
         source: str = "topic_change",
-        cited_memories: list[dict[str, Any]] | None = None,
     ) -> ExtractionResult:
-        """增量抽取：只把 ``messages[last_extracted_index:]`` 喂进完整四阶段流水线。
+        """增量抽取薄适配：按批次协议消费 ``(last_seq, through_seq]``。
 
-        与 :meth:`extract_session` 的唯一差别是**输入切片**：流水线本身完全一致，
-        因此语义记忆（``SEMANTIC_EXTRACTION_PROMPT`` 的 ``memories[]`` 画像 +
-        ``experiences[]`` 经验）与 episode 都会正常产出并落库。
+        流水线与 :meth:`extract_session` 完全一致（语义轨 + 情节轨都会跑），
+        差别只在来源标签。
 
-        ``cited_memories``（WU-B）：本次检索注入的历史记忆 ``[{id, content}]``，
-        透传给 ProfileExtractor 做引用评分；``useful=true`` 的记忆在 ``_persist``
-        阶段自增 ``access_count``。为 ``None``/空时整条链路与现状一致。
+        ``last_extracted_index`` 只为兼容旧签名保留：进度由批次协议的
+        ``(generation, last_seq)`` 维护，适配层不得各自推进游标。
 
-        历史注记：本方法原名下是 rule-only（不调 LLM）实现，那是为 T5 话题切换
-        设计的轻量路径；WU-A 把它接成 idle 入口后未同步升级，导致正常聊天既不调
-        LLM 也不产 episode。此处按 plan 原意（决策 #3「让 LLM 跑完」）恢复完整流水线。
-
-        失败隔离：任何异常仅 warning，并返回空 :class:`ExtractionResult`。
+        失败隔离：进程异常仅 warning 并返回空 :class:`ExtractionResult`；
+        模型/解析失败通过 ``failed_tracks`` 明确报告，不伪装成空成功。
         """
         if not session.messages:
             return ExtractionResult()
-        start = max(0, last_extracted_index)
-        new_messages = session.messages[start:]
-        if not new_messages:
-            logger.info(
-                "{} extraction: no new messages for session {} (start={})",
-                source,
-                session.key,
-                start,
-            )
-            return ExtractionResult()
-
-        # Session 仅在 TYPE_CHECKING 下导入，构造切片需要运行时引用。
-        from nanobot.session.manager import Session as _Session
-
-        slice_session = _Session(
-            key=session.key,
-            messages=[dict(message) for message in new_messages],
-            created_at=session.created_at,
-            metadata=dict(session.metadata),
-        )
-        try:
-            system = self._system_extract(slice_session)
-            llm_result = await self._llm_extract(
-                slice_session, system, cited_memories=cited_memories
-            )
-            row_workspace_id = self._row_workspace_id(slice_session)
-            existing = self._load_existing_memories(
-                llm_result.memories, workspace_id=row_workspace_id
-            )
-            filtered = self._apply_filters(llm_result, existing)
-            persisted = self._persist(filtered, slice_session, source=source)
-        except Exception as exc:  # noqa: BLE001 - 增量抽取失败绝不能上抛
-            logger.opt(exception=exc).warning("incremental extraction failed: {}", exc)
-            return ExtractionResult()
-
-        skipped = len(llm_result.memories) - len(filtered.memories)
-        logger.info(
-            "{} extraction for session {}{}: {} new messages -> {} memories, {} episodes "
-            "(skipped={} failed_tracks={})",
-            source,
-            session.key,
-            session_label_suffix(session_label(session.messages, session.metadata)),
-            len(new_messages),
-            len(persisted.memory_ids),
-            len(persisted.episode_ids),
-            skipped,
-            llm_result.failed_tracks,
-        )
-        return ExtractionResult(
-            memory_ids=persisted.memory_ids,
-            episode_ids=persisted.episode_ids,
-            skipped=skipped,
-            failed_tracks=list(llm_result.failed_tracks),
+        return await self._submit_session_request(
+            session,
+            source=source,
+            start_hint=max(0, int(last_extracted_index)),
         )
 
     def _has_enough_idle_signal(self, messages: list[dict[str, Any]]) -> bool:
@@ -915,12 +1943,8 @@ class MemoryExtractor:
         - 内容：切片只有一条 user 消息、其文本短于 :data:`IDLE_MIN_SINGLE_USER_CHARS`
           且切片内无工具调用 → 无实质内容（例如「你好」）。有工具调用则豁免。
 
-        第二条对齐 ``SessionEndOrchestrator`` 的 L2；第一条**不照搬**其 L1（``< 3``），
-        理由见 :data:`IDLE_MIN_NEW_MESSAGES`。
-
-        与编排器版本的差别：此处用 :func:`_content_text` 归一化 content。真实转录的
-        content 可能是 content-block 列表，编排器里直接 ``.strip()`` 会抛
-        ``AttributeError``。
+        用 :func:`_content_text` 归一化 content：真实转录的 content 可能是
+        content-block 列表，直接 ``.strip()`` 会抛 ``AttributeError``。
         """
         if len(messages) < self.IDLE_MIN_NEW_MESSAGES:
             return False
@@ -935,63 +1959,57 @@ class MemoryExtractor:
     async def run_idle_extraction(
         self,
         session: Session,
-        *,
-        cited_memory_ids: list[str] | None = None,
     ) -> ExtractionResult:
-        """Idle 定时器触发的入口：读 state、调 incremental、推进 state。
+        """Idle 定时器触发的薄适配：按 ``(generation, last_seq)`` 提交提取请求。
 
-        行为契约（plan WU-A Task 2）：
-        - ``current_count <= last_count``（无新增消息或已覆盖）：return 空结果，
-          不调 LLM、不动 state。
+        行为契约：
+        - ``through_seq <= last_seq``（无新增消息或已覆盖）：return 空结果，
+          不调 LLM、不动进度。
         - 新增切片未过信号门槛（``_has_enough_idle_signal``）：return 空结果，
-          **不动 state** —— 被跳过的消息留在增量窗口内，用户继续发言时会随下一段
-          切片一并抽取。代价：若用户此后不再发言，这段内容**不会入库**（idle 定时器
-          只在 ``after_run`` / ``on_finally`` 重新装备，会话结束编排器当前是死路径，
-          没有兜底）。
-        - 若 ``extract_incremental`` 成功：UPSERT ``state.last_count = current_count``，
-          ``source="idle"``。
-        - 若 ``extract_incremental`` 抛异常：state **不**推进（保留旧值，下次
-          重试），warning + 返回空 :class:`ExtractionResult`，不再上抛。
-        - state 行缺失时按 ``last_count=0`` 处理（即首跑等价于一次完整增量扫描）。
-
-        ``cited_memory_ids``（WU-B）：最近一次检索注入的记忆 id 列表。extractor
-        内部解析成 ``[{id, content}]`` 后传给 :meth:`extract_incremental` 做引用
-        评分；``useful=true`` 的记忆在 ``_persist`` 自增 ``access_count``。
-        为 ``None``/空时与现状一致。
+          **不动进度** —— 被跳过的消息留在待消费窗口内，用户继续发言时会随
+          下一段切片一并抽取。
+        - 通过门槛后委托 :meth:`process_request`：两轨各自 checkpoint，两轨就绪
+          才在同一事务写入事实/情节并推进 ``last_seq``。本方法不再单独推进任何
+          游标。
+        - 任何异常仅 warning，返回空 :class:`ExtractionResult`（不静默吞 LLM 失败：
+          失败会以 ``failed_tracks`` 报告）。
 
         Args:
-            session: 当前会话；其 ``messages`` 是当前转录。
+            session: 当前会话；其 ``messages`` 是当前转录（hook 传的是重建转录，
+                持久坐标由 :meth:`load_session` 补齐）。
 
         Returns:
             :class:`ExtractionResult`。无新增消息或失败时是空结果。
         """
         session_key = session.key
         try:
-            with self.database.connect() as conn:
-                state = get_extraction_state(conn, session_key)
-            last_count = state.last_count if state is not None else 0
-            current_count = len(session.messages)
+            resolved = self._resolve_session(session)
+            generation = resolved.memory_generation
+            through = self._through_seq(resolved)
+            last_seq = self._last_consumed_seq(resolved, generation)
             logger.info(
-                "idle extraction start for session {}{}: messages={} last_extracted={}",
+                "idle extraction start for session {}{}: through_seq={} last_seq={}",
                 session_key,
                 session_label_suffix(session_label(session.messages, session.metadata)),
-                current_count,
-                last_count,
+                through,
+                last_seq,
             )
-            if current_count <= last_count:
+            if through <= last_seq:
                 logger.info(
                     "idle extraction skipped for session {}: no new messages ({} <= {})",
                     session_key,
-                    current_count,
-                    last_count,
+                    through,
+                    last_seq,
                 )
                 return ExtractionResult()
 
             # 信号门槛：琐碎切片不调 LLM，否则一句「你好」也会触发两路 LLM 提取。
-            # 刻意**不推进 state** —— 被跳过的消息留在增量窗口内，用户继续发言时
-            # 会随下一段切片一并抽取。注意这不等于「一定不丢」：用户此后不再发言时
-            # 这段内容不会入库（idle 定时器只在 after_run / on_finally 重新装备）。
-            new_slice = session.messages[last_count:]
+            # 刻意**不推进 last_seq** —— 被跳过的消息留在待消费窗口内，用户继续
+            # 发言时会随下一段切片一并抽取。
+            new_slice = [
+                message
+                for seq, message in self._slice_evidence(resolved, last_seq, through)
+            ]
             if not self._has_enough_idle_signal(new_slice):
                 logger.info(
                     "idle extraction skipped for session {}: {} new message(s) below "
@@ -1004,40 +2022,7 @@ class MemoryExtractor:
                 )
                 return ExtractionResult()
 
-            # WU-B：把最近一次检索注入的记忆 id 解析成 ``[{id, content}]``
-            # 透传给增量抽取，供 ProfileExtractor 引用评分（useful=true → 自增
-            # access_count）。解析失败或记忆已删时静默丢弃该条。
-            cited_memories = _resolve_cited_memories(self.database, cited_memory_ids)
-
-            # 调用增量抽取。WU-B 注记：idle 现在跑完整流水线（LLM semantic +
-            # episode），comment 里的「仅规则信号」为历史遗留，已由 WU-A 纠正。
-            result = await self.extract_incremental(
-                session,
-                last_extracted_index=last_count,
-                source="idle",
-                cited_memories=cited_memories,
-            )
-
-            # 成功后推进 state。失败的增量结果（memory_ids 为空）也算「执行过」，
-            # 因为它是确定性无副作用的纯规则扫描；保留 last_count 推进语义
-            # 可避免每次 idle 触发都重扫同一段历史。
-            now = _now_iso()
-            try:
-                with self.database.connect() as conn:
-                    upsert_extraction_state(
-                        conn,
-                        session_key,
-                        last_count=current_count,
-                        source="idle",
-                        extracted_at=now,
-                    )
-            except Exception as exc:  # noqa: BLE001 - state 推进失败不能阻断
-                logger.warning(
-                    "run_idle_extraction: failed to advance state for session {}: {}",
-                    session_key,
-                    exc,
-                )
-            return result
+            return await self._submit_session_request(resolved, source="idle")
         except Exception as exc:  # noqa: BLE001 - 整个路径绝不上抛
             logger.opt(exception=exc).warning(
                 "run_idle_extraction failed for session {}: {}", session_key, exc
@@ -1053,79 +2038,6 @@ class MemoryExtractor:
             logger.warning(
                 "reset_session_extraction_state failed for {}: {}", session_key, exc
             )
-
-    # ------------------------------------------------------------------
-    # S2b: 用户画像提取（SessionEndOrchestrator Step 2a）
-    # ------------------------------------------------------------------
-
-    async def extract_user_profile(
-        self,
-        transcript: list[dict],
-        episode_id: str | None,
-        cited: Any = None,
-    ) -> None:
-        """从 transcript 提取用户画像（偏好、习惯等）。
-
-        L3 守卫：用户消息 < 10 字符时跳过（内容过短无法推断用户画像）。
-        失败隔离：任何异常仅 warning，不上抛。
-        """
-        try:
-            # L3: 过滤短用户消息
-            user_turns = [
-                t
-                for t in transcript
-                if t.get("role") == "user"
-                and len((t.get("content") or "").strip()) >= 10
-            ]
-            if not user_turns:
-                logger.debug("[S2a] skip extract_user_profile: no valid user messages (>= 10 chars)")
-                return
-
-            # TODO: 调用 LLM 提取用户画像（目前为占位实现）
-            logger.debug(
-                "[S2a] extract_user_profile: {} valid user messages (of {} total)",
-                len(user_turns),
-                len(transcript),
-            )
-        except Exception as exc:  # noqa: BLE001 - 失败隔离
-            logger.warning("[S2a] extract_user_profile failed: {}", exc)
-
-    # ------------------------------------------------------------------
-    # S2c: 任务经验提取（SessionEndOrchestrator Step 2b，feature flag）
-    # ------------------------------------------------------------------
-
-    async def extract_experience(
-        self,
-        transcript: list[dict],
-        episode_id: str | None,
-    ) -> None:
-        """从 transcript 提取任务执行经验（方法、技巧等）。
-
-        L4 守卫：assistant 轮次 < 2 时跳过（无足够交互可提取经验）。
-        失败隔离：任何异常仅 warning，不上抛。
-        """
-        try:
-            # L4: 检查 assistant 轮次
-            assistant_turns = [
-                t
-                for t in transcript
-                if t.get("role") == "assistant" and t.get("content")
-            ]
-            if len(assistant_turns) < 2:
-                logger.debug(
-                    "[S2b] skip extract_experience: {} assistant turns (< 2)",
-                    len(assistant_turns),
-                )
-                return
-
-            # TODO: 调用 LLM 提取任务经验（目前为占位实现）
-            logger.debug(
-                "[S2b] extract_experience: {} assistant turns (of {} total)",
-                len(assistant_turns),
-                len(transcript),
-            )
-        except Exception as exc:  # noqa: BLE001 - 失败隔离
-            logger.warning("[S2b] extract_experience failed: {}", exc)
 
     # ------------------------------------------------------------------
     # 阶段1：系统提取（无 LLM）
@@ -1156,53 +2068,71 @@ class MemoryExtractor:
         session: Session,
         system: SystemExtractionResult,
         *,
-        cited_memories: list[dict[str, Any]] | None = None,
+        tracks: Sequence[str] = ("semantic", "episode"),
     ) -> LLMExtractionResult:
-        semantic_messages = self._build_prompt_messages(
-            SEMANTIC_EXTRACTION_PROMPT, session, system
+        """并发跑指定轨道并解析结果；``tracks`` 让批次只重试失败轨。"""
+        run_semantic = "semantic" in tracks
+        run_episode = "episode" in tracks
+        semantic_messages = (
+            self._build_prompt_messages(SEMANTIC_EXTRACTION_PROMPT, session, system)
+            if run_semantic
+            else []
         )
-        episode_messages = self._build_prompt_messages(
-            EPISODE_EXTRACTION_PROMPT, session, system
+        episode_messages = (
+            self._build_prompt_messages(EPISODE_EXTRACTION_PROMPT, session, system)
+            if run_episode
+            else []
         )
 
         # semantic 路交给 ProfileExtractor（S3 Track 1）：复用上面同一份 prompt
         # （含阶段1 系统提取结果），一次调用同时拿到 memories / experiences。
-        # WU-B：非空 ``cited_memories`` 时，ProfileExtractor 把引用评分段追加到
-        # 该 prompt 尾部，同一次调用返回 ``citation_scores``。
         raw = await asyncio.gather(
-            self.profile_extractor.extract(
-                transcript=session.messages,
-                episode_id="",
-                cited_memories=cited_memories,
-                prompt_messages=semantic_messages,
-                timeout=self.LLM_TIMEOUT,
+            (
+                self.profile_extractor.extract(
+                    transcript=session.messages,
+                    episode_id="",
+                    prompt_messages=semantic_messages,
+                    timeout=self.LLM_TIMEOUT,
+                )
+                if run_semantic
+                else _skipped_track()
             ),
-            self._call_track("episode", episode_messages),
+            self._call_track("episode", episode_messages) if run_episode else _skipped_track(),
             return_exceptions=True,
         )
 
         failed_tracks: list[str] = []
+        track_errors: dict[str, str] = {}
         profile: ProfileExtractionResult | None = None
         episode_payload: dict[str, Any] | None = None
 
         profile_raw, episode_raw = raw[0], raw[1]
 
-        if isinstance(profile_raw, BaseException):
-            failed_tracks.append("semantic")
-            logger.warning("memory extraction track semantic raised: {}", profile_raw)
-        else:
-            profile = profile_raw
-            if profile.error is not None:
+        if run_semantic:
+            if isinstance(profile_raw, BaseException):
                 failed_tracks.append("semantic")
+                track_errors["semantic"] = f"raised: {profile_raw}"
+                logger.warning("memory extraction track semantic raised: {}", profile_raw)
+            else:
+                profile = cast(ProfileExtractionResult | None, profile_raw)
+                if profile is not None and profile.error is not None:
+                    failed_tracks.append("semantic")
+                    track_errors["semantic"] = profile.error
+                    profile = None
 
-        if isinstance(episode_raw, BaseException):
-            failed_tracks.append("episode")
-            logger.warning("memory extraction track episode raised: {}", episode_raw)
-        else:
-            payload, error = episode_raw
-            if error is not None:
+        if run_episode:
+            if isinstance(episode_raw, BaseException):
                 failed_tracks.append("episode")
-            episode_payload = payload
+                track_errors["episode"] = f"raised: {episode_raw}"
+                logger.warning("memory extraction track episode raised: {}", episode_raw)
+            else:
+                payload_raw, error = cast(
+                    "tuple[dict[str, Any] | None, str | None]", episode_raw
+                )
+                if error is not None:
+                    failed_tracks.append("episode")
+                    track_errors["episode"] = error
+                episode_payload = payload_raw
 
         memories: list[LLMMemoryItem] = []
         if profile is not None:
@@ -1210,20 +2140,22 @@ class MemoryExtractor:
             memories.extend(_profile_item_to_llm(item) for item in profile.experiences)
 
         episode = _coerce_episode_item(episode_payload) if episode_payload is not None else None
+        semantic_payload = (
+            {"memories": [_memory_item_to_dict(item) for item in memories]}
+            if run_semantic and "semantic" not in failed_tracks
+            else None
+        )
 
         return LLMExtractionResult(
             memories=memories,
             episode=episode,
             failed_tracks=failed_tracks,
             action_nodes=list(system.action_nodes),
-            citation_scores=(
-                list(profile.scores) if profile is not None else []
-            ),
-            cited_memory_ids=[
-                str(item.get("id") or "")
-                for item in (cited_memories or [])
-                if item.get("id")
-            ],
+            attempted_tracks=[track for track in tracks],
+            track_errors=track_errors,
+            semantic_payload=semantic_payload,
+            # 有效空输出（模型明确没有内容）落 ``{}``，仍算成功 checkpoint。
+            episode_payload=episode_payload or {} if run_episode and "episode" not in failed_tracks else None,
         )
 
     async def _call_track(
@@ -1314,42 +2246,13 @@ class MemoryExtractor:
         """会话工作区对应的记忆隔离键；无工作区时归全局。"""
         return session_memory_workspace_id(session)
 
-    def _load_existing_memories(
-        self, candidates: list[LLMMemoryItem], *, workspace_id: str
-    ) -> list[Memory]:
-        types: set[str] = set()
-        for item in candidates:
-            type_key = item.type.strip().lower()
-            if type_key in _VALID_TYPES:
-                types.add(type_key)
+    def _apply_filters(self, llm_result: LLMExtractionResult) -> FilteredExtractionResult:
+        """阶段3：只保留候选合法性判断，不再做写入决策（D08）。
 
-        existing: list[Memory] = []
-        if not types:
-            return existing
-        with self.database.connect() as conn:
-            for type_key in types:
-                existing.extend(
-                    list_memories(
-                        conn,
-                        type=MemoryType(type_key),
-                        workspace_id=workspace_id,
-                        limit=self.EXISTING_MEMORY_LIMIT,
-                    )
-                )
-        return existing
-
-    def _apply_filters(
-        self,
-        llm_result: LLMExtractionResult,
-        existing_memories: list[Memory],
-    ) -> FilteredExtractionResult:
-        existing_hashes = {
-            compute_content_hash(m.content, m.subject, m.predicate) for m in existing_memories
-        }
-        existing_by_type: dict[str, list[Memory]] = {}
-        for memory in existing_memories:
-            existing_by_type.setdefault(memory.type.value, []).append(memory)
-
+        保留：任务产物/AI 自答过滤、合法 type/priority、批内精确去重。
+        去掉：与既有记忆的精确哈希丢弃、字符相似度 >0.8 丢弃——重复、纠正、
+        冲突、多值全部交给 :func:`apply_memory_changes` 的决策表。
+        """
         kept: list[LLMMemoryItem] = []
         seen_hashes: set[str] = set()
         skipped_reasons: dict[str, int] = {}
@@ -1376,12 +2279,8 @@ class MemoryExtractor:
                 continue
 
             content_hash = compute_content_hash(content, item.subject, item.predicate)
-            if content_hash in existing_hashes or content_hash in seen_hashes:
-                _skip("duplicate")
-                continue
-
-            if self._has_high_similarity(content, type_key, existing_by_type):
-                _skip("high_similarity")
+            if content_hash in seen_hashes:
+                _skip("duplicate_in_batch")
                 continue
 
             seen_hashes.add(content_hash)
@@ -1394,180 +2293,12 @@ class MemoryExtractor:
             memories=kept,
             episode=llm_result.episode,
             action_nodes=list(llm_result.action_nodes),
-            citation_scores=list(llm_result.citation_scores),
-            cited_memory_ids=list(llm_result.cited_memory_ids),
             skipped_reasons=skipped_reasons,
         )
-
-    @staticmethod
-    def _has_high_similarity(
-        content: str,
-        type_key: str,
-        existing_by_type: dict[str, list[Memory]],
-    ) -> bool:
-        for memory in existing_by_type.get(type_key, []):
-            if ngram_similarity(content, memory.content) > _HIGH_SIMILARITY:
-                return True
-        return False
 
     # ------------------------------------------------------------------
     # 阶段4：持久化
     # ------------------------------------------------------------------
-
-    def _safe_write_with_fallback(
-        self,
-        conn: Any,
-        *,
-        kind: str,
-        item: dict[str, Any],
-        writer: Any,
-    ) -> bool:
-        """执行单条 DB 写入;失败时把 payload 落 ``fallback_dir`` 等下次重放。
-
-        Args:
-            conn: 当前事务内的 ``sqlite3.Connection``(由 ``_persist`` 的
-                ``with self.database.connect() as conn:`` 提供)。
-            kind: ``"memory"`` / ``"episode"`` / ``"backfill"``。
-            item: 载荷 dict(对应 ``Memory.to_row()`` / ``Episode.to_row()`` 或
-                backfill 的 ``{memory_id, episode_id}``)。
-            writer: 真正写入 DB 的可调用对象,签名 ``writer(conn) -> None``,
-                抛任意异常即视为写入失败。
-
-        Returns:
-            True 表示实际写入 DB 成功,False 表示已落 fallback 文件(或 fallback
-            也失败,仅 warning)。调用方据此决定是否把 id 计入
-            ``saved_memory_ids`` / ``saved_episode_ids``。
-        """
-        try:
-            writer(conn)
-            return True
-        except Exception as exc:  # noqa: BLE001 - 失败隔离
-            # MAJOR #1: 失败后 rollback 撤销未提交写入,避免事务残留污染后续操作。
-            # rollback 自身失败必须吞掉,fallback 是兜底,绝不能被 rollback 阻断。
-            try:
-                conn.rollback()
-            except Exception:
-                logger.debug("rollback after failed write also failed (ignored)")
-            fallback_dir = self.fallback_dir
-            if fallback_dir is None:
-                logger.warning(
-                    "memory write failed and no fallback_dir configured: {} (kind={})",
-                    exc,
-                    kind,
-                )
-                return False
-            try:
-                ts = _now_iso()
-                uid = uuid.uuid4().hex[:8]
-                safe_kind = str(kind).replace("/", "_").replace("\\", "_")
-                # Windows 文件名保留字符处理:ISO 时间戳里的 `:` 不能出现在 NTFS
-                # 文件名里(`:` 是设备名分隔符)。替换为 `-` 保持可读。`+` 虽合法
-                # 但与 `:` 同源是 ISO 偏移符号,一起换更稳。
-                safe_ts = ts.replace(":", "-").replace("+", "-")
-                path = fallback_dir / f"{safe_ts}_{safe_kind}_{uid}.json"
-                fallback_dir.mkdir(parents=True, exist_ok=True)
-                # MAJOR #2 / OWASP LLM05: 落盘前对文本字段 redact,防止凭据
-                # 残留到 fallback JSON 中。只处理 content / subject / predicate
-                # 三个文本字段(tags 数组不在本改动范围);用 isinstance 守卫保证
-                # 缺字段/非字符串时原样保留。
-                payload_item = dict(item)
-                for text_key in ("content", "subject", "predicate"):
-                    value = payload_item.get(text_key)
-                    if isinstance(value, str):
-                        payload_item[text_key] = _redact(value)
-                payload = {
-                    "kind": safe_kind,
-                    "item": payload_item,
-                    "attempt": ts,
-                    "error": str(exc),
-                }
-                path.write_text(
-                    json.dumps(payload, ensure_ascii=False, default=str),
-                    encoding="utf-8",
-                )
-                logger.warning(
-                    "memory write failed; saved to fallback {} ({})",
-                    path.name,
-                    exc,
-                )
-            except Exception as file_exc:  # noqa: BLE001 - fallback 自身失败也吞掉
-                logger.warning(
-                    "memory fallback write also failed for kind={} ({}); original={}",
-                    kind,
-                    file_exc,
-                    exc,
-                )
-            return False
-
-    def _merge_into_existing(
-        self,
-        conn: sqlite3.Connection,
-        item: LLMMemoryItem,
-        provenance: dict[str, Any] | None = None,
-        *,
-        workspace_id: str,
-    ) -> str | None:
-        """命中同一 ``subject``+``predicate`` 的既有画像时增量合并。
-
-        Returns:
-            合并到的既有记忆 id；``None`` 表示未命中（或 subject/predicate 不完整），
-            调用方应按新建处理。
-
-        ``merge_profile_incremental`` 的三态：
-        - ``update``                 → 覆盖 content / importance
-        - ``keep_old_with_conflict`` → **保留旧 content**，新值 id 记入 ``metadata.conflicts_with``
-        - ``create_new``             → 交调用方新建
-
-        失败隔离：合并过程任何异常仅 warning，返回 ``None``（退化为新建），
-        绝不让画像合并失败阻断整批落库。
-        """
-        existing = find_memory_by_subject_predicate(
-            conn, item.subject, item.predicate, workspace_id=workspace_id
-        )
-        if existing is None:
-            return None
-
-        result = merge_profile_incremental(
-            {
-                "id": existing.id,
-                "content": existing.content,
-                "subject": existing.subject,
-                "predicate": existing.predicate,
-                "type": existing.type.value,
-                "importance": existing.importance_score,
-            },
-            {
-                "content": item.content,
-                "subject": item.subject,
-                "predicate": item.predicate,
-                "type": item.type,
-                "importance": item.importance,
-                "is_update": True,
-            },
-        )
-        if result.action == "create_new":
-            return None
-        try:
-            from nanobot.memory.provenance import merge_workspace_provenance
-
-            metadata = merge_workspace_provenance(existing.metadata, provenance or {})
-            if result.action == "update" and result.merged is not None:
-                update_memory(
-                    conn,
-                    existing.id,
-                    content=result.merged.get("content") or existing.content,
-                    importance_score=result.merged.get("importance"),
-                    metadata=metadata,
-                )
-            elif result.action == "keep_old_with_conflict" and result.existing is not None:
-                metadata["conflicts_with"] = list(
-                    result.existing.get("conflicts_with") or []
-                )
-                update_memory(conn, existing.id, metadata=metadata)
-        except Exception as exc:  # noqa: BLE001 - 合并失败退化为新建，不阻断落库
-            logger.warning("profile merge failed for memory {}: {}", existing.id, exc)
-            return None
-        return existing.id
 
     def _persist(
         self,
@@ -1575,11 +2306,47 @@ class MemoryExtractor:
         session: Session,
         source: str,
     ) -> PersistenceResult:
+        """单事务写入事实/情节（旧调用点保留；失败直接抛出，不再落 fallback）。
+
+        批次协议路径（:meth:`_finalize_batch`）复用 :meth:`_write_extraction`，
+        把 ``last_seq`` 与批次完成状态并入同一事务。
+        """
         now = _now_iso()
+        with self.database.connect() as conn:
+            persisted, created = self._write_extraction(
+                conn,
+                filtered,
+                session=session,
+                source=source,
+                now=now,
+                evidence_key=f"legacy:{session.key}:{now}",
+            )
+        for memory in created:
+            index_memory_best_effort(memory)
+        return persisted
+
+    def _write_extraction(
+        self,
+        conn: sqlite3.Connection,
+        filtered: FilteredExtractionResult,
+        *,
+        session: Session,
+        source: str,
+        now: str,
+        evidence_key: str = "",
+    ) -> tuple[PersistenceResult, list[Memory]]:
+        """在调用方事务内写入本批事实与情节，返回结果与待建索引的新记忆。
+
+        事实/记忆的写入决策全部委托 :func:`apply_memory_changes`（D08：写入判定
+        只有一个位置）。本方法只负责构造变更、写 episode、回填来源关联。
+
+        不 commit、不调 LLM、不刷新向量/MD：事务由调用方持有（契约 §2.6）。
+        任何写入异常直接上抛，由调用方回滚并返回结构化失败回执；
+        D07 之后不再有「单条落 fallback」的降级路径。
+        """
         row_workspace_id = self._row_workspace_id(session)
         provenance = extraction_provenance(session, source, workspace_id=row_workspace_id)
         provenance["store_workspace_id"] = self.workspace_id
-        saved_memory_ids: list[str] = []
         saved_episode_ids: list[str] = []
 
         # 归属判定结论必须落在日志里：记忆隔离按「写进哪个 workspace_id」生效，
@@ -1596,27 +2363,11 @@ class MemoryExtractor:
             source,
         )
 
-        # WU-3B: 每条真实写入通过 _safe_write_with_fallback 路由。
-        # 成功 → 返回 True → id 进入 saved_*_ids;失败 → 整条 payload 落 fallback
-        # 文件 → 返回 False → id 不进 saved_*_ids(对外统计保持「真实成功」语义)。
-        with self.database.connect() as conn:
-            # 阶段 4a：写入 memories（先写，拿到 ID 供 episode 反向引用）
-            memory_by_subject: dict[str, str] = {}
-            for item in filtered.memories:
-                # S3 Track 1：命中同一 subject+predicate 的既有画像 → 增量合并，
-                # 不再新建。修复「同一偏好被反复抽成多条」的根因。
-                merged_id = self._merge_into_existing(
-                    conn, item, provenance, workspace_id=row_workspace_id
-                )
-                if merged_id is not None:
-                    saved_memory_ids.append(merged_id)
-                    if item.subject:
-                        memory_by_subject.setdefault(item.subject, merged_id)
-                    continue
-
-                memory_id = str(uuid4())
-                memory = Memory(
-                    id=memory_id,
+        # 阶段 4a：事实/记忆经统一写入决策表落库（幂等、纠正、冲突、多值）。
+        changes = [
+            MemoryChange(
+                memory=Memory(
+                    id=str(uuid4()),
                     content=item.content,
                     type=MemoryType(item.type.strip().lower()),
                     priority=_resolve_priority(item),
@@ -1631,113 +2382,69 @@ class MemoryExtractor:
                     updated_at=now,
                     metadata={"provenance": provenance},
                 )
-                ok = self._safe_write_with_fallback(
-                    conn,
-                    kind="memory",
-                    item=memory.to_row(),
-                    writer=lambda c, m=memory: add_memory(c, m),
-                )
-                if not ok:
-                    continue
-                # 向量挂钩：SQLite 落库成功之后才索引（真相源优先，spec §4.5）
-                index_memory_best_effort(memory)
-                saved_memory_ids.append(memory_id)
-                if item.subject:
-                    memory_by_subject.setdefault(item.subject, memory_id)
+            )
+            for item in filtered.memories
+        ]
+        written = apply_memory_changes(conn, changes, evidence_key=evidence_key)
+        saved_memory_ids = list(written.memory_ids)
+        created_memories = list(written.created)
+        memory_by_subject: dict[str, str] = {}
+        for item, outcome in zip(filtered.memories, written.outcomes, strict=False):
+            if item.subject and outcome.memory_id:
+                memory_by_subject.setdefault(item.subject, outcome.memory_id)
 
-            # 阶段 4a'：引用评分闭环（WU-B）。LLM 判定 ``useful=true`` 且 id 在
-            # 本次注入集合内的记忆 → 自增 ``access_count``，让 reranker 的
-            # ``access_frequency_score`` 在后续检索抬升该记忆的排序。
-            # 集合外的 id 一律丢弃（防 LLM 幻觉写错记忆）；单条失败仅 warning。
-            allowed_ids = set(filtered.cited_memory_ids)
-            if allowed_ids:
-                for score in filtered.citation_scores:
-                    memory_id = str(score.get("memory_id") or "")
-                    if not memory_id or memory_id not in allowed_ids:
-                        continue
-                    if not score.get("useful"):
-                        continue
-                    try:
-                        bump_access_count(conn, memory_id, delta=1)
-                    except Exception as exc:  # noqa: BLE001 - 评分落库失败不阻断
-                        logger.warning(
-                            "citation score bump failed for memory {}: {}",
-                            memory_id,
-                            exc,
-                        )
+        # 阶段 4b：反向关联
+        episode = filtered.episode
+        linked_ids: list[str] = []
+        semantic_ids: list[str] = []
+        if episode is not None:
+            # 语义关联：episode.entities 命中本批次记忆的 subject
+            for entity in episode.entities:
+                memory_id = memory_by_subject.get(entity)
+                if memory_id is not None and memory_id not in semantic_ids:
+                    semantic_ids.append(memory_id)
+            # 兜底：本批次产出的记忆一律挂到本情节上。此前只靠
+            # entities ↔ subject 的字符串相等，而抽取 prompt 从不要求 subject
+            # → subject 常为空 → 关联整条断裂，工作台与 Episodes 页签恒为
+            # 「0 条关联记忆」，记忆的 source_episode_id 也一直是空的。
+            linked_ids.extend(saved_memory_ids)
+            for memory_id in semantic_ids:
+                if memory_id not in linked_ids:
+                    linked_ids.append(memory_id)
+            logger.info(
+                "memory episode linkage: session={} semantic={} batch={} total={}",
+                session.key,
+                len(semantic_ids),
+                len(saved_memory_ids),
+                len(linked_ids),
+            )
 
-            # 阶段 4b：反向关联
-            episode = filtered.episode
-            linked_ids: list[str] = []
-            semantic_ids: list[str] = []
-            if episode is not None:
-                # 语义关联：episode.entities 命中本批次记忆的 subject
-                for entity in episode.entities:
-                    memory_id = memory_by_subject.get(entity)
-                    if memory_id is not None and memory_id not in semantic_ids:
-                        semantic_ids.append(memory_id)
-                # 兜底：本批次产出的记忆一律挂到本情节上。此前只靠
-                # entities ↔ subject 的字符串相等，而抽取 prompt 从不要求 subject
-                # → subject 常为空 → 关联整条断裂，工作台与 Episodes 页签恒为
-                # 「0 条关联记忆」，记忆的 source_episode_id 也一直是空的。
-                linked_ids.extend(saved_memory_ids)
-                for memory_id in semantic_ids:
-                    if memory_id not in linked_ids:
-                        linked_ids.append(memory_id)
-                logger.info(
-                    "memory episode linkage: session={} semantic={} batch={} total={}",
-                    session.key,
-                    len(semantic_ids),
-                    len(saved_memory_ids),
-                    len(linked_ids),
-                )
-
-            # 阶段 4c：写入 episode（即使 LLM 失败也写，仅 action_nodes）
-            if episode is not None or filtered.action_nodes:
-                episode_id = str(uuid4())
-                record = Episode(
-                    id=episode_id,
-                    session_id=session.key,
-                    workspace_id=row_workspace_id,
-                    summary=episode.summary if episode is not None else "",
-                    goal=episode.goal if episode is not None else "",
-                    outcome=_normalize_outcome(episode.outcome if episode is not None else None),
-                    source=self._map_source(source),
-                    action_nodes=[node.to_dict() for node in filtered.action_nodes],
-                    entities=list(episode.entities) if episode is not None else [],
-                    tools_used=list(episode.tools_used) if episode is not None else [],
-                    linked_memory_ids=linked_ids,
-                    importance_score=episode.importance if episode is not None else 0.7,
-                    started_at=_iso(session.created_at),
-                    ended_at=now,
-                    metadata={"provenance": provenance},
-                )
-                episode_ok = self._safe_write_with_fallback(
-                    conn,
-                    kind="episode",
-                    item=record.to_row(),
-                    writer=lambda c, r=record: add_episode(c, r),
-                )
-                if episode_ok:
-                    saved_episode_ids.append(episode_id)
-                    # FIX-6 Rev-M-4：反向回填 source_episode_id（同一事务）。
-                    # 单条失败仅 warning，不影响 episode 持久化或后续回填。
-                    for memory_id in linked_ids:
-                        backfill_ok = self._safe_write_with_fallback(
-                            conn,
-                            kind="backfill",
-                            item={"memory_id": memory_id, "episode_id": episode_id},
-                            writer=lambda c, mid=memory_id, eid=episode_id: update_memory_source_episode(
-                                c, mid, eid
-                            ),
-                        )
-                        if not backfill_ok:
-                            logger.warning(
-                                "memory source_episode_id backfill failed for {} (saved to fallback)",
-                                memory_id,
-                            )
-                else:
-                    logger.error("episode insert failed (saved to fallback)")
+        # 阶段 4c：写入 episode（有效空输出也写，仅 action_nodes）
+        if episode is not None or filtered.action_nodes:
+            episode_id = str(uuid4())
+            record = Episode(
+                id=episode_id,
+                session_id=session.key,
+                workspace_id=row_workspace_id,
+                summary=episode.summary if episode is not None else "",
+                goal=episode.goal if episode is not None else "",
+                outcome=_normalize_outcome(episode.outcome if episode is not None else None),
+                source=self._map_source(source),
+                action_nodes=[node.to_dict() for node in filtered.action_nodes],
+                entities=list(episode.entities) if episode is not None else [],
+                tools_used=list(episode.tools_used) if episode is not None else [],
+                linked_memory_ids=linked_ids,
+                importance_score=episode.importance if episode is not None else 0.7,
+                started_at=_iso(session.created_at),
+                ended_at=now,
+                metadata={"provenance": provenance},
+            )
+            add_episode(conn, record)
+            saved_episode_ids.append(episode_id)
+            # FIX-6 Rev-M-4：反向回填 source_episode_id（同一事务）。
+            # 这些记忆都来自本批（新建或合并命中），写入失败即整批回滚。
+            for memory_id in linked_ids:
+                update_memory_source_episode(conn, memory_id, episode_id)
 
         logger.info(
             "memory extraction persisted: workspace_id={} memories={} ids={} episodes={}",
@@ -1746,9 +2453,13 @@ class MemoryExtractor:
             saved_memory_ids,
             len(saved_episode_ids),
         )
-        return PersistenceResult(
-            memory_ids=saved_memory_ids,
-            episode_ids=saved_episode_ids,
+        return (
+            PersistenceResult(
+                memory_ids=saved_memory_ids,
+                episode_ids=saved_episode_ids,
+                created_count=len(created_memories),
+            ),
+            created_memories,
         )
 
     @staticmethod
@@ -1758,168 +2469,3 @@ class MemoryExtractor:
             logger.warning("unknown extraction source {!r}, fallback to session_end", source)
             return EpisodeSource.SESSION_END
         return mapped
-
-    # ------------------------------------------------------------------
-    # S2: Episode 抽取（plan 2026-09-12 nanobot memory extraction hardening）
-    # ------------------------------------------------------------------
-
-    async def generate_episode(
-        self,
-        transcript: list[dict],
-        session_key: str,
-        source: str = "session_end",
-    ) -> Episode | None:
-        """从整段对话转录生成一个情节记忆（不入库，由调用方决定）。"""
-        from datetime import datetime, timezone
-
-        from nanobot.session.manager import Session as _Session
-
-        from .models import Episode, EpisodeOutcome
-        from .provenance import extraction_provenance
-
-        if not transcript:
-            return None
-
-        action_nodes = self._extract_action_nodes(transcript)
-        now_iso = datetime.now(timezone.utc).isoformat()
-        episode = Episode(
-            id=str(uuid4()),
-            session_id=session_key,
-            summary="",
-            started_at=now_iso,
-            ended_at=now_iso,
-            source=self._map_source(source),
-            outcome=EpisodeOutcome.COMPLETED,
-            action_nodes=action_nodes,
-            metadata={
-                "provenance": {
-                    **extraction_provenance(_Session(key=session_key), source),
-                    "store_workspace_id": self.workspace_id,
-                }
-            },
-        )
-
-        if self.runtime is not None:
-            try:
-                conv_text = self._format_episode_lines(transcript)
-                # EPISODE_EXTRACTION_PROMPT 为指令式，无 {conversation} 占位符
-                prompt = f"{EPISODE_EXTRACTION_PROMPT}\n\n### 对话转录\n{conv_text}"
-                resp = await self.runtime.provider.chat_with_retry(
-                    model=self.runtime.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    tools=[],
-                    temperature=self.runtime.generation.temperature,
-                    max_tokens=self.runtime.generation.max_tokens,
-                    reasoning_effort=self.runtime.generation.reasoning_effort,
-                )
-                text = getattr(resp, "content", "") or ""
-                error = response_error(resp)
-                if error is not None:
-                    # 保留兜底摘要（行为不变），但把真实原因说清楚。
-                    logger.warning("generate_episode LLM call failed: {}", error)
-                data = _parse_json_object(text) if error is None else None
-                if isinstance(data, dict):
-                    summary = str(data.get("summary", "")).strip()
-                    if summary:
-                        episode.summary = summary
-                    episode.goal = str(data.get("goal", "")).strip()
-                    raw_outcome = str(data.get("outcome", "")).strip().lower()
-                    if raw_outcome in ("completed", "partial", "failed", "ongoing"):
-                        try:
-                            episode.outcome = EpisodeOutcome(raw_outcome)
-                        except ValueError:
-                            pass
-                    entities = data.get("entities")
-                    if isinstance(entities, list):
-                        episode.entities = [str(e) for e in entities if e]
-                    tools = data.get("tools_used")
-                    if isinstance(tools, list):
-                        existing = set(episode.tools_used)
-                        for t in tools:
-                            ts = str(t)
-                            if ts and ts not in existing:
-                                episode.tools_used.append(ts)
-                                existing.add(ts)
-            except Exception as exc:
-                logger.warning("generate_episode LLM failed: {}", exc)
-
-        if not episode.summary:
-            episode.summary = self._generate_fallback_summary(transcript)
-            first_content = transcript[0].get("content", "") if transcript else ""
-            episode.goal = str(first_content)[:100]
-        if not episode.entities:
-            episode.entities = self._extract_entities_heuristic(transcript)
-
-        return episode
-
-    def _extract_action_nodes(self, transcript: list[dict]) -> list[dict]:
-        """从 transcript 中抽取结构化工具调用节点（参考 OpenAkita _extract_action_nodes）。"""
-        nodes: list[dict] = []
-        for turn in transcript:
-            tool_calls = turn.get("tool_calls") or []
-            if not tool_calls:
-                continue
-            for tc in tool_calls:
-                inp = tc.get("input", tc.get("arguments", {})) or {}
-                params: dict[str, str] = {}
-                for key in ("command", "path", "query", "url", "filename"):
-                    if key in inp:
-                        params[key] = str(inp[key])[:200]
-                success = True
-                err: str | None = None
-                summary = ""
-                tc_id = tc.get("id", "")
-                for tr in turn.get("tool_results") or []:
-                    if tr.get("tool_use_id") == tc_id or not tc_id:
-                        content = tr.get("content", "")
-                        if isinstance(content, str):
-                            summary = content[:200]
-                        else:
-                            summary = str(content)[:200]
-                        if tr.get("is_error"):
-                            success = False
-                            err = summary
-                        break
-                nodes.append({
-                    "tool_name": tc.get("name", ""),
-                    "key_params": params,
-                    "result_summary": summary,
-                    "success": success,
-                    "error_message": err,
-                })
-        return nodes
-
-    @staticmethod
-    def _format_episode_lines(transcript: list[dict]) -> str:
-        lines: list[str] = []
-        for t in transcript[-20:]:
-            content = (t.get("content", "") or "")[:600]
-            suffix = ""
-            if t.get("tool_calls"):
-                suffix = f" [调用了 {len(t['tool_calls'])} 个工具]"
-            lines.append(f"[{t.get('role', '?')}]: {content}{suffix}")
-        return "\n".join(lines)
-
-    @staticmethod
-    def _generate_fallback_summary(transcript: list[dict]) -> str:
-        user_msgs = [
-            (t.get("content", "") or "")[:100]
-            for t in transcript
-            if t.get("role") == "user" and t.get("content")
-        ]
-        if user_msgs:
-            return f"对话涉及: {'; '.join(user_msgs[:3])}"
-        return f"共 {len(transcript)} 轮对话"
-
-    @staticmethod
-    def _extract_entities_heuristic(transcript: list[dict]) -> list[str]:
-        path_re = re.compile(r"[A-Za-z]:[\\/][^\s\"']+")
-        file_re = re.compile(r"[\w-]+\.(?:py|js|ts|md|json|yaml|toml|sh)\b")
-        out: set[str] = set()
-        for t in transcript:
-            text = t.get("content", "") or ""
-            for m in path_re.finditer(text):
-                out.add(m.group(0))
-            for m in file_re.finditer(text):
-                out.add(m.group(0))
-        return list(out)[:20]

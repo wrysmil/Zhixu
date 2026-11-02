@@ -14,7 +14,7 @@
 - 跳过**不推进** state，被跳过的消息由后续真实对话的切片一并抽取；
 - content 为 content-block 列表 / ``None`` 时不抛 ``AttributeError``。
 
-条数下限刻意取 2 而非 ``SessionEndOrchestrator`` 的 3，理由见
+条数下限取 2（一轮 user + assistant 即完整切片），理由见
 ``MemoryExtractor.IDLE_MIN_NEW_MESSAGES`` 注释。
 """
 

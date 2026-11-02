@@ -1,101 +1,81 @@
-"""Tests for RetrievalEngine (T-12)."""
+"""Tests for RetrievalEngine：两路召回 + 时间浏览 + 结构化命中（D09/D11）。"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from nanobot.memory.retrieval.engine import RetrievalEngine
+from nanobot.memory.retrieval.engine import RetrievalEngine, _time_browse_window
 
 
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
+def _memory(memory_id: str, content: str, **kw) -> SimpleNamespace:
+    base = dict(
+        id=memory_id,
+        content=content,
+        workspace_id="default",
+        created_at="2026-11-01T10:00:00+00:00",
+        metadata={},
+    )
+    base.update(kw)
+    return SimpleNamespace(**base)
 
 
 class _StubStore:
-    """Stub 取代真实 SQLite：验证 4 通道都被调用 + rerank + formatter 走通。"""
+    """Stub 取代真实 SQLite：验证两路召回 + 时间浏览 + 格式化走通。"""
 
     def __init__(self) -> None:
         self.search_semantic_scored_called = 0
         self.search_episodes_called = 0
-        self.query_semantic_called = 0
-        self.search_attachments_called = 0
-        # 默认：semantic 返回 1 条候选；其余 3 路空
-        self.semantic_payload: list[tuple[Any, float]] = [
-            (
-                SimpleNamespace(
-                    id="s1",
-                    content="Python 爬虫",
-                    importance_score=0.8,
-                    updated_at=_now(),
-                    access_count=2,
-                    type=None,
-                    source="user",
-                    subject=None,
-                    predicate=None,
-                    confidence=1.0,
-                ),
-                0.9,
-            )
-        ]
-        # 控制 semantic 抛异常的开关（用于测试 4）
-        self.semantic_should_raise: bool = False
+        self.list_recent_memories_called = 0
+        self.semantic_payload: list[tuple[Any, float]] = [(_memory("s1", "Python 爬虫"), 0.9)]
+        self.episodes_payload: list[Any] = []
+        self.recent_payload: list[Any] = []
+        self.semantic_should_raise = False
+        self.recent_kwargs: dict[str, Any] = {}
 
-    def search_semantic_scored(self, q, *, keywords=None, limit=None):
+    def search_semantic_scored(
+        self, q, *, keywords=None, limit=None, workspace_ids=None,
+        include_inactive=False,
+    ):
         self.search_semantic_scored_called += 1
         if self.semantic_should_raise:
             raise RuntimeError("semantic down")
         return self.semantic_payload
 
-    def search_episodes(self, *, entity, limit=None):
+    def search_episodes(self, *, entity, limit=None, workspace_ids=None):
         self.search_episodes_called += 1
-        return []
+        return self.episodes_payload
 
-    def query_semantic(
-        self, *, min_importance: float, since_days: int, limit: int
-    ) -> list[Any]:
-        self.query_semantic_called += 1
-        return []
-
-    def search_attachments(
-        self, term: str, *, intent: str, limit: int
-    ) -> list[Any]:
-        self.search_attachments_called += 1
-        return []
+    def list_recent_memories(self, *, since_days, limit, workspace_ids=None):
+        self.list_recent_memories_called += 1
+        self.recent_kwargs = {
+            "since_days": since_days,
+            "limit": limit,
+            "workspace_ids": workspace_ids,
+        }
+        return self.recent_payload
 
 
 # ---- Gate 短路 ----
 
-
 @pytest.mark.asyncio
 async def test_engine_returns_empty_when_gate_skips():
-    """控制词 ``好`` → gate skip → 空字符串；4 通道都不调用。"""
+    """控制词 ``好`` → gate skip → 空字符串；两路都不调用。"""
     store = _StubStore()
     engine = RetrievalEngine(store=store, brain=None)
     out = await engine.retrieve(query="好", recent_messages=[], max_tokens=500)
     assert out == ""
     assert store.search_semantic_scored_called == 0
     assert store.search_episodes_called == 0
-    assert store.query_semantic_called == 0
-    assert store.search_attachments_called == 0
+    assert store.list_recent_memories_called == 0
 
 
 # ---- 全路径 ----
 
-
 @pytest.mark.asyncio
-async def test_engine_full_path_with_keywords():
-    """非空 + 非控制词 + 含文件扩展名 → semantic/episodes/recent 都被调用。
-
-    注：
-    - episodes 通道仅在 query 含路径/扩展名时触发（``_extract_query_entities``），
-      故 query 中带 ``main.py`` 以保证 episodes 通道真正进入 store 层。
-    - attachments 通道有「媒体闸门」（``_MEDIA_KEYWORDS`` 或 ``intent=search_file``），
-      无媒体暗示时不调用 ``store.search_attachments``，故此处不 assert == 1。
-      媒体闸门由 ``test_engine_attachments_only_on_media_hint`` 专项验证。
-    """
+async def test_engine_relevance_path_calls_two_channels():
+    """相关性路径只调度 semantic / episodes；recent 通道已删除（D09）。"""
     store = _StubStore()
     engine = RetrievalEngine(store=store, brain=None)
     out = await engine.retrieve(
@@ -107,44 +87,28 @@ async def test_engine_full_path_with_keywords():
     assert "Python 爬虫" in out
     assert store.search_semantic_scored_called == 1
     assert store.search_episodes_called >= 1  # keywords 兜底后可能有多个 entity
-    assert store.query_semantic_called == 1
-
-
-# ---- 附件闸门 ----
+    assert store.list_recent_memories_called == 0
 
 
 @pytest.mark.asyncio
-async def test_engine_attachments_only_on_media_hint():
-    """无媒体暗示 → attachments 不调用；有 → 至少调用一次。
-
-    注：
-    - query 必须非短（≤12 字 + 无 recent_messages 会被 preprocessor gate 跳过），
-      故提供 ``recent_messages`` 让 gate 通过；attachments 闸门仅检 query 中的媒体词。
-    - attachments 通道会按 ``[raw_query] + keywords`` 多次调用 ``store.search_attachments``
-      （每个 term 一次），故用 ``>= 1`` 断言。
-    """
+async def test_engine_no_hits_returns_empty():
+    """无有效候选 → 返回空，不注入空段头（D11）。"""
     store = _StubStore()
+    store.semantic_payload = []
     engine = RetrievalEngine(store=store, brain=None)
-    ctx = [{"role": "user", "content": "context"}]
-    # 无媒体暗示
-    await engine.retrieve(query="随便聊", recent_messages=ctx, max_tokens=500)
-    assert store.search_attachments_called == 0
-    # 有媒体暗示（图）
-    await engine.retrieve(
-        query="找一下之前的图片", recent_messages=ctx, max_tokens=500,
+    block, ids = await engine.retrieve_with_ids(
+        query="完全不存在的主题",
+        recent_messages=[{"role": "user", "content": "在吗"}],
     )
-    assert store.search_attachments_called >= 1
+    assert block == ""
+    assert ids == []
 
 
 # ---- 异常隔离 ----
 
-
 @pytest.mark.asyncio
 async def test_engine_one_channel_failure_isolated():
-    """semantic 抛异常 → 不阻断其余通道，返回值为字符串（无候选时为 ``""``）。
-
-    注：query 含 ``main.py`` 以触发 episodes 通道；无媒体暗示 → attachments 不调用。
-    """
+    """semantic 抛异常 → 不阻断 episodes，返回值为字符串（无候选时为 ``""``）。"""
     store = _StubStore()
     store.semantic_should_raise = True
     engine = RetrievalEngine(store=store, brain=None)
@@ -154,68 +118,155 @@ async def test_engine_one_channel_failure_isolated():
         max_tokens=500,
     )
     assert isinstance(out, str)
-    # semantic 已尝试；episodes/recent 仍被调用；attachments 被闸门拦截
     assert store.search_semantic_scored_called == 1
-    assert store.search_episodes_called >= 1  # keywords 兜底后可能有多个 entity
-    assert store.query_semantic_called == 1
-    assert store.search_attachments_called == 0
+    assert store.search_episodes_called >= 1
 
 
 # ---- 去重 ----
 
-
 @pytest.mark.asyncio
-async def test_engine_dedup_by_memory_id_keeps_highest_relevance():
-    """同一 ``memory_id`` 多条 → 保留最高 relevance 那条。"""
+async def test_engine_dedup_by_kind_and_id():
+    """同一 ``(kind, id)`` 多条 → 只保留首次出现的一条。"""
     store = _StubStore()
     store.semantic_payload = [
-        (
-            SimpleNamespace(
-                id="dup",
-                content="low version",
-                importance_score=0.5,
-                updated_at=_now(),
-                access_count=0,
-                type=None,
-                source="user",
-                subject=None,
-                predicate=None,
-                confidence=1.0,
-            ),
-            0.3,
-        ),
-        (
-            SimpleNamespace(
-                id="dup",
-                content="high version",
-                importance_score=0.9,
-                updated_at=_now(),
-                access_count=5,
-                type=None,
-                source="user",
-                subject=None,
-                predicate=None,
-                confidence=1.0,
-            ),
-            0.8,
-        ),
+        (_memory("dup", "low version"), 0.3),
+        (_memory("dup", "high version"), 0.8),
     ]
     engine = RetrievalEngine(store=store, brain=None)
     out = await engine.retrieve(
-        query="我之前写的 Python 爬虫脚本 main.py 还能用吗",
-        recent_messages=[{"role": "user", "content": "..."}],
-        max_tokens=500,
+        query="Python 爬虫脚本", recent_messages=[], max_tokens=500,
     )
-    assert "high version" in out
-    assert "low version" not in out
+    assert "low version" in out
+    assert "high version" not in out
+
+
+@pytest.mark.asyncio
+async def test_engine_keeps_same_id_different_kind():
+    """事实与情节同裸 ID 不去重：按 (kind, id) 各自保留。"""
+    store = _StubStore()
+    store.semantic_payload = [(_memory("shared", "事实内容"), 0.9)]
+    store.episodes_payload = [
+        SimpleNamespace(
+            id="shared",
+            summary="情节内容",
+            session_id="s-1",
+            workspace_id="default",
+            ended_at="2026-11-01T11:00:00+00:00",
+        )
+    ]
+    engine = RetrievalEngine(store=store, brain=None)
+    hits = await engine.search_hits(
+        query="main.py 的历史", recent_messages=[], limit=10,
+    )
+    assert {hit.key for hit in hits} == {("memory", "shared"), ("episode", "shared")}
+
+
+@pytest.mark.asyncio
+async def test_engine_labels_episode_and_keeps_it_out_of_memory_ids():
+    """注入块里情节标注为 Episode；第二个返回值只含事实 id。"""
+    store = _StubStore()
+    store.semantic_payload = [(_memory("m1", "事实内容"), 0.9)]
+    store.episodes_payload = [
+        SimpleNamespace(
+            id="e1",
+            summary="情节内容",
+            session_id="s-1",
+            workspace_id="default",
+            ended_at="2026-11-01T11:00:00+00:00",
+        )
+    ]
+    engine = RetrievalEngine(store=store, brain=None)
+    block, ids = await engine.retrieve_with_ids(
+        query="main.py 的历史", recent_messages=[],
+    )
+    assert "事实内容" in block and "情节内容" in block
+    assert "(ID: m1)" in block
+    assert "(Episode: e1)" in block
+    assert ids == ["m1"]
+
+
+# ---- 纯时间查询 ----
+
+@pytest.mark.parametrize(
+    "query,days",
+    [
+        ("最近保存的记忆", 7),
+        ("最近几天的记忆", 3),
+        ("今天有什么新内容", 1),
+        ("上周记录的内容", 7),
+        ("这个月保存的", 30),
+    ],
+)
+def test_time_browse_window_detection(query, days):
+    assert _time_browse_window(query) == days
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["最近的 Python 记忆", "上周部署失败的原因", "Python 爬虫", "记忆是什么"],
+)
+def test_topic_query_is_not_time_browse(query):
+    assert _time_browse_window(query) is None
+
+
+@pytest.mark.asyncio
+async def test_engine_pure_time_query_browses_recent_list():
+    """明确纯时间查询走受限时间列表，并标注为时间浏览。"""
+    store = _StubStore()
+    store.recent_payload = [
+        _memory("newer", "昨天记下的事"),
+        _memory("older", "上周记下的事"),
+    ]
+    engine = RetrievalEngine(store=store, brain=None)
+    block, ids = await engine.retrieve_with_ids(
+        query="最近保存的记忆", recent_messages=[], workspace_ids=("default",),
+    )
+    assert store.list_recent_memories_called == 1
+    assert store.recent_kwargs["since_days"] == 7
+    assert store.recent_kwargs["workspace_ids"] == ("default",)
+    assert store.search_semantic_scored_called == 0
+    assert block.startswith("## 最近记忆（时间浏览）")
+    assert "时间浏览" in block and "未按相关性筛选" in block
+    assert "相关记忆（自动检索）" not in block
+    assert ids == ["newer", "older"]
+
+
+@pytest.mark.asyncio
+async def test_engine_time_browse_skips_empty_content():
+    store = _StubStore()
+    store.recent_payload = [_memory("blank", "   "), _memory("ok", "有效内容")]
+    engine = RetrievalEngine(store=store, brain=None)
+    hits = await engine.search_hits(query="最近记录的记忆", recent_messages=[], limit=10)
+    assert [hit.record_id for hit in hits] == ["ok"]
+    assert hits[0].rank == 1
+
+
+# ---- 结构化结果 ----
+
+@pytest.mark.asyncio
+async def test_search_hits_returns_structured_hits():
+    store = _StubStore()
+    store.semantic_payload = [
+        (_memory("m1", "用户在杭州", metadata={"provenance": {"session_id": "s-1"}}), 0.9)
+    ]
+    engine = RetrievalEngine(store=store, brain=None)
+    hits = await engine.search_hits(
+        query="用户住在哪里", recent_messages=[], workspace_ids=("default",), limit=3,
+    )
+    assert len(hits) == 1
+    hit = hits[0]
+    assert hit.kind == "memory"
+    assert hit.record_id == "m1"
+    assert hit.workspace_id == "default"
+    assert hit.source_session == "s-1"
+    assert hit.source_refs == ()
+    assert hit.rank == 1
 
 
 # ---- 输出是 markdown 字符串 ----
 
-
 @pytest.mark.asyncio
 async def test_engine_output_is_markdown_string():
-    """返回值是 markdown 字符串：含 ``## 相关记忆`` header + 换行 + bullet list。"""
     store = _StubStore()
     engine = RetrievalEngine(store=store, brain=None)
     out = await engine.retrieve(
@@ -232,11 +283,14 @@ async def test_engine_output_is_markdown_string():
 @pytest.mark.asyncio
 @pytest.mark.parametrize("method", ["retrieve", "retrieve_with_ids"])
 async def test_engine_passes_workspace_ids_to_channels(method):
-    """两个检索入口均将可见集合传至三条记忆通道。"""
+    """两个检索入口均将可见集合传至两路召回。"""
     seen: dict[str, object] = {}
 
     class _Store:
-        def search_semantic_scored(self, query, *, keywords=None, limit=30, workspace_ids=None):
+        def search_semantic_scored(
+            self, query, *, keywords=None, limit=30, workspace_ids=None,
+            include_inactive=False,
+        ):
             seen["semantic"] = workspace_ids
             return []
 
@@ -244,16 +298,9 @@ async def test_engine_passes_workspace_ids_to_channels(method):
             seen["episodes"] = workspace_ids
             return []
 
-        def query_semantic(self, *, min_importance, since_days, limit, workspace_ids=None):
-            seen["recent"] = workspace_ids
-            return []
-
-        def search_attachments(self, term, *, intent, limit=5):
-            return []
-
     engine = RetrievalEngine(store=_Store())
     await getattr(engine, method)(
         query="创作灵感", recent_messages=[], precomputed_keywords=["创作灵感"],
         workspace_ids=("default", "ws-a"),
     )
-    assert seen == dict.fromkeys(("semantic", "episodes", "recent"), ("default", "ws-a"))
+    assert seen == dict.fromkeys(("semantic", "episodes"), ("default", "ws-a"))

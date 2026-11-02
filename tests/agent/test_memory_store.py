@@ -36,14 +36,11 @@ class TestMemoryStoreBasicIO:
         store.write_user("user content")
         assert store.read_user() == "user content"
 
-    def test_get_memory_context_returns_empty_when_missing(self, store):
-        assert store.get_memory_context() == ""
-
-    def test_get_memory_context_returns_formatted_content(self, store):
+    def test_memory_md_round_trip_is_file_only(self, store):
+        """MEMORY.md 只是导出文件：读写走文件，注入侧不再读它。"""
+        assert store.read_memory() == ""
         store.write_memory("important fact")
-        ctx = store.get_memory_context()
-        assert "Long-term Memory" in ctx
-        assert "important fact" in ctx
+        assert "important fact" in store.read_memory()
 
 
 class TestHistoryWithCursor:

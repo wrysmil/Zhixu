@@ -1,4 +1,14 @@
-"""MEMORY.md synchronous derivation and async refresh scheduling.
+"""MEMORY.md：核心视图的导出（契约 §5 / spec §7）。
+
+真值只有一处——SQLite。MEMORY.md 是「当前有效核心事实 + 用户手工 core-note」
+的导出：按需或在写操作之后刷新；刷新失败不影响下一轮聊天，因为注入侧每轮
+直接读 SQLite，从不读这个文件。
+
+导出格式把两块内容分开，边界由 HTML 注释标记：
+
+* 自动导出区（``core-view``）：来自 SQLite 的当前有效事实；
+* 手工笔记区（``core-note``）：用户全文编辑的内容，存为 memories 里的一条
+  内部 core-note 记录（按作用域唯一），与自动派生内容分开更新。
 
 Public API:
     MemoryLifecycle
@@ -6,20 +16,26 @@ Public API:
 
 from __future__ import annotations
 
-import asyncio
-import re
 import shutil
 import threading
-import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from loguru import logger
 
+from nanobot.memory.context import CORE_NOTE_RECORD_ID_PREFIX, is_core_note_record
 from nanobot.memory.filters import content_hash_legacy
-from nanobot.memory.models import Memory, MemoryType
-from nanobot.memory.repository import list_memories
+from nanobot.memory.models import Memory, MemoryPriority, MemoryType
+from nanobot.memory.repository import (
+    add_memory,
+    current_memory_sql,
+    delete_memory,
+    get_memory,
+    list_memories,
+    update_memory,
+)
+from nanobot.utils.helpers import load_bundled_template
 from nanobot.webui.memory_services import MemoryServices
 
 # ---------------------------------------------------------------------------
@@ -27,54 +43,234 @@ from nanobot.webui.memory_services import MemoryServices
 # ---------------------------------------------------------------------------
 
 MEMORY_MD_MAX_CHARS = 1500
-MIN_CONTENT_CHARS = 10
-TOP_K_PER_SECTION = 4
-REFRESH_DEBOUNCE_SECONDS = 60.0
 
-# Priority sections: order matters for truncation fallback
+#: 核心视图：沿用既有「scope=user + 重要性阈值」选择规则，不扩成全库。
+CORE_SCOPE = "user"
+CORE_MIN_IMPORTANCE = 0.5
+#: 单次核心视图最多取多少条；扫描上限只为「有效/重复」过滤留余量。
+CORE_MAX_ITEMS = 12
+CORE_SCAN_LIMIT = 60
+TOP_K_PER_SECTION = 4
+
+#: 手工 core-note：按作用域唯一的内部记录，不是事实。
+CORE_NOTE_SOURCE = "core_note"
+CORE_NOTE_IMPORTANCE = 1.0
+CORE_NOTE_PLACEHOLDER = "（暂无手工笔记）"
+CORE_NOTE_REVIEW_MARK = "<!-- 待核对旧稿：确认内容无误后保存一次即转为正式手工笔记 -->"
+
+CORE_VIEW_HEADING = "# 核心记忆"
+CORE_VIEW_BEGIN = (
+    "<!-- zhixu:core-view:begin 自动导出区：来自 SQLite 当前有效事实"
+    "（未删除/未过期/未被替代），请勿手改 -->"
+)
+CORE_VIEW_END = "<!-- zhixu:core-view:end -->"
+CORE_NOTE_BEGIN = (
+    "<!-- zhixu:core-note:begin 手工笔记区：本区全文保存为 memory 库中的 "
+    "core-note 记录，可自由编辑 -->"
+)
+CORE_NOTE_END = "<!-- zhixu:core-note:end -->"
+CORE_NOTE_HEADING = "## 手工笔记"
+
+_TRUNCATION_MARKER = "...(规则被截断)"
+
+# Priority sections: order matters for display
 _MEMORY_TYPE_TO_SECTION: dict[MemoryType, str] = {
-    MemoryType.PREFERENCE: "偏好",
     MemoryType.RULE: "规则",
+    MemoryType.PREFERENCE: "偏好",
     MemoryType.FACT: "事实",
     MemoryType.ERROR: "教训",
     MemoryType.SKILL: "技能",
     MemoryType.EXPERIENCE: "经验",
 }
 
-# Rule-related section keywords (case-insensitive match in truncate_memory_md)
-_RULE_SECTION_KEYWORDS: frozenset[str] = frozenset({
-    "重要规则", "规则", "rules", "行为规则", "用户规则",
-})
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _iso8601_now() -> str:
     """Return current UTC time as ISO-8601 string."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def core_note_id(workspace_id: str) -> str:
+    """手工 core-note 的记录 id：由作用域派生，天然唯一。"""
+    return f"{CORE_NOTE_RECORD_ID_PREFIX}{workspace_id}"
+
+
+def _current_ids(conn: Any, ids: Iterable[str]) -> set[str]:
+    """批量取出「当前有效」的子集。
+
+    「有效」的谓词只认 ``repository.current_memory_sql``（契约 §3：SQL 候选与
+    向量回表共用一处），这里不另写一套判定。
+    """
+    id_list = list(ids)
+    if not id_list:
+        return set()
+    placeholders = ", ".join("?" for _ in id_list)
+    rows = conn.execute(
+        f"SELECT id FROM memories WHERE id IN ({placeholders}) "
+        f"AND {current_memory_sql('memories')}",
+        id_list,
+    ).fetchall()
+    return {str(row["id"]) for row in rows}
+
+
+def select_core_facts(
+    conn: Any,
+    *,
+    workspace_id: str,
+    limit: int = CORE_MAX_ITEMS,
+    include_note: bool = True,
+) -> list[Memory]:
+    """核心视图：当前有效、``scope=user``、重要性达阈值的记忆。
+
+    ``include_note`` 为真时把已确认的手工 core-note 放在最前面——它是用户
+    维护的内容，与自动派生事实分开呈现；**待核对**旧稿不进注入（文件里可见，
+    但不冒充事实）。
+    """
+    note = read_core_note(conn, workspace_id) if include_note else None
+    if note is not None and note.metadata.get("needs_review"):
+        note = None
+
+    rows = list_memories(
+        conn,
+        workspace_id=workspace_id,
+        scope=CORE_SCOPE,
+        min_importance=CORE_MIN_IMPORTANCE,
+        order_by="importance",
+        limit=CORE_SCAN_LIMIT,
+    )
+    candidates = [memory for memory in rows if not is_core_note_record(memory.id)]
+    valid: set[str] = _current_ids(conn, [memory.id for memory in candidates])
+
+    picked: list[Memory] = []
+    seen: set[tuple[MemoryType, str]] = set()
+    for memory in candidates:
+        if memory.id not in valid:
+            continue
+        key = (memory.type, content_hash_legacy(memory.content))
+        if key in seen:
+            continue
+        seen.add(key)
+        picked.append(memory)
+        if len(picked) >= limit:
+            break
+    return ([note] if note is not None else []) + picked
+
+
+def read_core_note(conn: Any, workspace_id: str) -> Memory | None:
+    """按作用域读手工 core-note；没有则 ``None``。"""
+    return get_memory(conn, core_note_id(workspace_id))
+
+
+def save_core_note(
+    conn: Any,
+    *,
+    workspace_id: str,
+    content: str,
+    needs_review: bool = False,
+) -> Memory:
+    """按作用域唯一地写入手工 core-note（存在即更新）。"""
+    text = content.strip()
+    metadata = {"kind": "core_note", "needs_review": bool(needs_review)}
+    existing = read_core_note(conn, workspace_id)
+    if existing is None:
+        memory = Memory(
+            id=core_note_id(workspace_id),
+            content=text,
+            created_at=_iso8601_now(),
+            type=MemoryType.FACT,
+            priority=MemoryPriority.LONG_TERM,
+            source=CORE_NOTE_SOURCE,
+            importance_score=CORE_NOTE_IMPORTANCE,
+            scope=CORE_SCOPE,
+            workspace_id=workspace_id,
+            metadata=metadata,
+        )
+        add_memory(conn, memory)
+        return memory
+    update_memory(
+        conn,
+        existing.id,
+        content=text,
+        importance_score=CORE_NOTE_IMPORTANCE,
+        metadata={**existing.metadata, **metadata},
+    )
+    return read_core_note(conn, workspace_id) or existing
+
+
+def delete_core_note(conn: Any, workspace_id: str) -> None:
+    """删除手工 core-note（用户清空手工区时调用）。"""
+    existing = read_core_note(conn, workspace_id)
+    if existing is not None:
+        delete_memory(conn, existing.id)
+
+
+def extract_core_note_text(content: str) -> str | None:
+    """取出导出文本中手工笔记区的内容；没有该区时返回 ``None``。"""
+    start = content.find(CORE_NOTE_BEGIN)
+    end = content.find(CORE_NOTE_END)
+    if start < 0 or end < start:
+        return None
+    body = content[start + len(CORE_NOTE_BEGIN): end]
+    lines = [
+        line for line in body.splitlines()
+        if line.strip() and not line.strip().startswith("<!--")
+        and line.strip() != CORE_NOTE_HEADING
+    ]
+    text = "\n".join(lines).strip()
+    if not text or text == CORE_NOTE_PLACEHOLDER:
+        return ""
+    return text
+
+
+def looks_like_generated_export(content: str, memories: Iterable[Memory]) -> bool:
+    """判断一段旧稿是不是「自动导出」，而不是用户手写内容。
+
+    首次迁移不许把当前的自动生成列表复制成手工笔记（契约 §5）。判据是
+    确定性的：整份文本只由标题行与 ``- `` 条目组成，且每一条的内容都能在
+    现有记忆里找到——这就是导出，不是手稿。
+    """
+    text = content.strip()
+    if not text:
+        return True
+    if CORE_VIEW_BEGIN in text or CORE_NOTE_BEGIN in text:
+        return True
+    known = {memory.content.strip() for memory in memories if memory.content.strip()}
+    body = [line.strip() for line in text.splitlines() if line.strip()]
+    bullets = [line[2:].strip() for line in body if line.startswith("- ")]
+    if not bullets:
+        return False
+    for bullet in bullets:
+        if bullet.endswith(_TRUNCATION_MARKER):
+            bullet = bullet[: -len(_TRUNCATION_MARKER)].strip()
+        if not any(bullet and (bullet == known_text or bullet in known_text)
+                   for known_text in known):
+            return False
+    return all(line.startswith("#") or line.startswith("- ") for line in body)
+
+
 # ---------------------------------------------------------------------------
 # MemoryLifecycle
 # ---------------------------------------------------------------------------
 
-class MemoryLifecycle:
-    """Manages the derivation and refresh of MEMORY.md for a workspace.
 
-    Class-level state for singleton pattern and refresh task tracking.
+class MemoryLifecycle:
+    """Derives the MEMORY.md export of a workspace's core view.
+
+    Class-level state for the per-workspace singleton and the last-refresh
+    stats the WebUI reads. Nothing here is on the chat read path: a stale or
+    failed export never changes what the model sees.
     """
 
     # Per-workspace singletons
     _instances: dict[str, "MemoryLifecycle"] = {}
 
-    # Async refresh task management
-    _refresh_tasks: dict[str, asyncio.Task] = {}
-    _last_refresh_at: dict[str, float] = {}  # monotonic, debounce
-    _last_refresh_iso: dict[str, str] = {}   # ISO8601 UTC, stats
-    _last_refresh_trigger: dict[str, str] = {}  # "manual" | "auto"
-    # NOTE: _derive_lock moved to instance-level in __init__ (fixes cross-workspace blocking)
+    # Export stats（WebUI 展示用；不参与任何缓存或注入决策）
+    _last_refresh_iso: dict[str, str] = {}
+    _last_refresh_trigger: dict[str, str] = {}
 
     def __init__(self, workspace_id: str, services: MemoryServices) -> None:
         self.workspace_id = workspace_id
@@ -82,7 +278,7 @@ class MemoryLifecycle:
         self.memory_dir: Path = services.database.workspace / "memory"
         self.memory_file: Path = self.memory_dir / "MEMORY.md"
         self.draft_file: Path = self.memory_dir / "MEMORY.md.draft"
-        # Instance-level lock: each workspace has its own lock (fixes cross-workspace blocking)
+        # Instance-level lock: each workspace has its own lock.
         self._derive_lock = threading.Lock()
 
     @classmethod
@@ -95,56 +291,34 @@ class MemoryLifecycle:
         return cls._instances[workspace_id]
 
     # ------------------------------------------------------------------
-    # Public sync API
+    # Public API
     # ------------------------------------------------------------------
 
     def refresh_memory_md_sync(self, workspace_id: str) -> dict[str, Any]:
-        """Synchronously derive MEMORY.md from user-scope memories.
+        """Re-export MEMORY.md from SQLite (on demand / after mutations).
 
-        Thread-safe. Writes MEMORY.md with backup/restore on failure.
-        Returns {"status": "ok", "chars": <len>} or
-        {"status": "skipped", "reason": "content_too_short"}.
+        Thread-safe, backup-on-write, and failure-isolated: any error is
+        logged and reported as ``{"status": "error"}``; callers of chat never
+        depend on this file.
         """
         with self._derive_lock:
             try:
                 with self.services.database.connect() as conn:
-                    # Try WU-2 signature first; fallback to Python-side filtering.
-                    try:
-                        memories = list_memories(
-                            conn,
-                            workspace_id=workspace_id,  # 🆕 Critical fix: 按 workspace 隔离
-                            scope="user",
-                            min_importance=0.5,
-                            limit=200,
-                            order_by="importance",
-                        )
-                    except TypeError:
-                        # WU-2 not yet merged: use current signature + Python filter
-                        all_memories = list_memories(
-                            conn, workspace_id=workspace_id, limit=200, order_by="importance"
-                        )
-                        memories = [
-                            m
-                            for m in all_memories
-                            if m.scope == "user" and m.importance_score >= 0.5
-                        ]
+                    self._migrate_legacy_memory_md(conn)
+                    facts = select_core_facts(
+                        conn, workspace_id=workspace_id, include_note=False
+                    )
+                    note = read_core_note(conn, workspace_id)
 
-                content = self._render_memory_md(memories)
-
-                if len(content) < MIN_CONTENT_CHARS:
-                    return {"status": "skipped", "reason": "content_too_short"}
-
-                if len(content) > MEMORY_MD_MAX_CHARS:
-                    content = self.truncate_memory_md(content, MEMORY_MD_MAX_CHARS)
+                content = self._render_export(facts, note)
+                if self.memory_file.exists() and self.memory_file.read_text(
+                    encoding="utf-8"
+                ) == content:
+                    return {"status": "skipped", "reason": "no_change"}
 
                 self._safe_write_with_backup(self.memory_file, content)
-
                 self._last_refresh_iso[workspace_id] = _iso8601_now()
-                # Only stamp "manual" when called directly (sync path);
-                # async schedule_refresh_md pre-sets "auto" and we preserve it.
-                if self._last_refresh_trigger.get(workspace_id) != "auto":
-                    self._last_refresh_trigger[workspace_id] = "manual"
-
+                self._last_refresh_trigger[workspace_id] = "manual"
                 return {"status": "ok", "chars": len(content)}
 
             except Exception:
@@ -152,28 +326,61 @@ class MemoryLifecycle:
                     "Failed to refresh MEMORY.md for workspace {}",
                     workspace_id,
                 )
-                # No exception propagates: callers get the ok/skipped dict only.
                 return {"status": "error", "reason": "write_failed"}
 
     def write_memory_md(self, content: str) -> None:
-        """写入用户手工编辑的 MEMORY.md，带 .bak 备份。
+        """接收用户对 MEMORY.md 的全文编辑（现有保存路由）。
 
-        长度超 MEMORY_MD_MAX_CHARS 时抛 ValueError（由调用方转成 4xx）。
-        注意：下一次 refresh_memory_md_sync 会自动覆盖本方法写入的内容。
+        手工内容进 memories 里的 core-note 记录（按作用域唯一），随后文件按
+        「自动导出区 + 手工笔记区」重新导出。长度超 ``MEMORY_MD_MAX_CHARS``
+        时抛 ``ValueError``（由调用方转成 4xx）。
 
-        这是 MEMORY.md 除 Dream 派生之外的第二个（也是唯一一个）写入口：
-        ``IdentityStore.write_file`` 对 MEMORY.md 一律拒绝，手工编辑必须走这里，
-        才能保证「改前先备份」的语义不丢失。
+        迁移语义（契约 §5）：不含手工区标记的旧稿若无法确认，保留为**待核对**
+        版本，不静默重写成事实；若它本来就是导出（或出厂模板），则不动手工笔记。
         """
+        # 边界校验：内容来自 WebUI 的 JSON 载荷，不能只靠类型注解。
+        if not isinstance(content, str):  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise ValueError("MEMORY.md 内容必须是字符串")
+        if len(content) > MEMORY_MD_MAX_CHARS:
+            raise ValueError(
+                f"内容超过 {MEMORY_MD_MAX_CHARS} 字符上限（当前 {len(content)}）"
+            )
+
         with self._derive_lock:
-            if not isinstance(content, str):
-                raise ValueError("MEMORY.md 内容必须是字符串")
-            if len(content) > MEMORY_MD_MAX_CHARS:
-                raise ValueError(
-                    f"内容超过 {MEMORY_MD_MAX_CHARS} 字符上限（当前 {len(content)}）"
+            try:
+                with self.services.database.connect() as conn:
+                    note_text, needs_review = self._resolve_saved_note(conn, content)
+                    if note_text is None:
+                        pass  # 保存的是导出版本/模板：手工笔记维持原样
+                    elif note_text:
+                        save_core_note(
+                            conn,
+                            workspace_id=self.workspace_id,
+                            content=note_text,
+                            needs_review=needs_review,
+                        )
+                    else:
+                        delete_core_note(conn, self.workspace_id)
+                    facts = select_core_facts(
+                        conn, workspace_id=self.workspace_id, include_note=False
+                    )
+                    note = read_core_note(conn, self.workspace_id)
+
+                self._safe_write_with_backup(
+                    self.memory_file,
+                    self._render_export(facts, note),
                 )
-            self.memory_file.parent.mkdir(parents=True, exist_ok=True)
-            self._safe_write_with_backup(self.memory_file, content)
+                self._last_refresh_iso[self.workspace_id] = _iso8601_now()
+                self._last_refresh_trigger[self.workspace_id] = "manual"
+            except ValueError:
+                raise
+            except Exception as exc:
+                logger.exception(
+                    "MEMORY.md manual write failed for workspace {}",
+                    self.workspace_id,
+                )
+                raise OSError(f"MEMORY.md 写入失败: {exc}") from exc
+
             logger.info(
                 "MEMORY.md manually written for workspace {} ({} chars)",
                 self.workspace_id,
@@ -181,43 +388,129 @@ class MemoryLifecycle:
             )
 
     # ------------------------------------------------------------------
-    # Public async API
-    # ------------------------------------------------------------------
-
-    async def schedule_refresh_md(
-        self, workspace_id: str, debounce_seconds: float = REFRESH_DEBOUNCE_SECONDS
-    ) -> None:
-        """Schedule a debounced async refresh of MEMORY.md.
-
-        Only triggers a real refresh if debounce_seconds have elapsed since
-        the last trigger. Cancels any in-flight refresh task.
-        """
-        now = time.monotonic()
-        last = self._last_refresh_at.get(workspace_id, 0.0)
-
-        if now - last < debounce_seconds:
-            return  # debounced
-
-        self._last_refresh_at[workspace_id] = now
-        self._last_refresh_trigger[workspace_id] = "auto"
-
-        # Cancel previous task if still running
-        old = self._refresh_tasks.pop(workspace_id, None)
-        if old and not old.done():
-            old.cancel()
-
-        task = asyncio.create_task(
-            asyncio.to_thread(self.refresh_memory_md_sync, workspace_id)
-        )
-        self._refresh_tasks[workspace_id] = task
-
-    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _migrate_legacy_memory_md(self, conn: Any) -> None:
+        """首次导出前把旧版全文迁移成 core-note / 待核对稿（契约 §5）。
+
+        - 出厂模板、自动导出：不迁移（绝不把自动列表复制成手工笔记）；
+        - 其它无法确认的旧稿：保留为待核对版本，不重写成事实。
+        """
+        if read_core_note(conn, self.workspace_id) is not None:
+            return
+        if not self.memory_file.exists():
+            return
+        try:
+            legacy = self.memory_file.read_text(encoding="utf-8")
+        except OSError:
+            logger.warning(
+                "MEMORY.md migration skipped: unreadable file for workspace {}",
+                self.workspace_id,
+            )
+            return
+        if not legacy.strip() or self._is_template_content(legacy):
+            return
+        facts = select_core_facts(conn, workspace_id=self.workspace_id, include_note=False)
+        if looks_like_generated_export(legacy, facts):
+            return
+        save_core_note(
+            conn,
+            workspace_id=self.workspace_id,
+            content=legacy,
+            needs_review=True,
+        )
+        logger.info(
+            "MEMORY.md legacy content kept as an unconfirmed core-note for workspace {}",
+            self.workspace_id,
+        )
+
+    def _resolve_saved_note(
+        self, conn: Any, content: str
+    ) -> tuple[str | None, bool]:
+        """把一次保存的全文解析成 ``(手工笔记正文, 是否待核对)``。
+
+        ``None`` 表示「这不是对手工笔记的编辑」——保存的是导出版本本身或出厂
+        模板，手工笔记维持原样；空串表示用户清空了手工区。
+
+        保存动作本身就是用户的明确意图，所以这里一律视为**已确认**；
+        「待核对」只来自旧稿迁移（见 ``_migrate_legacy_memory_md``）。
+        """
+        explicit = extract_core_note_text(content)
+        if explicit is not None:
+            return explicit, False
+        if not content.strip() or self._is_template_content(content):
+            return None, False
+        facts = select_core_facts(conn, workspace_id=self.workspace_id, include_note=False)
+        if looks_like_generated_export(content, facts):
+            return None, False
+        return _strip_note_heading(content), False
+
+    def _is_template_content(self, content: str) -> bool:
+        template = load_bundled_template("memory/MEMORY.md")
+        return bool(template) and content.strip() == template.strip()
+
+    def _render_export(self, facts: list[Memory], note: Memory | None) -> str:
+        """渲染导出文件：自动导出区 + 手工笔记区，并压在字符上限内。"""
+        note_text = (note.content.strip() if note is not None else "")
+        needs_review = bool(note.metadata.get("needs_review")) if note is not None else False
+        content = self._render_memory_md(facts, note_text, needs_review=needs_review)
+        omitted = 0
+        while facts and len(content) > MEMORY_MD_MAX_CHARS:
+            facts = facts[:-1]
+            omitted += 1
+            content = self._render_memory_md(
+                facts, note_text, needs_review=needs_review, omitted=omitted
+            )
+        if len(content) > MEMORY_MD_MAX_CHARS:
+            # 只剩笔记本身超限：文件里截断显示，完整正文仍保存在库里。
+            note_text = note_text[: max(0, MEMORY_MD_MAX_CHARS // 2)] + "…（文件显示已截断）"
+            content = self._render_memory_md(
+                facts, note_text, needs_review=needs_review, omitted=omitted
+            )
+        return content
+
+    def _render_memory_md(
+        self,
+        memories: list[Memory],
+        note_text: str = "",
+        *,
+        needs_review: bool = False,
+        omitted: int = 0,
+    ) -> str:
+        """把核心事实与手工笔记渲染成固定格式的导出文本。"""
+        grouped: dict[MemoryType, list[Memory]] = {}
+        for memory in memories:
+            if is_core_note_record(memory.id):
+                continue
+            grouped.setdefault(memory.type, []).append(memory)
+
+        lines: list[str] = [CORE_VIEW_HEADING, "", CORE_VIEW_BEGIN]
+        for memory_type, label in _MEMORY_TYPE_TO_SECTION.items():
+            items = sorted(
+                grouped.get(memory_type, []),
+                key=lambda memory: memory.importance_score,
+                reverse=True,
+            )[:TOP_K_PER_SECTION]
+            if not items:
+                continue
+            lines.append(f"## {label}")
+            lines.extend(f"- {_inline(memory.content)}" for memory in items)
+            lines.append("")
+        if omitted:
+            lines.append(f"<!-- 超出字符上限，已省略 {omitted} 条核心事实 -->")
+        lines.append(CORE_VIEW_END)
+        lines.extend(["", CORE_NOTE_BEGIN, CORE_NOTE_HEADING])
+        if needs_review:
+            lines.append(CORE_NOTE_REVIEW_MARK)
+        lines.append(note_text.strip() or CORE_NOTE_PLACEHOLDER)
+        lines.append(CORE_NOTE_END)
+        return "\n".join(lines).rstrip() + "\n"
 
     def _safe_write_with_backup(self, path: Path, content: str) -> None:
         """Write content to path with .bak backup; restore on failure."""
         backup = path.with_suffix(path.suffix + ".bak")
+        path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
             shutil.copy2(path, backup)
         try:
@@ -227,134 +520,15 @@ class MemoryLifecycle:
                 shutil.copy2(backup, path)
             raise
 
-    def _render_memory_md(self, memories: list[Memory]) -> str:
-        """Render memories into fixed-format markdown grouped by type.
 
-        Each section gets at most TOP_K_PER_SECTION items sorted by
-        importance_score descending. Duplicate (type, content_hash_legacy)
-        entries are collapsed to one.
-        """
-        # Deduplicate: same (type, content_hash_legacy) -> keep first (highest importance)
-        seen: dict[tuple[MemoryType, str], Memory] = {}
-        for m in memories:
-            key = (m.type, content_hash_legacy(m.content))
-            if key not in seen:
-                seen[key] = m
+def _inline(content: str) -> str:
+    """导出条目压成一行，避免一条记忆伪造出新的段头/条目。"""
+    return " ".join(content.split())
 
-        # Group by type
-        grouped: dict[MemoryType, list[Memory]] = {t: [] for t in MemoryType}
-        for m in seen.values():
-            grouped[m.type].append(m)
 
-        # Sort each group by importance descending, take top-K
-        for t in grouped:
-            grouped[t].sort(key=lambda m: m.importance_score, reverse=True)
-            grouped[t] = grouped[t][:TOP_K_PER_SECTION]
-
-        # Render
-        lines: list[str] = ["# 核心记忆", ""]
-        for memory_type, label in _MEMORY_TYPE_TO_SECTION.items():
-            items = grouped.get(memory_type, [])
-            if not items:
-                continue
-            lines.append(f"## {label}")
-            for m in items:
-                lines.append(f"- {m.content}")
-            lines.append("")  # blank line between sections
-
-        return "\n".join(lines).rstrip() + "\n"
-
-    def truncate_memory_md(
-        self, content: str, max_chars: int = MEMORY_MD_MAX_CHARS
-    ) -> str:
-        """Truncate markdown content by paragraph priority.
-
-        High-priority paragraphs (rule sections) are preserved first.
-        When a high-priority section exceeds budget, it is truncated
-        with a "...(规则被截断)" marker.
-        """
-        if len(content) <= max_chars:
-            return content
-
-        # Regex: capture level-1 header, then each ## section as (heading, body)
-        # Pattern:
-        #   ^# [^\n]+\n?          -> level-1 header (optional)
-        #   (?:^## ([^\n]+)\n(.*?)(?=\n## |\n# |${content})) -> ## section
-        # Use DOTALL so body can span multiple lines
-        h1_pattern = re.compile(r"^(# [^\n]+\n?)", re.MULTILINE)
-        section_pattern = re.compile(
-            r"(?:^|\n)(## [^\n]+)\n((?:.*?\n?)*?)(?=\n## |$)", re.DOTALL | re.MULTILINE
-        )
-
-        header = ""
-        h1_match = h1_pattern.match(content)
-        if h1_match:
-            header = h1_match.group(1)
-
-        # Parse all sections
-        sections: list[tuple[str, str, bool]] = []  # (heading, body, is_high_priority)
-        for m in section_pattern.finditer(content):
-            heading = m.group(1).strip()
-            body = m.group(2).strip()
-            # Strip '## ' prefix before keyword matching
-            heading_keyword = heading[2:].strip() if heading.startswith("##") else heading
-            is_high = heading_keyword.lower() in _RULE_SECTION_KEYWORDS
-            sections.append((heading, body, is_high))
-
-        # Build result within budget
-        result_parts: list[str] = []
-        used = len(header)
-
-        if header:
-            result_parts.append(header)
-            used += 2  # separator \n\n
-
-        # Sort: high priority first
-        high = [(h, b) for h, b, hp in sections if hp]
-        normal = [(h, b) for h, b, hp in sections if not hp]
-
-        def try_add(heading: str, body: str, is_high: bool) -> bool:
-            """Add section within budget. Returns False if truncated mid-section."""
-            nonlocal used
-            sep = 2
-            if heading:
-                line = f"{heading}\n{body}"
-            else:
-                line = body
-            line_len = len(line)
-
-            if used + sep + line_len <= max_chars:
-                result_parts.append(line)
-                used += sep + line_len
-                return True
-
-            if is_high:
-                # Truncate with marker
-                TRUNCATE_MARKER = "...(规则被截断)"
-                marker_len = len(TRUNCATE_MARKER)
-                available = max_chars - used - sep - marker_len
-                if available <= 0:
-                    return False
-                if heading:
-                    overhead = len(f"{heading}\n")
-                    body_space = max(0, available - overhead)
-                    truncated_body = body[:body_space]
-                    truncated_line = f"{heading}\n{truncated_body}{TRUNCATE_MARKER}"
-                else:
-                    truncated_line = body[:available] + TRUNCATE_MARKER
-                result_parts.append(truncated_line)
-                used += sep + len(truncated_line)
-                return False
-
-            # Normal: skip if doesn't fit
-            return True
-
-        for heading, body in high:
-            if not try_add(heading, body, is_high=True):
-                break
-
-        for heading, body in normal:
-            if not try_add(heading, body, is_high=False):
-                break
-
-        return ("\n\n".join(result_parts)).rstrip() + "\n"
+def _strip_note_heading(text: str) -> str:
+    """去掉用户粘贴进来的「## 手工笔记」标题行（导出格式自带该标题）。"""
+    lines = text.strip().splitlines()
+    while lines and lines[0].strip() == CORE_NOTE_HEADING:
+        lines.pop(0)
+    return "\n".join(lines).strip()

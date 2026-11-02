@@ -1,7 +1,7 @@
 """记忆检索链路日志（切面模块）。
 
 **为什么单独成文件**：把「检索过程可观测性」这个横切关注点从业务代码里摘出来。
-``engine.py`` / ``store_adapter.py`` 只保留**一行** ``trace.recall(...)`` 调用，
+``engine.py`` / ``store_adapter.py`` 只保留**一行** ``trace.*(...)`` 调用，
 所有格式化、中文文案、截断策略都在这里，因此：
 
 - 调试时想加/改内容 → 只动本文件；
@@ -33,8 +33,6 @@ MAX_ITEMS = 8
 _CHANNEL_CN: dict[str, str] = {
     "semantic": "语义通道",
     "episodes": "情节通道",
-    "recent": "近期通道",
-    "attachments": "附件通道",
 }
 
 
@@ -45,11 +43,10 @@ def _one_line(text: Any, *, limit: int = CONTENT_CHARS) -> str:
 
 
 def _fmt_item(c: RetrievalCandidate) -> str:
-    """单条候选的一行摘要：id + 各路分数 + 内容。"""
+    """单条候选的一行摘要：kind + id + 融合名次 + 内容。"""
     return (
-        f"[{c.memory_id[:8]}] 相关={c.relevance:.3f} 新鲜={c.recency_score:.2f} "
-        f"重要={c.importance_score:.2f} 频次={c.access_frequency_score:.2f} "
-        f"| {_one_line(c.content)}"
+        f"[{c.hit.kind}:{c.memory_id[:8]}] 名次={c.hit.rank} "
+        f"融合={c.composite_score:.4f} | {_one_line(c.content)}"
     )
 
 
@@ -109,6 +106,21 @@ def skipped(*, query: str, reason: str) -> None:
     _emit([f"【记忆检索·跳过】查询={query!r}", f"  原因: {reason}"])
 
 
+def time_browse(*, query_window_days: int, items: list[RetrievalCandidate]) -> None:
+    """显式纯时间查询：受限时间列表（不是相关性匹配）。"""
+    if not ENABLED:
+        return
+    lines = [
+        f"【记忆检索·时间浏览】窗口={query_window_days} 天 → {len(items)} 条"
+        "（按保存时间倒序，未按相关性筛选）",
+    ]
+    for c in items[:MAX_ITEMS]:
+        lines.append(f"      - [{c.memory_id[:8]}] | {_one_line(c.content)}")
+    if len(items) > MAX_ITEMS:
+        lines.append(f"      … 另有 {len(items) - MAX_ITEMS} 条省略")
+    _emit(lines)
+
+
 def injection(*, block: str, ids: list[str]) -> None:
     """最终产物：真正拼进 system prompt 的 markdown 原文。
 
@@ -137,7 +149,7 @@ def recall(
     channel_items: dict[str, list[RetrievalCandidate]],
     channel_errors: dict[str, str],
 ) -> None:
-    """阶段一：四路召回明细（每路条数 + 每条内容）。"""
+    """阶段一：两路召回明细（每路条数 + 每条内容）。"""
     if not ENABLED:
         return
     total = sum(len(v) for v in channel_items.values())
@@ -160,56 +172,49 @@ def dedupe(
     *,
     before: int,
     unique: list[RetrievalCandidate],
-    dup_groups: dict[str, list[str]],
+    multi_channel: dict[tuple[str, str], list[str]],
 ) -> None:
-    """阶段二：按 memory_id 去重明细（哪些记忆被多路重复命中）。"""
+    """阶段二：按 ``(kind, id)`` 融合去重明细（哪些条目被多路命中）。"""
     if not ENABLED:
         return
-    lines = [f"【记忆检索·去重】{before} 条 → {len(unique)} 条"]
-    if not dup_groups:
-        lines.append("  无重复命中")
+    lines = [f"【记忆检索·去重】原始 {before} 条 → 融合后 {len(unique)} 条"]
+    if not multi_channel:
+        lines.append("  无跨通道重复命中")
         _emit(lines)
         return
-    merged = sum(len(v) - 1 for v in dup_groups.values())
-    lines.append(f"  合并 {merged} 条重复（同一记忆被多路命中，取最高相关分）:")
-    for mid, channels in list(dup_groups.items())[:MAX_ITEMS]:
-        lines.append(f"      [{mid[:8]}] 命中于 {'+'.join(channels)}")
-    if len(dup_groups) > MAX_ITEMS:
-        lines.append(f"      … 另有 {len(dup_groups) - MAX_ITEMS} 条省略")
+    lines.append("  同一 (kind, id) 被多路命中（RRF 累计名次）:")
+    for (kind, record_id), channels in list(multi_channel.items())[:MAX_ITEMS]:
+        lines.append(f"      [{kind}:{record_id[:8]}] 命中于 {'+'.join(channels)}")
+    if len(multi_channel) > MAX_ITEMS:
+        lines.append(f"      … 另有 {len(multi_channel) - MAX_ITEMS} 条省略")
     _emit(lines)
 
 
 def rank(
     *,
-    unique: list[RetrievalCandidate],
     ranked: list[RetrievalCandidate],
-    dropped: list[RetrievalCandidate],
-    items: list[dict],
+    items: list[dict[str, Any]],
     truncated: list[RetrievalCandidate],
     limit: int,
     tokens: int,
+    mode: str = "relevance",
 ) -> None:
-    """阶段三+四：重排打分、阈值过滤、预算截断、最终注入。
+    """阶段三+四：融合排序、相关性筛选、预算截断、最终注入。
 
-    ``dropped`` 来自去重后的原始候选（未被 Reranker 写入 ``composite_score``），
-    故只展示 ``相关`` 原始分，不展示综合分——综合分由 Reranker 内部计算，
-    这里拿不到，硬凑等于复制一份打分公式，会与真实实现漂移。
+    RRF 分只表示名次融合，不是相关概率；这里如实打印名次与融合分，不换算成
+    「高度相关」一类标签。
     """
     if not ENABLED:
         return
+    mode_cn = "时间浏览" if mode == "time" else "相关性检索"
     lines = [
-        f"【记忆检索·重排】入排 {len(unique)} 条 → 通过阈值 {len(ranked)} 条"
-        f"（综合=相关×0.4+新鲜×0.2+重要×0.2+频次×0.2 ≥ 0.35，冷启动豁免）",
+        f"【记忆检索·重排】模式={mode_cn} 有效候选 {len(ranked)} 条"
+        "（RRF 名次融合 → 相关性筛选 → 时效次级排序）"
     ]
     for i, c in enumerate(ranked[:MAX_ITEMS], 1):
-        lines.append(f"      {i}. 综合={c.composite_score:.3f} {_fmt_item(c)}")
+        lines.append(f"      {i}. {_fmt_item(c)}")
     if len(ranked) > MAX_ITEMS:
         lines.append(f"      … 另有 {len(ranked) - MAX_ITEMS} 条省略")
-
-    if dropped:
-        lines.append(f"  被阈值过滤 {len(dropped)} 条:")
-        for c in dropped[:MAX_ITEMS]:
-            lines.append(f"      [丢弃] 相关={c.relevance:.3f} | {_one_line(c.content)}")
 
     lines.append(
         f"【记忆检索·注入】{len(items)} 条进入 system prompt"
@@ -218,13 +223,12 @@ def rank(
     for i, it in enumerate(items, 1):
         lines.append(
             f"      {i}. [{str(it.get('memory_id', ''))[:8]}] "
-            f"分={it.get('score', 0.0)} {it.get('reason', '')} "
-            f"| {_one_line(it.get('content', ''))}"
+            f"{it.get('type', '')} | {_one_line(it.get('content', ''))}"
         )
     if truncated:
         lines.append(f"  被预算截断 {len(truncated)} 条:")
         for c in truncated[:MAX_ITEMS]:
-            lines.append(f"      [截断] 综合={c.composite_score:.3f} | {_one_line(c.content)}")
+            lines.append(f"      [截断] {_fmt_item(c)}")
     _emit(lines)
 
 
@@ -241,7 +245,7 @@ def hybrid(
     unfiltered_matches: dict[str, int] | None = None,
     limit: int,
 ) -> None:
-    """语义路融合明细：FTS5 ∪ 向量（同 id 取最高分）→ 活性过滤 → 返回。
+    """语义路融合明细：FTS5/LIKE ∪ 向量（RRF 融合）→ 有效性/可见性过滤 → 返回。
 
     ``discarded_inactive`` 与 ``discarded_invisible`` 分开统计：前者是行没了/
     作废/过期，后者是**命中了但不在可见集合内**——后者才是「工作区隔离挡掉了」。
@@ -254,12 +258,12 @@ def hybrid(
     fts5_ids = [mem.id for mem, _ in fts5_hits]
     vector_ids = [str(mid) for mid, _ in vector_hits]
 
-    lines = [f"【混合检索·语义路】查询={query!r}（FTS5 ∪ 向量，同 id 取最高分）"]
+    lines = [f"【混合检索·语义路】查询={query!r}（FTS5/LIKE ∪ 向量，RRF 名次融合）"]
 
-    lines.append(f"  · FTS5(BM25) {len(fts5_hits)} 条")
+    lines.append(f"  · FTS5/LIKE {len(fts5_hits)} 条")
     if not fts5_hits:
         lines.append("      （无命中：FTS5 用 unicode61 分词器，不切分中文词，"
-                     "中文查询通常只能靠向量路）")
+                     "中文查询通常只能靠 LIKE 回退或向量路）")
     for mem, score in fts5_hits[:MAX_ITEMS]:
         lines.append(f"      [{mem.id[:8]}] 分={score:.3f} | {_one_line(mem.content)}")
     if len(fts5_hits) > MAX_ITEMS:
@@ -281,7 +285,7 @@ def hybrid(
     )
 
     if discarded_inactive:
-        lines.append(f"  · 活性过滤丢弃 {len(discarded_inactive)} 条（已作废 / 已过期 / 行已删）:")
+        lines.append(f"  · 有效性过滤丢弃 {len(discarded_inactive)} 条（已作废 / 已过期 / 行已删）:")
         for mid in discarded_inactive[:MAX_ITEMS]:
             lines.append(f"      [丢弃] [{str(mid)[:8]}]")
     if discarded_invisible:
@@ -305,7 +309,7 @@ def hybrid(
                 "  · 诊断: 忽略可见集合也 0 条文本命中 → 与工作区无关，是词没匹配上"
             )
 
-    lines.append(f"  · 按分排序取前 {limit} → 返回 {len(out)} 条")
+    lines.append(f"  · 按融合名次取前 {limit} → 返回 {len(out)} 条")
     for mem, score in out:
         lines.append(f"      [{mem.id[:8]}] 分={score:.3f} | {_one_line(mem.content)}")
     _emit(lines)

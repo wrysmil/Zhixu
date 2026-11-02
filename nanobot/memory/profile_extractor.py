@@ -1,7 +1,13 @@
-"""用户画像提取 + 引用评分 + 增量合并。
+"""用户画像提取。
 
-S3 Track 1: 复用 SEMANTIC_EXTRACTION_PROMPT（取 memories 字段），
-拼装 CITATION_SCORING_SECTION 段（同次 LLM 调用）。
+S3 Track 1: 复用 SEMANTIC_EXTRACTION_PROMPT（取 memories / experiences 字段）。
+
+画像合并/冲突判定已收敛到 :mod:`nanobot.memory.writer` 的写入决策表（D08），
+本模块只负责调用模型、解析候选。
+
+引用评分（``citation_scores`` / ``useful``）已随 D11 删除：它的唯一消费者是
+``access_count`` 写回，而排序不再读 ``access_count``（spec §6.3），
+继续让模型逐条评判 usefulness 只会白花 token 并给出无人消费的产出。
 """
 from __future__ import annotations
 
@@ -15,21 +21,6 @@ from loguru import logger
 
 from nanobot.memory.llm_error import response_error
 from nanobot.memory.prompts import SEMANTIC_EXTRACTION_PROMPT
-
-CITATION_SCORING_SECTION = """\
-
-以下是被检索到的历史记忆，请逐条评判它对本次任务是否有实际帮助：
-{cited_memories}
-
-在你的 JSON 输出中增加 "citation_scores" 字段：
-"citation_scores": [
-  {{"memory_id": "xxx", "useful": true/false}}
-]
-- useful=true：记忆对本次任务执行有实际帮助（提供了信息、避免了错误等）
-- useful=false：记忆与本次任务无关或无实际帮助
-
-最终输出格式: {{"memories": [...], "citation_scores": [...]}}
-如没有要提取的记忆，memories 为空数组。只输出 JSON。"""
 
 
 @dataclass
@@ -47,13 +38,6 @@ class ProfileItem:
 
 
 @dataclass
-class MergeResult:
-    action: str  # "update" | "create_new" | "keep_old_with_conflict"
-    merged: dict | None = None
-    existing: dict | None = None
-
-
-@dataclass
 class ProfileExtractionResult:
     """Track 1 单次调用的产出。
 
@@ -66,12 +50,11 @@ class ProfileExtractionResult:
 
     items: list[ProfileItem] = field(default_factory=list)
     experiences: list[ProfileItem] = field(default_factory=list)
-    scores: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
 
 
 class ProfileExtractor:
-    """S3 Track 1：用户画像 + 引用评分。"""
+    """S3 Track 1：用户画像 + 经验。"""
 
     def __init__(self, runtime: Any | None = None, model: str = "") -> None:
         self._runtime = runtime
@@ -81,18 +64,15 @@ class ProfileExtractor:
         self,
         transcript: list[dict],
         episode_id: str,
-        cited_memories: list[dict] | None = None,
         *,
         prompt_messages: list[dict[str, Any]] | None = None,
         timeout: float | None = None,
     ) -> ProfileExtractionResult:
-        """抽取画像（+ 经验 + 引用评分）。
+        """抽取画像（+ 经验）。
 
         Args:
             transcript: 对话转录；仅当 ``prompt_messages`` 缺省时用于自行拼 prompt。
             episode_id: 关联的情节 id（当前仅透传，不参与 prompt）。
-            cited_memories: 本次检索注入的历史记忆 ``[{id, content}]``；非空时追加
-                引用评分段。
             prompt_messages: 调用方已拼好的 prompt。传入时**原样使用**，不再自行拼接
                 —— 让调用方复用带阶段1 系统提取结果的 prompt，避免两套拼装逻辑分叉。
             timeout: 单次 LLM 调用超时（秒）。``None`` 表示不额外设限。调用方应传入
@@ -106,15 +86,11 @@ class ProfileExtractor:
             return ProfileExtractionResult()
         try:
             if prompt_messages is not None:
-                messages = _append_citation_section(prompt_messages, cited_memories)
+                messages = prompt_messages
             else:
                 conv_text = _format_conv_lines(transcript)
                 # SEMANTIC_EXTRACTION_PROMPT 为指令式，无 {conversation} 占位符
                 prompt = f"{SEMANTIC_EXTRACTION_PROMPT}\n\n### 对话转录\n{conv_text}"
-                if cited_memories:
-                    prompt += CITATION_SCORING_SECTION.format(
-                        cited_memories=_cite_text(cited_memories)
-                    )
                 messages = [{"role": "user", "content": prompt}]
 
             call = self._runtime.provider.chat_with_retry(
@@ -145,33 +121,10 @@ class ProfileExtractor:
             return ProfileExtractionResult(
                 items=_parse_items(data.get("memories")),
                 experiences=_parse_items(data.get("experiences")),
-                scores=_parse_scores(data.get("citation_scores")),
             )
         except Exception as exc:
             logger.warning("ProfileExtractor.extract failed: {}", exc)
             return ProfileExtractionResult(error=f"call_failed: {exc}")
-
-
-def _cite_text(cited_memories: list[dict]) -> str:
-    return "\n".join(
-        f"- ID={m['id']} | {(m.get('content', '') or '')[:150]}" for m in cited_memories
-    )
-
-
-def _append_citation_section(
-    prompt_messages: list[dict[str, Any]],
-    cited_memories: list[dict] | None,
-) -> list[dict[str, Any]]:
-    """把引用评分段追加到最后一条 user 消息尾部；无 cited 时原样返回副本。"""
-    if not cited_memories:
-        return prompt_messages
-    section = CITATION_SCORING_SECTION.format(cited_memories=_cite_text(cited_memories))
-    out = [dict(m) for m in prompt_messages]
-    for msg in reversed(out):
-        if msg.get("role") == "user" and isinstance(msg.get("content"), str):
-            msg["content"] = msg["content"] + section
-            break
-    return out
 
 
 def _parse_items(raw_items: Any) -> list[ProfileItem]:
@@ -192,54 +145,6 @@ def _item_from_dict(raw: dict[str, Any]) -> ProfileItem:
         tags=list(raw.get("tags") or []),
         is_update=bool(raw.get("is_update", False)),
     )
-
-
-def _parse_scores(raw_scores: Any) -> list[dict[str, Any]]:
-    if not isinstance(raw_scores, list):
-        return []
-    return [
-        {"memory_id": str(s["memory_id"]), "useful": bool(s.get("useful", False))}
-        for s in raw_scores
-        if isinstance(s, dict) and "memory_id" in s
-    ]
-
-def merge_profile_incremental(existing: dict, incoming: dict) -> MergeResult:
-    """增量合并：subject+predicate 相同才尝试更新；冲突保留旧 + 记 conflicts_with。"""
-    if (
-        existing.get("subject") == incoming.get("subject")
-        and existing.get("predicate") == incoming.get("predicate")
-    ):
-        neg_a = any(k in existing.get("content", "") for k in ("不", "没", "无"))
-        neg_b = any(k in incoming.get("content", "") for k in ("不", "没", "无"))
-        if neg_a != neg_b and existing.get("content") != incoming.get("content"):
-            new_existing = dict(existing)
-            conflicts = list(new_existing.get("conflicts_with") or [])
-            # incoming 缺 id 时，用 subject+predicate+content 短 hash 作冲突标识
-            incoming_id = (
-                incoming.get("id")
-                or incoming.get("memory_id")
-                or _conflict_id(incoming)
-            )
-            if incoming_id and incoming_id not in conflicts:
-                conflicts.append(incoming_id)
-            if len(conflicts) > 5:
-                conflicts = conflicts[-5:]
-            new_existing["conflicts_with"] = conflicts
-            return MergeResult(action="keep_old_with_conflict", existing=new_existing)
-        merged = dict(existing)
-        merged["content"] = incoming.get("content", existing.get("content"))
-        if "importance" in incoming:
-            merged["importance"] = incoming["importance"]
-        return MergeResult(action="update", merged=merged)
-    return MergeResult(action="create_new")
-
-
-def _conflict_id(incoming: dict) -> str:
-    """为 incoming 生成稳定冲突标识（subject|predicate|content[:30]）。"""
-    import hashlib
-
-    key = f"{incoming.get('subject','')}|{incoming.get('predicate','')}|{(incoming.get('content','') or '')[:30]}"
-    return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
 
 
 def _format_conv_lines(transcript: list[dict]) -> str:

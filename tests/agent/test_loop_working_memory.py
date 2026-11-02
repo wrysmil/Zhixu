@@ -66,7 +66,7 @@ async def _seed_focus(services: MemoryServices, session_key: str, focus: str) ->
         user_id=ScratchpadWriter.user_id_for_key(session_key),
         workspace_id=services.workspace_id,
     )
-    await writer.update_focus(session_key, focus)
+    await writer.update_focus(focus)
 
 
 def _stub_run_result() -> AgentRunResult:

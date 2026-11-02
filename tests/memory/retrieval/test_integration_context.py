@@ -1,254 +1,299 @@
-"""T-13 integration tests: RetrievalEngine wiring into build_system_prompt.
+"""检索 → 统一记忆组装的接线测试（契约 §4 / spec §7）。
 
-Covers (per Leader spec):
-1. ``active_retrieval_enabled=True`` + engine → memory block appended to system prompt.
-2. ``active_retrieval_enabled=False`` → engine.retrieve NOT called.
-3. ``active_retrieval_enabled=True`` + engine is None → engine.retrieve NOT called.
-4. engine.retrieve raises → failure-isolated; system prompt still built without block.
-5. ``_build_memory_section`` async method contract (plan T-13 §Step 1 reference test).
+覆盖：
+1. ``active_retrieval_enabled=True`` + 引擎 → 检索结果进入统一记忆块；
+2. 未启用 / 引擎缺失 → 不调用引擎，也不产出记忆块；
+3. 引擎抛异常 → 失败隔离，system prompt 照常构建；
+4. ``_build_memory_section_with_ids`` 返回 ``(RecalledMemorySection, 引用 id)``；
+5. 核心事实与召回同一条事实只出现一次（去重在组装侧）；
+6. 没有结构化条目的已渲染段落不再注入（注入路径只有一条）。
 """
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from nanobot.agent.context import ContextBuilder
+from nanobot.memory.context import RecalledMemorySection
+from nanobot.memory.database import MemoryDatabase
+from nanobot.memory.models import Memory, MemoryType
+from nanobot.memory.repository import add_memory
+from nanobot.memory.retrieval.candidate import MemoryHit
 
 
-def _engine(return_value: str = "## 相关记忆（自动检索）\n- Python 爬虫") -> AsyncMock:
-    """Build an AsyncMock that mimics ``RetrievalEngine.retrieve``.
+def _hit(record_id: str = "m1", content: str = "Python 爬虫项目", *, kind: str = "memory"):
+    return MemoryHit(
+        kind=kind,  # type: ignore[arg-type]
+        record_id=record_id,
+        content=content,
+        workspace_id="default",
+    )
 
-    ``_build_memory_section`` 走 ``retrieve_with_ids``（WU-B），故同时 mock 两个
-    方法并保持一致返回：(注入块, 注入的 memory_id 列表)。id 列表默认空。
-    """
-    engine = AsyncMock()
-    engine.retrieve = AsyncMock(return_value=return_value)
-    engine.retrieve_with_ids = AsyncMock(return_value=(return_value, []))
-    return engine
+
+class _Engine:
+    """检索引擎替身：只实现结构化入口 ``search_hits``。"""
+
+    def __init__(self, hits: list[MemoryHit] | None = None, error: Exception | None = None):
+        self.hits = hits if hits is not None else [_hit()]
+        self.error = error
+        self.calls: list[dict[str, Any]] = []
+
+    async def search_hits(self, *, query, recent_messages, workspace_ids=None, limit=10):
+        self.calls.append(
+            {
+                "query": query,
+                "recent_messages": recent_messages,
+                "workspace_ids": workspace_ids,
+                "limit": limit,
+            }
+        )
+        if self.error is not None:
+            raise self.error
+        return list(self.hits)
 
 
 def _builder(tmp_path: Path, **kw: Any) -> ContextBuilder:
     return ContextBuilder(workspace=tmp_path, **kw)
 
 
+def _seed_fact(workspace: Path, content: str, *, record_id: str | None = None) -> str:
+    db = MemoryDatabase(workspace)
+    db.init_schema()
+    fact_id = record_id or str(uuid.uuid4())
+    with db.connect() as conn:
+        add_memory(conn, Memory(
+            id=fact_id,
+            content=content,
+            type=MemoryType.FACT,
+            importance_score=0.9,
+            scope="user",
+            workspace_id="default",
+            created_at="2026-11-02T10:00:00Z",
+            updated_at="2026-11-02T10:00:00Z",
+        ))
+    return fact_id
+
+
 # ---------------------------------------------------------------------------
-# 1) enabled + engine → block appended
+# 1) enabled + engine → 记忆块进入 prompt
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_enabled_with_engine_appends_block_via_precomputed_section(tmp_path: Path):
-    """Pre-computed retrieval section is appended after the long-term memory block."""
-    engine = _engine("## 相关记忆\n- Python 爬虫项目")
+async def test_enabled_with_engine_injects_composed_block(tmp_path: Path):
+    engine = _Engine([_hit("m1", "Python 爬虫项目")])
     builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=engine)
-    prompt = builder.build_system_prompt(
-        workspace=tmp_path,
-        include_memory=False,
-        retrieved_memory_section="## 相关记忆\n- Python 爬虫项目",
-    )
-    assert "## 相关记忆" in prompt
-    assert "Python 爬虫项目" in prompt
 
-
-@pytest.mark.asyncio
-async def test_build_memory_section_awaitable_and_returns_block_when_enabled(tmp_path: Path):
-    """``_build_memory_section`` is async; returns retrieval markdown when enabled."""
-    engine = _engine("## 相关记忆（自动检索）\n- Python 爬虫")
-    builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=engine)
-    section = await builder._build_memory_section(
+    section, ids = await builder._build_memory_section_with_ids(
         query="我之前写的 Python 爬虫", recent_messages=[]
     )
-    assert "Python 爬虫" in section
-    engine.retrieve_with_ids.assert_awaited_once()
-    call = engine.retrieve_with_ids.await_args
-    assert call.kwargs.get("query") == "我之前写的 Python 爬虫"
+    prompt = builder.build_system_prompt(
+        workspace=tmp_path, include_memory=False, retrieved_memory_section=section
+    )
+
+    assert isinstance(section, RecalledMemorySection)
+    assert "Python 爬虫项目" in prompt
+    assert "## 相关记忆（自动检索）" in prompt
+    assert ids == ["m1"]
 
 
 @pytest.mark.asyncio
-async def test_build_memory_section_passes_recent_messages_to_engine(tmp_path: Path):
-    """``_build_memory_section`` forwards ``recent_messages`` to the engine."""
-    engine = _engine()
+async def test_engine_call_forwards_query_messages_and_limit(tmp_path: Path):
+    engine = _Engine()
     builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=engine)
     recent = [{"role": "user", "content": "之前的话题"}]
-    await builder._build_memory_section(
-        query="我们之前讨论过的内容是什么", recent_messages=recent
+
+    await builder._build_memory_section_with_ids(
+        query="我们之前讨论过的内容是什么",
+        recent_messages=recent,
+        workspace_ids=("default", "ws-a"),
     )
-    call = engine.retrieve_with_ids.await_args
-    assert call.kwargs.get("recent_messages") is recent
+
+    call = engine.calls[0]
+    assert call["query"] == "我们之前讨论过的内容是什么"
+    assert call["recent_messages"] is recent
+    assert call["workspace_ids"] == ("default", "ws-a")
+    assert call["limit"] >= 1
 
 
 # ---------------------------------------------------------------------------
-# 2) disabled → engine.retrieve NOT called
+# 2) 未启用 / 引擎缺失
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_disabled_does_not_call_engine(tmp_path: Path):
-    engine = _engine()
+    engine = _Engine()
     builder = _builder(tmp_path, active_retrieval_enabled=False, retrieval_engine=engine)
-    section = await builder._build_memory_section(query="Python 爬虫", recent_messages=[])
-    assert section == ""
-    engine.retrieve_with_ids.assert_not_called()
 
-
-def test_disabled_prompt_omits_retrieval_block(tmp_path: Path):
-    """``build_system_prompt`` with disabled flag ignores passed-in retrieval section."""
-    engine = _engine()
-    builder = _builder(tmp_path, active_retrieval_enabled=False, retrieval_engine=engine)
-    prompt = builder.build_system_prompt(
-        workspace=tmp_path,
-        include_memory=False,
-        retrieved_memory_section="## 相关记忆\n- should not appear",
+    section, ids = await builder._build_memory_section_with_ids(
+        query="Python 爬虫", recent_messages=[]
     )
-    assert "should not appear" not in prompt
 
-
-# ---------------------------------------------------------------------------
-# 3) engine is None → no call (even when flag is True)
-# ---------------------------------------------------------------------------
+    assert (section, ids) == ("", [])
+    assert engine.calls == []
 
 
 @pytest.mark.asyncio
 async def test_engine_none_does_not_call(tmp_path: Path):
     builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=None)
-    section = await builder._build_memory_section(query="Python 爬虫", recent_messages=[])
-    assert section == ""
+
+    assert await builder._build_memory_section_with_ids(
+        query="Python 爬虫", recent_messages=[]
+    ) == ("", [])
 
 
-def test_engine_none_no_block_in_prompt(tmp_path: Path):
-    """No engine → retrieval section is silently dropped."""
-    builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=None)
-    prompt = builder.build_system_prompt(
-        workspace=tmp_path,
-        include_memory=False,
-        retrieved_memory_section="## 相关记忆\n- dropped",
+@pytest.mark.asyncio
+async def test_memory_toggle_off_disables_retrieval(tmp_path: Path):
+    engine = _Engine()
+    builder = _builder(
+        tmp_path,
+        active_retrieval_enabled=True,
+        retrieval_engine=engine,
+        memory_enabled_provider=lambda: False,
     )
-    assert "dropped" not in prompt
+
+    assert await builder._build_memory_section_with_ids(
+        query="Python 爬虫", recent_messages=[]
+    ) == ("", [])
+    assert engine.calls == []
 
 
 # ---------------------------------------------------------------------------
-# 4) engine raises → failure isolation
+# 3) 失败隔离
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_engine_exception_does_not_break_memory_section(tmp_path: Path):
-    """``_build_memory_section`` swallows retrieval failures; returns empty string."""
-    engine = AsyncMock()
-    engine.retrieve_with_ids = AsyncMock(
-        side_effect=RuntimeError("retrieval engine down")
-    )
+async def test_engine_exception_is_isolated(tmp_path: Path):
+    engine = _Engine(error=RuntimeError("retrieval engine down"))
     builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=engine)
-    section = await builder._build_memory_section(
+
+    section, ids = await builder._build_memory_section_with_ids(
         query="Python 爬虫", recent_messages=[]
     )
-    assert section == ""
+
+    assert (section, ids) == ("", [])
+    prompt = builder.build_system_prompt(
+        workspace=tmp_path, include_memory=False, retrieved_memory_section=section
+    )
+    assert "retrieval engine down" not in prompt
+
+
+# ---------------------------------------------------------------------------
+# 4) 空结果
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_engine_exception_does_not_break_system_prompt(tmp_path: Path):
-    """When caller pre-computes retrieval via try/except, system prompt is built normally.
+async def test_empty_hits_returns_empty_section(tmp_path: Path):
+    builder = _builder(
+        tmp_path, active_retrieval_enabled=True, retrieval_engine=_Engine([])
+    )
 
-    This simulates the failure-isolation pattern that ``AgentLoop._build_turn``
-    will use: wrap ``_build_memory_section`` in try/except and pass ``""`` on
-    failure. The system prompt must still build.
-    """
-    engine = AsyncMock()
-    engine.retrieve_with_ids = AsyncMock(side_effect=RuntimeError("boom"))
+    section, ids = await builder._build_memory_section_with_ids(
+        query="Python 爬虫", recent_messages=[]
+    )
+
+    assert (section, ids) == ("", [])
+    assert builder.build_system_prompt(
+        workspace=tmp_path, include_memory=False, retrieved_memory_section=section
+    ).count("## 相关记忆") == 0
+
+
+# ---------------------------------------------------------------------------
+# 5) 核心事实 + 召回去重
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_core_fact_and_recalled_hit_injected_once(tmp_path: Path):
+    fact_id = _seed_fact(tmp_path, "用户偏好中文回答")
+    engine = _Engine([_hit(fact_id, "用户偏好中文回答")])
     builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=engine)
 
-    precomputed = ""
-    try:
-        precomputed = await builder._build_memory_section(
-            query="Python 爬虫", recent_messages=[]
-        )
-    except Exception:
-        precomputed = ""
+    section, _ids = await builder._build_memory_section_with_ids(
+        query="用户偏好什么语言", recent_messages=[]
+    )
+    prompt = builder.build_system_prompt(
+        workspace=tmp_path, include_memory=True, retrieved_memory_section=section
+    )
+
+    assert prompt.count("用户偏好中文回答") == 1
+    assert "## 核心事实（当前有效记录）" in prompt
+
+
+def test_core_facts_injected_without_retrieval(tmp_path: Path):
+    _seed_fact(tmp_path, "用户使用 Windows 11")
+    builder = _builder(tmp_path)
+
+    prompt = builder.build_system_prompt(workspace=tmp_path, include_memory=True)
+
+    assert "用户使用 Windows 11" in prompt
+    assert "## 核心事实（当前有效记录）" in prompt
+
+
+def test_include_memory_false_omits_core_facts(tmp_path: Path):
+    _seed_fact(tmp_path, "用户使用 Windows 11")
+    builder = _builder(tmp_path)
+
+    prompt = builder.build_system_prompt(workspace=tmp_path, include_memory=False)
+
+    assert "用户使用 Windows 11" not in prompt
+
+
+# ---------------------------------------------------------------------------
+# 6) 注入路径唯一
+# ---------------------------------------------------------------------------
+
+
+def test_plain_rendered_section_is_not_injected(tmp_path: Path):
+    """没有结构化条目的已渲染段落不再注入：注入只能经组装函数。"""
+    builder = _builder(tmp_path)
 
     prompt = builder.build_system_prompt(
         workspace=tmp_path,
         include_memory=False,
-        retrieved_memory_section=precomputed,
+        retrieved_memory_section="## 相关记忆\n- legacy block",
     )
-    assert "boom" not in prompt
-    # identity template is part of the prompt regardless of retrieval
-    assert "You are" in prompt or "# Memory" in prompt or prompt  # sanity
+
+    assert "legacy block" not in prompt
 
 
 # ---------------------------------------------------------------------------
-# 5) gate short-circuit
+# 7) transcript / messages 透传
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_gate_short_circuit_skips_engine(tmp_path: Path):
-    """Preprocessor gate (control word / short query) skips engine invocation."""
-    engine = _engine()
-    builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=engine)
-    section = await builder._build_memory_section(query="好", recent_messages=[])
-    assert "相关记忆" not in section
-    engine.retrieve_with_ids.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# 6) empty retrieval result → no block appended
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_empty_retrieval_result_returns_empty_section(tmp_path: Path):
-    """Engine returns ``""`` → ``_build_memory_section`` returns ``""`` (no block)."""
-    engine = _engine(return_value="")
-    builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=engine)
-    section = await builder._build_memory_section(query="Python 爬虫", recent_messages=[])
-    assert section == ""
-
-
-def test_empty_precomputed_section_not_appended(tmp_path: Path):
-    engine = MagicMock()
-    builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=engine)
-    prompt = builder.build_system_prompt(
-        workspace=tmp_path,
-        include_memory=False,
-        retrieved_memory_section="",
-    )
-    assert "相关记忆" not in prompt
-
-
-# ---------------------------------------------------------------------------
-# 7) build_transcript wires through
-# ---------------------------------------------------------------------------
-
-
-def test_build_transcript_forwards_retrieved_section(tmp_path: Path):
-    """``build_transcript`` propagates ``retrieved_memory_section`` to system prompt."""
-    engine = MagicMock()
-    builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=engine)
+def test_build_transcript_forwards_carrier(tmp_path: Path):
     from nanobot.agent.context import TranscriptInput
+
+    builder = _builder(tmp_path)
+    section = RecalledMemorySection("", [_hit("m1", "透传条目")])
 
     messages = builder.build_transcript(
         TranscriptInput(history=[], current_message=None),
         workspace=tmp_path,
         include_memory=False,
-        retrieved_memory_section="## 相关记忆\n- injected",
+        retrieved_memory_section=section,
     )
-    system_content = messages[0]["content"]
-    assert "injected" in system_content
+
+    assert "透传条目" in messages[0]["content"]
 
 
-def test_build_messages_forwards_retrieved_section(tmp_path: Path):
-    """``build_messages`` (compatibility wrapper) propagates the section too."""
-    engine = MagicMock()
-    builder = _builder(tmp_path, active_retrieval_enabled=True, retrieval_engine=engine)
+def test_build_messages_forwards_carrier(tmp_path: Path):
+    builder = _builder(tmp_path)
+    section = RecalledMemorySection("", [_hit("m1", "兼容透传")])
+
     messages = builder.build_messages(
         history=[],
         current_message="hi",
         workspace=tmp_path,
         include_memory=False,
-        retrieved_memory_section="## 相关记忆\n- compat-path",
+        retrieved_memory_section=section,
     )
-    system_content = messages[0]["content"]
-    assert "compat-path" in system_content
+
+    assert "兼容透传" in messages[0]["content"]

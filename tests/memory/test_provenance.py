@@ -146,17 +146,6 @@ async def test_incremental_slice_preserves_session_workspace(db: MemoryDatabase)
     assert rows[0].metadata["provenance"]["workspaces"][0]["name"] == "A"
 
 
-async def test_generate_episode_keeps_manual_trigger_without_inventing_workspace(db: MemoryDatabase):
-    extractor = _make_extractor(db, _FakeProvider())
-    episode = await extractor.generate_episode(
-        [{"role": "user", "content": "Please keep this conversation"}],
-        "websocket:manual-session", source="manual",
-    )
-    assert episode is not None
-    assert episode.metadata["provenance"]["trigger_mode"] == "manual"
-    assert episode.metadata["provenance"]["workspaces"] == []
-
-
 def test_list_memories_by_session_filters_by_provenance_and_workspace(db: MemoryDatabase):
     """按 provenance.session_id 反查，并受可见集合约束。
 

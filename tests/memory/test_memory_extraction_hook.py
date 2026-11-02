@@ -1,8 +1,7 @@
 """``MemoryExtractionHook._compute_incremental_start_index`` 的窗口推导测试。
 
-T5 已被 plan WU-A §1 禁用（``_detect_topic_change`` 直接 return），因此原本的
-``TestTopicChangeIncrementalExtraction`` 已删除。但 ``_compute_incremental_start_index``
-仍保留在 ``memory_extraction.py`` 中（作为工具方法，可能由未来的增量路径复用），
+原 T5 话题切换检测（``TestTopicChangeIncrementalExtraction``）已随功能移除；
+``_compute_incremental_start_index`` 作为增量抽取窗口工具方法保留，
 对应单元测试保留。
 """
 
@@ -27,7 +26,7 @@ class _FakeExtractor:
 
 
 class _FakeScratchpadWriter:
-    async def update_focus(self, session_key: str, new_focus: str) -> None:
+    async def update_focus(self, new_focus: str) -> None:
         return None
 
 

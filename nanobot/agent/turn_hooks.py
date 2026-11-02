@@ -38,10 +38,6 @@ class AgentTurnHookSpec:
     ephemeral: bool = False
     run_extra_hooks_for_ephemeral: bool = False
     attributes: dict[str, Any] | None = None
-    # WU-B: 本次检索注入的记忆 id 列表，经 context 暴露给 per-turn hook 工厂，
-    # 由 idle 定时器用作引用评分（cited_memories）。与 ``metadata`` 分家——
-    # 那个会落进消息/事件的持久化元数据，这里只是 turn 级只读提示。
-    cited_memory_ids: list[str] = field(default_factory=list)
 
 
 def build_agent_turn_hook(spec: AgentTurnHookSpec) -> AgentHook:
@@ -65,7 +61,6 @@ def build_agent_turn_hook(spec: AgentTurnHookSpec) -> AgentHook:
         metadata=dict(spec.metadata or {}),
         attributes=dict(spec.attributes or {}),
         ephemeral=spec.ephemeral,
-        cited_memory_ids=list(spec.cited_memory_ids),
     )
     hook_chain: list[AgentHook] = [progress_hook]
 

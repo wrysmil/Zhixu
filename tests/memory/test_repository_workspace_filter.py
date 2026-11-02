@@ -16,7 +16,7 @@ from nanobot.memory.repository import (
     known_workspace_ids,
     list_episodes,
     list_memories,
-    query_semantic,
+    list_recent_memories,
     search_episodes,
     search_memories,
     search_semantic_scored,
@@ -59,8 +59,8 @@ def test_semantic_and_recent_respect_workspace_ids(tmp_path) -> None:
     db = _seed(tmp_path)
     with db.connect() as conn:
         scored = search_semantic_scored(conn, "创作灵感", workspace_ids=("default",))
-        recent = query_semantic(conn, min_importance=0.0, since_days=3650, limit=10,
-                                workspace_ids=("ws-a",))
+        recent = list_recent_memories(conn, since_days=3650, limit=10,
+                                      workspace_ids=("ws-a",))
     assert {m.workspace_id for m, _ in scored} == {"default"}
     assert {m.id for m in recent} == {"m-1"}
 
@@ -96,8 +96,8 @@ def test_empty_workspace_ids_on_episodes_matches_nothing(tmp_path) -> None:
         entity_hits = search_episodes(conn, entity="创作灵感", workspace_ids=())
         hits = search_memories(conn, "创作灵感", workspace_ids=())
         scored = search_semantic_scored(conn, "创作灵感", workspace_ids=())
-        recent = query_semantic(conn, min_importance=0.0, since_days=3650, limit=10,
-                                workspace_ids=())
+        recent = list_recent_memories(conn, since_days=3650, limit=10,
+                                      workspace_ids=())
     assert rows == []
     assert entity_hits == []
     assert hits == []

@@ -1,10 +1,7 @@
-"""Tests for the semantic recall channel (T-05)."""
+"""Tests for the semantic recall channel."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from types import SimpleNamespace
-
-import pytest
 
 from nanobot.memory.retrieval.channels.semantic import search_semantic
 
@@ -17,29 +14,32 @@ class _FakeStore:
         return self._rows
 
 
-def test_returns_candidates_with_semantic_channel():
+def test_returns_structured_candidates():
     raw_memory = SimpleNamespace(
         id="m-1",
         content="Python 爬虫",
-        importance_score=0.8,
-        updated_at=datetime.now(timezone.utc),
-        access_count=3,
+        workspace_id="ws-a",
+        created_at="2026-11-01T10:00:00+00:00",
+        metadata={"provenance": {"session_id": "s-1"}},
     )
     store = _FakeStore([(raw_memory, 0.9)])
-    cands = search_semantic(
-        store, query="Python 爬虫", limit=10, compute_recency=lambda dt: 1.0
-    )
+    cands = search_semantic(store, query="Python 爬虫", limit=10)
     assert len(cands) == 1
     c = cands[0]
     assert c.source_channel == "semantic"
-    assert c.relevance == 0.9
-    assert c.recency_score == 1.0
-    assert c.importance_score == 0.8
-    assert c.access_frequency_score == pytest.approx(0.2772589)  # log1p(3)/5
+    assert c.hit.kind == "memory"
+    assert c.memory_id == "m-1"
+    assert c.hit.workspace_id == "ws-a"
+    assert c.hit.source_session == "s-1"
+    assert c.raw is raw_memory
+
+
+def test_channel_does_not_invent_scores():
+    """通道不再计算相关分：融合分由 RRF 统一写入（默认 0.0）。"""
+    raw_memory = SimpleNamespace(id="m-1", content="Python 爬虫")
+    cands = search_semantic(_FakeStore([(raw_memory, 0.9)]), query="x", limit=10)
+    assert cands[0].composite_score == 0.0
 
 
 def test_empty_results():
-    store = _FakeStore([])
-    assert (
-        search_semantic(store, query="x", limit=10, compute_recency=lambda dt: 0.5) == []
-    )
+    assert search_semantic(_FakeStore([]), query="x", limit=10) == []

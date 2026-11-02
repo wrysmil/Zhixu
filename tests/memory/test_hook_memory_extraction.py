@@ -4,7 +4,8 @@
 - T0  ``after_run``      意图门 + scratchpad.current_focus 写入
 - T0' ``on_error``       仅紧急保存 focus（不调 LLM / extractor）
 - T1  ``after_run``/``on_finally``  WU-A idle 定时器注册 + 取消
-- T5  ``before_iteration``          话题切换检测已禁用（plan WU-A §1）
+
+（原 T5 ``before_iteration`` 话题切换检测已随功能一并移除，相关用例已删除。）
 
 extractor / scratchpad_writer / runtime 全部用鸭子类型 fake，不依赖真实 provider。
 """
@@ -19,7 +20,6 @@ import pytest
 
 from nanobot.agent.hook import AgentRunHookContext, AgentTurnHookContext
 from nanobot.agent.hooks.memory_extraction import (
-    _BACKGROUND_TASKS,
     _PENDING_IDLE_TIMERS,
     MemoryExtractionHook,
     create_memory_extraction_hook_factory,
@@ -63,13 +63,8 @@ class _FakeExtractor:
             raise self.raise_exc
         return _FakeExtractionResult()
 
-    async def run_idle_extraction(
-        self, session: Any, *, cited_memory_ids: list[str] | None = None
-    ) -> Any:
-        """WU-A: 新增的 idle 入口,与 extract_session 共享延迟/异常语义。
-
-        WU-B: 接受 ``cited_memory_ids``(hook 工厂透传的检索注入记忆 id)。
-        """
+    async def run_idle_extraction(self, session: Any) -> Any:
+        """WU-A: 新增的 idle 入口,与 extract_session 共享延迟/异常语义。"""
         self.idle_calls.append(session)
         if self.delay:
             await asyncio.sleep(self.delay)
@@ -80,11 +75,11 @@ class _FakeExtractor:
 
 class _FakeScratchpadWriter:
     def __init__(self) -> None:
-        self.focus_calls: list[tuple[str, str]] = []
+        self.focus_calls: list[str] = []
         self.archive_calls: list[list[str]] = []
 
-    async def update_focus(self, session_key: str, new_focus: str) -> None:
-        self.focus_calls.append((session_key, new_focus))
+    async def update_focus(self, new_focus: str) -> None:
+        self.focus_calls.append(new_focus)
 
     async def archive_completed(self, resolved_items: list[str]) -> None:
         self.archive_calls.append(list(resolved_items))
@@ -139,12 +134,8 @@ class _FakeRuntime:
 
 @pytest.fixture(autouse=True)
 async def _cleanup_background_tasks():
-    """每个用例结束后回收模块级 fire-and-forget 任务，避免跨用例泄漏。"""
+    """每个用例结束后回收模块级 idle 定时器，避免跨用例泄漏。"""
     yield
-    for task in list(_BACKGROUND_TASKS):
-        task.cancel()
-    await asyncio.sleep(0)
-    _BACKGROUND_TASKS.clear()
     # WU-A: 清理 idle 定时器。
     for task in list(_PENDING_IDLE_TIMERS.values()):
         if not task.done():
@@ -193,7 +184,7 @@ class TestAfterRunIntentGate:
         writer = _FakeScratchpadWriter()
         hook = _make_hook(writer=writer)
         await hook.after_run(_run_ctx("帮我实现一个爬虫"))
-        assert writer.focus_calls == [("s1", "帮我实现一个爬虫")]
+        assert writer.focus_calls == ["帮我实现一个爬虫"]
         await hook.on_finally(_run_ctx())
 
     async def test_focus_truncated_to_200_chars(self):
@@ -201,8 +192,8 @@ class TestAfterRunIntentGate:
         hook = _make_hook(writer=writer)
         message = "帮我实现" + "x" * 500
         await hook.after_run(_run_ctx(message))
-        assert writer.focus_calls == [("s1", message[:200])]
-        assert len(writer.focus_calls[0][1]) == 200
+        assert writer.focus_calls == [message[:200]]
+        assert len(writer.focus_calls[0]) == 200
         await hook.on_finally(_run_ctx())
 
     async def test_missing_user_message_is_noop(self):
@@ -214,7 +205,7 @@ class TestAfterRunIntentGate:
 
     async def test_scratchpad_failure_does_not_raise(self):
         class _BoomWriter(_FakeScratchpadWriter):
-            async def update_focus(self, session_key: str, new_focus: str) -> None:
+            async def update_focus(self, new_focus: str) -> None:
                 raise RuntimeError("db down")
 
         extractor = _FakeExtractor()
@@ -338,7 +329,7 @@ class TestOnError:
 
         await hook.on_error(_run_ctx("帮我实现一个爬虫"))
 
-        assert writer.focus_calls == [("s1", "帮我实现一个爬虫")]
+        assert writer.focus_calls == ["帮我实现一个爬虫"]
         assert extractor.calls == []  # 不调 extractor
         assert provider.calls == []  # 不调 LLM
 
@@ -350,57 +341,11 @@ class TestOnError:
 
     async def test_on_error_failure_does_not_raise(self):
         class _BoomWriter(_FakeScratchpadWriter):
-            async def update_focus(self, session_key: str, new_focus: str) -> None:
+            async def update_focus(self, new_focus: str) -> None:
                 raise RuntimeError("db down")
 
         hook = MemoryExtractionHook(_FakeExtractor(), "s1", _BoomWriter())
         await hook.on_error(_run_ctx("帮我实现一个爬虫"))  # 不抛
-
-
-# ---------------------------------------------------------------------------
-# T5：话题切换检测（已禁用 — ``_detect_topic_change`` 直接 return）
-# ---------------------------------------------------------------------------
-
-
-class TestTopicChangeDetectionDisabled:
-    """T5 已被 plan WU-A §1 禁用。``_detect_topic_change`` 是 no-op,
-    因此 ``before_iteration`` 既不调 LLM 也不调 extractor。"""
-
-    async def test_before_iteration_does_nothing(self):
-        provider = _FakeProvider(result='{"same_topic": false}')
-        extractor = _FakeExtractor()
-        hook = _make_hook(extractor=extractor, runtime=_FakeRuntime(provider))
-
-        # 任意长度的 user 消息：都不应触发。
-        from nanobot.agent.hook import AgentHookContext
-
-        ctx = AgentHookContext(
-            iteration=0,
-            messages=[{"role": "user", "content": f"消息 {i}"} for i in range(10)],
-            session_key="s1",
-        )
-        await hook.before_iteration(ctx)
-
-        assert provider.calls == []
-        assert extractor.calls == []
-        assert extractor.idle_calls == []
-        assert extractor.incremental_calls == []
-
-    async def test_before_iteration_without_runtime_is_noop(self):
-        extractor = _FakeExtractor()
-        writer = _FakeScratchpadWriter()
-        hook = _make_hook(extractor=extractor, writer=writer)  # no runtime
-
-        from nanobot.agent.hook import AgentHookContext
-
-        ctx = AgentHookContext(
-            iteration=0,
-            messages=[{"role": "user", "content": "切换话题"}] * 5,
-            session_key="s1",
-        )
-        await hook.before_iteration(ctx)
-
-        assert writer.focus_calls == []
 
 
 # ---------------------------------------------------------------------------

@@ -61,10 +61,6 @@ class AgentTurnHookContext:
     metadata: dict[str, Any] = field(default_factory=dict)
     ephemeral: bool = False
     attributes: dict[str, Any] = field(default_factory=dict)
-    # WU-B: 本次检索注入的记忆 id 列表（源自 retrieval ``with_ids`` 链路）。
-    # 供 MemoryExtractionHook 在 idle 定时器触发时引用评分使用；非记忆 hook
-    # 忽略即可。空列表表示本轮无注入。
-    cited_memory_ids: list[str] = field(default_factory=list)
 
 
 class AgentHook:

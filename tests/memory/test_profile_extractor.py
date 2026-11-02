@@ -1,12 +1,15 @@
-"""ProfileExtractor 单测（S3 Track 1：用户画像 + 引用评分 + 增量合并）。"""
+"""ProfileExtractor 单测（S3 Track 1：用户画像 + 经验）。
+
+增量合并/冲突判定已收敛到 ``nanobot.memory.writer`` 的写入决策表（D08），
+合并语义的测试见 ``test_writer.py`` 与 ``test_profile_merge_persistence.py``。
+
+引用评分（``citation_scores``）已随 D11 删除：模型即便多吐这个字段也只被忽略。
+"""
 from __future__ import annotations
 
 import pytest
 
-from nanobot.memory.profile_extractor import (
-    ProfileExtractor,
-    merge_profile_incremental,
-)
+from nanobot.memory.profile_extractor import ProfileExtractor
 
 
 class _FakeProvider:
@@ -32,41 +35,39 @@ class _FakeRuntime:
 
 
 @pytest.mark.asyncio
-async def test_extract_profile_returns_items_and_scores():
+async def test_extract_profile_returns_items():
     runtime = _FakeRuntime(
         '{"memories":[{"content":"用户喜欢美咖啡","subject":"用户",'
         '"predicate":"喜欢","type":"PREFERENCE","importance":0.7,'
-        '"priority":"long_term","tags":["coffee"],"is_update":false}],'
-        '"citation_scores":[{"memory_id":"m1","useful":true}]}'
+        '"priority":"long_term","tags":["coffee"],"is_update":false}]}'
     )
     ext = ProfileExtractor(runtime=runtime)
     result = await ext.extract(
         transcript=[{"role": "user", "content": "我喜欢美咖啡"}],
         episode_id="ep-1",
-        cited_memories=[{"id": "m1", "content": "用户住在杭州"}],
     )
     assert len(result.items) == 1
     assert result.items[0].content == "用户喜欢美咖啡"
     assert result.items[0].subject == "用户"
     assert result.items[0].type == "PREFERENCE"
-    assert result.scores[0]["memory_id"] == "m1"
-    assert result.scores[0]["useful"] is True
     assert result.error is None
 
 
 @pytest.mark.asyncio
-async def test_extract_profile_no_citation_returns_no_scores():
+async def test_extract_profile_ignores_model_citation_scores():
+    """模型多吐 ``citation_scores`` 不算解析失败，但产出里不再有评分。"""
     runtime = _FakeRuntime(
         '{"memories":[{"content":"x","subject":"用户",'
         '"predicate":"喜欢","type":"PREFERENCE","importance":0.5,'
-        '"priority":"long_term","tags":[],"is_update":false}]}'
+        '"priority":"long_term","tags":[],"is_update":false}],'
+        '"citation_scores":[{"memory_id":"m1","useful":true}]}'
     )
     ext = ProfileExtractor(runtime=runtime)
     result = await ext.extract(
         transcript=[{"role": "user", "content": "x"}], episode_id="e"
     )
     assert len(result.items) == 1
-    assert result.scores == []
+    assert not hasattr(result, "scores")
 
 
 @pytest.mark.asyncio
@@ -77,7 +78,6 @@ async def test_extract_profile_llm_failure_returns_empty():
         transcript=[{"role": "user", "content": "x"}], episode_id="e"
     )
     assert result.items == []
-    assert result.scores == []
     assert result.error is not None
 
 
@@ -127,63 +127,3 @@ async def test_extract_profile_uses_supplied_prompt_messages():
     assert provider.messages is not None
     assert provider.messages[0]["content"] == "调用方拼好的 prompt"
     assert "不应出现" not in provider.messages[0]["content"]
-
-
-def test_merge_incremental_same_subject_predicate_keeps_old_when_conflicting():
-    existing = {
-        "id": "existing-1",
-        "content": "用户不喜欢咖啡",
-        "subject": "用户",
-        "predicate": "喜欢",
-        "type": "PREFERENCE",
-    }
-    incoming = {
-        "id": "m1",
-        "content": "用户喜欢咖啡",
-        "subject": "用户",
-        "predicate": "喜欢",
-        "type": "PREFERENCE",
-        "is_update": True,
-    }
-    result = merge_profile_incremental(existing, incoming)
-    assert result.action == "keep_old_with_conflict"
-    assert "m1" in result.existing["conflicts_with"]
-
-
-def test_merge_incremental_same_subject_predicate_updates_when_consistent():
-    existing = {
-        "id": "m1",
-        "content": "用户喜欢美咖啡",
-        "subject": "用户",
-        "predicate": "喜欢",
-        "type": "PREFERENCE",
-        "importance": 0.6,
-    }
-    incoming = {
-        "content": "用户喜欢美咖啡",
-        "subject": "用户",
-        "predicate": "喜欢",
-        "type": "PREFERENCE",
-        "is_update": True,
-        "importance": 0.7,
-    }
-    result = merge_profile_incremental(existing, incoming)
-    assert result.action == "update"
-    assert result.merged["importance"] == pytest.approx(0.7)
-
-
-def test_merge_incremental_different_predicate_creates_new():
-    existing = {
-        "id": "m1",
-        "subject": "用户",
-        "predicate": "喜欢",
-        "content": "x",
-    }
-    incoming = {
-        "subject": "用户",
-        "predicate": "不喜欢",
-        "content": "y",
-        "is_update": False,
-    }
-    result = merge_profile_incremental(existing, incoming)
-    assert result.action == "create_new"

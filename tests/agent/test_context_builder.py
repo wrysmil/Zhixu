@@ -813,12 +813,29 @@ class TestWorkingMemoryInjection:
 
     位置是刻意的：工作记忆排在长期记忆**之前**——「我现在在做什么」是
     「我平时知道什么」的语境，反过来会让长期记忆抢掉当前任务的前景。
+    长期记忆来自 SQLite 的核心视图；MEMORY.md 只是导出，不参与注入。
     """
 
     _SECTION = "# Working Memory\n\n## 当前任务\n重写注入链路"
 
     def _seed_long_term_memory(self, builder: ContextBuilder) -> None:
-        builder.memory.write_memory("长期记忆正文")
+        from nanobot.memory.database import MemoryDatabase
+        from nanobot.memory.models import Memory, MemoryType
+        from nanobot.memory.repository import add_memory
+
+        db = MemoryDatabase(builder.workspace)
+        db.init_schema()
+        with db.connect() as conn:
+            add_memory(conn, Memory(
+                id="core-fact",
+                content="长期记忆正文",
+                type=MemoryType.FACT,
+                importance_score=0.9,
+                scope="user",
+                workspace_id="default",
+                created_at="2026-11-02T10:00:00Z",
+                updated_at="2026-11-02T10:00:00Z",
+            ))
 
     def test_injected_before_long_term_memory(self, tmp_path):
         builder = _builder(tmp_path)

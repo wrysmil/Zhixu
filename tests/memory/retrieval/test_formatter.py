@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from nanobot.memory.retrieval.candidate import RetrievalCandidate
+from nanobot.memory.retrieval.candidate import MemoryHit, RetrievalCandidate
 from nanobot.memory.retrieval.formatter import RetrievalFormatter
 
 
@@ -27,13 +27,13 @@ def _cand(
     if raw is None:
         raw = _memory(content, type_value=type_value)
     return RetrievalCandidate(
-        memory_id=memory_id,
-        content=content,
+        hit=MemoryHit(
+            kind="memory",
+            record_id=memory_id,
+            content=content,
+            workspace_id="default",
+        ),
         source_channel=channel,
-        relevance=score,
-        recency_score=0.5,
-        importance_score=0.5,
-        access_frequency_score=0.5,
         composite_score=score,
         raw=raw,
     )
@@ -197,9 +197,10 @@ def test_format_keeps_duplicate_scores_no_dedup():
 
 def test_format_does_not_throw_on_missing_raw():
     c = RetrievalCandidate(
-        memory_id="x", content="content", source_channel="semantic",
-        relevance=0.5, recency_score=0.5, importance_score=0.5,
-        access_frequency_score=0.5, composite_score=0.5, raw=None,
+        hit=MemoryHit(
+            kind="memory", record_id="x", content="content", workspace_id="default",
+        ),
+        source_channel="semantic", composite_score=0.5, raw=None,
     )
     out = RetrievalFormatter().format([c])
     assert out[0]["type"] == ""
@@ -231,9 +232,10 @@ def test_format_uses_real_memory_type_value():
         type=MemoryType.PREFERENCE,
     )
     c = RetrievalCandidate(
-        memory_id="m-1", content="content", source_channel="semantic",
-        relevance=0.5, recency_score=0.5, importance_score=0.5,
-        access_frequency_score=0.5, composite_score=0.9, raw=m,
+        hit=MemoryHit(
+            kind="memory", record_id="m-1", content="content", workspace_id="default",
+        ),
+        source_channel="semantic", composite_score=0.9, raw=m,
     )
     out = RetrievalFormatter().format([c])
     assert out[0]["type"] == "preference"
