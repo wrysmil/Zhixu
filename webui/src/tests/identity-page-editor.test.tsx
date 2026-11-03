@@ -32,6 +32,7 @@ const requestMutation = vi.fn();
 const transport = { requestMutation } as never;
 
 const SOUL_MD = ["# Soul", "你的名字：小明", "## 你主要帮的事", "把一周的会议整理成周报"].join("\n");
+const AGENTS_MD = ["# Workspace", "先读后写。"].join("\n");
 
 function renderPage() {
   return render(
@@ -48,11 +49,11 @@ describe("IdentityPage paged editor", () => {
     requestMutation.mockReset().mockResolvedValue({});
     vi.mocked(listIdentityPresets).mockReset().mockResolvedValue({ presets: [] });
     vi.mocked(getActivePersona).mockReset().mockResolvedValue({ active: "", options: [] });
-    vi.mocked(fetchIdentityFile).mockReset().mockResolvedValue({
-      name: "SOUL.md",
-      content: SOUL_MD,
+    vi.mocked(fetchIdentityFile).mockReset().mockImplementation(async (_token, name) => ({
+      name,
+      content: name === "AGENTS.md" ? AGENTS_MD : SOUL_MD,
       exists: true,
-    });
+    }));
     vi.mocked(saveIdentityFile).mockReset().mockResolvedValue({ saved: true });
     vi.mocked(reloadIdentity).mockReset().mockResolvedValue({ reloaded: true } as never);
     vi.mocked(setActivePersona).mockReset().mockResolvedValue({ active: "" });
@@ -101,12 +102,53 @@ describe("IdentityPage paged editor", () => {
 
     expect(screen.queryByText("Identity saved — live now")).not.toBeInTheDocument();
 
+    // Edit the form first — an untouched page must not rewrite the file.
+    await user.click(screen.getByRole("tab", { name: /Name & tone/ }));
+    const inputs = screen.getAllByRole("textbox");
+    await user.clear(inputs[0]);
+    await user.type(inputs[0], "知序");
     await user.click(screen.getByRole("button", { name: /^Save$/ }));
 
     expect(await screen.findByText("Identity saved — live now")).toBeInTheDocument();
     expect(vi.mocked(saveIdentityFile)).toHaveBeenCalledWith(
       transport,
       expect.objectContaining({ name: "SOUL.md" }),
+    );
+  });
+
+  it("does not rewrite the file when nothing changed", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findAllByRole("heading", { level: 3 });
+
+    await user.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    expect(await screen.findByText("Identity saved — live now")).toBeInTheDocument();
+    expect(vi.mocked(saveIdentityFile)).not.toHaveBeenCalled();
+  });
+
+  it("shows the raw file in the advanced panel and can edit AGENTS.md", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findAllByRole("heading", { level: 3 });
+
+    await user.click(screen.getByRole("tab", { name: /Advanced/ }));
+    await user.click(screen.getByRole("button", { name: /Advanced: edit raw Markdown/ }));
+
+    const editor = await screen.findByRole("textbox", { name: "Raw Markdown" });
+    // The panel shows the file as written on disk, not a form skeleton.
+    expect((editor as HTMLTextAreaElement).value).toBe(SOUL_MD);
+
+    await user.click(screen.getByRole("button", { name: "AGENTS.md" }));
+    expect((editor as HTMLTextAreaElement).value).toBe(AGENTS_MD);
+
+    await user.clear(editor);
+    await user.type(editor, "# Workspace\n先读后写，再问。");
+    await user.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    expect(vi.mocked(saveIdentityFile)).toHaveBeenCalledWith(
+      transport,
+      expect.objectContaining({ name: "AGENTS.md", content: "# Workspace\n先读后写，再问。" }),
     );
   });
 });

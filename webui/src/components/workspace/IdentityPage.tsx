@@ -56,6 +56,10 @@ import {
 // human-readable label/description overrides below.
 // -----------------------------------------------------------------------------
 
+/** Files the advanced Markdown panel can show and edit. */
+const ADVANCED_FILES = ["SOUL.md", "AGENTS.md"] as const;
+type AdvancedFile = (typeof ADVANCED_FILES)[number];
+
 interface PersonaCardSpec {
   presetKey: string;
   icon: LucideIcon;
@@ -493,11 +497,17 @@ function AdvancedPanel({
   onDraftChange,
   onReload,
   reloading,
+  files,
+  activeFile,
+  onFileChange,
 }: {
   draft: string;
   onDraftChange: (next: string) => void;
   onReload: () => void;
   reloading: boolean;
+  files: readonly AdvancedFile[];
+  activeFile: AdvancedFile;
+  onFileChange: (file: AdvancedFile) => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -524,6 +534,24 @@ function AdvancedPanel({
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
             {t("settings.identity.page.advanced.note")}
           </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {files.map((file) => (
+              <button
+                key={file}
+                type="button"
+                aria-pressed={file === activeFile}
+                onClick={() => onFileChange(file)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-[12px] font-medium transition-colors",
+                  file === activeFile
+                    ? "border-primary/55 bg-primary text-primary-foreground"
+                    : "border-border/70 bg-background/60 text-foreground/75 hover:border-primary/35",
+                )}
+              >
+                {file}
+              </button>
+            ))}
+          </div>
           <textarea
             value={draft}
             onChange={(event) => onDraftChange(event.target.value)}
@@ -568,8 +596,10 @@ export function IdentityPage() {
   const { client, token } = useClient();
 
   const [form, setForm] = useState<IdentityFormState>(DEFAULT_FORM_STATE);
-  const [rawDraft, setRawDraft] = useState<string>("");
-  const [rawDirty, setRawDirty] = useState(false);
+  const [rawFiles, setRawFiles] = useState<Record<string, string>>({});
+  const [initialRawFiles, setInitialRawFiles] = useState<Record<string, string>>({});
+  const [rawDirtyFiles, setRawDirtyFiles] = useState<Record<string, boolean>>({});
+  const [advancedFile, setAdvancedFile] = useState<AdvancedFile>("SOUL.md");
   const [presets, setPresets] = useState<IdentityPreset[]>([]);
   const [personaOptions, setPersonaOptions] = useState<string[]>([]);
   const [activePersona, setActivePersonaState] = useState<string>("");
@@ -593,7 +623,8 @@ export function IdentityPage() {
       listIdentityPresets(token),
       getActivePersona(token),
       fetchIdentityFile(token, "SOUL.md").catch(() => ({ name: "SOUL.md", content: "" })),
-    ]).then(([presetResult, personaResult, soulResult]) => {
+      fetchIdentityFile(token, "AGENTS.md").catch(() => ({ name: "AGENTS.md", content: "" })),
+    ]).then(([presetResult, personaResult, soulResult, agentsResult]) => {
       if (cancelled) return;
       const nextPresets = presetResult.status === "fulfilled" ? presetResult.value.presets : [];
       setPresets(nextPresets);
@@ -607,14 +638,19 @@ export function IdentityPage() {
           payload.active && payload.options?.includes(payload.active) ? payload.active : "",
         );
       }
+      const loadedRaw: Record<string, string> = {
+        "AGENTS.md": agentsResult.status === "fulfilled" ? agentsResult.value.content ?? "" : "",
+      };
       if (soulResult.status === "fulfilled") {
         const content = soulResult.value.content ?? "";
         const parsed = parseForm(content);
         setForm(parsed);
-        setRawDraft(content);
+        loadedRaw["SOUL.md"] = content;
         setInitial(parsed);
         initialRef.current = parsed;
       }
+      setRawFiles(loadedRaw);
+      setInitialRawFiles(loadedRaw);
       const firstError =
         (presetResult.status === "rejected" && (presetResult.reason as Error)?.message) ||
         (personaResult.status === "rejected" && (personaResult.reason as Error)?.message) ||
@@ -629,15 +665,16 @@ export function IdentityPage() {
 
   // Track dirty state without re-rendering on every keystroke.
   useEffect(() => {
-    setDirty(
+    const formChanged =
       form.name !== initial.name ||
       form.role !== initial.role ||
       form.tone !== initial.tone ||
       form.language !== initial.language ||
       form.rules !== initial.rules ||
-      form.notes !== initial.notes,
-    );
-  }, [form, initial]);
+      form.notes !== initial.notes;
+    const rawChanged = Object.values(rawDirtyFiles).some(Boolean);
+    setDirty(formChanged || rawChanged);
+  }, [form, initial, rawDirtyFiles]);
 
   const activePersonaLabel = useMemo(() => {
     if (!activePersona) return t("settings.identity.page.persona.default");
@@ -654,8 +691,9 @@ export function IdentityPage() {
     try {
       const parsed = parseForm(preset.content);
       setForm(parsed);
-      setRawDraft(preset.content);
-      setRawDirty(true);
+      setRawFiles((prev) => ({ ...prev, "SOUL.md": preset.content }));
+      setRawDirtyFiles((prev) => ({ ...prev, "SOUL.md": true }));
+      setAdvancedFile("SOUL.md");
       setInitial(parsed);
       initialRef.current = parsed;
       // Best-effort: also flip the persona switch so this preset is active.
@@ -678,18 +716,41 @@ export function IdentityPage() {
     try {
       const lang = chooseLanguage(form, uiLanguage);
       const composed = composeForm(form, { language: lang });
-      await saveIdentityFile(client, { name: "SOUL.md", content: composed });
-      // If the user wrote raw Markdown in the advanced panel, honour it on save.
-      if (rawDirty && rawDraft !== composed.trim()) {
-        await saveIdentityFile(client, { name: "SOUL.md", content: rawDraft });
+      const formChanged =
+        form.name !== initial.name ||
+        form.role !== initial.role ||
+        form.tone !== initial.tone ||
+        form.language !== initial.language ||
+        form.rules !== initial.rules ||
+        form.notes !== initial.notes;
+      // Raw edits win over the form: the advanced panel edits the file as it is
+      // written on disk, while the form only knows its own section vocabulary.
+      const writes: { name: string; content: string }[] = [];
+      for (const name of Object.keys(rawDirtyFiles)) {
+        if (rawDirtyFiles[name]) writes.push({ name, content: rawFiles[name] ?? "" });
+      }
+      if (formChanged && !rawDirtyFiles["SOUL.md"]) {
+        writes.push({ name: "SOUL.md", content: composed });
+      }
+      for (const write of writes) {
+        await saveIdentityFile(client, write);
       }
       try {
         await reloadIdentity(client);
       } catch {
         /* reload is a hint; failure is non-fatal */
       }
-      setRawDraft(composed);
-      setRawDirty(false);
+      const nextRawFiles = { ...rawFiles };
+      const nextInitialRaw = { ...initialRawFiles };
+      const nextDirtyFiles = { ...rawDirtyFiles };
+      for (const write of writes) {
+        nextRawFiles[write.name] = write.content;
+        nextInitialRaw[write.name] = write.content;
+        nextDirtyFiles[write.name] = false;
+      }
+      setRawFiles(nextRawFiles);
+      setInitialRawFiles(nextInitialRaw);
+      setRawDirtyFiles(nextDirtyFiles);
       setInitial(form);
       initialRef.current = form;
       setSaveState("saved");
@@ -704,18 +765,26 @@ export function IdentityPage() {
         `${t("settings.identity.page.error.saveFailed")}: ${reason instanceof Error ? reason.message : String(reason)}`,
       );
     }
-  }, [client, form, rawDirty, rawDraft, uiLanguage, t]);
+  }, [client, form, initial, initialRawFiles, rawDirtyFiles, rawFiles, uiLanguage, t]);
 
   const handleReload = useCallback(async () => {
     setReloading(true);
     setSaveError(null);
     try {
       await reloadIdentity(client);
-      const payload = await fetchIdentityFile(token, "SOUL.md");
-      const parsed = parseForm(payload.content);
+      const [soulPayload, agentsPayload] = await Promise.all([
+        fetchIdentityFile(token, "SOUL.md"),
+        fetchIdentityFile(token, "AGENTS.md"),
+      ]);
+      const parsed = parseForm(soulPayload.content);
       setForm(parsed);
-      setRawDraft(payload.content);
-      setRawDirty(false);
+      const reloaded = {
+        "SOUL.md": soulPayload.content ?? "",
+        "AGENTS.md": agentsPayload.content ?? "",
+      };
+      setRawFiles(reloaded);
+      setInitialRawFiles(reloaded);
+      setRawDirtyFiles({});
       setInitial(parsed);
       initialRef.current = parsed;
     } catch (reason) {
@@ -908,12 +977,16 @@ export function IdentityPage() {
 
             {step === 3 ? (
               <AdvancedPanel
-                draft={rawDirty ? rawDraft : composeForm(form, { language: chooseLanguage(form, uiLanguage) })}
+                files={ADVANCED_FILES}
+                activeFile={advancedFile}
+                onFileChange={setAdvancedFile}
+                draft={rawFiles[advancedFile] ?? ""}
                 onDraftChange={(next) => {
-                  setRawDraft(next);
-                  setRawDirty(true);
-                  const parsed = parseForm(next);
-                  setForm(parsed);
+                  setRawFiles((prev) => ({ ...prev, [advancedFile]: next }));
+                  setRawDirtyFiles((prev) => ({ ...prev, [advancedFile]: true }));
+                  if (advancedFile === "SOUL.md") {
+                    setForm(parseForm(next));
+                  }
                 }}
                 onReload={() => void handleReload()}
                 reloading={reloading}
@@ -965,10 +1038,8 @@ export function IdentityPage() {
                 variant="ghost"
                 onClick={() => {
                   setForm(initial);
-                  setRawDirty(false);
-                  setRawDraft(
-                    composeForm(initial, { language: chooseLanguage(initial, uiLanguage) }),
-                  );
+                  setRawFiles(initialRawFiles);
+                  setRawDirtyFiles({});
                 }}
                 disabled={!dirty || saveState === "saving"}
                 className="h-9 rounded-full px-3.5 text-[12.5px] font-medium"

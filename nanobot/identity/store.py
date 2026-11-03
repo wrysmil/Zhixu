@@ -16,6 +16,7 @@ from nanobot.identity.catalog import (
     CORE_FILES,
     LIFECYCLE_OWNED_FILES,
     MEMORY_DIR_DERIVED_FILES,
+    WORKSPACE_ROOT_FILES,
     IdentityFileSpec,
     build_persona_specs,
     resolve_identity_dir,
@@ -73,6 +74,13 @@ class IdentityStore:
         spec = self._spec_for(name)
         if spec is None:
             raise IdentityStoreError(f"不是可编辑的身份文件：{name}", status=403)
+
+        if spec.name in WORKSPACE_ROOT_FILES:
+            root = self.workspace.resolve()
+            candidate = (self.workspace / spec.path).resolve()
+            if candidate == root or not candidate.is_relative_to(root):
+                raise IdentityStoreError("路径越界：工作区文件必须位于工作区根内", status=400)
+            return candidate
 
         root = self.identity_dir.resolve()
         candidate = (self.identity_dir / spec.path).resolve()
@@ -154,6 +162,8 @@ class IdentityStore:
             return True
         if spec.name in MEMORY_DIR_DERIVED_FILES:
             return (self.workspace / "memory" / spec.path).is_file()
+        if spec.name in WORKSPACE_ROOT_FILES:
+            return (self.workspace / spec.path).is_file()
         if spec.path == spec.name and spec.name in LEGACY_ROOT_FILES:
             return (self.workspace / spec.name).is_file()
         return False

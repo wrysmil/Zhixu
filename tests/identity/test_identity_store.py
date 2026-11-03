@@ -95,7 +95,7 @@ def test_resolve_blocks_escape_even_if_whitelisted(
 
 @pytest.mark.parametrize(
     "name",
-    ["secret.env", ".env", "AGENTS.md", "SOUL.MD", "soul.md", "agent.md", "notes.md"],
+    ["secret.env", ".env", "SOUL.MD", "soul.md", "agent.md", "notes.md"],
 )
 def test_rejects_non_whitelisted_name(store: IdentityStore, name: str) -> None:
     with pytest.raises(IdentityStoreError) as exc:
@@ -107,6 +107,30 @@ def test_rejects_non_whitelisted_read(store: IdentityStore) -> None:
     with pytest.raises(IdentityStoreError) as exc:
         store.read_file("id_rsa")
     assert exc.value.status == 403
+
+
+def test_agents_md_resolves_to_workspace_root(store: IdentityStore, tmp_path: Path) -> None:
+    """AGENTS.md 的真身在工作区根——注入侧也从这里读，不能落到 identity/。"""
+    root_agents = tmp_path / "AGENTS.md"
+    root_agents.write_text("# workspace rules", encoding="utf-8")
+
+    assert store.read_file("AGENTS.md") == "# workspace rules"
+    assert store.resolve_path("AGENTS.md") == root_agents
+
+    store.write_file("AGENTS.md", "# updated")
+    assert root_agents.read_text(encoding="utf-8") == "# updated"
+    assert not (tmp_path / IDENTITY_DIR_NAME / "AGENTS.md").exists()
+
+
+def test_agents_md_write_stays_inside_workspace(store: IdentityStore, tmp_path: Path) -> None:
+    """工作区根之外的文件仍然写不到。"""
+    outside = tmp_path.parent / "outside-AGENTS.md"
+    try:
+        with pytest.raises(IdentityStoreError):
+            store.write_file("../outside-AGENTS.md", "x")
+        assert not outside.exists()
+    finally:
+        outside.unlink(missing_ok=True)
 
 
 def test_accepts_whitelisted_nested_path(store: IdentityStore) -> None:
@@ -295,6 +319,7 @@ def test_list_files_groups_core_and_personas(store: IdentityStore) -> None:
     assert [f["name"] for f in files if f["group"] == "core"] == [
         "SOUL.md",
         "AGENT.md",
+        "AGENTS.md",
         "USER.md",
         "MEMORY.md",
         "prompts/policies.md",
