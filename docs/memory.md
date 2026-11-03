@@ -1,226 +1,80 @@
-# AI Agent Memory in Zhixu
+# 知序记忆系统
 
-This page explains how Zhixu implements long-term AI agent memory: session
-history, compressed archives, durable knowledge files, Dream consolidation, and
-Git-backed memory changes.
+知序的长期记忆以工作区中的 SQLite 数据库为唯一真相源。`MEMORY.md`、Dream 草稿和
+`history.jsonl` 都是不同的辅助层，不能替代 SQLite。
 
-Zhixu's memory is built on a simple belief: memory should feel alive, but it should not feel chaotic.
+## 真相源
 
-Good memory is not a pile of notes. It is a quiet system of attention. It notices what is worth keeping, lets go of what no longer needs the spotlight, and turns lived experience into something calm, durable, and useful.
+默认路径：`<agent_workspace>/memory/state.db`。
 
-That is the shape of memory in Zhixu.
+| 表 | 用途 |
+| --- | --- |
+| `memories` | 跨会话复用的事实、偏好、规则、经验 |
+| `episodes` | 一次任务/会话的目标、过程、结果摘要 |
+| `scratchpad` | 当前工作状态、聚焦任务和下一步 |
 
-## The Design
+检索工具 `memory_search` 读取 SQLite；自动检索也会直接查询 SQLite，不依赖
+`MEMORY.md`。
 
-Zhixu does not treat memory as one giant file.
+## 写入路径
 
-It separates memory into layers, because different kinds of remembering deserve different tools:
+长期记忆有三条写入路径：
 
-- `session.messages` holds the living short-term conversation.
-- `memory/history.jsonl` is the running archive of compressed past turns.
-- `SOUL.md`, `USER.md`, and `memory/MEMORY.md` are the durable knowledge files.
-- `GitStore` records how those durable files change over time.
+1. **后台自动抽取**：在空闲、会话结束、上下文压缩等时机运行。它必须保守，
+   只保存有本批用户原文或工具结果证据、且未来仍有价值的内容。
+2. **显式保存工具 `add_memory`**：用户明确说“记住”“以后都这样”或确认某条长期
+   事实/偏好时使用。工具会把内容写入 SQLite，并按新增/更新/未变返回写入结果。
+3. **WebUI 记忆管理 API**：供用户查看、新增、修改和删除记忆。
 
-This keeps the system light in the moment, but reflective over time.
+所有写入都走同一套类型、作用域和冲突/去重规则。写入成功后，`MEMORY.md` 可以按需
+从 SQLite 重新派生。
 
-## The Flow
+## 自动抽取边界
 
-Memory moves through Zhixu in two stages.
+必须保存：
 
-### Stage 1: Consolidator
+- 用户明确陈述的长期身份、背景、偏好和稳定约束。
+- 用户明确确认的项目状态、架构决策、业务边界。
+- 有用户确认或工具结果证据的可复用经验、成功流程和失败教训。
 
-When a conversation grows large, the `Consolidator` summarizes older turns and appends the result to `memory/history.jsonl`, while keeping recent conversation available. Each summary preserves useful long-term facts and a short handoff for active work.
+必须丢弃：
 
-This file is:
+- 问题、回忆请求、知识测试、任务指令、假设和待验证方案。
+- 助手自己的计划、建议、推测和复述。
+- `memory_search` 结果、系统状态、scratchpad 和工具输出本身。
+- 一次性事故经过、临时文件名、任务产物和寒暄；这类内容由 `episodes` 承载。
 
-- append-only
-- cursor-based
-- optimized for machine consumption first, human inspection second
+重要区分：用户说“我们以前处理过类似问题，你能找回当时确认的方案吗？”时，
+前半句是**问题前提/回忆请求**，不是新的用户画像事实，不能据此生成
+“用户此前处理过……”的记忆。
 
-Each line is a JSON object:
+未独立验证的用户陈述应以“用户报告/用户表示”保留归属，不能写成客观事实。
 
-```json
-{"cursor": 42, "timestamp": "2026-04-03 00:02", "content": "- User prefers dark mode\n- Decided to use PostgreSQL"}
-```
+## 召回
 
-It is not the final memory. It is the material from which final memory is shaped.
+`memory_search` 和自动注入共用 `RetrievalEngine`：
 
-### Stage 2: Dream
+1. 查询预处理：过滤空输入和控制词。
+2. 查询准备：保留原句、路径、文件名和英文标识符；中文不做模型改写。
+3. 语义召回：FTS5 + LIKE 回退；FTS5 不分中文词时，回退会用有界的四字窗口
+   匹配自然语言中的项目名/实体。
+4. 情节召回与 RRF 融合、排序、预算裁剪。
+5. 注入内容明确标记为不可信数据。
 
-`Dream` is the slower, more thoughtful layer. It runs on a cron schedule by default and can also be triggered manually.
+`memory_search` 的召回结果与 `MEMORY.md` 是否为空无关。
 
-Dream reads:
+## MEMORY.md
 
-- new entries from `memory/history.jsonl` (only the part after the previous cursor)
-- the current core memory summary injected into its system context
-- the memory store's current counts and types, through `memory_stats`
+`memory/MEMORY.md` 是从 SQLite 派生的核心视图，由两部分组成：
 
-It writes only through memory tools — `add_memory` and `memory_delete` — each entry routed to a memory type (`preference` / `rule` / `fact` / `skill` / `error` / `experience`). It cannot and does not edit `SOUL.md`, `USER.md`, or `MEMORY.md`; those files are projections regenerated from the store. `memory_dream_runs` keeps the real write counts, so `/dream-log` answers "what did it change last night" even when the working tree is unchanged.
+- 自动导出区：当前有效、重要性达标的核心事实。
+- 手工笔记区：保存为 `memories` 中的 core-note 记录。
 
-This is why Zhixu's memory is not just archival. It is interpretive.
+如果文件里存在手工笔记区、但 SQLite 中缺少对应 core-note，刷新会先尝试把该区
+恢复为待核对的 core-note，而不是静默删除。正常修改应通过 WebUI 保存入口或
+`MemoryLifecycle.write_memory_md`；不要直接编辑文件绕过数据库。
 
-### Stage 3: Daily consolidation (`memory_consolidate`)
+## history.jsonl
 
-Once a day (03:00 local time by default) a second, rule-only pass sweeps the whole store — no LLM calls:
-
-- **Merge** identical or near-identical facts; duplicates are superseded, never deleted.
-- **Decay**: `effective = importance_score - decay_rate × days_since_last_access`. Entries that fall below the threshold are **archived** (marked expired) rather than removed — the row and the reason stay, and clearing `expires_at` restores it.
-- `preference` and `rule` entries never decay, nor do entries at `importance >= 0.9`.
-- Retrieval refreshes `last_accessed_at` and `access_count`, so what the user keeps using stays alive.
-
-The job has a time budget (1500 s) with a checkpoint: if it is interrupted, the next run resumes where it stopped. Every run writes a row to `memory_consolidate_runs` (processed / merged / decayed / archived), shown in **Settings → Automations**. Configure it under `agents.defaults.consolidate`; `dryRun: true` computes and reports without writing, so a cautious first night can be previewed. Archive is reversible: clearing `expires_at` on the archived rows brings them back.
-
-## The Files
-
-In this page, `workspace` means the configured **agent workspace** (the default
-is `~/.nanobot/workspace/`, or the path passed with `--workspace`). Selecting a
-different project in the WebUI changes that chat's project context and tool
-working directory; it does not relocate the files below.
-
-```text
-workspace/
-├── SOUL.md              # The bot's long-term voice and communication style
-├── USER.md              # Stable knowledge about the user
-├── prompts/
-│   ├── README.md        # Notes for memory guidance files
-│   └── dream.md         # Optional instructions for how Dream organizes memory
-└── memory/
-    ├── MEMORY.md        # Project facts, decisions, and durable context
-    ├── history.jsonl    # Append-only history summaries
-    ├── .cursor          # Consolidator write cursor
-    ├── .dream_cursor    # Dream consumption cursor
-    └── .git/            # Version history for long-term memory files
-```
-
-A selected project may provide its own `AGENTS.md`, but project-local `SOUL.md`,
-`USER.md`, and `memory/` do not replace the agent-owned files above. This keeps
-one agent's profile and memory continuous while it works across projects. Use a
-separate configured agent workspace when identity or memory must be isolated.
-
-These files play different roles:
-
-- `SOUL.md` remembers how Zhixu should sound.
-- `USER.md` remembers who the user is and what they prefer.
-- `MEMORY.md` remembers what remains true about the work itself.
-- `history.jsonl` remembers what happened on the way there.
-
-## Why `history.jsonl`
-
-The old `HISTORY.md` format was pleasant for casual reading, but it was too fragile as an operational substrate.
-
-`history.jsonl` gives Zhixu:
-
-- stable incremental cursors
-- safer machine parsing
-- easier batching
-- cleaner migration and compaction
-- a better boundary between raw history and curated knowledge
-
-You can still search it with familiar tools:
-
-```bash
-# grep
-grep -i "keyword" memory/history.jsonl
-
-# jq
-cat memory/history.jsonl | jq -r 'select(.content | test("keyword"; "i")) | .content' | tail -20
-
-# Python
-python -c "import json; [print(json.loads(l).get('content','')) for l in open('memory/history.jsonl','r',encoding='utf-8') if l.strip() and 'keyword' in l.lower()][-20:]"
-```
-
-The difference is philosophical as much as technical:
-
-- `history.jsonl` is for structure
-- `SOUL.md`, `USER.md`, and `MEMORY.md` are for meaning
-
-## Commands
-
-Memory is not hidden behind the curtain. Users can inspect and guide it.
-
-| Command | What it does |
-|---------|--------------|
-| `/dream` | Run Dream immediately |
-| `/dream-log` | Show the latest Dream memory change |
-| `/dream-log <sha>` | Show a specific Dream change |
-| `/dream-restore` | List recent Dream memory versions |
-| `/dream-restore <sha>` | Restore memory to the state before a specific change |
-| `/dream-prompt` | Show how Dream is being guided for memory |
-| `/dream-prompt init` | Create an editable Dream memory guide at `prompts/dream.md` |
-
-These commands exist for a reason: automatic memory is powerful, but users should always retain the right to inspect, understand, and restore it.
-
-## Versioned Memory
-
-After Dream changes long-term memory files, Zhixu can record that change with `GitStore`.
-
-This gives memory a history of its own:
-
-- you can inspect what changed
-- you can compare versions
-- you can restore a previous state
-
-That turns memory from a silent mutation into an auditable process.
-
-## Guiding Dream
-
-Dream decides what to keep, update, or forget using Zhixu's built-in memory instructions. Most users can leave this alone.
-
-If one workspace needs a different memory style, create an editable guide:
-
-```text
-/dream-prompt init
-```
-
-This creates:
-
-```text
-workspace/prompts/dream.md
-```
-
-Edit that file in plain Markdown. When it has content, Dream follows it for this workspace before reading the latest conversation history. You do not need to paste history into the file; Dream adds the current `## Conversation History` block automatically.
-
-To return to Zhixu's default behavior, delete `prompts/dream.md` or leave it empty.
-
-Each workspace has its own guide. Changing this file does not affect other Zhixu workspaces.
-
-## Configuration
-
-Dream is configured under `agents.defaults.dream`:
-
-```json
-{
-  "agents": {
-    "defaults": {
-      "dream": {
-        "intervalH": 2,
-        "modelOverride": null
-      }
-    }
-  }
-}
-```
-
-| Field | Meaning |
-|-------|---------|
-| `intervalH` | How often Dream runs, in hours |
-| `cron` | Cron expression override (takes precedence over `intervalH`) |
-| `modelOverride` | Optional model preset name used for Dream |
-
-In practical terms:
-
-- `intervalH` is the normal way to configure Dream frequency. Internally it runs as an `every` schedule.
-- `cron` overrides `intervalH` when set, allowing precise cron expressions (e.g. `0 */4 * * *`).
-- `modelOverride` selects a named entry from `model_presets` for Dream. It accepts preset names only; raw model identifiers are not supported. If omitted, Dream uses the main agent's selected runtime.
-
-## In Practice
-
-What this means in daily use is simple:
-
-- conversations can stay fast without carrying infinite context
-- durable facts can become clearer over time instead of noisier
-- the user can inspect and restore memory when needed
-
-Memory should not feel like a dump. It should feel like continuity.
-
-That is what this design is trying to protect.
+`memory/history.jsonl` 是压缩历史摘要的追加式归档，用于搜索过去会话。它不是长期
+事实的唯一来源，也不决定 `memory_search` 是否命中。

@@ -127,7 +127,7 @@ Zhixu uses two related stores:
 | Store | Location | Purpose |
 |---|---|---|
 | Sessions | `<config-dir>/sessions/<workspace-id>/*.jsonl` | Recent conversation turns replayed into context |
-| Memory | `<workspace>/memory/MEMORY.md` and `<workspace>/memory/history.jsonl` | Long-term facts and consolidated history |
+| Memory | `<workspace>/memory/state.db` (source of truth) plus the derived `memory/MEMORY.md` view and `memory/history.jsonl` archive | Long-term facts, episodes, working state, and consolidated history |
 
 Dream is a periodic consolidation job. It reads accumulated history and updates workspace memory so useful context can survive beyond short session replay.
 

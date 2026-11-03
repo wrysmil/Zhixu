@@ -181,7 +181,7 @@ Session history is the near-term conversation replay. Memory is the longer-term 
 | Store | File area |
 |---|---|
 | Session JSONL files | `<config-dir>/sessions/<workspace-id>/` |
-| Long-term memory | `<workspace>/memory/MEMORY.md` |
+| Long-term memory | `<workspace>/memory/state.db` (source of truth; `memory/MEMORY.md` is a derived export) |
 | Consolidation source history | `<workspace>/memory/history.jsonl` |
 | Bootstrap identity files | `<workspace>/SOUL.md`, `<workspace>/USER.md`, templates under `nanobot/templates/` |
 
