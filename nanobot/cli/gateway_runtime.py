@@ -32,7 +32,7 @@ from nanobot.cli.webui_support import (
     _webui_channel_enabled,
     _webui_display_url,
     _webui_endpoint_reachable,
-    webui_bootstrap_secret,
+    evaluation_passphrase,
 )
 from nanobot.config.paths import get_data_dir, is_default_workspace
 from nanobot.config.schema import Config
@@ -357,9 +357,10 @@ async def _start_embedded_evaluation(
     """在 gateway 进程内启动评估 HTTP 服务，随 gateway 一起启停。
 
     桌面 WebUI 与评估服务不同端口，口令复用 WebUI bootstrap secret：用户
-    不需要记第二个密码。启动失败只降级为「评估服务离线」，不能拖垮 gateway。
+    不需要记第二个密码。``evaluation.passphrase`` 有值时用它，从而把评估
+    服务与 WebUI 密码解耦。启动失败只降级为「评估服务离线」，不能拖垮 gateway。
     """
-    secret = webui_bootstrap_secret(config)
+    secret = evaluation_passphrase(config)
     if not secret:
         logger.warning("Evaluation API skipped: WebUI bootstrap secret is empty")
         return None

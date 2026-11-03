@@ -75,6 +75,7 @@ import {
 } from "@/lib/bootstrap";
 import { displayTitle, sortSessions } from "@/lib/chat-groups";
 import { deriveTitle } from "@/lib/format";
+import { setEvaluationPassphrase } from "@/lib/evaluation-api";
 import { ZhixuClient } from "@/lib/zhixu-client";
 import { notify } from "@/lib/toast-events";
 import { ClientProvider, useClient } from "@/providers/ClientProvider";
@@ -806,6 +807,7 @@ export default function App() {
   const refreshReadyClient = useCallback(
     async (client: ZhixuClient, fallbackSurface: RuntimeSurface) => {
       const boot = await fetchBootstrap("", bootstrapSecretRef.current);
+      setEvaluationPassphrase(boot.evaluation_passphrase);
       const url = deriveWsUrl(boot.ws_path, boot.token, boot.ws_url);
       const runtimeSurface = resolveRuntimeSurface(boot.runtime_surface, fallbackSurface);
       const runtimeHost = createRuntimeHost(runtimeSurface, boot.runtime_capabilities);
@@ -843,6 +845,7 @@ export default function App() {
         setState({ status: "loading" });
         try {
           const boot = await fetchBootstrap("", secret);
+          setEvaluationPassphrase(boot.evaluation_passphrase);
           if (cancelled) return;
           if (secret) saveSecret(secret);
           const url = deriveWsUrl(boot.ws_path, boot.token, boot.ws_url);

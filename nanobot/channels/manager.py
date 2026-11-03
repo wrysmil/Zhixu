@@ -197,6 +197,8 @@ class ChannelManager:
             parsed = WebSocketConfig.model_validate(section)
             static_path = _default_webui_dist() if self._webui_static_dist else None
             workspace = Path(self.config.workspace_path)
+            from nanobot.cli.webui_support import evaluation_passphrase
+
             gateway = build_gateway_services(
                 config=parsed,
                 bus=self.bus,
@@ -221,6 +223,7 @@ class ChannelManager:
                 skill_state_action=self._webui_skill_state_action,
                 recovery_action=self._webui_recovery_action,
                 team_host=self._webui_team_host,
+                evaluation_passphrase=evaluation_passphrase(self.config),
                 logger=logger,
             )
             self._webui_gateway = gateway

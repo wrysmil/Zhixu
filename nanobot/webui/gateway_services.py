@@ -618,6 +618,7 @@ def build_gateway_services(
     skill_state_action: Callable[[set[str]], None] | None = None,
     recovery_action: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]] | None = None,
     team_host: Any | None = None,
+    evaluation_passphrase: str = "",
     logger: Any = default_logger,
 ) -> GatewayServices:
     settings = WebUISettingsServices.create(
@@ -768,6 +769,7 @@ def build_gateway_services(
         settings=settings,
         skills_workspace_path=workspace_path,
         disabled_skills=disabled_skills,
+        evaluation_passphrase=evaluation_passphrase,
         subagent_execution_operations=subagent_execution_operations,
         memory_operations=build_memory_operations(
             workspace_id="default",

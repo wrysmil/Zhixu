@@ -504,6 +504,8 @@ export interface SidebarStatePayload {
 export interface BootstrapResponse {
   token?: string;
   api_token?: string;
+  /** 评估服务登录口令：与 WebUI 密码解耦，前端用它自动登录评估 API。 */
+  evaluation_passphrase?: string;
   ws_path: string;
   ws_url?: string | null;
   expires_in?: number;

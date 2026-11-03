@@ -52,6 +52,17 @@ class TranscriptionConfig(Base):
     max_upload_mb: int = Field(default=25, ge=1, le=100)
 
 
+class EvaluationConfig(Base):
+    """评估平台（记忆评测）的配置。
+
+    ``passphrase`` 与 WebUI 的 bootstrap secret **解耦**：取消 WebUI 密码后，
+    评估服务仍可用自己的口令登录。留空时回退到 WebUI 的 bootstrap secret，
+    保持旧配置的可用性。
+    """
+
+    passphrase: str = ""
+
+
 class ConsolidateConfig(Base):
     """每日全库盘账（``memory_consolidate`` job）的配置（P2）。
 
@@ -602,6 +613,7 @@ class Config(BaseSettings):
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     api: ApiConfig = Field(default_factory=ApiConfig)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
+    evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     model_presets: dict[str, ModelPresetConfig] = Field(
         default_factory=dict,

@@ -534,6 +534,17 @@ function evaluationBase(): string {
 
 let csrfToken = "";
 let sessionPromise: Promise<void> | null = null;
+let evaluationPassphrase = "";
+
+/** Remember the evaluation passphrase handed out by the bootstrap response.
+ *
+ * The evaluation service runs on its own port with its own passphrase, which
+ * is decoupled from the WebUI password — the browser may have no saved WebUI
+ * secret at all once the password is turned off.
+ */
+export function setEvaluationPassphrase(passphrase: string | undefined | null): void {
+  evaluationPassphrase = (passphrase ?? "").trim();
+}
 
 export function resetEvaluationSession(): void {
   csrfToken = "";
@@ -555,7 +566,7 @@ async function ensureSession(): Promise<void> {
       const base = evaluationBase();
       let res = await fetch(`${base}/auth/session`, { credentials: "include" });
       if (!res.ok) {
-        const secret = loadSavedSecret();
+        const secret = evaluationPassphrase || loadSavedSecret();
         if (!secret) {
           throw new EvaluationApiError("EVAL_OFFLINE", "evaluation-auth", 401);
         }

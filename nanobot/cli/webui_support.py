@@ -54,6 +54,7 @@ __all__ = [
     "_validate_gateway_startup",
     "_warn_webui_bind_scope",
     "_webui_browser_url",
+    "evaluation_passphrase",
     "webui_bootstrap_secret",
     "_webui_build_mode_for_interactive",
     "_webui_channel_enabled",
@@ -254,6 +255,17 @@ def webui_bootstrap_secret(config: Config) -> str:
     return str(ws_cfg.get("tokenIssueSecret") or ws_cfg.get("token") or "").strip()
 
 
+def evaluation_passphrase(config: Config) -> str:
+    """评估服务的登录口令。
+
+    优先用 ``evaluation.passphrase``（与 WebUI 密码解耦），留空时回退到
+    WebUI 的 bootstrap secret —— 旧配置不写这一项也能照常登录。
+    """
+    evaluation = getattr(config, "evaluation", None)
+    passphrase = str(getattr(evaluation, "passphrase", "") or "").strip()
+    return passphrase or webui_bootstrap_secret(config)
+
+
 def _webui_browser_url(config: Config) -> str:
     from urllib.parse import quote
 
@@ -291,7 +303,14 @@ def _ensure_local_webui_channel(
 
     needs_enable = not model.enabled
     needs_port = port is not None and model.port != port
-    needs_secret = not model.token_issue_secret.strip() and not model.token.strip()
+    # ``websocket_requires_token=false`` 是用户显式选择「本机免密」：不要再生成
+    # secret，也不要把开关拧回 true——那等于把用户刚关掉的密码又打开了。
+    passwordless = not model.websocket_requires_token
+    needs_secret = (
+        not passwordless
+        and not model.token_issue_secret.strip()
+        and not model.token.strip()
+    )
     if not needs_enable and not needs_port and not needs_secret:
         return False, False
 
@@ -300,7 +319,11 @@ def _ensure_local_webui_channel(
     console.print("[bold]Local WebUI setup[/bold]")
     console.print(f"  URL: [cyan]http://127.0.0.1:{target_port}[/cyan]")
     console.print("  Bind: [cyan]127.0.0.1 only[/cyan] (not exposed to your LAN)")
-    console.print("  Auth: generated WebUI bootstrap secret stored in config")
+    console.print(
+        "  Auth: generated WebUI bootstrap secret stored in config"
+        if not passwordless
+        else "  Auth: none — passwordless on localhost (websocketRequiresToken=false)"
+    )
     console.print(
         "  LAN access requires an explicit host change plus a WebUI password in config."
     )
@@ -314,9 +337,6 @@ def _ensure_local_webui_channel(
         changed = True
     if port is not None and model.port != port:
         model.port = port
-        changed = True
-    if not model.websocket_requires_token:
-        model.websocket_requires_token = True
         changed = True
     if needs_secret:
         import secrets

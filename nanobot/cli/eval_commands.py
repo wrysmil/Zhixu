@@ -207,9 +207,9 @@ def serve_eval(
     config = _load_config(config_path)
     secret = passphrase
     if not secret and config is not None:
-        from nanobot.cli.webui_support import webui_bootstrap_secret
+        from nanobot.cli.webui_support import evaluation_passphrase
 
-        secret = webui_bootstrap_secret(config)
+        secret = evaluation_passphrase(config)
     if not secret:
         console.print("[red]缺少访问口令：用 --passphrase 或在配置里设置 WebUI 密码[/red]")
         raise typer.Exit(EXIT_REVIEW_REQUIRED)

@@ -393,9 +393,11 @@ class GatewayHTTPHandler:
         writing_collab_operations: WritingCollabSettingsOperations | None = None,
         team_operations: TeamSettingsOperations | None = None,
         team_bindings: TeamBindingStore | None = None,
+        evaluation_passphrase: str = "",
         log: Any = logger,
     ) -> None:
         self.config = config
+        self.evaluation_passphrase = evaluation_passphrase
         self.session_manager = session_manager
         self.static_dist_path = static_dist_path
         self.runtime_model_name = runtime_model_name
@@ -755,6 +757,11 @@ class GatewayHTTPHandler:
         }
         if api_token is not None:
             payload["api_token"] = api_token
+        if self.evaluation_passphrase and is_local_browser:
+            # 评估服务与 WebUI 密码解耦后，前端靠这个口令自动登录评估 API，
+            # 不再依赖浏览器里存着的 WebUI secret。只在 loopback 客户端下发：
+            # 评估服务本身就只监听本机，远程客户端拿它没用。
+            payload["evaluation_passphrase"] = self.evaluation_passphrase
         return _http_json_response(payload, extra_headers=_NO_STORE_HEADERS)
 
     def _bootstrap_ws_url(self, request: Any) -> str:
