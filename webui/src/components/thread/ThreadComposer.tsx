@@ -1043,7 +1043,7 @@ export function ThreadComposer({
 
   const resolvedPlaceholder = isStreaming
     ? t("thread.composer.placeholderStreaming")
-    : placeholder ?? t("thread.composer.placeholderThread");
+    : placeholder ?? t(isHero ? "thread.composer.placeholderHero" : "thread.composer.placeholderThread");
 
   const maxAttachments = ingressLimits?.attachments.max_count
     ?? MAX_ATTACHMENTS_PER_MESSAGE;

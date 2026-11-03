@@ -202,7 +202,7 @@
       }
     },
     "headline": "今天，想写点什么？",
-    "hero_description": "从一个想法开始，或继续完成上次的文章。",
+    "hero_description": "把想法写下来，留住值得回看的内容。",
     "topic_label": "文章标题",
     "input_hint": "创建后可在编辑器中添加素材、整理正文。",
     "template_heading": "选择一个起始提纲",
@@ -375,7 +375,7 @@
       "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "知序 Web UI —— 与你的 知序 工作区对话。"
+      "description": "知序 · 你的记忆伙伴"
     },
     "pairing": {
       "title": "配对聊天用户",
@@ -1340,7 +1340,7 @@
       "viewList": "列表",
       "viewCard": "卡片",
       "noMatch": "没有匹配的智能体，换个关键词或清掉筛选试试。",
-      "emptyHint": "还没有智能体。新建一个，把技能、工具和模型按需组合起来。",
+      "emptyHint": "为不同的事，找到合适的帮手。",
       "noun": {
         "tools": "工具",
         "skills": "技能"
@@ -2476,10 +2476,10 @@
       "personaSwitchFailed": "切换人格失败"
     },
     "memory": {
-      "pageEyebrow": "记忆中心",
-      "pageSubtitle": "智能体在对话中整理的长期信息和对话片段。打开总开关后会自动抽取；关闭后仍可查看和管理。",
-      "tabSemantic": "语义记忆",
-      "tabEpisode": "情节",
+      "pageEyebrow": "关于你的记忆",
+      "pageSubtitle": "查看、补充和整理知序记下的事。",
+      "tabSemantic": "长期信息",
+      "tabEpisode": "对话片段",
       "tabsLabel": "记忆分类",
       "type": {
         "fact": "事实",
@@ -2499,12 +2499,12 @@
         "deprecated": "已废弃"
       },
       "actions": {
-        "newMemory": "新建记忆",
+        "newMemory": "添加记忆",
         "quickAdd": "快速添加",
         "markSuperseded": "标记为已替代",
         "restore": "恢复"
       },
-      "searchPlaceholder": "搜索语义记忆…",
+      "searchPlaceholder": "搜索记下的事…",
       "filterType": "类型",
       "filterPriority": "优先级",
       "filterOrder": "排序",
@@ -2512,14 +2512,14 @@
       "orderCreated": "最近更新",
       "orderImportance": "重要性",
       "resultCount": "{{count}} 条结果",
-      "noMatches": "没有匹配的记忆",
-      "empty": "还没有记忆，先创建一条吧。",
+      "noMatches": "没有找到相关记忆，试试其他关键词。",
+      "empty": "这里还没有记忆",
       "newTitle": "新建记忆",
       "editTitle": "编辑记忆",
-      "newDescription": "创建一条新的记忆",
+      "newDescription": "写下一件你希望知序记住的事。",
       "editDescription": "编辑这条记忆",
       "fieldContent": "内容",
-      "contentPlaceholder": "希望记住什么？",
+      "contentPlaceholder": "你希望知序记住什么？",
       "fieldType": "类型",
       "fieldPriority": "优先级",
       "fieldImportance": "重要性",
@@ -2555,8 +2555,8 @@
       "superseded": "已替代",
       "errorContentRequired": "内容不能为空",
       "metaLine": "{{type}} · {{priority}} · {{importance}}",
-      "masterToggleTitle": "自动抽取与检索记忆",
-      "masterToggleDescription": "开启后，知序 会在对话中抽取事实并在下一轮检索相关记忆。热生效——无需重启。",
+      "masterToggleTitle": "自动记住",
+      "masterToggleDescription": "从对话中整理有用的信息，之后需要时参考。关闭后仍可查看和管理已有内容。",
       "masterToggleAria": "记忆抽取开关",
       "masterToggleOn": "已开启",
       "masterToggleOff": "已关闭",
@@ -2580,7 +2580,13 @@
       "mdModalDiffDraft": "Dream 草稿",
       "mdModalDiffPlaceholder": "（内容待后端支持读取）",
       "mdModalDiffCurrent": "当前 MEMORY.md",
-      "mdModalDiffCurrentPlaceholder": "（MEMORY.md 不存在或为空）"
+      "mdModalDiffCurrentPlaceholder": "（MEMORY.md 不存在或为空）",
+      "emptyDescription": "从一条你想留下的事开始，也可以在开启记忆后通过对话逐步积累。",
+      "guide": {
+        "eyebrow": "与你有关，始终由你掌握",
+        "semanticDescription": "你的偏好、事实与约定，用于之后的对话。",
+        "episodeDescription": "聊过的事情与结果的片段，需要时可以回看。"
+      }
     }
   },
   "chat": {
@@ -3030,7 +3036,7 @@
         "agentInsert": "让智能体「{{name}}」完成这个任务："
       },
       "placeholderThread": "输入消息…",
-      "placeholderHero": "问任何问题...",
+      "placeholderHero": "聊聊近况，或告诉我一件你想记住的事…",
       "placeholderOpening": "正在打开新话题…",
       "placeholderStreaming": "模型正在回复…",
       "inputAria": "消息输入框",
@@ -3278,6 +3284,30 @@
       "noResults": "没有匹配的提示词。",
       "jumpTo": "跳转到提示词：{{label}}",
       "railAria": "用户提示词导航"
+    },
+    "welcome": {
+      "eyebrow": "知序 · 你的记忆伙伴",
+      "title": "记住你的一切",
+      "description": "你的偏好、经历和在意的事，让每一次对话，都从了解你开始。",
+      "startersLabel": "从一件关于你的事开始",
+      "starters": {
+        "preferences": {
+          "label": "聊聊我的偏好",
+          "prompt": "我想告诉你一些我的偏好，方便你以后更了解我。我们从哪里聊起？"
+        },
+        "experience": {
+          "label": "整理一段经历",
+          "prompt": "帮我把接下来分享的一段经历整理清楚，我会补充具体内容。"
+        },
+        "continue": {
+          "label": "接着上次的话题",
+          "prompt": "如果你能找到相关的历史信息，请帮我接着上次的话题；如果信息不够，先问我。"
+        },
+        "reflect": {
+          "label": "回顾最近的想法",
+          "prompt": "根据当前可用的信息，帮我回顾最近聊过的想法；没有依据的内容请向我确认。"
+        }
+      }
     }
   },
   "message": {

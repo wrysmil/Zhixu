@@ -32,7 +32,7 @@ export const DEFAULT_APPEARANCE: AppearancePreferences = {
 };
 
 export const THEME_PRESETS: Array<{ id: PresetId; name: string; light: Palette; dark: Palette }> = [
-  { id: "zhixu", name: "Zhixu", light: { accent: "#3C64B4", background: "#FFFFFF", foreground: "#202B3C" }, dark: { accent: "#8FB0E8", background: "#111621", foreground: "#EDF1F7" } },
+  { id: "zhixu", name: "Zhixu", light: { accent: "#27272A", background: "#FAFAFA", foreground: "#202124" }, dark: { accent: "#E4E4E7", background: "#18181B", foreground: "#E4E4E7" } },
   { id: "graphite", name: "Graphite", light: { accent: "#52525B", background: "#FFFFFF", foreground: "#242426" }, dark: { accent: "#B3B3BC", background: "#18181B", foreground: "#E4E4E7" } },
   { id: "ocean", name: "Ocean", light: { accent: "#0169CC", background: "#F4F8FC", foreground: "#152A3E" }, dark: { accent: "#76B8F5", background: "#101C29", foreground: "#E1EBF5" } },
   { id: "sand", name: "Sand", light: { accent: "#976337", background: "#FAF5EB", foreground: "#3A3026" }, dark: { accent: "#D7AD79", background: "#241F19", foreground: "#EDE3D6" } },
@@ -160,24 +160,54 @@ function hsl(hex: string): string {
   return `${+(h * 60).toFixed(3)} ${+(s * 100).toFixed(3)}% ${+(l * 100).toFixed(3)}%`;
 }
 
-// Keep the default HSL tokens verbatim: rounding through HEX would alter the
-// baseline. Light is a white canvas with near-white tiers (no grey-blue wash),
-// dark stays a low saturation navy so the same blue accent reads in both themes.
+// Match the CSS fallback palette exactly, including preset preview colours.
 const ZHIXU_LIGHT = {
-  "--background": "0 0% 100%", "--foreground": "220 9% 11%", "--card": "0 0% 100%", "--popover": "0 0% 100%",
-  "--primary": "220 9% 11%", "--primary-foreground": "0 0% 100%", "--secondary": "220 10% 96%", "--muted": "220 10% 96%",
-  "--muted-foreground": "220 6% 44%", "--accent": "220 10% 96%", "--accent-foreground": "220 9% 11%", "--border": "220 10% 90%",
-  "--surface-app": "220 10% 97%", "--surface-panel": "0 0% 100%", "--sidebar": "220 10% 94%", "--sidebar-accent": "220 10% 91%",
-  "--nav-active-bg": "220 8% 89%", "--nav-active-fg": "220 9% 11%", "--nav-active-ring": "220 8% 85%",
-  "--inline-token-highlight": "#1A1C1F", "--temporary-control-active": "#1A1C1F",
+  "--background": "0 0% 98.039%",
+  "--foreground": "225 5.882% 13.333%",
+  "--card": "0 0% 100%",
+  "--popover": "0 0% 100%",
+  "--primary": "240 3.704% 15.882%",
+  "--primary-foreground": "0 0% 98.039%",
+  "--secondary": "240 4.762% 95.882%",
+  "--muted": "240 4.762% 95.882%",
+  "--muted-foreground": "240 3.83% 46.078%",
+  "--accent": "240 7.692% 92.353%",
+  "--accent-foreground": "240 3.704% 15.882%",
+  "--border": "240 5.882% 90%",
+  "--input": "240 3.67% 57.255%",
+  "--ring": "240 3.704% 15.882%",
+  "--surface-app": "0 0% 98.039%",
+  "--surface-panel": "0 0% 100%",
+  "--sidebar": "240 4.762% 95.882%",
+  "--sidebar-accent": "240 7.692% 92.353%",
+  "--nav-active-bg": "240 7.692% 92.353%",
+  "--nav-active-fg": "240 3.704% 15.882%",
+  "--nav-active-ring": "240 3.67% 57.255%",
+  "--inline-token-highlight": "#27272A", "--temporary-control-active": "#27272A",
 };
 const ZHIXU_DARK = {
-  "--background": "220 10% 8%", "--foreground": "220 8% 92%", "--card": "220 8% 11%", "--popover": "220 8% 12%",
-  "--primary": "220 8% 92%", "--primary-foreground": "220 10% 8%", "--secondary": "220 8% 16%", "--muted": "220 8% 16%",
-  "--muted-foreground": "220 6% 62%", "--accent": "220 8% 16%", "--accent-foreground": "220 8% 92%", "--border": "220 8% 18%",
-  "--surface-app": "220 9% 9%", "--surface-panel": "220 8% 12%", "--sidebar": "220 9% 10%", "--sidebar-accent": "220 8% 16%",
-  "--nav-active-bg": "220 8% 18%", "--nav-active-fg": "220 8% 92%", "--nav-active-ring": "220 8% 26%",
-  "--inline-token-highlight": "#E9EAEC", "--temporary-control-active": "#E9EAEC",
+  "--background": "240 5.882% 10%",
+  "--foreground": "240 5.882% 90%",
+  "--card": "240 4.478% 13.137%",
+  "--popover": "240 4.478% 13.137%",
+  "--primary": "240 5.882% 90%",
+  "--primary-foreground": "240 5.882% 10%",
+  "--secondary": "240 5.085% 11.569%",
+  "--muted": "240 5.085% 11.569%",
+  "--muted-foreground": "240 5.028% 64.902%",
+  "--accent": "240 5.618% 17.451%",
+  "--accent-foreground": "240 5.882% 90%",
+  "--border": "240 3.704% 21.176%",
+  "--input": "240 3.766% 46.863%",
+  "--ring": "240 5.882% 90%",
+  "--surface-app": "240 5.882% 10%",
+  "--surface-panel": "240 4.478% 13.137%",
+  "--sidebar": "240 5.085% 11.569%",
+  "--sidebar-accent": "240 5.618% 17.451%",
+  "--nav-active-bg": "240 5.618% 17.451%",
+  "--nav-active-fg": "240 5.882% 90%",
+  "--nav-active-ring": "240 3.766% 46.863%",
+  "--inline-token-highlight": "#E4E4E7", "--temporary-control-active": "#E4E4E7",
 };
 
 export function resolveAppearance(preferences: AppearancePreferences, theme: Theme): Record<string, string> {
@@ -210,12 +240,19 @@ export function resolveAppearance(preferences: AppearancePreferences, theme: The
   if (base === "zhixu" && !hasOverrides) Object.assign(tokens, theme === "dark" ? ZHIXU_DARK : ZHIXU_LIGHT);
   const aliases = {
     "--card-foreground": "--foreground", "--popover-foreground": "--foreground", "--secondary-foreground": "--foreground",
-    "--input": "--border", "--ring": "--accent-foreground", "--border-soft": "--border",
+    "--border-soft": "--border",
     "--temporary-accent": "--accent-foreground", "--temporary-foreground": "--accent-foreground", "--temporary-border": "--accent-foreground",
     "--sidebar-foreground": "--foreground", "--sidebar-selected": "--accent", "--sidebar-accent-foreground": "--foreground",
     "--sidebar-border": "--border", "--settings-canvas": "--background", "--settings-surface": "--surface-panel",
   };
   for (const [key, source] of Object.entries(aliases)) tokens[key] = tokens[source];
+  // Input boundaries need stronger contrast than decorative dividers, including
+  // when a custom palette places the card close to the canvas colour.
+  tokens["--input"] ??= hsl(ensureReadable(
+    ensureReadable(mix(background, safeForeground, 0.18), surface, 3, safeForeground),
+    background, 3, safeForeground,
+  ));
+  tokens["--ring"] ??= tokens["--accent-foreground"];
   const ui = preferences.uiFont;
   const code = preferences.codeFont;
   tokens["--font-ui"] = ui.id === "custom" ? `"${normalizeFontFamily(ui.family) ?? "sans-serif"}", ${UI_SYSTEM}` : UI_FONTS[ui.id] ?? UI_SYSTEM;

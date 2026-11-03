@@ -37,14 +37,14 @@ describe("index.html", () => {
       /html\.dark body\s*{[^}]*background:\s*([^;]+);/s,
     )?.[1]?.trim();
 
-    expect(themeColor?.content).toBe("#ffffff");
-    expect(themeColor?.dataset.themeColorLight).toBe("#ffffff");
-    expect(themeColor?.dataset.themeColorDark).toBe("#111621");
-    expect(lightBodyBackground).toBe("hsl(var(--background, 0 0% 100%))");
-    expect(darkBodyBackground).toBe("hsl(var(--background, 220 24% 8%))");
-    expect(manifest.background_color).toBe("#ffffff");
-    expect(manifest.theme_color).toBe("#ffffff");
-    expect(manifest.color_scheme_dark?.background_color).toBe("#121212");
-    expect(manifest.color_scheme_dark?.theme_color).toBe("#121212");
+    expect(themeColor?.content).toBe("#FAFAFA");
+    expect(themeColor?.dataset.themeColorLight).toBe("#FAFAFA");
+    expect(themeColor?.dataset.themeColorDark).toBe("#18181B");
+    expect(lightBodyBackground).toBe("hsl(var(--background, 0 0% 98.039%))");
+    expect(darkBodyBackground).toBe("hsl(var(--background, 240 5.882% 10%))");
+    expect(manifest.background_color).toBe("#FAFAFA");
+    expect(manifest.theme_color).toBe("#FAFAFA");
+    expect(manifest.color_scheme_dark?.background_color).toBe("#18181B");
+    expect(manifest.color_scheme_dark?.theme_color).toBe("#18181B");
   });
 });

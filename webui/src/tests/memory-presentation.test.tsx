@@ -32,14 +32,14 @@ beforeEach(async () => {
 afterEach(cleanup);
 
 describe("记忆页面信息与筛选", () => {
-  it("保留记忆中心面包屑，移除大标题介绍区并保留分类和筛选", async () => {
+  it("显示记忆页标题并保留分类和筛选", async () => {
     const { container } = render(<MemoryPage settingsSnapshot={null} onSettingsChange={vi.fn()} />);
     expect(await screen.findByRole("tab", { name: "长期信息" })).toBeInTheDocument();
-    expect(screen.getByText("记忆中心")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "对话记录" })).toBeInTheDocument();
+    expect(screen.getByText("关于你的记忆")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "对话片段" })).toBeInTheDocument();
     expect(screen.getByRole("switch")).toBeInTheDocument();
     expect(screen.getByRole("searchbox")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
     expect(container.querySelector(".assistant-page-header")).toBeNull();
     expect(container.querySelector("img[src='/illustrations/zhixu-toolbox.webp']")).toBeNull();
   });
@@ -118,7 +118,7 @@ describe("记忆页面信息与筛选", () => {
     expect(screen.queryByText("按当前记忆库中保存的工作区归属筛选。")).toBeNull();
   });
 
-  it("对话记录使用同一紧凑工具栏，重新查询时仍显示加载提示", async () => {
+  it("对话片段使用同一紧凑工具栏，重新查询时仍显示加载提示", async () => {
     render(<EpisodeListView />);
     await screen.findByText(episode.summary);
     const toolbar = screen.getByRole("toolbar", { name: "记忆筛选" });

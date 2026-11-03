@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { MessageBubble } from "@/components/MessageBubble";
 import { ThreadFrame } from "@/components/thread/ThreadFrame";
-import { ThreadWelcome } from "@/components/thread/ThreadWelcome";
+import { ThreadWelcomeIntro, ThreadWelcomeExtras } from "@/components/thread/ThreadWelcome";
 import { ThreadComposer } from "@/components/thread/ThreadComposer";
 import type { ModelPresetOption } from "@/components/thread/ModelPresetBadge";
 import type { SendAttachment } from "@/hooks/useZhixuStream";
@@ -111,11 +111,12 @@ export function PreviewThread({
         <header className="shrink-0 border-b border-border/70">{header}</header>
         <div className="agent-preview-welcome min-h-0 flex-1 overflow-y-auto">
           <div className="agent-preview-welcome-content">
-            <ThreadWelcome onChoosePrompt={(text) => {
+            <ThreadWelcomeIntro />
+            {composer}
+            <ThreadWelcomeExtras onChoosePrompt={(text) => {
               draftTokenRef.current += 1;
               setDraftSeed({ text, token: draftTokenRef.current, mode: "append" });
             }} />
-            {composer}
             <p className="thread-welcome-footnote">{t("workspace.preview.badge")}</p>
           </div>
         </div>

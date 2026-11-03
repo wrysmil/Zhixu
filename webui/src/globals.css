@@ -2,14 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Page-specific artwork and identity colors stay intact; interface surfaces use
-   the active palette whenever the user leaves the original Zhixu theme. */
+/* Page-specific artwork and identity colours stay intact; interface surfaces
+   use the active palette. */
 html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) {
   --inline-token-highlight: hsl(var(--accent-foreground));
   --temporary-control-active: hsl(var(--accent-foreground));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.teams-surface, .team-editor) {
+html :is(.teams-surface, .team-editor) {
   --team-ink: hsl(var(--foreground));
   --team-muted: hsl(var(--muted-foreground));
   --team-line: hsl(var(--border));
@@ -18,68 +18,67 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.teams-surf
   --team-accent: hsl(var(--accent-foreground));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.teams-heading-icon, .teams-empty, .teams-guide, .team-editor-head, .team-editor-footer) {
-  background: linear-gradient(120deg, hsl(var(--card)), hsl(var(--accent) / 0.5));
+html :is(.teams-heading-icon, .teams-empty, .teams-guide, .team-editor-head, .team-editor-footer) {
+  background: hsl(var(--card));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-card, .team-candidate, .team-member-config, .team-formation-person) {
-  background: linear-gradient(115deg, hsl(var(--card)), hsl(var(--secondary) / 0.55));
+html :is(.team-card, .team-candidate, .team-member-config, .team-formation-person) {
+  background: hsl(var(--card));
   border-color: hsl(var(--border));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-card:hover, .team-candidate:hover, .team-member-config:focus-within, .team-formation-person:hover:not(:disabled), .team-formation-person.is-leader) {
+html :is(.team-card:hover, .team-candidate:hover, .team-member-config:focus-within, .team-formation-person:hover:not(:disabled), .team-formation-person.is-leader) {
   border-color: hsl(var(--primary) / 0.65);
   box-shadow: 0 3px 12px hsl(var(--foreground) / 0.035);
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-leader-seat, .team-candidate:has(input:checked)) {
-  background: linear-gradient(115deg, hsl(var(--accent)), hsl(var(--card)));
+html :is(.team-leader-seat, .team-candidate:has(input:checked)) {
+  background: hsl(var(--accent));
   border-color: hsl(var(--primary) / 0.55);
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-formation {
-  background: radial-gradient(circle at 90% 10%, hsl(var(--primary) / 0.1), transparent 70%), radial-gradient(hsl(var(--muted-foreground) / 0.16) 0.75px, transparent 0.75px), hsl(var(--secondary));
-  background-size: auto, 16px 16px, auto;
+html .team-formation {
+  background: hsl(var(--secondary));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-editor :is(input, textarea, select) {
+html .team-editor :is(input, textarea, select) {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-editor input:focus-visible, .team-editor textarea:focus-visible, .team-editor select:focus-visible, .team-remove-member:focus-visible, .team-formation-person:focus-visible) {
+html :is(.team-editor input:focus-visible, .team-editor textarea:focus-visible, .team-editor select:focus-visible, .team-remove-member:focus-visible, .team-formation-person:focus-visible) {
   outline-color: hsl(var(--ring));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-completion-step.is-complete {
+html .team-completion-step.is-complete {
   color: hsl(var(--accent-foreground));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-completion-step.is-complete > span {
+html .team-completion-step.is-complete > span {
   background: hsl(var(--primary));
   border-color: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-section-number {
+html .team-section-number {
   color: hsl(var(--muted-foreground));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-remove-member:hover {
+html .team-remove-member:hover {
   background: hsl(var(--accent));
   color: hsl(var(--accent-foreground));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-formation-empty, .team-formation-members) {
+html :is(.team-formation-empty, .team-formation-members) {
   border-color: hsl(var(--border));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) :is(.team-formation-connector, .team-progress-track),
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-formation-members .team-formation-person::before {
+html :is(.team-formation-connector, .team-progress-track),
+html .team-formation-members .team-formation-person::before {
   background: hsl(var(--border));
 }
 
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-track > span {
+html .team-progress-track > span {
   background: hsl(var(--primary));
 }
 
@@ -90,61 +89,58 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
   }
 }
 
-/* White canvas, near-white tiers and a low-saturation blue accent: an AI
-   workbench rather than a paper page. Surfaces are intentionally whiter than
-   the old grey-blue wash; colour lives in the type scale and the accent. */
+/* Neutral surfaces and graphite controls for sustained reading. */
 @layer base {
   :root {
     color-scheme: light;
     --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
     --font-code: "JetBrains Mono", "SFMono-Regular", "SF Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
     --font-display: var(--font-ui);
-    --background: 0 0% 100%;
-    --foreground: 220 9% 11%;
+    --background: 0 0% 98.039%;
+    --foreground: 225 5.882% 13.333%;
     --card: 0 0% 100%;
     --card-foreground: var(--foreground);
     --popover: 0 0% 100%;
     --popover-foreground: var(--foreground);
-    --primary: 220 9% 11%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 10% 96%;
+    --primary: 240 3.704% 15.882%;
+    --primary-foreground: 0 0% 98.039%;
+    --secondary: 240 4.762% 95.882%;
     --secondary-foreground: var(--foreground);
-    --muted: 220 10% 96%;
-    --muted-foreground: 220 6% 44%;
-    --accent: 220 10% 96%;
-    --accent-foreground: 220 9% 11%;
+    --muted: 240 4.762% 95.882%;
+    --muted-foreground: 240 3.83% 46.078%;
+    --accent: 240 7.692% 92.353%;
+    --accent-foreground: 240 3.704% 15.882%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 10% 90%;
-    --input: var(--border);
-    --ring: var(--foreground);
+    --border: 240 5.882% 90%;
+    --input: 240 3.67% 57.255%;
+    --ring: 240 3.704% 15.882%;
     /* Tier below --background: the window shell behind panels. */
-    --surface-app: 220 10% 97%;
+    --surface-app: 0 0% 98.039%;
     /* Window canvas behind the inset content card (wrapped shell). */
-    --app-canvas: 220 10% 95%;
+    --app-canvas: var(--sidebar);
     /* Tiered sidebar/inspector surface, separated by a hairline. */
     --surface-panel: 0 0% 100%;
     --border-soft: var(--border);
-    --inline-token-highlight: #1a1c1f;
+    --inline-token-highlight: hsl(var(--primary));
     --usage-token: 29 86% 56%;
     --session-handle-lightness: 0.5;
     --session-handle-chroma: 0.12;
-    --temporary-control-active: #1a1c1f;
+    --temporary-control-active: hsl(var(--primary));
     --temporary-accent: var(--accent-foreground);
     --temporary-foreground: var(--accent-foreground);
     --temporary-border: var(--accent-foreground);
-    /* Graphite scale: one neutral ramp for ink, surfaces and selected states so
-       the interface reads as white + grey with a single near-black accent. */
-    --tone-violet: 220 8% 40%;
-    --tone-violet-soft: 220 10% 96%;
-    --text-strong: 220 9% 11%;
-    --text-body: 220 7% 26%;
-    --text-soft: 220 6% 44%;
-    --text-display: 220 9% 11%;
+    /* Text aliases follow the active palette, including custom themes. */
+    --tone-violet: var(--primary);
+    --tone-violet-soft: var(--accent);
+    --text-strong: var(--foreground);
+    --text-body: var(--foreground);
+    --text-soft: var(--muted-foreground);
+    --text-display: var(--foreground);
     /* Selected navigation: tinted surface + readable ink, never "white on white". */
-    --nav-active-bg: 220 8% 89%;
-    --nav-active-fg: 220 9% 11%;
-    --nav-active-ring: 220 8% 85%;
+    --nav-active-bg: 240 7.692% 92.353%;
+    --nav-active-fg: 240 3.704% 15.882%;
+    --nav-active-ring: 240 3.67% 57.255%;
     --radius: 0.5rem;
     /* Shared shape scale: controls and repeated panels 8px, composer 16px. */
     --radius-mark: 0.25rem;
@@ -166,10 +162,10 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     --terminal-font-size: 12.5px;
     --hero-text-size: 26px;
     --hero-composer-max-w: min(44rem, 100%);
-    --sidebar: 220 10% 94%;
+    --sidebar: 240 4.762% 95.882%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);
-    --sidebar-accent: 220 10% 91%;
+    --sidebar-accent: 240 7.692% 92.353%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
     --settings-canvas: var(--background);
@@ -180,49 +176,49 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
 
   .dark {
     color-scheme: dark;
-    --background: 220 10% 8%;
-    --foreground: 220 8% 92%;
-    --card: 220 8% 11%;
+    --background: 240 5.882% 10%;
+    --foreground: 240 5.882% 90%;
+    --card: 240 4.478% 13.137%;
     --card-foreground: var(--foreground);
-    --popover: 220 8% 12%;
+    --popover: 240 4.478% 13.137%;
     --popover-foreground: var(--foreground);
-    --primary: 220 8% 92%;
-    --primary-foreground: 220 10% 8%;
-    --secondary: 220 8% 16%;
+    --primary: 240 5.882% 90%;
+    --primary-foreground: 240 5.882% 10%;
+    --secondary: 240 5.085% 11.569%;
     --secondary-foreground: var(--foreground);
-    --muted: 220 8% 16%;
-    --muted-foreground: 220 6% 62%;
-    --accent: 220 8% 16%;
-    --accent-foreground: 220 8% 92%;
+    --muted: 240 5.085% 11.569%;
+    --muted-foreground: 240 5.028% 64.902%;
+    --accent: 240 5.618% 17.451%;
+    --accent-foreground: 240 5.882% 90%;
     --destructive: 0 62% 55%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 8% 18%;
-    --input: var(--border);
-    --ring: var(--foreground);
-    --surface-app: 220 9% 9%;
-    --app-canvas: 220 9% 8%;
-    --surface-panel: 220 8% 12%;
+    --border: 240 3.704% 21.176%;
+    --input: 240 3.766% 46.863%;
+    --ring: 240 5.882% 90%;
+    --surface-app: 240 5.882% 10%;
+    --app-canvas: var(--sidebar);
+    --surface-panel: 240 4.478% 13.137%;
     --border-soft: var(--border);
-    --inline-token-highlight: #e9eaec;
+    --inline-token-highlight: hsl(var(--primary));
     --session-handle-lightness: 0.75;
     --session-handle-chroma: 0.11;
-    --temporary-control-active: #e9eaec;
+    --temporary-control-active: hsl(var(--primary));
     --temporary-accent: var(--accent-foreground);
     --temporary-foreground: var(--accent-foreground);
     --temporary-border: var(--accent-foreground);
-    --tone-violet: 220 6% 62%;
-    --tone-violet-soft: 220 8% 18%;
-    --text-strong: 220 8% 95%;
-    --text-body: 220 8% 80%;
-    --text-soft: 220 6% 62%;
-    --text-display: 220 8% 92%;
-    --nav-active-bg: 220 8% 18%;
-    --nav-active-fg: 220 8% 92%;
-    --nav-active-ring: 220 8% 26%;
-    --sidebar: 220 9% 10%;
+    --tone-violet: var(--primary);
+    --tone-violet-soft: var(--accent);
+    --text-strong: var(--foreground);
+    --text-body: var(--foreground);
+    --text-soft: var(--muted-foreground);
+    --text-display: var(--foreground);
+    --nav-active-bg: 240 5.618% 17.451%;
+    --nav-active-fg: 240 5.882% 90%;
+    --nav-active-ring: 240 3.766% 46.863%;
+    --sidebar: 240 5.085% 11.569%;
     --sidebar-foreground: var(--foreground);
     --sidebar-selected: var(--accent);
-    --sidebar-accent: 220 16% 16%;
+    --sidebar-accent: 240 5.618% 17.451%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
     --settings-canvas: var(--background);
@@ -371,8 +367,7 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .team-progress-
     }
   }
 
-  /* Wrapped shell: the window canvas stays a flat tier around an inset content
-     card. The tint belongs to `.workbench-canvas` only. */
+  /* Wrapped shell: flat, theme-aware tiers around an inset content card. */
   .app-shell-canvas {
     background-color: hsl(var(--app-canvas));
   }
@@ -1220,41 +1215,22 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
 }
 
 
-/* Ambient colours are separate from status colours and the persisted palette.
-   Custom themes supply their own accent; the default gets a blue/iris pair. */
+/* Workbench decoration follows the active palette in every theme. */
 :root {
-  --workbench-accent: 222 76% 54%;
-  --workbench-companion: 264 62% 62%;
-  --workbench-ink: 224 58% 39%;
-  --workbench-glow: 0.09;
-}
-
-.dark {
-  --workbench-accent: 218 85% 73%;
-  --workbench-companion: 264 76% 76%;
-  --workbench-ink: 218 85% 82%;
-  --workbench-glow: 0.07;
-}
-
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) {
   --workbench-accent: var(--primary);
   --workbench-companion: var(--primary);
   --workbench-ink: var(--accent-foreground);
 }
 
-/* Paint ambient light once per page, leaving nested cards solid and readable. */
-.workbench-canvas {
-  background-image: radial-gradient(ellipse at 90% 0%, hsl(var(--workbench-accent) / 0.06), transparent 55%);
-}
-
+/* Flat surfaces keep attention on the conversation and memory content. */
+.workbench-canvas,
 .agent-thread-shell {
-  background-image:
-    radial-gradient(ellipse at 78% 18%, hsl(var(--workbench-companion) / var(--workbench-glow)), transparent 48%),
-    radial-gradient(ellipse at 12% 55%, hsl(var(--workbench-accent) / var(--workbench-glow)), transparent 52%);
+  background-color: hsl(var(--background));
+  background-image: none;
 }
 
 .app-shell-canvas {
-  background-image: linear-gradient(155deg, hsl(var(--workbench-accent) / 0.08), hsl(var(--workbench-companion) / 0.04));
+  background-image: none;
 }
 
 .bg-card,
@@ -1264,13 +1240,11 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) {
 }
 
 .workspace-navigation {
-  background:
-    linear-gradient(165deg, hsl(var(--workbench-accent) / 0.075), transparent 55%, hsl(var(--workbench-companion) / 0.055)),
-    hsl(var(--sidebar));
+  background: hsl(var(--sidebar));
 }
 
 .workspace-navigation-rail {
-  background: hsl(var(--workbench-accent) / 0.025);
+  background: hsl(var(--sidebar));
 }
 
 .workspace-sidebar-flow {
@@ -1316,10 +1290,9 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) {
   letter-spacing: -0.02em;
 }
 
-/* Sidebar group labels ("Projects", "Topics") join the indigo label voice so
-   the rail is not a wall of near-black text. */
+/* Sidebar group labels use the readable secondary text colour. */
 .sidebar-group-label {
-  color: hsl(var(--muted-foreground) / 0.85);
+  color: hsl(var(--muted-foreground));
   letter-spacing: 0.015em;
 }
 
@@ -1338,13 +1311,6 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) {
 }
 
 .workspace-nav-item[aria-current="page"] {
-  color: hsl(var(--workbench-ink));
-  background: linear-gradient(120deg, hsl(var(--workbench-accent) / 0.14), hsl(var(--workbench-companion) / 0.1));
-  box-shadow: inset 0 0 0 1px hsl(var(--workbench-accent) / 0.18);
-}
-
-/* A custom palette keeps its contrast-checked navigation pair. */
-html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .workspace-nav-item[aria-current="page"] {
   color: hsl(var(--nav-active-fg));
   background: hsl(var(--nav-active-bg));
   box-shadow: inset 0 0 0 1px hsl(var(--nav-active-ring) / 0.9);
@@ -1352,6 +1318,45 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .workspace-nav-
 
 .workspace-nav-item[aria-current="page"] .workspace-nav-label {
   font-weight: 600;
+}
+
+/* Mode thumbnails depict the default light/dark palettes independently of the
+   active mode. Other presets and custom colours keep their own preview. */
+html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appearance-mode-light {
+  --preview-canvas: #FAFAFA;
+  --preview-sidebar: #F4F4F5;
+  --preview-line: #E4E4E7;
+  --preview-accent: #27272A;
+}
+
+html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appearance-mode-dark {
+  --preview-canvas: #18181B;
+  --preview-sidebar: #1C1C1F;
+  --preview-line: #343438;
+  --preview-accent: #E4E4E7;
+}
+
+html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) :is(.appearance-mode-light, .appearance-mode-dark) {
+  background: var(--preview-canvas);
+  border-color: var(--preview-line);
+}
+
+html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) :is(.appearance-mode-light, .appearance-mode-dark) .appearance-mini-sidebar {
+  background: var(--preview-sidebar);
+  border-color: var(--preview-line);
+}
+
+html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) :is(.appearance-mode-light, .appearance-mode-dark) .appearance-mini-content i {
+  background: var(--preview-line);
+}
+
+html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) :is(.appearance-mode-light, .appearance-mode-dark) .appearance-mini-content :is(i:first-child, b) {
+  background: var(--preview-accent);
+}
+
+/* The half-and-half system sample represents two modes, rather than decoration. */
+html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appearance-mode-system {
+  background: linear-gradient(90deg, #FAFAFA 50%, #18181B 50%);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1381,7 +1386,6 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .workspace-nav-
   gap: 1.25rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid hsl(var(--border));
-  border-image: linear-gradient(90deg, hsl(var(--workbench-accent) / 0.32), hsl(var(--workbench-companion) / 0.12), transparent) 1;
 }
 
 .assistant-page-heading-group {
@@ -1593,11 +1597,6 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .workspace-nav-
   text-align: left;
 }
 
-.thread-welcome,
-.thread-welcome-intro-block {
-  animation: workspace-arrive 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
 .thread-welcome {
   padding-top: clamp(1.15rem, 3vh, 2.5rem);
 }
@@ -1610,7 +1609,7 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .workspace-nav-
 .thread-welcome-intro {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(9rem, 26%, 11.5rem);
+  grid-template-columns: minmax(0, 1fr) clamp(8rem, 23%, 10rem);
   min-height: 9rem;
   align-items: center;
   gap: 2rem;
@@ -1643,7 +1642,6 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .workspace-nav-
   height: 6px;
   border-radius: 999px;
   background: hsl(var(--workbench-accent));
-  box-shadow: 0 0 0 4px hsl(var(--workbench-accent) / 0.09);
 }
 
 .thread-welcome-title {
@@ -1651,11 +1649,12 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .workspace-nav-
   max-width: 40rem;
   text-wrap: balance;
   font-family: var(--font-ui);
-  font-size: clamp(1.65rem, 1.45rem + 0.5vw, 2rem);
+  font-size: clamp(1.875rem, 1.5rem + 0.6vw, 2.25rem);
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.025em;
   white-space: normal;
+  overflow-wrap: anywhere;
   color: hsl(var(--text-strong));
 }
 
@@ -1676,14 +1675,6 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .workspace-nav-
   align-self: center;
   pointer-events: none;
   z-index: 3;
-}
-
-.thread-welcome-illustration::before {
-  content: "";
-  position: absolute;
-  inset: 10% 3%;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, hsl(var(--workbench-accent) / 0.16), hsl(var(--workbench-companion) / 0.06) 50%, transparent 72%);
 }
 
 .thread-welcome-illustration > img {
@@ -1720,16 +1711,16 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .workspace-nav-
 }
 
 .thread-welcome-chip {
-  --starter-accent: var(--workbench-accent);
+  --starter-accent: var(--workbench-ink);
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
   gap: 0.5rem;
   min-width: 0;
   padding: 0.65rem 0.8rem;
-  border: 1px solid hsl(var(--starter-accent) / 0.16);
-  border-radius: 0.75rem;
-  background: linear-gradient(125deg, hsl(var(--starter-accent) / 0.055), transparent), hsl(var(--card));
+  border: 1px solid hsl(var(--input));
+  border-radius: var(--radius-panel);
+  background: hsl(var(--card));
   color: hsl(var(--text-body));
   font-size: 13px;
   line-height: 1.4;
@@ -1738,9 +1729,7 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .workspace-nav-
   transition:
     border-color 140ms ease-out,
     background-color 140ms ease-out,
-    color 140ms ease-out,
-    box-shadow 140ms ease-out,
-    transform 140ms ease-out;
+    color 140ms ease-out;
 }
 
 .thread-welcome-chip > svg {
@@ -1748,33 +1737,14 @@ html[data-appearance-theme]:not([data-appearance-theme="zhixu"]) .workspace-nav-
   color: hsl(var(--starter-accent));
 }
 
-.thread-welcome-chip:nth-child(2) { --starter-accent: var(--workbench-companion); }
-
-html:not([data-appearance-theme]),
-html[data-appearance-theme="zhixu"] {
-  --starter-teal: 173 64% 35%;
-  --starter-amber: 30 80% 40%;
-}
-
-html.dark:not([data-appearance-theme]),
-html.dark[data-appearance-theme="zhixu"] {
-  --starter-teal: 170 55% 65%;
-  --starter-amber: 36 85% 70%;
-}
-
-.thread-welcome-chip:nth-child(3) { --starter-accent: var(--starter-teal, var(--workbench-accent)); }
-.thread-welcome-chip:nth-child(4) { --starter-accent: var(--starter-amber, var(--workbench-companion)); }
-
 .thread-welcome-chip:hover {
-  transform: translateY(-1px);
-  border-color: hsl(var(--starter-accent) / 0.38);
-  background: linear-gradient(125deg, hsl(var(--starter-accent) / 0.1), transparent), hsl(var(--card));
-  color: hsl(var(--text-strong));
-  box-shadow: 0 4px 12px hsl(var(--starter-accent) / 0.08);
+  border-color: hsl(var(--primary));
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
 }
 
 .thread-welcome-chip:focus-visible {
-  outline: 2px solid hsl(var(--primary) / 0.5);
+  outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
 }
 
@@ -1791,7 +1761,7 @@ html.dark[data-appearance-theme="zhixu"] {
 
 .thread-welcome-footnote {
   margin-top: 1rem;
-  color: hsl(var(--muted-foreground) / 0.8);
+  color: hsl(var(--muted-foreground));
   font-size: 10px;
 }
 
@@ -1829,14 +1799,14 @@ html.dark[data-appearance-theme="zhixu"] {
 /* Project / team / environment read as quiet metadata above the composer,
    matching the demo's single-line "按任务选择项目与模型" hint. */
 [data-testid="composer-context-tabs"] {
-  color: hsl(var(--muted-foreground) / 0.9);
+  color: hsl(var(--muted-foreground));
   font-size: 11.5px;
 }
 
 [data-testid="composer-context-tabs"] button,
 [data-testid="composer-context-tabs"] [role="button"],
 [data-testid="composer-context-tabs"] [role="combobox"] {
-  color: hsl(var(--muted-foreground) / 0.9);
+  color: hsl(var(--muted-foreground));
   font-size: 11.5px;
 }
 
@@ -1845,9 +1815,9 @@ html.dark[data-appearance-theme="zhixu"] {
 }
 
 .thread-composer-surface {
-  border-color: hsl(var(--workbench-accent) / 0.24);
-  border-radius: 1.3125rem;
-  box-shadow: 0 2px 5px hsl(var(--workbench-accent) / 0.04), 0 12px 36px -20px hsl(var(--workbench-companion) / 0.22);
+  border-color: hsl(var(--input));
+  border-radius: var(--radius-prominent);
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
 }
 
 /* Hero composer keeps a roomier writing area, closer to the demo's three-line box. */
@@ -1856,15 +1826,14 @@ html.dark[data-appearance-theme="zhixu"] {
 }
 
 .agent-thread-shell .thread-composer-surface:focus-within {
-  border-color: hsl(var(--workbench-accent) / 0.52);
-  box-shadow: 0 0 0 3px hsl(var(--workbench-accent) / 0.08), 0 12px 36px -20px hsl(var(--workbench-companion) / 0.2);
+  border-color: hsl(var(--ring));
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
 }
 
 /* Keep the send/stop distinction and all disabled semantics from the component. */
-html:not([data-appearance-theme]) .thread-composer-action[type="submit"],
-html[data-appearance-theme="zhixu"] .thread-composer-action[type="submit"] {
-  --primary: var(--workbench-accent);
-  background-image: linear-gradient(135deg, hsl(var(--workbench-accent)), hsl(var(--workbench-companion)));
+.thread-composer-action[type="submit"] {
+  background-image: none;
 }
 
 .agent-thread-header {
@@ -1878,11 +1847,6 @@ html[data-appearance-theme="zhixu"] .thread-composer-action[type="submit"] {
 
 .agent-preview-transcript > div {
   max-width: 48rem;
-}
-
-@keyframes workspace-arrive {
-  from { opacity: 0; transform: translateY(7px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Wide screens: the demo artboard is 960px wide, so the compact column would read
@@ -1906,7 +1870,7 @@ html[data-appearance-theme="zhixu"] .thread-composer-action[type="submit"] {
   }
   .thread-welcome-illustration,
   .thread-welcome-illustration > img { width: 100%; }
-  .thread-welcome-title { font-size: 1.5rem; max-width: 100%; white-space: normal; }
+  .thread-welcome-title { font-size: 1.75rem; max-width: 100%; white-space: normal; }
   .thread-welcome-description { font-size: 14px; }
   .thread-welcome-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.375rem; }
   .thread-welcome-chip { padding: 0.55rem 0.7rem; font-size: 13px; }
@@ -1933,7 +1897,5 @@ html[data-appearance-theme="zhixu"] .thread-composer-action[type="submit"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .thread-welcome { animation: none; }
   .thread-welcome-chip { transition: none; }
-  .thread-welcome-chip:hover { transform: none; }
 }

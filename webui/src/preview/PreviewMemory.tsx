@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Bookmark, FileText, History, Search, SlidersHorizontal, X } from "lucide-react";
 
 import { MemoryGuide } from "@/components/settings/memory/MemoryGuide";
@@ -26,6 +27,7 @@ const SAMPLE_EPISODES = [
 
 /** Deliberately local: no client/provider import and no business requests. */
 export function PreviewMemory() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<MemoryTab>("semantic");
   const [enabled, setEnabled] = useState(true);
   const [query, setQuery] = useState("");
@@ -70,7 +72,7 @@ export function PreviewMemory() {
             onChange={setTab}
             options={[
               { value: "semantic", label: <span className="inline-flex items-center gap-1.5"><Bookmark className="h-3.5 w-3.5" aria-hidden />长期信息</span> },
-              { value: "episode", label: <span className="inline-flex items-center gap-1.5"><History className="h-3.5 w-3.5" aria-hidden />对话记录</span> },
+              { value: "episode", label: <span className="inline-flex items-center gap-1.5"><History className="h-3.5 w-3.5" aria-hidden />{t("settings.memory.tabEpisode")}</span> },
             ]}
             className="bg-primary/[0.06]"
             itemClassName="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

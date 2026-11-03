@@ -92,6 +92,7 @@ export function MemoryFilters({ query, onQuery, origin, onOrigin, workspace, onW
   onClear: () => void; active: boolean; actions?: ReactNode; loading?: boolean;
 }) {
   const { text } = useMemoryCopy();
+  const { t } = useTranslation();
   const counts = result.source_counts;
   const choices = [{ value: "", label: text("全部", "All"), count: counts?.all }, { value: "ai", label: text("AI 生成", "AI generated"), count: counts?.ai }, { value: "manual", label: text("手动触发", "Manual"), count: counts?.manual }, ...((counts?.unknown ?? 0) > 0 || origin === "unknown" ? [{ value: "unknown", label: text("来源未记录", "Unknown source"), count: counts?.unknown }] : [])];
   return <div className="space-y-2">
@@ -102,7 +103,7 @@ export function MemoryFilters({ query, onQuery, origin, onOrigin, workspace, onW
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-muted-foreground" role="toolbar" aria-label={text("记忆筛选", "Memory filters")}>
       <div className="relative w-full min-w-0 lg:w-40 lg:min-w-40 lg:flex-1">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <Input type="search" value={query} onChange={(event) => onQuery(event.target.value)} placeholder={text("搜索内容、目标或标签…", "Search content, goals or tags…")} aria-label={text("搜索记忆", "Search memories")} className="h-9 pl-9 text-[12px]" />
+        <Input type="search" value={query} onChange={(event) => onQuery(event.target.value)} placeholder={t("settings.memory.searchPlaceholder")} aria-label={text("搜索记忆", "Search memories")} className="h-9 pl-9 text-[12px]" />
       </div>
       <label className="flex h-8 min-w-0 items-center gap-2 rounded-control border border-input bg-background px-2 text-[12px] text-muted-foreground">
         <span className="shrink-0">{text("工作区", "Workspace")}</span>
@@ -158,9 +159,10 @@ export function useMemoryDetails<T extends { id: string }>(fetch: (id: string) =
 
 export function MemoryLoadState({ error, loading, empty, filtered, onRetry }: { error: string | null; loading: boolean; empty: boolean; filtered: boolean; onRetry: () => void }) {
   const { text } = useMemoryCopy();
+  const { t } = useTranslation();
   if (error) return <div role="alert" className="rounded-lg bg-destructive/5 px-4 py-6 text-[13px] text-destructive"><p>{error}</p><Button variant="ghost" size="sm" onClick={onRetry}>{text("重试", "Retry")}</Button></div>;
   if (loading && empty) return <div role="status" className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-label={text("加载中", "Loading")} /></div>;
-  if (empty) return <div className="rounded-lg bg-muted/25 px-4 py-12 text-center text-[13px] text-muted-foreground">{filtered ? text("没有符合筛选条件的记忆", "No memories match your filters") : text("还没有记忆", "No memories yet")}</div>;
+  if (empty) return <div className="rounded-lg bg-muted/25 px-4 py-12 text-center text-[13px] text-muted-foreground">{filtered ? t("settings.memory.noMatches") : <><p>{t("settings.memory.empty")}</p><p className="mt-2">{t("settings.memory.emptyDescription")}</p></>}</div>;
   return null;
 }
 

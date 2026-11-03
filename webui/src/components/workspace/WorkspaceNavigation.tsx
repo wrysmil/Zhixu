@@ -8,7 +8,7 @@ import {
   Bot,
   BookOpen,
   CalendarClock,
-  MessagesSquare,
+  MessageCircleMore,
   PanelLeftClose,
   PanelLeftOpen,
   Plug,
@@ -40,7 +40,7 @@ interface NavItem {
    *  English accessible names (Apps/Skills/Automations/Agents/Settings). */
   labelKey: string;
   labelDefault: string;
-  icon: typeof MessagesSquare | typeof TeamStructureIcon;
+  icon: typeof MessageCircleMore | typeof TeamStructureIcon;
 }
 
 const APP_ITEM: NavItem = {
@@ -71,7 +71,7 @@ const TEAM_ITEM: NavItem = {
 // Keep the product's daily loop visible, then the capability pages. Every entry
 // lives on the rail so no menu is nested behind an extra click.
 const PRIMARY_ITEMS: NavItem[] = [
-  { view: "chat", labelKey: "workspace.nav.assistant", labelDefault: "Assistant", icon: MessagesSquare },
+  { view: "chat", labelKey: "workspace.nav.assistant", labelDefault: "Assistant", icon: MessageCircleMore },
   AGENTS_ITEM,
   MEMORY_ITEM,
 ];

@@ -22,8 +22,7 @@ export function MemorySection({
   settings: SettingsPayload | null;
   onSettingsChange: (payload: SettingsPayload) => void;
 }) {
-  const { t, i18n } = useTranslation();
-  const zh = i18n.resolvedLanguage?.startsWith("zh");
+  const { t } = useTranslation();
   const tx = (key: string, fallback: string) => t(key, { defaultValue: fallback });
   const { client } = useClient();
   const [tab, setTab] = useState<MemoryTab>("semantic");
@@ -69,9 +68,7 @@ export function MemorySection({
 
   const onLabel = tx("settings.memory.masterToggleOn", "On");
   const offLabel = tx("settings.memory.masterToggleOff", "Off");
-  const toggleHint = zh
-    ? "从对话中整理有用的信息，之后需要时参考。关闭后仍可查看和管理已有内容。"
-    : "Save useful details from chats for future conversations. You can still review and manage saved content when this is off.";
+  const toggleHint = t("settings.memory.masterToggleDescription");
 
   return (
     <div className="flex flex-col gap-3">
@@ -82,7 +79,7 @@ export function MemorySection({
           value={tab}
           options={MEMORY_TABS.map(({ value, labelKey, defaultLabel }) => ({
             value,
-            label: zh ? (value === "semantic" ? "长期信息" : "对话记录") : tx(labelKey, defaultLabel),
+            label: tx(labelKey, defaultLabel),
           }))}
           onChange={setTab}
           className="w-fit max-w-full bg-primary/[0.06]"
@@ -90,7 +87,7 @@ export function MemorySection({
         />
         <div className="flex items-center gap-2.5" data-testid="memory-master-toggle">
           <span className="text-[12px] font-medium text-[hsl(var(--text-body))]">
-            {zh ? "自动记住" : "Auto-remember"}
+            {t("settings.memory.masterToggleTitle")}
           </span>
           <button
             type="button"

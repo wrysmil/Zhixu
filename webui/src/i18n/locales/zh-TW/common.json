@@ -202,7 +202,7 @@
       }
     },
     "headline": "今天，想寫點什麼？",
-    "hero_description": "一段程式碼、一次實作、一個新理解，都可以是一篇文章的開始。",
+    "hero_description": "把想法寫下來，留下值得回看的內容。",
     "topic_label": "文章主題",
     "input_hint": "以你的素材與觀點為起點",
     "template_heading": "從熟悉的方式開始",
@@ -375,7 +375,7 @@
       "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "知序 Web UI —— 與你的 知序 工作區對話。"
+      "description": "知序 · 你的記憶夥伴"
     },
     "pairing": {
       "title": "配對聊天使用者",
@@ -1979,10 +1979,10 @@
       "languageAuto": "自動"
     },
     "memory": {
-      "pageEyebrow": "記憶中心",
-      "pageSubtitle": "智慧助理在對話中整理的長期資訊與對話片段。開啟總開關後會自動抽取；關閉後仍可檢視與管理。",
-      "tabSemantic": "語意記憶",
-      "tabEpisode": "情節",
+      "pageEyebrow": "關於你的記憶",
+      "pageSubtitle": "檢視、補充和整理知序記下的事。",
+      "tabSemantic": "長期資訊",
+      "tabEpisode": "對話片段",
       "tabsLabel": "記憶分類",
       "type": {
         "fact": "事實",
@@ -2007,7 +2007,7 @@
         "markSuperseded": "標記為已取代",
         "restore": "還原"
       },
-      "searchPlaceholder": "搜尋記憶…",
+      "searchPlaceholder": "搜尋記下的事…",
       "filterType": "類型",
       "filterPriority": "優先度",
       "filterOrder": "排序",
@@ -2015,14 +2015,14 @@
       "orderCreated": "最近更新",
       "orderImportance": "重要性",
       "resultCount": "{{count}} 筆結果",
-      "noMatches": "沒有符合的記憶",
-      "empty": "目前還沒有記憶，先建立一筆吧。",
+      "noMatches": "沒有找到相關記憶，試試其他關鍵字。",
+      "empty": "這裡還沒有記憶",
       "newTitle": "新增記憶",
       "editTitle": "編輯記憶",
-      "newDescription": "建立一筆新的記憶",
+      "newDescription": "寫下一件你希望知序記住的事。",
       "editDescription": "編輯這筆記憶",
       "fieldContent": "內容",
-      "contentPlaceholder": "想記住什麼？",
+      "contentPlaceholder": "你希望知序記住什麼？",
       "fieldType": "類型",
       "fieldPriority": "優先度",
       "fieldImportance": "重要性",
@@ -2079,11 +2079,17 @@
       "mdModalDiffPlaceholder": "（內容待後端支援讀取）",
       "mdModalDiffCurrent": "目前 MEMORY.md",
       "mdModalDiffCurrentPlaceholder": "（MEMORY.md 不存在或為空）",
-      "masterToggleTitle": "自動抽取與檢索記憶",
-      "masterToggleDescription": "開啟後，知序 會在對話中抽取事實並在下一輪檢索相關記憶。熱生效——無需重新啟動。",
+      "masterToggleTitle": "自動記住",
+      "masterToggleDescription": "從對話中整理有用的資訊，之後需要時參考。關閉後仍可檢視和管理已有內容。",
       "masterToggleAria": "記憶抽取開關",
       "masterToggleOn": "已開啟",
-      "masterToggleOff": "已關閉"
+      "masterToggleOff": "已關閉",
+      "emptyDescription": "從一件你想留下的事開始，也可以在開啟記憶後透過對話逐步累積。",
+      "guide": {
+        "eyebrow": "與你有關，始終由你掌握",
+        "semanticDescription": "你的偏好、事實與約定，用於之後的對話。",
+        "episodeDescription": "聊過的事情與結果的片段，需要時可以回看。"
+      }
     },
     "identity": {
       "page": {
@@ -2471,7 +2477,7 @@
         "work": "工作"
       },
       "empty": "尚無 Agent",
-      "emptyHint": "還沒有智慧助理。新增一個，把技能、工具與模型組合起來。",
+      "emptyHint": "為不同的事，找到合適的幫手。",
       "health": {
         "degraded": "降級",
         "healthy": "已連線",
@@ -2954,7 +2960,7 @@
         "agentInsert": "讓智能體「{{name}}」完成這個任務："
       },
       "placeholderThread": "輸入訊息…",
-      "placeholderHero": "任何問題都可以問…",
+      "placeholderHero": "聊聊近況，或告訴我一件你想記住的事…",
       "placeholderOpening": "正在開啟新話題…",
       "placeholderStreaming": "模型正在回覆…",
       "inputAria": "訊息輸入框",
@@ -3202,6 +3208,30 @@
       "noResults": "找不到符合的提示詞。",
       "jumpTo": "跳到提示詞：{{label}}",
       "railAria": "使用者提示詞導覽"
+    },
+    "welcome": {
+      "eyebrow": "知序 · 你的記憶夥伴",
+      "title": "記住你的一切",
+      "description": "你的偏好、經歷和在意的事，讓每一次對話，都從了解你開始。",
+      "startersLabel": "從一件關於你的事開始",
+      "starters": {
+        "preferences": {
+          "label": "聊聊我的偏好",
+          "prompt": "我想告訴你一些我的偏好，方便你以後更了解我。我們從哪裡聊起？"
+        },
+        "experience": {
+          "label": "整理一段經歷",
+          "prompt": "幫我把接下來分享的一段經歷整理清楚，我會補充具體內容。"
+        },
+        "continue": {
+          "label": "接著上次的話題",
+          "prompt": "如果你能找到相關的歷史資訊，請幫我接著上次的話題；如果資訊不夠，先問我。"
+        },
+        "reflect": {
+          "label": "回顧最近的想法",
+          "prompt": "根據目前可用的資訊，幫我回顧最近聊過的想法；沒有依據的內容請向我確認。"
+        }
+      }
     }
   },
   "message": {

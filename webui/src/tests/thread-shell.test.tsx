@@ -22,7 +22,7 @@ function messages() {
 }
 
 const HERO_GREETING_PATTERN =
-  /What should we work on\?|Where should we start\?|What are we building today\?|What should we tackle together\?/;
+  /Remember everything about you/;
 
 function makeClient() {
   const errorHandlers = new Set<(err: StreamError) => void>();
@@ -1291,7 +1291,7 @@ describe("ThreadShell", () => {
     await waitFor(() => {
       expect(screen.queryByText("delete me cleanly")).not.toBeInTheDocument();
     });
-    expect(screen.getByPlaceholderText("Ask anything...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Share an update, or tell me something you'd like to remember…")).toBeInTheDocument();
   });
 
   it("creates a chat only when the blank landing sends a first message", async () => {
@@ -1652,9 +1652,9 @@ describe("ThreadShell", () => {
     render(wrap(client, <ThreadShell session={null} title="nanobot" onToggleSidebar={() => {}}
       onCreateChat={createChat} />));
     await act(async () => {});
-    fireEvent.click(screen.getByRole("button", { name: /Summarize a document/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Share my preferences/ }));
     expect(screen.getByRole("textbox", { name: "Message input" })).toHaveValue(
-      "Summarize a document for me: pull out the key points, open questions, and next steps. I'll paste it or attach the file.",
+      "I'd like to share some of my preferences so you can understand me better over time. Where should we start?",
     );
     expect(createChat).not.toHaveBeenCalled();
     expect(client.sendMessage).not.toHaveBeenCalled();
@@ -1664,12 +1664,12 @@ describe("ThreadShell", () => {
     const client = makeClient();
     render(wrap(client, <ThreadShell session={session("empty-welcome")} title="Empty conversation"
       onToggleSidebar={() => {}} />));
-    const suggestion = await screen.findByRole("button", { name: /Summarize a document/ });
+    const suggestion = await screen.findByRole("button", { name: /Share my preferences/ });
     const input = screen.getByRole("textbox", { name: "Message input" });
     fireEvent.change(input, { target: { value: "Keep this conversation draft." } });
     fireEvent.click(suggestion);
     expect(input).toHaveValue(
-      "Keep this conversation draft.\nSummarize a document for me: pull out the key points, open questions, and next steps. I'll paste it or attach the file.",
+      "Keep this conversation draft.\nI'd like to share some of my preferences so you can understand me better over time. Where should we start?",
     );
     expect(client.sendMessage).not.toHaveBeenCalled();
   });
@@ -1692,8 +1692,8 @@ describe("ThreadShell", () => {
 
     const greeting = screen.getByRole("heading", { level: 1, name: HERO_GREETING_PATTERN });
     expect(greeting).toHaveAttribute("data-testid", "hero-greeting");
-    expect(greeting).toHaveClass("select-none", "whitespace-nowrap");
-    expect(screen.getByPlaceholderText("Ask anything...")).toBeInTheDocument();
+    expect(greeting).toHaveClass("select-none");
+    expect(screen.getByPlaceholderText("Share an update, or tell me something you'd like to remember…")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Write code" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Create a project plan" })).not.toBeInTheDocument();
   });
@@ -1753,9 +1753,9 @@ describe("ThreadShell", () => {
 
     expect(screen.queryByText("old answer")).not.toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByPlaceholderText("Ask anything...")).toBeInTheDocument(),
+      expect(screen.getByPlaceholderText("Share an update, or tell me something you'd like to remember…")).toBeInTheDocument(),
     );
-    const input = screen.getByPlaceholderText("Ask anything...");
+    const input = screen.getByPlaceholderText("Share an update, or tell me something you'd like to remember…");
     expect(input.className).toContain("min-h-[78px]");
     expect(screen.queryByText("old answer")).not.toBeInTheDocument();
   });

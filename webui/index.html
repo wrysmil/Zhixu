@@ -9,14 +9,14 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
-      content="知序 web UI — chat with your 知序 workspace."
+      content="Zhixu · Your memory companion"
       data-i18n-meta="description"
     />
     <meta
       name="theme-color"
-      content="#ffffff"
-      data-theme-color-light="#ffffff"
-      data-theme-color-dark="#111621"
+      content="#FAFAFA"
+      data-theme-color-light="#FAFAFA"
+      data-theme-color-dark="#18181B"
     />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -42,8 +42,8 @@
 
       body {
         margin: 0;
-        background: hsl(var(--background, 0 0% 100%));
-        color: hsl(var(--foreground, 222 30% 16%));
+        background: hsl(var(--background, 0 0% 98.039%));
+        color: hsl(var(--foreground, 225 5.882% 13.333%));
         font-family:
           -apple-system, BlinkMacSystemFont, "Segoe UI",
           "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC",
@@ -53,8 +53,8 @@
       }
 
       html.dark body {
-        background: hsl(var(--background, 220 24% 8%));
-        color: hsl(var(--foreground, 214 22% 92%));
+        background: hsl(var(--background, 240 5.882% 10%));
+        color: hsl(var(--foreground, 240 5.882% 90%));
       }
 
       .boot-splash {
@@ -197,9 +197,9 @@
             root.dataset.appearanceTheme = preferences.presetId;
             root.dataset.appearanceFont = preferences.uiFont.id;
           } else {
-            root.style.setProperty("--background", dark ? "220 24% 8%" : "0 0% 100%");
-            root.style.setProperty("--foreground", dark ? "214 22% 92%" : "222 30% 16%");
-            root.style.setProperty("--primary", dark ? "217 70% 70%" : "221 58% 44%");
+            root.style.setProperty("--background", dark ? "240 5.882% 10%" : "0 0% 98.039%");
+            root.style.setProperty("--foreground", dark ? "240 5.882% 90%" : "225 5.882% 13.333%");
+            root.style.setProperty("--primary", dark ? "240 5.882% 90%" : "240 3.704% 15.882%");
             root.dataset.appearanceTheme = "zhixu";
             root.dataset.appearanceFont = "system";
           }
@@ -233,15 +233,15 @@
         var copy = {
           en: {
             boot: "Loading 知序…",
-            description: "知序 web UI — chat with your 知序 workspace."
+            description: "Zhixu · Your memory companion"
           },
           "zh-CN": {
             boot: "正在加载 知序…",
-            description: "知序 Web UI —— 与你的 知序 工作区对话。"
+            description: "知序 · 你的记忆伙伴"
           },
           "zh-TW": {
             boot: "正在載入 知序…",
-            description: "知序 Web UI —— 與你的 知序 工作區對話。"
+            description: "知序 · 你的記憶夥伴"
           },
           fr: {
             boot: "Chargement de 知序…",

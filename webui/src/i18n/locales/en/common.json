@@ -202,7 +202,7 @@
       }
     },
     "headline": "What would you like to write today?",
-    "hero_description": "Start with an idea, or pick up an article in progress.",
+    "hero_description": "Write down your ideas and keep what’s worth revisiting.",
     "topic_label": "Article title",
     "input_hint": "Add materials and develop your article in the editor after creating a draft.",
     "template_heading": "Choose a starting outline",
@@ -375,7 +375,7 @@
       "chat": "{{title}} · 知序"
     },
     "meta": {
-      "description": "知序 web UI — chat with your 知序 workspace."
+      "description": "Zhixu · Your memory companion"
     },
     "pairing": {
       "title": "Pair a chat user",
@@ -1340,7 +1340,7 @@
       "viewList": "List",
       "viewCard": "Cards",
       "noMatch": "No matching agents — try a different term or clear the filters.",
-      "emptyHint": "No agents yet. Create one to combine skills, tools and a model.",
+      "emptyHint": "Find the right helper for different things.",
       "noun": {
         "tools": "tools",
         "skills": "skills"
@@ -2476,10 +2476,10 @@
       "personaSwitchFailed": "Failed to switch persona"
     },
     "memory": {
-      "pageEyebrow": "Memory center",
-      "pageSubtitle": "Long-term facts and conversation excerpts the agent keeps across sessions. Toggle automatic extraction here, or just browse and curate what's already there.",
+      "pageEyebrow": "Memories about you",
+      "pageSubtitle": "Review, add to and organize what Zhixu has remembered.",
       "tabSemantic": "Semantic memory",
-      "tabEpisode": "Episodes",
+      "tabEpisode": "Conversation excerpts",
       "tabsLabel": "Memory sections",
       "type": {
         "fact": "Fact",
@@ -2499,12 +2499,12 @@
         "deprecated": "Deprecated"
       },
       "actions": {
-        "newMemory": "New memory",
+        "newMemory": "Add memory",
         "quickAdd": "Quick add",
         "markSuperseded": "Mark as superseded",
         "restore": "Restore"
       },
-      "searchPlaceholder": "Search memories...",
+      "searchPlaceholder": "Search what’s been remembered…",
       "filterType": "Type",
       "filterPriority": "Priority",
       "filterOrder": "Sort",
@@ -2512,14 +2512,14 @@
       "orderCreated": "Recently updated",
       "orderImportance": "Importance",
       "resultCount": "{{count}} results",
-      "noMatches": "No matching memories",
-      "empty": "No memories yet. Create your first one above.",
+      "noMatches": "No related memories found. Try other keywords.",
+      "empty": "No memories here yet",
       "newTitle": "New memory",
       "editTitle": "Edit memory",
-      "newDescription": "Create a new memory entry",
+      "newDescription": "Write down something you'd like Zhixu to remember.",
       "editDescription": "Edit this memory entry",
       "fieldContent": "Content",
-      "contentPlaceholder": "What should be remembered?",
+      "contentPlaceholder": "What would you like Zhixu to remember?",
       "fieldType": "Type",
       "fieldPriority": "Priority",
       "fieldImportance": "Importance",
@@ -2555,8 +2555,8 @@
       "superseded": "superseded",
       "errorContentRequired": "Content is required",
       "metaLine": "{{type}} · {{priority}} · {{importance}}",
-      "masterToggleTitle": "Memory auto extraction & retrieval",
-      "masterToggleDescription": "When on, 知序 extracts facts from chats and retrieves relevant memories on the next turn. Hot-takes-effect — no restart needed.",
+      "masterToggleTitle": "Auto-remember",
+      "masterToggleDescription": "Save useful details from chats for future conversations. You can still review and manage saved content when this is off.",
       "masterToggleAria": "Toggle memory extraction",
       "masterToggleOn": "On",
       "masterToggleOff": "Off",
@@ -2580,7 +2580,13 @@
       "mdModalDiffDraft": "Dream draft",
       "mdModalDiffPlaceholder": "(Content pending backend support)",
       "mdModalDiffCurrent": "Current MEMORY.md",
-      "mdModalDiffCurrentPlaceholder": "(MEMORY.md does not exist or is empty)"
+      "mdModalDiffCurrentPlaceholder": "(MEMORY.md does not exist or is empty)",
+      "emptyDescription": "Start with something you'd like to keep, or turn on memory to gradually build it through conversations.",
+      "guide": {
+        "eyebrow": "About you, under your control",
+        "semanticDescription": "Preferences, facts and instructions for future chats.",
+        "episodeDescription": "Excerpts of what you discussed and how it went, available to revisit."
+      }
     }
   },
   "chat": {
@@ -3030,7 +3036,7 @@
         "agentInsert": "Run this with the agent \"{{name}}\": "
       },
       "placeholderThread": "Type your message…",
-      "placeholderHero": "Ask anything...",
+      "placeholderHero": "Share an update, or tell me something you'd like to remember…",
       "placeholderOpening": "Opening a new topic…",
       "placeholderStreaming": "Model is responding…",
       "inputAria": "Message input",
@@ -3278,6 +3284,30 @@
       "noResults": "No matching prompts.",
       "jumpTo": "Jump to prompt: {{label}}",
       "railAria": "User prompt navigation"
+    },
+    "welcome": {
+      "eyebrow": "Zhixu · Your memory companion",
+      "title": "Remember everything about you",
+      "description": "Your preferences, experiences and what matters to you — so every conversation starts with understanding.",
+      "startersLabel": "Start with something about you",
+      "starters": {
+        "preferences": {
+          "label": "Share my preferences",
+          "prompt": "I'd like to share some of my preferences so you can understand me better over time. Where should we start?"
+        },
+        "experience": {
+          "label": "Organize an experience",
+          "prompt": "Help me organize an experience I'm about to share. I'll provide the details."
+        },
+        "continue": {
+          "label": "Pick up our last topic",
+          "prompt": "If you can find relevant history, help me pick up our last topic. If there isn't enough information, ask me first."
+        },
+        "reflect": {
+          "label": "Reflect on recent ideas",
+          "prompt": "Using the information currently available, help me reflect on ideas we've discussed recently. Please check with me about anything without supporting context."
+        }
+      }
     }
   },
   "message": {

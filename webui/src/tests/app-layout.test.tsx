@@ -34,7 +34,7 @@ const sessionUpdateHandlers = new Set<(
 const sidebarStateUpdateHandlers = new Set<(state: SidebarStatePayload) => void>();
 let mockSessions: ChatSummary[] = [];
 const HERO_GREETING_PATTERN =
-  /What should we work on\?|Where should we start\?|What are we building today\?|What should we tackle together\?/;
+  /Remember everything about you/;
 
 function setNavigatorPlatform(platform: string): void {
   Object.defineProperty(window.navigator, "platform", {

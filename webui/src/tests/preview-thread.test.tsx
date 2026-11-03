@@ -26,9 +26,9 @@ describe("PreviewThread", () => {
       render(<PreviewThread />);
       const input = screen.getByRole("textbox", { name: "Message input" });
       fireEvent.change(input, { target: { value: "These are my own notes." } });
-      fireEvent.click(screen.getByRole("button", { name: /Summarize a document/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Share my preferences/ }));
       expect(input).toHaveValue(
-        "These are my own notes.\nSummarize a document for me: pull out the key points, open questions, and next steps. I'll paste it or attach the file.",
+        "These are my own notes.\nI'd like to share some of my preferences so you can understand me better over time. Where should we start?",
       );
       expect(screen.queryByText((content) => content.includes("（演示回复）"))).not.toBeInTheDocument();
     } finally {
@@ -40,9 +40,9 @@ describe("PreviewThread", () => {
     const restore = forbidTransports();
     try {
       render(<PreviewThread />);
-      fireEvent.click(screen.getByRole("button", { name: /Summarize a document/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Share my preferences/ }));
       expect(screen.getByRole("textbox", { name: "Message input" })).toHaveValue(
-        "Summarize a document for me: pull out the key points, open questions, and next steps. I'll paste it or attach the file.",
+        "I'd like to share some of my preferences so you can understand me better over time. Where should we start?",
       );
       expect(screen.queryByText((content) => content.includes("（演示回复）"))).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Send message" }));

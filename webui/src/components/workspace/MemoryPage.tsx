@@ -37,9 +37,10 @@ export function MemoryPage({
 
   return (
     <div className="assistant-page">
-      <p className="assistant-page-kicker mb-4">
+      <h1 className="assistant-page-kicker mb-2">
         {t("settings.memory.pageEyebrow", { defaultValue: "Memory center" })}
-      </p>
+      </h1>
+      <p className="mb-4 text-sm text-muted-foreground">{t("settings.memory.pageSubtitle")}</p>
       <MemorySection
         settings={payload}
         onSettingsChange={(next) => {

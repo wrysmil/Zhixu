@@ -2083,7 +2083,13 @@
       "masterToggleDescription": "Quando ativo, 知序 extrai fatos das conversas e recupera memórias no próximo turno. Efeito imediato — sem reiniciar.",
       "masterToggleAria": "Alternar extração de memória",
       "masterToggleOn": "Ativado",
-      "masterToggleOff": "Desativado"
+      "masterToggleOff": "Desativado",
+      "emptyDescription": "Start with something you'd like to keep, or turn on memory to gradually build it through conversations.",
+      "guide": {
+        "eyebrow": "About you, under your control",
+        "semanticDescription": "Preferences, facts and instructions for future chats.",
+        "episodeDescription": "Excerpts of what you discussed and how it went, available to revisit."
+      }
     },
     "identity": {
       "page": {
@@ -3202,6 +3208,30 @@
       "noResults": "Nenhuma instrução correspondente.",
       "jumpTo": "Ir para a instrução: {{label}}",
       "railAria": "Navegação pelas instruções do usuário"
+    },
+    "welcome": {
+      "eyebrow": "Zhixu · Your memory companion",
+      "title": "Remember everything about you",
+      "description": "Your preferences, experiences and what matters to you — so every conversation starts with understanding.",
+      "startersLabel": "Start with something about you",
+      "starters": {
+        "preferences": {
+          "label": "Share my preferences",
+          "prompt": "I'd like to share some of my preferences so you can understand me better over time. Where should we start?"
+        },
+        "experience": {
+          "label": "Organize an experience",
+          "prompt": "Help me organize an experience I'm about to share. I'll provide the details."
+        },
+        "continue": {
+          "label": "Pick up our last topic",
+          "prompt": "If you can find relevant history, help me pick up our last topic. If there isn't enough information, ask me first."
+        },
+        "reflect": {
+          "label": "Reflect on recent ideas",
+          "prompt": "Using the information currently available, help me reflect on ideas we've discussed recently. Please check with me about anything without supporting context."
+        }
+      }
     }
   },
   "message": {
