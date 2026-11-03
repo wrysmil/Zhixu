@@ -24,7 +24,6 @@ def test_core_files_match_frontend_contract():
     assert names == [
         "SOUL.md",
         "AGENT.md",
-        "AGENTS.md",
         "USER.md",
         "MEMORY.md",
         "prompts/policies.md",

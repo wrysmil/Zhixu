@@ -58,10 +58,6 @@ CORE_FILES: tuple[IdentityFileSpec, ...] = (
     IdentityFileSpec(name="SOUL.md", group="core"),
     IdentityFileSpec(name="AGENT.md", group="core", restricted=True),
     IdentityFileSpec(
-        name="AGENTS.md",
-        group="core",
-    ),
-    IdentityFileSpec(
         name="USER.md",
         group="core",
         restricted=True,
@@ -97,12 +93,6 @@ LIFECYCLE_OWNED_FILES: frozenset[str] = frozenset({"MEMORY.md", "USER.md"})
 # ``identity/USER.md``, so writing it anywhere else would make WebUI, compiler and
 # prompt disagree about which file is authoritative.
 MEMORY_DIR_DERIVED_FILES: frozenset[str] = frozenset({"MEMORY.md"})
-
-# Files whose truth is the workspace root, not ``identity/``. ``AGENTS.md`` is the
-# workspace instruction file: the injection path (``ContextBuilder``) reads it from
-# the project root and explicitly refuses to move it, so the store must not offer
-# an ``identity/AGENTS.md`` home for it — the two would drift apart.
-WORKSPACE_ROOT_FILES: frozenset[str] = frozenset({"AGENTS.md"})
 
 
 def resolve_identity_dir(workspace: Path) -> Path:

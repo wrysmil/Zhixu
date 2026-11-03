@@ -43,7 +43,6 @@ const HIGH_RISK_FILES = new Set(["SOUL.md", "AGENT.md", "AGENTS.md"]);
 const WARNING_KEYS: Record<string, string> = {
   "SOUL.md": "soulWarning",
   "AGENT.md": "agentWarning",
-  "AGENTS.md": "agentsWarning",
   "USER.md": "userWarning",
   "MEMORY.md": "memoryWarning",
   "prompts/policies.md": "policiesMdWarning",
@@ -323,11 +322,6 @@ export function IdentityPage() {
                 {selectedName === "AGENT.md" ? (
                   <span className="rounded-full border border-amber-300/70 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200">
                     {t("settings.identity.files.autoCompile")}
-                  </span>
-                ) : null}
-                {selectedName === "AGENTS.md" ? (
-                  <span className="rounded-full border border-amber-300/70 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200">
-                    {t("settings.identity.files.workspaceRules")}
                   </span>
                 ) : null}
                 {selectedPersonaStem ? (
