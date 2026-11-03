@@ -2313,7 +2313,7 @@
         "agentsWarning": "AGENTS.md contiene las instrucciones del espacio de trabajo: las convenciones que el Agent debe seguir aquí. Los cambios surten efecto inmediato y se aplican a todas las sesiones.",
         "userWarning": "El aprendizaje mantiene este archivo automáticamente. Una actualización del ciclo de vida reescribe el archivo entero, así que tus cambios pueden sobrescribirse.",
         "memoryWarning": "El sistema de memoria actualiza este archivo cada día. Los cambios manuales pueden sobrescribirse: usa add_memory para reglas duraderas.",
-        "policiesMdWarning": "Al fusionar con las políticas integradas, las secciones con el mismo «## título» quedan substituidas por la versión del sistema. Solo tienen efecto las secciones ajenas al sistema.",
+        "policiesMdWarning": "El contenido de este archivo se añade al prompt del sistema como sección «## Policies» (solo se añade: nunca reemplaza las secciones integradas). Un contenido idéntico al de la plantilla de fábrica se considera sin personalizar y no se inyecta; solo cobra efecto cuando escribes tus propias restricciones.",
         "confirmTitle": "Confirmar el cambio del archivo de identidad",
         "confirmSave": "Entiendo el riesgo, guardar",
         "confirmCancel": "Cancelar",

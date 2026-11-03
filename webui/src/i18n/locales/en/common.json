@@ -2500,7 +2500,7 @@
         "agentsWarning": "AGENTS.md holds workspace-level instructions — the conventions you want the Agent to follow in this workspace. Changes take effect immediately and apply to every session here.",
         "userWarning": "This file is maintained automatically by the learning system. A lifecycle refresh rewrites the whole file; edits you make here may be overwritten.",
         "memoryWarning": "This file is refreshed daily by the memory system. Manual edits may be overwritten on the next refresh — use the memory system's add_memory for durable rules.",
-        "policiesMdWarning": "When merged with the built-in policies, sections with the same '## title' are overridden by the system version. Only non-system sections take effect.",
+        "policiesMdWarning": "This file's content is appended to the system prompt as a \"## Policies\" section (appended only — it never overrides built-in sections). Content identical to the factory template counts as uncustomized and is not injected, so it only takes effect once you write your own constraints.",
         "confirmTitle": "Confirm identity file change",
         "confirmSave": "I understand the risk, save",
         "confirmCancel": "Cancel",

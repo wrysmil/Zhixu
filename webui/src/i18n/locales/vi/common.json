@@ -2313,7 +2313,7 @@
         "agentsWarning": "AGENTS.md chứa chỉ dẫn ở cấp không gian làm việc: những quy ước bạn muốn Agent tuân theo tại đây. Sửa là hiệu lực ngay và áp dụng cho mọi phiên.",
         "userWarning": "Tệp này do hệ thống học tự động duy trì. Mỗi lần lifecycle làm mới, toàn bộ tệp bị ghi lại nên chỉnh sửa của bạn có thể bị ghi đè.",
         "memoryWarning": "Hệ thống bộ nhớ làm mới tệp này hằng ngày. Chỉnh sửa thủ công có thể bị ghi đè — hãy dùng add_memory cho quy tắc lâu dài.",
-        "policiesMdWarning": "Khi gộp với chính sách dựng sẵn, mục cùng tiêu đề '## ' sẽ bị bản hệ thống thay thế. Chỉ các mục ngoài hệ thống mới có hiệu lực.",
+        "policiesMdWarning": "Nội dung tệp này được thêm vào system prompt dưới dạng mục “## Policies” (chỉ thêm — không bao giờ ghi đè các mục dựng sẵn). Nội dung trùng khớp với mẫu xuất xưởng được coi là chưa tùy biến nên không được chèn; chỉ khi bạn tự viết ràng buộc của mình thì nó mới có hiệu lực.",
         "confirmTitle": "Xác nhận thay đổi tệp danh tính",
         "confirmSave": "Tôi đã hiểu rủi ro, lưu",
         "confirmCancel": "Hủy",
