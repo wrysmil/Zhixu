@@ -52,6 +52,23 @@ class TestSemanticExtractionPrompt:
         """用户对助手的操作指令不是记忆，应被过滤"""
         assert "操作指令" in SEMANTIC_EXTRACTION_PROMPT
 
+    def test_requires_abstain_for_questions_and_recall_requests(self):
+        """问题、回忆请求和任务前提不能被写成事实。"""
+        assert "问题前提" in SEMANTIC_EXTRACTION_PROMPT
+        assert "回忆请求" in SEMANTIC_EXTRACTION_PROMPT
+        assert "空数组" in SEMANTIC_EXTRACTION_PROMPT
+
+    def test_requires_evidence_for_experiences(self):
+        """经验也必须引用本批用户或工具验证证据。"""
+        assert '"evidence"' in SEMANTIC_EXTRACTION_PROMPT
+        assert "experiences" in SEMANTIC_EXTRACTION_PROMPT
+        assert "工具结果" in SEMANTIC_EXTRACTION_PROMPT
+
+    def test_marks_user_reported_claims_not_objective_facts(self):
+        """未独立验证的用户陈述要保留归属，不能写成客观事实。"""
+        assert "用户报告" in SEMANTIC_EXTRACTION_PROMPT
+        assert "用户表示" in SEMANTIC_EXTRACTION_PROMPT
+
     def test_length_within_limit(self):
         """提示词长度应小于 4000 tokens（约 16000 字符）"""
         # rough estimate: 1 token ≈ 4 chars for English

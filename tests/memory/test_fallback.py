@@ -79,7 +79,7 @@ class TestFallbackRemoved:
             raise RuntimeError("simulated db failure")
 
         monkeypatch.setattr(writer_module, "add_memory", _boom)
-        result = await extractor.extract_session(_plain_session())
+        result = await extractor.extract_session(_plain_session(_SEMANTIC_ONE))
 
         assert result.memory_ids == []
         assert result.failed_tracks, "写入失败必须明确报告，不能静默吞错"
@@ -107,7 +107,7 @@ class TestFallbackRemoved:
         # 带持久坐标的会话：同一 session_key + generation 才能在失败后按批次重试。
         session = Session(
             key="websocket:fallback",
-            messages=[{"role": "user", "content": "以后都用 uv", "memory_seq": 1}],
+            messages=[{"role": "user", "content": "用户偏好使用 uv 管理依赖", "memory_seq": 1}],
         )
         session.memory_generation = "gen-fallback"
         session.memory_next_seq = 2

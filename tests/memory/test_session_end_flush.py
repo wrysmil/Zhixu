@@ -100,6 +100,7 @@ SEMANTIC_ONE = json.dumps(
         "memories": [
             {
                 "content": "用户偏好使用 uv 管理依赖",
+                "evidence": "以后都用 uv 管理依赖",
                 "type": "PREFERENCE",
                 "priority": "long_term",
                 "subject": "用户",

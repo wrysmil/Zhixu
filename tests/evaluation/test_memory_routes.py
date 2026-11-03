@@ -697,7 +697,7 @@ async def test_revision_edit_is_cas_and_keeps_base_untouched(
 
 
 async def test_capabilities_report_missing_items(tmp_path: Path) -> None:
-    app = build_memory_app(tmp_path)
+    app = build_memory_app(tmp_path, capabilities=MemoryCapabilities())
     async with TestClient(TestServer(app, host="127.0.0.1")) as client:
         await _login(client)
         body = await (await client.get(f"{API_PREFIX}/memory/capabilities")).json()
@@ -715,7 +715,8 @@ async def test_capabilities_report_missing_items(tmp_path: Path) -> None:
 async def test_create_experiment_without_capabilities_is_422(
     tmp_path: Path, path: str
 ) -> None:
-    app = build_memory_app(tmp_path)  # 未注入能力：默认全部 unsupported
+    # 显式缺能力后端仍应拒绝；未注入时现在使用真实默认 adapter 的能力。
+    app = build_memory_app(tmp_path, capabilities=MemoryCapabilities())
     database = EvaluationDatabase(_data_root(tmp_path) / "evaluation.db")
     repository = EvaluationRepository(database)
     _suite, revision, _ids = _prepare_dataset(repository, database)

@@ -852,6 +852,22 @@ class MemoryLifecycle:
             return
         if not legacy.strip() or self._is_template_content(legacy):
             return
+        # A generated export may still carry a user-edited core-note section.
+        # Preserve that section before the generic "looks like export" check,
+        # otherwise a lost/never-written DB row is silently erased on refresh.
+        note_text = extract_core_note_text(legacy)
+        if note_text:
+            save_core_note(
+                conn,
+                workspace_id=self.workspace_id,
+                content=note_text,
+                needs_review=True,
+            )
+            logger.info(
+                "MEMORY.md core-note region recovered for workspace {}",
+                self.workspace_id,
+            )
+            return
         facts = select_core_facts(conn, workspace_id=self.workspace_id, include_note=False)
         if looks_like_generated_export(legacy, facts):
             return

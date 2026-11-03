@@ -141,6 +141,7 @@ def _semantic_with_scores(mem_id: str, *, useful: bool = True) -> dict[str, Any]
         "memories": [
             {
                 "content": "用户偏好用 uv 管理 Python 依赖",
+                "evidence": "以后都用 uv 管理依赖",
                 "subject": "用户",
                 "predicate": "偏好",
                 "type": "PREFERENCE",

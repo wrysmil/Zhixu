@@ -65,6 +65,7 @@ SEMANTIC_JSON = json.dumps(
         "memories": [
             {
                 "content": CITY_FACT_CONTENT,
+                "evidence": "我的虚构测试城市叫青岚城",
                 "type": "fact",
                 "importance": 0.9,
                 "subject": "用户",

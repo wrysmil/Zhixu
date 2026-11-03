@@ -173,7 +173,7 @@ class TestSliceCountFloor:
         result = await extractor.run_idle_extraction(session)
 
         assert len(provider.calls) == 2
-        assert result.memory_ids
+        assert result.episode_ids
         post = _state(db, "s_pair")
         assert post is not None
         assert post.last_count == 2
@@ -233,7 +233,7 @@ class TestL2ShortSingleTurnGate:
         result = await extractor.run_idle_extraction(session)
 
         assert len(provider.calls) == 2
-        assert result.memory_ids
+        assert result.episode_ids
 
     async def test_tool_call_exempts_l2(self, db: MemoryDatabase):
         """短 user 消息但切片内有非空 tool_calls → L2 豁免，正常提取。"""
@@ -251,7 +251,7 @@ class TestL2ShortSingleTurnGate:
         result = await extractor.run_idle_extraction(session)
 
         assert len(provider.calls) == 2
-        assert result.memory_ids
+        assert result.episode_ids
 
     async def test_empty_tool_calls_does_not_exempt(self, db: MemoryDatabase):
         """``tool_calls: []`` 是 falsy → **不**豁免，短消息仍被拦。"""
@@ -332,7 +332,7 @@ class TestPassesGate:
         result = await extractor.run_idle_extraction(session)
 
         assert len(provider.calls) == 2
-        assert result.memory_ids
+        assert result.episode_ids
         assert _state(db, "s_two_turns") is not None
 
 
@@ -365,7 +365,7 @@ class TestSkipPreservesState:
         result = await extractor.run_idle_extraction(real)
 
         assert len(provider.calls) == 2
-        assert result.memory_ids
+        assert result.episode_ids
         joined = "\n".join(provider.prompts())
         assert "你好" in joined, "被跳过的短消息应随新切片一并喂给 LLM"
         assert "我是一名前端工程师" in joined

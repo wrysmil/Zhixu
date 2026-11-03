@@ -1258,6 +1258,8 @@ class Consolidator:
             channel=channel,
             session_summary=summary,
             working_memory_section=working_memory_section,
+            # 状态/token 探测只估算上下文，不代表向模型投放记忆。
+            track_memory_access=False,
         )
         return estimate_prompt_tokens_chain(
             runtime.provider,

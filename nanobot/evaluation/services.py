@@ -334,6 +334,12 @@ class EvaluationService:
         self._memory_unit_prices = memory_unit_prices
         self._memory_budgets: dict[str, MemoryBudgetGuard] = {}
         self._memory_clock = memory_clock
+        if memory_capabilities is None:
+            from nanobot.evaluation.memory.zhixu_adapter import ZhixuMemoryAdapter
+
+            # 默认专项 Worker 使用此 adapter 的无向量装配，不能把“未注入覆盖”
+            # 当成“后端无记忆能力”；展示、准入和冻结清单使用同一份真实声明。
+            memory_capabilities = ZhixuMemoryAdapter.configured_capabilities()
         self._memory_capabilities = memory_capabilities
         self._memory_coordinator: Any = None
 

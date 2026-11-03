@@ -181,8 +181,20 @@ class ZhixuMemoryAdapter:
 
     def _build_capabilities(self) -> MemoryCapabilities:
         """按实际装配结果声明能力（契约 §3：unsupported ≠ 试验失败）。"""
-        vector_ready = self._vector_is_ready()
-        if self._vector_expected and not vector_ready:
+        return self.configured_capabilities(
+            vector_ready=self._vector_is_ready(), vector_expected=self._vector_expected,
+        )
+
+    @staticmethod
+    def configured_capabilities(
+        *, vector_ready: bool = False, vector_expected: bool = False,
+    ) -> MemoryCapabilities:
+        """服务预检与 Worker 共用的能力声明；缺省匹配 Worker 的 FTS5 装配。
+
+        这里只描述已装配的产品链路，不创建 trial、记忆库或调用模型。实际向量
+        后端的状态由 adapter 构造后提供，未配置向量时保留 partial 标记。
+        """
+        if vector_expected and not vector_ready:
             semantic = MemoryCapability(
                 status="unsupported",
                 detail="capability_missing: vector backend not ready (FTS5-only would be a fake vector result)",
@@ -201,7 +213,7 @@ class ZhixuMemoryAdapter:
             profile=MemoryCapability(status="supported", detail="MemoryLifecycle derived MEMORY.md"),
             delete=MemoryCapability(status="supported", detail="product_request=webui delete; admin_delete=repository delete"),
             rebuild=MemoryCapability(
-                status="supported" if not self._vector_expected or vector_ready else "partial",
+                status="supported" if not vector_expected or vector_ready else "partial",
                 detail="derived MEMORY.md rebuild; vector reindex when ready",
             ),
             restart=MemoryCapability(status="supported", detail="checkpoint restore from persisted files"),

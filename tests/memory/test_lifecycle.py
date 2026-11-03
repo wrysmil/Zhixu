@@ -9,6 +9,8 @@ import pytest
 from nanobot.memory.database import MemoryDatabase
 from nanobot.memory.filters import content_hash_legacy
 from nanobot.memory.lifecycle import (
+    CORE_NOTE_BEGIN,
+    CORE_NOTE_END,
     CORE_NOTE_PLACEHOLDER,
     CORE_NOTE_REVIEW_MARK,
     CORE_NOTE_SOURCE,
@@ -382,6 +384,31 @@ class TestLegacyMigration:
             assert read_core_note(conn, "test-ws") is None
         content = lifecycle.memory_file.read_text(encoding="utf-8")
         assert CORE_NOTE_PLACEHOLDER in content
+
+    def test_core_note_region_is_recovered_when_db_row_is_missing(
+        self, lifecycle, services
+    ):
+        """文件里有手工区但库里没有 core-note 时，刷新必须保留内容。"""
+        lifecycle.memory_file.write_text(
+            "# 核心记忆\n\n"
+            f"{CORE_NOTE_BEGIN}\n"
+            "## 手工笔记\n"
+            "事故 PZ-INC-027 的修复经验必须保留。\n"
+            f"{CORE_NOTE_END}\n",
+            encoding="utf-8",
+        )
+
+        result = lifecycle.refresh_memory_md_sync("test-ws")
+
+        assert result["status"] == "ok"
+        with services.database.connect() as conn:
+            note = read_core_note(conn, "test-ws")
+        assert note is not None
+        assert "PZ-INC-027" in note.content
+        assert note.metadata["needs_review"] is True
+        content = lifecycle.memory_file.read_text(encoding="utf-8")
+        assert "PZ-INC-027" in content
+        assert CORE_NOTE_REVIEW_MARK in content
 
     def test_template_content_not_migrated(self, lifecycle):
         from nanobot.utils.helpers import load_bundled_template

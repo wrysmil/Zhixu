@@ -67,6 +67,7 @@ SEMANTIC_JSON = json.dumps(
         "memories": [
             {
                 "content": "用户的虚构测试城市叫青岚城",
+                "evidence": "我的虚构测试城市叫青岚城",
                 "type": "fact",
                 "importance": 0.9,
                 "subject": "用户",
@@ -420,6 +421,7 @@ SEMANTIC_CAR = json.dumps(
         "memories": [
             {
                 "content": ROW_CURRENT,
+                "evidence": "My car is now parked at Spring Isle Road 7.",
                 "type": "fact",
                 "importance": 0.9,
                 "subject": "user",

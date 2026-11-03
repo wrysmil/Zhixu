@@ -14,6 +14,7 @@ Public API surface (all take a sqlite3.Connection as first arg):
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from collections.abc import Sequence
 from typing import Any, Literal
@@ -36,6 +37,14 @@ from nanobot.memory.models import (
 #: ``count_semantic_matches_unfiltered`` 的计数上限。诊断只关心「有没有匹配上」，
 #: 封顶避免宽泛词（如单字）触发全表扫描。
 _MATCH_COUNT_CAP = 500
+
+#: CJK fallback is deliberately conservative: only emit 4-character windows
+#: from long uninterrupted Chinese runs. Short standalone terms (2-4 chars,
+#: often separated by spaces/punctuation) are kept whole. This avoids the
+#: noisy 2-char fragments that made the older query decomposer unreliable.
+_CJK_RUN_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]{2,}")
+_CJK_FALLBACK_NGRAM = 4
+_CJK_FALLBACK_MAX_TERMS = 48
 
 _INSERT_MEMORY_SQL = """
     INSERT INTO memories (
@@ -739,7 +748,7 @@ def search_memories(
     where = " AND ".join(clauses)
     limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
     # Prefix all memories columns with m. to avoid ambiguity with memories_fts.content
-    _SELECT_MEMORY_COLUMNS_PREFIXED = ", ".join(
+    select_memory_columns_prefixed = ", ".join(
         f"m.{col.strip()}" for col in _SELECT_MEMORY_COLUMNS.split(",")
     )
     # ``CROSS JOIN`` 强制 FTS5 驱动（SQLite 里的 CROSS JOIN 会锁死连接顺序）：
@@ -748,7 +757,7 @@ def search_memories(
     # —— 实测 5 万行 / 1 个工作区下 25ms → 4867ms。过滤必须发生在 FTS5 召回
     # 之后（FTS5 驱动 + 行级判定），而不是换驱动表。
     sql = (
-        f"SELECT {_SELECT_MEMORY_COLUMNS_PREFIXED} "
+        f"SELECT {select_memory_columns_prefixed} "
         f"FROM memories_fts CROSS JOIN memories m ON m.rowid = memories_fts.rowid "
         f"WHERE {where} "
         f"ORDER BY memories_fts.rank, m.importance_score DESC{limit_sql}"
@@ -848,8 +857,16 @@ def _search_memories_like(
     ``workspace_id`` 过滤。
     """
     flat = " ".join(_SELECT_MEMORY_COLUMNS.split())
-    clauses = ["content LIKE ? ESCAPE '\\'"]
-    params: list[Any] = [f"%{_escape_like(query)}%"]
+    fallback_terms = _fallback_search_terms([query])
+    hit_exprs: list[str] = []
+    like_params: list[str] = []
+    for term in fallback_terms:
+        hit_exprs.append("content LIKE ? ESCAPE '\\'")
+        like_params.append(f"%{_escape_like(term)}%")
+    if not hit_exprs:
+        return []
+    clauses = [f"({' OR '.join(hit_exprs)})"]
+    params: list[Any] = [*like_params]
     if type is not None:
         clauses.append("type = ?")
         params.append(type.value)
@@ -864,11 +881,14 @@ def _search_memories_like(
         clauses.append(current_memory_sql("memories"))
     where = " AND ".join(clauses)
     limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
-    sql = (
-        f"SELECT {flat} FROM memories WHERE {where} "
-        f"ORDER BY importance_score DESC{limit_sql}"
+    hits_clause = " + ".join(
+        f"CASE WHEN {expr} THEN 1 ELSE 0 END" for expr in hit_exprs
     )
-    rows = conn.execute(sql, params).fetchall()
+    sql = (
+        f"SELECT {flat}, ({hits_clause}) AS _hits FROM memories WHERE {where} "
+        f"ORDER BY _hits DESC, importance_score DESC{limit_sql}"
+    )
+    rows = conn.execute(sql, [*like_params, *params]).fetchall()
     return [_row_to_memory(r) for r in rows]
 
 
@@ -1070,6 +1090,42 @@ def _search_terms(query: str, keywords: list[str] | None) -> list[str]:
     return result
 
 
+def _fallback_search_terms(terms: Sequence[str]) -> list[str]:
+    """Expand CJK runs for the LIKE fallback only.
+
+    FTS5's ``unicode61`` tokenizer treats an unbroken Chinese sentence as one
+    token. The exact LIKE fallback therefore still misses a natural-language
+    question whose wording differs from the stored memory. Keep the original
+    terms first, then add conservative 4-character windows from each CJK run.
+    The expansion is bounded and is never used for the primary FTS match, so
+    ordinary English/identifier queries keep their existing behavior.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def _add(value: str) -> None:
+        value = value.strip()
+        if value and value not in seen and len(out) < _CJK_FALLBACK_MAX_TERMS:
+            seen.add(value)
+            out.append(value)
+
+    for term in terms:
+        _add(term)
+        for piece in re.split(r"\s+", term):
+            for run in _CJK_RUN_RE.findall(piece):
+                if len(run) <= _CJK_FALLBACK_NGRAM:
+                    # Preserve a whole standalone CJK term, but do not turn
+                    # a short run inside punctuation/quotes into a broad LIKE.
+                    if len(run) == _CJK_FALLBACK_NGRAM or piece.strip() == run:
+                        _add(run)
+                    continue
+                for start in range(len(run) - _CJK_FALLBACK_NGRAM + 1):
+                    _add(run[start:start + _CJK_FALLBACK_NGRAM])
+                    if len(out) >= _CJK_FALLBACK_MAX_TERMS:
+                        return out
+    return out
+
+
 def search_semantic_scored(
     conn: sqlite3.Connection,
     query: str,
@@ -1138,8 +1194,9 @@ def search_semantic_scored(
 
     # 逐词 LIKE：每词单独 LIKE content，再按命中词数 + importance_score 排序
     # terms 至少含 query，故恒有至少一个 LIKE 条件
+    fallback_terms = _fallback_search_terms(terms)
     hit_exprs, like_params = [], []
-    for tok in terms:
+    for tok in fallback_terms:
         escaped = _escape_like(tok)
         like_params.append(f"%{escaped}%")
         hit_exprs.append("content LIKE ? ESCAPE '\\'")

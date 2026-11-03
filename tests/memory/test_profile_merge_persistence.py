@@ -68,7 +68,7 @@ def db(tmp_path: Path) -> MemoryDatabase:
 
 
 def _semantic(*memories: dict[str, Any]) -> str:
-    return json.dumps({"memories": list(memories), "experiences": []}, ensure_ascii=False)
+    return json.dumps({"memories": [dict(item, evidence=item["content"]) for item in memories], "experiences": []}, ensure_ascii=False)
 
 
 def _make(db: MemoryDatabase, semantic: str) -> MemoryExtractor:
@@ -83,10 +83,16 @@ def _session(messages: list[dict[str, Any]]):
 
 async def _extract(db: MemoryDatabase, semantic: str) -> Any:
     extractor = _make(db, semantic)
+    # 写入决策测试的候选均由用户直接声明，避免无证据的假模型画像。
+    payload = json.loads(semantic)
+    facts = "；".join(
+        item["content"]
+        for item in [*payload.get("memories", []), *payload.get("experiences", [])]
+    )
     return await extractor.extract_session(
         _session(
             [
-                {"role": "user", "content": "帮我看看这个"},
+                {"role": "user", "content": facts},
                 {"role": "assistant", "content": "好的"},
             ]
         )
@@ -254,6 +260,7 @@ class TestWriteDecisionOnPersist:
                     "experiences": [
                         {
                             "content": "用 uv 管理依赖可避免状态漂移",
+                            "evidence": "用 uv 管理依赖可避免状态漂移",
                             "subject": "uv",
                             "predicate": "避免",
                             "type": "EXPERIENCE",

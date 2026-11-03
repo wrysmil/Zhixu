@@ -39,7 +39,7 @@ async def test_extract_profile_returns_items():
     runtime = _FakeRuntime(
         '{"memories":[{"content":"用户喜欢美咖啡","subject":"用户",'
         '"predicate":"喜欢","type":"PREFERENCE","importance":0.7,'
-        '"priority":"long_term","tags":["coffee"],"is_update":false}]}'
+        '"priority":"long_term","tags":["coffee"],"is_update":false,"evidence":"我喜欢美咖啡"}]}'
     )
     ext = ProfileExtractor(runtime=runtime)
     result = await ext.extract(
@@ -59,7 +59,7 @@ async def test_extract_profile_ignores_model_citation_scores():
     runtime = _FakeRuntime(
         '{"memories":[{"content":"x","subject":"用户",'
         '"predicate":"喜欢","type":"PREFERENCE","importance":0.5,'
-        '"priority":"long_term","tags":[],"is_update":false}],'
+        '"priority":"long_term","tags":[],"is_update":false,"evidence":"x"}],'
         '"citation_scores":[{"memory_id":"m1","useful":true}]}'
     )
     ext = ProfileExtractor(runtime=runtime)
@@ -85,11 +85,18 @@ async def test_extract_profile_llm_failure_returns_empty():
 async def test_extract_profile_parses_experiences_from_same_payload():
     """双轨同源：experiences 与 memories 来自同一次调用，不额外发 LLM。"""
     runtime = _FakeRuntime(
-        '{"memories":[{"content":"用户使用 Windows","type":"FACT"}],'
-        '"experiences":[{"content":"uv 可避免依赖漂移","type":"EXPERIENCE"}]}'
+        '{"memories":[{"content":"用户使用 Windows","type":"FACT","evidence":"我使用 Windows"}],'
+        '"experiences":[{"content":"uv 可避免依赖漂移","type":"EXPERIENCE",'
+        '"evidence":"uv sync 后锁文件保持同步"}]}'
     )
     ext = ProfileExtractor(runtime=runtime)
-    result = await ext.extract(transcript=[{"role": "user", "content": "x"}], episode_id="e")
+    result = await ext.extract(
+        transcript=[
+            {"role": "user", "content": "我使用 Windows"},
+            {"role": "tool", "content": "uv sync 后锁文件保持同步"},
+        ],
+        episode_id="e",
+    )
     assert [i.content for i in result.items] == ["用户使用 Windows"]
     assert [e.content for e in result.experiences] == ["uv 可避免依赖漂移"]
     assert result.experiences[0].type == "EXPERIENCE"

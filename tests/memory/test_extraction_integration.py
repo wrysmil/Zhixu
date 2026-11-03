@@ -165,6 +165,7 @@ SEMANTIC_OK = json.dumps(
         "memories": [
             {
                 "content": "用户使用 Windows",
+                "evidence": "Windows",
                 "type": "fact",
                 "importance": 0.7,
                 "subject": "用户",
@@ -172,6 +173,7 @@ SEMANTIC_OK = json.dumps(
             },
             {
                 "content": "用户偏好 uv",
+                "evidence": "我以后都用 uv",
                 "type": "preference",
                 "importance": 0.8,
                 "subject": "用户",
@@ -227,6 +229,7 @@ _IDLE_SEMANTIC_JSON = json.dumps(
         "memories": [
             {
                 "content": "用户以后都用 uv 管理 Python 依赖",
+                "evidence": "我以后都使用 uv",
                 "type": "RULE",
                 "priority": "long_term",
                 "importance": 0.8,
@@ -495,7 +498,7 @@ class TestLLMTrackFailureIsolation:
         session = Session(
             key="s-llm-iso",
             messages=[
-                {"role": "user", "content": "帮我配置 uv"},
+                {"role": "user", "content": "我使用 Windows，我以后都用 uv，帮我配置 uv"},
                 {"role": "assistant", "content": "好的"},
             ],
         )
@@ -564,6 +567,7 @@ class TestSourceEpisodeBackfill:
                 "memories": [
                     {
                         "content": "uv 用于管理 Python 依赖",
+                        "evidence": "uv 用于管理 Python 依赖",
                         "type": "skill",
                         "importance": 0.8,
                         "subject": "uv",
@@ -589,7 +593,7 @@ class TestSourceEpisodeBackfill:
 
         session = Session(
             key="telegram:backfill-1",
-            messages=[{"role": "user", "content": "配置 uv"}],
+            messages=[{"role": "user", "content": "uv 用于管理 Python 依赖"}],
         )
 
         result = await extractor.extract_session(session)
@@ -619,6 +623,7 @@ class TestSourceEpisodeBackfill:
                 "memories": [
                     {
                         "content": "用户偏好 uv",
+                        "evidence": "用户偏好 uv",
                         "type": "preference",
                         "importance": 0.8,
                         "subject": "用户",
@@ -645,7 +650,7 @@ class TestSourceEpisodeBackfill:
 
         session = Session(
             key="telegram:backfill-empty",
-            messages=[{"role": "user", "content": "x"}],
+            messages=[{"role": "user", "content": "uv 用于管理 Python 依赖；用户偏好 uv"}],
         )
 
         result = await extractor.extract_session(session)
@@ -669,6 +674,7 @@ class TestSourceEpisodeBackfill:
                 "memories": [
                     {
                         "content": "uv 用于管理 Python 依赖",
+                        "evidence": "uv 用于管理 Python 依赖",
                         "type": "skill",
                         "importance": 0.8,
                         "subject": "uv",
@@ -705,7 +711,7 @@ class TestSourceEpisodeBackfill:
 
         session = Session(
             key="telegram:backfill-fail",
-            messages=[{"role": "user", "content": "x"}],
+            messages=[{"role": "user", "content": "uv 用于管理 Python 依赖；用户偏好 uv"}],
         )
 
         # 不抛即通过；episode 仍写入
@@ -726,7 +732,7 @@ class TestSourceEpisodeBackfill:
 
         result2 = await extractor.extract_session(
             Session(key="telegram:backfill-explode", messages=[
-                {"role": "user", "content": "x"}
+                {"role": "user", "content": "uv 用于管理 Python 依赖；用户偏好 uv"}
             ])
         )
         assert result2.memory_ids == []
@@ -739,7 +745,7 @@ class TestSourceEpisodeBackfill:
         )
         retried = await MemoryExtractor(db, _FakeRuntime(provider)).extract_session(
             Session(key="telegram:backfill-explode", messages=[
-                {"role": "user", "content": "x"}
+                {"role": "user", "content": "uv 用于管理 Python 依赖；用户偏好 uv"}
             ])
         )
         assert len(retried.episode_ids) == 1

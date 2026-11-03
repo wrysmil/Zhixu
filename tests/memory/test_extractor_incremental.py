@@ -40,6 +40,7 @@ _SEMANTIC_PAYLOAD: dict[str, Any] = {
     "memories": [
         {
             "content": "用户是前端工程师，主要使用 React",
+            "evidence": "我是一名前端工程师",
             "type": "FACT",
             "priority": "long_term",
             "importance": 0.9,
@@ -47,6 +48,7 @@ _SEMANTIC_PAYLOAD: dict[str, Any] = {
         },
         {
             "content": "用户偏好极简风格的界面设计",
+            "evidence": "我比较喜欢极简风格",
             "type": "PREFERENCE",
             "priority": "long_term",
             "importance": 0.8,
@@ -56,6 +58,7 @@ _SEMANTIC_PAYLOAD: dict[str, Any] = {
     "experiences": [
         {
             "content": "用 uv 管理 Python 依赖可以避免 venv 与 pip 的状态漂移",
+            "evidence": "我用 uv 管理 Python 依赖",
             "type": "EXPERIENCE",
             "priority": "long_term",
             "importance": 0.7,
@@ -145,13 +148,14 @@ def _make_session(messages: list[dict[str, Any]], *, key: str = "s1") -> Session
 
 
 def _build_messages() -> list[dict[str, Any]]:
-    """5 轮对话，每轮 user 内容互不相同，便于断言切片边界。"""
+    """6 轮对话，每轮 user 内容互不相同，便于断言切片边界。"""
     turns = [
         ("我叫小陈", "你好，小陈！"),
         ("我是一名前端工程师", "前端工程师，很好的方向"),
         ("我平时主要写 React", "React 现在确实主流"),
         ("我比较喜欢极简风格", "极简风格很考验功力"),
         ("我平时喜欢看健身视频", "健身 + 写代码，精力充沛"),
+        ("我用 uv 管理 Python 依赖", "uv 的依赖解析确实稳定"),
     ]
     out: list[dict[str, Any]] = []
     for user_text, assistant_text in turns:

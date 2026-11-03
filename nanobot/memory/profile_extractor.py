@@ -15,7 +15,7 @@ import asyncio
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from loguru import logger
 
@@ -35,6 +35,7 @@ class ProfileItem:
     priority: str | None
     tags: list[str]
     is_update: bool = False
+    evidence: str = ""
 
 
 @dataclass
@@ -51,6 +52,8 @@ class ProfileExtractionResult:
     items: list[ProfileItem] = field(default_factory=list)
     experiences: list[ProfileItem] = field(default_factory=list)
     error: str | None = None
+    rejected_memories: int = 0
+    rejected_experiences: int = 0
 
 
 class ProfileExtractor:
@@ -62,7 +65,7 @@ class ProfileExtractor:
 
     async def extract(
         self,
-        transcript: list[dict],
+        transcript: list[dict[str, Any]],
         episode_id: str,
         *,
         prompt_messages: list[dict[str, Any]] | None = None,
@@ -71,7 +74,7 @@ class ProfileExtractor:
         """抽取画像（+ 经验）。
 
         Args:
-            transcript: 对话转录；仅当 ``prompt_messages`` 缺省时用于自行拼 prompt。
+            transcript: 本批对话转录；始终用于验证画像的用户原文证据。
             episode_id: 关联的情节 id（当前仅透传，不参与 prompt）。
             prompt_messages: 调用方已拼好的 prompt。传入时**原样使用**，不再自行拼接
                 —— 让调用方复用带阶段1 系统提取结果的 prompt，避免两套拼装逻辑分叉。
@@ -116,11 +119,24 @@ class ProfileExtractor:
                 # 需与 ``_call_track`` 的 ``invalid_json`` 语义保持一致。
                 legacy = _parse_legacy_array(text)
                 if legacy:
-                    return ProfileExtractionResult(items=legacy)
+                    grounded = _grounded_items(legacy, transcript)
+                    return ProfileExtractionResult(
+                        items=grounded,
+                        rejected_memories=len(legacy) - len(grounded),
+                    )
                 return ProfileExtractionResult(error="invalid_json")
+            parsed_memories = _parse_items(data.get("memories"))
+            parsed_experiences = [
+                item for item in _parse_items(data.get("experiences"))
+                if item.type in {"EXPERIENCE", "SKILL", "ERROR"}
+            ]
+            grounded_memories = _grounded_items(parsed_memories, transcript)
+            grounded_experiences = _grounded_experiences(parsed_experiences, transcript)
             return ProfileExtractionResult(
-                items=_parse_items(data.get("memories")),
-                experiences=_parse_items(data.get("experiences")),
+                items=grounded_memories,
+                experiences=grounded_experiences,
+                rejected_memories=len(parsed_memories) - len(grounded_memories),
+                rejected_experiences=len(parsed_experiences) - len(grounded_experiences),
             )
         except Exception as exc:
             logger.warning("ProfileExtractor.extract failed: {}", exc)
@@ -144,7 +160,122 @@ def _item_from_dict(raw: dict[str, Any]) -> ProfileItem:
         priority=str(raw_priority).lower() if raw_priority else None,
         tags=list(raw.get("tags") or []),
         is_update=bool(raw.get("is_update", False)),
+        evidence=raw.get("evidence", "") if isinstance(raw.get("evidence"), str) else "",
     )
+
+
+_RECALL_REQUEST = re.compile(
+    r"^(?:(?:请|帮我|麻烦|你|您|能否|能不能|是否|还|可以)[，,\s]*)*"
+    r"(?:还记得|记不记得|回忆|回顾|记忆里|之前说过什么|记得(?=.*(?:吗|么|哪|谁|是否)))"
+    r"|^(?:do you (?:still )?remember|can you (?:recall|remember))\b",
+    re.IGNORECASE,
+)
+
+_TASK_OR_QUERY_CLAUSE = re.compile(
+    r"(?:你能|您能|能否|能不能|可以|请你|请帮我|麻烦|帮我)"
+    r".{0,80}(?:找回|找到|回忆|说明|核对|检查|分析|列出|总结|查|搜索|处理|提供|确认)"
+    r"|(?:我们|我|用户)(?:以前|之前|上次|曾经)"
+    r".{0,30}(?:处理过|做过|遇到过|讨论过|聊过).{0,20}(?:类似|这个问题|这件事|同类|相关)"
+    r"|(?:并)?说明这次需要先核对哪些证据",
+    re.IGNORECASE,
+)
+
+_DIRECT_TASK_CLAUSE = re.compile(
+    r"^(?:请|请你|帮我|麻烦你?)(?:检查|核对|分析|列出|总结|处理|提供|确认|查找|搜索|使用|打开|执行|运行|生成|写|创建|修改|删除|修复|排查)",
+    re.IGNORECASE,
+)
+
+_QUESTION_CLAUSE = re.compile(
+    r"^(?:能|可以|是否|要不要|能否|能不能).*(?:吗|么|？|\?)$",
+    re.IGNORECASE,
+)
+
+
+def _is_non_assertion_clause(clause: str) -> bool:
+    text = clause.strip()
+    return bool(
+        _RECALL_REQUEST.search(text)
+        or _TASK_OR_QUERY_CLAUSE.search(text)
+        or _DIRECT_TASK_CLAUSE.search(text)
+        or _QUESTION_CLAUSE.search(text)
+    )
+
+
+def _assertion_sources(content: str) -> list[str]:
+    """Return user/tool text with recall/task/question clauses removed.
+
+    Keeping the punctuated remainder (instead of only individual clauses)
+    lets an independent fact that spans a comma remain contiguous for exact
+    evidence matching, while still preventing a recall request from becoming
+    a profile fact.
+    """
+    clauses = re.split(r"[。！？!?；;\n，,]", content)
+    if not any(_is_non_assertion_clause(clause) for clause in clauses):
+        return [content]
+    safe = content
+    for clause in clauses:
+        if clause.strip() and _is_non_assertion_clause(clause):
+            safe = safe.replace(clause, " ")
+    return [safe, *[clause for clause in clauses if clause.strip() and not _is_non_assertion_clause(clause)]]
+
+
+def _grounded_items(items: list[ProfileItem], transcript: list[dict[str, Any]]) -> list[ProfileItem]:
+    """仅接收本批用户原文证据；检索与助手复述不能成为新的画像来源。
+
+    对明确的回忆提问按分句排除，避免从问题里的“猫”反推名字、住所等旧画像。
+    保留同一句请求中独立陈述的新事实，不按问号过滤全部用户消息。
+    此处验证来源边界，不尝试用字符串规则判定任意语义蕴含。
+    """
+    sources: list[str] = []
+    for message in transcript:
+        if message.get("role") != "user":
+            continue
+        content = message.get("content")
+        if not isinstance(content, str):
+            if not isinstance(content, list):
+                continue
+            texts: list[str] = []
+            for raw_part in cast(list[Any], content):
+                if not isinstance(raw_part, dict):
+                    continue
+                part = cast(dict[str, Any], raw_part)
+                if part.get("type") == "text" and isinstance(part.get("text"), str):
+                    texts.append(part["text"])
+            content = "\n".join(texts)
+        sources.extend(_assertion_sources(content))
+    accepted = [item for item in items if item.evidence.strip()
+                and any(item.evidence.strip() in source for source in sources)]
+    if len(accepted) != len(items):
+        logger.info("profile candidates rejected without current user evidence: {}", len(items) - len(accepted))
+    return accepted
+
+
+def _grounded_experiences(
+    items: list[ProfileItem], transcript: list[dict[str, Any]]
+) -> list[ProfileItem]:
+    """Experiences need evidence from user text or a tool result.
+
+    Assistant prose, plans and generic advice are not proof that a procedure
+    worked. A user task request ("请检查日志") is not evidence of a reusable
+    experience either; the evidence must be the statement/result that supports
+    the claimed lesson.
+    """
+    sources: list[str] = []
+    for message in transcript:
+        role = message.get("role")
+        if role not in {"user", "tool"}:
+            continue
+        content = message.get("content")
+        if not isinstance(content, str) or not content.strip():
+            continue
+        sources.extend(_assertion_sources(content))
+    accepted = [
+        item for item in items
+        if item.evidence.strip() and any(item.evidence.strip() in source for source in sources)
+    ]
+    if len(accepted) != len(items):
+        logger.info("experience candidates rejected without verified evidence: {}", len(items) - len(accepted))
+    return accepted
 
 
 def _format_conv_lines(transcript: list[dict]) -> str:

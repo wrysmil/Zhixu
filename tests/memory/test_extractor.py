@@ -137,7 +137,7 @@ def _semantic_json(
     experiences: list[dict[str, Any]] | None = None,
 ) -> str:
     return json.dumps(
-        {"memories": memories or [], "experiences": experiences or []},
+        {"memories": [dict(item, evidence=item["content"]) for item in (memories or [])], "experiences": experiences or []},
         ensure_ascii=False,
     )
 
@@ -154,8 +154,9 @@ def _session(messages: list[dict[str, Any]] | None = None, key: str = "s1") -> S
     return Session(key=key, messages=messages or [])
 
 
-def _plain_session() -> Session:
-    return _session([{"role": "user", "content": "配置 uv。"}])
+def _plain_session(semantic: str | None = None) -> Session:
+    facts = "；".join(item["content"] for item in json.loads(semantic).get("memories", [])) if semantic else "配置 uv。"
+    return _session([{"role": "user", "content": facts}])
 
 
 def _make_extractor(
@@ -319,13 +320,20 @@ class TestLLMExtract:
                     "priority": "short_term",
                     "importance": 0.6,
                     "tags": ["uv"],
+                    "evidence": "uv sync 后锁文件保持同步",
                 }
             ],
         )
         provider = _FakeProvider(semantic=semantic, episode=EPISODE_JSON)
         extractor = _make_extractor(db, provider)
 
-        result = await extractor._llm_extract(_plain_session(), SystemExtractionResult())
+        result = await extractor._llm_extract(
+            _session([
+                {"role": "user", "content": "用户偏好 uv"},
+                {"role": "tool", "content": "uv sync 后锁文件保持同步"},
+            ]),
+            SystemExtractionResult(),
+        )
 
         assert len(result.memories) == 2
         assert {m.content for m in result.memories} == {
@@ -406,7 +414,7 @@ class TestLLMExtract:
         )
         extractor = _make_extractor(db, provider)
         extractor.LLM_TIMEOUT = 0.05
-        session = _plain_session()
+        session = _plain_session(semantic)
 
         result = await extractor.extract_session(session)
 
@@ -474,7 +482,7 @@ class TestFiltersAndPersistence:
         provider = _FakeProvider(semantic=semantic, episode=EPISODE_JSON)
         extractor = _make_extractor(db, provider)
 
-        result = await extractor.extract_session(_plain_session())
+        result = await extractor.extract_session(_plain_session(semantic))
 
         assert result.memory_ids == []
         assert result.skipped == 1
@@ -489,7 +497,7 @@ class TestFiltersAndPersistence:
         provider = _FakeProvider(semantic=semantic, episode=EPISODE_JSON)
         extractor = _make_extractor(db, provider)
 
-        result = await extractor.extract_session(_plain_session())
+        result = await extractor.extract_session(_plain_session(semantic))
 
         assert result.memory_ids == []
         assert result.skipped == 1
@@ -523,7 +531,7 @@ class TestFiltersAndPersistence:
         provider = _FakeProvider(semantic=semantic, episode=EPISODE_JSON)
         extractor = _make_extractor(db, provider)
 
-        result = await extractor.extract_session(_plain_session())
+        result = await extractor.extract_session(_plain_session(semantic))
 
         assert len(result.memory_ids) == 1
         assert result.memory_ids != ["m1"]
@@ -559,7 +567,7 @@ class TestFiltersAndPersistence:
         provider = _FakeProvider(semantic=semantic, episode=EPISODE_JSON)
         extractor = _make_extractor(db, provider)
 
-        result = await extractor.extract_session(_plain_session())
+        result = await extractor.extract_session(_plain_session(semantic))
 
         assert result.memory_ids == ["m1"]
         assert result.skipped == 0
@@ -580,7 +588,7 @@ class TestFiltersAndPersistence:
         provider = _FakeProvider(semantic=semantic, episode=EPISODE_JSON)
         extractor = _make_extractor(db, provider)
 
-        result = await extractor.extract_session(_plain_session())
+        result = await extractor.extract_session(_plain_session(semantic))
 
         assert len(result.memory_ids) == 1
         rows = _memory_rows(db)
@@ -597,7 +605,7 @@ class TestFiltersAndPersistence:
         provider = _FakeProvider(semantic=semantic, episode=EPISODE_JSON)
         extractor = _make_extractor(db, provider)
 
-        result = await extractor.extract_session(_plain_session())
+        result = await extractor.extract_session(_plain_session(semantic))
 
         priorities = {m.content: m.priority for m in _memory_rows(db)}
         assert len(result.memory_ids) == 2
@@ -620,7 +628,7 @@ class TestFiltersAndPersistence:
         records: list[str] = []
         sink_id = _capture_warnings(records)
         try:
-            result = await extractor.extract_session(_plain_session())
+            result = await extractor.extract_session(_plain_session(semantic))
         finally:
             logger.remove(sink_id)
 
@@ -635,7 +643,7 @@ class TestFiltersAndPersistence:
         provider = _FakeProvider(semantic=semantic, episode=EPISODE_JSON)
         extractor = _make_extractor(db, provider)
 
-        result = await extractor.extract_session(_plain_session())
+        result = await extractor.extract_session(_plain_session(semantic))
 
         assert result.memory_ids == []
         assert result.skipped == 1
@@ -655,7 +663,7 @@ class TestFiltersAndPersistence:
         provider = _FakeProvider(semantic=semantic, episode=EPISODE_JSON)
         extractor = _make_extractor(db, provider)
 
-        result = await extractor.extract_session(_plain_session())
+        result = await extractor.extract_session(_plain_session(semantic))
 
         assert len(result.memory_ids) == 1
         with db.connect() as conn:
@@ -677,7 +685,7 @@ class TestFiltersAndPersistence:
         provider = _FakeProvider(semantic=semantic, episode=EPISODE_JSON)
         extractor = _make_extractor(db, provider)
 
-        result = await extractor.extract_session(_plain_session())
+        result = await extractor.extract_session(_plain_session(semantic))
 
         with db.connect() as conn:
             episode = get_episode(conn, result.episode_ids[0])

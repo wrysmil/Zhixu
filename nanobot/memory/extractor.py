@@ -352,6 +352,9 @@ class LLMExtractionResult:
     track_errors: dict[str, str] = field(default_factory=dict)
     semantic_payload: dict[str, Any] | None = None
     episode_payload: dict[str, Any] | None = None
+    #: Candidates rejected before ``_apply_filters`` (currently profile evidence
+    #: grounding); kept so the public ``skipped`` count remains observable.
+    rejected_memories: int = 0
 
 
 @dataclass
@@ -1712,7 +1715,11 @@ class MemoryExtractor:
                 llm_result, action_nodes=list(system.action_nodes)
             )
         filtered = self._apply_filters(llm_result)
-        skipped = len(llm_result.memories) - len(filtered.memories)
+        skipped = (
+            llm_result.rejected_memories
+            + len(llm_result.memories)
+            - len(filtered.memories)
+        )
         now = self._now_iso()
         try:
             with self.database.connect() as conn:
@@ -1860,6 +1867,7 @@ class MemoryExtractor:
         return LLMExtractionResult(
             memories=memories,
             episode=episode,
+            rejected_memories=int(semantic.get("rejected_memories") or 0),
         )
 
     def _get_batch(self, batch_id: str) -> ExtractionBatchRow | None:
@@ -2269,7 +2277,10 @@ class MemoryExtractor:
 
         episode = _coerce_episode_item(episode_payload) if episode_payload is not None else None
         semantic_payload = (
-            {"memories": [_memory_item_to_dict(item) for item in memories]}
+            {
+                "memories": [_memory_item_to_dict(item) for item in memories],
+                "rejected_memories": profile.rejected_memories if profile is not None else 0,
+            }
             if run_semantic and "semantic" not in failed_tracks
             else None
         )
@@ -2284,6 +2295,7 @@ class MemoryExtractor:
             semantic_payload=semantic_payload,
             # 有效空输出（模型明确没有内容）落 ``{}``，仍算成功 checkpoint。
             episode_payload=episode_payload or {} if run_episode and "episode" not in failed_tracks else None,
+            rejected_memories=profile.rejected_memories if profile is not None else 0,
         )
 
     async def _call_track(

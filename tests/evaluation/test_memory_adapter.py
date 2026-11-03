@@ -86,6 +86,7 @@ class _ScriptedProvider:
     FACTS: dict[str, dict[str, Any]] = {
         "青岚城": {
             "content": "用户的虚构测试城市叫青岚城",
+            "evidence": "我的虚构测试城市叫青岚城",
             "type": "fact",
             "importance": 0.9,
             "subject": "用户",
@@ -94,6 +95,7 @@ class _ScriptedProvider:
         },
         "雾隐计划": {
             "content": "用户的项目代号叫雾隐计划",
+            "evidence": "我的项目代号叫雾隐计划",
             "type": "fact",
             "importance": 0.85,
             "subject": "用户",
