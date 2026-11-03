@@ -99,6 +99,10 @@ harness-kit/.agents/skills/.skills_store_lock.json
 .DS_Store
 *.lock
 
+# Local runtime state (workspace id / scratch memory)
+.nanobot/
+.workbuddy/
+
 # Logs & temp
 *.log
 logs/
