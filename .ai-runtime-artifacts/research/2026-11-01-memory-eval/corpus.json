@@ -1,0 +1,90 @@
+{
+  "dataset_id": "zhixu-memory-practice-v1",
+  "version": "1.0.0",
+  "language": "zh-CN",
+  "synthetic": true,
+  "scope_policy": "所有主集会话使用同一工作区归属；不可把项目名称当作工作区隔离键。",
+  "delivery_policy": "按 S01 到 S08 顺序，每个 session 新建聊天，turns 逐条发送并等待真实回复；每个 session 结束后等待抽取完成。assistant 回复不预设，须保存实际回复。logical_date 只用于标注顺序，不会自动设置系统时钟。",
+  "sessions": [
+    {"session_id":"S01","logical_date":"2026-10-10","turns":[
+      {"turn_id":"S01-U1","role":"user","content":"我叫林澈，是一名前端工程师，主要做 React 和 TypeScript 开发。我现在住在杭州。"},
+      {"turn_id":"S01-U2","role":"user","content":"我的日常编辑器是 VS Code，项目装依赖默认用 bun。"},
+      {"turn_id":"S01-U3","role":"user","content":"以后回复我请用中文，先给结论，再列出三点说明，这是我长期的阅读偏好。"}
+    ]},
+    {"session_id":"S02","logical_date":"2026-10-11","turns":[
+      {"turn_id":"S02-U1","role":"user","content":"我平时固定喝燕麦拿铁，不加糖。点面时我不吃香菜，但是葱可以加。"},
+      {"turn_id":"S02-U2","role":"user","content":"我的固定运动习惯是每天晚上七点半跑步。"},
+      {"turn_id":"S02-U3","role":"user","content":"我的同事陈宁是产品设计师，主要用 Figma。他平时喝加糖的卡布奇诺，和我的咖啡偏好不同。"}
+    ]},
+    {"session_id":"S03","logical_date":"2026-10-12","turns":[
+      {"turn_id":"S03-U1","role":"user","content":"我负责的青禾库存是公司内部的库存管理系统，前端固定用 React、TypeScript 和 Vite。"},
+      {"turn_id":"S03-U2","role":"user","content":"青禾库存的数据库是 PostgreSQL，当前固定发布时间是每周四晚上八点。"},
+      {"turn_id":"S03-U3","role":"user","content":"青禾库存发版由周岳审批。目前单个上传文件的大小上限是 20MB，这是这个项目的配置。"}
+    ]},
+    {"session_id":"S04","logical_date":"2026-10-13","turns":[
+      {"turn_id":"S04-U1","role":"user","content":"我的另一个长期项目叫星港笔记，是我自己的个人笔记应用。"},
+      {"turn_id":"S04-U2","role":"user","content":"星港笔记的后端用 Python 和 FastAPI，数据库只用 SQLite，不是 PostgreSQL。"},
+      {"turn_id":"S04-U3","role":"user","content":"星港笔记固定在每周日早上十点发布。它和青禾库存是两个不同的项目，配置不要混用。"}
+    ]},
+    {"session_id":"S05","logical_date":"2026-10-18","turns":[
+      {"turn_id":"S05-U1","role":"user","content":"我们已经固定了青禾库存的发版流程：先备份数据库，再运行迁移，然后部署，最后做健康检查。以后请按这个顺序。"},
+      {"turn_id":"S05-U2","role":"user","content":"记录一次已经解决的问题：2026 年 10 月 18 日青禾库存发版后页面白屏，原因是 CDN 还缓存着旧的前端资源。"},
+      {"turn_id":"S05-U3","role":"user","content":"那次白屏最终通过清理 CDN 缓存，并给静态资源加版本号解决了。这个办法是我们验证过的排障经验。"}
+    ]},
+    {"session_id":"S06","logical_date":"2026-10-30","turns":[
+      {"turn_id":"S06-U1","role":"user","content":"更新我的住址信息：从 2026 年 10 月 30 日起，我已从杭州搬到苏州，现在常住苏州。"},
+      {"turn_id":"S06-U2","role":"user","content":"更新青禾库存的发布约定：从现在起固定每周五晚上七点发布，替代之前的每周四晚上八点。星港笔记的发布时间保持原样。"},
+      {"turn_id":"S06-U3","role":"user","content":"青禾库存的单文件上传上限正式从 20MB 调整成 50MB，后续按 50MB 回答。这个调整只涉及青禾库存。"}
+    ]},
+    {"session_id":"S07","logical_date":"2026-10-31","turns":[
+      {"turn_id":"S07-U1","role":"user","content":"青禾库存第一版登录方式先确定为邮箱加密码，不加入微信扫码登录。"},
+      {"turn_id":"S07-U2","role":"user","content":"我又考虑了一下，青禾库存第一版要不要加入微信扫码登录？这还是讨论中的备选方案，还没做最终决定。"},
+      {"turn_id":"S07-U3","role":"user","content":"最后定了：青禾库存第一版保持邮箱加密码登录，暂时不加微信扫码。请以这个最终决定为准。"}
+    ]},
+    {"session_id":"S08","logical_date":"2026-11-01","turns":[
+      {"turn_id":"S08-U1","role":"user","content":"如果以后搬去上海，我可能会骑自行车上班。这只是设想，我现在没有搬到上海，也没有告诉过你我目前的通勤方式。"},
+      {"turn_id":"S08-U2","role":"user","content":"朋友何川的生日是三月十二日，这个日期属于何川，不是我的生日。我的生日我还没告诉你。"},
+      {"turn_id":"S08-U3","role":"user","content":"同事陈宁说他的房租是每月 4200 元。这只是他的房租，我自己的房租没有说过。"},
+      {"turn_id":"S08-U4","role":"user","content":"好的"},
+      {"turn_id":"S08-U5","role":"user","content":"谢谢"}
+    ]}
+  ],
+  "facts": [
+    {"fact_id":"F01","content":"用户姓名是林澈","evidence_turn_ids":["S01-U1"],"status":"current"},
+    {"fact_id":"F02","content":"用户是前端工程师，主要做 React 和 TypeScript 开发","evidence_turn_ids":["S01-U1"],"status":"current"},
+    {"fact_id":"F03","content":"用户的日常编辑器是 VS Code","evidence_turn_ids":["S01-U2"],"status":"current"},
+    {"fact_id":"F04","content":"用户安装项目依赖默认用 bun","evidence_turn_ids":["S01-U2"],"status":"current"},
+    {"fact_id":"F05","content":"用户偏好中文回答，先给结论，再列三点说明","evidence_turn_ids":["S01-U3"],"status":"current"},
+    {"fact_id":"F06","content":"用户平时喝燕麦拿铁，不加糖","evidence_turn_ids":["S02-U1"],"status":"current"},
+    {"fact_id":"F07","content":"用户点面不吃香菜，但可以加葱","evidence_turn_ids":["S02-U1"],"status":"current"},
+    {"fact_id":"F08","content":"用户每天晚上 19:30 跑步","evidence_turn_ids":["S02-U2"],"status":"current"},
+    {"fact_id":"F09","content":"陈宁是产品设计师，主要使用 Figma","evidence_turn_ids":["S02-U3"],"status":"current"},
+    {"fact_id":"F10","content":"陈宁平时喝加糖的卡布奇诺","evidence_turn_ids":["S02-U3"],"status":"current"},
+    {"fact_id":"F11","content":"青禾库存是公司内部库存管理系统","evidence_turn_ids":["S03-U1"],"status":"current"},
+    {"fact_id":"F12","content":"青禾库存前端使用 React、TypeScript、Vite","evidence_turn_ids":["S03-U1"],"status":"current"},
+    {"fact_id":"F13","content":"青禾库存数据库使用 PostgreSQL","evidence_turn_ids":["S03-U2"],"status":"current"},
+    {"fact_id":"F14","content":"青禾库存以前固定每周四 20:00 发布","evidence_turn_ids":["S03-U2"],"status":"historical","superseded_by_fact_id":"F26"},
+    {"fact_id":"F15","content":"青禾库存发版由周岳审批","evidence_turn_ids":["S03-U3"],"status":"current"},
+    {"fact_id":"F16","content":"青禾库存以前单文件上传上限为 20MB","evidence_turn_ids":["S03-U3"],"status":"historical","superseded_by_fact_id":"F27"},
+    {"fact_id":"F17","content":"星港笔记是用户自己的个人笔记应用","evidence_turn_ids":["S04-U1"],"status":"current"},
+    {"fact_id":"F18","content":"星港笔记后端使用 Python、FastAPI","evidence_turn_ids":["S04-U2"],"status":"current"},
+    {"fact_id":"F19","content":"星港笔记数据库使用 SQLite","evidence_turn_ids":["S04-U2"],"status":"current"},
+    {"fact_id":"F20","content":"星港笔记固定每周日 10:00 发布","evidence_turn_ids":["S04-U3"],"status":"current"},
+    {"fact_id":"F21","content":"青禾库存发版顺序为备份数据库、运行迁移、部署、健康检查","evidence_turn_ids":["S05-U1"],"status":"current"},
+    {"fact_id":"F22","content":"2026-10-18 青禾库存发版后白屏，原因是 CDN 缓存旧前端资源","evidence_turn_ids":["S05-U2"],"status":"current"},
+    {"fact_id":"F23","content":"上述白屏通过清理 CDN 缓存和给静态资源加版本号解决","evidence_turn_ids":["S05-U3"],"status":"current"},
+    {"fact_id":"F24","content":"用户在搬到苏州之前住杭州","evidence_turn_ids":["S01-U1","S06-U1"],"status":"historical","superseded_by_fact_id":"F25"},
+    {"fact_id":"F25","content":"用户从 2026-10-30 起常住苏州","evidence_turn_ids":["S06-U1"],"status":"current"},
+    {"fact_id":"F26","content":"青禾库存最新固定发布时间是每周五 19:00","evidence_turn_ids":["S06-U2"],"status":"current"},
+    {"fact_id":"F27","content":"青禾库存最新单文件上传上限是 50MB","evidence_turn_ids":["S06-U3"],"status":"current"},
+    {"fact_id":"F28","content":"青禾库存第一版最终采用邮箱加密码，暂不加入微信扫码登录","evidence_turn_ids":["S07-U3"],"status":"current"},
+    {"fact_id":"F29","content":"何川的生日是三月十二日，不能归给用户","evidence_turn_ids":["S08-U2"],"status":"current"},
+    {"fact_id":"F30","content":"陈宁房租每月 4200 元，不能归给用户","evidence_turn_ids":["S08-U3"],"status":"current"}
+  ],
+  "nonfacts": [
+    {"id":"H01","evidence_turn_id":"S08-U1","reason":"搬到上海及骑车通勤都只是条件设想，不能记为当前事实"},
+    {"id":"H02","evidence_turn_id":"S07-U2","reason":"微信扫码只是讨论中的备选，最终决定看 S07-U3"},
+    {"id":"H03","evidence_turn_id":"S08-U4","reason":"确认用语不应新增持久用户事实"},
+    {"id":"H04","evidence_turn_id":"S08-U5","reason":"感谢用语不应新增持久用户事实"}
+  ]
+}

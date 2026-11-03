@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dont Forget — Design Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --paper:#F6F2EA;
+  --surface:#FFFDF9;
+  --surface-2:#FBF8F2;
+  --surface-3:#F2EDE3;
+  --ink:#221F1A;
+  --ink-2:#5C564B;
+  --ink-3:#8E8779;
+  --line:#E6DFD2;
+  --line-strong:#D3C9B7;
+  --accent:#A8551A;
+  --accent-2:#F0E1CC;
+  --ok:#2F6F5E;
+  --ok-2:#DCEBE4;
+  --warn:#8A6210;
+  --danger:#A83232;
+  --shadow:0 1px 2px rgba(34,31,26,.06), 0 10px 30px rgba(34,31,26,.07);
+  --shadow-lg:0 24px 70px rgba(34,31,26,.18);
+  --r-sm:8px; --r-md:12px; --r-lg:18px;
+  --ui:14px; --small:13px; --tiny:12px; --mini:11px;
+}
+[data-theme="dark"]{
+  --paper:#14130F;
+  --surface:#1C1A15;
+  --surface-2:#211E18;
+  --surface-3:#282419;
+  --ink:#F3EEE4;
+  --ink-2:#BCB3A3;
+  --ink-3:#8A8172;
+  --line:#2E2A21;
+  --line-strong:#3D372B;
+  --accent:#E9A25D;
+  --accent-2:#3B2A17;
+  --ok:#7FC3AC;
+  --ok-2:#20302B;
+  --warn:#D9B264;
+  --danger:#E08080;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 34px rgba(0,0,0,.35);
+  --shadow-lg:0 28px 80px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:var(--ui); line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+button,input,textarea{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer}
+::selection{background:var(--accent-2)}
+.serif{font-family:Fraunces,Georgia,serif;font-weight:600;letter-spacing:-.01em}
+.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--tiny)}
+
+/* ---------- app shell ---------- */
+.app{
+  height:100vh; display:grid; grid-template-rows:46px 1fr 26px;
+  background:
+    radial-gradient(1200px 500px at 80% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%),
+    var(--paper);
+}
+.titlebar{
+  display:flex; align-items:center; gap:14px; padding:0 14px;
+  border-bottom:1px solid var(--line); background:color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter:blur(12px); -webkit-app-region:drag;
+}
+.lights{display:flex;gap:7px;margin-right:4px}
+.light{width:11px;height:11px;border-radius:50%;display:block}
+.light.r{background:#E5675C}.light.y{background:#E5B24B}.light.g{background:#59B36B}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.015em}
+.brand .mark{
+  width:22px;height:22px;border-radius:7px;display:grid;place-items:center;
+  background:var(--ink); color:var(--paper);
+}
+.brand .mark svg{width:13px;height:13px}
+.brand small{font-weight:500;color:var(--ink-3);font-size:var(--mini);letter-spacing:.02em}
+.tb-spacer{flex:1}
+.searchbtn{
+  display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;min-width:240px;
+  border:1px solid var(--line);border-radius:8px;background:var(--surface-2);
+  color:var(--ink-3); font-size:var(--small); -webkit-app-region:no-drag;
+}
+.searchbtn:hover{border-color:var(--line-strong);color:var(--ink-2)}
+.sbt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.kbd{font:500 var(--mini)/1 "JetBrains Mono",monospace;border:1px solid var(--line-strong);border-radius:4px;padding:3px 5px;color:var(--ink-3);background:var(--surface)}
+.iconbtn{
+  width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--ink-2);
+  border:1px solid transparent; -webkit-app-region:no-drag;
+}
+.iconbtn:hover{background:var(--surface-3);color:var(--ink)}
+.avatar{
+  width:27px;height:27px;border-radius:50%;display:grid;place-items:center;
+  background:var(--accent-2);color:var(--accent);font-weight:600;font-size:var(--mini);
+  -webkit-app-region:no-drag;border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);
+}
+
+.body{display:grid;grid-template-columns:250px 1fr;min-height:0}
+.body.with-rail{grid-template-columns:250px 1fr 320px}
+
+/* ---------- sidebar ---------- */
+.sidebar{
+  border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;
+  background:color-mix(in srgb,var(--surface) 55%,transparent);
+}
+.newchat{
+  margin:12px 12px 6px;height:38px;border-radius:10px;display:flex;align-items:center;gap:9px;
+  padding:0 12px;background:var(--ink);color:var(--paper);font-weight:600;font-size:var(--small);
+  box-shadow:var(--shadow); transition:transform .15s ease, opacity .15s ease;
+}
+.newchat:hover{transform:translateY(-1px)}
+.newchat:active{transform:translateY(0)}
+.nav{padding:6px 8px;display:flex;flex-direction:column;gap:1px}
+.nav a{
+  display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;border-radius:8px;
+  color:var(--ink-2);text-decoration:none;font-size:var(--tiny);font-weight:500;
+}
+.nav a svg{color:var(--ink-3)}
+.nav a:hover{background:var(--surface-3);color:var(--ink)}
+.nav a.active{background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.nav a.active svg{color:var(--accent)}
+.nav .badge{margin-left:auto;font:500 var(--mini)/1 "JetBrains Mono",monospace;color:var(--ink-3)}
+.sect{padding:14px 14px 6px;font-size:var(--mini);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.sessions{overflow:auto;padding:0 8px 8px;flex:1;min-height:0}
+.session{
+  display:block;width:100%;text-align:left;padding:8px 9px;border-radius:8px;margin-bottom:1px;
+}
+.session:hover{background:var(--surface-3)}
+.session.active{background:var(--surface);box-shadow:inset 0 0 0 1px var(--line)}
+.session .t{font-size:var(--tiny);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session .m{font-size:var(--mini);color:var(--ink-3);display:flex;gap:6px;margin-top:2px}
+.dot{width:3px;height:3px;border-radius:50%;background:var(--ink-3);align-self:center}
+.sidefoot{border-top:1px solid var(--line);padding:10px 12px;display:flex;align-items:center;gap:8px;font-size:var(--mini);color:var(--ink-3)}
+.sidefoot b{color:var(--ink-2);font-weight:600}
+
+/* ---------- main ---------- */
+.main{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.scroll{overflow:auto;min-height:0;flex:1}
+.page{padding:28px 34px;max-width:1080px;margin:0 auto}
+.page.wide{max-width:none}
+.h1{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:34px;line-height:1.15;letter-spacing:-.02em;margin:0 0 6px}
+.h2{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:21px;letter-spacing:-.01em;margin:0}
+.sub{color:var(--ink-2);font-size:var(--small);margin:0}
+.eyebrow{font-size:var(--mini);letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:10px}
+.row.between{justify-content:space-between}
+.grow{flex:1}
+.muted{color:var(--ink-3)}
+.small{font-size:var(--small)}
+.tiny{font-size:var(--tiny)}
+
+.btn{
+  height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line-strong);
+  background:var(--surface);color:var(--ink);font-size:var(--small);font-weight:500;
+  display:inline-flex;align-items:center;gap:7px;transition:background .15s ease,border-color .15s ease;
+}
+.btn:hover{background:var(--surface-3)}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn.primary:hover{opacity:.9}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--surface-3)}
+.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 35%,var(--line))}
+.btn.sm{height:27px;padding:0 9px;font-size:var(--tiny);border-radius:7px}
+
+.card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);
+  box-shadow:var(--shadow);
+}
+.card.flat{box-shadow:none}
+.pad{padding:16px}
+.sep{height:1px;background:var(--line);margin:14px 0}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:999px;
+  border:1px solid var(--line);background:var(--surface);font-size:var(--mini);font-weight:500;color:var(--ink-2);
+}
+.chip.on{background:var(--accent-2);border-color:color-mix(in srgb,var(--accent) 30%,transparent);color:var(--accent)}
+.chip .k{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.7}
+.tag{font-size:var(--mini);color:var(--ink-3);background:var(--surface-3);border-radius:5px;padding:2px 6px}
+.tag.ok{color:var(--ok);background:var(--ok-2)}
+.tag.acc{color:var(--accent);background:var(--accent-2)}
+
+/* composer */
+.composer{
+  border:1px solid var(--line-strong);border-radius:var(--r-lg);background:var(--surface);
+  box-shadow:var(--shadow); padding:12px 12px 10px; transition:border-color .15s ease, box-shadow .15s ease;
+}
+.composer:focus-within{border-color:color-mix(in srgb,var(--accent) 45%,var(--line-strong));box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent),var(--shadow)}
+.composer textarea{
+  width:100%;resize:none;border:0;outline:0;background:transparent;font-size:var(--ui);
+  line-height:1.55;min-height:52px;padding:2px 4px;
+}
+.composer textarea::placeholder{color:var(--ink-3)}
+.composer .bar{display:flex;align-items:center;gap:6px;padding-top:6px}
+.send{
+  margin-left:auto;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;
+  background:var(--ink);color:var(--paper);
+}
+.send:hover{opacity:.9}
+.pill{
+  display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:7px;
+  border:1px solid var(--line);background:var(--surface-2);font-size:var(--mini);color:var(--ink-2);
+}
+.pill:hover{border-color:var(--line-strong);color:var(--ink)}
+
+/* chat */
+.thread{padding:24px 34px 30px;max-width:840px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.msg{display:flex;gap:12px}
+.msg .who{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:none;font-size:var(--mini);font-weight:600}
+.msg.user .who{background:var(--surface-3);color:var(--ink-2);border:1px solid var(--line)}
+.msg.ai .who{background:var(--ink);color:var(--paper)}
+.msg .content{min-width:0;flex:1}
+.msg .name{font-size:var(--mini);color:var(--ink-3);margin-bottom:5px;font-weight:600;letter-spacing:.02em}
+.msg.user .bubble{background:var(--surface-3);border:1px solid var(--line);border-radius:12px;padding:10px 13px;display:inline-block}
+.msg.ai .prose{font-size:var(--ui);line-height:1.65}
+.msg.ai .prose p{margin:0 0 10px}
+.msg.ai .prose ul{margin:0 0 10px;padding-left:18px}
+.msg.ai .prose li{margin:4px 0}
+.tool{
+  border:1px solid var(--line);border-radius:10px;background:var(--surface-2);padding:9px 11px;
+  display:flex;align-items:center;gap:9px;font-size:var(--tiny);color:var(--ink-2);margin:10px 0;
+}
+.tool .path{font-family:"JetBrains Mono",monospace;font-size:var(--mini);color:var(--ink-3)}
+.tool .ok{color:var(--ok);margin-left:auto;display:flex;align-items:center;gap:4px}
+.memref{
+  display:inline-flex;align-items:center;gap:6px;padding:2px 7px;border-radius:6px;
+  background:var(--accent-2);color:var(--accent);font-size:var(--mini);font-weight:500;
+  vertical-align:baseline;white-space:nowrap;
+}
+.threadfoot{padding:0 34px 26px}
+
+/* rail */
+.rail{border-left:1px solid var(--line);background:color-mix(in srgb,var(--surface) 60%,transparent);display:flex;flex-direction:column;min-height:0}
+.rail .head{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.rail .scroll{padding:14px 16px}
+.rail .head .h2{font-size:15px}
+.railitem{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 11px;margin-bottom:9px}
+.railitem .t{font-size:var(--small);line-height:1.45}
+.railitem .meta{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:var(--mini);color:var(--ink-3)}
+.conf{height:3px;border-radius:2px;background:var(--surface-3);margin-top:8px;overflow:hidden}
+.conf i{display:block;height:100%;background:var(--accent);border-radius:2px}
+
+/* memory page */
+.memwrap{display:grid;grid-template-columns:330px 1fr;min-height:0;flex:1;overflow:hidden}
+.memlist{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.memlist .tools{padding:12px 12px 8px;border-bottom:1px solid var(--line)}
+.input{
+  width:100%;height:32px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);
+  padding:0 10px;outline:0;font-size:var(--small);
+}
+.input:focus{border-color:color-mix(in srgb,var(--accent) 45%,var(--line-strong));box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 10%,transparent)}
+.memlist .items{overflow:auto;padding:8px}
+.memrow{width:100%;text-align:left;padding:10px;border-radius:9px;border:1px solid transparent;margin-bottom:3px}
+.memrow:hover{background:var(--surface-2)}
+.memrow.active{background:var(--surface);border-color:var(--line);box-shadow:var(--shadow)}
+.memrow .t{font-size:var(--small);line-height:1.45;color:var(--ink)}
+.memrow .m{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:var(--mini);color:var(--ink-3)}
+.memdetail{padding:26px 30px;overflow:auto}
+.memdetail .body{font-size:15px;line-height:1.7;max-width:70ch}
+
+/* grid cards */
+.grid{display:grid;gap:12px}
+.grid.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.grid.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.tile{padding:15px;border-radius:var(--r-md);border:1px solid var(--line);background:var(--surface);transition:transform .15s ease,box-shadow .15s ease}
+.tile:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+.tile .ico{width:30px;height:30px;border-radius:8px;background:var(--surface-3);display:grid;place-items:center;color:var(--accent);margin-bottom:10px}
+.tile h3{margin:0 0 4px;font-size:var(--small);font-weight:600}
+.tile p{margin:0;font-size:var(--tiny);color:var(--ink-2);line-height:1.5}
+
+/* table */
+.table{width:100%;border-collapse:collapse;font-size:var(--small)}
+.table th{text-align:left;font-size:var(--mini);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:9px 10px;border-bottom:1px solid var(--line)}
+.table td{padding:11px 10px;border-bottom:1px solid var(--line)}
+.table tr:hover td{background:var(--surface-2)}
+.switch{width:34px;height:20px;border-radius:999px;background:var(--line-strong);position:relative;transition:background .18s ease;flex:none}
+.switch i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--surface);transition:transform .18s ease;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch.on{background:var(--ok)}
+.switch.on i{transform:translateX(14px)}
+
+/* settings */
+.settings{display:grid;grid-template-columns:210px 1fr;min-height:0;flex:1;overflow:hidden}
+.setsub{border-right:1px solid var(--line);padding:16px 10px}
+.setsub button{display:flex;width:100%;height:31px;align-items:center;gap:8px;padding:0 9px;border-radius:7px;color:var(--ink-2);font-size:var(--small)}
+.setsub button:hover{background:var(--surface-3);color:var(--ink)}
+.setsub button.active{background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line);font-weight:600}
+.setbody{padding:24px 30px;overflow:auto;max-width:760px}
+.field{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 0;border-bottom:1px solid var(--line)}
+.field .lbl b{display:block;font-size:var(--small);font-weight:600}
+.field .lbl span{display:block;font-size:var(--tiny);color:var(--ink-3);margin-top:2px}
+.seg{display:flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{height:28px;padding:0 11px;font-size:var(--mini);color:var(--ink-2)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--ink);color:var(--paper)}
+
+/* workbench */
+.wb{display:grid;grid-template-columns:220px 1fr;min-height:0;flex:1;overflow:hidden}
+.tree{border-right:1px solid var(--line);padding:12px 8px;font-size:var(--tiny);overflow:auto}
+.tree .f{display:flex;align-items:center;gap:7px;height:26px;padding:0 8px;border-radius:6px;color:var(--ink-2)}
+.tree .f:hover{background:var(--surface-3)}
+.tree .f.dir{color:var(--ink);font-weight:600}
+.tree .f.ind{padding-left:22px}
+.wbmain{display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);padding:6px 8px 0}
+.tab{height:29px;padding:0 11px;border-radius:7px 7px 0 0;font-size:var(--mini);color:var(--ink-3);display:flex;align-items:center;gap:6px}
+.tab.on{background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line);border-bottom:1px solid var(--surface);margin-bottom:-1px}
+.term{flex:1;background:#14130F;color:#DCD5C7;font:400 12px/1.7 "JetBrains Mono",monospace;padding:16px 18px;overflow:auto;border-radius:0 0 var(--r-md) 0}
+.term .p{color:#7FBF9B}.term .c{color:#C9A46A}.term .d{color:#8A8172}
+
+/* palette */
+.overlay{position:fixed;inset:0;background:rgba(20,18,14,.42);backdrop-filter:blur(3px);display:none;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:50}
+.overlay.on{display:flex}
+.palette{width:min(600px,90vw);background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-lg);overflow:hidden}
+.palette .in{display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line)}
+.palette input{border:0;outline:0;background:transparent;flex:1;font-size:15px}
+.palette .list{padding:7px;max-height:52vh;overflow:auto}
+.palette .item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:var(--small);color:var(--ink-2)}
+.palette .item:hover,.palette .item.sel{background:var(--surface-3);color:var(--ink)}
+.palette .item .k{margin-left:auto;font-size:var(--mini);color:var(--ink-3)}
+
+/* connect */
+.connect{height:100%;display:grid;place-items:center;background:
+  radial-gradient(700px 380px at 50% 10%, color-mix(in srgb,var(--accent) 10%,transparent), transparent 65%), var(--paper)}
+.connect .card{width:390px;padding:30px;box-shadow:var(--shadow-lg)}
+.connect .mark{width:40px;height:40px;border-radius:12px;background:var(--ink);color:var(--paper);display:grid;place-items:center;margin-bottom:16px}
+.connect h1{font-family:Fraunces,Georgia,serif;font-size:27px;margin:0 0 4px}
+.connect p{margin:0 0 20px;color:var(--ink-3);font-size:var(--small)}
+.connect input{width:100%;height:38px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface-2);padding:0 12px;outline:0;margin-bottom:12px}
+.connect input:focus{border-color:color-mix(in srgb,var(--accent) 45%,var(--line-strong))}
+.connect .btn{width:100%;justify-content:center;height:38px}
+
+/* statusbar */
+.statusbar{
+  display:flex;align-items:center;gap:14px;padding:0 14px;border-top:1px solid var(--line);
+  font-size:var(--mini);color:var(--ink-3);background:color-mix(in srgb,var(--surface) 70%,transparent);
+  white-space:nowrap;overflow:hidden;
+}
+.statusbar .hide-narrow{display:inline}
+.statusbar .r{margin-left:auto;display:flex;gap:14px}
+.live{display:inline-flex;align-items:center;gap:5px;color:var(--ok)}
+.live i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 18%,transparent)}
+
+/* toast */
+.toast{position:fixed;bottom:44px;left:50%;transform:translate(-50%,12px);background:var(--ink);color:var(--paper);padding:9px 14px;border-radius:9px;font-size:var(--small);opacity:0;pointer-events:none;transition:.2s ease;z-index:60;box-shadow:var(--shadow-lg)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:1180px){ .body.with-rail{grid-template-columns:250px 1fr} .rail{display:none} }
+@media (max-width:900px){ .body,.body.with-rail{grid-template-columns:1fr} .sidebar{display:none} .page{padding:22px} }
+@media (max-width:1100px){ .brand small{display:none} .searchbtn{min-width:0;flex:1;max-width:320px} .statusbar .hide-narrow{display:none} }
+/* 预览用：?desktop=1 强制桌面三栏，便于在窄窗口里检查完整布局 */
+body.force-desktop .body,body.force-desktop .body.with-rail{grid-template-columns:250px 1fr}
+body.force-desktop .body.with-rail{grid-template-columns:250px 1fr 320px}
+body.force-desktop .sidebar{display:flex}
+body.force-desktop .rail{display:flex}
+body.force-desktop .brand small{display:inline}
+body.force-desktop .page{padding:28px 34px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="titlebar">
+    <div class="lights"><i class="light r"></i><i class="light y"></i><i class="light g"></i></div>
+    <div class="brand">
+      <span class="mark" id="brandMark"></span>
+      Dont Forget <small>记忆优先的个人助理</small>
+    </div>
+    <div class="tb-spacer"></div>
+    <button class="searchbtn" id="paletteBtn">
+      <span id="i-search"></span> <span class="sbt">搜索记忆、会话、设置</span> <span class="kbd">⌘K</span>
+    </button>
+    <button class="iconbtn" id="themeBtn" title="切换主题"></button>
+    <div class="avatar">胡</div>
+  </header>
+
+  <div class="body" id="body">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main" id="main"></main>
+    <aside class="rail" id="rail" hidden></aside>
+  </div>
+
+  <footer class="statusbar">
+    <span class="live"><i></i> 已连接 · 本地</span>
+    <span class="hide-narrow">模型 claude-opus-4.5</span>
+    <span id="statusMem">记忆 1,284</span>
+    <div class="r">
+      <span class="hide-narrow">今日 12,480 tokens</span>
+      <span class="hide-narrow">数据目录 ~/.dontforget</span>
+    </div>
+  </footer>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="palette">
+    <div class="in"><span id="i-search2"></span><input id="paletteInput" placeholder="输入命令或搜索…" /></div>
+    <div class="list" id="paletteList"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- icons ---------------- */
+const ICONS = {
+  search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  chat:'<path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-7a8 8 0 1 1 18-4z"/>',
+  brain:'<path d="M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0-1 5.8V15a3 3 0 0 0 3 3 3 3 0 0 0 4 2 3 3 0 0 0 4-2 3 3 0 0 0 3-3v-1.2A3 3 0 0 0 18 8V7a3 3 0 0 0-3-3 3 3 0 0 0-3 2 3 3 0 0 0-3-2z"/><path d="M12 6v14"/>',
+  user:'<circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/>',
+  bot:'<rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 4v3M8 12h.01M16 12h.01M9 16h6"/>',
+  spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
+  clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+  terminal:'<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3M13 15h4"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V22a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H8a1.7 1.7 0 0 0 1-1.6V2a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V8a1.7 1.7 0 0 0 1.6 1H22a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon:'<path d="M20 13.4A8.4 8.4 0 1 1 10.6 4 6.6 6.6 0 0 0 20 13.4z"/>',
+  send:'<path d="M4 12l16-8-6 16-3-6z"/>',
+  attach:'<path d="M21 11.5 12.5 20a5 5 0 0 1-7-7L14 4.5a3.3 3.3 0 0 1 4.7 4.7L10.4 17a1.7 1.7 0 0 1-2.4-2.4l8-8"/>',
+  check:'<path d="m5 12.5 4.5 4.5L19 7"/>',
+  arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  lock:'<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  file:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  plug:'<path d="M9 3v6M15 3v6M6 9h12v3a6 6 0 0 1-12 0z"/><path d="M12 18v3"/>',
+  spark2:'<path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/>',
+  trash:'<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>',
+  edit:'<path d="M4 20h4l10-10-4-4L4 16z"/><path d="M14 6l4 4"/>',
+  chevron:'<path d="m9 6 6 6-6 6"/>'
+};
+function icon(name, size=16){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||''}</svg>`;
+}
+
+/* ---------------- data ---------------- */
+const SESSIONS = [
+  {t:'记忆系统的召回策略', m:'今天 · 18 条消息', active:true},
+  {t:'Dont Forget 抽离方案', m:'今天 · 42 条消息'},
+  {t:'桌面端 UI 重设计', m:'昨天 · 27 条消息'},
+  {t:'SQLite 全文检索对比', m:'10月30日 · 15 条消息'},
+  {t:'京都旅行计划', m:'10月28日 · 9 条消息'}
+];
+const MEMORIES = [
+  {id:'m1', type:'偏好', title:'界面偏好高信息密度', body:'聊天正文 14px、创作区 13px、侧栏 12px。装饰性前缀（@）跟随身份色，不使用灰色。', src:'会话 · 桌面端 UI 重设计', when:'今天 14:20', conf:96, tags:['UI','排版']},
+  {id:'m2', type:'事实', title:'本机没有 bun，前端统一用 npm', body:'webui/ 同时存在 bun.lock 与 package-lock.json；构建脚本会自动回退到 npm，验证时统一执行 npm ci 与 npm run build。', src:'会话 · Dont Forget 抽离方案', when:'今天 11:04', conf:99, tags:['工具链']},
+  {id:'m3', type:'经历', title:'决定把记忆能力抽成独立项目', body:'2026-11-01 确认：从 zhixu 物理搬迁，保留对话 / skill / agent / MCP / 记忆，移除团队、写作、评估与多余通道；包名 dontforget，桌面端形态。', src:'会话 · Dont Forget 抽离方案', when:'今天 09:38', conf:94, tags:['决策','项目']},
+  {id:'m4', type:'偏好', title:'文档不编造 benchmark', body:'没有真实数据就省略，只用实测事实说话；改造大文件时偏好分层新增而不是整体重写。', src:'会话 · 周报整理', when:'10月31日', conf:91, tags:['写作']},
+  {id:'m5', type:'关系', title:'Dont Forget 与 zhixu 共用记忆子系统', body:'dontforget/memory 从 zhixu 原样搬迁，仅替换包名前缀；两者数据目录彼此隔离（~/.dontforget vs ~/.nanobot）。', src:'会话 · Dont Forget 抽离方案', when:'10月31日', conf:88, tags:['架构']},
+  {id:'m6', type:'事实', title:'记忆测试基线 955 passed', body:'源仓库 tests/memory 在 7.3 秒内全部通过；迁移后以此为回归基线，不得新增失败。', src:'验证报告', when:'今天 10:02', conf:97, tags:['测试']},
+  {id:'m7', type:'偏好', title:'个人项目认可设计后直接 TDD', body:'跳过冗长的 spec/plan；只有当仓库自身强制 stage gate 时才走完整流程。', src:'会话 · 工作流', when:'10月30日', conf:85, tags:['流程']}
+];
+const AGENTS = [
+  {id:'commander', name:'Commander', desc:'默认主 Agent，负责拆解任务并调度子 Agent。', model:'claude-opus-4.5', tools:12, color:'var(--ink)'},
+  {id:'researcher', name:'Researcher', desc:'检索网页与本地资料，产出带引用的调研摘要。', model:'claude-sonnet-4.5', tools:8, color:'#2F6F5E'},
+  {id:'reviewer', name:'Reviewer', desc:'审查改动：逻辑、安全、边界与可维护性。', model:'claude-opus-4.5', tools:6, color:'#8A6210'},
+  {id:'librarian', name:'Librarian', desc:'维护长期记忆：去重、合并、标记过时。', model:'claude-haiku-4.5', tools:4, color:'var(--accent)'}
+];
+const SKILLS = [
+  {name:'memory', desc:'检索与写入长期记忆，支持按主题、时间与来源过滤。', on:true},
+  {name:'summarize', desc:'把长对话压缩成结构化摘要并归档。', on:true},
+  {name:'skill-creator', desc:'创建新技能：定义触发条件、步骤与验收。', on:true},
+  {name:'github', desc:'读取仓库、Issue 与 PR，生成变更说明。', on:true},
+  {name:'cron', desc:'按计划触发任务，写入会话或静默执行。', on:false},
+  {name:'weather', desc:'查询天气并并入每日摘要。', on:false},
+  {name:'image-generation', desc:'根据描述生成或编辑图片。', on:false}
+];
+const AUTOMATIONS = [
+  {name:'Dream 记忆巩固', desc:'每 2 小时合并重复记忆并生成摘要', when:'每 2 小时', last:'今天 14:00', on:true},
+  {name:'每日摘要', desc:'把当天会话整理成 5 条要点写入记忆', when:'每天 09:00', last:'今天 09:00', on:true},
+  {name:'每周回顾', desc:'回顾本周决策与未完成事项', when:'周一 10:00', last:'10月27日', on:false}
+];
+const NAV = [
+  {key:'memory', label:'记忆', icon:'brain', badge:'1,284'},
+  {key:'identity', label:'身份', icon:'user'},
+  {key:'agents', label:'Agents', icon:'bot'},
+  {key:'skills', label:'技能', icon:'spark'},
+  {key:'automations', label:'自动化', icon:'clock'},
+  {key:'workbench', label:'工作台', icon:'terminal'}
+];
+
+/* ---------------- state ---------------- */
+const state = {
+  page: 'new',
+  theme: 'light',
+  memoryId: 'm1',
+  memoryFilter: '全部',
+  settings: 'appearance',
+  agentId: 'commander',
+  skillsOn: SKILLS.filter(s=>s.on).map(s=>s.name),
+  automationsOn: AUTOMATIONS.filter(a=>a.on).map(a=>a.name),
+  chat: [
+    {who:'user', text:'帮我把记忆能力的边界整理一下，重点说哪些模块必须跟着搬。'},
+    {who:'ai', html:`
+      <p>我按「保留文件 → 待删模块」做了一次反向依赖扫描，结论是记忆子系统对外只有 6 个依赖：</p>
+      <ul>
+        <li><b>providers</b>：模型调用与 runtime</li>
+        <li><b>session</b>：会话与 transcript</li>
+        <li><b>bus / events</b>：消息与事件</li>
+        <li><b>utils</b>：<span class="mono">gitstore</span>、模板渲染</li>
+        <li><b>workspace_identity</b>：工作区标识</li>
+        <li><b>webui.memory_services</b>：数据库访问</li>
+      </ul>
+      <p>所以边界是干净的一刀：<span class="memref">${icon('brain',12)} 经历 · 决定把记忆能力抽成独立项目</span> 里的搬迁策略可以直接执行。</p>`}
+  ]
+};
+
+/* ---------------- helpers ---------------- */
+const $ = (s, r=document) => r.querySelector(s);
+const esc = (s='') => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(msg){
+  const el = $('#toast'); el.textContent = msg; el.classList.add('on');
+  clearTimeout(el._t); el._t = setTimeout(()=>el.classList.remove('on'), 1900);
+}
+function navTo(page){ location.hash = '#/' + page; }
+
+/* ---------------- shell ---------------- */
+function renderSidebar(){
+  const sessions = SESSIONS.map((s,i)=>`
+    <button class="session ${i===0?'active':''}" data-session="${i}">
+      <div class="t">${esc(s.t)}</div>
+      <div class="m">${esc(s.m)}</div>
+    </button>`).join('');
+  $('#sidebar').innerHTML = `
+    <button class="newchat" data-go="new">${icon('plus',15)} 新建对话</button>
+    <nav class="nav">
+      ${NAV.map(n=>`<a href="#/${n.key}" class="${state.page===n.key?'active':''}" data-nav="${n.key}">
+        ${icon(n.icon,16)}<span>${n.label}</span>${n.badge?`<span class="badge">${n.badge}</span>`:''}</a>`).join('')}
+    </nav>
+    <div class="sect">最近会话</div>
+    <div class="sessions">${sessions}</div>
+    <div class="sidefoot">
+      ${icon('lock',13)} <span>本地存储 · <b>~/.dontforget</b></span>
+    </div>`;
+  $('#sidebar').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>navTo(b.dataset.go));
+  $('#sidebar').querySelectorAll('[data-nav]').forEach(a=>a.onclick=(e)=>{e.preventDefault();navTo(a.dataset.nav);});
+}
+
+/* ---------------- pages ---------------- */
+function pageNew(){
+  const mems = MEMORIES.slice(0,3).map(m=>`
+    <div class="tile">
+      <div class="row" style="gap:7px;margin-bottom:8px">
+        <span class="tag acc">${m.type}</span><span class="tiny muted">${esc(m.when)}</span>
+      </div>
+      <h3>${esc(m.title)}</h3>
+      <p>${esc(m.body.slice(0,52))}…</p>
+    </div>`).join('');
+  return {main:`
+    <div class="scroll"><div class="page">
+      <div class="eyebrow">11月1日 · 周六 · 你的助手已经记住了 1,284 件事</div>
+      <h1 class="h1">今天想记住什么？</h1>
+      <p class="sub" style="margin-bottom:22px">对话会自动沉淀为可检索的长期记忆；你也可以随时查看、修改或遗忘。</p>
+
+      <div class="composer">
+        <textarea id="newInput" placeholder="问点什么，或者让 Dont Forget 记住一件事…"></textarea>
+        <div class="bar">
+          <button class="pill">${icon('brain',13)} 长期记忆 开</button>
+          <button class="pill">${icon('bot',13)} Commander</button>
+          <button class="pill">${icon('attach',13)} 附件</button>
+          <button class="send" id="newSend" title="发送">${icon('send',15)}</button>
+        </div>
+      </div>
+
+      <div class="row" style="gap:8px;margin:14px 0 30px;flex-wrap:wrap">
+        ${['回顾我这周的决策','把刚才的会议要点记下来','哪些记忆已经过时了？','总结这个项目的记忆边界'].map(t=>`<button class="chip" data-suggest="${esc(t)}">${icon('spark',12)} ${esc(t)}</button>`).join('')}
+      </div>
+
+      <div class="row between" style="margin-bottom:12px">
+        <h2 class="h2">刚刚想起</h2>
+        <a href="#/memory" class="small muted" style="text-decoration:none">查看全部记忆 →</a>
+      </div>
+      <div class="grid c3">${mems}</div>
+
+      <div class="card flat" style="margin-top:26px;padding:16px 18px;display:flex;gap:26px;align-items:center;flex-wrap:wrap">
+        <div><div class="tiny muted">本周新增记忆</div><div class="serif" style="font-size:24px">37</div></div>
+        <div><div class="tiny muted">会话</div><div class="serif" style="font-size:24px">92</div></div>
+        <div><div class="tiny muted">待巩固</div><div class="serif" style="font-size:24px">6</div></div>
+        <div class="grow"></div>
+        <button class="btn" data-go="memory">打开记忆库 ${icon('arrow',14)}</button>
+      </div>
+    </div></div>`,
+    rail:null};
+}
+
+function pageChat(){
+  const msgs = state.chat.map(m=>{
+    if(m.who==='user') return `
+      <div class="msg user"><div class="who">胡</div><div class="content">
+        <div class="name">你</div><div class="bubble">${esc(m.text)}</div></div></div>`;
+    return `
+      <div class="msg ai"><div class="who">${icon('spark',14)}</div><div class="content">
+        <div class="name">Dont Forget · Commander</div>
+        <div class="tool">${icon('brain',13)} <span class="path">memory.search</span> <span class="muted">"记忆边界 搬迁"</span> <span class="ok">${icon('check',12)} 4 条</span></div>
+        <div class="prose">${m.html || esc(m.text)}</div>
+      </div></div>`;
+  }).join('');
+  return {main:`
+    <div class="scroll"><div class="thread" id="thread">${msgs}</div></div>
+    <div class="threadfoot">
+      <div class="composer">
+        <textarea id="chatInput" placeholder="继续对话…"></textarea>
+        <div class="bar">
+          <button class="pill">${icon('brain',13)} 本次已召回 4</button>
+          <button class="pill">${icon('bot',13)} Commander</button>
+          <button class="send" id="chatSend" title="发送">${icon('send',15)}</button>
+        </div>
+      </div>
+      <div class="tiny muted" style="text-align:center;margin-top:8px">记忆会持续写入 · 可在右侧查看本次召回</div>
+    </div>`,
+  rail:`
+    <div class="head"><div class="row between"><div class="h2">本次召回</div><span class="tag ok">4 条</span></div>
+      <div class="tiny muted" style="margin-top:4px">按相关度排序 · 可点击查看</div></div>
+    <div class="scroll">
+      ${MEMORIES.slice(0,4).map(m=>`
+        <div class="railitem">
+          <div class="row" style="gap:6px;margin-bottom:6px"><span class="tag acc">${m.type}</span><span class="tiny muted">${esc(m.when)}</span></div>
+          <div class="t">${esc(m.title)}</div>
+          <div class="meta">${esc(m.src)}</div>
+          <div class="conf"><i style="width:${m.conf}%"></i></div>
+        </div>`).join('')}
+      <div class="sep"></div>
+      <div class="tiny muted" style="margin-bottom:8px">会话信息</div>
+      <div class="row between small" style="margin-bottom:6px"><span class="muted">消息</span><span>18</span></div>
+      <div class="row between small" style="margin-bottom:6px"><span class="muted">写入记忆</span><span>2</span></div>
+      <div class="row between small"><span class="muted">上下文</span><span>42%</span></div>
+    </div>`};
+}
+
+function pageMemory(){
+  const filters = ['全部','事实','偏好','经历','关系'];
+  const list = MEMORIES.filter(m=>state.memoryFilter==='全部'||m.type===state.memoryFilter);
+  const cur = MEMORIES.find(m=>m.id===state.memoryId) || MEMORIES[0];
+  const related = MEMORIES.filter(m=>m.id!==cur.id).slice(0,2);
+  return {main:`
+    <div class="memwrap">
+      <div class="memlist">
+        <div class="tools">
+          <input class="input" id="memSearch" placeholder="搜索记忆…" />
+          <div class="row" style="gap:5px;margin-top:9px;flex-wrap:wrap">
+            ${filters.map(f=>`<button class="chip ${state.memoryFilter===f?'on':''}" data-filter="${f}">${f}</button>`).join('')}
+          </div>
+        </div>
+        <div class="items">
+          ${list.map(m=>`
+            <button class="memrow ${m.id===state.memoryId?'active':''}" data-mem="${m.id}">
+              <div class="t">${esc(m.title)}</div>
+              <div class="m"><span class="tag ${m.type==='偏好'?'acc':''}">${m.type}</span><span>${esc(m.when)}</span></div>
+            </button>`).join('')}
+          <div class="tiny muted" style="text-align:center;padding:10px">共 ${list.length} 条 · 显示最近 7 天</div>
+        </div>
+      </div>
+      <div class="memdetail">
+        <div class="row between" style="margin-bottom:16px">
+          <div class="row" style="gap:8px"><span class="tag acc">${cur.type}</span><span class="tiny muted">置信度 ${cur.conf}%</span></div>
+          <div class="row" style="gap:6px">
+            <button class="btn sm">${icon('edit',13)} 编辑</button>
+            <button class="btn sm danger">${icon('trash',13)} 遗忘</button>
+          </div>
+        </div>
+        <h1 class="h1" style="font-size:27px;margin-bottom:12px">${esc(cur.title)}</h1>
+        <div class="body">${esc(cur.body)}</div>
+        <div class="row" style="gap:6px;margin:18px 0 6px;flex-wrap:wrap">${cur.tags.map(t=>`<span class="chip">#${esc(t)}</span>`).join('')}</div>
+        <div class="sep"></div>
+        <div class="grid c2">
+          <div class="card flat pad">
+            <div class="tiny muted" style="margin-bottom:6px">来源</div>
+            <div class="small">${esc(cur.src)}</div>
+            <div class="tiny muted" style="margin-top:4px">${esc(cur.when)}</div>
+          </div>
+          <div class="card flat pad">
+            <div class="tiny muted" style="margin-bottom:6px">相关记忆</div>
+            ${related.map(r=>`<div class="small" style="margin-bottom:5px">${esc(r.title)}</div>`).join('')}
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div class="tiny muted">记忆会在每次对话后被重新评估；过时内容会被标记为「待巩固」。</div>
+      </div>
+    </div>`};
+}
+
+function pageIdentity(){
+  return {main:`
+    <div class="scroll"><div class="page">
+      <div class="row between" style="margin-bottom:6px">
+        <div><div class="eyebrow">Identity</div><h1 class="h1">你的助手如何理解你</h1>
+        <p class="sub">身份由长期记忆自动编译，也可以手工覆盖。</p></div>
+        <button class="btn" id="compileBtn">${icon('spark2',14)} 重新编译</button>
+      </div>
+      <div class="grid c2" style="margin-top:24px">
+        <div class="card pad">
+          <div class="row between" style="margin-bottom:12px"><h2 class="h2">关于你</h2><span class="tag ok">已同步</span></div>
+          ${[
+            ['角色','个人 AI 工具开发者 · 独立完成全栈'],
+            ['偏好','高信息密度界面；先人话后数据'],
+            ['工作方式','认可设计后直接 TDD，跳过冗余流程'],
+            ['禁区','文档不编造 benchmark']
+          ].map(([k,v])=>`<div class="row between" style="padding:9px 0;border-bottom:1px solid var(--line)"><span class="tiny muted">${k}</span><span class="small" style="text-align:right;max-width:70%">${v}</span></div>`).join('')}
+        </div>
+        <div class="card pad">
+          <div class="row between" style="margin-bottom:12px"><h2 class="h2">人格设定</h2><span class="tag">SOUL.md</span></div>
+          <div class="mono" style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:12px;line-height:1.8;color:var(--ink-2);min-height:180px">
+# 语气<br/>
+克制、具体、先给结论。<br/>
+不寒暄，不使用空洞的鼓励。<br/><br/>
+# 记忆原则<br/>
+不确定时先检索，再回答。<br/>
+记错时明确说明并更正。
+          </div>
+          <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn primary sm" data-toast="人格设定已保存">保存</button></div>
+        </div>
+      </div>
+      <div class="card flat" style="margin-top:14px;padding:14px 16px">
+        <div class="row between">
+          <div class="small"><b>自动编译</b> <span class="muted">— 每晚根据新记忆重写身份摘要，人工编辑优先</span></div>
+          <span class="switch on" data-toast="自动编译已切换"><i></i></span>
+        </div>
+      </div>
+    </div></div>`};
+}
+
+function pageAgents(){
+  const cur = AGENTS.find(a=>a.id===state.agentId)||AGENTS[0];
+  return {main:`
+    <div class="scroll"><div class="page">
+      <div class="row between" style="margin-bottom:20px">
+        <div><div class="eyebrow">Agents</div><h1 class="h1">把工作分给不同的人</h1>
+        <p class="sub">每个 Agent 有自己的模型、工具与记忆范围。</p></div>
+        <button class="btn primary" data-toast="新 Agent 已创建">${icon('plus',14)} 新建 Agent</button>
+      </div>
+      <div class="grid c2">
+        ${AGENTS.map(a=>`
+          <button class="tile" data-agent="${a.id}" style="text-align:left;${a.id===cur.id?'outline:2px solid color-mix(in srgb,var(--accent) 35%,transparent)':''}">
+            <div class="row" style="gap:10px;margin-bottom:10px">
+              <div class="ico" style="margin:0;background:${a.color};color:var(--paper)">${icon('bot',15)}</div>
+              <div><h3 style="margin:0">${a.name}</h3><div class="tiny muted">${a.model}</div></div>
+              ${a.id===cur.id?'<span class="tag acc" style="margin-left:auto">当前</span>':''}
+            </div>
+            <p>${a.desc}</p>
+            <div class="row" style="gap:6px;margin-top:10px"><span class="tag">${a.tools} 个工具</span><span class="tag">记忆 全量</span></div>
+          </button>`).join('')}
+      </div>
+    </div></div>`,
+  rail:`
+    <div class="head"><div class="h2">${cur.name}</div><div class="tiny muted" style="margin-top:4px">${cur.model}</div></div>
+    <div class="scroll">
+      <div class="tiny muted" style="margin-bottom:6px">系统提示</div>
+      <div class="card flat pad small" style="line-height:1.6;margin-bottom:14px">
+        ${cur.id==='commander'?'你是主 Agent。先澄清目标，再拆解任务；能自己做的不派给子 Agent。':'你负责' + cur.desc}
+      </div>
+      <div class="tiny muted" style="margin-bottom:6px">工具</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:14px">
+        ${['memory_search','filesystem','shell','web','mcp','spawn'].map(t=>`<span class="chip">${t}</span>`).join('')}
+      </div>
+      <div class="tiny muted" style="margin-bottom:6px">记忆范围</div>
+      <div class="seg" style="margin-bottom:14px"><button class="on">全量</button><button>仅当前项目</button><button>关闭</button></div>
+      <button class="btn primary" style="width:100%;justify-content:center" data-toast="Agent 配置已保存">保存配置</button>
+    </div>`};
+}
+
+function pageSkills(){
+  const on = n => state.skillsOn.includes(n);
+  return {main:`
+    <div class="scroll"><div class="page">
+      <div class="row between" style="margin-bottom:20px">
+        <div><div class="eyebrow">Skills</div><h1 class="h1">能力按需打开</h1>
+        <p class="sub">技能是提示词与工具的封装，开启后模型可自动调用。</p></div>
+        <button class="btn">${icon('folder',14)} 打开技能目录</button>
+      </div>
+      <div class="grid c2">
+        ${SKILLS.map(s=>`
+          <div class="tile row" style="gap:12px;align-items:flex-start">
+            <div class="ico" style="margin:0">${icon('spark',15)}</div>
+            <div class="grow">
+              <div class="row between"><h3 style="margin:0">${s.name}</h3>
+                <span class="switch ${on(s.name)?'on':''}" data-skill="${s.name}"><i></i></span></div>
+              <p style="margin-top:4px">${s.desc}</p>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="card flat" style="margin-top:18px;padding:14px 16px" >
+        <div class="row between">
+          <div class="small"><b>技能市场</b> <span class="muted">— 从 GitHub 安装更多技能包</span></div>
+          <button class="btn sm" data-toast="技能市场暂未开放">浏览市场 ${icon('arrow',12)}</button>
+        </div>
+      </div>
+    </div></div>`};
+}
+
+function pageAutomations(){
+  const on = n => state.automationsOn.includes(n);
+  return {main:`
+    <div class="scroll"><div class="page">
+      <div class="row between" style="margin-bottom:20px">
+        <div><div class="eyebrow">Automations</div><h1 class="h1">让助手自己记得</h1>
+        <p class="sub">定时巩固、摘要与回顾，结果直接写入记忆或会话。</p></div>
+        <button class="btn primary" data-toast="新建自动化">${icon('plus',14)} 新建</button>
+      </div>
+      <div class="card">
+        <table class="table">
+          <thead><tr><th>任务</th><th>计划</th><th>上次运行</th><th style="width:70px">状态</th></tr></thead>
+          <tbody>
+            ${AUTOMATIONS.map(a=>`
+              <tr>
+                <td><div style="font-weight:600">${a.name}</div><div class="tiny muted">${a.desc}</div></td>
+                <td class="mono">${a.when}</td>
+                <td class="tiny muted">${a.last}</td>
+                <td><span class="switch ${on(a.name)?'on':''}" data-auto="${a.name}"><i></i></span></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="card flat" style="margin-top:14px;padding:14px 16px">
+        <div class="row between">
+          <div class="small"><b>Dream 巩固</b> <span class="muted">— 合并重复记忆，删除低置信度过时条目</span></div>
+          <span class="tag ok">运行中 · 下次 16:00</span>
+        </div>
+      </div>
+    </div></div>`};
+}
+
+function pageWorkbench(){
+  return {main:`
+    <div class="wb">
+      <div class="tree">
+        <div class="f dir">${icon('folder',13)} dontforget</div>
+        <div class="f ind">${icon('folder',13)} dontforget</div>
+        <div class="f ind">${icon('file',13)} memory/</div>
+        <div class="f ind">${icon('file',13)} webui/</div>
+        <div class="f ind">${icon('file',13)} cli/</div>
+        <div class="f ind">${icon('folder',13)} webui</div>
+        <div class="f ind">${icon('file',13)} package.json</div>
+        <div class="f ind">${icon('file',13)} vite.config.ts</div>
+        <div class="f ind">${icon('file',13)} pyproject.toml</div>
+        <div class="f ind">${icon('file',13)} README.md</div>
+      </div>
+      <div class="wbmain">
+        <div class="tabs">
+          <div class="tab on">${icon('terminal',12)} 终端</div>
+          <div class="tab">${icon('file',12)} README.md</div>
+          <div class="tab">${icon('file',12)} pyproject.toml</div>
+        </div>
+        <div class="term">
+<div class="d"># dontforget · 工作台</div>
+<div><span class="p">❯</span> uv run dontforget --version</div>
+<div>0.1.0</div>
+<div><span class="p">❯</span> uv run pytest tests/memory -q</div>
+<div><span class="c">955 passed</span> in 7.33s</div>
+<div><span class="p">❯</span> npm run build</div>
+<div>vite v7.1.0 building for production...</div>
+<div><span class="c">✓</span> 1,482 modules transformed.</div>
+<div><span class="c">✓</span> built in 4.12s</div>
+<div><span class="p">❯</span> <span class="d">▌</span></div>
+        </div>
+      </div>
+    </div>`};
+}
+
+function pageSettings(){
+  const sections = {appearance:'外观',models:'模型',voice:'语音',browser:'浏览器',channels:'通道',runtime:'运行时',advanced:'高级'};
+  let content = '';
+  if(state.settings==='appearance'){
+    content = `
+      <h1 class="h1" style="font-size:25px;margin-bottom:4px">外观</h1>
+      <p class="sub" style="margin-bottom:18px">密度、主题与字体。默认按你的偏好设为紧凑。</p>
+      <div class="field"><div class="lbl"><b>主题</b><span>跟随系统或固定亮/暗</span></div>
+        <div class="seg"><button class="${state.theme==='light'?'on':''}" data-theme-set="light">浅色</button><button class="${state.theme==='dark'?'on':''}" data-theme-set="dark">深色</button></div></div>
+      <div class="field"><div class="lbl"><b>信息密度</b><span>控制正文与侧栏字号</span></div>
+        <div class="seg"><button class="on">紧凑 14/13/12</button><button>舒适</button><button>宽松</button></div></div>
+      <div class="field"><div class="lbl"><b>正文字号</b><span>当前 14px · 最小 12px</span></div>
+        <div class="seg"><button>12</button><button class="on">14</button><button>15</button><button>16</button></div></div>
+      <div class="field"><div class="lbl"><b>字体</b><span>标题 Fraunces · 正文 Inter</span></div>
+        <button class="btn sm">更换</button></div>
+      <div class="field"><div class="lbl"><b>语言</b><span>界面语言</span></div>
+        <div class="seg"><button class="on">简体中文</button><button>English</button><button>日本語</button></div></div>
+      <div class="field" style="border:0"><div class="lbl"><b>减少动效</b><span>遵循系统 prefers-reduced-motion</span></div>
+        <span class="switch" data-toast="已开启减少动效"><i></i></span></div>`;
+  } else if(state.settings==='models'){
+    content = `
+      <h1 class="h1" style="font-size:25px;margin-bottom:4px">模型</h1>
+      <p class="sub" style="margin-bottom:18px">对话与记忆抽取可以分别指定模型。</p>
+      ${[['对话',['claude-opus-4.5','claude-sonnet-4.5','gpt-5.1']],['记忆抽取',['claude-haiku-4.5','claude-sonnet-4.5']],['向量嵌入',['bge-m3 (local)']]].map(([label,opts])=>`
+        <div class="field"><div class="lbl"><b>${label}</b><span>当前：${opts[0]}</span></div>
+          <div class="seg">${opts.map((o,i)=>`<button class="${i===0?'on':''}">${o}</button>`).join('')}</div></div>`).join('')}
+      <div class="field" style="border:0"><div class="lbl"><b>流式输出</b><span>逐字显示模型回复</span></div>
+        <span class="switch on" data-toast="流式输出已开启"><i></i></span></div>`;
+  } else if(state.settings==='channels'){
+    content = `
+      <h1 class="h1" style="font-size:25px;margin-bottom:4px">通道</h1>
+      <p class="sub" style="margin-bottom:18px">桌面端通过本地 WebSocket 连接，数据不出本机。</p>
+      <div class="card flat pad" style="margin-bottom:12px">
+        <div class="row between"><div><b>桌面端</b><div class="tiny muted">127.0.0.1:8765 · 已连接</div></div><span class="tag ok">运行中</span></div>
+      </div>
+      <div class="card flat pad">
+        <div class="row between"><div><b>HTTP API</b><div class="tiny muted">OpenAI 兼容接口 · 未启用</div></div><span class="switch" data-toast="HTTP API 未启用"><i></i></span></div>
+      </div>`;
+  } else {
+    content = `<h1 class="h1" style="font-size:25px;margin-bottom:4px">${sections[state.settings]}</h1>
+      <p class="sub" style="margin-bottom:18px">该分区在 demo 中仅占位，正式实现沿用现有设置页结构。</p>
+      <div class="card flat pad"><div class="tiny muted">配置项将在此渲染</div></div>`;
+  }
+  return {main:`
+    <div class="settings">
+      <div class="setsub">
+        ${Object.entries(sections).map(([k,v])=>`<button class="${state.settings===k?'active':''}" data-set="${k}">${v}</button>`).join('')}
+      </div>
+      <div class="setbody">${content}</div>
+    </div>`};
+}
+
+function pageConnect(){
+  return {main:`
+    <div class="connect">
+      <div class="card">
+        <div class="mark">${icon('spark',18)}</div>
+        <h1>Dont Forget</h1>
+        <p>连接本地网关，开始记住重要的事。</p>
+        <input type="password" placeholder="连接密码" value="••••••••••••" />
+        <button class="btn primary" data-toast="正在连接本地网关…">连接</button>
+        <div class="tiny muted" style="margin-top:14px;text-align:center">密码保存在 ~/.dontforget/config.json</div>
+      </div>
+    </div>`};
+}
+
+const PAGES = {new:pageNew, chat:pageChat, memory:pageMemory, identity:pageIdentity, agents:pageAgents, skills:pageSkills, automations:pageAutomations, workbench:pageWorkbench, settings:pageSettings, connect:pageConnect};
+
+/* ---------------- render ---------------- */
+function parseHash(){
+  const h = (location.hash||'').replace(/^#\/?/,'');
+  const [page] = h.split(/[?/]/);
+  return PAGES[page] ? page : 'new';
+}
+function render(){
+  state.page = parseHash();
+  renderSidebar();
+  const out = PAGES[state.page]();
+  $('#main').innerHTML = out.main;
+  const rail = $('#rail');
+  if(out.rail){
+    rail.hidden = false; rail.innerHTML = out.rail;
+    $('#body').classList.add('with-rail');
+  } else {
+    rail.hidden = true; rail.innerHTML='';
+    $('#body').classList.remove('with-rail');
+  }
+  wire();
+}
+
+/* ---------------- interactions ---------------- */
+function wire(){
+  // suggestions
+  document.querySelectorAll('[data-suggest]').forEach(b=>b.onclick=()=>{
+    // go to chat with the suggestion as first message
+    state.chat = [{who:'user', text:b.dataset.suggest},
+      {who:'ai', html:`<p>我先检索一下相关记忆，再给你答案。</p><div class="tool">${icon('brain',13)} <span class="path">memory.search</span> <span class="muted">"${esc(b.dataset.suggest)}"</span> <span class="ok">${icon('check',12)} 3 条</span></div><p>（demo 演示：正式实现会在这里流式返回结果。）</p>`}];
+    navTo('chat');
+  });
+  const newSend = $('#newSend');
+  if(newSend) newSend.onclick = () => {
+    const v = ($('#newInput')||{}).value?.trim();
+    if(!v) return;
+    state.chat = [{who:'user', text:v},{who:'ai', html:`<p>收到，我已经把它记下来，并在需要时会重新想起。</p><p class="tiny muted">演示：真实链路会先写入 transcript，再由记忆抽取 hook 归档。</p>`}];
+    navTo('chat');
+  };
+  const chatSend = $('#chatSend');
+  if(chatSend) chatSend.onclick = () => {
+    const el = $('#chatInput'); const v = el.value.trim(); if(!v) return;
+    state.chat.push({who:'user', text:v});
+    state.chat.push({who:'ai', html:`<p>已记录。这条会进入短期上下文，并在会话结束时参与记忆沉淀。</p>`});
+    el.value=''; render();
+    const sc = $('#main .scroll'); if(sc) sc.scrollTop = sc.scrollHeight;
+  };
+  // memory filters / selection
+  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{state.memoryFilter=b.dataset.filter;render();});
+  document.querySelectorAll('[data-mem]').forEach(b=>b.onclick=()=>{state.memoryId=b.dataset.mem;render();});
+  // settings
+  document.querySelectorAll('[data-set]').forEach(b=>b.onclick=()=>{state.settings=b.dataset.set;render();});
+  document.querySelectorAll('[data-theme-set]').forEach(b=>b.onclick=()=>{setTheme(b.dataset.themeSet);render();});
+  // agents
+  document.querySelectorAll('[data-agent]').forEach(b=>b.onclick=()=>{state.agentId=b.dataset.agent;render();});
+  // skills
+  document.querySelectorAll('[data-skill]').forEach(el=>el.onclick=()=>{
+    const n = el.dataset.skill;
+    state.skillsOn = state.skillsOn.includes(n) ? state.skillsOn.filter(x=>x!==n) : [...state.skillsOn,n];
+    el.classList.toggle('on'); toast(state.skillsOn.includes(n) ? '已开启 ' + n : '已关闭 ' + n);
+  });
+  document.querySelectorAll('[data-auto]').forEach(el=>el.onclick=()=>{
+    const n = el.dataset.auto;
+    state.automationsOn = state.automationsOn.includes(n) ? state.automationsOn.filter(x=>x!==n) : [...state.automationsOn,n];
+    el.classList.toggle('on'); toast(state.automationsOn.includes(n) ? '已启用 ' + n : '已暂停 ' + n);
+  });
+  document.querySelectorAll('[data-toast]').forEach(el=>el.onclick=()=>toast(el.dataset.toast));
+  document.querySelectorAll('.switch:not([data-skill]):not([data-auto]):not([data-toast])').forEach(el=>{
+    if(el.dataset.bound) return; el.dataset.bound='1';
+    el.onclick=()=>{el.classList.toggle('on');toast(el.classList.contains('on')?'已开启':'已关闭');};
+  });
+  const cb = $('#compileBtn'); if(cb) cb.onclick=()=>{
+    cb.disabled=true; cb.innerHTML='编译中…';
+    setTimeout(()=>{cb.disabled=false; cb.innerHTML=icon('spark2',14)+' 重新编译'; toast('身份已根据 1,284 条记忆重新编译');},900);
+  };
+  const ms = $('#memSearch');
+  if(ms) ms.oninput = () => {
+    const q = ms.value.trim();
+    document.querySelectorAll('.memrow').forEach(r=>{
+      r.style.display = r.textContent.includes(q) ? '' : 'none';
+    });
+  };
+}
+
+/* ---------------- theme ---------------- */
+function setTheme(t){
+  state.theme = t;
+  document.documentElement.setAttribute('data-theme', t);
+  $('#themeBtn').innerHTML = icon(t==='light'?'moon':'sun',16);
+}
+
+/* ---------------- palette ---------------- */
+const PALETTE = [
+  {label:'新建对话', key:'N', go:'new'},
+  {label:'打开记忆库', key:'M', go:'memory'},
+  {label:'查看 Agents', key:'A', go:'agents'},
+  {label:'技能', key:'S', go:'skills'},
+  {label:'自动化', key:'T', go:'automations'},
+  {label:'工作台', key:'W', go:'workbench'},
+  {label:'设置 · 外观', key:'P', go:'settings'},
+  {label:'连接本地网关', key:'', go:'connect'},
+  {label:'切换主题', key:'D', action:'theme'}
+];
+let paletteSel = 0;
+function renderPalette(q=''){
+  const items = PALETTE.filter(p=>p.label.includes(q));
+  paletteSel = Math.min(paletteSel, Math.max(0, items.length-1));
+  $('#paletteList').innerHTML = items.map((p,i)=>`
+    <div class="item ${i===paletteSel?'sel':''}" data-pal="${i}">
+      ${icon('chevron',13)}<span>${p.label}</span>${p.key?`<span class="k">⌘${p.key}</span>`:''}
+    </div>`).join('') || '<div class="item">没有匹配项</div>';
+  $('#paletteList').querySelectorAll('[data-pal]').forEach(el=>{
+    el.onclick=()=>runPalette(items[+el.dataset.pal]);
+  });
+  return items;
+}
+function runPalette(p){
+  if(!p) return;
+  closePalette();
+  if(p.action==='theme'){ setTheme(state.theme==='light'?'dark':'light'); render(); return; }
+  if(p.go) navTo(p.go);
+}
+function openPalette(){ $('#overlay').classList.add('on'); $('#paletteInput').value=''; renderPalette(''); $('#paletteInput').focus(); }
+function closePalette(){ $('#overlay').classList.remove('on'); }
+
+/* ---------------- boot ---------------- */
+document.addEventListener('DOMContentLoaded', ()=>{
+  if(new URLSearchParams(location.search).get('desktop')==='1') document.body.classList.add('force-desktop');
+  $('#brandMark').innerHTML = icon('spark',13);
+  $('#i-search').innerHTML = icon('search',14);
+  $('#i-search2').innerHTML = icon('search',16);
+  $('#themeBtn').innerHTML = icon('moon',16);
+  $('#paletteBtn').onclick = openPalette;
+  $('#themeBtn').onclick = ()=>{setTheme(state.theme==='light'?'dark':'light');render();};
+  $('#overlay').onclick = e=>{ if(e.target.id==='overlay') closePalette(); };
+  $('#paletteInput').addEventListener('input', e=>{paletteSel=0;renderPalette(e.target.value.trim());});
+  document.addEventListener('keydown', e=>{
+    if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); openPalette(); }
+    if(e.key==='Escape') closePalette();
+    if($('#overlay').classList.contains('on')){
+      const items = PALETTE.filter(p=>p.label.includes($('#paletteInput').value.trim()));
+      if(e.key==='ArrowDown'){e.preventDefault();paletteSel=Math.min(paletteSel+1,items.length-1);renderPalette($('#paletteInput').value.trim());}
+      if(e.key==='ArrowUp'){e.preventDefault();paletteSel=Math.max(paletteSel-1,0);renderPalette($('#paletteInput').value.trim());}
+      if(e.key==='Enter'){e.preventDefault();runPalette(items[paletteSel]);}
+    }
+  });
+  window.addEventListener('hashchange', render);
+  render();
+});
+</script>
+</body>
+</html>

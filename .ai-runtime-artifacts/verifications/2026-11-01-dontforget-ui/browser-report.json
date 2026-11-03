@@ -1,0 +1,431 @@
+{
+  "checks": [
+    "首页无常驻右栏、统计卡片或全局状态栏",
+    "快捷建议只填充草稿，切换记忆和主题后草稿保留",
+    "Enter 发送、Shift+Enter 换行、中文输入法 Enter 不误发",
+    "历史会话切换及当前新增会话分别保留内容",
+    "记忆侧栏按需开关、关闭按钮与草稿保留",
+    "附件选择仅显示文件名，可以移除",
+    "搜索会话、记忆、空结果、Esc 焦点恢复",
+    "记忆分类、技能键盘切换及 MCP 设置入口",
+    "浏览器后退到新对话后独立建会话，最近列表按活动顺序展示",
+    "390px 助手详情默认收起，选择助手后支持关闭按钮与 Escape",
+    "320px 窄窗口可打开侧栏并切换会话"
+  ],
+  "layouts": [
+    {
+      "width": 1440,
+      "route": "new",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1440,
+      "route": "chat",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1440,
+      "route": "memory",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1440,
+      "route": "identity",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1440,
+      "route": "agents",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1440,
+      "route": "skills",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1440,
+      "route": "automations",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1440,
+      "route": "workbench",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1440,
+      "route": "settings",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1440,
+      "route": "connect",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1024,
+      "route": "new",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1024,
+      "route": "chat",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1024,
+      "route": "memory",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1024,
+      "route": "identity",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1024,
+      "route": "agents",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1024,
+      "route": "skills",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1024,
+      "route": "automations",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1024,
+      "route": "workbench",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1024,
+      "route": "settings",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 1024,
+      "route": "connect",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 768,
+      "route": "new",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 768,
+      "route": "chat",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 768,
+      "route": "memory",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 768,
+      "route": "identity",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 768,
+      "route": "agents",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 768,
+      "route": "skills",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 768,
+      "route": "automations",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 768,
+      "route": "workbench",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 768,
+      "route": "settings",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 768,
+      "route": "connect",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 390,
+      "route": "new",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 390,
+      "route": "chat",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 390,
+      "route": "memory",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 390,
+      "route": "identity",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 390,
+      "route": "agents",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 390,
+      "route": "skills",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 390,
+      "route": "automations",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 390,
+      "route": "workbench",
+      "document": false,
+      "main": false,
+      "children": [
+        {
+          "tag": "DIV",
+          "class": "f ind",
+          "width": 113,
+          "scroll": 125
+        },
+        {
+          "tag": "DIV",
+          "class": "f ind",
+          "width": 113,
+          "scroll": 123
+        },
+        {
+          "tag": "DIV",
+          "class": "f ind",
+          "width": 113,
+          "scroll": 132
+        },
+        {
+          "tag": "DIV",
+          "class": "f ind",
+          "width": 113,
+          "scroll": 121
+        },
+        {
+          "tag": "DIV",
+          "class": "tabs",
+          "width": 260,
+          "scroll": 299
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "route": "settings",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 390,
+      "route": "connect",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 320,
+      "route": "new",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 320,
+      "route": "chat",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 320,
+      "route": "memory",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 320,
+      "route": "identity",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 320,
+      "route": "agents",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 320,
+      "route": "skills",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 320,
+      "route": "automations",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 320,
+      "route": "workbench",
+      "document": false,
+      "main": false,
+      "children": [
+        {
+          "tag": "DIV",
+          "class": "f ind",
+          "width": 113,
+          "scroll": 125
+        },
+        {
+          "tag": "DIV",
+          "class": "f ind",
+          "width": 113,
+          "scroll": 123
+        },
+        {
+          "tag": "DIV",
+          "class": "f ind",
+          "width": 113,
+          "scroll": 132
+        },
+        {
+          "tag": "DIV",
+          "class": "f ind",
+          "width": 113,
+          "scroll": 121
+        },
+        {
+          "tag": "DIV",
+          "class": "tabs",
+          "width": 190,
+          "scroll": 299
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "route": "settings",
+      "document": false,
+      "main": false,
+      "children": []
+    },
+    {
+      "width": 320,
+      "route": "connect",
+      "document": false,
+      "main": false,
+      "children": []
+    }
+  ],
+  "errors": [],
+  "success": true
+}

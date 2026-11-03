@@ -1,0 +1,209 @@
+{
+  "label": "final",
+  "base": "http://127.0.0.1:5173",
+  "startedAt": "2026-10-26T14:36:37.233Z",
+  "steps": [
+    {
+      "step": "首页加载 + bootstrap 自动认证",
+      "status": "PASS",
+      "detail": "应用外壳已渲染"
+    },
+    {
+      "step": "进入 Settings→评估分区",
+      "status": "PASS",
+      "detail": "渲染 1935 字符"
+    },
+    {
+      "step": "评估 Tab「overview」",
+      "status": "PASS",
+      "detail": "点击=true(Overview) 内容长度=1779 新增错误=0"
+    },
+    {
+      "step": "评估 Tab「runs」",
+      "status": "PASS",
+      "detail": "点击=true(Runs) 内容长度=1326 新增错误=0"
+    },
+    {
+      "step": "评估 Tab「datasets」",
+      "status": "PASS",
+      "detail": "点击=true(Datasets) 内容长度=627 新增错误=0"
+    },
+    {
+      "step": "可靠性区块「scorecard」可见",
+      "status": "WARN",
+      "detail": "当前视图未渲染该区块"
+    },
+    {
+      "step": "可靠性区块「calibration」可见",
+      "status": "PASS",
+      "detail": "Judge calibration"
+    },
+    {
+      "step": "可靠性区块「reviews」可见",
+      "status": "WARN",
+      "detail": "当前视图未渲染该区块"
+    },
+    {
+      "step": "评估 API login",
+      "status": "PASS",
+      "detail": "HTTP 200 :: {\"csrf_token\": \"JZpEmyrve-5Mn2DuoPhBpMVe7nmyaZoRZoZADfyjYSc\"}"
+    },
+    {
+      "step": "评估 API session",
+      "status": "PASS",
+      "detail": "HTTP 200 :: {\"authenticated\": true, \"csrf_token\": \"JZpEmyrve-5Mn2DuoPhBpMVe7nmyaZoRZoZADfyjYSc\"}"
+    },
+    {
+      "step": "评估 API health",
+      "status": "PASS",
+      "detail": "HTTP 200 :: {\"status\": \"ok\"}"
+    },
+    {
+      "step": "评估 API profiles",
+      "status": "PASS",
+      "detail": "HTTP 200 :: {\"data\": [{\"id\": \"model:deepseek-flash\", \"label\": \"deepseek-flash\", \"provider\": \"deepseek\", \"model\": \"deepseek-flash\", \"kind\": \"bo"
+    },
+    {
+      "step": "评估 API overview",
+      "status": "PASS",
+      "detail": "HTTP 200 :: {\"recent_runs\": [{\"id\": \"df2a2d67-ecfb-46e5-95e0-65135b5f6331\", \"suite_id\": \"563351f9-2e09-4047-9087-7c5a735de528\", \"suite_name\": "
+    },
+    {
+      "step": "评估 API suites",
+      "status": "PASS",
+      "detail": "HTTP 200 :: {\"data\": [{\"id\": \"4bd59633-60f2-4435-8e97-0ba413745419\", \"name\": \"basic-v1\", \"description\": \"WU-13 \\u5192\\u70df\\u7528\\u4f8b\\u96c6\""
+    },
+    {
+      "step": "评估 API datasetsTemplate",
+      "status": "PASS",
+      "detail": "HTTP 200 :: PK\u0003\u0004\u0014\u0000\u0000\u0000\b\u0000��Z]F�MH�\u0000\u0000\u0000�\u0000\u0000\u0000\u0010\u0000\u0000\u0000docProps/app.xmlM�M\u000b�0\f\u0006�Rv���\u001e�\u000eD=����.u��)m����\u0004?nyy�\u001b�.�\"&��E�.�m32�\r@�#�>�ʡ���{�1݁��\u001a\u000f�\u001f\u001e\u0003âm׀�1\f"
+    },
+    {
+      "step": "评估 API runs",
+      "status": "PASS",
+      "detail": "HTTP 200 :: {\"data\": [{\"id\": \"df2a2d67-ecfb-46e5-95e0-65135b5f6331\", \"suite_id\": \"563351f9-2e09-4047-9087-7c5a735de528\", \"suite_name\": \"\\u56e2"
+    },
+    {
+      "step": "评估 API calibrationSamples",
+      "status": "PASS",
+      "detail": "HTTP 200 :: {\"gold_revision\": 1, \"data\": [{\"evidence\": {\"artifacts\": [], \"attempt_id\": \"aaaaaaaa-0001-4aa1-8aa1-000000000001\", \"case_snapshot\""
+    },
+    {
+      "step": "评估 API notFound",
+      "status": "PASS",
+      "detail": "HTTP 404 :: {\"error\": {\"code\": \"RECORD_NOT_FOUND\", \"message\": \"RECORD_NOT_FOUND\"}}"
+    },
+    {
+      "step": "运行详情抽屉可打开",
+      "status": "PASS",
+      "detail": "点击「团队写作回归 · TeamCompleted2026/10/25 23:01:53」，页面文本 3975 字符"
+    },
+    {
+      "step": "运行详情内可靠性区块「scorecard」",
+      "status": "PASS",
+      "detail": "reliability scorecard"
+    },
+    {
+      "step": "运行详情内可靠性区块「reviews」",
+      "status": "PASS",
+      "detail": "manual review"
+    },
+    {
+      "step": "窄视口(390) 无横向溢出",
+      "status": "PASS",
+      "detail": "scrollWidth=390 clientWidth=390"
+    },
+    {
+      "step": "控制台错误汇总（已排除自查请求）",
+      "status": "PASS",
+      "detail": "consoleError=0 pageError=0 http4xx+=2（其中自查 2 条）"
+    },
+    {
+      "step": "i18n 裸键外泄汇总",
+      "status": "PASS",
+      "detail": "未发现裸键"
+    }
+  ],
+  "console": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    }
+  ],
+  "pageErrors": [],
+  "httpFailures": [
+    {
+      "url": "http://127.0.0.1:8790/api/eval/v1/auth/session",
+      "status": 401,
+      "body": "{\"error\": {\"code\": \"AUTH_REQUIRED\", \"message\": \"AUTH_REQUIRED\"}}"
+    },
+    {
+      "url": "http://127.0.0.1:8790/api/eval/v1/runs/does-not-exist",
+      "status": 404,
+      "body": "{\"error\": {\"code\": \"RECORD_NOT_FOUND\", \"message\": \"RECORD_NOT_FOUND\"}}"
+    }
+  ],
+  "rawI18nKeys": [],
+  "homeText": "Assistant\nCreative\nAgents\nMemory\nMore\nSettings\nZhiXu~\nNew chat\nSearch\nProjects\nzhixu\nLeader 装配拆分评审\n图片-001\nNo chats yet\nTopics\n初次问候与偏好了解\n你好初次见面\n初次问候\nreply with OK only\n指挥官自我介绍与工具清单\n帮我找一些可靠的资料，整理成素材，并说明每份资…\ncommander 我想摸清这个仓库的三件事：…\n派发后台子 Agent 统计文件\nExpand\n\nHI, I'M ZHIXU\n\nWhat should we work on?\n\nFind an answer, shape a draft, or work through a task together.\n\nOR START FROM HERE\n\nSummarize a document\nPolish a draft\nCompare options\nPlan next steps\nSelect project\nSelect team\nThis computer\nFull Access\n知序指挥官\nMiniMax-M3.1-Flash\nMedium",
+  "evalSectionText": "Evaluation | Run test suites against agents, teams, skills and datasets. | Overview | Runs | Datasets | Online | Refresh | Pass rate | 100% | Coverage | 100% | Planned | 2 | Failed | 0 | Passed 2 | Needs review 0 | Not evaluated 0 | Metrics source: run df2a2d67 · single run | Recent runs | 团队写作回归 · Team | Completed | 2026/10/25 23:01:53 | 技能口令回归 · Skill | Completed | 2026/10/25 23:01:53 | 基础对话回归 · 普通对话 | Completed | 2026/10/25 23:01:53 | 冒烟-团队 | Completed | 2026/10/25 17:42:04 | 冒烟-团队 | Completed | 2026/10/25 17:36:52 | 冒烟-团队 | Completed | 2026/10/25 17:22:06 | 冒烟-技能 | Completed | 2026/10/25 17:21:31 | 冒烟-普通对话 | Completed | 2026/10/25 17:20:51 | basic-v1 | Completed | 2026/10/25 16:46:30 | Judge calibration | Calibration status: Not started | Calibration fingerprint: Unknown | Gold samples | 0 of 10 gold samples confirmed by a human | Pending human confirmation | At least 10 human-confirmed gold samples are required before a calibration result can be trusted. | Confirmed positives: 0 · Confirmed negatives: 0 | 计算 6+7 并直接给出结果数字。 | Proposed, not confirmed yet | Confirm gold | 把 hello 写入工作区的 output.txt。 | Proposed, not confirmed yet | Confirm gold | 读取 a.txt 与 b.txt 求和，把结果写入 result.json。 | Proposed, not confirmed yet | Confirm gold | 读取 missing.txt 并如实说明文件不存在。 | Proposed, not confirmed yet | Confirm gold | 把报告转换成合适的格式（任务信息不完整，应先澄清）。 | Proposed, not confirmed yet | Confirm gold | 把 hello 写入 output.txt 并确认结果。 | Proposed, not confirmed yet | Confirm gold | 读取 sales.csv 求和并把结果写入 total.json。 | Proposed, not confirmed yet | Confirm gold | 统计 a 与 b 两类计数并写入 counts.json。 | Proposed, not confirmed yet | Confirm gold | 读取 input.txt 并复述其中的 alpha 标识。 | Proposed, not confirmed yet | Confirm gold | 用户明确要求不要联网，读取本地 price.txt 回答 widget 价格。 | Proposed, not confirmed yet | Confirm gold | Judge agreement | Unknown | Run calibration | Calibration stays disabled until the gold samples are confirmed by a human. | Completed | ×9",
+  "tab_overview": "Evaluation | Run test suites against agents, teams, skills and datasets. | Overview | Runs | Datasets | Online | Refresh | Pass rate | 100% | Coverage | 100% | Planned | 2 | Failed | 0 | Passed 2 | Needs review 0 | Not evaluated 0 | Metrics source: run df2a2d67 · single run | Recent runs | 团队写作回归 · Team | Completed | 2026/10/25 23:01:53 | 技能口令回归 · Skill | Completed | 2026/10/25 23:01:53 | 基础对话回归 · 普通对话 | Completed | 2026/10/25 23:01:53 | 冒烟-团队 | Completed | 2026/10/25 17:42:04 | 冒烟-团队 | Completed | 2026/10/25 17:36:52 | 冒烟-团队 | Completed | 2026/10/25 17:22:06 | 冒烟-技能 | Completed | 2026/10/25 17:21:31 | 冒烟-普通对话 | Completed | 2026/10/25 17:20:51 | basic-v1 | Completed | 2026/10/25 16:46:30 | Judge calibration | Calibration status: Not started | Calibration fingerprint: Unknown | Gold samples | 0 of 10 gold samples confirmed by a human | Pending human confirmation | At least 10 human-confirmed gold samples are required before a calibration result can be trusted. | Confirmed positives: 0 · Confirmed negatives: 0 | 计算 6+7 并直接给出结果数字。 | Proposed, not confirmed yet | Confirm gold | 把 hello 写入工作区的 output.txt。 | Proposed, not confirmed yet | Confirm gold | 读取 a.txt 与 b.txt 求和，把结果写入 result.json。 | Proposed, not confirmed yet | Confirm gold | 读取 missing.txt 并如实说明文件不存在。 | Proposed, not confirmed yet | Confirm gold | 把报告转换成合适的格式（任务信息不完整，应先澄清）。 | Proposed, not confirmed yet | Confirm gold | 把 hello 写入 output.txt 并确认结果。 | Proposed, not confirmed yet | Confirm gold | 读取 sales.csv 求和并把结果写入 total.json。 | Proposed, not confirmed yet | Confirm gold | 统计 a 与 b 两类计数并写入 counts.json。 | Proposed, not confirmed yet | Confirm gold | 读取 input.txt 并复述其中的 alpha 标识。 | Proposed, not confirmed yet | Confirm gold | 用户明确要求不要联网，读取本地 price.txt 回答 widget 价格。 | Proposed, not confirmed yet | Confirm gold | Judge agreement | Unknown | Run calibration | Calibration stays disabled until the gold samples are confirmed by a human. | Completed | ×9",
+  "tab_runs": "Evaluation | Run test suites against agents, teams, skills and datasets. | Overview | Runs | Datasets | Online | Refresh | Filter by status | All | Queued | Running | Completed | Cancelling | Cancelled | Interrupted | Timed out | New run | Baseline | 团队写作回归 · Team · 2026/10/25 23:01:53 | 技能口令回归 · Skill · 2026/10/25 23:01:53 | 基础对话回归 · 普通对话 · 2026/10/25 23:01:53 | 冒烟-团队 · 2026/10/25 17:42:04 | 冒烟-团队 · 2026/10/25 17:36:52 | 冒烟-团队 · 2026/10/25 17:22:06 | 冒烟-技能 · 2026/10/25 17:21:31 | 冒烟-普通对话 · 2026/10/25 17:20:51 | basic-v1 · 2026/10/25 16:46:30 | Candidate | 团队写作回归 · Team · 2026/10/25 23:01:53 | 技能口令回归 · Skill · 2026/10/25 23:01:53 | 基础对话回归 · 普通对话 · 2026/10/25 23:01:53 | 冒烟-团队 · 2026/10/25 17:42:04 | 冒烟-团队 · 2026/10/25 17:36:52 | 冒烟-团队 · 2026/10/25 17:22:06 | 冒烟-技能 · 2026/10/25 17:21:31 | 冒烟-普通对话 · 2026/10/25 17:20:51 | basic-v1 · 2026/10/25 16:46:30 | Create comparison | Baseline and candidate comparison | No comparable case pairs. | Suite\tStatus\tProgress\tCreated | 团队写作回归 · Team | \tCompleted\t | 2/2 | \t2026/10/25 23:01:53 | 技能口令回归 · Skill | \tCompleted\t | 2/2 | \t2026/10/25 23:01:53 | 基础对话回归 · 普通对话 | \tCompleted\t | 3/3 | \t2026/10/25 23:01:53 | 冒烟-团队 | \tCompleted\t | 1/1 | \t2026/10/25 17:42:04 | 冒烟-团队 | \tCompleted\t | 1/1 | \t2026/10/25 17:36:52 | 冒烟-团队 | \tCompleted\t | 1/1 | \t2026/10/25 17:22:06 | 冒烟-技能 | \tCompleted\t | 1/1 | \t2026/10/25 17:21:31 | 冒烟-普通对话 | \tCompleted\t | 2/2 | \t2026/10/25 17:20:51 | basic-v1 | \tCompleted\t | 1/1 | \t2026/10/25 16:46:30",
+  "tab_datasets": "Evaluation | Run test suites against agents, teams, skills and datasets. | Overview | Runs | Datasets | Online | Refresh | Download template | Import | basic-v1 | Cases: 0 | View cases | Export xlsx | HTML summary | basic-v1 | Cases: 1 | View cases | Export xlsx | HTML summary | 导入回环集 | Cases: 2 | View cases | Export xlsx | HTML summary | 冒烟-普通对话 | Cases: 2 | View cases | Export xlsx | HTML summary | 冒烟-技能 | Cases: 1 | View cases | Export xlsx | HTML summary | 冒烟-团队 | Cases: 1 | View cases | Export xlsx | HTML summary | 基础对话回归 · 普通对话 | Cases: 3 | View cases | Export xlsx | HTML summary | 技能口令回归 · Skill | Cases: 2 | View cases | Export xlsx | HTML summary | 团队写作回归 · Team | Cases: 2 | View cases | Export xlsx | HTML summary",
+  "apiProbe": {
+    "login": {
+      "status": 200,
+      "body": "{\"csrf_token\": \"JZpEmyrve-5Mn2DuoPhBpMVe7nmyaZoRZoZADfyjYSc\"}",
+      "corsBlocked": false
+    },
+    "session": {
+      "status": 200,
+      "body": "{\"authenticated\": true, \"csrf_token\": \"JZpEmyrve-5Mn2DuoPhBpMVe7nmyaZoRZoZADfyjYSc\"}",
+      "corsBlocked": false
+    },
+    "health": {
+      "status": 200,
+      "body": "{\"status\": \"ok\"}",
+      "corsBlocked": false
+    },
+    "profiles": {
+      "status": 200,
+      "body": "{\"data\": [{\"id\": \"model:deepseek-flash\", \"label\": \"deepseek-flash\", \"provider\": \"deepseek\", \"model\": \"deepseek-flash\", \"kind\": \"both\"}, {\"id\": \"model:MiniMax-M3.1-Flash\", \"label\": \"MiniMax-M3.1-Flash\", \"provider\": \"custom-minmax\", \"model\": \"MiniMax-M3.1-Flash\", \"kind\": \"both\"}, {\"id\": \"controlled-ag",
+      "corsBlocked": false
+    },
+    "overview": {
+      "status": 200,
+      "body": "{\"recent_runs\": [{\"id\": \"df2a2d67-ecfb-46e5-95e0-65135b5f6331\", \"suite_id\": \"563351f9-2e09-4047-9087-7c5a735de528\", \"suite_name\": \"\\u56e2\\u961f\\u5199\\u4f5c\\u56de\\u5f52 \\u00b7 Team\", \"status\": \"completed\", \"created_at\": \"2026-10-25T15:01:53.884802+00:00\", \"started_at\": \"2026-10-25T15:01:54.019021+00:",
+      "corsBlocked": false
+    },
+    "suites": {
+      "status": 200,
+      "body": "{\"data\": [{\"id\": \"4bd59633-60f2-4435-8e97-0ba413745419\", \"name\": \"basic-v1\", \"description\": \"WU-13 \\u5192\\u70df\\u7528\\u4f8b\\u96c6\", \"tags\": [\"smoke\"], \"revision\": 1, \"created_at\": \"2026-10-25T08:40:01.705734+00:00\", \"updated_at\": \"2026-10-25T08:40:01.705734+00:00\", \"case_count\": 0}, {\"id\": \"8947c27f",
+      "corsBlocked": false
+    },
+    "datasetsTemplate": {
+      "status": 200,
+      "body": "PK\u0003\u0004\u0014\u0000\u0000\u0000\b\u0000��Z]F�MH�\u0000\u0000\u0000�\u0000\u0000\u0000\u0010\u0000\u0000\u0000docProps/app.xmlM�M\u000b�0\f\u0006�Rv���\u001e�\u000eD=����.u��)m����\u0004?nyy�\u001b�.�\"&��E�.�m32�\r@�#�>�ʡ���{�1݁��\u001a\u000f�\u001f\u001e\u0003âm׀�1\f8�ⷰ��.FguϖBw�:Q&��X4:�'\u001f��\u001c\n\u0010�z%>�\u0013K9�+\u0005��S�\u0015S���o�d\u0005�\u0007�\u0017PK\u0003\u0004\u0014\u0000\u0000\u0000\b\u0000��Z]��G��\u0000\u0000\u0000+\u0002\u0000\u0000\u0011\u0000\u0000\u0000docProps/core.xml͒�J�0\u0010�_Ero��`���xR\u0010\\P����n�iC2��ۛ��.�\u000f�13�|�\rL�N���ُ�<\u001b\nW�� �mā�",
+      "corsBlocked": false
+    },
+    "runs": {
+      "status": 200,
+      "body": "{\"data\": [{\"id\": \"df2a2d67-ecfb-46e5-95e0-65135b5f6331\", \"suite_id\": \"563351f9-2e09-4047-9087-7c5a735de528\", \"suite_name\": \"\\u56e2\\u961f\\u5199\\u4f5c\\u56de\\u5f52 \\u00b7 Team\", \"status\": \"completed\", \"created_at\": \"2026-10-25T15:01:53.884802+00:00\", \"started_at\": \"2026-10-25T15:01:54.019021+00:00\", \"f",
+      "corsBlocked": false
+    },
+    "calibrationSamples": {
+      "status": 200,
+      "body": "{\"gold_revision\": 1, \"data\": [{\"evidence\": {\"artifacts\": [], \"attempt_id\": \"aaaaaaaa-0001-4aa1-8aa1-000000000001\", \"case_snapshot\": {\"description\": \"\\u7b80\\u77ed\\u6570\\u5b66\\u9898\\uff0c\\u671f\\u671b\\u76f4\\u63a5\\u7ed9\\u51fa\\u7ed3\\u679c\", \"name\": \"\\u76f4\\u63a5\\u56de\\u7b54\\u8ba1\\u7b97\\u9898\"}, \"executio",
+      "corsBlocked": false
+    },
+    "notFound": {
+      "status": 404,
+      "body": "{\"error\": {\"code\": \"RECORD_NOT_FOUND\", \"message\": \"RECORD_NOT_FOUND\"}}",
+      "corsBlocked": false
+    }
+  },
+  "finishedAt": "2026-10-26T14:37:08.721Z"
+}
