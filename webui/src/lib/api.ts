@@ -1507,29 +1507,6 @@ export async function fetchIdentityFile(
   );
 }
 
-export interface IdentityPreset {
-  name: string;
-  labelKey: string;
-  descriptionKey: string;
-  content: string;
-}
-
-export interface IdentityPresetsResponse {
-  presets: IdentityPreset[];
-}
-
-export async function listIdentityPresets(
-  token: string,
-  base: string = "",
-): Promise<IdentityPresetsResponse> {
-  return request<IdentityPresetsResponse>(
-    `${base}${IDENTITY_BASE}/presets`,
-    token,
-    undefined,
-    API_READ_TIMEOUT_MS,
-  );
-}
-
 export interface SaveIdentityFileInput {
   name: string;
   content: string;
