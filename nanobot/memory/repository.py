@@ -258,6 +258,28 @@ def delete_memory(conn: sqlite3.Connection, memory_id: str) -> None:
     conn.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
 
 
+def touch_memories(conn: sqlite3.Connection, memory_ids: Sequence[str]) -> int:
+    """检索命中即刷新 ``last_accessed_at`` 并累加 ``access_count``。
+
+    这是「常用的东西自动变重要」的热路径：衰减（``decay.py``）按
+    ``last_accessed_at`` 算 ``days_since_last_access``，被召回的条目因此
+    自动远离归档线。批量单条 UPDATE，命中集通常 ≤ 10 条，开销可忽略。
+    """
+    ids = [mid for mid in memory_ids if mid]
+    if not ids:
+        return 0
+    now = _now_iso()
+    updated = 0
+    for memory_id in ids:
+        cur = conn.execute(
+            "UPDATE memories SET last_accessed_at = ?, "
+            "access_count = access_count + 1 WHERE id = ?",
+            (now, memory_id),
+        )
+        updated += cur.rowcount if cur.rowcount > 0 else 0
+    return updated
+
+
 def update_memory_source_episode(
     conn: sqlite3.Connection,
     memory_id: str,

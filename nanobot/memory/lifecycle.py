@@ -86,6 +86,29 @@ CORE_NOTE_HEADING = "## 手工笔记"
 
 _TRUNCATION_MARKER = "...(规则被截断)"
 
+#: 超预算时的裁剪顺序（先砍的分值低）：经验/技能/教训 → 事实 → 偏好 → 规则。
+#: P2 的预算要求是「规则类优先保留」——规则被事实挤掉等于模型忘了怎么做事。
+_DROP_ORDER: dict[MemoryType, int] = {
+    MemoryType.EXPERIENCE: 0,
+    MemoryType.SKILL: 1,
+    MemoryType.ERROR: 2,
+    MemoryType.FACT: 3,
+    MemoryType.PREFERENCE: 4,
+    MemoryType.RULE: 5,
+}
+
+
+def _drop_index(facts: list[Memory]) -> int:
+    """预算裁剪时最先该砍掉的下标：类型优先级最低、重要性最低、越靠后越先砍。"""
+    return min(
+        range(len(facts)),
+        key=lambda i: (
+            _DROP_ORDER.get(facts[i].type, 0),
+            facts[i].importance_score,
+            -i,
+        ),
+    )
+
 # -- USER.md 导出（P0：与 MEMORY.md 同构的派生视图） --------------------------
 
 #: 文件上限。比 MEMORY.md 宽松：它要装三个分区，且内容本来就是短句。
@@ -1046,13 +1069,22 @@ class MemoryLifecycle:
         return "\n".join(lines).rstrip() + "\n"
 
     def _render_export(self, facts: list[Memory], note: Memory | None) -> str:
-        """渲染导出文件：自动导出区 + 手工笔记区，并压在字符上限内。"""
+        """渲染导出文件：自动导出区 + 手工笔记区，并压在字符上限内。
+
+        超预算时按 P2 的优先级整条裁：经验/技能/教训先走，事实次之，偏好与
+        规则最后——「规则类优先保留」是硬要求，绝不让尾部的事实段把规则段
+        挤掉。整条裁而不是截半句：半条规则比没有规则更危险。
+        """
         note_text = (note.content.strip() if note is not None else "")
         needs_review = bool(note.metadata.get("needs_review")) if note is not None else False
         content = self._render_memory_md(facts, note_text, needs_review=needs_review)
         omitted = 0
         while facts and len(content) > MEMORY_MD_MAX_CHARS:
-            facts = facts[:-1]
+            facts = [
+                memory
+                for index, memory in enumerate(facts)
+                if index != _drop_index(facts)
+            ]
             omitted += 1
             content = self._render_memory_md(
                 facts, note_text, needs_review=needs_review, omitted=omitted

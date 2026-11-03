@@ -52,6 +52,29 @@ class TranscriptionConfig(Base):
     max_upload_mb: int = Field(default=25, ge=1, le=100)
 
 
+class ConsolidateConfig(Base):
+    """每日全库盘账（``memory_consolidate`` job）的配置（P2）。
+
+    与 :class:`DreamConfig` 完全独立：Dream 做 history.jsonl 增量抽取
+    （每 2h），本任务扫整个 ``memories`` 表做规则级去重 / 衰减 / 归档
+    （每天 1 次）。不要合并两者——Dream 降频会让单次增量放大到截断，
+    盘账升频则白烧一轮全表扫描。
+    """
+
+    enabled: bool = True  # Register the daily consolidation job on startup
+    cron: str = "0 3 * * *"  # Daily 03:00 local time (via agents.defaults.timezone)
+    #: 预演开关：True 时只算不写，审计行照记。批量归档是「跑错一次就大范围
+    #: 生效」的副作用，谨慎的运维可以先开 dry_run 看一晚报告再放行真跑。
+    dry_run: bool = False
+    #: 单次盘账时间预算（秒）。超时写 checkpoint 中断，下次运行续跑。
+    time_budget_seconds: int = Field(default=1500, ge=30, le=7200)
+    #: effective = importance - decay_rate * days 低于该值 → 归档（不删除）。
+    archive_threshold: float = Field(default=0.15, ge=0.0, le=1.0)
+
+    def describe_schedule(self) -> str:
+        return f"cron {self.cron}"
+
+
 class DreamConfig(Base):
     """Dream memory consolidation configuration."""
 
@@ -292,6 +315,7 @@ class AgentDefaults(Base):
         serialization_alias="memoryLogging",
     )
     dream: DreamConfig = Field(default_factory=DreamConfig)
+    consolidate: ConsolidateConfig = Field(default_factory=ConsolidateConfig)
 
     @model_validator(mode="before")
     @classmethod

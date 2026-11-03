@@ -51,14 +51,24 @@ It is not the final memory. It is the material from which final memory is shaped
 
 Dream reads:
 
-- new entries from `memory/history.jsonl`
-- the current `SOUL.md`
-- the current `USER.md`
-- the current `memory/MEMORY.md`
+- new entries from `memory/history.jsonl` (only the part after the previous cursor)
+- the current core memory summary injected into its system context
+- the memory store's current counts and types, through `memory_stats`
 
-Then it edits the long-term files surgically in a single pass — not by rewriting everything, but by making the smallest honest change that keeps memory coherent.
+It writes only through memory tools — `add_memory` and `memory_delete` — each entry routed to a memory type (`preference` / `rule` / `fact` / `skill` / `error` / `experience`). It cannot and does not edit `SOUL.md`, `USER.md`, or `MEMORY.md`; those files are projections regenerated from the store. `memory_dream_runs` keeps the real write counts, so `/dream-log` answers "what did it change last night" even when the working tree is unchanged.
 
 This is why Zhixu's memory is not just archival. It is interpretive.
+
+### Stage 3: Daily consolidation (`memory_consolidate`)
+
+Once a day (03:00 local time by default) a second, rule-only pass sweeps the whole store — no LLM calls:
+
+- **Merge** identical or near-identical facts; duplicates are superseded, never deleted.
+- **Decay**: `effective = importance_score - decay_rate × days_since_last_access`. Entries that fall below the threshold are **archived** (marked expired) rather than removed — the row and the reason stay, and clearing `expires_at` restores it.
+- `preference` and `rule` entries never decay, nor do entries at `importance >= 0.9`.
+- Retrieval refreshes `last_accessed_at` and `access_count`, so what the user keeps using stays alive.
+
+The job has a time budget (1500 s) with a checkpoint: if it is interrupted, the next run resumes where it stopped. Every run writes a row to `memory_consolidate_runs` (processed / merged / decayed / archived), shown in **Settings → Automations**. Configure it under `agents.defaults.consolidate`; `dryRun: true` computes and reports without writing, so a cautious first night can be previewed. Archive is reversible: clearing `expires_at` on the archived rows brings them back.
 
 ## The Files
 

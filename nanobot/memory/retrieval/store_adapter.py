@@ -183,6 +183,38 @@ class MemoryStoreAdapter:
         trace.elapsed(stage="语义路 FTS5 查询", ms=fts5_ms)
         return out
 
+    # ----- 访问统计（衰减的输入）-----
+    def record_accesses(self, hits: Sequence[Any]) -> None:
+        """检索命中即刷新访问统计（P2）。
+
+        注入侧与工具检索都会调用本方法。``memory`` 条目更新
+        ``last_accessed_at`` + ``access_count``——每日盘账的
+        ``days_since_last_access`` 就按这里的热路径算，常用的条目因此自动
+        远离归档线；``episode`` 侧只累加 ``access_count``（表里没有
+        ``last_accessed_at`` 列，情节不参与衰减）。
+        """
+        memory_ids: list[str] = []
+        episode_ids: list[str] = []
+        for hit in hits or ():
+            kind = getattr(hit, "kind", "")
+            record_id = str(getattr(hit, "record_id", "") or "")
+            if not record_id:
+                continue
+            if kind == "memory":
+                memory_ids.append(record_id)
+            elif kind == "episode":
+                episode_ids.append(record_id)
+        if not memory_ids and not episode_ids:
+            return
+        with self._database.connect() as conn:
+            if memory_ids:
+                repository.touch_memories(conn, memory_ids)
+            for episode_id in episode_ids:
+                conn.execute(
+                    "UPDATE episodes SET access_count = access_count + 1 WHERE id = ?",
+                    (episode_id,),
+                )
+
     # ----- 情节通道 -----
     def search_episodes(
         self, *, entity: str, limit: int = 5, workspace_ids: Sequence[str] | None = None

@@ -236,6 +236,27 @@ _SCHEMA_STATEMENTS = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_dream_runs_scope ON memory_dream_runs(workspace_id, started_at DESC)",
+    # ----- memory_consolidate_runs -----
+    # P2：每日盘账（memory_consolidate job）的审计表。衰减/归档是批量副作用，
+    # 必须有「昨天动了多少条」的账可查；checkpoint 列存中断时的续跑指针。
+    """
+    CREATE TABLE IF NOT EXISTS memory_consolidate_runs (
+        run_id        TEXT    PRIMARY KEY,
+        workspace_id  TEXT    NOT NULL,
+        trigger       TEXT    NOT NULL DEFAULT '',
+        status        TEXT    NOT NULL DEFAULT 'running',
+        dry_run       INTEGER NOT NULL DEFAULT 0,
+        processed     INTEGER NOT NULL DEFAULT 0,
+        merged        INTEGER NOT NULL DEFAULT 0,
+        decayed       INTEGER NOT NULL DEFAULT 0,
+        archived      INTEGER NOT NULL DEFAULT 0,
+        checkpoint    TEXT    NOT NULL DEFAULT '',
+        error         TEXT    NOT NULL DEFAULT '',
+        started_at    TEXT    NOT NULL,
+        finished_at   TEXT    NOT NULL DEFAULT ''
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_consolidate_runs_scope ON memory_consolidate_runs(workspace_id, started_at DESC)",
 ]
 
 

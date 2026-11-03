@@ -1,6 +1,10 @@
 # P2 — 每日盘账任务 + 衰减 + 预算
 
-> 状态：待开工 ｜ 前置：P1（整理动作复用同一批工具与审计表）
+> 状态：已完成（2026-11-03）｜ 前置：P1（整理动作复用同一批工具与审计表）
+>
+> 实施说明：第 4 项「全局桶」按 P1 提交（4abd8364）的决策不实施——本仓 `scope`
+> 全库恒 `global`，不引入 `workspace/global` 三态；其余三项均已落地，验证见
+> `.ai-runtime-artifacts/verifications/2026-11-03-memory-refactor-p2-p3-verification-lite.md`。
 
 ## 目标
 

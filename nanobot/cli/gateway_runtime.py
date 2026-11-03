@@ -764,6 +764,33 @@ def _run_gateway(
                 prune_dream_sessions(agent.sessions)
             return None
 
+        # memory_consolidate is an internal job — pure rule pass, no agent loop.
+        if job.name == "memory_consolidate":
+            from nanobot.memory.decay import run_consolidation
+
+            if not config.agents.defaults.memory_enabled:
+                logger.debug("memory_consolidate: memory disabled, skipping")
+                return None
+            services = agent.context.memory.memory_services
+            cfg = config.agents.defaults.consolidate
+            try:
+                report = run_consolidation(
+                    services.database,
+                    workspace_id=services.workspace_id,
+                    dry_run=cfg.dry_run,
+                    time_budget_seconds=cfg.time_budget_seconds,
+                    archive_threshold=cfg.archive_threshold,
+                    trigger="cron",
+                )
+                logger.info("memory_consolidate: {}", report.summary())
+                if report.status == "interrupted":
+                    logger.warning(
+                        "memory_consolidate hit time budget; will resume from checkpoint"
+                    )
+            except Exception:
+                logger.exception("memory_consolidate job failed")
+            return None
+
         # Heartbeat is a system job that checks HEARTBEAT.md for active tasks.
         if job.name == "heartbeat":
             heartbeat_file = config.workspace_path / "HEARTBEAT.md"
@@ -999,6 +1026,28 @@ def _run_gateway(
         ))
     else:
         cron.remove_system_job("heartbeat")
+
+    # Register the daily memory consolidation job (P2; idempotent on restart)
+    consolidate_cfg = config.agents.defaults.consolidate
+    if consolidate_cfg.enabled:
+        cron.register_system_job(CronJob(
+            id="memory_consolidate",
+            name="memory_consolidate",
+            schedule=CronSchedule(
+                kind="cron",
+                expr=consolidate_cfg.cron,
+                tz=config.agents.defaults.timezone,
+            ),
+            payload=CronPayload(kind="system_event"),
+        ))
+        suffix = " (dry-run)" if consolidate_cfg.dry_run else ""
+        console.print(
+            f"[green]✓[/green] Memory consolidate: "
+            f"{consolidate_cfg.describe_schedule()}{suffix}"
+        )
+    else:
+        console.print("[yellow]○[/yellow] Memory consolidate: disabled")
+        cron.remove_system_job("memory_consolidate")
 
     cron_status = cron.status()
     cron_job_count = cast(int, cron_status["jobs"])

@@ -18,10 +18,11 @@ workspace, and reply target.
 | Scheduled automation | Time, interval, or cron expression | Recurring reminders, scheduled summaries, one-time future tasks | Ask Zhixu in the target topic to schedule it with the `cron` tool |
 | Local trigger | A local `nanobot trigger ...` command | CI jobs, webhooks, shell scripts, generated reports | `/trigger <name>` in the target topic |
 | Heartbeat | Protected system schedule | Quiet recurring checks that should only report useful results | Edit `<workspace>/HEARTBEAT.md` |
+| Memory consolidation | Protected system schedule (daily) | Merge duplicates, decay and archive stale memories across the whole store | `agents.defaults.consolidate` in the config file |
 
 The two user-created automation types are scheduled automations and local
-triggers. Heartbeat uses the same background service but is system-managed and
-protected from normal automation edits.
+triggers. Heartbeat and memory consolidation use the same background service but
+are system-managed and protected from normal automation edits.
 
 ## Before You Create One
 
@@ -114,6 +115,40 @@ or report.
 
 Heartbeat is enabled by default when `nanobot gateway` starts. Configure it in
 [`configuration.md#gateway-heartbeat`](./configuration.md#gateway-heartbeat).
+
+## Memory Consolidation (`memory_consolidate`)
+
+A protected system job that runs once a day (03:00 local time by default) and
+sweeps the entire memory store. It is independent of Dream: Dream extracts new
+facts from `history.jsonl` every two hours, while this job merges duplicate
+entries, decays forgotten ones, and archives what falls below the threshold.
+It makes no LLM calls, so a run is cheap and bounded by a 1500-second budget;
+if it runs out of time it checkpoints and resumes next run.
+
+Each run writes an audit row (processed / merged / decayed / archived). The
+**Settings → Automations** detail panel shows the latest result for this job,
+including whether it was a dry run.
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "consolidate": {
+        "enabled": true,
+        "cron": "0 3 * * *",
+        "dryRun": false,
+        "timeBudgetSeconds": 1500,
+        "archiveThreshold": 0.15
+      }
+    }
+  }
+}
+```
+
+- `dryRun: true` computes and reports without writing — a safe way to preview a
+  first night's archive list.
+- Archiving marks the row expired; it never deletes. Clearing `expires_at`
+  restores an archived memory.
 
 ## Manage Automations
 
