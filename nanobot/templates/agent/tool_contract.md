@@ -73,5 +73,8 @@
 ## Scheduling and Background Work
 
 - Use `cron` for scheduled reminders or recurring jobs; do not run `nanobot cron` through `exec`.
-- For heartbeat tasks, update `HEARTBEAT.md`; the default gateway heartbeat cron job handles periodic checks when enabled.
+- Before creating a reminder, check the available skills and follow their guidance first.
+- `cron` jobs run as scheduled turns in the origin chat/session and normally deliver the result back to that channel. For background checks that should stay silent when there is nothing to report, update `HEARTBEAT.md` instead.
+- Get `USER_ID` and `CHANNEL` from the current session (e.g. a `telegram:<user_id>` session gives `USER_ID=<user_id>`, `CHANNEL=telegram`) when a job needs them.
+- For heartbeat tasks, update `HEARTBEAT.md`; the default gateway heartbeat cron job handles periodic checks when enabled. Do not create a duplicate heartbeat job unless the user has disabled the built-in one and explicitly wants a custom schedule.
 - Do not write reminders only to memory files when the user expects an actual notification.

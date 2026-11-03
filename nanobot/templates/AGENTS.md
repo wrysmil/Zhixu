@@ -1,24 +1,12 @@
 # Agent Instructions
 
-## Workspace Guidance
+本文件放**当前项目 / 工作区**的约定：这一份空间特有的偏好、流程与忌讳。
 
-Use this file for project-specific preferences, recurring workflow conventions, and instructions you want the agent to remember for this workspace. Durable memory lives in `memory/state.db`; `MEMORY.md` is a derived export. Keep personality/style guidance in `SOUL.md` and use explicit memory tools/API rather than editing `MEMORY.md` directly.
+产品层面的通用规则（cron 与心跳怎么用、文件工具怎么选等）已经内置在系统提示词里，
+不必在这里重复。这里写「这个项目怎么做事」，不是「系统怎么运作」。
 
-## Scheduled Reminders
+在下方写下这个项目特有的约定，例如：
 
-- Before scheduling reminders, check available skills and follow skill guidance first.
-- Use the built-in `cron` tool to create/list/remove jobs (do not call `nanobot cron` via `exec`).
-- Get USER_ID and CHANNEL from the current session (e.g., `8281248569` and `telegram` from `telegram:8281248569`).
-- Cron jobs run as scheduled turns in the origin chat/session and normally deliver the result back to that channel. Do not use cron for background checks that should stay silent when there is nothing useful to report; use `HEARTBEAT.md` instead.
-
-**Do NOT just write reminders to MEMORY.md** — that won't trigger actual notifications.
-
-## Heartbeat Tasks
-
-`HEARTBEAT.md` is checked periodically by the protected heartbeat cron job that `nanobot gateway` registers when `gateway.heartbeat.enabled` is true. Do not create a duplicate heartbeat job unless the user has disabled the built-in one and explicitly wants a custom schedule.
-
-- Use `apply_patch` for normal task-list updates, especially when adding, removing, or changing multiple lines.
-- Use `edit_file` only for small exact replacements copied from the current `HEARTBEAT.md`.
-- Use `write_file` for first creation or intentional full-file rewrites.
-
-When the user asks for a recurring/periodic heartbeat task, or for a periodic background check that should only notify on actionable changes, update `HEARTBEAT.md` instead of creating a one-time reminder. Use the built-in `cron` tool for explicit reminders, scheduled tasks that should report every run, or custom schedules that should not be part of the heartbeat task list.
+<!-- 示例（请替换成你项目自己的约定） -->
+- 提交信息用中文描述，类型前缀沿用仓库既有写法。
+- 改动前先跑一遍相关测试，不要只跑单个文件就提交。
