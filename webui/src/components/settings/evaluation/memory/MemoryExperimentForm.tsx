@@ -102,6 +102,7 @@ export type MemoryProfileOption = {
   label: string;
   kind: "agent" | "judge" | "both";
   model?: string;
+  provider?: string;
 };
 
 export type MemoryMetricOption = {
@@ -206,6 +207,36 @@ const TRACK_LABEL: Record<MemoryTrack, string> = {
   end_to_end: "完整记忆效果",
 };
 
+const PRIMARY_METRIC_BY_TRACK: Record<MemoryTrack, string> = {
+  extraction: "extraction_recall",
+  retrieval: "evidence_recall_at_k",
+  end_to_end: "qa_accuracy_scenario_macro",
+};
+
+// 与后端 experiments.validate_primary_metric 的判分阶段保持一致。
+const METRICS_BY_TRACK: Record<MemoryTrack, readonly string[]> = {
+  extraction: [
+    "extraction_precision", "extraction_recall", "extraction_f1",
+    "unsupported_memory_rate", "negative_write_success", "duplicate_memory_rate",
+  ],
+  retrieval: [
+    "evidence_recall_at_k", "retrieval_precision_returned_at_k", "mrr", "injection_recall",
+  ],
+  end_to_end: [
+    "qa_accuracy", "grounded_memory_success", "fact_coverage", "qa_accuracy_scenario_macro",
+    "qa_accuracy_probe_micro", "qa_accuracy_category_macro", "strict_scenario_pass_rate",
+    "repeat_stability", "preference_compliance", "update_accuracy", "stale_use_rate",
+    "abstention_accuracy", "false_abstention_rate", "cross_session_accuracy", "restart_accuracy",
+  ],
+};
+
+function defaultMetric(track: MemoryTrack, metrics: MemoryMetricOption[]): string {
+  return (
+    metrics.find((metric) => metric.id === PRIMARY_METRIC_BY_TRACK[track])?.id ??
+    metrics.find((metric) => METRICS_BY_TRACK[track].includes(metric.id))?.id ?? ""
+  );
+}
+
 function toNumberOrNull(raw: string): number | null {
   if (raw.trim() === "") return null;
   const parsed = Number(raw);
@@ -260,8 +291,14 @@ export function MemoryExperimentForm({
   const tr = (key: string, defaultValue: string, options?: Record<string, unknown>) =>
     t(`settings.evaluation.memory.form.${key}`, { defaultValue, ...options });
 
-  const modelProfiles = profiles.filter((profile) => profile.kind !== "judge");
-  const judgeProfiles = profiles.filter((profile) => profile.kind !== "agent");
+  const [modelMode, setModelMode] = useState<MemoryModelMode>("real");
+  const modelProfiles = useMemo(
+    () => profiles.filter((profile) =>
+      profile.kind !== "judge" && (modelMode === "scripted" || profile.provider !== "controlled")),
+    [profiles, modelMode],
+  );
+  const judgeProfiles = profiles.filter((profile) =>
+    profile.kind !== "agent" && (modelMode === "scripted" || profile.provider !== "controlled"));
   const firstSupportedTrack =
     MEMORY_TRACKS.find((track) => (capabilities.tracks[track]?.status ?? "unsupported") === "supported") ??
     "end_to_end";
@@ -274,6 +311,7 @@ export function MemoryExperimentForm({
 
   const initialDataset =
     datasets.find((dataset) => dataset.id === defaultDatasetId && dataset.status === "ready") ??
+    datasets.find((dataset) => dataset.label === "memory-smoke-v1" && dataset.status === "ready") ??
     datasets.find((dataset) => dataset.status === "ready") ??
     null;
 
@@ -282,10 +320,10 @@ export function MemoryExperimentForm({
   const [track, setTrack] = useState<MemoryTrack>(preferredTrack);
   const [repetitionText, setRepetitionText] = useState(String(defaultRepetitions));
   const repetitions = Math.min(10, Math.max(1, Number.parseInt(repetitionText, 10) || 1));
-  const [modelMode, setModelMode] = useState<MemoryModelMode>("real");
   const [scriptFixtureId, setScriptFixtureId] = useState("");
   const [judgeProfileId, setJudgeProfileId] = useState("");
-  const [primaryMetric, setPrimaryMetric] = useState(metrics[0]?.id ?? "");
+  const [primaryMetric, setPrimaryMetric] = useState(() => defaultMetric(preferredTrack, metrics));
+  const [advanced, setAdvanced] = useState(false);
   const [baselineId, setBaselineId] = useState("");
   const [changedFields, setChangedFields] = useState<string[]>([]);
   const [budgets, setBudgets] = useState<MemoryBudgetsDraft>({
@@ -312,6 +350,8 @@ export function MemoryExperimentForm({
   const [localError, setLocalError] = useState<string | null>(null);
 
   const selectedDataset = datasets.find((dataset) => dataset.id === datasetId) ?? null;
+  const trackMetrics = metrics.filter((metric) => METRICS_BY_TRACK[track].includes(metric.id));
+  const hasSupportedTrack = MEMORY_TRACKS.some((value) => capabilities.tracks[value]?.status === "supported");
   const baseline = baselines.find((item) => item.id === baselineId) ?? null;
   const scenarioCount =
     selectedDataset == null
@@ -374,8 +414,10 @@ export function MemoryExperimentForm({
     if ((capabilities.tracks[track]?.status ?? "unsupported") !== "supported") {
       items.push(tr("require.track", "所选测试方式当前版本不支持。"));
     }
-    if (!primaryMetric) items.push(tr("require.metric", "请选择主要指标。"));
-    if (candidates.some((candidate) => !candidate.agentProfileId)) {
+    if (!METRICS_BY_TRACK[track].includes(primaryMetric) || !metrics.some((metric) => metric.id === primaryMetric)) {
+      items.push(tr("require.metric", "请选择主要指标。"));
+    }
+    if (candidates.some((candidate) => !modelProfiles.some((profile) => profile.id === candidate.agentProfileId))) {
       items.push(tr("require.candidateProfile", "每个候选都需要被测模型。"));
     }
     if (modelMode === "scripted" && !scriptFixtureId) {
@@ -400,6 +442,8 @@ export function MemoryExperimentForm({
     changedFields.length,
     maxTrials,
     modelMode,
+    modelProfiles,
+    metrics,
     overBudget,
     plannedTrials,
     primaryMetric,
@@ -414,6 +458,7 @@ export function MemoryExperimentForm({
 
   const applyTrack = (next: MemoryTrack) => {
     setTrack(next);
+    setPrimaryMetric(defaultMetric(next, metrics));
     setCandidates((current) =>
       current.map((candidate) =>
         next === "end_to_end" || candidate.mode !== "no_persistent_memory"
@@ -490,7 +535,7 @@ export function MemoryExperimentForm({
         <p className="text-[12px] text-muted-foreground">
           {tr(
             "subtitle",
-            "选择同一套题、被测候选与预算；提交后冻结配置，分数不混算不同测试方式。",
+            "选一套测试题和模型，看看 AI 能否记住信息，并在之后的对话中用对。",
           )}
         </p>
       </header>
@@ -517,6 +562,76 @@ export function MemoryExperimentForm({
             ))}
           </select>
         </label>
+        <label className="space-y-1.5" htmlFor="memory-candidate-agent-0">
+          <span className="text-[12px] font-medium text-muted-foreground">
+            {tr("agentProfile", "被测模型")}
+          </span>
+          <select
+            id="memory-candidate-agent-0"
+            className={SELECT_CLASS}
+            value={candidates[0].agentProfileId}
+            onChange={(event) => updateCandidate(0, { agentProfileId: event.target.value })}
+          >
+            <option value="">{tr("profileNone", "请选择模型")}</option>
+            {modelProfiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.label}{profile.model ? ` (${profile.model})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-[12px] leading-relaxed text-muted-foreground lg:col-span-2">
+          {tr("quickHint", "默认测试完整记忆效果：先回放历史对话，再提问检查回答。首次推荐 20 场景冒烟集。")}
+        </p>
+      </div>
+
+      {!hasSupportedTrack ? (
+        <p role="alert" className="rounded-panel border border-destructive/20 bg-destructive/5 p-3 text-[13px] text-destructive">
+          {tr("notReady", "记忆评测尚未就绪：服务未提供可运行的记忆能力。请刷新重试；仍不可用时检查评估服务的记忆模块装配。")}
+        </p>
+      ) : null}
+      {!datasets.some((dataset) => dataset.status === "ready") ? (
+        <p role="alert" className="text-[12px] text-destructive">
+          {tr("noDatasetHint", "还没有可运行的记忆测试集，请到“记忆测试集”导入内置 20 场景冒烟集。")}
+        </p>
+      ) : null}
+      {modelProfiles.length === 0 ? (
+        <p role="alert" className="text-[12px] text-destructive">
+          {tr("noModelHint", "没有可用的被测模型，请先在模型设置中添加模型预设，再刷新此页。")}
+        </p>
+      ) : null}
+
+      <div className="space-y-1 rounded-panel border border-border/60 bg-muted/20 px-4 py-3 text-[12px] text-muted-foreground">
+        <p className="font-medium text-foreground">{tr(`trackLabel.${track}`, TRACK_LABEL[track])}</p>
+        <p>
+          {tr("plan", "计划 {{trials}} 次试验（{{scenarios}} 个场景 × {{repetitions}} 次重复 × {{candidates}} 个候选）", {
+            trials: plannedTrials, scenarios: scenarioCount, repetitions, candidates: candidates.length,
+          })}
+        </p>
+        <p>{modelMode === "real"
+          ? tr("quickBudget", "最多 {{budget}} 次试验；调用真实模型，费用按实际用量计量。", { budget: maxTrials ?? MEMORY_DEFAULT_MAX_TRIALS })
+          : tr("quickScriptedBudget", "最多 {{budget}} 次试验；使用固定脚本，只验证流程，不代表真实记忆效果。", { budget: maxTrials ?? MEMORY_DEFAULT_MAX_TRIALS })}</p>
+      </div>
+
+      <div className="space-y-2 border-t border-border/60 pt-3">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-expanded={advanced}
+          aria-controls="memory-advanced-settings"
+          onClick={() => setAdvanced((current) => !current)}
+        >
+          {tr("advanced", "高级设置")}
+        </Button>
+        <p className="text-[11px] text-muted-foreground">
+          {tr("advancedHint", "需要专项排查或版本对比时，再调整测试方式、对照组、记忆参数和预算。")}
+        </p>
+      </div>
+
+      {advanced ? (
+        <div id="memory-advanced-settings" className="space-y-6">
+        <div className="grid gap-5 rounded-panel border border-border/60 bg-settings-surface p-4 lg:grid-cols-2">
         <label className="space-y-1.5" htmlFor="memory-experiment-split">
           <span className="text-[12px] font-medium text-muted-foreground">{tr("split", "范围")}</span>
           <select
@@ -563,7 +678,7 @@ export function MemoryExperimentForm({
                     disabled={!supported}
                     onChange={() => applyTrack(value)}
                   />
-                  <span className="font-medium text-foreground">{TRACK_LABEL[value]}</span>
+                  <span className="font-medium text-foreground">{tr(`trackLabel.${value}`, TRACK_LABEL[value])}</span>
                 </span>
                 <span className="text-[11px] text-muted-foreground">
                   {capability.status === "supported"
@@ -573,6 +688,7 @@ export function MemoryExperimentForm({
                           detail: capability.detail ?? "",
                         })
                       : tr("trackUnsupported", "当前版本不支持此项评测")}
+                  {!supported && capability.detail ? ` · ${capability.detail}` : ""}
                 </span>
               </label>
             );
@@ -614,9 +730,9 @@ export function MemoryExperimentForm({
             value={primaryMetric}
             onChange={(event) => setPrimaryMetric(event.target.value)}
           >
-            {metrics.map((metric) => (
+            {trackMetrics.map((metric) => (
               <option key={metric.id} value={metric.id}>
-                {metric.label} ({metric.unit})
+                {tr(`metric.${metric.id}`, metric.label)} ({metric.unit})
               </option>
             ))}
           </select>
@@ -695,7 +811,7 @@ export function MemoryExperimentForm({
                     </option>
                   </select>
                 </label>
-                <label className="space-y-1.5" htmlFor={`memory-candidate-agent-${index}`}>
+                {index > 0 ? <label className="space-y-1.5" htmlFor={`memory-candidate-agent-${index}`}>
                   <span className="text-[12px] font-medium text-muted-foreground">
                     {tr("agentProfile", "被测模型")}
                   </span>
@@ -715,28 +831,23 @@ export function MemoryExperimentForm({
                       </option>
                     ))}
                   </select>
-                </label>
-                <label className="space-y-1.5" htmlFor={`memory-candidate-extractor-${index}`}>
-                  <span className="text-[12px] font-medium text-muted-foreground">
+                </label> : null}
+                <div className="space-y-1.5">
+                  <label htmlFor={`memory-candidate-extractor-${index}`} className="text-[12px] font-medium text-muted-foreground">
                     {tr("extractorProfile", "抽取模型")}
-                  </span>
+                  </label>
                   <select
                     id={`memory-candidate-extractor-${index}`}
                     className={SELECT_CLASS}
                     value={candidate.extractorProfileId}
-                    disabled={candidate.mode !== "zhixu"}
-                    onChange={(event) =>
-                      updateCandidate(index, { extractorProfileId: event.target.value })
-                    }
+                    disabled
                   >
                     <option value="">{tr("extractorNone", "使用被测模型")}</option>
-                    {modelProfiles.map((profile) => (
-                      <option key={profile.id} value={profile.id}>
-                        {profile.label}
-                      </option>
-                    ))}
                   </select>
-                </label>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {tr("extractorShared", "当前评测的记忆抽取与回答共用被测模型。")}
+                  </span>
+                </div>
               </div>
 
               {candidate.mode === "zhixu" && capabilities.settings.length > 0 ? (
@@ -857,7 +968,17 @@ export function MemoryExperimentForm({
             onChange={(event) => {
               const next = event.target.value as MemoryModelMode;
               setModelMode(next);
-              if (next === "real") setScriptFixtureId("");
+              if (next === "real") {
+                setScriptFixtureId("");
+                const realProfiles = profiles.filter((profile) => profile.provider !== "controlled");
+                setCandidates((current) => current.map((candidate) => ({
+                  ...candidate,
+                  agentProfileId: realProfiles.some((profile) => profile.kind !== "judge" && profile.id === candidate.agentProfileId)
+                    ? candidate.agentProfileId
+                    : realProfiles.find((profile) => profile.kind !== "judge")?.id ?? "",
+                })));
+                if (!realProfiles.some((profile) => profile.kind !== "agent" && profile.id === judgeProfileId)) setJudgeProfileId("");
+              }
             }}
           >
             <option value="real">{tr("modelMode.real", "真实模型")}</option>
@@ -968,14 +1089,6 @@ export function MemoryExperimentForm({
         </div>
         <div className="space-y-0.5 text-[12px] text-muted-foreground">
           <p>
-            {tr("plan", "计划 {{trials}} 次试验（{{scenarios}} 个场景 × {{repetitions}} 次重复 × {{candidates}} 个候选）", {
-              trials: plannedTrials,
-              scenarios: scenarioCount,
-              repetitions,
-              candidates: candidates.length,
-            })}
-          </p>
-          <p>
             {tr("planBatches", "每候选 {{batches}} 批（每批 {{batchSize}} 个场景），共 {{runs}} 个子 run", {
               batches: batchPlan.batchesPerCandidate,
               batchSize: batchPlan.batchSize,
@@ -992,6 +1105,8 @@ export function MemoryExperimentForm({
           </p>
         ) : null}
       </fieldset>
+        </div>
+      ) : null}
 
       {warnings.length > 0 ? (
         <div className="space-y-2 rounded-panel border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-[12px] text-amber-700 dark:text-amber-300">
@@ -1038,7 +1153,7 @@ export function MemoryExperimentForm({
           </Button>
         ) : null}
         <Button type="button" size="sm" disabled={!canSubmit || !onSubmit} onClick={() => void submit()}>
-          {busy ? tr("submitting", "提交中…") : tr("submit", "启动实验")}
+          {busy ? tr("submitting", "提交中…") : tr("submit", "开始测试")}
         </Button>
       </div>
     </section>

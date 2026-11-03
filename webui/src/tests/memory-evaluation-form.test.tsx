@@ -69,7 +69,85 @@ beforeEach(async () => {
 afterEach(() => cleanup());
 
 describe("MemoryExperimentForm", () => {
-  it("offers the three tracks, disables unsupported capabilities and staging datasets", () => {
+  it("starts with just the dataset and model, and submits a smoke test without advanced settings", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <MemoryExperimentForm
+        {...baseProps}
+        datasets={[
+          ...baseProps.datasets,
+          { id: "rev-smoke", label: "memory-smoke-v1", split: "development", status: "ready", scenarioCount: 20 },
+        ]}
+        metrics={[
+          { id: "extraction_recall", label: "抽取召回率", unit: "ratio" },
+          ...baseProps.metrics,
+        ]}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(screen.getByLabelText("测试集版本")).toHaveValue("rev-smoke");
+    expect(screen.getByLabelText("被测模型")).toHaveValue("model:fast");
+    expect(screen.getAllByRole("combobox")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "高级设置" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("检索阈值")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("历史基线")).not.toBeInTheDocument();
+    expect(screen.getByText(/20 个场景 × 1 次重复 × 1 个候选/)).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByLabelText("我已了解以上评测限制"));
+    await userEvent.setup().click(screen.getByRole("button", { name: "开始测试" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      dataset_revision_id: "rev-smoke",
+      track: "end_to_end",
+      primary_metric: "qa_accuracy_scenario_macro",
+      repetitions: 1,
+      model_mode: "real",
+      baseline_experiment_id: null,
+      candidates: [{ agent_profile_id: "model:fast", mode: "zhixu", memory_settings: {} }],
+    });
+  });
+
+  it("keeps the primary metric within the selected track", async () => {
+    render(
+      <MemoryExperimentForm
+        {...baseProps}
+        metrics={[
+          { id: "extraction_recall", label: "抽取召回率", unit: "ratio" },
+          { id: "evidence_recall_at_k", label: "检索召回率", unit: "ratio" },
+          ...baseProps.metrics,
+        ]}
+      />,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "高级设置" }));
+    expect(screen.getByLabelText("主要指标")).toHaveValue("qa_accuracy_scenario_macro");
+    expect(screen.queryByRole("option", { name: /抽取召回率/ })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("radio", { name: /是否记下来/ }));
+    expect(screen.getByLabelText("主要指标")).toHaveValue("extraction_recall");
+    expect(screen.queryByRole("option", { name: /记忆回答正确率/ })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("radio", { name: /是否找得到/ }));
+    expect(screen.getByLabelText("主要指标")).toHaveValue("evidence_recall_at_k");
+  });
+
+  it("explains an unavailable runtime before the user opens advanced settings", () => {
+    render(<MemoryExperimentForm {...baseProps} capabilities={{ tracks: {}, settings: [] }} profiles={[]} datasets={[]} />);
+    expect(screen.getByText(/记忆评测尚未就绪/)).toBeInTheDocument();
+    expect(screen.getByText(/记忆测试集.*导入内置/)).toBeInTheDocument();
+    expect(screen.getByText(/模型设置/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始测试" })).toBeDisabled();
+  });
+
+  it("never selects offline controlled profiles for a real model evaluation", () => {
+    render(<MemoryExperimentForm {...baseProps} profiles={[
+      { id: "controlled-agent", label: "Controlled", kind: "agent", provider: "controlled" },
+      { id: "real-agent", label: "Real model", kind: "agent", provider: "openai" },
+    ]} />);
+    expect(screen.getByLabelText("被测模型")).toHaveValue("real-agent");
+    expect(screen.queryByRole("option", { name: "Controlled" })).not.toBeInTheDocument();
+  });
+
+  it("offers the three tracks, disables unsupported capabilities and staging datasets", async () => {
     render(
       <MemoryExperimentForm
         {...baseProps}
@@ -84,6 +162,7 @@ describe("MemoryExperimentForm", () => {
       />,
     );
 
+    await userEvent.setup().click(screen.getByRole("button", { name: "高级设置" }));
     expect(screen.getByRole("radio", { name: /是否记下来/ })).toBeEnabled();
     expect(screen.getByRole("radio", { name: /是否找得到/ })).toBeDisabled();
     expect(screen.getByRole("radio", { name: /完整记忆效果/ })).toBeEnabled();
@@ -91,18 +170,23 @@ describe("MemoryExperimentForm", () => {
     expect(screen.getByRole("option", { name: /导入暂存集/ })).toBeDisabled();
   });
 
-  it("only renders memory settings the backend declares, never unsupported knobs", () => {
+  it("only renders memory settings the backend declares, never unsupported knobs", async () => {
     render(<MemoryExperimentForm {...baseProps} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "高级设置" }));
     expect(screen.getByLabelText("检索阈值")).toBeInTheDocument();
     expect(screen.getByLabelText("注入预算（token）")).toBeInTheDocument();
     expect(screen.queryByLabelText("索引版本")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("嵌入模型")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("抽取策略版本")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("抽取模型")).toBeDisabled();
+    expect(screen.getByText("当前评测的记忆抽取与回答共用被测模型。")).toBeInTheDocument();
   });
 
   it("recomputes planned trials with repetitions and candidates, and blocks over-budget submit", async () => {
     const onSubmit = vi.fn();
     render(<MemoryExperimentForm {...baseProps} onSubmit={onSubmit} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "高级设置" }));
 
     expect(screen.getByText(/计划 120 次试验（120 个场景 × 1 次重复 × 1 个候选）/)).toBeInTheDocument();
 
@@ -115,7 +199,7 @@ describe("MemoryExperimentForm", () => {
     await userEvent.setup().type(repetitions, "3");
     expect(screen.getByText(/计划 1080 次试验（120 个场景 × 3 次重复 × 3 个候选）/)).toBeInTheDocument();
     expect(screen.getAllByText(/1080 次试验超过总预算 200/).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "启动实验" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "开始测试" })).toBeDisabled();
     expect(onSubmit).not.toHaveBeenCalled();
 
     const maxTrials = screen.getByLabelText("总试验预算");
@@ -125,7 +209,10 @@ describe("MemoryExperimentForm", () => {
 
     await userEvent.setup().selectOptions(screen.getByLabelText("评分 Judge"), "judge:strict");
     await userEvent.setup().click(screen.getByLabelText("我已了解以上评测限制"));
-    const submitButton = screen.getByRole("button", { name: "启动实验" });
+    await userEvent.setup().click(screen.getByRole("button", { name: "高级设置" }));
+    expect(screen.queryByLabelText("总试验预算")).not.toBeInTheDocument();
+    expect(screen.getByText(/1080 次试验（120 个场景 × 3 次重复 × 3 个候选）/)).toBeInTheDocument();
+    const submitButton = screen.getByRole("button", { name: "开始测试" });
     expect(submitButton).toBeEnabled();
     await userEvent.setup().click(submitButton);
 
@@ -158,6 +245,7 @@ describe("MemoryExperimentForm", () => {
   it("shows pre-submit limits, uses saved experiments as baseline and requires changed fields", async () => {
     const onSubmit = vi.fn();
     render(<MemoryExperimentForm {...baseProps} onSubmit={onSubmit} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "高级设置" }));
 
     expect(screen.getByText("未选择 Judge：语义评分项将标记为待复核。")).toBeInTheDocument();
     expect(
@@ -173,7 +261,7 @@ describe("MemoryExperimentForm", () => {
 
     await userEvent.setup().selectOptions(screen.getByLabelText("历史基线"), "exp-base");
     expect(screen.getByText(/基线条件不一致：重复次数/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "启动实验" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "开始测试" })).toBeDisabled();
     expect(
       screen.getByText("与历史基线比较前必须声明本次改动项。"),
     ).toBeInTheDocument();
@@ -183,7 +271,7 @@ describe("MemoryExperimentForm", () => {
     );
     await userEvent.setup().selectOptions(screen.getByLabelText("评分 Judge"), "judge:strict");
     await userEvent.setup().click(screen.getByLabelText("我已了解以上评测限制"));
-    await userEvent.setup().click(screen.getByRole("button", { name: "启动实验" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "开始测试" }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
@@ -194,6 +282,7 @@ describe("MemoryExperimentForm", () => {
 
   it("keeps the no-memory reference group limited to the end-to-end track", async () => {
     render(<MemoryExperimentForm {...baseProps} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "高级设置" }));
     const noMemoryOption = screen.getByRole("option", { name: "无持久记忆参考组" });
     expect(noMemoryOption).toBeEnabled();
 

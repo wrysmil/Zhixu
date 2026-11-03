@@ -49,8 +49,9 @@ export const MEMORY_GRADING_POLICY = {
 } as const;
 
 const FALLBACK_METRICS: MemoryMetricOption[] = [
+  { id: "qa_accuracy_scenario_macro", label: "qa_accuracy_scenario_macro", unit: "ratio" },
   { id: "qa_accuracy", label: "qa_accuracy", unit: "ratio" },
-  { id: "extraction_f1", label: "extraction_f1", unit: "ratio" },
+  { id: "extraction_recall", label: "extraction_recall", unit: "ratio" },
   { id: "evidence_recall_at_k", label: "evidence_recall_at_k", unit: "ratio" },
 ];
 
@@ -140,6 +141,7 @@ function toProfileOption(raw: Record<string, unknown>): MemoryProfileOption | nu
     label: String(raw.label ?? raw.model ?? id),
     kind,
     model: typeof raw.model === "string" ? raw.model : undefined,
+    provider: typeof raw.provider === "string" ? raw.provider : undefined,
   };
 }
 
@@ -179,6 +181,7 @@ export function MemoryEvaluation({ calibration = null, className }: MemoryEvalua
   const [experiments, setExperiments] = useState<MemoryExperimentSummary[]>([]);
   const [datasets, setDatasets] = useState<MemoryDatasetRevision[]>([]);
   const [capabilities, setCapabilities] = useState<MemoryCapabilitiesView | null>(null);
+  const [capabilityError, setCapabilityError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [baselineId, setBaselineId] = useState<string | null>(null);
@@ -194,11 +197,15 @@ export function MemoryEvaluation({ calibration = null, className }: MemoryEvalua
 
   const load = useCallback(async () => {
     setLoading(true);
+    setCapabilityError(null);
     try {
       const [experimentPage, datasetPage, capability] = await Promise.all([
         memoryEvaluationApi.listExperiments({ limit: 50 }),
         memoryEvaluationApi.listDatasets({ limit: 50 }),
-        memoryEvaluationApi.capabilities().catch(() => null),
+        memoryEvaluationApi.capabilities().catch((failure) => {
+          setCapabilityError(evaluationErrorText(failure, t));
+          return null;
+        }),
       ]);
       setExperiments(experimentPage.data);
       setDatasets(datasetPage.data);
@@ -577,7 +584,22 @@ export function MemoryEvaluation({ calibration = null, className }: MemoryEvalua
         />
       ) : null}
 
-      {view === "create" ? (
+      {view === "create" && capabilities === null ? (
+        <div className="space-y-3 rounded-panel border border-border/60 bg-settings-surface p-4">
+          <p role={loading ? "status" : "alert"} className="text-[13px] text-muted-foreground">
+            {loading
+              ? t(BASE + "form.loadingCapabilities")
+              : t(BASE + "form.capabilityLoadFailed", { message: capabilityError ?? error ?? "" })}
+          </p>
+          {!loading ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
+              {t(BASE + "form.retryLoad")}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {view === "create" && capabilities !== null ? (
         <MemoryExperimentForm
           capabilities={formCapabilities}
           datasets={datasetOptions}
