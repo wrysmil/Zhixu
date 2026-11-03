@@ -442,6 +442,8 @@ def stats_payload(
                 "max_chars": 1500,
                 # 上次整理（替代原 draft 字段）：时间 + 增删条数，数据来自审计表。
                 "last_consolidation": _last_consolidation(services),
+                # P2：每日全库盘账（去重/衰减/归档）的最近一次结果。
+                "last_daily_consolidation": _last_daily_consolidation(services),
             },
         }
 
@@ -469,6 +471,8 @@ def stats_payload(
             "max_chars": 1500,
             # 上次整理（替代原 draft 字段）：时间 + 增删条数，数据来自审计表。
             "last_consolidation": _last_consolidation(services),
+            # P2：每日全库盘账（去重/衰减/归档）的最近一次结果。
+            "last_daily_consolidation": _last_daily_consolidation(services),
         },
     }
 
@@ -494,6 +498,29 @@ def _last_consolidation(services: MemoryServices) -> dict[str, Any] | None:
         "updated": int(run.get("updated", 0) or 0),
         "deleted": int(run.get("deleted", 0) or 0),
         "skipped": int(run.get("skipped", 0) or 0),
+        "error": run.get("error", ""),
+    }
+
+
+def _last_daily_consolidation(services: MemoryServices) -> dict[str, Any] | None:
+    """最近一次每日盘账（去重/衰减/归档）的摘要；从未跑过返回 None。"""
+    from nanobot.memory.decay import list_recent_runs
+
+    runs = list_recent_runs(services.database, services.workspace_id, limit=1)
+    if not runs:
+        return None
+    run = runs[0]
+    return {
+        "run_id": run.get("run_id", ""),
+        "trigger": run.get("trigger", ""),
+        "status": run.get("status", ""),
+        "dry_run": bool(run.get("dry_run", 0)),
+        "started_at": run.get("started_at", ""),
+        "finished_at": run.get("finished_at", ""),
+        "processed": int(run.get("processed", 0) or 0),
+        "merged": int(run.get("merged", 0) or 0),
+        "decayed": int(run.get("decayed", 0) or 0),
+        "archived": int(run.get("archived", 0) or 0),
         "error": run.get("error", ""),
     }
 

@@ -510,6 +510,52 @@ function AutomationDetailPanel({
               {job.state.last_error}
             </div>
           ) : null}
+
+          {job.last_consolidation ? (
+            <section className="rounded-floating bg-background/55 px-4 py-3.5">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium leading-none text-muted-foreground/75">
+                <span>{tx("settings.automations.consolidation.title", "Last daily consolidation")}</span>
+                {job.last_consolidation.dry_run ? (
+                  <AutomationStatusBadge>
+                    {tx("settings.automations.consolidation.dryRun", "Dry run")}
+                  </AutomationStatusBadge>
+                ) : null}
+                {job.last_consolidation.status && job.last_consolidation.status !== "completed" ? (
+                  <AutomationStatusBadge tone="warning">
+                    {job.last_consolidation.status}
+                  </AutomationStatusBadge>
+                ) : null}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] leading-5 text-foreground/80">
+                <span>
+                  {tx("settings.automations.consolidation.processed", "Processed")}{" "}
+                  {job.last_consolidation.processed ?? 0}
+                </span>
+                <span>
+                  {tx("settings.automations.consolidation.merged", "Merged")}{" "}
+                  {job.last_consolidation.merged ?? 0}
+                </span>
+                <span>
+                  {tx("settings.automations.consolidation.decayed", "Decayed")}{" "}
+                  {job.last_consolidation.decayed ?? 0}
+                </span>
+                <span>
+                  {tx("settings.automations.consolidation.archived", "Archived")}{" "}
+                  {job.last_consolidation.archived ?? 0}
+                </span>
+              </div>
+              {job.last_consolidation.finished_at || job.last_consolidation.started_at ? (
+                <div className="mt-1.5 text-[11px] leading-5 text-muted-foreground">
+                  {fmtDateTime(
+                    Date.parse(
+                      job.last_consolidation.finished_at || job.last_consolidation.started_at || "",
+                    ),
+                    locale,
+                  )}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
         </div>
 
         <aside className="min-h-0 overflow-y-auto overscroll-contain border-t border-border/35 bg-settings-surface p-4 text-[12px] text-muted-foreground lg:border-l lg:border-t-0">

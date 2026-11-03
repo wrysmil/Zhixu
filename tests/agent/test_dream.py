@@ -926,3 +926,49 @@ class TestDreamContentDiff:
         store.git.auto_commit("initial")
         store.set_last_dream_cursor(99)  # only memory/.dream_cursor changes
         assert store.dream_content_diff() == ""
+
+
+class TestDreamTemplateP3:
+    """P3：dream.md 的路由、定级、预算与汇报要求。"""
+
+    @pytest.fixture
+    def template(self) -> str:
+        from nanobot.utils.helpers import load_bundled_template
+
+        content = load_bundled_template("agent/dream.md")
+        assert content
+        return content
+
+    def test_has_no_file_write_instructions_for_identity_files(self, template):
+        targets = ("SOUL.md", "USER.md", "MEMORY.md", "draft")
+        offending = [
+            line
+            for line in template.splitlines()
+            if ("write_file" in line or "edit_file" in line)
+            and any(target in line for target in targets)
+        ]
+        assert offending == []
+
+    def test_has_no_draft_generation_section(self, template):
+        assert "MEMORY.md.draft" not in template
+
+    def test_routes_to_memory_types(self, template):
+        for memory_type in ("preference", "rule", "fact", "experience"):
+            assert f"add_memory(type=\"{memory_type}\")" in template
+
+    def test_contains_importance_grading(self, template):
+        assert "Importance grading" in template
+        assert "0.9+" in template
+
+    def test_contains_budget_awareness(self, template):
+        assert "Budget awareness" in template
+        assert "character cap" in template
+
+    def test_requires_per_run_reporting_with_reasons(self, template):
+        assert "Reporting requirement" in template
+        assert "added N, merged M, deleted K, skipped J" in template
+        assert "one-sentence reason" in template
+
+    def test_forbids_claiming_any_file_write(self, template):
+        assert "禁止声称" in template
+        assert "任何其他文件" in template

@@ -1358,14 +1358,34 @@ class GatewayHTTPHandler:
             return _http_error(401, "Unauthorized")
         pending_job_ids = self._pending_cron_job_ids_for_all()
         pending_job_ids.update(self._pending_local_trigger_ids_for_all())
-        return _http_json_response(
-            all_automations_payload(
-                self.cron_service,
-                local_trigger_store=self.local_trigger_store,
-                session_manager=self.session_manager,
-                pending_job_ids=pending_job_ids,
-            )
+        payload = all_automations_payload(
+            self.cron_service,
+            local_trigger_store=self.local_trigger_store,
+            session_manager=self.session_manager,
+            pending_job_ids=pending_job_ids,
         )
+        self._attach_daily_consolidation_stats(payload)
+        return _http_json_response(payload)
+
+    def _attach_daily_consolidation_stats(self, payload: dict[str, Any]) -> None:
+        """把每日盘账的最近一次结果挂到 ``memory_consolidate`` job 上（P2）。
+
+        自动化页只认识 cron job 的形状；盘账统计在记忆库里，这里跨域补上
+        一个只读字段。记忆服务未接线或读取失败时静默跳过——自动化页照常显示。
+        """
+        if self.memory_operations is None:
+            return
+        try:
+            stats = self.memory_operations.fetch_stats()
+        except Exception:  # noqa: BLE001 - 记忆服务不可用不影响自动化页
+            return
+        daily = ((stats or {}).get("memory_md") or {}).get("last_daily_consolidation")
+        if not daily:
+            return
+        for job in payload.get("jobs", []):
+            if job.get("id") == "memory_consolidate":
+                job["last_consolidation"] = daily
+                break
 
     async def _handle_webui_automation_action(
         self,

@@ -187,6 +187,20 @@ export interface SessionAutomationJob {
   created_at_ms?: number | null;
   updated_at_ms?: number | null;
   kind?: "local_trigger" | "cron" | string;
+  /** P2: last daily consolidation result (only on the memory_consolidate job). */
+  last_consolidation?: {
+    run_id?: string;
+    trigger?: string;
+    status?: string;
+    dry_run?: boolean;
+    started_at?: string;
+    finished_at?: string;
+    processed?: number;
+    merged?: number;
+    decayed?: number;
+    archived?: number;
+    error?: string;
+  } | null;
   schedule: {
     kind: "at" | "every" | "cron" | "local" | string;
     at_ms?: number | null;

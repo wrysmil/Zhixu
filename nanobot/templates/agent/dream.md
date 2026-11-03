@@ -8,7 +8,7 @@ Do NOT guess destinations. Route each fact to exactly one memory type, or to a s
 | `preference` | `add_memory(type="preference")` | Personal attributes: identity, habits, communication style (language, length, tone) |
 | `rule` | `add_memory(type="rule")` | Agent behavior rules, guardrails, interaction patterns, tool-use strategy |
 | `fact` | `add_memory(type="fact")` | Project context: goals, architecture decisions, infrastructure overview, integrated services |
-| `experience` / `error` | `add_memory(type=...)` | Validated approaches, pitfalls worth not repeating |
+| `experience` / `error` | `add_memory(type="experience")` / `add_memory(type="error")` | Validated approaches, pitfalls worth not repeating |
 | `skills/<name>/SKILL.md` | `write_file` | Reusable workflow templates with concrete steps, commands, and examples ([SKILL] entries only) |
 
 **Routing examples:**
@@ -24,6 +24,26 @@ Do NOT guess destinations. Route each fact to exactly one memory type, or to a s
 **Communication boundary:** Language, length, and tone preferences are `preference`. Interaction patterns (active vs passive) and tool-use strategy are `rule`.
 
 Cross-boundary rule: no technical configs in `preference`, no user facts in `rule`, no operational details in `fact`. If a fact fits multiple destinations, keep the most specific one and remove the rest.
+
+## Importance grading
+
+Every `add_memory` call must carry an honest `importance` value — the daily decay pass relies on it:
+
+- **0.9+**: the user explicitly asked to remember it permanently ("always", "never forget", "for every project"), or it is a repeatedly emphasized identity fact. Items at 0.9+ are exempt from decay.
+- **0.7–0.8**: durable preferences and rules that should survive months of non-use.
+- **0.5–0.6**: normal project facts and experiences (the default).
+- **0.4 or below**: one-off context that is useful this week but will go stale.
+
+Never give everything the same weight: when every memory is 0.5, decay has nothing meaningful to act on.
+
+## Budget awareness
+
+The core memory view (MEMORY.md / the injected core summary) has a hard character cap. You do not see the cap, so keep every entry to one short sentence and prefer:
+
+- `rule` and `preference` entries when space is tight — they are kept first when the view is trimmed;
+- dropping a redundant `fact` in favor of one precise one, instead of adding a near-duplicate line.
+
+If you are adding a fact that merely restates an existing rule at a lower detail level, delete the weaker copy instead of growing the store.
 
 ## Run procedure
 
@@ -92,10 +112,12 @@ Always strip these bracketed tags from saved memory content.
 - `rule`-type memories (behavior rules, guardrails, tool-use strategy)
 
 **Age and decay rules:**
-- Sprint goals and milestones: keep current + next sprint; archive completed ones after 30 days
-- Architecture decisions: keep indefinitely unless explicitly superseded
-- Infrastructure details: update in place when changed; do not keep obsolete configs
-- Tool/service integrations: remove if the service is no longer used
+- Decay is computed by the system, not by you: each day `effective = importance_score - decay_rate * days_since_last_access`, and entries below the threshold are archived (never deleted). Retrieval refreshes `last_accessed_at`, so what the user keeps using stays alive.
+- `preference` and `rule` entries never decay; entries at `importance >= 0.9` are exempt. Assign importance honestly (see Importance grading) instead of trying to manage age yourself.
+- Sprint goals and milestones: keep current + next sprint; no archive action needed for completed ones — let decay handle stale entries.
+- Architecture decisions: keep indefinitely unless explicitly superseded.
+- Infrastructure details: update in place when changed; delete obsolete configs instead of keeping both.
+- Tool/service integrations: remove if the service is no longer used.
 
 When removing: prefer deleting individual items over entire sections.
 
@@ -115,12 +137,14 @@ For [SKILL] entries:
 - Skills are instruction sets with concrete values, commands, and examples. MEMORY.md keeps strategic context and high-level facts only.
 
 ## Editing
-- Current contents of SOUL.md, USER.md, and memory/MEMORY.md are provided by the agent system context. Read them for context only — do not try to edit them.
+- The current core memory summary is injected into your system context; you do not read or edit any memory file yourself. All reads go through `memory_stats`, all writes through `add_memory` / `memory_delete`.
 - Batch changes into as few calls as possible. One call per atomic fact, not one per sentence.
 
 ## Verification
 Your final summary may reference only writes confirmed by a successful tool result — that result is your proof of every change. Do not narrate writes you did not make. If a tool call failed, was skipped, or fell back to a different approach, state the failure plainly instead of claiming success. The durable audit record (`/dream-log`) is derived from the real write decisions counted by the memory store, not from this summary, so any claim not backed by an actual write will be absent from the record.
 
+**Reporting requirement:** end your run with one line of counts — `added N, merged M, deleted K, skipped J` — followed by a one-sentence reason for every add / merge / delete. The audit table only stores counts; the reasons only exist if you write them. If the user later asks "why did you delete this", your report is the only answer available.
+
 Do not add: current weather, transient status, temporary errors, conversational filler, public documentation, standard library APIs, common configuration defaults, generic tutorials — anything a quick web search would surface.
 
-**禁止声称** "已写入 MEMORY.md / USER.md"（你没权限也没必要；它们是系统生成的投影）。
+**禁止声称**已写入 MEMORY.md / USER.md 或任何其他文件（你没有文件写权限；两个 md 都是系统生成的投影）。

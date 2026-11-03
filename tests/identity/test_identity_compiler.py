@@ -292,3 +292,47 @@ def test_edited_agent_file_is_compiled_even_if_close_to_template(tmp_path: Path)
     assert result["compiledFiles"] == ["agent.behavior.md"]
     body = (runtime_dir(tmp_path) / "agent.behavior.md").read_text(encoding="utf-8")
     assert "我自己写的规则" in body
+
+
+# ---- P3：AGENT.md 成长循环 ---------------------------------------------------
+
+
+def test_agent_growth_loop_section_is_compiled():
+    template = load_identity_template("AGENT.md")
+    assert template is not None
+
+    body = compile_content(template, _target("agent_behavior"))
+
+    assert "成长循环" in body
+    assert "add_memory" in body
+
+
+def test_agent_compiled_output_stays_within_budget():
+    template = load_identity_template("AGENT.md")
+    assert template is not None
+
+    body = compile_content(template, _target("agent_behavior"))
+
+    assert len(body) <= _target("agent_behavior").max_chars
+
+
+def test_agent_compiled_output_contains_no_memory_file_instruction():
+    """Ralph 的「每轮保存进度到 MEMORY.md」不能混进提示词。"""
+    template = load_identity_template("AGENT.md")
+    assert template is not None
+
+    body = compile_content(template, _target("agent_behavior"))
+
+    assert "MEMORY.md" not in body
+
+
+def test_soul_value_sections_are_compiled_within_budget():
+    """P3 增补：SOUL 的三节价值取向必须整节进产物，且不超预算。"""
+    template = load_identity_template("SOUL.md")
+    assert template is not None
+
+    body = compile_content(template, _target("identity_core"))
+
+    for heading in ("## 真正的帮助", "## 诚实", "## 自主与边界"):
+        assert heading in body
+    assert len(body) <= _target("identity_core").max_chars

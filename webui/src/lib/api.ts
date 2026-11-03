@@ -1458,9 +1458,18 @@ export async function saveScratchpad(
 
 const IDENTITY_BASE = "/api/settings/identity";
 
+export interface IdentityCompileStatus {
+  compiled: boolean;
+  fresh: boolean;
+  reason: string;
+  compiled_at?: string | null;
+}
+
 export interface IdentityFilesResponse {
   files: IdentityFileEntry[];
   charLimit: number;
+  /** P3: last compilation time and whether the sources changed since then. */
+  compile?: IdentityCompileStatus;
 }
 
 export async function listIdentityFiles(

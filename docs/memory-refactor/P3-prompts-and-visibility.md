@@ -1,6 +1,12 @@
 # P3 — 提示词改造与页面可见性
 
-> 状态：待开工 ｜ 前置：P1（工具已就位，dream.md 才能改）
+> 状态：已完成（2026-11-03）｜ 前置：P1（工具已就位，dream.md 才能改）
+>
+> 实施说明：验证见
+> `.ai-runtime-artifacts/verifications/2026-11-03-memory-refactor-p2-p3-verification-lite.md`。
+> 追加（2026-11-03，用户确认）：原「SOUL.md 可不动」改为补三节价值取向
+> （真正的帮助 / 诚实 / 自主与边界），源码 604 字符、编译产物 592/1200，
+> 与 `personas/balanced.md` 保持同源；执行机制类内容仍只放 AGENT.md，不抄 openakita。
 
 ## 目标
 

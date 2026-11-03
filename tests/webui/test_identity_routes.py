@@ -130,8 +130,9 @@ def test_list_files_payload_shape(handler: IdentitySettingsHandler):
     result = handler.handle("identity-list-files", _request())
 
     assert result.error is None
-    assert set(result.payload) == {"files", "charLimit"}
+    assert set(result.payload) == {"files", "charLimit", "compile"}
     assert result.payload["charLimit"] == CHAR_LIMIT
+    assert result.payload["compile"]["fresh"] is False  # never compiled in this fixture
 
     files = result.payload["files"]
     assert isinstance(files, list)

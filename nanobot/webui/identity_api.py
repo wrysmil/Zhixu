@@ -120,7 +120,14 @@ def identity_list_files(workspace: Path) -> dict[str, Any]:
         raise WebUISettingsError(exc.message, status=exc.status) from exc
     for item in files:
         item["tokens"] = _file_tokens(store, item["name"], bool(item.get("exists")))
-    return {"files": files, "charLimit": CHAR_LIMIT}
+    from nanobot.identity.compiler import compiled_info
+
+    return {
+        "files": files,
+        "charLimit": CHAR_LIMIT,
+        # P3：身份编辑器显示「上次编译时间」与「有未编译改动」。
+        "compile": compiled_info(workspace),
+    }
 
 
 def identity_read_file(workspace: Path, name: str) -> dict[str, Any]:

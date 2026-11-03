@@ -31,9 +31,11 @@ import {
   reloadIdentity,
   saveIdentityFile,
   setActivePersona,
+  type IdentityCompileStatus,
   type IdentityPreset,
 } from "@/lib/api";
 import type { IdentityFileEntry } from "@/lib/types";
+import { fmtDateTime } from "@/lib/format";
 import { useClient } from "@/providers/ClientProvider";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -175,7 +177,7 @@ function GroupHeader({ icon, label }: { icon: React.ReactNode; label: string }) 
 // -----------------------------------------------------------------------------
 
 export function IdentityView() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { client, token } = useClient();
   const tx = (key: string, fallback: string) => t(key, { defaultValue: fallback });
   const splitLayout = useMediaQuery("(min-width: 1280px)");
@@ -195,6 +197,15 @@ export function IdentityView() {
   const [presets, setPresets] = useState<IdentityPreset[]>([]);
   const [activePersona, setActivePersonaState] = useState("");
   const [personaOptions, setPersonaOptions] = useState<string[]>([]);
+  const [compileStatus, setCompileStatus] = useState<IdentityCompileStatus | null>(null);
+
+  const refreshCompileStatus = () => {
+    listIdentityFiles(token)
+      .then((payload) => setCompileStatus(payload.compile ?? null))
+      .catch(() => {
+        /* status display is optional; ignore */
+      });
+  };
 
   // Load the catalog once per token. `cancelled` makes the effect safe against
   // unmount and against a token change that races the in-flight request.
@@ -207,6 +218,7 @@ export function IdentityView() {
         if (cancelled) return;
         setFiles(payload.files);
         setCharLimit(payload.charLimit);
+        setCompileStatus(payload.compile ?? null);
         setSelectedName((prev) =>
           prev && payload.files.some((file) => file.name === prev)
             ? prev
@@ -371,6 +383,8 @@ export function IdentityView() {
       setSavingState("saved");
       setFromTemplate(false);
       setPresetLoaded(false);
+      // The save changes the source mtime; refresh the "uncompiled changes" hint.
+      refreshCompileStatus();
       // A create-on-save flips the catalog entry to exists, so the load effect
       // refetches the canonical body instead of keeping the stale skip.
       if (!selected.exists) {
@@ -400,6 +414,7 @@ export function IdentityView() {
       setFromTemplate(payload.fromTemplate === true);
       setPresetLoaded(false);
       setSavingState("idle");
+      refreshCompileStatus();
     } catch (reason) {
       setSaveError(reason instanceof Error ? reason.message : String(reason));
     }
@@ -422,6 +437,37 @@ export function IdentityView() {
                 "身份文件是 Agent 的核心人格和行为基础。不当修改可能导致 Agent 行为异常、丧失关键能力或产生不可预期的回复。如果你不确定某项修改的影响，建议先备份原文件。",
               )}
             </p>
+          </div>
+        </section>
+      ) : null}
+
+      {compileStatus ? (
+        <section className="mt-3 shrink-0">
+          <div
+            className={cn(
+              "flex items-center gap-2 rounded-control border px-3.5 py-2 text-[12px] leading-5",
+              compileStatus.compiled && !compileStatus.fresh
+                ? "border-amber-300/70 bg-amber-50/70 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200"
+                : "border-border/60 bg-background/55 text-muted-foreground",
+            )}
+          >
+            <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>
+              {compileStatus.compiled
+                ? `${tx("settings.identity.compile.last", "上次编译")}：${
+                    compileStatus.compiled_at
+                      ? fmtDateTime(Date.parse(compileStatus.compiled_at), i18n.resolvedLanguage || i18n.language)
+                      : "—"
+                  }`
+                : tx("settings.identity.compile.never", "尚未编译")}
+              {" · "}
+              {compileStatus.fresh
+                ? tx("settings.identity.compile.fresh", "产物已是最新")
+                : tx(
+                    "settings.identity.compile.stale",
+                    "有未编译改动，编译后下一轮生效",
+                  )}
+            </span>
           </div>
         </section>
       ) : null}

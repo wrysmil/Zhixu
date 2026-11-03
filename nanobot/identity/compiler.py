@@ -113,6 +113,11 @@ COMPILE_TARGETS: tuple[CompileTarget, ...] = (
             "核心原则",
             "执行规则",
             "价值取向",
+            # P3 增补：SOUL 的三节价值取向（真正的帮助 / 诚实 / 自主与边界）。
+            # marker 走子串匹配，标题里出现这些词就整节收进产物。
+            "帮助",
+            "诚实",
+            "自主",
             "气质",
             "overview",
             # marker 走子串匹配，故单词形式即可覆盖复数与派生（rule → rules）。
@@ -320,6 +325,24 @@ def compiled_status(workspace: Path) -> dict[str, Any]:
             return {"compiled": True, "fresh": False, "reason": "source_newer"}
 
     return {"compiled": True, "fresh": True, "reason": "ok"}
+
+
+def compiled_info(workspace: Path) -> dict[str, Any]:
+    """编译状态 + 上次编译时间（身份编辑器展示用）。
+
+    ``fresh=False`` 就是「有未编译改动」：源文件比产物新、schema 升级、或
+    从未编译过。编辑器据此提示用户点一次编译，避免「改了文件但 prompt 缓存
+    没清，下一轮不生效」。
+    """
+    status = compiled_status(workspace)
+    stamp = runtime_dir(workspace) / COMPILED_AT_FILENAME
+    compiled_at: str | None = None
+    if stamp.is_file():
+        try:
+            compiled_at = stamp.read_text(encoding="utf-8").strip() or None
+        except OSError:
+            compiled_at = None
+    return {**status, "compiled_at": compiled_at}
 
 
 def read_compiled(workspace: Path) -> dict[str, str] | None:
