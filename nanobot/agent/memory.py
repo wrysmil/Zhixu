@@ -50,7 +50,9 @@ from nanobot.utils.workspace_prompts import (
 
 if TYPE_CHECKING:
     from nanobot.agent.tools.registry import ToolRegistry
+    from nanobot.memory.dream_audit import DreamRunAudit
     from nanobot.utils.llm_runtime import LLMRuntime
+    from nanobot.webui.memory_services import MemoryServices
 
 # ---------------------------------------------------------------------------
 # MemoryStore — pure file I/O layer
@@ -64,7 +66,9 @@ class MemoryStore:
     # Durable files whose real working-tree delta grounds Dream commit messages.
     # Deliberately excludes memory/.dream_cursor so progress bookkeeping never
     # appears as a durable-memory edit in the audit record.
-    _DREAM_CONTENT_PATHS = ("SOUL.md", "USER.md", "memory/MEMORY.md")
+    # USER.md 不在其中：它已是记忆库的投影产物（P0），Dream 不再有写权限，
+    # 若仍把它列进审计路径，git 会把它在导出时的正常变化记成「Dream 改了档案」。
+    _DREAM_CONTENT_PATHS = ("SOUL.md", "memory/MEMORY.md")
     _LEGACY_ENTRY_START_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2}[^\]]*)\]\s*")
     _LEGACY_TIMESTAMP_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]\s*")
     _LEGACY_RAW_MESSAGE_RE = re.compile(
@@ -80,9 +84,11 @@ class MemoryStore:
         self.legacy_history_file = self.memory_dir / "HISTORY.md"
         self.soul_file = workspace / "SOUL.md"
         self.user_file = workspace / "USER.md"
-        self.draft_file = self.memory_dir / "MEMORY.md.draft"
         self._cursor_file = self.memory_dir / ".cursor"
         self._dream_cursor_file = self.memory_dir / ".dream_cursor"
+        # Dream 的记忆服务（审计表与记忆工具共用）。惰性建：MemoryStore 在
+        # 每次装配 AgentLoop 时都会构造，不能在这里就建库。
+        self._memory_services: MemoryServices | None = None
         self._corruption_logged = False  # rate-limit invalid cursor warning
         self._malformed_entry_logged = False  # rate-limit bad history shape warning
         self._oversize_logged = False  # rate-limit oversized-entry warning
@@ -92,10 +98,81 @@ class MemoryStore:
             "SOUL.md", "USER.md", "memory/MEMORY.md", "memory/.dream_cursor",
         ])
         self._maybe_migrate_legacy_history()
+        self._maybe_archive_legacy_draft()
+
+    def _maybe_archive_legacy_draft(self) -> None:
+        """把废弃的 ``memory/MEMORY.md.draft`` 归档到 ``memory/legacy/``。
+
+        P1 之前 Dream 把整理结果写成 draft，等一个从不存在的「应用草稿」入口。
+        draft 没有任何消费方，但里面可能躺着用户唯一的手写内容——直接删会丢
+        数据，所以第一次启动时移到 legacy/ 并留日志，让用户自己决定要不要搬。
+        """
+        legacy_draft = self.memory_dir / "MEMORY.md.draft"
+        if not legacy_draft.exists():
+            return
+        target = self.memory_dir / "legacy" / "MEMORY.md.draft"
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.exists():
+                # 已经归档过一份：加时间戳，别覆盖上一次的归档。
+                stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                target = target.with_name(f"MEMORY.md.draft.{stamp}")
+            legacy_draft.replace(target)
+            logger.info(
+                "Archived obsolete Dream draft {} -> {}",
+                legacy_draft,
+                target,
+            )
+        except OSError as exc:
+            # 归档失败不影响启动：文件留在原地，只是下次还会再试。
+            logger.warning("Failed to archive legacy Dream draft: {!r}", exc)
 
     @property
     def git(self) -> GitStore:
         return self._git
+
+    @property
+    def memory_services(self) -> MemoryServices:
+        """Dream 用的记忆服务：审计表与记忆工具共用同一个 database 实例。
+
+        惰性构造——``MemoryStore`` 在装配 AgentLoop 时必然被创建，而那时
+        workspace 里可能还没有记忆库（用户从没开过记忆功能）。
+        """
+        if self._memory_services is None:
+            from nanobot.memory.provenance import GLOBAL_MEMORY_WORKSPACE_ID
+            from nanobot.webui.memory_services import MemoryServices
+
+            self._memory_services = MemoryServices.for_workspace(
+                GLOBAL_MEMORY_WORKSPACE_ID, self.workspace
+            )
+        return self._memory_services
+
+    def begin_dream_run(self, *, trigger: str, model: str = "") -> DreamRunAudit:
+        """登记一次 Dream 运行（审计行 + 活跃运行），返回句柄。"""
+        from nanobot.memory.dream_audit import begin_run
+
+        services = self.memory_services
+        return begin_run(
+            services.database, services.workspace_id, trigger=trigger, model=model
+        )
+
+    def end_dream_run(
+        self, *, status: str, error: str = ""
+    ) -> DreamRunAudit | None:
+        """结束活跃的 Dream 运行并落库；没有活跃运行时返回 None。"""
+        from nanobot.memory.dream_audit import end_run
+
+        return end_run(
+            self.memory_services.workspace_id, status=status, error=error
+        )
+
+    def recent_dream_runs(self, *, limit: int = 10) -> list[dict[str, Any]]:
+        """最近的 Dream 整理记录（供 ``/dream-log`` 与页面展示）。"""
+        from nanobot.memory.dream_audit import list_recent_runs
+
+        return list_recent_runs(
+            self.memory_services.database, self.memory_services.workspace_id, limit=limit
+        )
 
     # -- generic helpers -----------------------------------------------------
 
@@ -575,11 +652,24 @@ class MemoryStore:
         return self._git.summarize_working_tree(list(self._DREAM_CONTENT_PATHS))
 
     def build_dream_tools(self) -> ToolRegistry:
-        """Build the restricted tool registry used by Dream runs."""
+        """Build the restricted tool registry used by Dream runs.
+
+        P1 之后 Dream 的工具分两类，边界就是「它能留下什么」：
+
+        * **记忆工具**（``add_memory`` / ``memory_delete`` / ``memory_stats`` /
+          ``consolidate_memory``）——产出全部进 ``memories`` 表，因此可检索、
+          可衰减、可删除，也能被审计表计数。这是 Dream 唯一的生产出口。
+        * **skills/ 文件工具**——技能生成是它唯一允许直接碰的文件（把重复出现
+          的工作流固化成 SKILL.md 不属于记忆，是能力沉淀）。
+
+        原先的 ``SOUL.md`` 写权限已移除：价值观文件不该由每两小时的定时任务
+        自己改。``MEMORY.md.draft`` 随 draft 机制一并废弃。
+        """
         from nanobot.agent.skills import BUILTIN_SKILLS_DIR
         from nanobot.agent.tools.apply_patch import ApplyPatchTool
         from nanobot.agent.tools.file_state import FileStates
         from nanobot.agent.tools.filesystem import EditFileTool, ReadFileTool, WriteFileTool
+        from nanobot.agent.tools.memory_admin import build_memory_admin_tools
         from nanobot.agent.tools.registry import ToolRegistry
 
         tools = ToolRegistry()
@@ -588,9 +678,9 @@ class MemoryStore:
         skills_dir = workspace / "skills"
         skills_dir.mkdir(parents=True, exist_ok=True)
 
+        # 读权限保留：Dream 要读 skills/ 与内置技能目录才能判断该不该合并技能。
+        # 写权限只剩 skills_dir 一个目录，不再有 extra_write_allowed_files。
         extra_read = [BUILTIN_SKILLS_DIR] if BUILTIN_SKILLS_DIR.exists() else None
-        editable_files = [self.soul_file, self.user_file, self.draft_file]
-
         tools.register(ReadFileTool(
             workspace=workspace,
             allowed_dir=workspace,
@@ -600,21 +690,27 @@ class MemoryStore:
         tools.register(EditFileTool(
             workspace=workspace,
             allowed_dir=skills_dir,
-            extra_write_allowed_files=editable_files,
             file_states=file_states,
         ))
         tools.register(ApplyPatchTool(
             workspace=workspace,
             allowed_dir=skills_dir,
-            extra_write_allowed_files=editable_files,
             file_states=file_states,
         ))
         tools.register(WriteFileTool(
             workspace=workspace,
             allowed_dir=skills_dir,
-            extra_write_allowed_files=editable_files,
             file_states=file_states,
         ))
+
+        # 记忆工具：source=consolidation 让面板把它显示成「整理时写入」，
+        # 与会话中用户主动要求记住的（source=manual）区分开。
+        for tool in build_memory_admin_tools(
+            services=self.memory_services,
+            source="consolidation",
+            trigger="dream",
+        ):
+            tools.register(tool)
         return tools
 
     @staticmethod

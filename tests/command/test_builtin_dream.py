@@ -20,6 +20,13 @@ from nanobot.session.manager import SessionManager
 from nanobot.utils.gitstore import CommitInfo
 
 
+class _FakeAudit:
+    """begin_dream_run 的桩：汇总文案与真实实现一致。"""
+
+    def summary(self) -> str:
+        return "没有记忆变化"
+
+
 class _FakeStore:
     def __init__(
         self,
@@ -33,6 +40,18 @@ class _FakeStore:
         self._dream_prompt_result = dream_prompt_result
         self._content_diff = content_diff
         self.compact_history_called = False
+        self.dream_runs: list[tuple[str, str]] = []
+        self.recent_dream_runs_result: list[dict] = []
+
+    def begin_dream_run(self, *, trigger: str, model: str = ""):
+        return _FakeAudit()
+
+    def end_dream_run(self, *, status: str, error: str = ""):
+        self.dream_runs.append((status, error))
+        return None
+
+    def recent_dream_runs(self, *, limit: int = 10):
+        return self.recent_dream_runs_result
 
     def get_last_dream_cursor(self) -> int:
         return self._last_dream_cursor
@@ -255,7 +274,7 @@ async def test_dream_advances_cursor_on_completed_noop(tmp_path) -> None:
     await cmd_dream(ctx)
     await asyncio.sleep(0)
     assert store._last_dream_cursor == 42
-    assert "no memory changes" in ctx.loop.bus.outbound[0].content
+    assert "没有记忆变化" in ctx.loop.bus.outbound[0].content
 
 
 @pytest.mark.asyncio
@@ -285,7 +304,7 @@ async def test_dream_advances_cursor_when_completed_after_tool_error(tmp_path) -
     await cmd_dream(ctx)
     await asyncio.sleep(0)
     assert store._last_dream_cursor == 42
-    assert "no memory changes" in ctx.loop.bus.outbound[0].content
+    assert "没有记忆变化" in ctx.loop.bus.outbound[0].content
 
 
 @pytest.mark.asyncio
@@ -349,56 +368,36 @@ async def test_dream_non_git_falls_back_to_completion_gate(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_dream_log_latest_is_more_user_friendly() -> None:
-    commit = CommitInfo(sha="abcd1234", message="dream: 2026-04-04, 2 change(s)", timestamp="2026-04-04 12:00")
-    diff = (
-        "diff --git a/SOUL.md b/SOUL.md\n"
-        "--- a/SOUL.md\n"
-        "+++ b/SOUL.md\n"
-        "@@ -1 +1 @@\n"
-        "-old\n"
-        "+new\n"
-    )
-    git = _FakeGit(commits=[commit], diff_map={commit.sha: (commit, diff)})
+async def test_dream_log_lists_recent_runs() -> None:
+    """``/dream-log`` 读审计表，展示最近几次整理的计数。"""
+    git = _FakeGit(initialized=True)
+    ctx = _make_ctx("/dream-log", git, last_dream_cursor=5)
+    ctx.loop.consolidator.store.recent_dream_runs_result = [
+        {
+            "run_id": "r1",
+            "workspace_id": "default",
+            "trigger": "cron",
+            "status": "completed",
+            "entries_read": 3,
+            "added": 2,
+            "updated": 1,
+            "deleted": 0,
+            "skipped": 1,
+            "model": "m1",
+            "error": "",
+            "started_at": "2026-04-04T12:00:00+00:00",
+            "finished_at": "2026-04-04T12:00:30+00:00",
+        }
+    ]
 
-    out = await cmd_dream_log(_make_ctx("/dream-log", git))
+    out = await cmd_dream_log(ctx)
 
-    assert "## Dream Update" in out.content
-    assert "Here is the latest Dream memory change." in out.content
-    assert "- Commit: `abcd1234`" in out.content
-    assert "- Changed files: `SOUL.md`" in out.content
-    assert "Use `/dream-restore abcd1234` to undo this change." in out.content
-    assert "```diff" in out.content
-
-
-@pytest.mark.asyncio
-async def test_dream_log_latest_skips_non_dream_commit() -> None:
-    backup = CommitInfo(
-        sha="bbbb2222", message="backup: workspace snapshot", timestamp="2026-04-04 13:00",
-    )
-    dream = CommitInfo(
-        sha="abcd1234", message="dream: latest", timestamp="2026-04-04 12:00",
-    )
-    diff = "diff --git a/SOUL.md b/SOUL.md\n"
-    git = _FakeGit(
-        commits=[backup, dream],
-        diff_map={dream.sha: (dream, diff), backup.sha: (backup, "unrelated diff")},
-    )
-
-    out = await cmd_dream_log(_make_ctx("/dream-log", git))
-
-    assert "`abcd1234`" in out.content
-    assert "`bbbb2222`" not in out.content
-
-
-@pytest.mark.asyncio
-async def test_dream_log_missing_commit_guides_user() -> None:
-    git = _FakeGit(diff_map={})
-
-    out = await cmd_dream_log(_make_ctx("/dream-log deadbeef", git, args="deadbeef"))
-
-    assert "Couldn't find Dream change `deadbeef`." in out.content
-    assert "Use `/dream-restore` to list recent versions" in out.content
+    assert "## Dream 整理记录" in out.content
+    assert "[completed]" in out.content
+    assert "来源 cron" in out.content
+    assert "新增 2 / 更新 1 / 删除 0 / 跳过 1" in out.content
+    # Dream 不再改文件，提示语要指向记忆库
+    assert "memories 表" in out.content
 
 
 @pytest.mark.asyncio
@@ -413,13 +412,40 @@ async def test_dream_log_before_first_run_is_clear() -> None:
 
 
 @pytest.mark.asyncio
-async def test_dream_log_without_saved_versions_mentions_prompt_command() -> None:
-    git = _FakeGit(initialized=True, commits=[])
+async def test_dream_log_without_runs_says_so() -> None:
+    git = _FakeGit(initialized=True)
+    ctx = _make_ctx("/dream-log", git, last_dream_cursor=5)
+    ctx.loop.consolidator.store.recent_dream_runs_result = []
 
-    out = await cmd_dream_log(_make_ctx("/dream-log", git))
+    out = await cmd_dream_log(ctx)
 
-    assert "Dream memory has no saved versions yet." in out.content
-    assert "/dream-prompt" in out.content
+    assert "还没有留下整理记录" in out.content
+
+
+@pytest.mark.asyncio
+async def test_dream_restore_explains_per_record_deletion() -> None:
+    """回滚已改为按条删除：命令必须说清怎么做，而不是留一个假按钮。"""
+    git = _FakeGit(initialized=True)
+
+    out = await cmd_dream_restore(_make_ctx("/dream-restore", git))
+
+    assert "按条删除" in out.content
+    assert "memory_delete" in out.content
+    assert "/dream-log" in out.content
+    # 不再展示 git commit 列表
+    assert "Choose a Dream memory version to restore." not in out.content
+
+
+@pytest.mark.asyncio
+async def test_dream_restore_with_sha_still_explains() -> None:
+    git = _FakeGit(initialized=True, revert_result="eeee9999")
+
+    out = await cmd_dream_restore(
+        _make_ctx("/dream-restore abcd1234", git, args="abcd1234")
+    )
+
+    assert "按条删除" in out.content
+    assert not git.revert_calls  # 不再调用 git revert
 
 
 @pytest.mark.asyncio
@@ -483,70 +509,3 @@ def test_dream_prompt_command_in_help_and_palette() -> None:
     assert dream_prompt["accepts_args"] is True
     assert "/dream-prompt [init]" in build_help_text()
 
-
-@pytest.mark.asyncio
-async def test_dream_restore_lists_versions_with_next_steps() -> None:
-    commits = [
-        CommitInfo(sha="abcd1234", message="dream: latest", timestamp="2026-04-04 12:00"),
-        CommitInfo(sha="cccc3333", message="backup: workspace", timestamp="2026-04-04 10:00"),
-        CommitInfo(sha="bbbb2222", message="dream: older", timestamp="2026-04-04 08:00"),
-    ]
-    git = _FakeGit(commits=commits)
-
-    out = await cmd_dream_restore(_make_ctx("/dream-restore", git))
-
-    assert "## Dream Restore" in out.content
-    assert "Choose a Dream memory version to restore." in out.content
-    assert "`abcd1234` 2026-04-04 12:00 - dream: latest" in out.content
-    assert "`bbbb2222` 2026-04-04 08:00 - dream: older" in out.content
-    assert "backup: workspace" not in out.content
-    assert "Preview a version with `/dream-log <sha>`" in out.content
-    assert "Restore a version with `/dream-restore <sha>`." in out.content
-
-
-@pytest.mark.asyncio
-async def test_dream_restore_success_mentions_files_and_followup() -> None:
-    commit = CommitInfo(sha="abcd1234", message="dream: latest", timestamp="2026-04-04 12:00")
-    diff = (
-        "diff --git a/SOUL.md b/SOUL.md\n"
-        "--- a/SOUL.md\n"
-        "+++ b/SOUL.md\n"
-        "@@ -1 +1 @@\n"
-        "-old\n"
-        "+new\n"
-        "diff --git a/memory/MEMORY.md b/memory/MEMORY.md\n"
-        "--- a/memory/MEMORY.md\n"
-        "+++ b/memory/MEMORY.md\n"
-        "@@ -1 +1 @@\n"
-        "-old\n"
-        "+new\n"
-    )
-    git = _FakeGit(
-        diff_map={commit.sha: (commit, diff)},
-        revert_result="eeee9999",
-    )
-
-    out = await cmd_dream_restore(_make_ctx("/dream-restore abcd1234", git, args="abcd1234"))
-
-    assert "Restored Dream memory to the state before `abcd1234`." in out.content
-    assert "- New safety commit: `eeee9999`" in out.content
-    assert "- Restored files: `SOUL.md`, `memory/MEMORY.md`" in out.content
-    assert "Use `/dream-log eeee9999` to inspect the restore diff." in out.content
-    assert git.revert_calls == [("abcd1234", "dream:")]
-
-
-@pytest.mark.asyncio
-async def test_dream_restore_rejects_non_dream_commit_clearly() -> None:
-    commit = CommitInfo(
-        sha="cccc3333", message="backup: workspace", timestamp="2026-04-04 10:00",
-    )
-    git = _FakeGit(
-        diff_map={commit.sha: (commit, "unrelated diff")},
-        revert_result="eeee9999",
-    )
-
-    out = await cmd_dream_restore(_make_ctx("/dream-restore cccc3333", git, args="cccc3333"))
-
-    assert "Only Dream memory versions can be restored." in out.content
-    assert "Use `/dream-restore` to list recent versions." in out.content
-    assert git.revert_calls == []

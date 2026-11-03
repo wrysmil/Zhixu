@@ -57,6 +57,21 @@ _PLACEHOLDER_MARKERS: tuple[str, ...] = (
     "(待学习",
     "（待统计",
     "(待统计",
+    # 派生文件的空态提示（USER.md / MEMORY.md 的「暂无记录」「暂无手工笔记」）。
+    # 它们是对人说的，注入进去等于告诉模型「用户是一句占位文案」。
+    "（暂无",
+    "(暂无",
+    # 旧版英文 USER.md 模板的占位符：老 workspace 里普遍还是这一版，
+    # 不挡会把「(your name)」「(your timezone)」当成真实用户信息注入。
+    "(your name)",
+    "(your timezone",
+    "(preferred language",
+    "(your role",
+    "(what you're working on)",
+    "edit this file to customize",
+    # 派生文件开头的说明句：对人有用，对模型是噪声。
+    "帮助知序了解你",
+    "information about the user to help personalize",
     "待填)",
     "此文件由",
     "最后更新:",
@@ -235,6 +250,10 @@ def compile_content(content: str, target: CompileTarget) -> str:
     for line in picked:
         stripped = line.strip()
         if _is_noise(stripped):
+            continue
+        # 派生文件的区块边界是 HTML 注释（AUTO/NOTE 标记），只对人有用，
+        # 进 system prompt 就是噪声。
+        if stripped.startswith("<!--"):
             continue
         lowered = stripped.lower()
         if any(marker in lowered for marker in target.excluded_markers):

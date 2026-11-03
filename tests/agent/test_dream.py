@@ -10,7 +10,6 @@ from nanobot.security.workspace_access import (
     default_workspace_scope,
     reset_workspace_scope,
 )
-from nanobot.utils.prompt_templates import render_template
 
 
 @pytest.fixture
@@ -165,10 +164,10 @@ class TestBuildDreamPrompt:
         # 不应包含 "edit memory/MEMORY.md" 或类似指令
         assert "edit memory/MEMORY.md" not in prompt
         assert "write memory/MEMORY.md" not in prompt.lower()
-        # 应包含 MEMORY.md.draft 相关指令
-        assert "MEMORY.md.draft" in prompt
-        # File routing 表中明确说明禁止写入
-        assert "do not write" in prompt.lower() or "禁止" in prompt
+        # P1：路由目标从「文件」换成「记忆类型」
+        assert 'add_memory(type="preference")' in prompt
+        # 明确禁止写记忆文件
+        assert "must not write MEMORY.md" in prompt
 
 
 class TestDreamRunCompletion:
@@ -201,39 +200,37 @@ class TestDreamRunCompletion:
 
 
 class TestDreamTools:
-    def test_dream_tools_are_restricted_to_file_edits(self, store):
+    def test_dream_tools_are_file_read_plus_memory_write(self, store):
+        """Dream 的文件工具只剩读 + skills/ 写，写记忆走记忆工具。"""
         tools = store.build_dream_tools()
 
         assert set(tools.tool_names) == {
-            "apply_patch",
-            "edit_file",
             "read_file",
+            "edit_file",
+            "apply_patch",
             "write_file",
+            "add_memory",
+            "memory_delete",
+            "memory_stats",
+            "consolidate_memory",
         }
 
-    def test_dream_tools_excludes_memory_file(self, store):
-        """Dream 工具有白名单，memory_file 不在写入允许列表。"""
+    def test_dream_tools_excludes_derived_files(self, store):
+        """Dream 对三个记忆文件一个都写不了；可写目录只剩 skills/。"""
         tools = store.build_dream_tools()
         write_tool = next(t for t in tools._tools.values() if "write" in t.name.lower())
-        # 断言 memory_file 不在白名单
+        # 派生产物：MEMORY.md 由导出写、USER.md 自 P0 起同样是投影，Dream 无权直写。
         assert store.memory_file not in write_tool._extra_write_allowed_files
-        # 断言 draft_file 在白名单
-        assert store.draft_file in write_tool._extra_write_allowed_files
-        # 断言 soul_file 和 user_file 仍在白名单
-        assert store.soul_file in write_tool._extra_write_allowed_files
-        assert store.user_file in write_tool._extra_write_allowed_files
-
-    def test_draft_file_path(self, store):
-        """draft_file 路径正确。"""
-        assert store.draft_file.name == "MEMORY.md.draft"
-        assert store.draft_file.parent == store.memory_dir
+        assert store.user_file not in write_tool._extra_write_allowed_files
+        # SOUL.md 的写权限也已移除（P1）：价值观不该由定时任务自己改。
+        assert store.soul_file not in write_tool._extra_write_allowed_files
+        assert not write_tool._extra_write_allowed_files
 
     @pytest.mark.asyncio
-    async def test_dream_can_edit_canonical_files_except_memory(self, store):
-        """Dream 可以编辑 SOUL.md/USER.md/draft_file，但拒绝 MEMORY.md。"""
+    async def test_dream_cannot_edit_any_memory_file(self, store):
+        """MEMORY.md / SOUL.md / USER.md 三者的写入全部被拒绝。"""
         tools = store.build_dream_tools()
 
-        # 验证 MEMORY.md 写入被拒绝
         memory_result = await tools.execute(
             "apply_patch",
             {
@@ -250,7 +247,8 @@ class TestDreamTools:
         assert "outside allowed directory" in memory_result
         assert "Project Y active" not in store.memory_file.read_text(encoding="utf-8")
 
-        # 验证 SOUL.md 写入成功
+        # SOUL.md 写入同样被拒绝（P1 收权）
+        before_soul = store.soul_file.read_text(encoding="utf-8")
         soul_result = await tools.execute(
             "edit_file",
             {
@@ -259,10 +257,10 @@ class TestDreamTools:
                 "new_text": "Precise",
             },
         )
-        assert "Successfully edited" in soul_result
-        assert "Precise" in store.soul_file.read_text(encoding="utf-8")
+        assert "outside allowed directory" in soul_result
+        assert store.soul_file.read_text(encoding="utf-8") == before_soul
 
-        # 验证 USER.md 写入成功
+        # USER.md 写入被拒绝（P0：它是记忆库的投影，Dream 无权直写）
         user_result = await tools.execute(
             "write_file",
             {
@@ -270,19 +268,41 @@ class TestDreamTools:
                 "content": "# User Profile\n\n- **Name**: Ada\n",
             },
         )
-        assert "Successfully wrote" in user_result
-        assert "**Name**: Ada" in store.user_file.read_text(encoding="utf-8")
-
-        # 验证 draft_file 写入成功
-        draft_result = await tools.execute(
-            "write_file",
-            {
-                "path": "memory/MEMORY.md.draft",
-                "content": "# Draft Memory\n\n- Project Z active",
-            },
+        assert "outside allowed directory" in user_result
+        assert not store.user_file.exists() or "**Name**: Ada" not in store.user_file.read_text(
+            encoding="utf-8"
         )
-        assert "Successfully wrote" in draft_result
-        assert "Project Z active" in store.draft_file.read_text(encoding="utf-8")
+
+    @pytest.mark.asyncio
+    async def test_dream_writes_memory_through_the_tool(self, store):
+        """Dream 的记忆产出走 add_memory，落库而不是落文件。"""
+
+        from nanobot.memory.database import MemoryDatabase
+        from nanobot.memory.repository import list_memories
+
+        db = MemoryDatabase(store.workspace)
+        db.init_schema()
+        tools = store.build_dream_tools()
+
+        result = await tools.execute(
+            "add_memory",
+            {"content": "项目用 pnpm 管包", "type": "fact", "predicate": "包管理器"},
+        )
+        assert "已记住" in result
+
+        with db.connect() as conn:
+            rows = list_memories(conn, workspace_id="default")
+        # fixture 预置的 MEMORY.md 会被 P0 的迁移逻辑收成一条 core-note，
+        # 断言时把它排除掉——这里只关心 Dream 自己写的那条。
+        from nanobot.memory.context import is_core_note_record
+
+        written = [r for r in rows if not is_core_note_record(r.id)]
+        assert [r.content for r in written] == ["项目用 pnpm 管包"]
+        assert written[0].source == "consolidation"
+        # Dream 没有文件写权限，但它写进库的内容会被 lifecycle 投影回 MEMORY.md
+        # ——这正是「AI 只决定记什么，系统决定文件长什么样」的闭环。
+        assert "pnpm" in store.memory_file.read_text(encoding="utf-8")
+        assert "<!-- zhixu:core-view:begin" in store.memory_file.read_text(encoding="utf-8")
 
     @pytest.mark.asyncio
     async def test_dream_can_write_workspace_skills(self, store):

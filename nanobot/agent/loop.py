@@ -675,6 +675,33 @@ class AgentLoop:
             )
         return self._fallback_memory_services
 
+    def _memory_write_enabled(self) -> bool:
+        """记忆写入类工具的运行时门控（用户侧记忆总开关）。
+
+        与读侧共用一个判据来源（``memory_enabled_provider``），但**不**额外要求
+        ``_memory_extraction_enabled``：抽取开着与否决定「会话结束自动抽不抽」，
+        不决定「用户明确要求记住时能不能写」。provider 缺失按开启处理——多数
+        装配路径（CLI、测试）不注入 provider，此时默认行为应与旧版一致。
+        """
+        provider = self._memory_enabled_provider
+        if provider is None:
+            return True
+        try:
+            return bool(provider())
+        except Exception as exc:  # noqa: BLE001 - 门控异常按关闭处理
+            logger.warning(
+                "memory write gate failed; treating memory tools as disabled: {!r}", exc
+            )
+            return False
+
+    def _memory_services_for_tools(self) -> MemoryServices | None:
+        """工具侧按需解析记忆服务；失败返回 None，由工具报错。"""
+        try:
+            return self._resolve_memory_services(self._memory_services)
+        except Exception as exc:  # noqa: BLE001 - 记忆库不可用不该拖垮一次调用
+            logger.warning("memory tools: services resolution failed: {!r}", exc)
+            return None
+
     def _compute_working_memory_section(
         self,
         session_key: str,
@@ -1094,6 +1121,10 @@ class AgentLoop:
             attributes={
                 "retrieval_engine": self._retrieval_engine,
                 "memory_workspace_ids": self._memory_workspace_ids_for_key,
+                # 记忆写入工具（P1）：服务按需解析 + 用户侧总开关门控。
+                # 总开关关着时工具根本不注册，与 memory_search 同模式。
+                "memory_services": self._memory_services_for_tools,
+                "memory_write_enabled": self._memory_write_enabled,
             },
         )
         loader = ToolLoader()

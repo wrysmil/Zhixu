@@ -173,23 +173,29 @@ def identity_write_file(
     *,
     lifecycle: Any = None,
 ) -> dict[str, Any]:
-    """Write one identity file, routing MEMORY.md to the memory lifecycle.
+    """Write one identity file, routing derived artifacts to the memory lifecycle.
 
-    ``MEMORY.md`` is a derived artifact: it is written through
-    ``MemoryLifecycle.write_memory_md`` so the pre-write ``.bak`` backup is
-    preserved. Everything else goes through ``IdentityStore``.
+    ``MEMORY.md`` / ``USER.md`` are derived from SQLite: they are written through
+    ``MemoryLifecycle``'s backup semantics (and then re-exported), so the WebUI
+    cannot create a second, unbacked writer for the same file. Everything else
+    goes through ``IdentityStore``.
     """
     if name in LIFECYCLE_OWNED_FILES:
         if lifecycle is None:
-            raise WebUISettingsError("MEMORY.md 写入需要 MemoryLifecycle", status=500)
+            raise WebUISettingsError(f"{name} 写入需要 MemoryLifecycle", status=500)
+        writer = (
+            lifecycle.write_memory_md
+            if name == "MEMORY.md"
+            else lifecycle.write_user_md
+        )
         try:
-            lifecycle.write_memory_md(content)
+            writer(content)
         except ValueError as exc:
             # Length / type validation from the lifecycle surfaces as a 4xx.
             raise WebUISettingsError(str(exc), status=400) from exc
         except OSError as exc:
-            logger.exception("Failed to write MEMORY.md via MemoryLifecycle")
-            raise WebUISettingsError("MEMORY.md 写入失败", status=500) from exc
+            logger.exception("Failed to write %s via MemoryLifecycle", name)
+            raise WebUISettingsError(f"{name} 写入失败", status=500) from exc
         return {"name": name, "saved": True, "autoRegenerated": True}
 
     try:
@@ -212,14 +218,15 @@ def identity_reload(*, refresh_memory_md: Any = None) -> dict[str, Any]:
     """Re-read identity files from disk for the injection path.
 
     Injection reads the files on every turn, so there is nothing to cache —
-    the only side effect worth triggering is a MEMORY.md re-derivation. When
-    the gateway has not injected the service (e.g. standalone HTTP handler),
-    report ``skipped`` instead of failing; a reload is never worth a 500.
+    the only side effect worth triggering is a re-derivation of the two derived
+    artifacts (MEMORY.md + USER.md). When the gateway has not injected the
+    service (e.g. standalone HTTP handler), report ``skipped`` instead of
+    failing; a reload is never worth a 500.
     """
     if refresh_memory_md is None:
         return {"status": "skipped", "reason": "no_services"}
     try:
         return dict(refresh_memory_md())
     except Exception:
-        logger.exception("identity_reload: MEMORY.md refresh failed")
+        logger.exception("identity_reload: derived memory refresh failed")
         return {"status": "error"}

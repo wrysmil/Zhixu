@@ -707,7 +707,9 @@ def _run_gateway(
 
             store = agent.context.memory
             resp = None
-            diff_body = ""
+            audit = None
+            run_status = "completed"
+            run_error = ""
             try:
                 result = store.build_dream_prompt()
                 if result is None:
@@ -716,6 +718,12 @@ def _run_gateway(
                 prompt, last_cursor = result
                 key = dream_session_key()
                 dream_runtime = agent.dream_runtime()
+                # 审计行在跑之前就登记：整理跑到一半崩了，也要留下一行 failed，
+                # 否则「昨晚没动静」和「昨晚崩了」在页面上长得一样。
+                audit = store.begin_dream_run(
+                    trigger="cron",
+                    model=str(getattr(dream_runtime, "model", "") or ""),
+                )
                 await mcp_provider.connect()
                 resp = await agent.process_direct(
                     prompt,
@@ -725,32 +733,30 @@ def _run_gateway(
                     on_progress=_silent,
                     runtime=dream_runtime,
                 )
-                # The real file delta grounds the audit record; normal completion
-                # decides whether this history batch has finished processing.
-                diff_body = store.dream_content_diff()
+                # Dream 的文件 delta 现在只剩 skills/，审计计数来自写入决策。
+                store.dream_content_diff()
                 completed = MemoryStore.dream_run_completed(resp)
                 if completed:
                     store.set_last_dream_cursor(last_cursor)
-                    if diff_body:
-                        logger.info(
-                            "Dream cron job completed, cursor advanced to {}",
-                            last_cursor,
-                        )
-                    else:
-                        logger.info(
-                            "Dream cron job completed with no memory changes; "
-                            "cursor advanced to {}",
-                            last_cursor,
-                        )
+                    logger.info(
+                        "Dream cron job completed ({}), cursor advanced to {}",
+                        audit.summary() if audit else "no audit",
+                        last_cursor,
+                    )
                 else:
+                    run_status = "failed"
+                    run_error = MemoryStore.dream_incompletion_reason(resp)
                     logger.warning(
                         "Dream cron job did not complete ({}); cursor remains at {}",
-                        MemoryStore.dream_incompletion_reason(resp),
+                        run_error,
                         store.get_last_dream_cursor(),
                     )
-            except Exception:
+            except Exception as exc:
                 logger.exception("Dream cron job failed")
+                run_status, run_error = "failed", str(exc)
             finally:
+                if audit is not None:
+                    store.end_dream_run(status=run_status, error=run_error)
                 sha = _commit_dream_changes(store)
                 if sha:
                     logger.info("Dream commit: {}", sha)

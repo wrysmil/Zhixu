@@ -44,12 +44,28 @@ INSUFFICIENT_BUDGET_HINT = "记忆预算不足，本轮未注入任何记忆条�
 #: 把「用户维护的笔记」和「自动派生的事实」分开呈现。
 CORE_NOTE_RECORD_ID_PREFIX = "core-note:"
 
+#: 手工 user-note 记录的 id 前缀（USER.md 手写区）。与 core-note 同一套机制，
+#: 只是归属另一个导出文件：MEMORY.md 的手写区是「项目笔记」，USER.md 的手写区
+#: 是「关于我自己的补充」。分开前缀是为了让两者永不互相覆盖。
+USER_NOTE_RECORD_ID_PREFIX = "user-note:"
+
 _UnitKind = Literal["note", "core", "recalled"]
 
 
 def is_core_note_record(record_id: str) -> bool:
     """该记录 id 是否代表一条手工 core-note（而非自动派生事实）。"""
     return record_id.startswith(CORE_NOTE_RECORD_ID_PREFIX)
+
+
+def is_manual_note_record(record_id: str) -> bool:
+    """该记录 id 是否代表**任一**手工笔记（core-note 或 user-note）。
+
+    派生前必须用它而不是 :func:`is_core_note_record`：手工笔记是用户写的正文，
+    既不该被当成「自动派生事实」渲染第二条，也不该参与去重与截断竞争。
+    """
+    return record_id.startswith(
+        (CORE_NOTE_RECORD_ID_PREFIX, USER_NOTE_RECORD_ID_PREFIX)
+    )
 
 
 class RecalledMemorySection(str):
@@ -187,7 +203,7 @@ def _collect_units(
             duplicates.append(hit)
             continue
         seen.add(hit.key)
-        _add(hit, "note" if is_core_note_record(hit.record_id) else "core")
+        _add(hit, "note" if is_manual_note_record(hit.record_id) else "core")
     for hit in recalled_hits or ():
         if hit.key in seen:
             duplicates.append(hit)

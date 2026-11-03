@@ -25,7 +25,6 @@ from nanobot.utils.workspace_prompts import initialize_workspace_prompt
 if TYPE_CHECKING:
     from nanobot.agent.loop import AgentLoop
     from nanobot.session.manager import Session
-    from nanobot.utils.gitstore import CommitInfo
 
 # WebUI protocol contract for how a slash command participates in turn state:
 # - side_channel: returns control text without starting or ending an agent turn.
@@ -487,6 +486,9 @@ async def cmd_dream(ctx: CommandContext) -> OutboundMessage:
         content = ""
         resp = None
         diff_body = ""
+        audit = None
+        run_status = "completed"
+        run_error = ""
         t0 = time.monotonic()
         try:
             result = store.build_dream_prompt()
@@ -500,6 +502,10 @@ async def cmd_dream(ctx: CommandContext) -> OutboundMessage:
             prompt, last_cursor = result
             key = dream_session_key()
             dream_runtime = loop.dream_runtime()
+            audit = store.begin_dream_run(
+                trigger="manual",
+                model=str(getattr(dream_runtime, "model", "") or ""),
+            )
             resp = await loop.process_direct(
                 prompt,
                 session_key=key,
@@ -515,24 +521,26 @@ async def cmd_dream(ctx: CommandContext) -> OutboundMessage:
             completed = MemoryStore.dream_run_completed(resp)
             if completed:
                 store.set_last_dream_cursor(last_cursor)
-                if diff_body:
-                    content = (
-                        f"Dream 草稿已生成：memory/MEMORY.md.draft "
-                        f"（{elapsed:.1f}s）。MEMORY.md 真值由记忆系统从 SQLite 自动生成，"
-                        f"60 秒内自动重建。"
-                    )
-                else:
-                    content = f"Dream completed in {elapsed:.1f}s; no memory changes."
+                # 计数来自审计句柄（真实写入决策），不是模型的自述。
+                summary = audit.summary() if audit else "整理完成"
+                content = (
+                    f"Dream 已整理（{elapsed:.1f}s）：{summary}。"
+                    "MEMORY.md / USER.md 已从记忆库重新生成。"
+                )
             else:
                 reason = MemoryStore.dream_incompletion_reason(resp)
+                run_status, run_error = "failed", reason
                 content = (
                     f"Dream did not complete after {elapsed:.1f}s ({reason}); "
                     "memory cursor was not advanced."
                 )
         except Exception as e:
             elapsed = time.monotonic() - t0
+            run_status, run_error = "failed", str(e)
             content = f"Dream failed after {elapsed:.1f}s: {e}"
         finally:
+            if audit is not None:
+                store.end_dream_run(status=run_status, error=run_error)
             if store.git.is_initialized():
                 commit_msg = build_dream_commit_message("dream: manual run", diff_body)
                 sha = store.git.auto_commit(commit_msg)
@@ -661,142 +669,60 @@ def _format_dream_no_input_message() -> str:
     ])
 
 
-def _extract_changed_files(diff: str) -> list[str]:
-    """Extract changed file paths from a unified diff."""
-    files: list[str] = []
-    seen: set[str] = set()
-    for line in diff.splitlines():
-        if not line.startswith("diff --git "):
-            continue
-        parts = line.split()
-        if len(parts) < 4:
-            continue
-        path = parts[3]
-        if path.startswith("b/"):
-            path = path[2:]
-        if path in seen:
-            continue
-        seen.add(path)
-        files.append(path)
-    return files
+def _format_dream_run_log(runs: list[dict[str, Any]]) -> str:
+    """把 ``memory_dream_runs`` 的行渲染成 ``/dream-log`` 的输出。
 
-
-def _format_changed_files(diff: str) -> str:
-    files = _extract_changed_files(diff)
-    if not files:
-        return "No tracked memory files changed."
-    return ", ".join(f"`{path}`" for path in files)
-
-
-_DREAM_COMMIT_PREFIX = "dream:"
-
-
-def _format_dream_log_content(
-    commit: CommitInfo,
-    diff: str,
-    *,
-    requested_sha: str | None = None,
-) -> str:
-    files_line = _format_changed_files(diff)
+    计数来自真实写入决策（writer 的 outcome），不是 Dream 的自述——Dream 的
+    总结只能引用工具调用成功证实的修改（dream.md 的验证纪律）。
+    """
     lines = [
-        "## Dream Update",
+        "## Dream 整理记录",
         "",
-        "Here is the selected Dream memory change." if requested_sha else "Here is the latest Dream memory change.",
-        "",
-        f"- Commit: `{commit.sha}`",
-        f"- Time: {commit.timestamp}",
-        f"- Changed files: {files_line}",
-    ]
-    if diff:
-        lines.extend([
-            "",
-            f"Use `/dream-restore {commit.sha}` to undo this change.",
-            "",
-            "```diff",
-            diff.rstrip(),
-            "```",
-        ])
-    else:
-        lines.extend([
-            "",
-            "Dream recorded this version, but there is no file diff to display.",
-        ])
-    return "\n".join(lines)
-
-
-def _format_dream_restore_list(commits: list[CommitInfo]) -> str:
-    lines = [
-        "## Dream Restore",
-        "",
-        "Choose a Dream memory version to restore. Latest first:",
+        "最近的记忆整理批次（新的在前）：",
         "",
     ]
-    for c in commits:
-        lines.append(f"- `{c.sha}` {c.timestamp} - {c.subject()}")
+    for run in runs:
+        lines.append(
+            f"- {run['started_at']} [{run['status']}] "
+            f"来源 {run['trigger'] or '未知'}｜"
+            f"新增 {run['added']} / 更新 {run['updated']} / "
+            f"删除 {run['deleted']} / 跳过 {run['skipped']}"
+            + (f"｜{run['error']}" if run["error"] else "")
+        )
     lines.extend([
         "",
-        "Preview a version with `/dream-log <sha>` before restoring it.",
-        "Restore a version with `/dream-restore <sha>`.",
+        "Dream 的产出全部写进记忆库（memories 表），不再直接改记忆文件。",
+        "要撤销某条记忆，在记忆面板删除它，或让模型调用 memory_delete。",
     ])
     return "\n".join(lines)
 
 
 async def cmd_dream_log(ctx: CommandContext) -> OutboundMessage:
-    """Show what the last Dream changed.
+    """Show what recent Dream runs changed.
 
-    Default: diff of the latest Dream commit versus its parent.
-    With /dream-log <sha>: diff of that specific commit.
+    Counts come from the ``memory_dream_runs`` audit table, fed by the writer's
+    real decisions — not by Dream's own narrative.
     """
     store = ctx.loop.consolidator.store
-    git = store.git
 
-    if not git.is_initialized():
-        if store.get_last_dream_cursor() == 0:
-            msg = (
-                "Dream has not run yet. Run `/dream`, or wait for the next scheduled Dream cycle.\n\n"
-                "Use `/dream-prompt` to see or change how Dream organizes memory."
-            )
-        else:
-            msg = "Dream history is not available because memory versioning is not initialized."
+    if store.get_last_dream_cursor() == 0:
+        msg = (
+            "Dream has not run yet. Run `/dream`, or wait for the next scheduled Dream cycle.\n\n"
+            "Use `/dream-prompt` to see or change how Dream organizes memory."
+        )
         return OutboundMessage(
             channel=ctx.msg.channel, chat_id=ctx.msg.chat_id,
             content=msg, metadata={"render_as": "text"},
         )
 
-    args = ctx.args.strip()
-
-    if args:
-        # Show diff of a specific commit
-        sha = args.split()[0]
-        result = git.show_commit_diff(sha)
-        if not result:
-            content = (
-                f"Couldn't find Dream change `{sha}`.\n\n"
-                "Use `/dream-restore` to list recent versions, "
-                "or `/dream-log` to inspect the latest one."
-            )
-        else:
-            commit, diff = result
-            content = _format_dream_log_content(commit, diff, requested_sha=sha)
-    else:
-        # Default: show the latest Dream commit's diff
-        commits = git.log(max_entries=1, message_prefix=_DREAM_COMMIT_PREFIX)
-        result = (
-            git.show_commit_diff(
-                commits[0].sha,
-                max_entries=1,
-                message_prefix=_DREAM_COMMIT_PREFIX,
-            )
-            if commits else None
+    runs = store.recent_dream_runs(limit=10)
+    if not runs:
+        content = (
+            "Dream 还没有留下整理记录。\n\n"
+            "Dream 的产出写进记忆库后，会在这里显示新增/更新/删除条数。"
         )
-        if result:
-            commit, diff = result
-            content = _format_dream_log_content(commit, diff)
-        else:
-            content = (
-                "Dream memory has no saved versions yet.\n\n"
-                "Use `/dream-prompt` to see or change how Dream organizes memory."
-            )
+    else:
+        content = _format_dream_run_log(runs)
 
     return OutboundMessage(
         channel=ctx.msg.channel, chat_id=ctx.msg.chat_id,
@@ -805,52 +731,20 @@ async def cmd_dream_log(ctx: CommandContext) -> OutboundMessage:
 
 
 async def cmd_dream_restore(ctx: CommandContext) -> OutboundMessage:
-    """Restore memory files from a previous dream commit.
+    """Dream no longer edits memory files, so there is no file version to rewind.
 
-    Usage:
-        /dream-restore          — list recent commits
-        /dream-restore <sha>    — revert a specific commit
+    Dream's output lands in the ``memories`` table, where each record carries its
+    own ``superseded_by`` chain. Undoing a change therefore means removing the
+    specific record (memory panel or ``memory_delete``), not rewinding a commit.
     """
-    store = ctx.loop.consolidator.store
-    git = store.git
-    if not git.is_initialized():
-        return OutboundMessage(
-            channel=ctx.msg.channel, chat_id=ctx.msg.chat_id,
-            content="Dream history is not available because memory versioning is not initialized.",
-        )
-
-    args = ctx.args.strip()
-    if not args:
-        # Show recent Dream commits for the user to pick
-        commits = git.log(max_entries=10, message_prefix=_DREAM_COMMIT_PREFIX)
-        if not commits:
-            content = "Dream memory has no saved versions to restore yet."
-        else:
-            content = _format_dream_restore_list(commits)
-    else:
-        sha = args.split()[0]
-        result = git.show_commit_diff(sha, message_prefix=_DREAM_COMMIT_PREFIX)
-        if not result:
-            content = (
-                f"Couldn't restore Dream change `{sha}`.\n\n"
-                "Only Dream memory versions can be restored. "
-                "Use `/dream-restore` to list recent versions."
-            )
-        else:
-            changed_files = _format_changed_files(result[1])
-            new_sha = git.revert(sha, message_prefix=_DREAM_COMMIT_PREFIX)
-            if new_sha:
-                content = (
-                    f"Restored Dream memory to the state before `{sha}`.\n\n"
-                    f"- New safety commit: `{new_sha}`\n"
-                    f"- Restored files: {changed_files}\n\n"
-                    f"Use `/dream-log {new_sha}` to inspect the restore diff."
-                )
-            else:
-                content = (
-                    f"Couldn't restore Dream change `{sha}`.\n\n"
-                    "It may be the first saved version with no earlier state to restore."
-                )
+    content = (
+        "## Dream 回滚已改为按条删除\n\n"
+        "Dream 现在只往记忆库写记录，不再改 MEMORY.md / USER.md 这类文件，"
+        "因此没有可以回滚的文件版本。\n\n"
+        "- 想撤掉某条记忆：在「设置 → 记忆」面板里删除它，下次整理后投影文件会同步消失；\n"
+        "- 想撤掉一批：让模型调用 memory_delete（会先预览再确认）；\n"
+        "- 想看某次整理改了什么：/dream-log。\n"
+    )
     return OutboundMessage(
         channel=ctx.msg.channel, chat_id=ctx.msg.chat_id,
         content=content, metadata={"render_as": "text"},

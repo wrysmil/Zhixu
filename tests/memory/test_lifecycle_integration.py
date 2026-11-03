@@ -8,8 +8,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import uuid
+from pathlib import Path
 
 import pytest
 
@@ -21,7 +21,6 @@ from nanobot.memory import (
 )
 from nanobot.memory.lifecycle import MemoryLifecycle
 from nanobot.webui.memory_services import MemoryServices
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -70,9 +69,7 @@ def memory_store(tmp_path: Path):
     workspace = tmp_path / "workspace"
     workspace.mkdir(parents=True)
     # MemoryStore 只需要 workspace，memory_dir 从 workspace/memory 推导
-    store = MemoryStore(workspace)
-    # 确保 draft_file 存在（MemoryStore 会自动创建 memory_dir）
-    return store
+    return MemoryStore(workspace)
 
 
 # ---------------------------------------------------------------------------
@@ -164,31 +161,43 @@ def test_truncate_keeps_memory_md_under_1500_chars(
 
 
 # ---------------------------------------------------------------------------
-# 3. Dream 降级：draft_file 存在且 memory_file 不在白名单
+# 3. Dream 工具白名单：三个记忆文件都写不了
 # ---------------------------------------------------------------------------
 
 
-def test_dream_editable_files_includes_draft(memory_store):
-    """验证 Dream 白名单包含 draft_file（memory_file 不在其中）。
+def test_dream_tools_exclude_all_memory_files(memory_store):
+    """P1 之后 Dream 对 SOUL.md / USER.md / MEMORY.md 一个都写不了。
 
-    白名单硬编码在 build_dream_tools() 内部：
-    editable_files = [self.soul_file, self.user_file, self.draft_file]
-    memory_file 被移除。
+    ``build_dream_tools`` 不再有 ``extra_write_allowed_files``，写目录被限制在
+    ``skills/``；想改记忆只能走 ``add_memory`` / ``memory_delete``。
     """
-    # 验证 draft_file 属性存在
-    assert hasattr(memory_store, "draft_file")
-    assert memory_store.draft_file is not None
-    assert memory_store.draft_file.name == "MEMORY.md.draft"
-    assert memory_store.draft_file.parent == memory_store.memory_dir
-
-    # 验证 build_dream_tools 返回的是 ToolRegistry（不是列表）
     registry = memory_store.build_dream_tools()
     assert registry is not None
 
-    # 白名单在 build_dream_tools 内部定义，我们通过返回值类型来间接验证
-    # （ToolRegistry 是内部结构，直接检查需要 mock）
-    # 核心验证：draft_file 路径正确
-    assert memory_store.draft_file.exists() or True  # 可能不存在，但路径对
+    write_tool = next(t for t in registry._tools.values() if "write" in t.name.lower())
+    assert not write_tool._extra_write_allowed_files
+    assert str(write_tool._allowed_dir).endswith("skills")
+
+
+def test_draft_file_attribute_is_gone(memory_store):
+    """draft 机制已删除：MemoryStore 上不再有 draft_file 属性。"""
+    assert not hasattr(memory_store, "draft_file")
+    assert not (memory_store.memory_dir / "MEMORY.md.draft").exists()
+
+
+def test_legacy_draft_is_archived(memory_store):
+    """启动时把遗留的 MEMORY.md.draft 归档到 memory/legacy/，不删除。"""
+    from nanobot.agent.memory import MemoryStore
+
+    draft = memory_store.memory_dir / "MEMORY.md.draft"
+    draft.write_text("候选：用户偏好简洁回复", encoding="utf-8")
+
+    MemoryStore(memory_store.workspace)  # 重新构造即触发归档
+
+    assert not draft.exists()
+    archived = memory_store.memory_dir / "legacy" / "MEMORY.md.draft"
+    assert archived.exists()
+    assert "候选" in archived.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -196,12 +205,12 @@ def test_dream_editable_files_includes_draft(memory_store):
 # ---------------------------------------------------------------------------
 
 
-def test_get_memory_md_content_returns_both_files(
+def test_get_memory_md_content_returns_memory_md(
     db: MemoryDatabase,
     services: MemoryServices,
     memory_dir: Path,
 ):
-    """验证 get_memory_md_content 同时返回 MEMORY.md 和 draft 内容。"""
+    """验证 get_memory_md_content 返回 MEMORY.md 内容（draft 已移除）。"""
     # 先通过 lifecycle 创建实例（让 _instances 有记录）
     lifecycle = MemoryLifecycle.for_workspace(
         workspace_id=services.workspace_id,
@@ -212,18 +221,16 @@ def test_get_memory_md_content_returns_both_files(
     lifecycle.memory_file.write_text(
         "# Core Memory\n\n## Facts\n- test fact", encoding="utf-8"
     )
-    lifecycle.draft_file.write_text(
-        "# Draft\n\n## Facts\n- draft fact", encoding="utf-8"
-    )
 
     from nanobot.webui.memory_api import get_memory_md_content
 
     result = get_memory_md_content(services)
 
     assert result["memory_md_exists"] is True
-    assert result["draft_exists"] is True
     assert "test fact" in (result["memory_md"] or "")
-    assert "draft fact" in (result["draft"] or "")
+    # draft 相关字段已随机制一并移除
+    assert "draft" not in result
+    assert "draft_exists" not in result
 
 
 # ---------------------------------------------------------------------------

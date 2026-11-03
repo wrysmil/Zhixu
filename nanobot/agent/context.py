@@ -272,7 +272,7 @@ class ContextBuilder:
         return self._core_services
 
     def _load_core_hits(self) -> list[MemoryHit]:
-        """每轮从 SQLite 当前有效记录选取核心事实（沿用 scope=user + 重要性规则）。"""
+        """每轮从 SQLite 当前有效记录选取核心事实（workspace + 有效性 + 重要性）。"""
         if self._memory_enabled_provider is not None and not self._memory_enabled_provider():
             return []
         services = self._core_memory_services()

@@ -213,6 +213,29 @@ _SCHEMA_STATEMENTS = [
         updated_at   TEXT    NOT NULL
     )
     """,
+    # ----- memory_dream_runs -----
+    # P1：Dream 从「改文件」改成「写库」之后，git diff 不再是可靠的审计面
+    # （库里多一行，工作树可能一个字都不变）。这张表替代 git 承担
+    # 「昨晚它动了什么」的问答：一次运行一行，计数来自真实写入决策而非
+    # 模型自述（dream.md 第 133 行的验证纪律）。
+    """
+    CREATE TABLE IF NOT EXISTS memory_dream_runs (
+        run_id        TEXT    PRIMARY KEY,
+        workspace_id  TEXT    NOT NULL,
+        trigger       TEXT    NOT NULL DEFAULT '',
+        status        TEXT    NOT NULL DEFAULT 'running',
+        entries_read  INTEGER NOT NULL DEFAULT 0,
+        added         INTEGER NOT NULL DEFAULT 0,
+        updated       INTEGER NOT NULL DEFAULT 0,
+        deleted       INTEGER NOT NULL DEFAULT 0,
+        skipped       INTEGER NOT NULL DEFAULT 0,
+        model         TEXT    NOT NULL DEFAULT '',
+        error         TEXT    NOT NULL DEFAULT '',
+        started_at    TEXT    NOT NULL,
+        finished_at   TEXT    NOT NULL DEFAULT ''
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_dream_runs_scope ON memory_dream_runs(workspace_id, started_at DESC)",
 ]
 
 

@@ -121,7 +121,13 @@ class TestContentHashLegacy:
 
 
 class TestSelectCoreFacts:
-    def test_user_scope_only(self, services):
+    def test_scope_is_not_a_filter(self, services):
+        """``scope`` 是可见性轴，不是「是否关于用户」的标记。
+
+        回归防护：D01-D13 之后 ``Memory.scope`` 默认 ``global``、抽取链路从不写
+        ``user``，若仍按 ``scope="user"`` 过滤，核心视图恒为空——注入侧
+        ``_load_core_hits`` 一起变成死代码。这条用例钉住「不再按 scope 过滤」。
+        """
         _seed(
             services,
             _mem("用户记忆", MemoryType.FACT, scope="user"),
@@ -130,7 +136,21 @@ class TestSelectCoreFacts:
         )
         with services.database.connect() as conn:
             facts = select_core_facts(conn, workspace_id="test-ws")
-        assert [m.content for m in facts] == ["用户记忆"]
+        assert sorted(m.content for m in facts) == ["Agent记忆", "Global记忆", "用户记忆"]
+
+    def test_manual_notes_never_count_as_facts(self, services):
+        """手工笔记（core-note / user-note）不是「自动派生事实」。"""
+        from nanobot.memory.lifecycle import core_note_id, save_core_note, save_user_note
+
+        _seed(services, _mem("普通事实", MemoryType.FACT, importance=0.9))
+        with services.database.connect() as conn:
+            save_core_note(conn, workspace_id="test-ws", content="手工笔记正文")
+            save_user_note(conn, workspace_id="test-ws", content="画像手写正文")
+            facts = select_core_facts(conn, workspace_id="test-ws", include_note=False)
+
+        ids = {m.id for m in facts}
+        assert core_note_id("test-ws") not in ids
+        assert [m.content for m in facts] == ["普通事实"]
 
     def test_min_importance_threshold(self, services):
         _seed(
@@ -196,17 +216,18 @@ class TestRefreshMemoryMdSync:
 
         assert result == {"status": "skipped", "reason": "no_change"}
 
-    def test_user_scope_only_written(self, lifecycle, services):
+    def test_all_current_valid_facts_are_written(self, lifecycle, services):
+        """导出不按 scope 收窄：真实库里 scope 恒为 global（见 select_core_facts）。"""
         _seed(
             services,
             _mem("用户记忆", MemoryType.FACT, scope="user"),
-            _mem("Agent记忆", MemoryType.FACT, scope="agent"),
+            _mem("全局记忆", MemoryType.FACT, scope="global"),
         )
         lifecycle.refresh_memory_md_sync("test-ws")
 
         content = lifecycle.memory_file.read_text(encoding="utf-8")
         assert "用户记忆" in content
-        assert "Agent记忆" not in content
+        assert "全局记忆" in content
 
     def test_grouped_by_type(self, lifecycle, services):
         _seed(

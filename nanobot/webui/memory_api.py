@@ -9,7 +9,6 @@ machinery; transport lives elsewhere.
 from __future__ import annotations
 
 import logging
-import time
 import uuid
 from collections.abc import Sequence
 from datetime import datetime, timezone
@@ -361,29 +360,6 @@ def _get_last_refresh_trigger(workspace_id: str) -> str | None:
     return MemoryLifecycle._last_refresh_trigger.get(workspace_id)
 
 
-def _draft_exists(workspace_id: str) -> bool:
-    """检查 MEMORY.md.draft 是否存在。"""
-    from nanobot.memory.lifecycle import MemoryLifecycle
-
-    inst = MemoryLifecycle._instances.get(workspace_id)
-    if inst is None:
-        return False
-    return inst.draft_file.exists()
-
-
-def _draft_age_seconds(workspace_id: str) -> int | None:
-    """draft 文件距今秒数，不存在返回 None。"""
-    from nanobot.memory.lifecycle import MemoryLifecycle
-
-    inst = MemoryLifecycle._instances.get(workspace_id)
-    if inst is None or not inst.draft_file.exists():
-        return None
-    try:
-        return int(time.time() - inst.draft_file.stat().st_mtime)
-    except OSError:
-        return None
-
-
 def _current_memory_md_chars(workspace_id: str) -> int:
     """MEMORY.md 当前字符数，不存在返回 0。"""
     from nanobot.memory.lifecycle import MemoryLifecycle
@@ -410,29 +386,17 @@ def _read_memory_md_content(workspace_id: str) -> str | None:
         return None
 
 
-def _read_draft_content(workspace_id: str) -> str | None:
-    """读取 MEMORY.md.draft 文件内容，不存在返回 None。"""
-    from nanobot.memory.lifecycle import MemoryLifecycle
-
-    inst = MemoryLifecycle._instances.get(workspace_id)
-    if inst is None or not inst.draft_file.exists():
-        return None
-    try:
-        return inst.draft_file.read_text(encoding="utf-8")
-    except OSError:
-        return None
-
-
 def get_memory_md_content(services: MemoryServices) -> dict[str, Any]:
-    """读取 MEMORY.md 和 draft 内容，用于前端 Modal 展示。"""
+    """读取 MEMORY.md 内容，用于前端 Modal 展示。
+
+    ``draft`` / ``draft_exists`` 两个字段随 draft 机制一并移除（P1）：Dream 不再
+    产出草稿文件，保留这两个键只会让前端继续渲染一个永远为空的「草稿」区块。
+    """
     workspace_id = services.workspace_id
     memory_md = _read_memory_md_content(workspace_id)
-    draft = _read_draft_content(workspace_id)
     return {
         "memory_md": memory_md,
-        "draft": draft,
         "memory_md_exists": memory_md is not None,
-        "draft_exists": draft is not None,
     }
 
 
@@ -474,10 +438,10 @@ def stats_payload(
             "memory_md": {
                 "last_refresh_at": _get_last_refresh_at(services.workspace_id),
                 "last_refresh_trigger": _get_last_refresh_trigger(services.workspace_id),
-                "draft_exists": _draft_exists(services.workspace_id),
-                "draft_age_seconds": _draft_age_seconds(services.workspace_id),
                 "current_chars": _current_memory_md_chars(services.workspace_id),
                 "max_chars": 1500,
+                # 上次整理（替代原 draft 字段）：时间 + 增删条数，数据来自审计表。
+                "last_consolidation": _last_consolidation(services),
             },
         }
 
@@ -501,11 +465,36 @@ def stats_payload(
         "memory_md": {
             "last_refresh_at": _get_last_refresh_at(services.workspace_id),
             "last_refresh_trigger": _get_last_refresh_trigger(services.workspace_id),
-            "draft_exists": _draft_exists(services.workspace_id),
-            "draft_age_seconds": _draft_age_seconds(services.workspace_id),
             "current_chars": _current_memory_md_chars(services.workspace_id),
             "max_chars": 1500,
+            # 上次整理（替代原 draft 字段）：时间 + 增删条数，数据来自审计表。
+            "last_consolidation": _last_consolidation(services),
         },
+    }
+
+
+def _last_consolidation(services: MemoryServices) -> dict[str, Any] | None:
+    """最近一次 Dream 整理的摘要；从未整理过返回 None。
+
+    字段集恒定（``None`` 时各键仍存在但取空值），前端不必做存在性判断。
+    """
+    from nanobot.memory.dream_audit import list_recent_runs
+
+    runs = list_recent_runs(services.database, services.workspace_id, limit=1)
+    if not runs:
+        return None
+    run = runs[0]
+    return {
+        "run_id": run.get("run_id", ""),
+        "trigger": run.get("trigger", ""),
+        "status": run.get("status", ""),
+        "started_at": run.get("started_at", ""),
+        "finished_at": run.get("finished_at", ""),
+        "added": int(run.get("added", 0) or 0),
+        "updated": int(run.get("updated", 0) or 0),
+        "deleted": int(run.get("deleted", 0) or 0),
+        "skipped": int(run.get("skipped", 0) or 0),
+        "error": run.get("error", ""),
     }
 
 
@@ -592,19 +581,23 @@ def sync_vector(
 def _refresh_memory_md_after_mutation(
     workspace_id: str, services: "MemoryServices"
 ) -> None:
-    """在 SQLite 写操作后触发 MEMORY.md 派生（同步调用）。
+    """在 SQLite 写操作后触发两个派生文件（同步调用）。
+
+    ``MEMORY.md``（核心视图）与 ``USER.md``（用户画像）都是记忆库的投影，
+    同一次 mutation 必须一起刷新——否则「删掉一条记忆、文件里还剩一行」的
+    幽灵状态会出现在另一个文件上。
 
     派生失败只记日志，不抛给 mutation 调用方。
-    60s 去抖在 MemoryLifecycle 层面处理。
     """
     try:
         from nanobot.memory.lifecycle import MemoryLifecycle
 
         lifecycle = MemoryLifecycle.for_workspace(workspace_id, services)
         lifecycle.refresh_memory_md_sync(workspace_id)
+        lifecycle.refresh_user_md_sync(workspace_id, trigger="mutation")
     except Exception as e:
         _logger = logging.getLogger(__name__)
-        _logger.warning("[MemoryLifecycle] refresh_memory_md failed after mutation: %s", e)
+        _logger.warning("[MemoryLifecycle] refresh derived md failed after mutation: %s", e)
 
 
 # ---- write actions -----------------------------------------------------------
@@ -837,15 +830,18 @@ def delete_episode(services: MemoryServices, episode_id: str) -> dict[str, Any]:
 
 
 def refresh_memory_md(services: "MemoryServices") -> dict[str, Any]:
-    """手动触发 MEMORY.md 从 SQLite 重建。
+    """手动触发两个派生文件从 SQLite 重建。
 
-    供 WebUI mutation 调用。
+    返回形状与旧版兼容：``status`` / ``chars`` 仍是 MEMORY.md 的结果，
+    USER.md 的结果挂在 ``user_md`` 下。供 WebUI mutation 与身份重载调用。
     """
     from nanobot.memory.lifecycle import MemoryLifecycle
 
     lifecycle = MemoryLifecycle.for_workspace(services.workspace_id, services)
-    result = lifecycle.refresh_memory_md_sync(services.workspace_id)
-    return result
+    result = lifecycle.refresh_derived_sync(services.workspace_id, trigger="manual")
+    payload = dict(result.get("memory_md") or {})
+    payload["user_md"] = result.get("user_md")
+    return payload
 
 
 def save_scratchpad(

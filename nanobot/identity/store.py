@@ -15,6 +15,7 @@ from nanobot.identity.catalog import (
     CHAR_LIMIT,
     CORE_FILES,
     LIFECYCLE_OWNED_FILES,
+    MEMORY_DIR_DERIVED_FILES,
     IdentityFileSpec,
     build_persona_specs,
     resolve_identity_dir,
@@ -82,20 +83,19 @@ class IdentityStore:
     def _target(self, name: str) -> Path:
         """经 :meth:`_resolve` 完成安全校验后的实际读写落点。
 
-        两处回退与各自的真相源对齐（写路径不受影响：``MEMORY.md`` 在
-        :meth:`write_file` 已被拦去 lifecycle，legacy 两文件回退写根与
-        ``MemoryStore.soul_file`` / ``user_file`` 的落点一致）：
+        两处回退与各自的真相源对齐（写路径不受影响：``MEMORY.md`` /
+        ``USER.md`` 在 :meth:`write_file` 已被拦去 lifecycle）：
 
         - ``MEMORY.md`` 真身在 ``memory/``（MemoryLifecycle 派生产物）；
-        - ``SOUL.md`` / ``USER.md`` 老位置在 workspace 根，与
-          ``ContextBuilder._load_bootstrap_files`` 的注入语义一致——保证
-          WebUI 显示、编辑的就是 Agent 实际注入的那一份。
+        - ``USER.md`` 是同一套派生机制的产物，但真身在 ``identity/``——注入侧
+          ``ContextBuilder`` 优先读那里，落点必须一致；
+        - ``SOUL.md`` 老位置在 workspace 根，与 ``MemoryStore.soul_file`` 一致。
 
         其余文件（含越界候选、逃逸 symlink）仍由 ``_resolve`` 拦在 ``identity/`` 内。
         """
         candidate = self._resolve(name)
         spec = self._spec_for(name)
-        if spec is not None and spec.name in LIFECYCLE_OWNED_FILES:
+        if spec is not None and spec.name in MEMORY_DIR_DERIVED_FILES:
             # 派生产物优先读 memory/——写路径（lifecycle）永远落那里，
             # 若先命中 identity/ 残留文件会读到与写不一致的旧内容。
             derived = self.workspace / "memory" / spec.path
@@ -148,11 +148,11 @@ class IdentityStore:
         两处例外与读路径对齐，否则清单说 ``exists=true``、读却 404：
 
         - ``MEMORY.md`` 真身在 ``memory/``（MemoryLifecycle 派生产物，写走 api 分流）；
-        - ``SOUL.md`` / ``USER.md`` 老位置在 workspace 根（见 :meth:`_target`）。
+        - ``SOUL.md`` 老位置在 workspace 根（见 :meth:`_target`）。
         """
         if (self.identity_dir / spec.path).is_file():
             return True
-        if spec.name in LIFECYCLE_OWNED_FILES:
+        if spec.name in MEMORY_DIR_DERIVED_FILES:
             return (self.workspace / "memory" / spec.path).is_file()
         if spec.path == spec.name and spec.name in LEGACY_ROOT_FILES:
             return (self.workspace / spec.name).is_file()
@@ -172,9 +172,9 @@ class IdentityStore:
     def write_file(self, name: str, content: str) -> None:
         """校验后写入。
 
-        ``MEMORY.md`` 一律拒绝：它是 Dream 流程的派生产物，必须走
-        ``MemoryLifecycle._safe_write_with_backup``，由 API 层分流。在这里拦住，
-        是为了保证「谁能写 MEMORY.md」只有那一个入口。
+        ``MEMORY.md`` / ``USER.md`` 一律拒绝：它们是记忆库的派生产物，必须走
+        ``MemoryLifecycle`` 的备份写入，由 API 层分流。在这里拦住，是为了保证
+        「谁能写这两个文件」只有那一个入口——否则又会出两个整份覆盖的写手。
         """
         if name in LIFECYCLE_OWNED_FILES:
             raise IdentityStoreError(

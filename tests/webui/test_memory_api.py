@@ -306,14 +306,15 @@ def test_stats_includes_memory_md_field(services: MemoryServices):
     md = payload["memory_md"]
     assert "last_refresh_at" in md
     assert "last_refresh_trigger" in md
-    assert "draft_exists" in md
-    assert "draft_age_seconds" in md
     assert "current_chars" in md
     assert md["max_chars"] == 1500
+    # draft 字段已随机制移除；取而代之的是「上次整理」摘要
+    assert "draft_exists" not in md
+    assert "last_consolidation" in md
 
 
 def test_stats_memory_md_no_lifecycle(services: MemoryServices):
-    """无 MemoryLifecycle 单例时，各字段返回 None/False/0。"""
+    """无 MemoryLifecycle 单例时，各字段返回 None/0。"""
     # Ensure no singleton exists for this workspace
     MemoryLifecycle._instances.pop(services.workspace_id, None)
     MemoryLifecycle._last_refresh_iso.pop(services.workspace_id, None)
@@ -323,10 +324,27 @@ def test_stats_memory_md_no_lifecycle(services: MemoryServices):
     md = payload["memory_md"]
     assert md["last_refresh_at"] is None
     assert md["last_refresh_trigger"] is None
-    assert md["draft_exists"] is False
-    assert md["draft_age_seconds"] is None
     assert md["current_chars"] == 0
     assert md["max_chars"] == 1500
+    assert md["last_consolidation"] is None
+
+
+def test_stats_reports_last_consolidation(services: MemoryServices):
+    """跑过一次 Dream 整理后，stats 里能读到它的计数。"""
+    from nanobot.memory.dream_audit import begin_run, end_run
+
+    audit = begin_run(services.database, services.workspace_id, trigger="cron")
+    audit.record_added()
+    audit.record_deleted(2)
+    end_run(services.workspace_id, status="completed")
+
+    md = stats_payload(services)["memory_md"]
+    last = md["last_consolidation"]
+    assert last is not None
+    assert last["status"] == "completed"
+    assert last["trigger"] == "cron"
+    assert last["added"] == 1
+    assert last["deleted"] == 2
 
 
 @pytest.fixture

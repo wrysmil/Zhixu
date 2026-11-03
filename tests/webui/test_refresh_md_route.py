@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -37,16 +37,23 @@ def test_refresh_memory_md_in_action_names():
 
 
 def test_refresh_memory_md_calls_lifecycle(monkeypatch, services):
-    """refresh_memory_md 应调用 MemoryLifecycle.refresh_memory_md_sync."""
-    mock_result = {"status": "ok", "refreshed": 3}
+    """refresh_memory_md 应刷新两个派生产物（MEMORY.md + USER.md）。
+
+    返回形状对旧调用方保持兼容：``status`` / ``chars`` 仍是 MEMORY.md 的结果，
+    USER.md 的结果挂在 ``user_md`` 下（identity_reload 直接把整个 dict 透传）。
+    """
+    memory_result = {"status": "ok", "chars": 42}
+    user_result = {"status": "ok", "chars": 7, "items": 2}
+    calls: list[tuple[str, str]] = []
 
     class MockLifecycle:
         @staticmethod
         def for_workspace(workspace_id, _services):
             return MockLifecycle()
 
-        def refresh_memory_md_sync(self, workspace_id):
-            return mock_result
+        def refresh_derived_sync(self, workspace_id, *, trigger="mutation"):
+            calls.append(("all", trigger))
+            return {"memory_md": memory_result, "user_md": user_result}
 
     # MemoryLifecycle 在函数内部导入，所以 patch 内部路径
     monkeypatch.setattr(
@@ -55,7 +62,8 @@ def test_refresh_memory_md_calls_lifecycle(monkeypatch, services):
     )
 
     result = memory_api.refresh_memory_md(services)
-    assert result == mock_result
+    assert result == {**memory_result, "user_md": user_result}
+    assert calls == [("all", "manual")]
 
 
 def test_refresh_memory_md_handles_missing_lifecycle(services, monkeypatch):
@@ -140,8 +148,9 @@ def test_memory_refresh_md_in_settings_mutation_paths():
 
 def test_memory_settings_operations_has_refresh_memory_md():
     """MemorySettingsOperations 必有 refresh_memory_md 字段."""
-    from nanobot.webui.memory_routes import MemorySettingsOperations
     import dataclasses
+
+    from nanobot.webui.memory_routes import MemorySettingsOperations
 
     fields = {f.name for f in dataclasses.fields(MemorySettingsOperations)}
     assert "refresh_memory_md" in fields
@@ -178,12 +187,12 @@ def test_get_memory_md_content_in_action_names():
 def test_dispatch_memory_get_md_content():
     """dispatch("memory-get-md-content") 应调用 operations.get_memory_md_content()."""
     fake_ops = FakeOperations()
-    fake_ops._content_result = {"memory_md": "# Core Memory\n\n## Facts\n- test", "draft": None, "memory_md_exists": True, "draft_exists": False}
+    fake_ops._content_result = {"memory_md": "# Core Memory\n\n## Facts\n- test", "memory_md_exists": True}
 
     # 需要扩展 FakeOperations
     class ContentOps:
         def __init__(self):
-            self._content_result = {"memory_md": "# Core Memory\n\n## Facts\n- test", "draft": None, "memory_md_exists": True, "draft_exists": False}
+            self._content_result = {"memory_md": "# Core Memory\n\n## Facts\n- test", "memory_md_exists": True}
 
         def get_memory_md_content(self):
             return self._content_result
@@ -193,7 +202,9 @@ def test_dispatch_memory_get_md_content():
 
     result = dispatch(ops, "memory-get-md-content", request)
     assert result["memory_md_exists"] is True
-    assert result["draft_exists"] is False
+    # draft 字段已移除
+    assert "draft" not in result
+    assert "draft_exists" not in result
 
 
 def test_memory_get_md_content_in_system_routes():
@@ -206,8 +217,9 @@ def test_memory_get_md_content_in_system_routes():
 
 def test_memory_settings_operations_has_get_memory_md_content():
     """MemorySettingsOperations 必有 get_memory_md_content 字段."""
-    from nanobot.webui.memory_routes import MemorySettingsOperations
     import dataclasses
+
+    from nanobot.webui.memory_routes import MemorySettingsOperations
 
     fields = {f.name for f in dataclasses.fields(MemorySettingsOperations)}
     assert "get_memory_md_content" in fields
@@ -217,7 +229,7 @@ def test_build_memory_operations_includes_get_memory_md_content(tmp_path):
     """build_memory_operations 应注入 get_memory_md_content."""
     from nanobot.webui.gateway_services import build_memory_operations
 
-    with patch.object(memory_api, "get_memory_md_content", return_value={"memory_md": None, "draft": None, "memory_md_exists": False, "draft_exists": False}):
+    with patch.object(memory_api, "get_memory_md_content", return_value={"memory_md": None, "memory_md_exists": False}):
         ops = build_memory_operations(
             workspace_id="test",
             workspace_path=tmp_path,
