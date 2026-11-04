@@ -3,6 +3,8 @@
 import asyncio
 import os
 import signal
+import threading
+import time
 from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from contextlib import suppress
 from pathlib import Path
@@ -12,7 +14,7 @@ import typer
 from loguru import logger
 from rich.console import Console
 
-from nanobot import __logo__, __version__
+from nanobot import __version__
 from nanobot.agent.hook import AgentHook, AgentRunHookContext
 from nanobot.agent.hooks import create_file_edit_activity_hook
 from nanobot.agent.loop import _MEMORY_WORKSPACE_ID, AgentLoop
@@ -56,6 +58,10 @@ from nanobot.writing.collab.runner import converge_collaborations
 __all__ = ["_run_gateway"]
 
 console = Console()
+
+# 启动对账等模型加载就绪的上限：首次下载/加载权重可能很慢，
+# 但守护线程不能永久挂住，超时后按「未就绪」记录并跳过。
+_VECTOR_SYNC_READY_TIMEOUT_S = 300.0
 
 
 class _MCPReadinessHook(AgentHook):
@@ -485,7 +491,7 @@ def _run_gateway(
         )
         raise typer.Exit(1)
 
-    console.print(f"{__logo__} Starting Zhixu gateway version {__version__} on port {port}...")
+    console.print(f"Starting Zhixu gateway version {__version__} on port {port}...")
     _prepare_webui_bundle_for_gateway(
         config,
         mode=webui_bundle_mode,
@@ -628,6 +634,18 @@ def _run_gateway(
         _startup_indexer = _vector_indexer
 
         def _startup_vector_sync() -> None:
+            # 模型是后台线程加载的，抢跑会让 sync 在 loading 状态下空转
+            # （indexed=0），产品索引永远是空的。先等状态机离开 loading。
+            deadline = time.monotonic() + _VECTOR_SYNC_READY_TIMEOUT_S
+            while _vector_store.state == "loading" and time.monotonic() < deadline:
+                time.sleep(0.25)
+            if _vector_store.state != "ready":
+                logger.warning(
+                    "vector startup sync skipped: store state={} error={}",
+                    _vector_store.state,
+                    _vector_store.error,
+                )
+                return
             try:
                 result = _startup_indexer.sync_from_sqlite()
                 logger.info(
@@ -639,7 +657,11 @@ def _run_gateway(
             except Exception as exc:  # noqa: BLE001 - 对账失败不影响启动
                 logger.warning("vector startup sync failed: {}", exc)
 
-        _schedule_webui_background(asyncio.to_thread(_startup_vector_sync))
+        # 这里仍在同步启动阶段（事件循环要到后面的 ``asyncio.run`` 才有），
+        # 不能用 create_task 调度；用守护线程跑对账，开启向量后端时不能再崩。
+        threading.Thread(
+            target=_startup_vector_sync, name="nanobot-vector-sync", daemon=True
+        ).start()
 
     webui_turn_coordinator = WebuiTurnCoordinator(
         bus=bus,

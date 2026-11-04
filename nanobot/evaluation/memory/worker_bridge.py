@@ -399,11 +399,61 @@ def _build_trial_adapter(
     paths = runtime.paths
     trial_root = memory_trial_paths(paths, execution.scope.model_dump(mode="json"))
     trial_root.mkdir(parents=True, exist_ok=True)
+    vector_store, vector_expected = _trial_vector_store(runtime, trial_root, execution.scope)
     return ZhixuMemoryAdapter(
         trial_root=trial_root,
         scope=execution.scope,
         runtime=runtime.loop.llm_runtime(),
+        vector_store=vector_store,
+        vector_expected=vector_expected,
+        # 端到端测的是「回答用不用得上记忆」，向量缺失时按产品降级继续；
+        # 抽取/检索轨道的指标必须建立在真向量上。
+        fallback_without_vector=execution.track == "end_to_end",
     )
+
+
+#: 等向量模型加载的上限。模型是后台线程加载的；不等就绪会把首条 trial 跑成
+#: 「向量未就绪」的空检索。
+_VECTOR_READY_TIMEOUT_S = 60.0
+
+
+def _trial_vector_store(
+    runtime: "AttemptRuntime", trial_root: Path, scope: MemoryScope
+) -> tuple[Any, bool]:
+    """按 worker 的 config 装配 trial 向量库：与产品同一个后端开关。
+
+    ``memorySearchBackend != chromadb`` 时返回 ``(None, False)``——保持评测与
+    产品一致，不做「评测偷偷开、产品没开」的对比。
+    """
+    import time
+
+    from loguru import logger
+
+    config = getattr(runtime, "config", None)
+    defaults = getattr(getattr(config, "agents", None), "defaults", None)
+    backend = str(getattr(defaults, "memory_search_backend", "") or "").strip().lower()
+    if defaults is None or backend != "chromadb":
+        return None, False
+
+    from nanobot.evaluation.memory.zhixu_adapter import _WORKSPACES_DIRNAME
+    from nanobot.memory.vector.store import VectorStore
+
+    settings = defaults.memory_vector.to_vector_settings(enabled=True)
+    workspace = trial_root / _WORKSPACES_DIRNAME / scope.workspace_id / scope.subject_id
+    workspace.mkdir(parents=True, exist_ok=True)
+    store = VectorStore(settings, workspace=workspace)
+    deadline = time.monotonic() + _VECTOR_READY_TIMEOUT_S
+    while store.state == "loading" and time.monotonic() < deadline:
+        time.sleep(0.2)
+    if store.state != "ready":
+        logger.warning(
+            "trial vector store unavailable ({}/{}): {}",
+            store.state, backend, store.error,
+        )
+        # 配置要求向量但没加载起来：如实声明「期望向量」，端到端轨道据此走
+        # FTS 降级，检索轨道继续按 capability_missing 拒绝。
+        return None, True
+    return store, True
 
 
 def _fill_injected_facts(

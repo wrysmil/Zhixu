@@ -369,10 +369,15 @@ def _intervals_compatible(left: NormalizedFact, right: NormalizedFact) -> bool:
 
 
 def _comparable(gold: NormalizedFact, predicted: NormalizedFact) -> bool:
-    """主体/key/scope/有效区间一致才允许比较（契约 §8.2 第 2 步）。"""
+    """主体/scope/有效区间一致才允许比较（契约 §8.2 第 2 步）。
+
+    key **不再**作为准入门槛：数据集里的 `required_facts[].key` 是人工标注名
+    （如 `pet_name`），产品侧 facts 的 key 来自记忆行的 predicate/subject，两套
+    命名空间永远不可能逐字相等——把它当硬门槛会让所有正面场景在结构上恒为 0 分
+    （2026-11-04 复现）。是否等价仍由 resolver 按 value 判定，且
+    :func:`match_facts` 是一对一匹配，同值不同 key 不会重复计入召回。
+    """
     if gold.subject and predicted.subject and gold.subject != predicted.subject:
-        return False
-    if gold.key != predicted.key:
         return False
     if gold.scope is not None and predicted.scope is not None and gold.scope != predicted.scope:
         return False
@@ -402,10 +407,12 @@ class FactEquivalenceResolver(Protocol):
 
 
 class DeterministicFactResolver:
-    """确定性等价判定：规范化后逐字相等才算等价。
+    """确定性等价判定：规范化后逐字相等，或 gold 取值被完整包含在预测值里。
 
-    判定不了"同义"就判不相等——这会低估召回，但不会把不同的事实当成同一个；
-    需要语义等价时必须换成经过校准的评分器。
+    包含判定是**单向**的（gold ⊆ predicted）：记忆行常是整句，标注原子是句中的
+    取值；反向的截断（预测「青岚」 vs gold「青岚城」）不算命中。数字/日期/布尔
+    一律只认逐字相等。判定不了"同义"就判不相等——这会低估召回，但不会把不同的
+    事实当成同一个；需要语义等价时必须换成经过校准的评分器。
     """
 
     calibrated = True
@@ -421,11 +428,19 @@ class DeterministicFactResolver:
         left = normalize_fact(gold)
         right = normalize_fact(predicted)
         if not _comparable(left, right):
-            return EquivalenceDecision("unrelated", "SUBJECT_KEY_SCOPE_OR_TIME_MISMATCH")
+            return EquivalenceDecision("unrelated", "SUBJECT_SCOPE_OR_TIME_MISMATCH")
         if left.value == right.value:
             return EquivalenceDecision("equivalent", "CANONICAL_VALUE_EQUAL")
         if _both_comparable_types(left.value, right.value):
-            return EquivalenceDecision("contradictory", "SAME_KEY_DIFFERENT_NUMERIC_VALUE")
+            # 数字/日期/布尔只有逐字相等才算同一事实；不同 key 之间不做矛盾判定，
+            # 免得「城市=5」和「年龄=6」被当成互相矛盾。
+            if left.key == right.key:
+                return EquivalenceDecision("contradictory", "SAME_KEY_DIFFERENT_NUMERIC_VALUE")
+            return EquivalenceDecision("unrelated", "CANONICAL_VALUE_DIFFERENT")
+        # 方向性包含：gold 是标注出来的取值原子（「阿橙」），产品侧 value 常是整句
+        # （「用户养有一只名叫阿橙的橘猫」）。反过来（预测值更短）是截断，不算命中。
+        if left.value and right.value and len(left.value) >= 2 and left.value in right.value:
+            return EquivalenceDecision("equivalent", "GOLD_VALUE_CONTAINED_IN_PREDICTED")
         return EquivalenceDecision("unrelated", "CANONICAL_VALUE_DIFFERENT")
 
 

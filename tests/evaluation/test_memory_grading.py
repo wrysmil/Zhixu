@@ -420,6 +420,71 @@ def test_qa_correct_is_one_when_all_required_facts_are_covered() -> None:
     assert _metric(grade.metrics, "qa_accuracy").value == pytest.approx(1.0)
 
 
+def test_annotation_key_does_not_gate_value_matching() -> None:
+    """回归 2026-11-04：标注 key（pet_name）与产品 key（predicate）永远不同名，
+
+    旧规则把 key 相等当准入门槛，导致所有正面场景在结构上恒为 0 分。
+    """
+    resolver = DeterministicFactResolver()
+    equal = resolver.resolve(
+        MemoryFact(key="pet_name", value="阿橙"),
+        MemoryFact(key="养了一只橘猫", value="阿橙"),
+    )
+    assert equal.verdict == "equivalent"
+    contained = resolver.resolve(
+        MemoryFact(key="pet_name", value="阿橙"),
+        MemoryFact(key="养了一只橘猫", value="用户养有一只名叫阿橙的橘猫"),
+    )
+    assert contained.verdict == "equivalent"
+    assert contained.reason == "GOLD_VALUE_CONTAINED_IN_PREDICTED"
+    truncated = resolver.resolve(
+        MemoryFact(key="city", value="青岚城"), MemoryFact(key="city", value="青岚")
+    )
+    assert truncated.verdict != "equivalent"
+
+
+def test_qa_and_evidence_recall_score_with_mismatched_keys() -> None:
+    gold = _gold({"q1": {"required_facts": [{"key": "pet_name", "value": "阿橙"}]}})
+    execution = MemoryTrialExecution(
+        scenario_id="s-1",
+        track="end_to_end",
+        scope=SCOPE,
+        probes=[
+            _probe(
+                "q1",
+                answer="你养的猫叫阿橙。",
+                asserted=[MemoryFact(key="养了一只橘猫", value="阿橙")],
+                recalled=[
+                    MemoryRecallItem(
+                        rank=1, key="养了一只橘猫", value="用户养有一只名叫阿橙的橘猫",
+                        origin_refs=["m1"],
+                    )
+                ],
+            )
+        ],
+    )
+    grade = _grade(execution, gold)
+    assert grade.probe_results[0].qa_correct is True
+    assert _metric(grade.metrics, "qa_accuracy").value == pytest.approx(1.0)
+    assert _metric(grade.metrics, "evidence_recall_at_k").value == pytest.approx(1.0)
+
+
+def test_numeric_values_stay_strict_across_keys() -> None:
+    """数字/日期只认逐字相等；不同 key 之间不做矛盾判定。"""
+    resolver = DeterministicFactResolver()
+    assert (
+        resolver.resolve(
+            MemoryFact(key="age", value="25"), MemoryFact(key="age", value="125")
+        ).verdict
+        != "equivalent"
+    )
+    decision = resolver.resolve(
+        MemoryFact(key="age", value="25"), MemoryFact(key="room", value="30")
+    )
+    assert decision.verdict == "unrelated"
+    assert decision.reason == "CANONICAL_VALUE_DIFFERENT"
+
+
 def test_forbidden_current_value_makes_qa_correct_zero() -> None:
     """被断言为当前的禁用值 → 0。"""
     gold = _gold(

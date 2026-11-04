@@ -546,6 +546,33 @@ async def test_vector_missing_reports_capability_missing_not_fake_scores(
         await adapter.close()
 
 
+async def test_end_to_end_degrades_to_fts_when_vector_missing(
+    trial_root: Path, runtime: _ScriptedRuntime
+) -> None:
+    """端到端轨道：向量未就绪时按产品的 FTS/LIKE 降级继续，并如实标注。
+
+    中文查询在 FTS5(unicode61) 下不成词、只能靠 LIKE/向量；如果这里直接返回
+    空召回，所有「应该回忆」的场景都会因为「不知道就弃权」而判负。
+    """
+    adapter = ZhixuMemoryAdapter(
+        trial_root=trial_root,
+        scope=make_scope(),
+        runtime=runtime,
+        vector_expected=True,
+        fallback_without_vector=True,
+    )
+    try:
+        await adapter.ingest_session(make_session_event())
+        await _settle(adapter)
+        recall = await adapter.recall(make_probe())
+        assert "capability_missing" in recall.coverage.reasons
+        assert [item.value for item in recall.items] == ["用户的虚构测试城市叫青岚城"]
+        execution = await adapter.answer(make_probe())
+        assert execution.injected_evidence
+    finally:
+        await adapter.close()
+
+
 async def test_clock_coverage_is_partial_not_full(trial_root: Path, runtime: _ScriptedRuntime) -> None:
     """风险 #3：since_days SQL 窗口走真实时间 → clock_coverage 必须标部分覆盖。"""
     adapter = ZhixuMemoryAdapter(trial_root=trial_root, scope=make_scope(), runtime=runtime)

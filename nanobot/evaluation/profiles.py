@@ -33,10 +33,23 @@ def build_profiles_from_config(config: Config) -> tuple[Profile, ...]:
     if not config.model_presets:
         return ()
     providers_payload: dict[str, Any] = config.providers.model_dump(mode="json", by_alias=True)
+    defaults = config.agents.defaults
     profiles: list[Profile] = []
     for name, preset in config.model_presets.items():
         bundle_config = {
-            "agents": {"defaults": {"model": name, "modelPreset": name}},
+            "agents": {
+                "defaults": {
+                    "model": name,
+                    "modelPreset": name,
+                    # 记忆检索配置必须随 bundle 下发：worker 的 Config() 默认是
+                    # FTS5-only，不带上就会让评测与产品实际检索后端不一致
+                    # （中文查询在没有向量时召回恒为 0）。
+                    "memorySearchBackend": defaults.memory_search_backend,
+                    "memoryVector": defaults.memory_vector.model_dump(
+                        mode="json", by_alias=True
+                    ),
+                }
+            },
             "modelPresets": {name: preset.model_dump(mode="json", by_alias=True)},
             "providers": providers_payload,
         }

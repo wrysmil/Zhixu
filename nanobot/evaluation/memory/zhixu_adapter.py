@@ -126,6 +126,9 @@ class ZhixuMemoryAdapter:
         workspace_path: Path | None = None,
         vector_store: Any | None = None,
         vector_expected: bool = False,
+        #: 向量未就绪时是否用产品的 FTS/LIKE 降级继续跑。只给端到端轨道开：
+        #: 检索轨道测的就是向量/混合召回，降级会让分数名不副实。
+        fallback_without_vector: bool = False,
         clock: MemoryClock | None = None,
         registry: MemoryOperationRegistry | None = None,
         namespace: str | None = None,
@@ -137,6 +140,7 @@ class ZhixuMemoryAdapter:
         self._clock = clock
         self._vector_store = vector_store
         self._vector_expected = vector_expected
+        self._fallback_without_vector = fallback_without_vector
         self._closed = False
         self._mode = "zhixu"
         self._candidate: MemoryCandidate | None = None
@@ -578,7 +582,11 @@ class ZhixuMemoryAdapter:
                 items=[],
                 coverage=_coverage(reasons=["memory_disabled"]),
             )
-        if self._vector_expected and not self._vector_is_ready():
+        # 向量没就绪时：端到端轨道按产品的 FTS/LIKE 降级继续跑（否则中文查询
+        # 会因「没有分词」恒为 0 召回）；检索轨道仍返回空并标 capability_missing，
+        # 不能让降级结果冒充向量成绩。
+        degraded = self._vector_expected and not self._vector_is_ready()
+        if degraded and not self._fallback_without_vector:
             return RecallResult(
                 probe_id=probe.id,
                 items=[],
@@ -597,7 +605,9 @@ class ZhixuMemoryAdapter:
         return RecallResult(
             probe_id=probe.id,
             items=items,
-            coverage=_coverage(scored=1, planned=1),
+            coverage=_coverage(
+                reasons=["capability_missing"] if degraded else [], scored=1, planned=1
+            ),
             state_version=self._state_version(),
             index_version=self._index_version(),
         )
@@ -633,15 +643,18 @@ class ZhixuMemoryAdapter:
         import time as _time
 
         started = _time.perf_counter()
+        degraded = self._vector_expected and not self._vector_is_ready()
         if self._mode == "no_persistent_memory":
             block = ""
             injected_ids: list[str] = []
             recalled: list[MemoryRecallItem] = []
-        elif self._vector_expected and not self._vector_is_ready():
+        elif degraded and not self._fallback_without_vector:
             recalled = []
             injected_ids = []
             block = ""
         else:
+            # 与 recall() 同一条真实检索路径：向量未就绪时走产品的 FTS/LIKE
+            # 降级，并把降级如实写进 coverage。
             block, injected_ids = await self._retrieval.retrieve_with_ids(
                 query=probe.question,
                 recent_messages=[],
@@ -675,9 +688,7 @@ class ZhixuMemoryAdapter:
                 _coverage(reasons=["memory_disabled"])
                 if self._mode == "no_persistent_memory"
                 else _coverage(
-                    reasons=["capability_missing"]
-                    if self._vector_expected and not self._vector_is_ready()
-                    else [],
+                    reasons=["capability_missing"] if degraded else [],
                     scored=1,
                     planned=1,
                 )
