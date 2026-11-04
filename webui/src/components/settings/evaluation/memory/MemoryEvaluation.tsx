@@ -55,6 +55,14 @@ const FALLBACK_METRICS: MemoryMetricOption[] = [
   { id: "evidence_recall_at_k", label: "evidence_recall_at_k", unit: "ratio" },
 ];
 
+/** 一键评测的轨道优先级与主指标，与表单 METRICS_BY_TRACK 的首选保持一致。 */
+const QUICK_TRACKS: readonly MemoryTrack[] = ["end_to_end", "retrieval", "extraction"];
+const QUICK_PRIMARY_METRIC: Record<string, string> = {
+  end_to_end: "qa_accuracy_scenario_macro",
+  retrieval: "evidence_recall_at_k",
+  extraction: "extraction_recall",
+};
+
 type MemoryView = "experiments" | "datasets" | "create" | "detail" | "comparison" | "replay";
 
 function splitOf(revision: MemoryDatasetRevision): "development" | "calibration" | "regression" {
@@ -190,6 +198,7 @@ export function MemoryEvaluation({ calibration = null, className }: MemoryEvalua
   const [replay, setReplay] = useState<{ attemptId: string; scenarioId: string | null } | null>(null);
   const [backTarget, setBackTarget] = useState<MemoryView>("experiments");
   const [formBusy, setFormBusy] = useState(false);
+  const [quickBusy, setQuickBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [createDatasetId, setCreateDatasetId] = useState<string | undefined>(undefined);
   const [compareBusy, setCompareBusy] = useState<string | null>(null);
@@ -254,7 +263,7 @@ export function MemoryEvaluation({ calibration = null, className }: MemoryEvalua
     setView("detail");
   };
 
-  const submitExperiment = async (draft: MemoryExperimentDraft) => {
+  const submitExperiment = async (draft: MemoryExperimentDraft): Promise<boolean> => {
     setFormBusy(true);
     setFormError(null);
     try {
@@ -282,10 +291,69 @@ export function MemoryEvaluation({ calibration = null, className }: MemoryEvalua
       if (draft.baseline_experiment_id) setBaselineId(draft.baseline_experiment_id);
       await load();
       openExperiment(created.id);
+      return true;
     } catch (failure) {
       setFormError(evaluationErrorText(failure, t));
+      return false;
     } finally {
       setFormBusy(false);
+    }
+  };
+
+  /**
+   * 一键评测的目标：最小的已就绪测试集 + 第一个可用模型 + 首个受支持轨道。
+   * 任一项缺失就返回 null，按钮不出现误导性的可点状态。
+   */
+  const quickTarget = useMemo(() => {
+    const ready = datasetOptions
+      .filter((dataset) => dataset.status === "ready" && dataset.scenarioCount > 0)
+      .sort((a, b) => a.scenarioCount - b.scenarioCount);
+    const model = profiles.find((profile) => profile.kind !== "judge");
+    const track = QUICK_TRACKS.find(
+      (value) => formCapabilities.tracks[value]?.status === "supported",
+    );
+    const dataset = ready[0];
+    if (!dataset || !model || !track) return null;
+    return { dataset, model, track };
+  }, [datasetOptions, profiles, formCapabilities]);
+
+  const runQuickEvaluation = async () => {
+    if (!quickTarget) return;
+    setQuickBusy(true);
+    try {
+      await submitExperiment({
+        dataset_revision_id: quickTarget.dataset.id,
+        split: quickTarget.dataset.split,
+        track: quickTarget.track,
+        candidates: [
+          {
+            id: "candidate-1",
+            name: t(BASE + "list.quickCandidateName", { defaultValue: "当前配置" }),
+            mode: "zhixu",
+            agent_profile_id: quickTarget.model.id,
+            extractor_profile_id: null,
+            memory_settings: {},
+          },
+        ],
+        repetitions: 1,
+        model_mode: "real",
+        judge_profile_id: quickTarget.model.id,
+        budgets: {
+          max_trials: 200,
+          max_model_requests: null,
+          max_input_tokens: null,
+          max_output_tokens: null,
+          max_total_cost: null,
+          per_trial_timeout_s: 900,
+          group_timeout_s: null,
+          concurrency: 1,
+        },
+        primary_metric: QUICK_PRIMARY_METRIC[quickTarget.track] ?? "qa_accuracy_scenario_macro",
+        baseline_experiment_id: null,
+        changed_fields: [],
+      });
+    } finally {
+      setQuickBusy(false);
     }
   };
 
@@ -447,14 +515,48 @@ export function MemoryEvaluation({ calibration = null, className }: MemoryEvalua
             { value: "create", label: t(BASE + "nav.create") },
           ]}
         />
-        <Button type="button" variant="ghost" size="sm" onClick={() => void load()}>
-          <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-          {t(BASE + "common.refresh")}
-        </Button>
+        <div className="flex items-center gap-1.5">
+          {quickTarget ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="quick-experiment"
+              disabled={quickBusy || formBusy}
+              onClick={() => void runQuickEvaluation()}
+            >
+              {quickBusy || formBusy
+                ? t(BASE + "list.quickRunning", { defaultValue: "已提交，正在跑…" })
+                : t(BASE + "list.quickRun", {
+                    defaultValue: "用{{dataset}}（{{count}} 题）× {{model}} 跑一次",
+                    dataset: quickTarget.dataset.label,
+                    count: quickTarget.dataset.scenarioCount,
+                    model: quickTarget.model.label,
+                  })}
+            </Button>
+          ) : null}
+          <Button type="button" variant="ghost" size="sm" onClick={() => void load()}>
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            {t(BASE + "common.refresh")}
+          </Button>
+        </div>
       </div>
 
       {view === "experiments" ? (
         <section className="space-y-3">
+          {formError ? (
+            <p role="alert" className="text-[12px] text-destructive">
+              {formError}
+            </p>
+          ) : null}
+          {!quickTarget && !loading ? (
+            <p className="text-[12px] text-muted-foreground">
+              {t(BASE + "list.quickBlocked", {
+                defaultValue:
+                  "还不能一键评测：需要至少一个「已就绪」的记忆测试集，以及一个可用的模型预设。",
+              })}
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
             <span>
               {t(BASE + "list.baseline")}:{" "}
@@ -609,7 +711,9 @@ export function MemoryEvaluation({ calibration = null, className }: MemoryEvalua
           defaultDatasetId={createDatasetId}
           busy={formBusy}
           error={formError}
-          onSubmit={submitExperiment}
+          onSubmit={(draft) => {
+            void submitExperiment(draft);
+          }}
           onCancel={() => setView("experiments")}
         />
       ) : null}

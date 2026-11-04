@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { deleteMemory, fetchMemory, listMemories, type ListMemoriesOpts } from "@/lib/api";
 import type { MemoryOrigin, MemoryPayload, MemoryPriority, MemoryType } from "@/lib/types";
 import { useClient } from "@/providers/ClientProvider";
+import { MemoryCharts } from "./MemoryCharts";
 import { MemoryEditDialog } from "./MemoryEditDialog";
 import { DetailFields, DetailProvenance, ImportanceBadge, MemoryActions, MemoryFilters, MemoryLoadState, MemoryTime, SessionBadge, SourceBadge, WorkspaceLabels, memoryRowClass, memorySelectClass, useMemoryCopy, useMemoryDetails, useMemoryList } from "./MemoryPresentation";
 
@@ -46,6 +47,7 @@ export function MemoryListView() {
   };
 
   return <div className="flex flex-col gap-2.5">
+    <MemoryCharts items={result.items} />
     <MemoryFilters query={query} onQuery={setQuery} origin={origin} onOrigin={setOrigin} workspace={workspace} onWorkspace={setWorkspace} result={result} onClear={clear} active={filtered} loading={loading} actions={<Button onClick={() => setEditing("new")} size="sm"><Plus className="mr-1.5 h-4 w-4" aria-hidden />{t("settings.memory.actions.newMemory")}</Button>}>
       <label className="flex items-center gap-2">{text("类型", "Type")}<select className={memorySelectClass} value={type} onChange={(event) => setType(event.target.value as MemoryType | "")}><option value="">{text("全部", "All")}</option>{TYPES.map((value) => <option key={value} value={value}>{t(`settings.memory.type.${value}`, { defaultValue: value })}</option>)}</select></label>
       <label className="flex items-center gap-2">{text("保留时长", "Retention")}<select className={memorySelectClass} value={priority} onChange={(event) => setPriority(event.target.value as MemoryPriority | "")}><option value="">{text("全部", "All")}</option>{(["long_term", "short_term"] as const).map((value) => <option key={value} value={value}>{t(`settings.memory.priority.${value}`, { defaultValue: value })}</option>)}</select></label>

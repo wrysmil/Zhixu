@@ -246,6 +246,35 @@ export function MemoryComparison({
     );
   }, [pairs]);
 
+  /** 主指标 + 次要指标画成基线/候选双条，直观看差距。 */
+  const chartRows = useMemo(() => {
+    const rows: Array<{
+      key: string;
+      metricId: string;
+      baseline: number | null;
+      candidate: number | null;
+    }> = [];
+    const primaryId = memoryText(primary.metric_id);
+    if (primaryId) {
+      rows.push({
+        key: `primary:${primaryId}`,
+        metricId: primaryId,
+        baseline: memoryNumber(primary.baseline),
+        candidate: memoryNumber(primary.candidate),
+      });
+    }
+    for (const row of secondary) {
+      const metricId = String(row.metric_id);
+      rows.push({
+        key: metricId,
+        metricId,
+        baseline: memoryNumber(row.baseline),
+        candidate: memoryNumber(row.candidate),
+      });
+    }
+    return rows;
+  }, [primary, secondary]);
+
   return (
     <section aria-label={t(BASE + "title")} className={cn("min-w-0 space-y-5", className)}>
       <header className="flex flex-wrap items-center gap-2">
@@ -349,6 +378,51 @@ export function MemoryComparison({
               )}
             </section>
           </div>
+
+          {chartRows.length > 0 ? (
+            <section
+              data-testid="comparison-chart"
+              className="space-y-2.5 rounded-panel border border-border/60 bg-settings-surface px-4 py-3"
+            >
+              <header className="flex flex-wrap items-center gap-3">
+                <h4 className="text-[13px] font-medium text-foreground">
+                  {t(BASE + "metricChart", { defaultValue: "指标对比" })}
+                </h4>
+                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <span className="h-2 w-2 rounded-full bg-slate-400/70" aria-hidden />
+                  {t(BASE + "baseline")}
+                </span>
+                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <span className="h-2 w-2 rounded-full bg-sky-500/80" aria-hidden />
+                  {t(BASE + "candidate")}
+                </span>
+              </header>
+              <ul className="space-y-2">
+                {chartRows.map((row) => (
+                  <li key={row.key} className="space-y-1">
+                    <div className="flex items-center gap-2 text-[12px]">
+                      <span className="min-w-0 flex-1 truncate text-foreground" title={row.metricId}>
+                        {row.metricId}
+                      </span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {row.baseline === null ? "—" : `${Math.round(row.baseline * 100)}%`}
+                      </span>
+                      <span aria-hidden className="text-muted-foreground">
+                        →
+                      </span>
+                      <span className="tabular-nums font-medium text-foreground">
+                        {row.candidate === null ? "—" : `${Math.round(row.candidate * 100)}%`}
+                      </span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <ComparisonBar value={row.baseline} className="bg-slate-400/70" />
+                      <ComparisonBar value={row.candidate} className="bg-sky-500/80" />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           {critical.length > 0 ? (
             <p
@@ -698,5 +772,18 @@ export function MemoryComparison({
         </>
       ) : null}
     </section>
+  );
+}
+
+function ComparisonBar({ value, className }: { value: number | null; className: string }) {
+  return (
+    <span className="flex h-1.5 w-full overflow-hidden rounded-full bg-muted/50">
+      {value === null ? null : (
+        <span
+          className={cn("block h-full rounded-full", className)}
+          style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }}
+        />
+      )}
+    </span>
   );
 }

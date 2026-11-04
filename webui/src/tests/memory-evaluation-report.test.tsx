@@ -401,12 +401,44 @@ describe("MemoryExperimentDetail", () => {
     expect(screen.getByTestId("detail-incomplete")).toBeInTheDocument();
     expect(screen.getByText("预算")).toBeInTheDocument();
     expect(screen.getByText("未设置")).toBeInTheDocument();
+    await userEvent.setup().click(await screen.findByRole("button", { name: /展开无法评估的/ }));
     const precision = await screen.findByTestId("metric-extraction_precision");
     expect(within(precision).getByText("未评分")).toBeInTheDocument();
     expect(within(precision).queryByText(/0%/)).not.toBeInTheDocument();
     expect(
       within(precision).getByText("targeted 标注不输出抽取精确率：未标注的非事实不在分母里。"),
     ).toBeInTheDocument();
+  });
+
+  it("keeps unscored metrics collapsed until the reader asks for them", async () => {
+    getExperiment.mockResolvedValue(experimentFixture());
+    getExperimentMetrics.mockResolvedValue({
+      metrics_version: 1,
+      aggregation: "probe_micro_mean",
+      metrics: [
+        {
+          id: "extraction_precision",
+          version: 1,
+          unit: "ratio",
+          value: null,
+          numerator: null,
+          denominator: null,
+          status: "not_assessable",
+          scope: "dataset",
+          reasons: ["TARGETED_SCOPE_NO_FULL_PRECISION"],
+          coverage: { scored: 0, planned: 30, reasons: [] },
+        },
+      ],
+      scope: {},
+      coverage: {},
+    });
+
+    render(<MemoryExperimentDetail experimentId="exp-run-1" />);
+
+    const toggle = await screen.findByRole("button", { name: /展开无法评估的/ });
+    expect(screen.queryByTestId("metric-extraction_precision")).not.toBeInTheDocument();
+    await userEvent.setup().click(toggle);
+    expect(await screen.findByTestId("metric-extraction_precision")).toBeInTheDocument();
   });
 
   it("cancels a running experiment and keeps the returned status", async () => {
