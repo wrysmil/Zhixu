@@ -544,6 +544,17 @@ function AutomationDetailPanel({
                   {job.last_consolidation.archived ?? 0}
                 </span>
               </div>
+              {job.last_consolidation.semantic_dedup &&
+              job.last_consolidation.semantic_dedup !== "ran" ? (
+                <div className="mt-1.5 text-[11px] leading-5 text-amber-700 dark:text-amber-400">
+                  {tx(
+                    "settings.automations.consolidation.semanticDedupSkipped",
+                    "Semantic dedup skipped",
+                  )}
+                  {": "}
+                  {job.last_consolidation.semantic_dedup}
+                </div>
+              ) : null}
               {job.last_consolidation.finished_at || job.last_consolidation.started_at ? (
                 <div className="mt-1.5 text-[11px] leading-5 text-muted-foreground">
                   {fmtDateTime(

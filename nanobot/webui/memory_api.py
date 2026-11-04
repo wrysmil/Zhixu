@@ -521,6 +521,7 @@ def _last_daily_consolidation(services: MemoryServices) -> dict[str, Any] | None
         "merged": int(run.get("merged", 0) or 0),
         "decayed": int(run.get("decayed", 0) or 0),
         "archived": int(run.get("archived", 0) or 0),
+        "semantic_dedup": run.get("semantic_dedup", ""),
         "error": run.get("error", ""),
     }
 

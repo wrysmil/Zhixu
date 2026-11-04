@@ -252,6 +252,7 @@ _SCHEMA_STATEMENTS = [
         archived      INTEGER NOT NULL DEFAULT 0,
         checkpoint    TEXT    NOT NULL DEFAULT '',
         error         TEXT    NOT NULL DEFAULT '',
+        semantic_dedup TEXT   NOT NULL DEFAULT '',
         started_at    TEXT    NOT NULL,
         finished_at   TEXT    NOT NULL DEFAULT ''
     )
@@ -296,6 +297,10 @@ class MemoryDatabase:
         self.fallback_dir = self.db_path.parent / "_memory_fallback"
         self.fallback_dir.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        # ``_lock`` 在整个 ``with connect()`` 期间持有；同一线程再调一次
+        # ``connect()`` 会与它自锁（0 超时、0 报错，表现为永久挂起）。这里用
+        # 线程本地深度把这类重入挡在锁之前，给出可操作的错误。
+        self._connect_depth = threading.local()
         # MAJOR #3: 构造时自动 replay 一次,与 MemoryExtractor.__init__ 端的
         # 调用形成双调幂等(第一次清空,第二次 glob 空 list 直接 no-op)。
         # replay_fallback 内部已对单文件 try/except 隔离,此处再加 try/except
@@ -307,20 +312,34 @@ class MemoryDatabase:
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
-        """获取一个 SQLite 连接；同一进程内由锁串行化。"""
-        with self._lock:
-            # SQLite 单写者：后台提取/索引提交时，WebUI 的删除/编辑会撞写锁。
-            # 默认 5s 会太早放弃（真机日志里表现为 delete 报 "WebUI mutation failed"），
-            # 这里放宽到 15s；仍超时则由 WebUI 路由映射成可重试的 503。
-            conn = sqlite3.connect(self.db_path, timeout=15.0)
-            try:
-                conn.execute("PRAGMA foreign_keys = ON")
-                conn.execute("PRAGMA busy_timeout = 15000")
-                conn.row_factory = sqlite3.Row
-                yield conn
-                conn.commit()
-            finally:
-                conn.close()
+        """获取一个 SQLite 连接；同一进程内由锁串行化。
+
+        同一线程内嵌套调用会被直接拒绝：锁在整个 ``yield`` 期间持有，重入就是
+        永久挂起。需要第二个查询时复用当前连接，或把查询挪到 with 块外。
+        """
+        depth = getattr(self._connect_depth, "value", 0)
+        if depth:
+            raise RuntimeError(
+                "nested MemoryDatabase.connect() on the same instance would deadlock; "
+                "reuse the open connection or move the query outside the with-block"
+            )
+        self._connect_depth.value = depth + 1
+        try:
+            with self._lock:
+                # SQLite 单写者：后台提取/索引提交时，WebUI 的删除/编辑会撞写锁。
+                # 默认 5s 会太早放弃（真机日志里表现为 delete 报 "WebUI mutation failed"），
+                # 这里放宽到 15s；仍超时则由 WebUI 路由映射成可重试的 503。
+                conn = sqlite3.connect(self.db_path, timeout=15.0)
+                try:
+                    conn.execute("PRAGMA foreign_keys = ON")
+                    conn.execute("PRAGMA busy_timeout = 15000")
+                    conn.row_factory = sqlite3.Row
+                    yield conn
+                    conn.commit()
+                finally:
+                    conn.close()
+        finally:
+            self._connect_depth.value = depth
 
     def init_schema(self) -> None:
         """幂等地创建所有表、索引与版本元数据。"""
@@ -357,6 +376,15 @@ class MemoryDatabase:
                 conn.execute(
                     "ALTER TABLE session_extraction_state "
                     "ADD COLUMN last_seq INTEGER NOT NULL DEFAULT 0"
+                )
+            # 盘账审计补「语义去重是否真的跑了」这一列；旧库补列后历史行取空串。
+            run_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(memory_consolidate_runs)")
+            }
+            if "semantic_dedup" not in run_columns:
+                conn.execute(
+                    "ALTER TABLE memory_consolidate_runs "
+                    "ADD COLUMN semantic_dedup TEXT NOT NULL DEFAULT ''"
                 )
             conn.execute(
                 "INSERT OR REPLACE INTO _schema_meta (key, value) VALUES (?, ?)",

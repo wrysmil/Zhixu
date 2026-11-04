@@ -42,13 +42,22 @@ export function MemoryTime({ value, label, detailed = false }: { value: string |
 export function memoryOrigin(record: MemoryPresentation & { source: string }): MemoryOrigin {
   if (record.origin_kind) return record.origin_kind;
   if (record.trigger_mode === "manual" || record.source === "manual") return "manual";
+  // MEMORY.md 手写区笔记是用户自己写的，不能落到「来源未记录」。
+  if (record.source === "core_note") return "manual";
   return ["extraction", "consolidation", "idle", "context_compress", "session_end", "topic_change", "daily_consolidation"].includes(record.source) ? "ai" : "unknown";
 }
 
 export function SourceBadge({ record }: { record: MemoryPresentation & { source: string } }) {
   const { text } = useMemoryCopy();
   const origin = memoryOrigin(record);
-  return <span className={cn("inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] leading-4", origin === "ai" ? "bg-primary/[0.07] text-primary" : "bg-muted/80 text-muted-foreground")}>{origin === "manual" ? text("手动触发", "Manual") : origin === "ai" ? text("AI 生成", "AI generated") : text("来源未记录", "Source not recorded")}{origin === "manual" && record.generation_method === "ai" ? text(" · AI 提取", " · AI extracted") : ""}</span>;
+  const label = record.source === "core_note"
+    ? text("手写笔记", "Handwritten note")
+    : origin === "manual"
+      ? text("手动触发", "Manual")
+      : origin === "ai"
+        ? text("AI 生成", "AI generated")
+        : text("来源未记录", "Source not recorded");
+  return <span className={cn("inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] leading-4", origin === "ai" ? "bg-primary/[0.07] text-primary" : "bg-muted/80 text-muted-foreground")}>{label}{origin === "manual" && record.source !== "core_note" && record.generation_method === "ai" ? text(" · AI 提取", " · AI extracted") : ""}</span>;
 }
 
 export function WorkspaceLabels({ workspaces }: { workspaces?: MemoryWorkspace[] }) {

@@ -313,6 +313,22 @@ def test_stats_includes_memory_md_field(services: MemoryServices):
     assert "last_consolidation" in md
 
 
+def test_stats_reports_last_daily_consolidation(services: MemoryServices):
+    """跑过一次每日盘账后，stats 里能读到它的计数与语义去重状态。"""
+    from nanobot.memory import decay
+
+    decay.run_consolidation(
+        services.database, workspace_id=services.workspace_id, trigger="cron"
+    )
+
+    last = stats_payload(services)["memory_md"]["last_daily_consolidation"]
+    assert last is not None
+    assert last["status"] == "completed"
+    assert last["trigger"] == "cron"
+    assert "semantic_dedup" in last
+    assert last["dry_run"] is False
+
+
 def test_stats_memory_md_no_lifecycle(services: MemoryServices):
     """无 MemoryLifecycle 单例时，各字段返回 None/0。"""
     # Ensure no singleton exists for this workspace

@@ -199,6 +199,8 @@ export interface SessionAutomationJob {
     merged?: number;
     decayed?: number;
     archived?: number;
+    /** ran / skipped:vector_unavailable / failed:<ExcName> */
+    semantic_dedup?: string;
     error?: string;
   } | null;
   schedule: {

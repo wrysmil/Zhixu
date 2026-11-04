@@ -46,6 +46,17 @@ class TestDatabaseConnection:
             cur = conn.execute("PRAGMA foreign_keys")
             assert cur.fetchone()[0] == 1
 
+    def test_nested_connect_raises_instead_of_deadlocking(self, workspace: Path):
+        """锁在 yield 期间持有；同线程重入必须立刻报错，而不是永久挂起。"""
+        db = MemoryDatabase(workspace)
+        with db.connect():
+            with pytest.raises(RuntimeError, match="nested MemoryDatabase.connect"):
+                with db.connect():
+                    pass
+        # 抛错后深度复位，后续连接不受影响。
+        with db.connect() as conn:
+            assert conn.execute("SELECT 1").fetchone()[0] == 1
+
     def test_concurrent_connects_share_lock(self, workspace: Path):
         import threading
         db = MemoryDatabase(workspace)

@@ -20,6 +20,9 @@ _AI_SOURCES = {
     "extraction", "consolidation", "session_end", "context_compress", "topic_change",
     "daily_consolidation", "deletion", "idle",
 }
+# 用户自己写的内容：手写工具（``core_note``，MEMORY.md 手写区）与手动新增。
+# 漏掉 ``core_note`` 会让手写笔记在记忆页显示成「来源未记录」。
+_MANUAL_SOURCES = {"manual", "core_note"}
 _AUTOMATIC_REASONS = {
     "session_end", "context_compress", "topic_change", "daily_consolidation", "idle",
 }
@@ -170,10 +173,14 @@ class PresentationContext:
         source = item.source if isinstance(item, Memory) else item.source.value
         method = provenance.get("generation_method")
         if not isinstance(method, str) or method not in {"ai", "manual", "unknown"}:
-            method = "manual" if source == "manual" else "ai" if source in _AI_SOURCES else "unknown"
+            method = (
+                "manual"
+                if source in _MANUAL_SOURCES
+                else "ai" if source in _AI_SOURCES else "unknown"
+            )
         trigger = provenance.get("trigger_mode")
         if not isinstance(trigger, str) or trigger not in {"automatic", "manual", "unknown"}:
-            if source == "manual":
+            if source in _MANUAL_SOURCES:
                 trigger = "manual"
             elif isinstance(item, Episode) and source in _AUTOMATIC_REASONS:
                 trigger = "automatic"

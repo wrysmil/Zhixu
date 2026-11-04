@@ -97,6 +97,33 @@ def test_old_low_importance_is_archived(services):
         assert len(list_memories(conn, workspace_id=WS, include_inactive=True)) == 1
 
 
+def test_archive_does_not_rewrite_updated_at(services):
+    """归档只拨过期时间；内容没变，更新时间不能被挪到归档时刻。"""
+    memory = _mem("两个月没人提起的一条普通事实")
+    _seed(services, memory)
+    before = _get(services, memory.id).updated_at
+
+    decay.run_consolidation(services.database, workspace_id=WS)
+
+    stored = _get(services, memory.id)
+    assert stored.expires_at is not None
+    assert stored.updated_at == before
+
+
+def test_semantic_dedup_status_is_recorded(services, monkeypatch):
+    """向量后端不可用时，盘账审计必须写清「语义去重被跳过」。"""
+    from nanobot.memory.vector import indexer
+
+    monkeypatch.setattr(indexer, "get_active_store", lambda: None)
+    _seed(services, _mem("一条普通事实"))
+
+    report = decay.run_consolidation(services.database, workspace_id=WS)
+
+    assert report.semantic_dedup == "skipped:vector_unavailable"
+    run = decay.list_recent_runs(services.database, WS, limit=1)[0]
+    assert run["semantic_dedup"] == "skipped:vector_unavailable"
+
+
 def test_preference_is_exempt_from_decay(services):
     memory = _mem("用户偏好简短回复", MemoryType.PREFERENCE)
     _seed(services, memory)

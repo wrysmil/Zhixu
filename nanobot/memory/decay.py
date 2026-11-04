@@ -173,6 +173,10 @@ class ConsolidationReport:
     archived_preview: list[dict[str, Any]] = field(default_factory=list)
     #: dry_run 明细：将合并的重复组（封顶 _PREVIEW_LIMIT）。
     merged_preview: list[dict[str, Any]] = field(default_factory=list)
+    #: 语义近重复合并这一步是否真的跑了：``ran`` /
+    #: ``skipped:vector_unavailable`` / ``failed:<ExcName>``。向量后端未就绪时
+    #: 合并数恒为 0，没有这个状态就分不清「没有重复」和「去重没跑」。
+    semantic_dedup: str = ""
 
     def summary(self) -> str:
         stats = self.stats
@@ -214,9 +218,11 @@ def _archive_row(conn: sqlite3.Connection, memory: Memory, *, now: str) -> None:
             days_since_last_access(memory, now=_parse_now(now)), 2
         ),
     }
+    # 只拨过期时间：归档是生命周期事件，内容没有变，改 ``updated_at`` 会让
+    # 「按更新时间排序」把归档条目顶到最前，看起来像刚被编辑过。
     conn.execute(
-        "UPDATE memories SET expires_at = ?, metadata = ?, updated_at = ? WHERE id = ?",
-        (now, json.dumps(metadata, ensure_ascii=False), now, memory.id),
+        "UPDATE memories SET expires_at = ?, metadata = ? WHERE id = ?",
+        (now, json.dumps(metadata, ensure_ascii=False), memory.id),
     )
 
 
@@ -299,20 +305,22 @@ def _semantic_dedup_pass(
     dry_run: bool,
     stats: ConsolidationStats,
     report: ConsolidationReport,
-) -> None:
+) -> str:
     """向量索引可用时的语义近重复合并（同一事实的不同措辞）。
 
-    best-effort：索引未就绪 / 任何异常都静默跳过，绝不阻断盘账。只在哈希
+    best-effort：索引未就绪 / 任何异常都跳过，绝不阻断盘账。只在哈希
     去重没动的行里找——完全相同的行上一阶段已经收拢。
+
+    返回这一步的执行状态，写进审计行（见 ``ConsolidationReport.semantic_dedup``）。
     """
     try:
         from nanobot.memory.vector.indexer import get_active_store
 
         store = get_active_store()
         if store is None or not store.enabled() or not store._ready():  # noqa: SLF001
-            return
-    except Exception:  # noqa: BLE001
-        return
+            return "skipped:vector_unavailable"
+    except Exception as exc:  # noqa: BLE001
+        return f"failed:{type(exc).__name__}"
 
     rows = conn.execute(
         f"SELECT {flat_columns()} FROM memories "
@@ -366,6 +374,7 @@ def _semantic_dedup_pass(
                         "similarity": round(score, 4),
                     }
                 )
+    return "ran"
 
 
 def _is_canonical(a: Memory, b: Memory) -> bool:
@@ -559,7 +568,7 @@ def _run_body(
         conn, workspace_id=workspace_id, now=now, dry_run=dry_run,
         stats=stats, report=report,
     )
-    _semantic_dedup_pass(
+    report.semantic_dedup = _semantic_dedup_pass(
         conn, workspace_id=workspace_id, now=now, dry_run=dry_run,
         stats=stats, report=report,
     )
@@ -582,6 +591,7 @@ def _run_body(
         stats=stats,
         checkpoint=report.checkpoint,
         error=report.error,
+        semantic_dedup=report.semantic_dedup,
     )
 
 
@@ -619,14 +629,15 @@ def _finish_run_row(
     stats: ConsolidationStats,
     checkpoint: ConsolidationCheckpoint,
     error: str,
+    semantic_dedup: str = "",
 ) -> None:
     if status not in _RUN_STATUSES:
         status = "failed"
     try:
         conn.execute(
             "UPDATE memory_consolidate_runs SET status = ?, processed = ?, merged = ?, "
-            "decayed = ?, archived = ?, checkpoint = ?, error = ?, finished_at = ? "
-            "WHERE run_id = ?",
+            "decayed = ?, archived = ?, checkpoint = ?, error = ?, semantic_dedup = ?, "
+            "finished_at = ? WHERE run_id = ?",
             (
                 status,
                 stats.processed,
@@ -635,6 +646,7 @@ def _finish_run_row(
                 stats.archived,
                 checkpoint.as_json() if status == "interrupted" else "",
                 error[:2000],
+                semantic_dedup[:120],
                 _now_iso(),
                 run_id,
             ),

@@ -57,6 +57,29 @@ describe("记忆页面信息与筛选", () => {
     expect(await screen.findByText("置信度")).toBeInTheDocument();
   });
 
+  it("把手写区笔记标成「手写笔记」而不是来源未记录", async () => {
+    api.listMemories.mockResolvedValue(
+      result([
+        {
+          ...memory,
+          id: "note",
+          source: "core_note",
+          content: "手写区里的一条笔记",
+          ...{
+            origin_kind: "manual",
+            generation_method: "manual",
+            trigger_mode: "manual",
+            trigger_reason: "core_note",
+            workspaces: [workspace],
+          },
+        },
+      ]),
+    );
+    render(<MemoryListView />);
+    expect(await screen.findByText("手写笔记")).toBeInTheDocument();
+    expect(screen.queryByText("来源未记录")).toBeNull();
+  });
+
   it("将来源、工作区、关键词一起提交，清空搜索后恢复当前筛选", async () => {
     render(<MemoryListView />);
     await screen.findByText(memory.content);
