@@ -40,6 +40,8 @@ interface NavItem {
    *  English accessible names (Apps/Skills/Automations/Agents/Settings). */
   labelKey: string;
   labelDefault: string;
+  /** 只显示图标，不显示下方文字（悬停 tooltip 仍保留）。 */
+  hideLabel?: boolean;
   icon: typeof MessageCircleMore | typeof TeamStructureIcon;
 }
 
@@ -85,6 +87,7 @@ const CAPABILITY_ITEMS: NavItem[] = [
 ];
 
 const SETTINGS_ITEM: NavItem = {
+  hideLabel: true,
   view: "settings",
   labelKey: "sidebar.settings",
   labelDefault: "Settings",
@@ -181,9 +184,11 @@ export function WorkspaceNavigation({
         )}
       >
         <Icon className="h-[19px] w-[19px] shrink-0" strokeWidth={item.view === "teams" ? undefined : 1.65} aria-hidden />
-        <span className="workspace-nav-label" aria-hidden>{item.view === "automations"
-          ? (i18n.resolvedLanguage?.startsWith("zh") ? "定时" : "Tasks")
-          : label}</span>
+        {item.hideLabel ? null : (
+          <span className="workspace-nav-label" aria-hidden>{item.view === "automations"
+            ? (i18n.resolvedLanguage?.startsWith("zh") ? "定时" : "Tasks")
+            : label}</span>
+        )}
       </button>
       </TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>
