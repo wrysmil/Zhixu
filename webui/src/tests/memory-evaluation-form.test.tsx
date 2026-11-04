@@ -69,6 +69,16 @@ beforeEach(async () => {
 afterEach(() => cleanup());
 
 describe("MemoryExperimentForm", () => {
+  it("没有受控 fixture 时不提供脚本模式，并写明原因", async () => {
+    render(<MemoryExperimentForm {...baseProps} scriptFixtures={[]} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "高级设置" }));
+
+    const mode = screen.getByLabelText(/模型模式/);
+    const options = Array.from((mode as HTMLSelectElement).options).map((option) => option.value);
+    expect(options).toEqual(["real"]);
+    expect(screen.getByText(/没有受控 fixture/)).toBeInTheDocument();
+  });
+
   it("starts with just the dataset and model, and submits a smoke test without advanced settings", async () => {
     const onSubmit = vi.fn();
     render(

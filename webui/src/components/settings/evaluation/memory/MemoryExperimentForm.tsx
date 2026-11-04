@@ -982,10 +982,21 @@ export function MemoryExperimentForm({
             }}
           >
             <option value="real">{tr("modelMode.real", "真实模型")}</option>
-            <option value="scripted" disabled={scriptFixtures.length === 0}>
-              {tr("modelMode.scripted", "固定脚本（受控 fixture）")}
-            </option>
+            {/* 没有受控 fixture 时不给这个选项：灰着但选不了只会让人以为能选。 */}
+            {scriptFixtures.length > 0 ? (
+              <option value="scripted">
+                {tr("modelMode.scripted", "固定脚本（受控 fixture）")}
+              </option>
+            ) : null}
           </select>
+          {scriptFixtures.length === 0 ? (
+            <span aria-hidden="true" className="text-[11px] leading-5 text-muted-foreground">
+              {tr(
+                "modelMode.scriptedUnavailable",
+                "当前部署没有受控 fixture，只能使用真实模型。",
+              )}
+            </span>
+          ) : null}
         </label>
         {modelMode === "scripted" ? (
           <label className="space-y-1.5 lg:col-span-2" htmlFor="memory-experiment-script-fixture">
