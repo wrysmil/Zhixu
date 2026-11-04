@@ -254,7 +254,7 @@ export function WorkspaceNavigation({
             data-testid="sidebar-chat-column"
             data-expanded={showChatColumn}
             aria-hidden={!showChatColumn || undefined}
-            className="workspace-chat-column flex min-h-0 flex-col bg-background/50"
+            className="workspace-chat-column flex min-h-0 flex-col bg-card"
           >
             {chatSlot}
           </div>
