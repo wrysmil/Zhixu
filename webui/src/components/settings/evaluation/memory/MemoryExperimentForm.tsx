@@ -332,7 +332,8 @@ export function MemoryExperimentForm({
     max_input_tokens: null,
     max_output_tokens: null,
     max_total_cost: null,
-    per_trial_timeout_s: 3600,
+    // 受 RunLimits.timeout_s 上限约束（5..900s），默认给到上限。
+    per_trial_timeout_s: 900,
     group_timeout_s: null,
     concurrency: 1,
     ...budgetDefaults,
@@ -1080,6 +1081,7 @@ export function MemoryExperimentForm({
             id="memory-budget-trial-timeout"
             label={tr("perTrialTimeout", "单次试验超时（秒）")}
             min={1}
+            max={900}
             value={budgets.per_trial_timeout_s}
             onChange={(value) => setBudgets((current) => ({ ...current, per_trial_timeout_s: value }))}
           />
@@ -1177,6 +1179,7 @@ function BudgetField({
   value,
   onChange,
   min,
+  max,
   step,
 }: {
   id: string;
@@ -1184,6 +1187,7 @@ function BudgetField({
   value: number | null;
   onChange: (value: number | null) => void;
   min?: number;
+  max?: number;
   step?: number;
 }) {
   return (
@@ -1193,6 +1197,7 @@ function BudgetField({
         id={id}
         type="number"
         min={min}
+        max={max}
         step={step}
         value={value ?? ""}
         onChange={(event) => onChange(toNumberOrNull(event.target.value))}

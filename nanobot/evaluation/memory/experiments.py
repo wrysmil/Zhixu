@@ -155,6 +155,25 @@ def default_primary_metric(track: str) -> str:
     return DEFAULT_PRIMARY_METRIC.get(track, DEFAULT_PRIMARY_METRIC["end_to_end"])
 
 
+#: ``schemas.RunLimits.timeout_s`` 的合法区间；预算模型允许到 86400，
+#: 但冻结成 run 限制时必须落在这个区间内，否则创建实验直接 422。
+_RUN_TIMEOUT_MIN_S = 5
+_RUN_TIMEOUT_MAX_S = 900
+_DEFAULT_TRIAL_TIMEOUT_S = 120
+
+
+def _trial_timeout_s(value: Any) -> int:
+    """把预算里的单次超时夹进 ``RunLimits`` 区间。"""
+    if value is None or value == "":
+        seconds = _DEFAULT_TRIAL_TIMEOUT_S
+    else:
+        try:
+            seconds = int(value)
+        except (TypeError, ValueError):
+            seconds = _DEFAULT_TRIAL_TIMEOUT_S
+    return max(_RUN_TIMEOUT_MIN_S, min(seconds, _RUN_TIMEOUT_MAX_S))
+
+
 def validate_primary_metric(track: str, primary_metric: str) -> None:
     """主要指标必须属于该轨道的判分阶段（跨轨道的主要指标没有可比口径）。"""
     from nanobot.evaluation.memory.metrics import METRIC_SPECS
@@ -943,7 +962,7 @@ class MemoryExperimentCoordinator:
         return RunLimits(
             concurrency=max(1, min(int(concurrency), 3)),
             max_iterations=12,
-            timeout_s=int(context.budgets.per_trial_timeout_s or 120),
+            timeout_s=_trial_timeout_s(context.budgets.per_trial_timeout_s),
         )
 
     # ------------------------------------------------------------------ 入队
@@ -974,7 +993,9 @@ class MemoryExperimentCoordinator:
         limits = RunLimits(
             concurrency=max(1, min(int((experiment.get("budgets") or {}).get("concurrency") or 1), 3)),
             max_iterations=12,
-            timeout_s=int((experiment.get("budgets") or {}).get("per_trial_timeout_s") or 120),
+            timeout_s=_trial_timeout_s(
+                (experiment.get("budgets") or {}).get("per_trial_timeout_s")
+            ),
         )
         budgets = dict(experiment.get("budgets") or {})
         request = RunCreate.model_validate(

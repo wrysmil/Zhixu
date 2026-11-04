@@ -120,6 +120,21 @@ def _capabilities() -> MemoryCapabilities:
     )
 
 
+def test_per_trial_timeout_is_clamped_into_run_limits() -> None:
+    """预算模型允许 86400s，但冻结成 run 限制只接受 5..900s。
+
+    不夹取时表单默认的 3600s 会让创建实验直接 422（错误码只有
+    ``MEMORY_SCHEMA_INVALID``，看不出是超时超限）。
+    """
+    from nanobot.evaluation.memory.experiments import _trial_timeout_s
+
+    assert _trial_timeout_s(3600) == 900
+    assert _trial_timeout_s(120) == 120
+    assert _trial_timeout_s(0) == 5
+    assert _trial_timeout_s(None) == 120
+    assert _trial_timeout_s("oops") == 120
+
+
 def _coordinator(
     repository: EvaluationRepository,
     memory_repository: MemoryRepository,
