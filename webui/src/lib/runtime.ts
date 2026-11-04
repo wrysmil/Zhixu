@@ -11,6 +11,11 @@ export interface RuntimeHost {
   exportDiagnostics?: () => Promise<string>;
 }
 
+export interface WindowState {
+  maximized: boolean;
+  fullscreen: boolean;
+}
+
 export interface MiraShellApi {
   appName?: string;
   platform?: string;
@@ -19,6 +24,13 @@ export interface MiraShellApi {
   revealInFolder?: (targetPath: string) => Promise<boolean>;
   openExternal?: (url: string) => Promise<boolean>;
   openBrowserWindow?: (url: string) => Promise<boolean>;
+  /** Custom title bar controls (Electron shell). */
+  minimizeWindow?: () => void;
+  toggleMaximizeWindow?: () => void;
+  closeWindow?: () => void;
+  getWindowState?: () => Promise<WindowState>;
+  onWindowState?: (listener: (state: WindowState) => void) => () => void;
+  runMenuAction?: (action: string) => Promise<boolean>;
 }
 
 interface HostRuntimeInfo {
@@ -144,7 +156,11 @@ export function getRuntimeHost(
 }
 
 export function isNativeRuntime(surface?: string | null): boolean {
-  return getHostApi() !== null || toRuntimeSurface(surface) === "native";
+  return getHostApi() !== null
+    || toRuntimeSurface(surface) === "native"
+    // Electron 桌面壳通过 preload 暴露 window.mira；它就是原生运行时，
+    // 自绘标题栏（HostChrome）依赖这个判定。
+    || (typeof window !== "undefined" && Boolean(window.mira));
 }
 
 export function createHostWebSocket(url: string): WebSocket {

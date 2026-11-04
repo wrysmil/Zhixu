@@ -19,6 +19,7 @@ import {
 
 interface GenericToolRunModel {
   status: GenericToolStatus;
+  kicker: string;
   label: string;
   detail: string;
   aside: string;
@@ -34,6 +35,7 @@ export function GenericToolRun({ items }: { items: GenericToolRunItem[] }) {
   return (
     <ActivityStep
       icon={failed ? undefined : model.icon}
+      kicker={model.kicker}
       active={model.status === "running"}
       tone={failed ? "error" : model.status === "done" ? "success" : "active"}
       label={label}

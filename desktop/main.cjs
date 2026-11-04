@@ -223,6 +223,8 @@ function createWindow() {
     title: APP_NAME,
     backgroundColor: "#ffffff",
     autoHideMenuBar: true,
+    // 自绘标题栏（文件/编辑/视图/帮助 + 窗口按钮），见 webui HostChrome。
+    frame: false,
     icon: path.join(__dirname, "assets", "icon.png"),
     show: false,
     webPreferences: {
@@ -234,6 +236,10 @@ function createWindow() {
   });
   mainWindow.once("ready-to-show", () => mainWindow && mainWindow.show());
   mainWindow.setTitle(APP_NAME);
+  for (const eventName of ["maximize", "unmaximize", "enter-full-screen", "leave-full-screen"]) {
+    mainWindow.on(eventName, () => sendWindowState());
+  }
+  mainWindow.webContents.on("did-finish-load", () => sendWindowState());
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: "deny" };
@@ -242,6 +248,42 @@ function createWindow() {
     mainWindow = null;
   });
 }
+
+function windowState() {
+  return {
+    maximized: Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized()),
+    fullscreen: Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFullScreen()),
+  };
+}
+
+function sendWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("mira:window-state", windowState());
+}
+
+const WINDOW_ACTIONS = {
+  minimize: (win) => win.minimize(),
+  "toggle-maximize": (win) => (win.isMaximized() ? win.unmaximize() : win.maximize()),
+  close: (win) => win.close(),
+};
+
+const MENU_ACTIONS = new Set([
+  "undo",
+  "redo",
+  "cut",
+  "copy",
+  "paste",
+  "selectAll",
+  "reload",
+  "forceReload",
+  "toggleDevTools",
+  "resetZoom",
+  "zoomIn",
+  "zoomOut",
+  "toggleFullScreen",
+  "about",
+  "quit",
+]);
 
 function buildMenu() {
   const template = [
@@ -282,6 +324,35 @@ if (!gotLock) {
     app.setName(APP_NAME);
     buildMenu();
     ipcMain.on("mira:retry", () => boot());
+    ipcMain.on("mira:window", (event, action) => {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const run = WINDOW_ACTIONS[action];
+      if (!win || !run) return;
+      run(win);
+    });
+    ipcMain.handle("mira:window-state", () => windowState());
+    ipcMain.handle("mira:menu-action", (event, action) => {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win || typeof action !== "string" || !MENU_ACTIONS.has(action)) return false;
+      if (action === "quit") {
+        app.quit();
+        return true;
+      }
+      if (action === "about") {
+        void dialog.showMessageBox(win, {
+          type: "info",
+          title: `关于 ${APP_NAME}`,
+          message: APP_NAME,
+          detail: `版本 ${app.getVersion()}\nElectron ${process.versions.electron}\nChromium ${process.versions.chrome}`,
+          buttons: ["好"],
+        });
+        return true;
+      }
+      const contents = win.webContents;
+      if (typeof contents[action] !== "function") return false;
+      contents[action]();
+      return true;
+    });
     ipcMain.handle("mira:pick-folder", async () => {
       if (!mainWindow) return null;
       const result = await dialog.showOpenDialog(mainWindow, {

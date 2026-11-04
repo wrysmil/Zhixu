@@ -3307,6 +3307,8 @@
     "reasoningToolsSingular": "Penalaran · 1 alat",
     "reasoning": "Penalaran",
     "reasoningStreaming": "Berpikir…",
+    "reasoningActive": "Berpikir",
+    "reasoningDone": "Selesai berpikir",
     "reasoningSummary": "Penalaran",
     "agentActivitySummary": "{{reasoning}} langkah · {{tools}} panggilan alat",
     "agentActivityToolsOnly": "{{tools}} panggilan alat",

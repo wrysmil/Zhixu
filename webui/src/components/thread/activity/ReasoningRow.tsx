@@ -20,6 +20,9 @@ export function ReasoningRow({
   const fallback = streaming
     ? t("message.reasoningStreaming", { defaultValue: "Thinking…" })
     : t("message.reasoning", { defaultValue: "Thinking" });
+  const kicker = streaming
+    ? t("message.reasoningActive", { defaultValue: "Reasoning" })
+    : t("message.reasoningDone", { defaultValue: "Thought" });
   const preview = compactReasoningPreview(text) || fallback;
   const detail = text.trim() ? text : undefined;
   const [expanded, setExpanded] = useState(streaming);
@@ -33,6 +36,7 @@ export function ReasoningRow({
   return (
     <ActivityStep
       marker={<ReasoningMarker streaming={streaming} />}
+      kicker={kicker}
       active={streaming}
       tone={streaming ? "active" : "success"}
       label={expanded ? fallback : preview}
@@ -75,7 +79,7 @@ function ReasoningMarker({ streaming }: { streaming: boolean }) {
       <CircleDashed
         data-testid="activity-reasoning-marker"
         data-state="thinking"
-        className="h-3.5 w-3.5 shrink-0 animate-spin text-primary motion-reduce:animate-none"
+        className="h-3.5 w-3.5 shrink-0 animate-spin text-sky-500 motion-reduce:animate-none dark:text-sky-400"
         strokeWidth={1.8}
         aria-hidden
       />

@@ -186,7 +186,7 @@ export function SettingsSectionTitle({ children }: { children: ReactNode }) {
 
 export function SettingsGroup({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-panel bg-settings-surface">
+    <div className="overflow-hidden rounded-panel border border-border/60 bg-settings-surface shadow-[0_1px_2px_hsl(var(--foreground)/0.03)]">
       <div className="divide-y divide-border/45">{children}</div>
     </div>
   );

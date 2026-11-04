@@ -3307,6 +3307,8 @@
     "reasoningToolsSingular": "Raciocínio · 1 ferramenta",
     "reasoning": "Pensando",
     "reasoningStreaming": "Pensando…",
+    "reasoningActive": "Pensando",
+    "reasoningDone": "Pensado",
     "reasoningSummary": "Raciocínio",
     "agentActivitySummary": "{{reasoning}} etapas · {{tools}} chamadas de ferramenta",
     "agentActivityToolsOnly": "{{tools}} chamadas de ferramenta",

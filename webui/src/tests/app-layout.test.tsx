@@ -705,7 +705,7 @@ describe("App layout", () => {
     ).toBeTruthy();
   });
 
-  it("highlights the blank new-topic destination immediately", async () => {
+  it("keeps the rail selected on the blank new-topic destination", async () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
@@ -717,7 +717,7 @@ describe("App layout", () => {
     expect(newTopicButton).toHaveClass("transition-[width,padding,color]");
     expect(within(sidebar).getByTestId("actions-selection-highlight")).toHaveAttribute(
       "data-active-id",
-      "new-chat",
+      "view:chat",
     );
   });
 
@@ -1665,7 +1665,7 @@ describe("App layout", () => {
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const flowSidebar = screen.getByTestId("host-sidebar-flow");
     expect(flowSidebar).toHaveStyle({ width: "264px" });
-    expect(screen.getByTestId("sidebar-rail")).toHaveClass("pt-12");
+    expect(screen.getByTestId("sidebar-rail")).toHaveClass("pt-4");
     expect(screen.getAllByTestId("sidebar-rail-brand")).toHaveLength(1);
     expect(screen.queryByTestId("host-sidebar-toggle")).not.toBeInTheDocument();
     expect(
@@ -1702,7 +1702,7 @@ describe("App layout", () => {
     fireEvent.click(within(sidebar).getByRole("button", { name: "Settings" }));
 
     const backButton = await screen.findByRole("button", { name: "Back to chat" });
-    expect(backButton.closest("aside")).toHaveClass("pt-10", "lg:pt-10");
+    expect(backButton.closest("aside")).toHaveClass("pt-4", "lg:pt-4");
     expect(backButton.closest("aside")).not.toHaveClass("pt-[4.25rem]");
     expect(backButton).toHaveClass("-ml-1");
   });
@@ -1728,7 +1728,7 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     await waitFor(() => {
-      expect(screen.getByTestId("sidebar-rail")).toHaveClass("pt-12");
+      expect(screen.getByTestId("sidebar-rail")).toHaveClass("pt-4");
     });
     expect(document.documentElement).toHaveClass("native-host");
   });

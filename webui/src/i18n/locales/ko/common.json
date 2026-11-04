@@ -3307,6 +3307,8 @@
     "reasoningToolsSingular": "추론 · 도구 1개",
     "reasoning": "추론",
     "reasoningStreaming": "추론 중…",
+    "reasoningActive": "생각 중",
+    "reasoningDone": "생각 완료",
     "reasoningSummary": "추론",
     "agentActivitySummary": "{{reasoning}}단계 · 도구 호출 {{tools}}회",
     "agentActivityToolsOnly": "도구 호출 {{tools}}회",

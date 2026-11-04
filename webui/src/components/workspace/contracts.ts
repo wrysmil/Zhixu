@@ -46,7 +46,7 @@ export interface WorkspaceNavigationProps {
   connectionStatus?: ReactNode;
   /** Optional caller-owned control below the language picker. */
   footerAction?: ReactNode;
-  /** Marks the "New chat" affordance as the active selection. */
+  /** Marks the "New chat" affordance as the current destination. */
   newChatActive?: boolean;
   hostChromeInset?: boolean;
 }

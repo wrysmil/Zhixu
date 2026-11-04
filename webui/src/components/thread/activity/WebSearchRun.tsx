@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { currentLocale } from "@/i18n";
 import { ActivityStep } from "@/components/thread/activity/ActivityStep";
 import { WebActivityRow } from "@/components/thread/activity/WebActivityRow";
 import { safeActivityDetail } from "@/components/thread/activity/activity-text";
@@ -20,6 +21,7 @@ export function WebSearchRun({ run, turnActive }: { run: WebSearchRunModel; turn
     <>
       <ActivityStep
         icon={failed ? undefined : Search}
+        kicker={/^zh/i.test(currentLocale()) ? "网络搜索" : "Web search"}
         active={active}
         tone={failed ? "error" : status === "done" ? "success" : "active"}
         label={label}

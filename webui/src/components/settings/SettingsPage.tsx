@@ -676,7 +676,7 @@ export function SettingsPage({
             (activeSection === "channels" ||
               activeSection === "agents") &&
               "flex min-h-full flex-col xl:h-full xl:min-h-0",
-            hostChromeInset && "pt-[4.25rem] sm:pt-[4.25rem] lg:pt-[4.75rem]",
+            hostChromeInset && "lg:pt-2",
           )}
         >
           {!showSidebar ? (

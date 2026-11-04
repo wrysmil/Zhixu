@@ -213,7 +213,7 @@ describe("MessageBubble", () => {
 
     rerender(<MessageBubble message={message} />);
     expect(bubble).not.toHaveClass("border-dashed");
-    expect(bubble).toHaveClass("bg-secondary/70");
+    expect(bubble).toHaveClass("bg-sky-500/[0.08]");
   });
 
   it("does not replay an entrance animation when persisted messages mount", () => {
@@ -371,7 +371,7 @@ describe("MessageBubble", () => {
     expect(command.getAttribute("style")).toContain("var(--inline-token-highlight)");
     expect(command.className).not.toMatch(/(?:^|\s)(?:bg-|border|ring|rounded)/);
     expect(command.parentElement).toHaveTextContent("/model gpt-5");
-    expect(command.parentElement).toHaveClass("rounded-floating", "bg-secondary/70");
+    expect(command.parentElement).toHaveClass("rounded-floating", "bg-sky-500/[0.08]");
   });
 
   it("keeps unknown and invalid slash commands as plain message text", () => {

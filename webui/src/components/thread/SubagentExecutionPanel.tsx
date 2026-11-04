@@ -256,7 +256,7 @@ function PanelContent({
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className="flex h-full min-h-0 flex-col bg-surface-raised">
       <header className="flex min-h-0 shrink-0 items-start gap-3 border-b border-border/60 px-4 py-3">
         <div className="min-w-0 flex-1">
           <span className="text-[11px] font-medium text-muted-foreground/70">
@@ -451,7 +451,7 @@ export function SubagentExecutionPanel({
           <DialogPrimitive.Content
             data-testid="subagent-execution-dialog"
             aria-modal="true"
-            className="fixed inset-y-0 right-0 z-50 w-[min(100vw,440px)] border-l border-border bg-background shadow-2xl outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-right"
+            className="fixed inset-y-0 right-0 z-50 w-[min(100vw,440px)] border-l border-border bg-surface-raised shadow-2xl outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-right"
             onCloseAutoFocus={(event) => {
               event.preventDefault();
               window.requestAnimationFrame(() => returnFocus?.focus());
@@ -482,7 +482,7 @@ export function SubagentExecutionPanel({
       aria-label={title}
       data-testid="subagent-execution-panel"
       data-presentation="sidebar"
-      className="relative block w-[440px] min-w-[440px] shrink-0 border-l border-border/70 bg-background"
+      className="relative block w-[440px] min-w-[440px] shrink-0 border-l border-border/70 bg-surface-raised"
     >
       <PanelContent
         executions={executions}

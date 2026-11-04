@@ -98,6 +98,9 @@ export default {
           canvas: "hsl(var(--settings-canvas))",
           surface: "hsl(var(--settings-surface))",
         },
+        surface: {
+          raised: "hsl(var(--surface-raised))",
+        },
       },
       keyframes: {
         "accordion-down": {

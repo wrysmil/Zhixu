@@ -174,7 +174,7 @@
           root.style.colorScheme = dark ? "dark" : "light";
           var canonical = JSON.stringify(preferences), hash = 2166136261;
           for (var i = 0; i < canonical.length; i++) hash = Math.imul(hash ^ canonical.charCodeAt(i), 16777619);
-          var hslKeys = ["background", "foreground", "card", "popover", "primary", "primary-foreground", "secondary", "muted", "muted-foreground", "accent", "accent-foreground", "border", "surface-app", "surface-panel", "sidebar", "sidebar-accent", "nav-active-bg", "nav-active-fg", "nav-active-ring", "card-foreground", "popover-foreground", "secondary-foreground", "input", "ring", "border-soft", "temporary-accent", "temporary-foreground", "temporary-border", "sidebar-foreground", "sidebar-selected", "sidebar-accent-foreground", "sidebar-border", "settings-canvas", "settings-surface"];
+          var hslKeys = ["background", "foreground", "card", "popover", "primary", "primary-foreground", "secondary", "muted", "muted-foreground", "accent", "accent-foreground", "border", "surface-app", "surface-panel", "surface-raised", "sidebar", "sidebar-accent", "nav-active-bg", "nav-active-fg", "nav-active-ring", "card-foreground", "popover-foreground", "secondary-foreground", "input", "ring", "border-soft", "temporary-accent", "temporary-foreground", "temporary-border", "sidebar-foreground", "sidebar-selected", "sidebar-accent-foreground", "sidebar-border", "settings-canvas", "settings-surface"];
           var hexKeys = ["inline-token-highlight", "temporary-control-active", "appearance-safe-foreground"];
           var fontKeys = ["font-ui", "font-code", "font-display"];
           var allKeys = hslKeys.concat(hexKeys, fontKeys).map(function (key) { return "--" + key; });

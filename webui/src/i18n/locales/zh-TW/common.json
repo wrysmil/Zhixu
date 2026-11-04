@@ -3307,6 +3307,8 @@
     "reasoningToolsSingular": "推理 · 1 個工具",
     "reasoning": "思考過程",
     "reasoningStreaming": "正在思考…",
+    "reasoningActive": "思考中",
+    "reasoningDone": "已思考",
     "reasoningSummary": "推理",
     "agentActivitySummary": "{{reasoning}} 步 · {{tools}} 次工具呼叫",
     "agentActivityToolsOnly": "{{tools}} 次工具呼叫",

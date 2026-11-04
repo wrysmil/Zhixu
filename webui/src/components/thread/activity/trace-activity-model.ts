@@ -7,6 +7,8 @@ import { displayWebHost, formatCompactWebUrl, parseSafeActivityHttpUrl } from ".
 
 export interface TraceDescription {
   kind: "search" | "tool" | "done" | "trace";
+  /** Tool category shown as a badge before the label ("终端命令", "读取文件"…). */
+  kicker: string;
   label: string;
   detail: string;
   icon?: "clock";
@@ -20,6 +22,7 @@ export function describeTraceLine(
   result?: unknown,
 ): TraceDescription {
   const trimmed = line.trim();
+  const chinese = /^zh/i.test(currentLocale());
   const functionMatch = /^([a-zA-Z0-9_.-]+)\((.*)\)$/.exec(trimmed);
   const name = (functionMatch?.[1] ?? "").toLowerCase().split(".").pop() || "";
   const args = functionMatch?.[2] ?? "";
@@ -32,6 +35,7 @@ export function describeTraceLine(
     const query = traceFieldFromArgs(args, ["query", "q", "text"]) || args;
     return {
       kind: "search",
+      kicker: chinese ? "搜索内容" : "Search",
       label: presentWebSearchAction(query, status, name === "x_search" ? "x" : "web"),
       detail: "",
     };
@@ -41,6 +45,9 @@ export function describeTraceLine(
     const pageTitle = parsedUrl ? webPageTitle(result) : "";
     return {
       kind: "tool",
+      kicker: parsedUrl
+        ? (chinese ? "浏览网页" : "Browse")
+        : (chinese ? "读取文件" : "Read"),
       label: pageTitle || statusCopy(status, "Reading", "Read", "Could not read"),
       detail: webDetail || (/^https?:\/\//i.test(rawTarget.trim())
         ? "Private address"
@@ -51,15 +58,30 @@ export function describeTraceLine(
   }
   if (isShellTraceName(name)) return describeShellTrace(args, trimmed, status);
   if (name === "write_file") {
-    return describeFileMutationTrace(args, status, "Writing file", "Wrote file", "Could not write file");
+    return describeFileMutationTrace(
+      args,
+      status,
+      "Writing file",
+      "Wrote file",
+      "Could not write file",
+      chinese ? "写入文件" : "Write",
+    );
   }
   if (name === "edit_file" || name === "apply_patch") {
-    return describeFileMutationTrace(args, status, "Editing file", "Edited file", "Could not edit file");
+    return describeFileMutationTrace(
+      args,
+      status,
+      "Editing file",
+      "Edited file",
+      "Could not edit file",
+      chinese ? "编辑文件" : "Edit",
+    );
   }
   if (name) {
     const action = humanizeTraceToolName(name);
     return {
       kind: "tool",
+      kicker: action,
       label: statusCopy(
         status,
         `Running ${action}`,
@@ -70,10 +92,16 @@ export function describeTraceLine(
     };
   }
   if (/done|complete|success/i.test(trimmed)) {
-    return { kind: "done", label: "Completed step", detail: safeActivityDetail(trimmed) };
+    return {
+      kind: "done",
+      kicker: chinese ? "步骤" : "Step",
+      label: "Completed step",
+      detail: safeActivityDetail(trimmed),
+    };
   }
   return {
     kind: status === "done" ? "done" : "trace",
+    kicker: chinese ? "步骤" : "Step",
     label: statusCopy(status, "Working", "Completed step", "Step failed"),
     detail: safeActivityDetail(trimmed),
   };
@@ -96,10 +124,12 @@ function describeShellTrace(
 ): TraceDescription {
   const command = shellCommandFromArgs(args) || fallback;
   const chinese = /^zh/i.test(currentLocale());
+  const kicker = chinese ? "终端命令" : "Terminal";
   const purpose = safeActivityDetail(traceFieldFromArgs(args, ["description", "ui_summary"]), 120);
   if (purpose) {
     return {
       kind: "tool",
+      kicker,
       label: status === "error" ? `${chinese ? "失败：" : "Failed: "}${purpose}` : purpose,
       detail: "",
     };
@@ -107,6 +137,7 @@ function describeShellTrace(
   if (/^(?:\/(?:usr\/)?bin\/)?date(?:\s|$)/i.test(command.trim())) {
     return {
       kind: "tool",
+      kicker,
       label: statusCopy(
         status,
         chinese ? "正在查看当前时间" : "Checking current time",
@@ -120,10 +151,11 @@ function describeShellTrace(
   const action = shellAction(command);
   if (action) {
     const copy = SHELL_ACTION_COPY[action][chinese ? "zh" : "en"];
-    return { kind: "tool", label: statusCopy(status, ...copy), detail: "" };
+    return { kind: "tool", kicker, label: statusCopy(status, ...copy), detail: "" };
   }
   return {
     kind: "tool",
+    kicker,
     label: statusCopy(
       status,
       chinese ? "正在执行命令" : "Running command",
@@ -204,10 +236,12 @@ function describeFileMutationTrace(
   running: string,
   done: string,
   failed: string,
+  kicker: string,
 ): TraceDescription {
   const path = traceFieldFromArgs(args, ["path", "file_path"]);
   return {
     kind: "tool",
+    kicker,
     label: statusCopy(status, running, done, failed),
     detail: path ? safeActivityDetail(path) : "",
   };

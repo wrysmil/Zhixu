@@ -178,7 +178,7 @@ export function Sidebar(props: SidebarProps) {
           ref={props.containActionMenus ? setMenuPortalContainer : undefined}
           className="flex min-h-0 min-w-0 flex-1 flex-col"
         >
-          <div className={cn("space-y-0.5 px-2 pb-2", props.hostChromeInset ? "pt-12" : "pt-4")}>
+          <div className="space-y-0.5 px-2 pb-2 pt-4">
             <SidebarActionButton
               label={t("sidebar.newChat")}
               onClick={props.onNewChat}

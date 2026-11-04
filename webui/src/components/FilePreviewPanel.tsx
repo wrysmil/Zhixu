@@ -143,7 +143,7 @@ export function FilePreviewPanel({
       <div
         className={cn(
           "absolute inset-y-0 right-0 flex w-[min(100vw,var(--file-preview-width))] flex-col overflow-hidden pb-[env(safe-area-inset-bottom)] md:w-[var(--file-preview-width)] md:pb-0",
-          "border-l border-border/70 bg-background shadow-2xl md:shadow-none",
+          "border-l border-border/70 bg-surface-raised shadow-2xl md:shadow-none",
           "transition-[opacity,transform] duration-300 ease-out will-change-transform",
           !entered || isClosing ? "translate-x-full opacity-0" : "translate-x-0 opacity-100",
           "motion-reduce:translate-x-0",
@@ -307,7 +307,7 @@ export function FilePreviewPanel({
                   }
                 }}
                 spellCheck={false}
-                className="min-h-0 w-full flex-1 resize-none border-0 bg-background px-4 py-3 font-mono text-[12.5px] leading-[1.65] text-foreground outline-none"
+                className="min-h-0 w-full flex-1 resize-none border-0 bg-surface-raised px-4 py-3 font-mono text-[12.5px] leading-[1.65] text-foreground outline-none"
               />
             ) : (
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">

@@ -3307,6 +3307,8 @@
     "reasoningToolsSingular": "Suy luận · 1 công cụ",
     "reasoning": "Suy luận",
     "reasoningStreaming": "Đang suy nghĩ…",
+    "reasoningActive": "Đang nghĩ",
+    "reasoningDone": "Đã nghĩ",
     "reasoningSummary": "Suy luận",
     "agentActivitySummary": "{{reasoning}} bước · {{tools}} lần gọi công cụ",
     "agentActivityToolsOnly": "{{tools}} lần gọi công cụ",

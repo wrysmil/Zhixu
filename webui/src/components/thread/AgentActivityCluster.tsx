@@ -557,7 +557,9 @@ function ActivityModelMessage({
   active: boolean;
   onOpenFilePreview?: (path: string) => void;
 }) {
+  const { t } = useTranslation();
   if (!message.content.trim()) return null;
+  const streaming = active && !!message.isStreaming;
   return (
     <div
       data-testid="activity-model-message"
@@ -565,8 +567,18 @@ function ActivityModelMessage({
       className="w-full min-w-0 py-1 text-[14px]"
       style={{ lineHeight: "var(--cjk-line-height)" }}
     >
+      <div className="mb-1 flex items-center gap-2">
+        <span
+          data-testid="activity-model-kicker"
+          className="rounded-[5px] border border-border/60 bg-muted/45 px-1.5 text-[11px] font-medium leading-4 text-muted-foreground"
+        >
+          {streaming
+            ? t("message.reasoningActive", { defaultValue: "Reasoning" })
+            : t("message.reasoningDone", { defaultValue: "Thought" })}
+        </span>
+      </div>
       <MarkdownText
-        streaming={active && !!message.isStreaming}
+        streaming={streaming}
         preserveStreamingLayout
         onOpenFilePreview={onOpenFilePreview}
       >
@@ -821,6 +833,7 @@ function ActivityTraceRow({
         href={trace.url}
         host={trace.host}
         displayUrl={trace.detail}
+        kicker={trace.kicker}
         active={rowActive}
         tone={status === "error" ? "error" : status === "done" ? "success" : "active"}
       />
@@ -829,6 +842,7 @@ function ActivityTraceRow({
   return (
     <ActivityStep
       marker={<TraceIconMark trace={trace} fallbackIcon={Icon} active={rowActive} />}
+      kicker={trace.kicker}
       active={rowActive && trace.kind !== "done"}
       tone={status === "error" ? "error" : status === "done" ? "success" : "active"}
       label={[trace.label, trace.detail].filter(Boolean).join(" ")}

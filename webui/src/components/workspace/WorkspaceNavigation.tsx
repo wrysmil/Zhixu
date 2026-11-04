@@ -110,7 +110,6 @@ export function WorkspaceNavigation({
   chatNavigation,
   connectionStatus,
   footerAction,
-  newChatActive = false,
   hostChromeInset = false,
 }: WorkspaceNavigationProps) {
   const { t, i18n } = useTranslation();
@@ -121,16 +120,12 @@ export function WorkspaceNavigation({
   // The conversation column is part of the persistent left region: navigating to
   // any menu keeps it in place, and only the explicit collapse control hides it.
   const showChatColumn = !collapsed;
-  const highlightNewChat = showChatColumn && newChatActive;
+  // 「新聊天」是行动按钮，不是第二个选中页：高亮始终留在左侧图标栏。
   const railItemActive =
     PRIMARY_ITEMS.some((item) => item.view === activeView)
     || CAPABILITY_ITEMS.some((item) => item.view === activeView)
     || SETTINGS_ITEM.view === activeView;
-  const selectionActiveId = highlightNewChat
-    ? "new-chat"
-    : railItemActive
-      ? `view:${activeView}`
-      : null;
+  const selectionActiveId = railItemActive ? `view:${activeView}` : null;
 
   const chatSlot: ReactNode =
     typeof chatNavigation === "function"
@@ -150,7 +145,7 @@ export function WorkspaceNavigation({
     column.toggleAttribute("inert", !showChatColumn);
   }, [showChatColumn, activeView]);
 
-  const topInset = hostChromeInset ? "pt-12" : "pt-4";
+  const topInset = "pt-4";
 
   const navigateTo = useCallback(
     (view: WorkspaceView) => onNavigate({ view } satisfies WorkspaceRoute),
@@ -206,7 +201,7 @@ export function WorkspaceNavigation({
     >
       <TooltipProvider delayDuration={150}>
       <SidebarSelectionHighlight
-        targetRef={highlightNewChat ? activeActionRef : activeRailRef}
+        targetRef={activeRailRef}
         activeId={selectionActiveId}
         scope="actions"
         className="relative flex h-full w-full min-w-0 flex-row"

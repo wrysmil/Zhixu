@@ -11,6 +11,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { FileReferenceChip } from "@/components/FileReferenceChip";
+import { currentLocale } from "@/i18n";
 import { codeLanguageFromPath } from "@/lib/code-language";
 import {
   hasRenderableFileDiff,
@@ -119,6 +120,7 @@ function FileEditRow({
           </span>
         )}
         active={editing}
+        kicker={/^zh/i.test(currentLocale()) ? "编辑文件" : "Edit"}
         tone={failed ? "error" : editing ? "active" : "success"}
         className="text-xs"
         ariaLabel={edit.path ? `${action} ${edit.path}` : action}

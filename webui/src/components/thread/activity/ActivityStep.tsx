@@ -7,9 +7,25 @@ import { cn } from "@/lib/utils";
 
 export type ActivityStepTone = "neutral" | "active" | "success" | "error";
 
+/** 状态色只落在过程徽标上：绿=已完成，蓝=进行中，红=失败，其余保持石墨中性。 */
+function kickerToneClassName(tone: ActivityStepTone): string {
+  if (tone === "success") {
+    return "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/[0.12] dark:text-emerald-300";
+  }
+  if (tone === "active") {
+    return "border-sky-500/30 bg-sky-500/[0.08] text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/[0.12] dark:text-sky-300";
+  }
+  if (tone === "error") {
+    return "border-destructive/30 bg-destructive/[0.06] text-destructive";
+  }
+  return "border-border/60 bg-muted/45 text-muted-foreground";
+}
+
 export interface ActivityStepProps {
   icon?: LucideIcon;
   marker?: ReactNode;
+  /** Short status word shown before the label, e.g. "已思考" or "终端命令". */
+  kicker?: ReactNode;
   label: ReactNode;
   ariaLabel?: string;
   active?: boolean;
@@ -31,6 +47,7 @@ export interface ActivityStepProps {
 export function ActivityStep({
   icon: Icon,
   marker,
+  kicker,
   label,
   ariaLabel,
   active = false,
@@ -109,6 +126,18 @@ export function ActivityStep({
           title={typeof label === "string" ? label : undefined}
           className="flex min-w-0 items-start gap-2"
         >
+          {kicker ? (
+            <span
+              data-testid="activity-kicker"
+              data-tone={tone}
+              className={cn(
+                "mt-[3px] shrink-0 rounded-[5px] border px-1.5 text-[11px] font-medium leading-4",
+                kickerToneClassName(tone),
+              )}
+            >
+              {kicker}
+            </span>
+          ) : null}
           {active ? (
             <StreamingLabelSheen
               active

@@ -9,10 +9,13 @@ import {
   type ReactNode,
 } from "react";
 import {
+  Copy,
   Eye,
   EyeOff,
+  Minus,
   Moon,
   ShieldCheck,
+  Square,
   SquareTerminal,
   Sun,
   X,
@@ -50,6 +53,13 @@ import {
   type WorkbenchState,
 } from "@/components/workbench/workbench-model";
 import { floatingSurfaceElevationClassName } from "@/components/ui/floating-surface";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -477,18 +487,176 @@ function isBootstrapAuthRequired(error: unknown): boolean {
   return msg.includes("HTTP 401") || msg.includes("HTTP 403");
 }
 
+type HostMenuEntry =
+  | { type: "separator" }
+  | { type: "action"; label: string; shortcut?: string; run: () => void };
+
 function HostChrome({
   rightAction,
+  onNewChat,
+  onOpenSettings,
 }: {
   rightAction?: ReactNode;
+  onNewChat?: () => void;
+  onOpenSettings?: () => void;
 }) {
+  const { i18n } = useTranslation();
+  const zh = (i18n.resolvedLanguage ?? i18n.language ?? "").startsWith("zh");
+  const shell = typeof window !== "undefined" ? window.mira : undefined;
+  const [maximized, setMaximized] = useState(false);
+
+  useEffect(() => {
+    if (!shell?.onWindowState) return undefined;
+    let alive = true;
+    void shell.getWindowState?.()
+      .then((state) => {
+        if (alive) setMaximized(Boolean(state?.maximized));
+      })
+      .catch(() => {});
+    const off = shell.onWindowState((state) => setMaximized(Boolean(state?.maximized)));
+    return () => {
+      alive = false;
+      off?.();
+    };
+  }, [shell]);
+
+  const runMenuAction = useCallback(
+    (action: string) => {
+      void shell?.runMenuAction?.(action).catch(() => {});
+    },
+    [shell],
+  );
+
+  const menus: { key: string; label: string; items: HostMenuEntry[] }[] = [
+    {
+      key: "file",
+      label: zh ? "文件" : "File",
+      items: [
+        {
+          type: "action",
+          label: zh ? "新建会话" : "New chat",
+          shortcut: "Ctrl+Shift+O",
+          run: () => onNewChat?.(),
+        },
+        {
+          type: "action",
+          label: zh ? "设置" : "Settings",
+          run: () => onOpenSettings?.(),
+        },
+        { type: "separator" },
+        {
+          type: "action",
+          label: zh ? "退出" : "Quit",
+          shortcut: "Alt+F4",
+          run: () => runMenuAction("quit"),
+        },
+      ],
+    },
+    {
+      key: "edit",
+      label: zh ? "编辑" : "Edit",
+      items: [
+        { type: "action", label: zh ? "撤销" : "Undo", shortcut: "Ctrl+Z", run: () => runMenuAction("undo") },
+        { type: "action", label: zh ? "重做" : "Redo", shortcut: "Ctrl+Y", run: () => runMenuAction("redo") },
+        { type: "separator" },
+        { type: "action", label: zh ? "剪切" : "Cut", shortcut: "Ctrl+X", run: () => runMenuAction("cut") },
+        { type: "action", label: zh ? "复制" : "Copy", shortcut: "Ctrl+C", run: () => runMenuAction("copy") },
+        { type: "action", label: zh ? "粘贴" : "Paste", shortcut: "Ctrl+V", run: () => runMenuAction("paste") },
+        { type: "action", label: zh ? "全选" : "Select all", shortcut: "Ctrl+A", run: () => runMenuAction("selectAll") },
+      ],
+    },
+    {
+      key: "view",
+      label: zh ? "视图" : "View",
+      items: [
+        { type: "action", label: zh ? "重新加载" : "Reload", shortcut: "Ctrl+R", run: () => runMenuAction("reload") },
+        { type: "action", label: zh ? "开发者工具" : "Developer tools", shortcut: "Ctrl+Shift+I", run: () => runMenuAction("toggleDevTools") },
+        { type: "separator" },
+        { type: "action", label: zh ? "放大" : "Zoom in", shortcut: "Ctrl+=", run: () => runMenuAction("zoomIn") },
+        { type: "action", label: zh ? "缩小" : "Zoom out", shortcut: "Ctrl+-", run: () => runMenuAction("zoomOut") },
+        { type: "action", label: zh ? "实际大小" : "Actual size", shortcut: "Ctrl+0", run: () => runMenuAction("resetZoom") },
+        { type: "separator" },
+        { type: "action", label: zh ? "全屏" : "Full screen", shortcut: "F11", run: () => runMenuAction("toggleFullScreen") },
+      ],
+    },
+    {
+      key: "help",
+      label: zh ? "帮助" : "Help",
+      items: [
+        { type: "action", label: zh ? "关于知序" : "About Zhixu", run: () => runMenuAction("about") },
+      ],
+    },
+  ];
+
   return (
-    <header className="host-drag-region pointer-events-none absolute inset-x-0 top-0 z-40 h-11 bg-transparent text-foreground/90">
-      {rightAction ? (
-        <div className="host-no-drag pointer-events-auto absolute right-3 top-2">
-          {rightAction}
-        </div>
-      ) : null}
+    <header className="host-drag-region absolute inset-x-0 top-0 z-40 flex h-10 items-center gap-1 border-b border-border/60 bg-surface-raised pl-2 pr-1 text-foreground/85">
+      <nav aria-label={zh ? "应用菜单" : "Application menu"} className="host-no-drag flex min-w-0 items-center gap-px">
+        {menus.map((menu) => (
+          <DropdownMenu key={menu.key}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="rounded-[5px] px-2 py-1 text-[12.5px] text-foreground/75 transition-colors hover:bg-accent/55 hover:text-foreground data-[state=open]:bg-accent/70 data-[state=open]:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                {menu.label}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[13rem]">
+              {menu.items.map((item, index) => (
+                item.type === "separator" ? (
+                  <DropdownMenuSeparator key={`separator-${index}`} />
+                ) : (
+                  <DropdownMenuItem
+                    key={item.label}
+                    onSelect={item.run}
+                    className="justify-between gap-6"
+                  >
+                    <span>{item.label}</span>
+                    {item.shortcut ? (
+                      <span className="text-[11px] tabular-nums text-muted-foreground/70">
+                        {item.shortcut}
+                      </span>
+                    ) : null}
+                  </DropdownMenuItem>
+                )
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ))}
+      </nav>
+      <div className="ml-auto flex items-center gap-1">
+        {rightAction ? <div className="host-no-drag">{rightAction}</div> : null}
+        {shell?.minimizeWindow ? (
+          <div className="host-no-drag ml-0.5 flex items-center">
+            <button
+              type="button"
+              aria-label={zh ? "最小化" : "Minimize"}
+              onClick={() => shell.minimizeWindow?.()}
+              className="grid h-8 w-11 place-items-center rounded-[4px] text-foreground/65 transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <Minus className="h-3.5 w-3.5" aria-hidden />
+            </button>
+            <button
+              type="button"
+              aria-label={maximized ? (zh ? "还原" : "Restore") : (zh ? "最大化" : "Maximize")}
+              onClick={() => shell.toggleMaximizeWindow?.()}
+              className="grid h-8 w-11 place-items-center rounded-[4px] text-foreground/65 transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              {maximized
+                ? <Copy className="h-3 w-3" aria-hidden />
+                : <Square className="h-3 w-3" aria-hidden />}
+            </button>
+            <button
+              type="button"
+              aria-label={zh ? "关闭" : "Close"}
+              onClick={() => shell.closeWindow?.()}
+              className="grid h-8 w-11 place-items-center rounded-[4px] text-foreground/65 transition-colors hover:bg-[#e81123] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
+        ) : null}
+      </div>
     </header>
   );
 }
@@ -2730,9 +2898,6 @@ function Shell({
     archivedCount: sidebarArchivedTabKeys.length,
     defaultWorkspacePath: workspaces?.default_scope.project_path ?? null,
   };
-  const hostSidebarFlowWidth = !hostSidebarOpen
-    ? SIDEBAR_RAIL_WIDTH
-    : SIDEBAR_CHAT_WIDTH;
   const isSettingsLikeView =
     view === "settings"
     || view === "apps"
@@ -2740,6 +2905,12 @@ function Shell({
     || view === "skills"
     || view === "agents"
     || view === "teams";
+  // Settings and other surfaces own the full width: keep only the icon rail,
+  // never the conversation list.
+  const hostChatColumnVisible = hostSidebarOpen && !isSettingsLikeView;
+  const hostSidebarFlowWidth = hostChatColumnVisible
+    ? SIDEBAR_CHAT_WIDTH
+    : SIDEBAR_RAIL_WIDTH;
 
   useEffect(() => {
     document.documentElement.classList.toggle("native-host", showHostChrome);
@@ -2776,18 +2947,26 @@ function Shell({
                 </Button>
               )
             }
+            onNewChat={onNewChat}
+            onOpenSettings={() => navigate({ view: "settings", activeKey: null, settingsSection: "overview" })}
           />
         ) : null}
         <div
           className={cn(
-            "relative flex h-full w-full overflow-hidden",
+            "relative flex h-full w-full overflow-hidden lg:py-2 lg:pr-2",
+            showHostChrome && "pt-10 lg:pt-12",
+          )}
+        >
+        <div
+          className={cn(
+            "workspace-surface relative flex h-full min-h-0 w-full overflow-hidden",
           )}
         >
           {/* Host sidebar: in normal flow, so the thread area width stays honest. */}
             <aside
               data-testid="host-sidebar-flow"
               className={cn(
-                "relative z-20 hidden shrink-0 overflow-hidden lg:block",
+                "relative z-20 hidden shrink-0 overflow-hidden lg:block lg:border-r lg:border-border/60",
                 "workspace-sidebar-flow host-sidebar-aside",
               )}
               style={{
@@ -2804,7 +2983,7 @@ function Shell({
               >
                 <Sidebar
                   {...sidebarProps}
-                  collapsed={!hostSidebarOpen}
+                  collapsed={!hostChatColumnVisible}
                   hostChromeInset={showHostChrome}
                   onCollapse={closeHostSidebar}
                   onExpand={openHostSidebar}
@@ -2845,10 +3024,10 @@ function Shell({
               />
             </Suspense>
           ) : null}
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col lg:p-2">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           <main
             className={cn(
-              "app-shell-card relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background",
+              "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-raised",
             )}
           >
             <div
@@ -3024,10 +3203,7 @@ function Shell({
             </div>
             {(view === "creative" || view === "article") ? (
               <div
-                className={cn(
-                  "absolute inset-0 overflow-y-auto bg-background",
-                  showHostChrome && "pt-10",
-                )}
+                className="absolute inset-0 overflow-y-auto bg-surface-raised"
               >
                 <Suspense fallback={null}>
                   <CreativeWorkspace
@@ -3063,10 +3239,7 @@ function Shell({
             ) : null}
             {view === "memory" || view === "identity" ? (
               <div
-                className={cn(
-                  "absolute inset-0 flex flex-col overflow-y-auto bg-background",
-                  showHostChrome && "pt-10",
-                )}
+                className="absolute inset-0 flex flex-col overflow-y-auto bg-surface-raised"
               >
                 <Suspense fallback={<SurfaceLoadingFallback />}>
                   {view === "memory" ? (
@@ -3141,6 +3314,7 @@ function Shell({
           onApprove={(code) => void onPairingAction("approve", code)}
           onDismiss={onDismissPairingRequest}
         />
+        </div>
       </div>
     </ThemeProvider>
   );

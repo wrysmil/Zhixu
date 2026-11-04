@@ -516,7 +516,7 @@ export function StartDock({
       <div
         data-testid="start-dock"
         aria-label={t("startPanel.title", { defaultValue: "Start" })}
-        className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden border-l border-border/40 bg-muted/20"
+        className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden border-l border-border/40 bg-surface-raised"
       >
         {shellInner}
       </div>
@@ -529,7 +529,7 @@ export function StartDock({
     <aside
       data-testid="start-dock"
       aria-label={t("startPanel.title", { defaultValue: "Start" })}
-      className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border/60 bg-muted/20"
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border/60 bg-surface-raised"
     >
       {shellInner}
     </aside>

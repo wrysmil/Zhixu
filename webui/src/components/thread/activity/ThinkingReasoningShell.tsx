@@ -35,7 +35,7 @@ export function ThinkingReasoningShell({
       {active ? (
         <LoaderCircle
           data-testid="activity-running-indicator"
-          className="h-4 w-4 shrink-0 animate-spin text-[hsl(var(--workbench-accent))] motion-reduce:animate-none"
+          className="h-4 w-4 shrink-0 animate-spin text-sky-500 motion-reduce:animate-none dark:text-sky-400"
           strokeWidth={2}
           aria-hidden="true"
         />
@@ -63,7 +63,7 @@ export function ThinkingReasoningShell({
           className={cn(
             "inline-flex w-fit max-w-full items-center gap-2 self-start rounded-full px-3 py-1.5",
             active
-              ? "bg-[hsl(var(--workbench-accent)/0.1)] text-foreground ring-1 ring-inset ring-[hsl(var(--workbench-accent)/0.28)]"
+              ? "bg-sky-500/[0.08] text-foreground ring-1 ring-inset ring-sky-500/30 dark:bg-sky-400/[0.12] dark:ring-sky-400/30"
               : "bg-muted/60 text-muted-foreground ring-1 ring-inset ring-border/50",
           )}
           role="status"
@@ -90,7 +90,7 @@ export function ThinkingReasoningShell({
           className="pointer-events-none absolute inset-x-0 top-0 h-[2px] overflow-hidden"
           aria-hidden
         >
-          <span className="activity-running-sweep block h-full w-1/3 bg-gradient-to-r from-transparent via-[hsl(var(--workbench-accent))] to-transparent" />
+          <span className="activity-running-sweep block h-full w-1/3 bg-gradient-to-r from-transparent via-sky-500 to-transparent dark:via-sky-400" />
         </span>
       ) : null}
       <button

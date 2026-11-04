@@ -1133,7 +1133,7 @@ describe("ChatList", () => {
     const activeButton = screen.getByRole("button", { name: "Active topic" });
     expect(activeButton).toHaveAttribute("aria-current", "page");
     expect(activeButton.closest("[data-chat-row]"))
-      .toHaveClass("bg-sidebar-foreground/[0.055]");
+      .toHaveClass("bg-sky-500/[0.10]");
 
     rerender(
       <ChatList
@@ -1148,10 +1148,10 @@ describe("ChatList", () => {
       .toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: "Active topic" })
       .closest("[data-chat-row]"))
-      .not.toHaveClass("bg-sidebar-foreground/[0.055]");
+      .not.toHaveClass("bg-sky-500/[0.10]");
     expect(screen.getByRole("button", { name: "Inactive topic" })
       .closest("[data-chat-row]"))
-      .toHaveClass("bg-sidebar-foreground/[0.055]");
+      .toHaveClass("bg-sky-500/[0.10]");
   });
 
   it("restores collapsed tabs from the local UI preference", () => {

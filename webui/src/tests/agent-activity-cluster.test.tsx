@@ -1388,6 +1388,76 @@ describe("AgentActivityCluster", () => {
       .toHaveTextContent("**Planning** a focused search for official sources");
     expect(screen.getByText("Thinking…")).toBeInTheDocument();
     expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
+    const thinkingKicker = screen.getByTestId("activity-kicker");
+    expect(thinkingKicker).toHaveTextContent("Reasoning");
+    expect(thinkingKicker).toHaveAttribute("data-tone", "active");
+    expect(thinkingKicker.className).toContain("text-sky-700");
+  });
+
+  it("colors finished activity kickers green and failed ones red", () => {
+    const { rerender } = render(
+      <AgentActivityCluster
+        messages={[{
+          id: "k-done",
+          role: "tool",
+          kind: "trace",
+          content: 'exec({"command":"ls"})',
+          traces: ['exec({"command":"ls"})'],
+          createdAt: 1,
+        }]}
+        isTurnStreaming={false}
+        hasBodyBelow={false}
+      />,
+    );
+
+    const doneKicker = screen.getByTestId("activity-kicker");
+    expect(doneKicker).toHaveAttribute("data-tone", "success");
+    expect(doneKicker.className).toContain("text-emerald-700");
+
+    rerender(
+      <AgentActivityCluster
+        messages={[{
+          id: "k-fail",
+          role: "tool",
+          kind: "trace",
+          content: 'exec({"command":"ls"})',
+          traces: ['exec({"command":"ls"})'],
+          toolEvents: [{
+            phase: "error",
+            call_id: "exec-1",
+            name: "exec",
+            arguments: { command: "ls" },
+            error: "boom",
+          }],
+          createdAt: 1,
+        }]}
+        isTurnStreaming={false}
+        hasBodyBelow={false}
+      />,
+    );
+
+    const failedKicker = screen.getByTestId("activity-kicker");
+    expect(failedKicker).toHaveAttribute("data-tone", "error");
+    expect(failedKicker.className).toContain("text-destructive");
+  });
+
+  it("labels shell tool rows with a terminal kicker before the title", () => {
+    render(
+      <AgentActivityCluster
+        messages={[{
+          id: "k-shell",
+          role: "tool",
+          kind: "trace",
+          content: 'exec({"command":"rg nanobot"})',
+          traces: ['exec({"command":"rg nanobot"})'],
+          createdAt: 1,
+        }]}
+        isTurnStreaming={false}
+        hasBodyBelow={false}
+      />,
+    );
+
+    expect(screen.getByTestId("activity-kicker")).toHaveTextContent("Terminal");
   });
 
   it("labels rejected CLI app calls as failed instead of ran", () => {

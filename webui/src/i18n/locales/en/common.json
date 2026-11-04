@@ -3363,6 +3363,8 @@
     "reasoningToolsSingular": "Reasoning · 1 tool",
     "reasoning": "Thinking",
     "reasoningStreaming": "Thinking…",
+    "reasoningActive": "Reasoning",
+    "reasoningDone": "Thought",
     "reasoningSummary": "Reasoning",
     "agentActivitySummary": "{{reasoning}} steps · {{tools}} tool calls",
     "agentActivityToolsOnly": "{{tools}} tool calls",

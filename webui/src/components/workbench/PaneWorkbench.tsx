@@ -643,7 +643,7 @@ export function PaneWorkbench({
   return (
     <section
       aria-label={t("workbench.aria", { defaultValue: "Conversation workbench" })}
-      className="workbench-canvas flex h-full min-h-0 flex-col overflow-hidden bg-background"
+      className="workbench-canvas flex h-full min-h-0 flex-col overflow-hidden bg-surface-raised"
     >
       <TooltipProvider delayDuration={500} skipDelayDuration={100}>
         {chrome ? (

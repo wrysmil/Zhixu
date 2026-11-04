@@ -2078,8 +2078,8 @@ export function ThreadShell({
           />
           {activeRightSurface.kind === "tools" ? (
             // 工具侧边栏不占工作台版面：打开时整列盖住工作台，关掉后工作台原样露出。
-            // bg-background 打底是必须的——dock 自身只有半透明 tint，否则工作台文字会透出来重影。
-            <div className="absolute inset-0 z-30 flex bg-background">
+            // bg-surface-raised 打底是必须的——dock 自身只有半透明 tint，否则工作台文字会透出来重影。
+            <div className="absolute inset-0 z-30 flex bg-surface-raised">
               <StartDock
                 variant="embedded"
                 scope={historyKey ?? HOME_DOCK_SCOPE}

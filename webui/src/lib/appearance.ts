@@ -178,11 +178,13 @@ const ZHIXU_LIGHT = {
   "--ring": "240 3.704% 15.882%",
   "--surface-app": "0 0% 98.039%",
   "--surface-panel": "0 0% 100%",
-  "--sidebar": "240 4.762% 95.882%",
+  "--surface-raised": "0 0% 100%",
+  "--sidebar": "0 0% 100%",
+  "--sidebar-selected": "203 96% 94%",
   "--sidebar-accent": "240 7.692% 92.353%",
-  "--nav-active-bg": "240 7.692% 92.353%",
-  "--nav-active-fg": "240 3.704% 15.882%",
-  "--nav-active-ring": "240 3.67% 57.255%",
+  "--nav-active-bg": "203 96% 94%",
+  "--nav-active-fg": "201 96% 32%",
+  "--nav-active-ring": "201 96% 42%",
   "--inline-token-highlight": "#27272A", "--temporary-control-active": "#27272A",
 };
 const ZHIXU_DARK = {
@@ -202,11 +204,13 @@ const ZHIXU_DARK = {
   "--ring": "240 5.882% 90%",
   "--surface-app": "240 5.882% 10%",
   "--surface-panel": "240 4.478% 13.137%",
+  "--surface-raised": "240 4.478% 13.137%",
   "--sidebar": "240 5.085% 11.569%",
+  "--sidebar-selected": "205 45% 18%",
   "--sidebar-accent": "240 5.618% 17.451%",
-  "--nav-active-bg": "240 5.618% 17.451%",
-  "--nav-active-fg": "240 5.882% 90%",
-  "--nav-active-ring": "240 3.766% 46.863%",
+  "--nav-active-bg": "205 45% 18%",
+  "--nav-active-fg": "199 89% 74%",
+  "--nav-active-ring": "199 89% 50%",
   "--inline-token-highlight": "#E4E4E7", "--temporary-control-active": "#E4E4E7",
 };
 
@@ -231,9 +235,12 @@ export function resolveAppearance(preferences: AppearancePreferences, theme: The
     "--muted-foreground": hsl(mix(background, foreground, 0.68)), "--accent": hsl(accentSurface),
     "--accent-foreground": hsl(accentInk), "--border": hsl(mix(background, safeForeground, 0.18)),
     "--surface-app": hsl(secondary), "--surface-panel": hsl(surface), "--sidebar": hsl(mix(background, safeForeground, 0.045)),
+    // Right-hand rails stay pure white in light mode, whatever the palette.
+    "--surface-raised": theme === "dark" ? hsl(surface) : "0 0% 100%",
     "--sidebar-accent": hsl(mix(background, accent, 0.1)), "--inline-token-highlight": accent, "--temporary-control-active": accent,
     "--nav-active-bg": hsl(navSurface), "--nav-active-fg": hsl(navInk),
     "--nav-active-ring": hsl(mix(navSurface, navInk, 0.32)),
+    "--sidebar-selected": hsl(navSurface),
   };
   const hasOverrides = preferences.presetId === "custom" && Object.keys(preferences.custom?.[theme] ?? {}).length > 0;
   const base = preferences.presetId === "custom" ? preferences.custom?.basePreset : preferences.presetId;
@@ -242,7 +249,7 @@ export function resolveAppearance(preferences: AppearancePreferences, theme: The
     "--card-foreground": "--foreground", "--popover-foreground": "--foreground", "--secondary-foreground": "--foreground",
     "--border-soft": "--border",
     "--temporary-accent": "--accent-foreground", "--temporary-foreground": "--accent-foreground", "--temporary-border": "--accent-foreground",
-    "--sidebar-foreground": "--foreground", "--sidebar-selected": "--accent", "--sidebar-accent-foreground": "--foreground",
+    "--sidebar-foreground": "--foreground", "--sidebar-accent-foreground": "--foreground",
     "--sidebar-border": "--border", "--settings-canvas": "--background", "--settings-surface": "--surface-panel",
   };
   for (const [key, source] of Object.entries(aliases)) tokens[key] = tokens[source];

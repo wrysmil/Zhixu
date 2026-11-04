@@ -36,7 +36,7 @@ export function SessionWorkbench({ model, sessionKey, token, client, onOpenFileP
   ];
 
   return <aside data-testid="session-workbench" aria-label={t("workbench.title", { defaultValue: "工作台" })}
-    className="relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-border/60 bg-muted/20 text-foreground">
+    className="relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-border/60 bg-surface-raised text-foreground">
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border/50 px-4">
       <span className="text-xs font-semibold">{t("workbench.title", { defaultValue: "工作台" })}</span>
       {updated && <span className="ml-auto text-[10px] text-muted-foreground">{text("更新于", "Updated")} {updated}</span>}
@@ -57,7 +57,7 @@ export function SessionWorkbench({ model, sessionKey, token, client, onOpenFileP
           setTab(next.key);
           document.getElementById(`${id}-${next.key}`)?.focus();
         }}
-        className={cn("flex flex-1 items-center justify-center gap-1.5 border-b-2 px-2 py-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", tab === item.key ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+        className={cn("flex flex-1 items-center justify-center gap-1.5 border-b-2 px-2 py-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", tab === item.key ? "border-sky-600 font-medium text-foreground dark:border-sky-400" : "border-transparent text-muted-foreground hover:text-foreground")}>
         {item.label}{!!item.count && <span className="text-[10px] tabular-nums text-muted-foreground">{item.count}</span>}
       </button>)}
     </div>
@@ -74,7 +74,10 @@ export function SessionWorkbench({ model, sessionKey, token, client, onOpenFileP
       {!sessionKey && <div className="px-4 py-3"><WorkbenchEmpty>{text("开始会话后，任务、记忆和能力状态会显示在这里。", "Start a session to see tasks, memories and capabilities.")}</WorkbenchEmpty></div>}
       {tab === "progress" && <>
         {model.summary && <div className="border-b border-border/45 px-4 py-3">
-          <p className="mb-1 text-[10px] text-muted-foreground">{text("最近进展", "Latest progress")}</p>
+          <p className="mb-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span aria-hidden className="h-1 w-1 rounded-full bg-sky-500" />
+            {text("最近进展", "Latest progress")}
+          </p>
           <p className="line-clamp-3 text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]" title={model.summary}>{model.summary.slice(0, 140)}{model.summary.length > 140 ? "…" : ""}</p>
         </div>}
         {!loading && !error && <WorkbenchProgress snapshot={snapshot} onOpenExecution={onOpenExecution} />}

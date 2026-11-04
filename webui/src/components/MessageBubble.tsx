@@ -422,7 +422,7 @@ export function MessageBubble({
               "text-left text-[14px]/[1.75] whitespace-pre-wrap [overflow-wrap:anywhere]",
               temporary
                 ? "border border-dashed border-muted-foreground/40 bg-transparent"
-                : "bg-secondary/70",
+                : "bg-sky-500/[0.08] dark:bg-sky-400/[0.12]",
             )}
           >
             {messageText}

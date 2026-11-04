@@ -1,3 +1,5 @@
+import { currentLocale } from "@/i18n";
+
 import { compactActivityPath, redactActivityText } from "./activity-text";
 
 export type GenericToolStatus = "running" | "done" | "error";
@@ -40,6 +42,8 @@ export interface GenericToolRunItem {
 
 export interface GenericToolPresentation {
   status: GenericToolStatus;
+  /** Tool family badge ("读取文件", "终端命令"…). */
+  kicker: string;
   label: string;
   detail: string;
   aside: string;
@@ -119,10 +123,29 @@ export function describeGenericToolRun(items: GenericToolRunItem[]): GenericTool
   const collected = items.length > 0 && items.every((item) => item.trace.collectedSource);
   return {
     status,
+    kicker: activityKicker(family, name),
     label: activityLabel(family, status, collected, name, items),
     detail: activityDetail(items, family, name),
     aside: activityAside(items, family),
   };
+}
+
+function activityKicker(family: ToolFamily, name: string): string {
+  const chinese = /^zh/i.test(currentLocale());
+  switch (family) {
+    case "content-search":
+      return chinese ? "搜索内容" : "Search";
+    case "file-search":
+      return chinese ? "查找文件" : "Find files";
+    case "list":
+      return chinese ? "查看目录" : "List";
+    case "read":
+      return chinese ? "读取文件" : "Read";
+    case "memory":
+      return chinese ? "检索记忆" : "Memory";
+    default:
+      return humanizeToolName(name);
+  }
 }
 
 function parseCall(line: string): { name: string; args: unknown } | null {

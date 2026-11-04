@@ -1005,7 +1005,7 @@ export const ChatList = memo(function ChatList({
                               ? "text-sidebar-foreground"
                               : "text-sidebar-foreground/82 hover:text-sidebar-foreground",
                             topicActive && !deleteSelectionMode
-                              && "bg-sidebar-foreground/[0.055] dark:bg-white/[0.07]",
+                              && "bg-sky-500/[0.10] dark:bg-sky-400/[0.14]",
                             deleteSelectionMode && (tabSelected || tabPartiallySelected)
                               && "bg-sidebar-accent/55 text-sidebar-accent-foreground",
                           )}
