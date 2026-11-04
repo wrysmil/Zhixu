@@ -44,13 +44,28 @@ def _seed(workspace: Path, name: str, content: str) -> Path:
 # ---- 取舍规则 ---------------------------------------------------------------
 
 
-def test_owned_sections_are_kept_and_other_sections_dropped():
-    content = "# Soul\n\n## 核心原则\n\n- 先做再说\n\n## 平台职责\n\n- 不该出现\n"
+def test_owned_sections_are_kept():
+    content = "# Soul\n\n## 核心原则\n\n- 先做再说\n\n## 平台职责\n\n- 这条也要留下\n"
 
     out = compile_content(content, _target("identity_core"))
 
     assert "先做再说" in out
-    assert "不该出现" not in out
+
+
+def test_user_added_section_is_not_silently_dropped():
+    """用户在 AGENT.md 里自己加的章节必须整段保留。
+
+    收窄按 marker 挑章节，用户自加的标题不命中 → 那段正文会被整段丢掉，用户
+    写的规则在系统提示里消失而他什么都没收到。编译是压缩，不是筛选。
+    """
+    template = load_identity_template("AGENT.md")
+    assert template is not None
+    content = template + "\n## 随手记\n\n- 本项目用 pnpm，不要用 npm。\n"
+
+    out = compile_content(content, _target("agent_behavior"))
+
+    assert "## 随手记" in out
+    assert "本项目用 pnpm，不要用 npm。" in out
 
 
 def test_english_headings_are_kept_for_identity_core():
@@ -316,23 +331,37 @@ def test_agent_compiled_output_stays_within_budget():
     assert len(body) <= _target("agent_behavior").max_chars
 
 
-def test_agent_compiled_output_contains_no_memory_file_instruction():
-    """Ralph 的「每轮保存进度到 MEMORY.md」不能混进提示词。"""
+def test_agent_compiled_output_states_memory_md_is_a_derived_view():
+    """MEMORY.md 是记忆库的派生视图，不能变成「把进度写进 MEMORY.md」的指令。
+
+    Ralph 循环天然会诱发「每轮把进度写进 MEMORY.md」这类说法，而知序的
+    MEMORY.md 由记忆系统重新生成——照做只会写完即被覆盖。
+    """
     template = load_identity_template("AGENT.md")
     assert template is not None
 
     body = compile_content(template, _target("agent_behavior"))
 
-    assert "MEMORY.md" not in body
+    assert "不是存储位置" in body
+    assert "保存进度到 MEMORY.md" not in body
+    assert "写入 MEMORY.md" not in body
 
 
 def test_soul_value_sections_are_compiled_within_budget():
-    """P3 增补：SOUL 的三节价值取向必须整节进产物，且不超预算。"""
+    """SOUL 的价值取向三节必须整节进产物，且不超预算。
+
+    marker 是按出厂模板的标题逐节登记的：出厂模板改了章节而 marker 没跟上，
+    编译就会把这些整节丢掉——出厂模板本身不被裁，用户改过的副本却被裁。
+    """
     template = load_identity_template("SOUL.md")
     assert template is not None
 
     body = compile_content(template, _target("identity_core"))
 
-    for heading in ("## 真正的帮助", "## 诚实", "## 自主与边界"):
+    for heading in (
+        "# Being Helpful - 真正的帮助",
+        "# Being Honest - 诚实",
+        "# Autonomous Agency - 自主能动性",
+    ):
         assert heading in body
     assert len(body) <= _target("identity_core").max_chars

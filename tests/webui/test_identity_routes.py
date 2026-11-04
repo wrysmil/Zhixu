@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 
-from nanobot.identity.catalog import CHAR_LIMIT, IDENTITY_DIR_NAME
+from nanobot.identity.catalog import CHAR_LIMIT, IDENTITY_DIR_NAME, char_limit_for
 from nanobot.identity.store import IdentityStore, IdentityStoreError
 from nanobot.webui import identity_api
 from nanobot.webui.identity_routes import (
@@ -141,7 +141,7 @@ def test_list_files_payload_shape(handler: IdentitySettingsHandler):
     assert by_name["AGENT.md"]["exists"] is False
     assert by_name["SOUL.md"]["restricted"] is False
     assert by_name["AGENT.md"]["restricted"] is True
-    assert all(f["charLimit"] == CHAR_LIMIT for f in files)
+    assert all(f["charLimit"] == char_limit_for(f["name"]) for f in files)
     # personas are discovered from disk, not hard-coded
     assert by_name["default.md"]["group"] == "personas"
 
@@ -433,11 +433,35 @@ def test_write_rejects_incomplete_payload(handler: IdentitySettingsHandler, payl
 def test_write_over_char_limit_is_4xx(handler: IdentitySettingsHandler, workspace: Path):
     result = handler.handle(
         "identity-write-file",
-        _request(payload={"name": "SOUL.md", "content": "x" * (CHAR_LIMIT + 1)}),
+        _request(
+            payload={
+                "name": "prompts/policies.md",
+                "content": "x" * (CHAR_LIMIT + 1),
+            }
+        ),
     )
 
     assert result.status == 400
     # 被拒的写入不能破坏原文件
+    policies = workspace / IDENTITY_DIR_NAME / "prompts" / "policies.md"
+    assert policies.read_text(encoding="utf-8") == "# policies"
+
+
+def test_write_soul_over_its_own_limit_is_4xx(
+    handler: IdentitySettingsHandler, workspace: Path
+):
+    """SOUL.md 用的是自己的上限，不是默认上限。"""
+    result = handler.handle(
+        "identity-write-file",
+        _request(
+            payload={
+                "name": "SOUL.md",
+                "content": "x" * (char_limit_for("SOUL.md") + 1),
+            }
+        ),
+    )
+
+    assert result.status == 400
     assert (workspace / IDENTITY_DIR_NAME / "SOUL.md").read_text(encoding="utf-8") == "# soul"
 
 

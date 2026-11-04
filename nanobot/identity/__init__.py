@@ -5,6 +5,7 @@ from nanobot.identity.bootstrap import (
     ensure_identity_templates,
     load_identity_template,
     migrate_legacy_identity_files,
+    upgrade_legacy_factory_templates,
 )
 from nanobot.identity.catalog import (
     CHAR_LIMIT,
@@ -53,4 +54,5 @@ __all__ = [
     "read_compiled",
     "resolve_identity_dir",
     "runtime_dir",
+    "upgrade_legacy_factory_templates",
 ]

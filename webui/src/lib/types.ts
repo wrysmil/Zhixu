@@ -1939,4 +1939,6 @@ export interface IdentityFileEntry {
   badge?: IdentityBadge;
   /** Backend-estimated token cost of the file's system-prompt section. */
   tokens?: number;
+  /** Max characters the backend accepts for this file (per-file limit). */
+  charLimit?: number;
 }

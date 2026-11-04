@@ -140,7 +140,11 @@ class ContextBuilder:
     """Builds the context (system prompt + messages) for the agent."""
 
     BOOTSTRAP_FILES = ["AGENTS.md", "SOUL.md", "AGENT.md", "USER.md"]
-    _SKIPPABLE_DEFAULTS = {"AGENTS.md", "AGENT.md", "USER.md"}
+    # 出厂模板也照常注入的文件：SOUL.md（本体）与 AGENT.md（方法论）是知序出厂
+    # 就带的行为基线，不该因为「用户没改过」而从系统提示里消失——没改过正是
+    # 出厂状态的定义。AGENTS.md 是项目级指令，USER.md 是派生档案，两者仍跳过
+    # 出厂态（前者归项目目录，后者由记忆系统生成）。
+    _SKIPPABLE_DEFAULTS = {"AGENTS.md", "USER.md"}
 
     def __init__(
         self,

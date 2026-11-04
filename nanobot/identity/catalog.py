@@ -28,8 +28,25 @@ POLICIES_MD_NAME = f"{PROMPTS_SUBDIR}/policies.md"
 COMPILED_SCHEMA_VERSION = "1"
 
 # Frontend IdentityView charMax derives from here (via /api/settings/identity/files).
-# Shares the same constant with MEMORY.md truncation logic.
+# This is the **default** limit — MEMORY.md (a derived memory view), USER.md,
+# policies and personas all live under it.
 CHAR_LIMIT = MEMORY_MD_MAX_CHARS
+
+# SOUL.md / AGENT.md carry the factory personality and the factory behavior
+# baseline. Those templates are thousands of characters, so the default limit
+# would put the shipped content outside the editor's own limits: the user could
+# not save it back, and a save of the untouched template would be rejected.
+IDENTITY_CORE_CHAR_LIMIT = 8000
+
+# Files that get the larger identity limit rather than the default one.
+_IDENTITY_CORE_LARGE_FILES: frozenset[str] = frozenset({"SOUL.md", "AGENT.md"})
+
+
+def char_limit_for(name: str) -> int:
+    """字符上限：按文件取。前端 textarea 的 maxLength 与后端写入校验同源。"""
+    if name in _IDENTITY_CORE_LARGE_FILES:
+        return IDENTITY_CORE_CHAR_LIMIT
+    return CHAR_LIMIT
 
 # Badge labelKey directly reuses frontend i18n keys; backend only passes them through.
 BADGE_AUTO_REGEN = "settings.identity.badgeAutoRegen"

@@ -103,7 +103,7 @@ COMPILE_TARGETS: tuple[CompileTarget, ...] = (
         key="identity_core",
         source="SOUL.md",
         output="identity.core.md",
-        max_chars=1200,
+        max_chars=6000,
         owned_markers=(
             "soul",
             "身份",
@@ -129,13 +129,36 @@ COMPILE_TARGETS: tuple[CompileTarget, ...] = (
             "value",
             "personality",
             "mission",
+            # 出厂 SOUL 改版后的章节（属性优先级 / 避免伤害 / 大局安全 /
+            # 内在驱动 / 身份认知）。marker 必须跟着出厂模板的标题一起长，
+            # 否则编译会把这些整节丢掉——出厂模板本身不会被裁，用户改过的
+            # 副本却会，这比不改模板更糟。
+            "属性",
+            "优先级",
+            "帮不上",
+            "伤害",
+            "边界",
+            "危险",
+            "安全",
+            "驱动",
+            "心态",
+            "本能",
+            "守护",
+            "资源",
+            "根因",
+            "存在",
+            "心理",
+            "福祉",
+            "harm",
+            "safety",
+            "drive",
         ),
     ),
     CompileTarget(
         key="agent_behavior",
         source="AGENT.md",
         output="agent.behavior.md",
-        max_chars=900,
+        max_chars=6000,
         owned_markers=(
             "行为准则",
             "任务执行",
@@ -143,6 +166,25 @@ COMPILE_TARGETS: tuple[CompileTarget, ...] = (
             "沟通契约",
             "成长循环",
             "自我修复",
+            # 出厂 AGENT 改版后的章节（Working Mode / 每轮自检 / 能力扩展 /
+            # 工具优先序 / 验证 / 记忆 / 子 Agent / 项目 / 身份文件 / 禁止行为）。
+            # 同 identity_core：marker 必须覆盖出厂模板的全部标题层级，
+            # 否则子标题一落选，其正文会被整段裁掉。
+            "identity",
+            "working",
+            "ralph",
+            "铁律",
+            "proactive",
+            "主动",
+            "自检",
+            "capability",
+            "tool",
+            "verification",
+            "记忆",
+            "团队",
+            "项目",
+            "身份",
+            "prohibited",
         ),
         skip_factory_template=True,
     ),
@@ -247,9 +289,8 @@ def _enforce_char_budget(lines: list[str], max_chars: int) -> str:
     return "\n".join(kept)
 
 
-def compile_content(content: str, target: CompileTarget) -> str:
-    """把一份源文件内容编译成该目标的产物正文（可能为空字符串）。"""
-    picked = _extract_owned_sections(content.splitlines(), target.owned_markers)
+def _finish_lines(picked: list[str], target: CompileTarget) -> str:
+    """噪声剔除 + 去重 + 单行截断 + 字符预算封顶。"""
     kept: list[str] = []
     seen: set[str] = set()
     for line in picked:
@@ -274,6 +315,23 @@ def compile_content(content: str, target: CompileTarget) -> str:
     return _enforce_char_budget(kept, target.max_chars)
 
 
+def compile_content(content: str, target: CompileTarget) -> str:
+    """把一份源文件内容编译成该目标的产物正文（可能为空字符串）。
+
+    章节收窄（``owned_markers``）只在**无损**时采用。用户在 AGENT.md 里自己加的
+    章节标题多半不命中 marker，收窄会把那段正文整段丢掉——用户写的规则在系统
+    提示里消失，而他什么都没收到。
+
+    编译的职责是**压缩**（去重 + 预算封顶），不是**筛选**。所以收窄一旦会丢正文
+    就改收全文，只让字符预算封顶：宁可少压一点，也不能少一条规则。
+    """
+    lines = content.splitlines()
+    selected = _extract_owned_sections(lines, target.owned_markers)
+    if _payload_line_count(selected) < _payload_line_count(lines):
+        selected = lines
+    return _finish_lines(selected, target)
+
+
 def _is_factory_template(logical_name: str, content: str) -> bool:
     """源文件是否仍是出厂模板原文（用户一个字没改）。
 
@@ -293,6 +351,18 @@ def _atomic_write(path: Path, content: str) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(content, encoding="utf-8")
     os.replace(tmp, path)
+
+
+def _discard_product(path: Path) -> None:
+    """删掉过期产物。
+
+    产物集是「整体新鲜才可信」的：不写新产物却留着旧产物，注入侧会把上一版的
+    正文当成本版继续注入（用户重置文件、模板升级都走这条路）。
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        logger.warning("identity: 删除过期产物失败 %s", path)
 
 
 # -- 新鲜度 -------------------------------------------------------------------
@@ -389,10 +459,12 @@ def compile_identity(workspace: Path) -> dict[str, Any]:
 
     for target in COMPILE_TARGETS:
         source_path = store.resolve_path(target.source)
+        product = rdir / target.output
         try:
             content = store.read_file(target.source)
         except IdentityStoreError:
             skipped.append({"target": target.key, "reason": "source_missing"})
+            _discard_product(product)
             continue
 
         if source_path.is_file():
@@ -400,14 +472,16 @@ def compile_identity(workspace: Path) -> dict[str, Any]:
 
         if target.skip_factory_template and _is_factory_template(target.source, content):
             skipped.append({"target": target.key, "reason": "factory_template"})
+            _discard_product(product)
             continue
 
         body = compile_content(content, target)
         if not body.strip():
             skipped.append({"target": target.key, "reason": "empty"})
+            _discard_product(product)
             continue
 
-        _atomic_write(rdir / target.output, body)
+        _atomic_write(product, body)
         compiled_files.append(target.output)
 
     _atomic_write(rdir / COMPILER_VERSION_FILENAME, COMPILED_SCHEMA_VERSION)

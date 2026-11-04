@@ -17,6 +17,20 @@ logger = logging.getLogger(__name__)
 # Files historically scattered at workspace root, now consolidated under identity/.
 LEGACY_ROOT_FILES: tuple[str, ...] = ("SOUL.md", "USER.md")
 
+# 历史出厂模板的位置（相对 nanobot/templates/）。
+#
+# 用途：模板改版后，把「用户一个字没改过」的旧副本升级成新出厂模板。判定依据
+# 是内容逐字相等——用户改过的文件对不上，一律不碰。没有这一步的话，老
+# workspace 会永远停在旧模板上，出厂行为基线的改进对他们不生效。
+#
+# 这些副本保留在包里而不是只留哈希：升级逻辑要能被人直接读懂，也要让测试
+# 能直接拿它们当「旧出厂内容」用。
+_LEGACY_FACTORY_SOURCES: dict[str, tuple[str, ...]] = {
+    # logical name → 历史出厂版本所在的模板路径
+    "SOUL.md": ("legacy/SOUL.md", "legacy/SOUL-cn.md"),
+    "AGENT.md": ("legacy/AGENT.md",),
+}
+
 # Core identity files that live under identity/ (bundled template path == logical path
 # relative to nanobot/templates/, except MEMORY.md which is lifecycle-owned).
 _IDENTITY_CORE_SEEDS: tuple[tuple[str, str], ...] = (
@@ -66,7 +80,12 @@ def ensure_identity_templates(workspace: Path) -> list[str]:
     the persona presets all land under ``identity/``. SOUL/USER/MEMORY are
     re-checked so this function is also correct when called standalone.
 
-    Returns workspace-relative paths actually created.
+    Exception to "never overwrites": a file that still matches a **previous
+    factory template** byte-for-byte is upgraded to the current one (see
+    :func:`upgrade_legacy_factory_templates`). Files the user actually wrote
+    are never touched.
+
+    Returns workspace-relative paths actually created or upgraded.
     """
     from nanobot.utils.helpers import load_bundled_template  # local: avoid import cycle
 
@@ -102,9 +121,56 @@ def ensure_identity_templates(workspace: Path) -> list[str]:
     ).exists():
         _seed(workspace / "memory" / "MEMORY.md", "memory/MEMORY.md")
 
+    added.extend(upgrade_legacy_factory_templates(workspace))
+
     if added:
         logger.info("Seeded identity templates: %s", ", ".join(added))
     return added
+
+
+def upgrade_legacy_factory_templates(workspace: Path) -> list[str]:
+    """Upgrade untouched copies of **previous** factory templates to the current one.
+
+    A file qualifies only when its content is word-for-word equal to a known
+    previous factory version (``nanobot/templates/legacy/``). Anything the user
+    wrote differs, so it is left alone — upgrading a template must never
+    overwrite a user's own words.
+
+    Contents are compared as ``read_text`` returns them (universal newlines),
+    so a CRLF checkout still matches the LF-authored legacy copy.
+
+    Returns workspace-relative paths actually upgraded.
+    """
+    from nanobot.utils.helpers import load_bundled_template  # local: avoid import cycle
+
+    identity_dir = resolve_identity_dir(workspace)
+    upgraded: list[str] = []
+
+    for logical, legacy_paths in _LEGACY_FACTORY_SOURCES.items():
+        template = load_identity_template(logical)
+        if template is None:
+            continue
+        legacy_contents = {
+            content
+            for content in (load_bundled_template(path) for path in legacy_paths)
+            if content is not None
+        }
+        if not legacy_contents:
+            continue
+        for path in (identity_dir / logical, workspace / logical):
+            if not path.is_file():
+                continue
+            try:
+                content = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            if content not in legacy_contents:
+                continue
+            path.write_text(template, encoding="utf-8")
+            upgraded.append(str(path.relative_to(workspace)))
+            logger.info("Upgraded untouched factory template: %s", path)
+
+    return upgraded
 
 
 def migrate_legacy_identity_files(workspace: Path) -> list[str]:

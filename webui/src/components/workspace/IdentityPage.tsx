@@ -167,7 +167,10 @@ export function IdentityPage() {
   const hasChanges = content !== original;
   const warningKey = selectedName ? WARNING_KEYS[selectedName] : undefined;
   const tokenCount = estimateTokens(content);
-  const overCharLimit = content.length > charLimit;
+  // 每个文件的字符上限由后端按文件下发（SOUL.md / AGENT.md 的出厂基线比
+  // MEMORY.md 之类的派生文件长得多），取不到时回退到全局默认值。
+  const effectiveCharLimit = selected?.charLimit ?? charLimit;
+  const overCharLimit = content.length > effectiveCharLimit;
   const selectedPersonaStem =
     selected?.group === "personas" ? selected.name.replace(/\.md$/, "") : "";
 
@@ -399,15 +402,13 @@ export function IdentityPage() {
 
               <div className="flex items-center justify-between gap-3 pt-2 text-[11px] text-muted-foreground">
                 <span>
-                  {selectedName === "MEMORY.md" ? (
-                    <span className={cn(overCharLimit && "font-semibold text-destructive")}>
-                      {t("settings.identity.files.charCount", {
-                        count: content.length,
-                        max: charLimit,
-                      })}
-                      {overCharLimit ? ` — ${t("settings.identity.files.charCountExceeded")}` : ""}
-                    </span>
-                  ) : null}
+                  <span className={cn(overCharLimit && "font-semibold text-destructive")}>
+                    {t("settings.identity.files.charCount", {
+                      count: content.length,
+                      max: effectiveCharLimit,
+                    })}
+                    {overCharLimit ? ` — ${t("settings.identity.files.charCountExceeded")}` : ""}
+                  </span>
                 </span>
                 <span>{t("settings.identity.files.tokenCount", { count: tokenCount })}</span>
               </div>

@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from nanobot.identity.catalog import CHAR_LIMIT, IDENTITY_DIR_NAME, IdentityFileSpec
+from nanobot.identity.catalog import (
+    CHAR_LIMIT,
+    IDENTITY_DIR_NAME,
+    IdentityFileSpec,
+    char_limit_for,
+)
 from nanobot.identity.store import IdentityStore, IdentityStoreError
 
 # 各种形态的越界输入：相对穿越、Windows 分隔符、POSIX/Windows 绝对路径、
@@ -142,17 +147,32 @@ def test_read_allows_memory_md(store: IdentityStore) -> None:
 
 def test_write_rejects_over_char_limit(store: IdentityStore) -> None:
     with pytest.raises(IdentityStoreError) as exc:
-        store.write_file("SOUL.md", "x" * (CHAR_LIMIT + 1))
+        store.write_file("prompts/policies.md", "x" * (CHAR_LIMIT + 1))
 
     assert "1500" in str(exc.value)
     # 被拒的写入不能破坏原文件
-    assert store.read_file("SOUL.md") == "# soul"
+    assert store.read_file("prompts/policies.md") == "# policies"
 
 
 def test_write_accepts_exactly_char_limit(store: IdentityStore) -> None:
     boundary = "y" * CHAR_LIMIT
-    store.write_file("SOUL.md", boundary)
-    assert store.read_file("SOUL.md") == boundary
+    store.write_file("prompts/policies.md", boundary)
+    assert store.read_file("prompts/policies.md") == boundary
+
+
+def test_soul_and_agent_get_the_larger_identity_limit(store: IdentityStore) -> None:
+    """SOUL.md / AGENT.md 的出厂基线比默认上限长，用默认上限存不回来。"""
+    assert char_limit_for("SOUL.md") > CHAR_LIMIT
+    assert char_limit_for("AGENT.md") > CHAR_LIMIT
+
+    body = "z" * (CHAR_LIMIT + 1)
+    store.write_file("SOUL.md", body)
+    store.write_file("AGENT.md", body)
+    assert store.read_file("SOUL.md") == body
+    assert store.read_file("AGENT.md") == body
+
+    with pytest.raises(IdentityStoreError):
+        store.write_file("SOUL.md", "z" * (char_limit_for("SOUL.md") + 1))
 
 
 def test_write_rejects_non_string_content(store: IdentityStore) -> None:
@@ -330,7 +350,10 @@ def test_list_files_exposes_logical_path_for_personas(store: IdentityStore) -> N
 
 
 def test_list_files_exposes_char_limit(store: IdentityStore) -> None:
-    assert all(f["charLimit"] == CHAR_LIMIT for f in store.list_files())
+    """上限按文件下发：前端 textarea 的 maxLength 与后端校验必须同源。"""
+    by_name = {f["name"]: f for f in store.list_files()}
+    for name, entry in by_name.items():
+        assert entry["charLimit"] == char_limit_for(name)
 
 
 def test_policies_yaml_is_not_editable(store: IdentityStore) -> None:

@@ -533,10 +533,12 @@ class TestBuildMessages:
 # ---------------------------------------------------------------------------
 
 
-# Both sources carry a section the compiler drops, so "was the compiled
-# product injected, or the raw file?" is decidable from the prompt alone.
-_SOUL_SOURCE = "# Soul\n\n## 核心原则\n\n- 保留这句\n\n## 平台职责\n\n- 编译应剔除这句\n"
-_AGENT_SOURCE = "# Agent 行为准则\n\n## 任务执行\n\n- 保留行为\n\n## 平台职责\n\n- 编译应剔除这句\n"
+# Both sources carry a placeholder line the compiler strips, so "was the
+# compiled product injected, or the raw file?" is decidable from the prompt
+# alone. (A section the compiler drops would not work any more: narrowing never
+# drops user content — see compile_content.)
+_SOUL_SOURCE = "# Soul\n\n## 核心原则\n\n- 保留这句\n\n## 平台职责\n\n- 编译应剔除这句（待填）\n"
+_AGENT_SOURCE = "# Agent 行为准则\n\n## 任务执行\n\n- 保留行为\n\n## 平台职责\n\n- 编译应剔除这句（待填）\n"
 
 
 class TestCompiledIdentityInjection:
@@ -578,8 +580,13 @@ class TestCompiledIdentityInjection:
 
         assert "编译应剔除这句" in result
 
-    def test_factory_agent_template_is_not_injected(self, tmp_path):
-        """出厂 AGENT.md 不该占用 system prompt；用户改过才进。"""
+    def test_factory_agent_template_is_injected(self, tmp_path):
+        """出厂 AGENT.md 要进 system prompt。
+
+        出厂的行为准则是产品的出厂基线，不该因为「用户还没改过」而从提示词里
+        消失——没改过正是出厂状态的定义。改过之后仍然照常注入（见
+        test_edited_agent_file_is_injected）。
+        """
         identity_dir = tmp_path / IDENTITY_DIR_NAME
         identity_dir.mkdir(parents=True, exist_ok=True)
         template = load_bundled_template("AGENT.md")
@@ -588,13 +595,15 @@ class TestCompiledIdentityInjection:
 
         result = _builder(tmp_path)._load_bootstrap_files()
 
-        assert "## AGENT.md" not in result
+        assert "## AGENT.md" in result
+        assert "Ralph Wiggum Mode" in result
 
-    def test_factory_agent_template_stays_out_after_compile(self, tmp_path):
-        """出厂 AGENT.md 编译过也不进 prompt。
+    def test_factory_agent_template_survives_compile(self, tmp_path):
+        """出厂 AGENT.md 编译过也一样进 prompt。
 
-        上面那条只覆盖未编译的回退分支；产物分支拿非空正文就直接注入，够不到
-        _SKIPPABLE_DEFAULTS。编译侧不产出才让两条路径的行为一致。
+        编译侧对出厂 AGENT.md 不产出产物（见 test_factory_agent_and_user_templates_
+        produce_no_products），注入侧因此回退到全文——两条路径行为必须一致，
+        否则「编译一次就把出厂行为准则弄丢」。
         """
         identity_dir = tmp_path / IDENTITY_DIR_NAME
         identity_dir.mkdir(parents=True, exist_ok=True)
@@ -605,7 +614,8 @@ class TestCompiledIdentityInjection:
         compile_identity(tmp_path)
         result = _builder(tmp_path)._load_bootstrap_files()
 
-        assert "## AGENT.md" not in result
+        assert "## AGENT.md" in result
+        assert "Ralph Wiggum Mode" in result
 
     def test_products_without_persona_content_do_not_hide_the_source(self, tmp_path):
         """全部目标编译为空时产物集不可用，注入必须回到源文件。"""

@@ -12,12 +12,12 @@ from typing import Any
 
 from nanobot.identity.bootstrap import LEGACY_ROOT_FILES
 from nanobot.identity.catalog import (
-    CHAR_LIMIT,
     CORE_FILES,
     LIFECYCLE_OWNED_FILES,
     MEMORY_DIR_DERIVED_FILES,
     IdentityFileSpec,
     build_persona_specs,
+    char_limit_for,
     resolve_identity_dir,
 )
 
@@ -133,7 +133,7 @@ class IdentityStore:
                 "group": spec.group,
                 "exists": self._exists(spec),
                 "restricted": spec.restricted,
-                "charLimit": CHAR_LIMIT,
+                "charLimit": char_limit_for(spec.name),
             }
             if spec.group == "personas":
                 item["logicalPath"] = spec.path
@@ -188,9 +188,10 @@ class IdentityStore:
         if not isinstance(content, str):
             raise IdentityStoreError("内容必须是字符串", status=400)
 
-        if len(content) > CHAR_LIMIT:
+        limit = char_limit_for(name)
+        if len(content) > limit:
             raise IdentityStoreError(
-                f"内容超过 {CHAR_LIMIT} 字符上限（当前 {len(content)}）",
+                f"内容超过 {limit} 字符上限（当前 {len(content)}）",
                 status=400,
             )
 
