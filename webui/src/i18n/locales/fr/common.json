@@ -2373,6 +2373,7 @@
         "tokenCount": "~{{count}} tokens",
         "charCount": "{{count}} / {{max}} caractères",
         "charCountExceeded": "Limite de caractères dépassée — le contenu sera tronqué à l'enregistrement",
+        "charCountRejected": "Limite de caractères dépassée — l'enregistrement sera refusé",
         "setActivePersona": "Utiliser cette personnalité",
         "activePersona": "Active",
         "personaActivated": "Personnalité changée : {{name}}",

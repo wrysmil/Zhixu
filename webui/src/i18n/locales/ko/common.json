@@ -2373,6 +2373,7 @@
         "tokenCount": "~{{count}} tokens",
         "charCount": "{{count}} / {{max}}자",
         "charCountExceeded": "문자 제한을 넘었습니다. 저장 시 잘립니다",
+        "charCountRejected": "문자 제한을 넘었습니다. 저장할 수 없습니다",
         "setActivePersona": "이 페르소나 사용",
         "activePersona": "사용 중",
         "personaActivated": "페르소나 전환: {{name}}",

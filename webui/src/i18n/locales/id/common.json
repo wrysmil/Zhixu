@@ -2373,6 +2373,7 @@
         "tokenCount": "~{{count}} tokens",
         "charCount": "{{count}} / {{max}} karakter",
         "charCountExceeded": "Melebihi batas karakter — akan dipotong saat disimpan",
+        "charCountRejected": "Melebihi batas karakter — penyimpanan akan ditolak",
         "setActivePersona": "Pakai kepribadian ini",
         "activePersona": "Aktif",
         "personaActivated": "Kepribadian diganti: {{name}}",

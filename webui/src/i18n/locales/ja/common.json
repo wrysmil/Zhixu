@@ -2373,6 +2373,7 @@
         "tokenCount": "~{{count}} tokens",
         "charCount": "{{count}} / {{max}} 文字",
         "charCountExceeded": "文字数の上限を超えています。保存時に切り詰められます",
+        "charCountRejected": "文字数の上限を超えています。保存できません",
         "setActivePersona": "このペルソナを使う",
         "activePersona": "使用中",
         "personaActivated": "ペルソナを切り替えました: {{name}}",

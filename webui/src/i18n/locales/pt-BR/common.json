@@ -2373,6 +2373,7 @@
         "tokenCount": "~{{count}} tokens",
         "charCount": "{{count}} / {{max}} caracteres",
         "charCountExceeded": "Acima do limite de caracteres — será truncado ao salvar",
+        "charCountRejected": "Acima do limite de caracteres — a gravação será recusada",
         "setActivePersona": "Usar esta personalidade",
         "activePersona": "Ativa",
         "personaActivated": "Personalidade trocada: {{name}}",

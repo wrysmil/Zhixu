@@ -2560,6 +2560,7 @@
         "tokenCount": "~{{count}} tokens",
         "charCount": "{{count}} / {{max}} chars",
         "charCountExceeded": "Over the character limit — it will be truncated on save",
+        "charCountRejected": "Over the character limit — saving will be rejected",
         "setActivePersona": "Use this persona",
         "activePersona": "Active",
         "personaActivated": "Persona switched: {{name}}",

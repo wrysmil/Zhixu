@@ -2373,6 +2373,7 @@
         "tokenCount": "~{{count}} tokens",
         "charCount": "{{count}} / {{max}} 字元",
         "charCountExceeded": "超出字元上限，儲存後將被自動截斷",
+        "charCountRejected": "超出字元上限，儲存將被拒絕",
         "setActivePersona": "設為目前人格",
         "activePersona": "目前",
         "personaActivated": "已切換目前人格：{{name}}",

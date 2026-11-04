@@ -407,7 +407,15 @@ export function IdentityPage() {
                       count: content.length,
                       max: effectiveCharLimit,
                     })}
-                    {overCharLimit ? ` — ${t("settings.identity.files.charCountExceeded")}` : ""}
+                    {overCharLimit
+                      ? ` — ${t(
+                          // MEMORY.md 走记忆生命周期，超限会被截断；其余身份文件
+                          // 走 IdentityStore，超限是直接拒绝保存。
+                          selectedName === "MEMORY.md"
+                            ? "settings.identity.files.charCountExceeded"
+                            : "settings.identity.files.charCountRejected",
+                        )}`
+                      : ""}
                   </span>
                 </span>
                 <span>{t("settings.identity.files.tokenCount", { count: tokenCount })}</span>

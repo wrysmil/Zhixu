@@ -68,6 +68,27 @@ prompt chars = 9272
 | 老 workspace 未定制文件 | 自动升级到新出厂模板（SOUL + AGENT 均验证） |
 | 用户自己写过的文件 | 不被升级（内容逐字比对） |
 
+### 真实客户端验证（重启网关后）
+
+网关 PID 53292（17:24 启动，早于本次改动）重启后（PID 26440），后端按文件下发上限：
+
+```
+SOUL.md  charLimit=8000     USER.md  charLimit=1500
+AGENT.md charLimit=8000     MEMORY.md / policies.md / 5 个 persona = 1500
+```
+
+身份页实机截图（Playwright + msedge headless）：
+`.ai-runtime-artifacts/verifications/identity-page-after-restart.png`
+—— AGENT.md 显示 `4921 / 8000 字符`，无超限告警，内容为新出厂模板。
+
+顺带修掉两处文案/行为不准：
+
+1. 字符计数改为对所有文件显示后，原文案「保存后将被自动截断」只对 MEMORY.md 成立
+   （记忆生命周期会截断），其余身份文件是 `IdentityStore` 直接 400 拒绝。拆成
+   `charCountExceeded`（截断）与 `charCountRejected`（拒绝）两个 key，10 个语言同步。
+2. 上限按文件下发后前端 textarea 与后端校验同源，不再出现「出厂模板存不回来」。
+
+
 ### 顺带修掉的一个静默丢规则缺陷
 
 改版前实测：用户在 `identity/AGENT.md` 追加 `## 随手记`，编译后**整段消失**

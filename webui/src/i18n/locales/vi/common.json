@@ -2373,6 +2373,7 @@
         "tokenCount": "~{{count}} tokens",
         "charCount": "{{count}} / {{max}} ký tự",
         "charCountExceeded": "Vượt giới hạn ký tự — sẽ bị cắt khi lưu",
+        "charCountRejected": "Vượt giới hạn ký tự — sẽ bị từ chối khi lưu",
         "setActivePersona": "Dùng nhân cách này",
         "activePersona": "Đang dùng",
         "personaActivated": "Đã đổi nhân cách: {{name}}",
