@@ -31,7 +31,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 const requestMutation = vi.fn();
 const transport = { requestMutation } as never;
 
-const SOUL_MD = ["# Soul", "我是 知序 🐈", "## 核心原则", "- 先做再说。"].join("\n");
+const SOUL_MD = ["# Soul", "我是 知序", "## 核心原则", "- 先做再说。"].join("\n");
 const AGENTS_MD = ["# Agent Instructions", "先读后写。"].join("\n");
 
 function fileEntry(

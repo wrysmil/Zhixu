@@ -45,7 +45,7 @@ from rich.markup import escape  # noqa: E402
 from rich.table import Table  # noqa: E402
 from rich.text import Text  # noqa: E402
 
-from nanobot import __logo__, __version__  # noqa: E402
+from nanobot import __version__  # noqa: E402
 from nanobot import optional_features as feature_support  # noqa: E402
 from nanobot.agent.hooks import create_file_edit_activity_hook  # noqa: E402
 from nanobot.agent.loop import AgentLoop  # noqa: E402
@@ -87,7 +87,7 @@ SafeFileHistory = cli_terminal.SafeFileHistory
 app = typer.Typer(
     name="nanobot",
     context_settings={"help_option_names": ["-h", "--help"]},
-    help=f"{__logo__} nanobot - Personal AI Assistant",
+    help="nanobot - Personal AI Assistant",
     epilog=(
         "Run `nanobot` without a subcommand to start the terminal agent. "
         "Use `nanobot agent --help` for agent options."
@@ -100,7 +100,7 @@ console = Console()
 
 def version_callback(value: bool):
     if value:
-        console.print(f"{__logo__} nanobot v{__version__}")
+        console.print(f"nanobot v{__version__}")
         raise typer.Exit()
 
 
@@ -387,7 +387,7 @@ def serve(
         raise typer.Exit(1) from exc
 
     model_name, preset_tag = _model_display(runtime_config)
-    console.print(f"{__logo__} Starting OpenAI-compatible API server")
+    console.print("Starting OpenAI-compatible API server")
     console.print(f"  [cyan]Endpoint[/cyan] : http://{host}:{port}/v1/chat/completions")
     console.print(f"  [cyan]Model[/cyan]    : {model_name}{preset_tag}")
     console.print("  [cyan]Session[/cyan]  : api:default")
@@ -568,7 +568,7 @@ def channels_login(
         console.print(f"[red]Unknown channel: {channel_name}[/red]  Available: {available}")
         raise typer.Exit(1)
 
-    console.print(f"{__logo__} {all_channels[channel_name].display_name} Login\n")
+    console.print(f"{all_channels[channel_name].display_name} Login\n")
 
     channel_factory = all_channels[channel_name]
     channel = channel_factory(channel_cfg, bus=MessageBus())
@@ -675,7 +675,7 @@ def status(
     config_path, loaded = _load_inspection_config(config=config, workspace=workspace)
     workspace_path = loaded.workspace_path
 
-    console.print(f"{__logo__} nanobot Status\n")
+    console.print("nanobot Status\n")
 
     console.print(f"Config: {config_path} {'[green]✓[/green]' if config_path.exists() else '[red]✗[/red]'}")
     console.print(

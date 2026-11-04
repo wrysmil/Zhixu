@@ -11,7 +11,6 @@ from typing import Any
 import typer
 from rich.console import Console
 
-from nanobot import __logo__
 from nanobot.cli.log_control import _set_nanobot_logs
 from nanobot.cli.runtime_config import (
     _load_runtime_config,
@@ -274,9 +273,10 @@ def agent(
 
         cli_terminal._init_prompt_session()
         _model, _preset_tag = _model_display(runtime_config)
-        _icon = runtime_config.agents.defaults.bot_icon or __logo__
+        _icon = runtime_config.agents.defaults.bot_icon
+        _prefix = f"{_icon} " if _icon else ""
         console.print(
-            f"{_icon} Interactive mode [bold blue]({_model})[/bold blue]{_preset_tag} "
+            f"{_prefix}Interactive mode [bold blue]({_model})[/bold blue]{_preset_tag} "
             "— type [bold]exit[/bold] or [bold]Ctrl+C[/bold] to quit\n"
         )
 

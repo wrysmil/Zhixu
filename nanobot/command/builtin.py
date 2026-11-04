@@ -1102,7 +1102,7 @@ async def cmd_user_shell(ctx: CommandContext) -> OutboundMessage:
 
 def build_help_text() -> str:
     """Build canonical help text shared across channels."""
-    lines = ["🐈 Zhixu commands:"]
+    lines = ["Zhixu commands:"]
     for spec in BUILTIN_COMMAND_SPECS:
         command = spec.command
         if spec.arg_hint:

@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Protocol, cast
 import typer
 from rich.console import Console
 
-from nanobot import __logo__
 from nanobot.providers.oauth_guidance import OAUTH_CLI_KIT_MISSING_MESSAGE
 
 if TYPE_CHECKING:
@@ -184,7 +183,7 @@ def provider_login(
         set_config_path(resolved_config_path)
         console.print(f"[dim]Using config: {resolved_config_path}[/dim]")
 
-    console.print(f"{__logo__} OAuth Login - {spec.label}\n")
+    console.print(f"OAuth Login - {spec.label}\n")
     handler()
     if set_main or model:
         _set_oauth_provider_as_main(spec.name, model=model, config_path=config)
@@ -213,7 +212,7 @@ def provider_logout(
         set_config_path(resolved_config_path)
         console.print(f"[dim]Using config: {resolved_config_path}[/dim]")
 
-    console.print(f"{__logo__} OAuth Logout - {spec.label}\n")
+    console.print(f"OAuth Logout - {spec.label}\n")
     handler()
 
 

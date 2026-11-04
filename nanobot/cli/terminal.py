@@ -22,7 +22,6 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.text import Text
 
-from nanobot import __logo__
 from nanobot.bus.outbound_events import (
     ContextCompactionEvent,
     ProgressEvent,
@@ -225,7 +224,7 @@ def _print_agent_response(
     body = _response_renderable(content, render_markdown, metadata)
     if show_header:
         console.print()
-        console.print(f"[cyan]{__logo__} nanobot[/cyan]")
+        console.print("[cyan]nanobot[/cyan]")
     console.print(body)
     console.print()
 
@@ -263,7 +262,7 @@ async def _print_interactive_response(
 
         def _render(target: Console) -> None:
             target.print()
-            target.print(f"[cyan]{__logo__} nanobot[/cyan]")
+            target.print("[cyan]nanobot[/cyan]")
             target.print(_response_renderable(content, render_markdown, metadata))
             target.print()
 

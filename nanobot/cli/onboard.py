@@ -480,12 +480,12 @@ def _show_config_panel(
 
 def _show_main_menu_header() -> None:
     """Display the main menu header."""
-    from nanobot import __logo__, __version__
+    from nanobot import __version__
 
     console.print()
     body = Table.grid(expand=True)
     body.add_column(ratio=1)
-    body.add_row(f"{__logo__} [bold {_UI_TEXT}]nanobot[/] [{_UI_MUTED}]v{__version__}[/]")
+    body.add_row(f"[bold {_UI_TEXT}]nanobot[/] [{_UI_MUTED}]v{__version__}[/]")
     body.add_row(f"[{_UI_ACCENT}]Quick Start asks for the provider, credentials, and model.[/]")
     body.add_row(
         f"[{_UI_MUTED}]Use Advanced later for chat apps, tools, or provider-specific details.[/]"
