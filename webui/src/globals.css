@@ -1268,12 +1268,13 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   background-image: none;
 }
 
+/* 导航栏是画布的一部分：灰底、直角，不跟白色工作区一起收圆角。 */
 .workspace-navigation {
-  background: hsl(var(--sidebar));
+  background: hsl(var(--app-canvas));
 }
 
 .workspace-navigation-rail {
-  background: hsl(var(--sidebar));
+  background: hsl(var(--app-canvas));
 }
 
 .workspace-sidebar-flow {
@@ -1693,39 +1694,6 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
   white-space: normal;
   overflow-wrap: anywhere;
   color: hsl(var(--text-strong));
-  /* Slow travelling tint keeps the landing alive without shouting. */
-  background-image: linear-gradient(
-    100deg,
-    hsl(var(--text-strong)) 0%,
-    hsl(var(--text-strong)) 34%,
-    hsl(199 89% 45%) 50%,
-    hsl(262 83% 58%) 64%,
-    hsl(var(--text-strong)) 82%,
-    hsl(var(--text-strong)) 100%
-  );
-  background-size: 220% 100%;
-  background-position: 0% 50%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: welcome-title-pan 11s ease-in-out infinite;
-}
-
-.dark .thread-welcome-title {
-  background-image: linear-gradient(
-    100deg,
-    hsl(var(--text-strong)) 0%,
-    hsl(var(--text-strong)) 34%,
-    hsl(199 89% 68%) 50%,
-    hsl(262 83% 76%) 64%,
-    hsl(var(--text-strong)) 82%,
-    hsl(var(--text-strong)) 100%
-  );
-}
-
-@keyframes welcome-title-pan {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
 }
 
 .thread-welcome-copy,

@@ -179,6 +179,8 @@ const ZHIXU_LIGHT = {
   "--surface-app": "0 0% 98.039%",
   "--surface-panel": "0 0% 100%",
   "--surface-raised": "0 0% 100%",
+  // 画布与导航栏保持浅灰：白色工作区靠这层灰才看得见右侧圆角。
+  "--app-canvas": "240 4.762% 95.882%",
   "--sidebar": "0 0% 100%",
   "--sidebar-selected": "203 96% 94%",
   "--sidebar-accent": "240 7.692% 92.353%",
@@ -205,6 +207,7 @@ const ZHIXU_DARK = {
   "--surface-app": "240 5.882% 10%",
   "--surface-panel": "240 4.478% 13.137%",
   "--surface-raised": "240 4.478% 13.137%",
+  "--app-canvas": "240 5.882% 8%",
   "--sidebar": "240 5.085% 11.569%",
   "--sidebar-selected": "205 45% 18%",
   "--sidebar-accent": "240 5.618% 17.451%",
@@ -235,6 +238,7 @@ export function resolveAppearance(preferences: AppearancePreferences, theme: The
     "--muted-foreground": hsl(mix(background, foreground, 0.68)), "--accent": hsl(accentSurface),
     "--accent-foreground": hsl(accentInk), "--border": hsl(mix(background, safeForeground, 0.18)),
     "--surface-app": hsl(secondary), "--surface-panel": hsl(surface), "--sidebar": hsl(mix(background, safeForeground, 0.045)),
+    "--app-canvas": hsl(mix(background, safeForeground, 0.045)),
     // Right-hand rails stay pure white in light mode, whatever the palette.
     "--surface-raised": theme === "dark" ? hsl(surface) : "0 0% 100%",
     "--sidebar-accent": hsl(mix(background, accent, 0.1)), "--inline-token-highlight": accent, "--temporary-control-active": accent,
