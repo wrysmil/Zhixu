@@ -52,7 +52,7 @@ _TYPE_MAP: dict[str, str] = {
 }
 
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
-_TITLE_MAX_CHARS = 40
+_TITLE_MAX_CHARS = 60
 
 #: 三个写入方（对话内主动写 / 定时抽取 / Dream）共用一把写锁。
 _WRITE_LOCK = threading.RLock()
@@ -77,12 +77,19 @@ class MemoryFile:
 
     @property
     def title(self) -> str:
-        """索引行里的标题：正文首行优先，回落到 name。"""
+        """正文首行（去掉 markdown 记号），没有正文时回落 name。"""
         for line in self.content.splitlines():
             text = line.strip().lstrip("#").strip()
             if text:
-                return text[:_TITLE_MAX_CHARS]
+                return text
         return self.name
+
+    def index_title(self) -> str:
+        """索引行里的标题：description 优先（它就是一句话钩子），否则取正文首行。"""
+        label = self.description.strip() or self.title
+        if len(label) > _TITLE_MAX_CHARS:
+            label = label[: _TITLE_MAX_CHARS - 1].rstrip() + "…"
+        return label
 
 
 def global_memory_dir() -> Path:
@@ -343,8 +350,12 @@ class MemoryFileStore:
         directory = self.dir_for(scope)
         lines = [title, "", f"目录：{directory}", ""]
         for memory in memories:
-            hook = memory.description or memory.title
-            lines.append(f"- [{memory.title}]({memory.name}.md) — {hook}")
+            label = memory.index_title()
+            hook = memory.description if memory.description and memory.description != label else ""
+            line = f"- [{label}]({memory.name}.md)"
+            if hook:
+                line = f"{line} — {hook}"
+            lines.append(line)
         if not memories:
             lines.append("（暂无记忆）")
         return "\n".join(lines).rstrip() + "\n"

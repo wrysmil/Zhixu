@@ -55,8 +55,29 @@ tests/webui/test_session_list_index.py::test_webui_session_list_skips_provider_s
 - `tests/agent/test_context_builder.py`、`tests/memory/retrieval/test_integration_context.py`、
   `tests/memory/test_reference_tracking.py`：核心事实注入路径显式 `memory_file_mode=False`。
 
+## 实机验证（WebUI + 真实 gateway，2026-11-05）
+
+环境：本机已在跑的 gateway（PID 53776，端口 8765 / 健康 18790），启动时已加载新代码——启动迁移在 `~/.nanobot/memory/` 生成了
+`legacy-*.md` 记忆文件与 `legacy/MEMORY.md` 备份。用 Playwright（chromium headless）驱动 WebUI 做三轮真实对话。
+
+| 轮次 | 输入 | 结果 |
+| --- | --- | --- |
+| 1 | 「请记住：这个项目的验证约定是——提交信息一律用中文。」 | 模型的推理里直接引用了索引条目 `legacy-feedback-3.md — 用户要求提交信息（git commit message）统一使用中文`，据此判断「已有记忆、不重复写」→ **索引注入生效** |
+| 2 | 「请记住：知序 WebUI 实机验证的临时约定——回答一律先给结论，再给理由。」 | 写出 `~/.nanobot/projects/<workspace-id>/memory/webui-verification-conclusion-first.md`（frontmatter 正确）+ 同目录 `MEMORY.md` 索引行 → **项目级文件写入 + 索引维护生效**（模型经 `exec` 调用 `MemoryFileStore` 完成） |
+| 3 | 明确要求「用 write_file 写全局记忆目录 + edit_file 追加索引行，不要用 exec」 | 直接写出 `~/.nanobot/memory/webui-tool-write-check.md`（frontmatter：name/description/metadata.type）+ `MEMORY.md` 末尾追加索引行（第 13 行）→ **工具白名单路径可用** |
+
+截图：`C:/Users/Huangqh/AppData/Local/Temp/zhixu-memtest/webui-3.png`（WebUI 对话页，右侧工作台显示产出 2 条）。
+
+**观察到的两点（非缺陷，已处理）**
+
+1. 本机 `C:\Users\Huangqh\.nanobot` 是 `D:\studyspace\project\Zhixu\.ai-runtime-artifacts\nanobot-data` 的链接/映射，
+   所以工具回显的写入路径与提示词里的 `~/.nanobot/...` 不一致，但读写同一份存储（回读一致）。
+2. 索引行标题被截断（旧的 40 字上限切断句子）→ 已改为「description 优先、60 字上限带省略号、标题与钩子相同则不重复」，并重建了现有索引。
+
+**清理**：两轮测试写入的记忆条目（全局 `webui-tool-write-check`、项目 `webui-verification-conclusion-first`）已删除，
+两份索引已重建。
+
 ## 未验证项
 
-- 真实 LLM 端到端：定时抽取与 Dream 的实际模型输出质量（需真实额度；本机评测受 429 限制）。
-- WebUI 实机：记忆页的 MEMORY.md / USER.md 编辑入口在文件模式下的行为（未开浏览器验证）。
-- gateway 真实启动：`nanobot gateway` 的 cron 注册与迁移启动钩子未实机跑（只做了单测覆盖装配路径）。
+- 真实 LLM 端到端：定时抽取（cron `memory_extract`）与 Dream 的实际模型输出质量（需等到 cron 触发或手动触发）。
+- WebUI 记忆页的 MEMORY.md / USER.md 编辑入口在文件模式下的行为（未点开验证）。
