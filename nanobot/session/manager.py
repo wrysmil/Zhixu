@@ -74,6 +74,7 @@ _PROVIDER_MESSAGE_KEYS = (
     "thinking_blocks",
 )
 _FORK_VOLATILE_METADATA_KEYS = {
+    "workbench_observations",
     "goal_state",
     "pending_user_turn",
     "pending_user_followups",

@@ -7,10 +7,10 @@ import mimetypes
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from nanobot.agent.tools.base import Tool, ToolResult, tool_parameters
-from nanobot.agent.tools.context import ToolContext
+from nanobot.agent.tools.context import ToolContext, current_request_context
 from nanobot.agent.tools.file_state import FileStates, _hash_file, current_file_states
 from nanobot.agent.tools.path_utils import resolve_workspace_path
 from nanobot.agent.tools.schema import (
@@ -55,8 +55,10 @@ class _FsTool(Tool):
         restrict_to_workspace: bool | None = None,
         sandbox_restricts_workspace: bool = False,
         extra_read_allowed_files: list[Path] | None = None,
+        memory_file_mode: bool = False,
     ):
         self._workspace = workspace
+        self._memory_file_mode = memory_file_mode
         self._allowed_dir = allowed_dir
         # Legacy alias: extra_allowed_dirs is read-only. Write-capable tools
         # must opt in via extra_write_allowed_dirs.
@@ -93,11 +95,6 @@ class _FsTool(Tool):
         allowed_dir = agent_workspace if restrict else None
         # 记忆目录是记忆本体的落点：文件模式下模型直接写记忆文件，
         # 因此读侧与写侧都要放行这两个目录（其余路径仍受 allowed_dir 约束）。
-        memory_dirs: list[Path] = []
-        if (ctx.attributes or {}).get("memory_file_mode"):
-            from nanobot.memory.files import memory_dirs_for
-
-            memory_dirs = memory_dirs_for(agent_workspace)
         # Agent-owned skills stay available from project scopes. History is a narrower
         # capability: expose only the append-only log, not the surrounding memory directory.
         return cls(
@@ -106,13 +103,12 @@ class _FsTool(Tool):
             extra_read_allowed_dirs=[
                 BUILTIN_SKILLS_DIR,
                 resolved_agent_workspace / "skills",
-                *memory_dirs,
             ],
-            extra_write_allowed_dirs=memory_dirs,
             extra_read_allowed_files=[resolved_agent_workspace / "memory" / "history.jsonl"],
             file_states=ctx.file_state_store,
             restrict_to_workspace=ctx.config.restrict_to_workspace,
             sandbox_restricts_workspace=sandbox_restricts,
+            memory_file_mode=bool((ctx.attributes or {}).get("memory_file_mode")),
         )
 
     @property
@@ -148,6 +144,16 @@ class _FsTool(Tool):
             sandbox_restricts_workspace=self._sandbox_restricts_workspace,
         )
         allowed_root = self._effective_allowed_root(access.allowed_root)
+        if self._memory_file_mode:
+            from nanobot.memory.files import memory_dirs_for
+
+            request = current_request_context()
+            project = request.workspace if request is not None else access.project_path
+            dirs = memory_dirs_for(project)
+            # An unbound request sees global memory only, never the default project's root.
+            if request is not None and request.workspace is None:
+                dirs = dirs[:1]
+            extra_allowed_dirs = [*(extra_allowed_dirs or []), *dirs]
         if extra_files_require_allowed_root and allowed_root is None:
             extra_allowed_files = None
         return resolve_workspace_path(
@@ -200,6 +206,31 @@ class _FsTool(Tool):
 
     def _resolve(self, path: str) -> Path:
         return self._resolve_read(path)
+
+    def _observe_file(self, fp: Path, operation: str, *, extent: str = "unknown", write_kind: str | None = None) -> None:
+        from datetime import datetime, timezone
+
+        from nanobot.agent.tools.execution import current_tool_call_id
+
+        request = current_request_context()
+        call_id = current_tool_call_id()
+        if request is None or not call_id:
+            return
+        observer = request.attributes.get("workbench_observer")
+        if observer is None:
+            return
+        if (request.session_key != getattr(observer, "session_key", None)
+                or request.turn_id != getattr(observer, "turn_id", None)):
+            return
+        try:
+            observer.record_file_access(path=fp, call_id=call_id, operation=operation,
+                                        at=datetime.now(timezone.utc).isoformat(),
+                                        extent=extent, write_kind=write_kind)
+        except Exception:
+            # Telemetry must never change the outcome of a successful file operation.
+            limitations = getattr(observer, "limitations", None)
+            if isinstance(limitations, list) and "observation_recording_failed" not in limitations:
+                cast(list[str], limitations).append("observation_recording_failed")
 
     def _display_workspace(self) -> Path | None:
         return current_tool_workspace(self._workspace).project_path
@@ -348,6 +379,7 @@ class ReadFileTool(_FsTool):
 
             raw = fp.read_bytes()
             if not raw:
+                self._observe_file(fp, "read", extent="full")
                 return f"(Empty file: {path})"
 
             mime = detect_image_mime(raw) or mimetypes.guess_type(path)[0]
@@ -450,6 +482,7 @@ class ReadFileTool(_FsTool):
             else:
                 result += f"\n\n(End of file — {total} lines total)"
             self._file_states.record_read(fp, offset=offset, limit=limit)
+            self._observe_file(fp, "read", extent="full" if start == 0 and end == total else "partial")
             return result
         except PermissionError as e:
             return ToolResult.error(f"Error: {e}")
@@ -603,9 +636,11 @@ class WriteFileTool(_FsTool):
             if content is None:
                 raise ValueError("Unknown content")
             fp = self._resolve_write(path)
+            existed = fp.exists()
             fp.parent.mkdir(parents=True, exist_ok=True)
             fp.write_text(content, encoding="utf-8")
             self._file_states.record_write(fp)
+            self._observe_file(fp, "write", write_kind="updated" if existed else "created")
             return f"Successfully wrote {len(content)} characters to {fp}"
         except PermissionError as e:
             return ToolResult.error(f"Error: {e}")
@@ -954,6 +989,7 @@ class EditFileTool(_FsTool):
                     fp.parent.mkdir(parents=True, exist_ok=True)
                     fp.write_text(new_text, encoding="utf-8")
                     self._file_states.record_write(fp)
+                    self._observe_file(fp, "edit", write_kind="created")
                     return f"Successfully created {fp}"
                 return self._file_not_found_msg(path, fp)
 
@@ -973,6 +1009,7 @@ class EditFileTool(_FsTool):
                     return ToolResult.error(f"Error: Cannot create file — {path} already exists and is not empty.")
                 fp.write_text(new_text, encoding="utf-8")
                 self._file_states.record_write(fp)
+                self._observe_file(fp, "edit", write_kind="updated")
                 return f"Successfully edited {fp}"
 
             # Read-before-edit check
@@ -1061,6 +1098,7 @@ class EditFileTool(_FsTool):
 
             fp.write_bytes(new_content.encode("utf-8"))
             self._file_states.record_write(fp)
+            self._observe_file(fp, "edit", write_kind="updated")
             msg = f"Successfully edited {fp}"
             if warning:
                 msg = f"{warning}\n{msg}"
