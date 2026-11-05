@@ -100,3 +100,18 @@ def test_normalize_memory_name() -> None:
     # 全中文名称退化成内容哈希：同一段文本始终映射到同一个文件。
     assert normalize_memory_name("用户偏好简洁") == normalize_memory_name("用户偏好简洁")
     assert normalize_memory_name("用户偏好简洁") != normalize_memory_name("用户偏好详细")
+
+
+def test_index_manifest_matches_budgeted_lines(tmp_path: Path, monkeypatch) -> None:
+    from nanobot.memory import files
+
+    store = _store(tmp_path)
+    store.write_memory(GLOBAL_SCOPE, "first", "body", description="first")
+    store.write_memory(GLOBAL_SCOPE, "second", "body", description="second")
+    monkeypatch.setattr(files, "MEMORY_INDEX_MAX_CHARS", len(str(store.global_dir)) + 45)
+    text, manifest = files.render_index_block_with_manifest(store)
+    assert "索引已截断" in text
+    names = [entry["name"] for entry in manifest if entry["kind"] == "note"]
+    assert all(f"({name}.md)" in text for name in names)
+    assert "second" not in names
+    assert any(entry["extent"] == "partial" for entry in manifest)

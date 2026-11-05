@@ -362,36 +362,49 @@ class MemoryFileStore:
 
 
 def render_index_block(store: MemoryFileStore) -> str:
-    """渲染注入用的索引块（两份索引 + 目录路径 + 取用说明）。
+    """渲染注入用索引，兼容旧调用。"""
+    return render_index_block_with_manifest(store)[0]
 
-    索引是**目录**：模型需要正文时按路径 ``read_file``，更早的记忆用
-    ``memory_search``。超预算时从末尾丢弃条目并标注。
-    """
-    sections: list[str] = []
+
+def render_index_block_with_manifest(
+    store: MemoryFileStore,
+) -> tuple[str, list[dict[str, object]]]:
+    """返回最终索引文本与实际保留行的资源清单。"""
+    sections: list[tuple[str, str, str | None]] = []
     for scope in (GLOBAL_SCOPE, PROJECT_SCOPE):
         directory = store.dir_for(scope)
         header = "全局记忆" if scope == GLOBAL_SCOPE else "项目记忆"
-        sections.append(f"## {header}目录\n目录：{directory}")
+        sections.append((f"## {header}目录\n目录：{directory}", scope, None))
         for line in store.index_lines(scope):
-            sections.append(line)
-    if len(sections) <= 2:  # 两级都没有索引行：不注入空块
-        return ""
-    block = "\n".join(sections)
-    if len(block) > MEMORY_INDEX_MAX_CHARS:
-        clipped: list[str] = []
-        used = 0
-        for line in sections:
-            if used + len(line) > MEMORY_INDEX_MAX_CHARS:
-                clipped.append("- …（索引已截断，完整目录见 MEMORY.md）")
-                break
-            clipped.append(line)
-            used += len(line)
-        block = "\n".join(clipped)
+            match = re.match(r"^- \[.*?\]\(([a-z0-9][a-z0-9-]{0,63})\.md\)", line)
+            sections.append((line, scope, match.group(1) if match else None))
+    if len(sections) <= 2:
+        return "", []
+    clipped = len("\n".join(line for line, _, _ in sections)) > MEMORY_INDEX_MAX_CHARS
+    retained: list[tuple[str, str, str | None]] = []
+    used = 0
+    for item in sections:
+        if clipped and used + len(item[0]) > MEMORY_INDEX_MAX_CHARS:
+            break
+        retained.append(item)
+        used += len(item[0])
+    lines = [item[0] for item in retained]
+    if clipped:
+        lines.append("- …（索引已截断，完整目录见 MEMORY.md）")
+    manifest: list[dict[str, object]] = []
+    for line, scope, name in retained:
+        if line.startswith("## "):
+            manifest.append({"kind": "index", "scope": scope, "name": "MEMORY.md",
+                             "extent": "partial" if clipped else "full"})
+        elif name:
+            manifest.append({"kind": "note", "scope": scope, "name": name, "extent": "partial"})
+    block = "\n".join(lines)
     return (
         "# 记忆索引（目录，不是内容）\n\n"
         f"{block}\n\n"
         "需要具体内容时用 read_file 读上面目录里的对应文件；"
-        "更早的记忆用 memory_search 检索。"
+        "更早的记忆用 memory_search 检索。",
+        manifest,
     )
 
 
