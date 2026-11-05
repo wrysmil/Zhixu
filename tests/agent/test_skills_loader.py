@@ -20,7 +20,7 @@ def _write_skill(
     """Create ``base / name / SKILL.md`` with optional nanobot metadata JSON."""
     skill_dir = base / name
     skill_dir.mkdir(parents=True)
-    lines = ["---"]
+    lines = ["---", f"name: {name}", "description: Test skill"]
     if metadata_json is not None:
         payload = json.dumps({"nanobot": metadata_json}, separators=(",", ":"))
         lines.append(f'metadata: {payload}')
@@ -157,7 +157,7 @@ def test_list_skills_filter_unavailable_includes_when_bin_requirement_met(
     skills_root.mkdir(parents=True)
     skill_path = _write_skill(
         skills_root,
-        "has_bin",
+        "has-bin",
         metadata_json={"requires": {"bins": ["nanobot_test_fake_binary"]}},
     )
     builtin = tmp_path / "builtin"
@@ -173,7 +173,7 @@ def test_list_skills_filter_unavailable_includes_when_bin_requirement_met(
     loader = SkillsLoader(workspace, builtin_skills_dir=builtin)
     entries = loader.list_skills(filter_unavailable=True)
     assert entries == [
-        {"name": "has_bin", "path": str(skill_path), "source": "workspace"},
+        {"name": "has-bin", "path": str(skill_path), "source": "workspace"},
     ]
 
 
@@ -226,12 +226,12 @@ def test_list_skills_openclaw_metadata_parsed_for_requirements(
     workspace = tmp_path / "ws"
     skills_root = workspace / "skills"
     skills_root.mkdir(parents=True)
-    skill_dir = skills_root / "openclaw_skill"
+    skill_dir = skills_root / "openclaw-skill"
     skill_dir.mkdir(parents=True)
     skill_path = skill_dir / "SKILL.md"
     oc_payload = json.dumps({"openclaw": {"requires": {"bins": ["nanobot_oc_bin"]}}}, separators=(",", ":"))
     skill_path.write_text(
-        "\n".join(["---", f"metadata: {oc_payload}", "---", "", "# OC"]),
+        "\n".join(["---", "name: openclaw-skill", "description: Test skill", f"metadata: {oc_payload}", "---", "", "# OC"]),
         encoding="utf-8",
     )
     builtin = tmp_path / "builtin"
@@ -248,7 +248,7 @@ def test_list_skills_openclaw_metadata_parsed_for_requirements(
     )
     entries = loader.list_skills(filter_unavailable=True)
     assert entries == [
-        {"name": "openclaw_skill", "path": str(skill_path), "source": "workspace"},
+        {"name": "openclaw-skill", "path": str(skill_path), "source": "workspace"},
     ]
 
 

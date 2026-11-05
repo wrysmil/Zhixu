@@ -5,11 +5,14 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
 from nanobot.runtime_context import RuntimeContextBlock
+
+if TYPE_CHECKING:
+    from nanobot.agent.skill_catalog import SkillCatalog
 
 # Default builtin skills directory (relative to this file)
 BUILTIN_SKILLS_DIR = Path(__file__).parent.parent / "skills"
@@ -61,6 +64,7 @@ class SkillsLoader:
         self.workspace_skills = workspace / "skills"
         self.builtin_skills = builtin_skills_dir or BUILTIN_SKILLS_DIR
         self.disabled_skills = disabled_skills or set()
+        self.project_workspace: Path | None = None
 
     def _skill_aliases(self) -> dict[str, str]:
         """Return compatibility aliases owned by installed CLI Apps."""
@@ -87,47 +91,30 @@ class SkillsLoader:
             entries.append({"name": name, "path": str(skill_file), "source": source})
         return entries
 
+    def for_project(self, project_workspace: Path | None) -> "SkillsLoader":
+        """Return a separate loader bound to a project, without mutating this loader."""
+        loader = SkillsLoader(self.workspace, self.builtin_skills, set(self.disabled_skills))
+        loader.project_workspace = project_workspace
+        return loader
+
+    def catalog(self) -> "SkillCatalog":
+        from nanobot.agent.skill_catalog import resolve_skill_catalog
+
+        return resolve_skill_catalog(self.workspace, self.project_workspace,
+                                     disabled_skills=self.disabled_skills,
+                                     builtin_skills_dir=self.builtin_skills)
+
     def list_skills(self, filter_unavailable: bool = True) -> list[dict[str, str]]:
-        """
-        List all available skills.
-
-        Args:
-            filter_unavailable: If True, filter out skills with unmet requirements.
-
-        Returns:
-            List of skill info dicts with 'name', 'path', 'source'.
-        """
-        from nanobot.agent.plugins import enabled_agent_plugin_skills
-
-        plugin_skills = enabled_agent_plugin_skills(self.workspace)
-        skills = self._skill_entries_from_dir(self.workspace_skills, "workspace")
-        seen_names = {entry["name"] for entry in skills}
-        for name, path in plugin_skills:
-            if name in seen_names:
+        """Project effective candidates into the legacy list shape."""
+        result: list[dict[str, str]] = []
+        for entry in self.catalog().entries:
+            if not entry.effective or entry.availability == "disabled":
                 continue
-            skills.append(
-                {
-                    "name": name,
-                    "path": str(path),
-                    "source": "plugin",
-                }
-            )
-            seen_names.add(name)
-        if self.builtin_skills and self.builtin_skills.exists():
-            skills.extend(
-                self._skill_entries_from_dir(self.builtin_skills, "builtin", skip_names=seen_names)
-            )
-
-        if self.disabled_skills:
-            disabled = set(self.disabled_skills)
-            for legacy, canonical in self._skill_aliases().items():
-                if legacy in disabled or canonical in disabled:
-                    disabled.update((legacy, canonical))
-            skills = [s for s in skills if s["name"] not in disabled]
-
-        if filter_unavailable:
-            return [skill for skill in skills if self._check_requirements(self._get_skill_meta(skill["name"]))]
-        return skills
+            if filter_unavailable and entry.availability != "available":
+                continue
+            source = "workspace" if entry.origin in ("workspace", "global") else entry.origin
+            result.append({"name": entry.name, "path": str(entry.path), "source": source})
+        return result
 
     def load_skill(self, name: str) -> str | None:
         """
@@ -139,7 +126,7 @@ class SkillsLoader:
         Returns:
             Skill content or None if not found.
         """
-        skills = self.list_skills(filter_unavailable=False)
+        skills = self.list_skills(filter_unavailable=True)
         available = {skill["name"] for skill in skills}
         resolved = name if name in available else self._skill_aliases().get(name, name)
         entry = next((skill for skill in skills if skill["name"] == resolved), None)
@@ -231,6 +218,7 @@ class SkillsLoader:
             Markdown-formatted skills summary.
         """
         all_skills = self.list_skills(filter_unavailable=False)
+        availability = {entry.name: entry.availability for entry in self.catalog().entries if entry.effective}
         if not all_skills:
             return ""
 
@@ -261,13 +249,16 @@ class SkillsLoader:
             for entry in entries:
                 skill_name = entry["name"]
                 meta = self._get_skill_meta(skill_name)
-                available = self._check_requirements(meta)
+                available = availability.get(skill_name) == "available"
                 desc = self.get_skill_description(skill_name)
                 suffix = ""
                 if not available:
                     missing = self._get_missing_requirements(meta)
                     suffix = f" (unavailable: {missing})" if missing else " (unavailable)"
-                relative_path = Path(entry["path"]).relative_to(root).as_posix()
+                try:
+                    relative_path = Path(entry["path"]).relative_to(root.resolve()).as_posix()
+                except ValueError:
+                    relative_path = str(Path(entry["path"]))
                 lines.append(f"- **{skill_name}** — {desc}{suffix}  `{relative_path}`")
             sections.append("\n".join(lines))
         return "\n\n".join(sections)
@@ -294,9 +285,15 @@ class SkillsLoader:
 
     def get_skill_availability(self, name: str) -> tuple[bool, str]:
         """Return whether a skill can run and why not when it cannot."""
-        meta = self._get_skill_meta(name)
-        available = self._check_requirements(meta)
-        return available, "" if available else self._get_missing_requirements(meta)
+        entries = [entry for entry in self.catalog().entries if entry.effective and entry.name == name]
+        if not entries:
+            return False, "not found"
+        entry = entries[0]
+        if entry.availability == "available":
+            return True, ""
+        if entry.availability == "requirements_missing":
+            return False, self._get_missing_requirements(self._get_skill_meta(name))
+        return False, entry.availability
 
     def get_skill_requirements(self, name: str) -> dict[str, list[str]]:
         """Return explicit command/env requirements and currently missing entries."""
@@ -385,4 +382,13 @@ class SkillsLoader:
         Returns:
             Metadata dict or None.
         """
-        return parse_skill_metadata(self.load_skill(name) or "")
+        entries = self.list_skills(filter_unavailable=False)
+        names = {entry["name"] for entry in entries}
+        resolved = name if name in names else self._skill_aliases().get(name, name)
+        entry = next((item for item in entries if item["name"] == resolved), None)
+        if entry is None:
+            return None
+        try:
+            return parse_skill_metadata(Path(entry["path"]).read_text(encoding="utf-8"))
+        except (OSError, UnicodeError):
+            return None
