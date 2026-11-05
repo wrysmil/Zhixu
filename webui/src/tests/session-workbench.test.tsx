@@ -1,3 +1,4 @@
+import { WorkbenchProgress } from "@/components/workbench/workbench-progress";
 // SessionWorkbench 是会话页的常驻信息面板（概览/环境/技能与 MCP/产出/来源）。
 // 工具坞（文件/终端/浏览器）不嵌在这里：宿主 ThreadShell 在头部按钮打开时用覆盖层
 // 盖住本列，覆盖层行为由 thread-shell.test.tsx 覆盖。
@@ -53,4 +54,12 @@ describe("SessionWorkbench", () => {
     fireEvent.click(screen.getByRole("button", { name: /src\/a\.ts/ }));
     expect(onOpenFilePreview).toHaveBeenCalledWith("src/a.ts");
   });
+});
+
+it("同一计划只展示一次且没有子 Agent 时不显示空块", () => {
+  const entry = { id: "plan-1", title: "唯一计划步骤", status: "pending" as const, source: "workbench_plan" };
+  const value = { schema_version: 1 as const, session_key: "x", updated_at: null, goal: null, tasks: [entry], plan: { explanation: "", steps: [entry], updated_at: null }, agents: [], memories: [], skills: [], mcp: [], limitations: [] };
+  render(<WorkbenchProgress snapshot={value} />);
+  expect(screen.getAllByText("唯一计划步骤")).toHaveLength(1);
+  expect(screen.queryByText(/没有子 Agent 执行记录/)).toBeNull();
 });

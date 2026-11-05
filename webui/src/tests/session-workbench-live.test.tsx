@@ -107,3 +107,45 @@ describe("会话工作台真实数据", () => {
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
   });
 });
+
+it("即时工具结束不会被延迟快照回退，断线时标记过期", async () => {
+  let chat!: (event: any) => void;
+  let status!: (value: any) => void;
+  const client = { status: "open", onChat: (_id: string, cb: any) => { chat = cb; return () => {}; }, onStatus: (cb: any) => { status = cb; return () => {}; }, onSessionUpdate: () => () => {} } as any;
+  let finish!: (response: Response) => void;
+  vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Promise<Response>((resolve) => { finish = resolve; })));
+  const { result } = renderHook(() => useSessionWorkbench({ sessionKey: "websocket:one", token: "tok", client }));
+  act(() => { chat({ event: "message_accepted", chat_id: "one", turn_id: "t1", starts_turn: true }); chat({ event: "message", chat_id: "one", turn_id: "t1", text: "", tool_events: [{ phase: "start", call_id: "c1", name: "read" }] }); });
+  expect(result.current.activity?.events[0].status).toBe("running");
+  act(() => chat({ event: "message", chat_id: "one", turn_id: "t1", text: "", tool_events: [{ phase: "end", call_id: "c1", name: "read" }] }));
+  await act(async () => finish(reply(snapshot())));
+  expect(result.current.activity?.events[0].status).toBe("succeeded");
+  act(() => status("reconnecting"));
+  expect(result.current.stale).toBe(true);
+});
+
+it("项目切换丢弃旧响应，断线不显示运行中的工具", async () => {
+  let chat!: (event: any) => void; let status!: (value: any) => void; let finish!: (response: Response) => void;
+  const client = { status: "open", onChat: (_: string, cb: any) => { chat = cb; return () => {}; }, onStatus: (cb: any) => { status = cb; return () => {}; }, onSessionUpdate: () => () => {} } as any;
+  vi.stubGlobal("fetch", vi.fn().mockImplementationOnce(() => new Promise<Response>(r => { finish = r; })).mockResolvedValue(reply(snapshot())));
+  const { result, rerender } = renderHook(({ projectIdentity }) => useSessionWorkbench({ sessionKey: "websocket:one", token: "tok", client, projectIdentity }), { initialProps: { projectIdentity: "A" } });
+  act(() => { chat({ event: "message_accepted", turn_id: "t", starts_turn: true }); chat({ event: "message", turn_id: "t", tool_events: [{ call_id: "c", phase: "start", name: "read" }] }); status("reconnecting"); });
+  expect(result.current.stale).toBe(true);
+  expect(result.current.activity?.events).toHaveLength(0);
+  rerender({ projectIdentity: "B" });
+  await act(async () => finish(reply({ ...snapshot(), tasks: [{ id: "old", title: "旧项目", status: "pending", source: "old" }] })));
+  expect(result.current.snapshot?.tasks.some(item => item.title === "旧项目")).toBeFalsy();
+});
+
+it("技能按来源分组，区分可用性、读取状态及覆盖关系", async () => {
+  await i18n.changeLanguage("zh");
+  const empty = { items: [], total: 0, next_cursor: null, revision: "r" };
+  const item = { id: "one", name: "skill-a", description: "", scope: "workspace" as const, origin: "workspace" as const, effective: false, availability: "requirements_missing" as const, observed_state: "read" as const, overridden_by: "other", source_label: "project", requirement_labels: ["python"] };
+  const data = { ...snapshot(), skill_catalog: { available_total: 0, groups: { workspace: { ...empty, items: [item], total: 1 }, global: empty, plugin: empty, builtin: empty } } };
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply(data)));
+  render(<SessionWorkbench model={model} sessionKey="websocket:one" token="tok" />);
+  await screen.findByText("接通会话计划"); fireEvent.click(screen.getByRole("tab", { name: /能力/ }));
+  expect(screen.getByText("缺少依赖 · 已读取")).toBeInTheDocument();
+  expect(screen.getByText(/被覆盖: other/)).toBeInTheDocument();
+  expect(screen.getByText(/可用技能: 0/)).toBeInTheDocument();
+});

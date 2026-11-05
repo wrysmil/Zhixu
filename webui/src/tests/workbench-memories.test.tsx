@@ -1,5 +1,6 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { WorkbenchLiveMemory } from "@/components/workbench/workbench-memory";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import i18n from "@/i18n";
 import { WorkbenchMemories } from "@/components/workbench/workbench-context";
@@ -45,4 +46,21 @@ describe("工作台记忆条目", () => {
     expect(screen.getByText(/本会话抽取/)).toBeInTheDocument();
     expect(screen.getByText(/会话经历 ep-1/)).toBeInTheDocument();
   });
+});
+
+it("显示项目与全局目录，分页失效后重新读取首页", async () => {
+  const initial = snapshot([]);
+  const note = (id: string, scope: "workspace" | "global") => ({ id, scope, name: id, title: id, description: "", memory_type: "fact", updated_at: null, preview_available: true });
+  const pg = (items: ReturnType<typeof note>[], cursor: string | null) => ({ items, total: items.length, next_cursor: cursor, revision: "r1" });
+  initial.memory_context = { mode: "file", coverage: "turn", truncated: false, reads: [], writes: [], indexes: [], provided: [], catalogs: { workspace: pg([note("项目同名", "workspace")], "cursor"), global: pg([note("全局同名", "global")], null) }, profile: { available: false, resource: null } };
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response("changed", { status: 409 })).mockResolvedValueOnce(Response.json({ ...pg([note("刷新后", "workspace")], null), revision: "r2" }));
+  vi.stubGlobal("fetch", fetcher);
+  render(<WorkbenchLiveMemory snapshot={initial} token="t" sessionKey="websocket:a" />);
+  expect(screen.getByText("项目同名")).toBeInTheDocument();
+  expect(screen.getByText("全局同名")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
+  expect(await screen.findByText("刷新后")).toBeInTheDocument();
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(fetcher.mock.calls[1][0]).not.toContain("cursor=");
+  vi.unstubAllGlobals();
 });

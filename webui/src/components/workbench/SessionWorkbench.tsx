@@ -4,7 +4,9 @@ import { RefreshCw, Search } from "lucide-react";
 import type { SessionWorkbenchModel } from "./session-workbench-model";
 import { useSessionWorkbench, type WorkbenchEventClient } from "./use-session-workbench";
 import { WorkbenchProgress } from "./workbench-progress";
-import { WorkbenchCapabilities, WorkbenchLimitations, WorkbenchMemories } from "./workbench-context";
+import { WorkbenchLimitations } from "./workbench-context";
+import { WorkbenchMemories, WorkbenchLiveMemory } from "./workbench-memory";
+import { WorkbenchCapabilities, WorkbenchLiveCapabilities } from "./workbench-capabilities";
 import { WorkbenchEmpty, WorkbenchSection, useWorkbenchText } from "./workbench-parts";
 import { cn } from "@/lib/utils";
 
@@ -25,14 +27,14 @@ export function SessionWorkbench({ model, sessionKey, token, client, onOpenFileP
   const text = useWorkbenchText();
   const id = useId();
   const [tab, setTab] = useState<Tab>("progress");
-  const { snapshot, loading, error, refresh } = useSessionWorkbench({ sessionKey, token, client });
+  const { snapshot, activity, stale, loading, error, refresh } = useSessionWorkbench({ sessionKey, token, client, projectIdentity: model.projectIdentity ?? model.projectPath, modelTurnId: model.liveTurnId, modelEvents: model.liveEvents });
   const timestamp = snapshot?.updated_at ? Date.parse(snapshot.updated_at) : model.updatedAtMs;
   const updated = timestamp && Number.isFinite(timestamp)
     ? new Date(timestamp).toLocaleTimeString(i18n.language, { hour: "2-digit", minute: "2-digit" }) : "";
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: "progress", label: text("进展", "Progress") },
-    { key: "memory", label: text("记忆", "Memory"), count: snapshot?.memories.length },
-    { key: "capabilities", label: text("能力", "Capabilities"), count: snapshot ? snapshot.skills.length + snapshot.mcp.length : undefined },
+    { key: "memory", label: text("记忆", "Memory"), count: snapshot?.memory_context ? snapshot.memory_context.catalogs.workspace.total + snapshot.memory_context.catalogs.global.total : snapshot?.memories.length },
+    { key: "capabilities", label: text("能力", "Capabilities"), count: snapshot ? (snapshot.skill_catalog?.available_total ?? snapshot.skills.length) + snapshot.mcp.length : undefined },
   ];
 
   return <aside data-testid="session-workbench" aria-label={t("workbench.title", { defaultValue: "工作台" })}
@@ -80,15 +82,15 @@ export function SessionWorkbench({ model, sessionKey, token, client, onOpenFileP
           </p>
           <p className="line-clamp-3 text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]" title={model.summary}>{model.summary.slice(0, 140)}{model.summary.length > 140 ? "…" : ""}</p>
         </div>}
-        {!loading && !error && <WorkbenchProgress snapshot={snapshot} onOpenExecution={onOpenExecution} />}
+        {(!loading || activity) && <WorkbenchProgress snapshot={snapshot} activity={activity} stale={stale} onOpenExecution={onOpenExecution} />}
       </>}
-      {tab === "memory" && !loading && !error && <WorkbenchMemories snapshot={snapshot} onOpenFilePreview={onOpenFilePreview} />}
-      {tab === "capabilities" && !loading && !error && <>
-        <WorkbenchCapabilities snapshot={snapshot} />
+      {tab === "memory" && !loading && (snapshot?.memory_context && token && sessionKey ? <><WorkbenchLiveMemory key={`${sessionKey}:${token}:${model.projectIdentity ?? model.projectPath}`} snapshot={snapshot} token={token} sessionKey={sessionKey} />{!!snapshot.memories.length && <WorkbenchSection title={text("原有会话记忆", "Earlier session memories")}><WorkbenchMemories snapshot={snapshot} /></WorkbenchSection>}</> : <WorkbenchMemories snapshot={snapshot} onOpenFilePreview={onOpenFilePreview} />)}
+      {tab === "capabilities" && !loading && <>
+        {snapshot?.skill_catalog && token && sessionKey ? <WorkbenchLiveCapabilities key={`${sessionKey}:${token}:${model.projectIdentity ?? model.projectPath}`} snapshot={snapshot} token={token} sessionKey={sessionKey} /> : <WorkbenchCapabilities snapshot={snapshot} />}
         {!!model.cliUsed.length && <WorkbenchSection title="CLI" count={model.cliUsed.length} defaultOpen><ul className="space-y-2">{model.cliUsed.map((item) => <li key={item.name} className="flex justify-between gap-2 text-xs text-muted-foreground"><span className="min-w-0 truncate">{item.name}</span><span>×{item.count}</span></li>)}</ul></WorkbenchSection>}
       </>}
       {!!snapshot?.limitations.length && <WorkbenchLimitations limitations={snapshot.limitations} />}
-      <WorkbenchSection title={t("workbench.environment", { defaultValue: "环境信息" })}>
+      {tab === "progress" && <><WorkbenchSection title={t("workbench.environment", { defaultValue: "环境信息" })}>
         <div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
           <span className="rounded border border-border/50 px-1.5 py-0.5 tabular-nums">+{model.diffAdded} −{model.diffDeleted} · {model.diffFiles} {t("workbench.files", { defaultValue: "文件" })}</span>
           <span className="rounded border border-border/50 px-1.5 py-0.5">{t("workbench.local", { defaultValue: "本地" })}</span>
@@ -111,7 +113,7 @@ export function SessionWorkbench({ model, sessionKey, token, client, onOpenFileP
             <Search aria-hidden className="h-3 w-3 shrink-0" /><span className="min-w-0 truncate">{source.title}</span>
           </a>
         </li>)}</ul> : <WorkbenchEmpty>{t("workbench.emptySources")}</WorkbenchEmpty>}
-      </WorkbenchSection>
+      </WorkbenchSection></>}
     </div>
   </aside>;
 }

@@ -1,3 +1,5 @@
+import type { Observation } from "./workbench-live-types";
+import { mergeWorkbenchActivity } from "./workbench-live-model";
 import type { UIMessage, WorkspaceScopePayload } from "@/lib/types";
 import {
   compactActivityPath,
@@ -28,11 +30,14 @@ export interface WorkbenchIntegration {
 }
 
 export interface SessionWorkbenchModel {
+  liveTurnId?: string | null;
+  liveEvents?: Observation[];
   updatedAtMs: number | null;
   summary: string;
   diffFiles: number;
   diffAdded: number;
   diffDeleted: number;
+  projectIdentity?: string;
   projectName: string;
   projectPath: string;
   accessMode: "full" | "restricted" | null;
@@ -128,15 +133,30 @@ export function deriveSessionWorkbench(
     }
   }
 
+  const liveTurnId = [...messages].reverse().find(message => message.turnId)?.turnId ?? null;
+  let sequence = 0;
+  const liveEvents: Observation[] = [];
+  for (const message of messages) {
+    if (!liveTurnId || message.turnId !== liveTurnId) continue;
+    for (const event of message.toolEvents ?? []) {
+      if (!event.call_id || !["start", "end", "error"].includes(event.phase ?? "")) continue;
+      liveEvents.push({ id: event.call_id, sequence: ++sequence, turn_id: liveTurnId, call_id: event.call_id, at: null,
+        kind: "tool", status: event.phase === "start" ? "running" : event.phase === "error" ? "failed" : "succeeded",
+        label: event.name ?? "tool", resource: null, extent: null, write_kind: null, source: "runtime", coverage: "turn" });
+    }
+  }
+  const combined = mergeWorkbenchActivity(null, liveEvents, liveTurnId);
   const outputs = [...outputsByPath.values()].slice(-MAX_OUTPUTS).reverse();
   const sources = [...sourcesByHref.values()].slice(0, MAX_SOURCES);
 
   return {
+    liveTurnId, liveEvents: combined?.events ?? [],
     updatedAtMs,
     summary: summary ? redactActivityText(summary).slice(0, MAX_SUMMARY_LENGTH) : "",
     diffFiles: outputsByPath.size,
     diffAdded: [...outputsByPath.values()].reduce((total, item) => total + item.added, 0),
     diffDeleted: [...outputsByPath.values()].reduce((total, item) => total + item.deleted, 0),
+    projectIdentity: workspaceScope?.project_path ?? "",
     projectName: workspaceScope?.project_name?.trim() || "",
     projectPath: compactActivityPath(workspaceScope?.project_path ?? ""),
     accessMode: workspaceScope?.access_mode ?? null,
