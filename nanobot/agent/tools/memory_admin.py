@@ -109,6 +109,10 @@ class _MemoryAdminBase(Tool):
     def enabled(cls, ctx: ToolContext) -> bool:
         """记忆总开关关着时，工具根本不出现（与 ``memory_search`` 同模式）。"""
         attrs = getattr(ctx, "attributes", {}) or {}
+        if attrs.get("memory_file_mode"):
+            # 文件模式：记忆本体是文件，模型用 write_file/edit_file 直接写，
+            # 再走记忆库写入工具就是双写（模型说不清哪份是真的）。
+            return False
         gate = attrs.get("memory_write_enabled")
         if callable(gate):
             try:

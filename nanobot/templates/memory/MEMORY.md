@@ -1,23 +1,8 @@
-# Long-term Memory
+# 记忆索引
 
-This file stores important information that should persist across sessions.
+目录：（本文件所在目录）
 
-## User Information
+这里只是**目录**：一行一条记忆，标题 + 一句话钩子。正文在同目录的 `.md` 文件里，
+需要时用 `read_file` 读对应文件。
 
-(Important facts about the user)
-
-## Preferences
-
-(User preferences learned over time)
-
-## Project Context
-
-(Information about ongoing projects)
-
-## Important Notes
-
-(Things to remember)
-
----
-
-*This file is automatically updated by Zhixu when important information should be remembered.*
+- [标题](name.md) — 一句话钩子

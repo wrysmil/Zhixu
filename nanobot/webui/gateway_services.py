@@ -383,6 +383,7 @@ def build_identity_operations(
     *,
     workspace_id: str,
     workspace_path: Path,
+    file_mode: bool = False,
 ) -> IdentitySettingsOperations:
     """Wire the real ``identity_api`` actions to a workspace-scoped store.
 
@@ -390,9 +391,12 @@ def build_identity_operations(
     (name/content/mode) only. ``MEMORY.md`` writes and reloads go through the
     workspace's ``MemoryLifecycle`` singleton, matching the write-path hook and
     avoiding a second ``VectorStore``.
+
+    ``file_mode``：文件模式下 USER.md 自动区来自全局记忆文件，MEMORY.md 不再
+    从 SQLite 投影——避免出现第二个整份覆盖的写手。
     """
     services = MemoryServices.for_workspace(workspace_id, workspace_path)
-    lifecycle = MemoryLifecycle.for_workspace(workspace_id, services)
+    lifecycle = MemoryLifecycle.for_workspace(workspace_id, services, file_mode=file_mode)
     workspace = Path(workspace_path)
     return IdentitySettingsOperations(
         list_files=partial(identity_api.identity_list_files, workspace),
@@ -781,6 +785,7 @@ def build_gateway_services(
         identity_operations=build_identity_operations(
             workspace_id="default",
             workspace_path=workspace_path,
+            file_mode=bool(settings.config.load().agents.defaults.memory_file_mode),
         ),
         agents_operations=build_agents_operations(
             workspace_path=workspace_path,

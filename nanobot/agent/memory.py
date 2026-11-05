@@ -621,11 +621,9 @@ class MemoryStore:
 
         Returns ``(prompt, last_cursor)`` or ``None`` if nothing to process.
 
-        The current contents of the durable memory files (SOUL.md, USER.md)
-        reach Dream through the normal agent system context. ``memory/MEMORY.md``
-        is only the export of the core view; the facts themselves are read from
-        SQLite by the context builder, so a Dream run and a chat turn see the
-        same core memory.
+        The prompt carries the **absolute paths** of the two memory
+        directories: Dream writes memory files itself, so it must know where
+        they live.
         """
         last_cursor = self.get_last_dream_cursor()
         entries = self.read_unprocessed_history(since_cursor=last_cursor)
@@ -638,8 +636,21 @@ class MemoryStore:
             for e in batch
         )
         template = self._dream_template()
-        prompt = f"{template}\n\n## Conversation History\n{history_text}"
+        prompt = f"{template}\n\n## Memory Directories\n{self._memory_directories_block()}\n\n## Conversation History\n{history_text}"
         return (prompt, batch[-1]["cursor"])
+
+    def _memory_directories_block(self) -> str:
+        """两个记忆目录的绝对路径（Dream 的写入目标）。"""
+        from nanobot.memory.files import global_memory_dir, project_memory_dir
+        from nanobot.memory.provenance import memory_workspace_id
+
+        global_dir = global_memory_dir()
+        project_dir = project_memory_dir(memory_workspace_id(str(self.workspace)))
+        return (
+            f"- Global memory directory: {global_dir}\n"
+            f"- Project memory directory: {project_dir}\n"
+            f"- Each directory holds one memory per file plus a `MEMORY.md` index."
+        )
 
     def dream_content_diff(self) -> str:
         """Structured summary of uncommitted changes to the durable memory files.
@@ -654,23 +665,24 @@ class MemoryStore:
     def build_dream_tools(self) -> ToolRegistry:
         """Build the restricted tool registry used by Dream runs.
 
-        P1 之后 Dream 的工具分两类，边界就是「它能留下什么」：
+        Dream 现在是**文件整理者**：记忆本体是文件，所以它的生产出口是文件工具，
+        不是记忆库工具。
 
-        * **记忆工具**（``add_memory`` / ``memory_delete`` / ``memory_stats`` /
-          ``consolidate_memory``）——产出全部进 ``memories`` 表，因此可检索、
-          可衰减、可删除，也能被审计表计数。这是 Dream 唯一的生产出口。
-        * **skills/ 文件工具**——技能生成是它唯一允许直接碰的文件（把重复出现
-          的工作流固化成 SKILL.md 不属于记忆，是能力沉淀）。
+        * **记忆目录**（全局 + 当前项目）——读、写都放行：Dream 要读旧记忆来判
+          重/判冲突，也要写新记忆文件并维护同目录的 ``MEMORY.md`` 索引。
+        * **skills/ 目录**——技能生成（把重复出现的工作流固化成 SKILL.md 不属于
+          记忆，是能力沉淀）。
 
-        原先的 ``SOUL.md`` 写权限已移除：价值观文件不该由每两小时的定时任务
-        自己改。``MEMORY.md.draft`` 随 draft 机制一并废弃。
+        记忆库写入工具（``add_memory`` 等）不再注册：Dream 不写数据库，
+        数据库只是检索档案。
         """
         from nanobot.agent.skills import BUILTIN_SKILLS_DIR
         from nanobot.agent.tools.apply_patch import ApplyPatchTool
         from nanobot.agent.tools.file_state import FileStates
         from nanobot.agent.tools.filesystem import EditFileTool, ReadFileTool, WriteFileTool
-        from nanobot.agent.tools.memory_admin import build_memory_admin_tools
         from nanobot.agent.tools.registry import ToolRegistry
+        from nanobot.agent.tools.search import FindFilesTool, GrepTool
+        from nanobot.memory.files import memory_dirs_for
 
         tools = ToolRegistry()
         file_states = FileStates()
@@ -678,39 +690,47 @@ class MemoryStore:
         skills_dir = workspace / "skills"
         skills_dir.mkdir(parents=True, exist_ok=True)
 
-        # 读权限保留：Dream 要读 skills/ 与内置技能目录才能判断该不该合并技能。
-        # 写权限只剩 skills_dir 一个目录，不再有 extra_write_allowed_files。
+        memory_dirs = memory_dirs_for(workspace)
+
+        # 读权限：skills/ + 内置技能目录 + 两个记忆目录。
         extra_read = [BUILTIN_SKILLS_DIR] if BUILTIN_SKILLS_DIR.exists() else None
+        read_dirs = [*(extra_read or []), *memory_dirs]
         tools.register(ReadFileTool(
             workspace=workspace,
             allowed_dir=workspace,
-            extra_read_allowed_dirs=extra_read,
+            extra_read_allowed_dirs=read_dirs,
             file_states=file_states,
         ))
         tools.register(EditFileTool(
             workspace=workspace,
             allowed_dir=skills_dir,
+            extra_write_allowed_dirs=memory_dirs,
             file_states=file_states,
         ))
         tools.register(ApplyPatchTool(
             workspace=workspace,
             allowed_dir=skills_dir,
+            extra_write_allowed_dirs=memory_dirs,
             file_states=file_states,
         ))
         tools.register(WriteFileTool(
             workspace=workspace,
             allowed_dir=skills_dir,
+            extra_write_allowed_dirs=memory_dirs,
             file_states=file_states,
         ))
-
-        # 记忆工具：source=consolidation 让面板把它显示成「整理时写入」，
-        # 与会话中用户主动要求记住的（source=manual）区分开。
-        for tool in build_memory_admin_tools(
-            services=self.memory_services,
-            source="consolidation",
-            trigger="dream",
-        ):
-            tools.register(tool)
+        tools.register(GrepTool(
+            workspace=workspace,
+            allowed_dir=workspace,
+            extra_read_allowed_dirs=read_dirs,
+            file_states=file_states,
+        ))
+        tools.register(FindFilesTool(
+            workspace=workspace,
+            allowed_dir=workspace,
+            extra_read_allowed_dirs=read_dirs,
+            file_states=file_states,
+        ))
         return tools
 
     @staticmethod

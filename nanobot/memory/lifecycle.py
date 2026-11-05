@@ -208,6 +208,14 @@ _MEMORY_TYPE_TO_SECTION: dict[MemoryType, str] = {
     MemoryType.EXPERIENCE: "经验",
 }
 
+#: 文件层类型 → 记忆库类型（文件模式：USER.md 自动区从全局记忆文件渲染）。
+_FILE_TYPE_TO_MEMORY_TYPE: dict[str, MemoryType] = {
+    "user": MemoryType.PREFERENCE,
+    "feedback": MemoryType.RULE,
+    "project": MemoryType.FACT,
+    "reference": MemoryType.FACT,
+}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -591,9 +599,13 @@ class MemoryLifecycle:
         services: MemoryServices,
         *,
         clock: MemoryClock | None = None,
+        file_mode: bool = False,
     ) -> None:
         self.workspace_id = workspace_id
         self.services = services
+        # 文件模式：记忆本体是文件。USER.md 自动区改由全局记忆文件渲染，
+        # MEMORY.md 的 SQLite 投影不再产出（索引在记忆目录里）。
+        self._file_mode = file_mode
         # 评测可注入的时钟；缺省时全部走真实时间。
         self._clock = clock
         self.workspace: Path = services.database.workspace
@@ -619,10 +631,13 @@ class MemoryLifecycle:
         services: MemoryServices,
         *,
         clock: MemoryClock | None = None,
+        file_mode: bool = False,
     ) -> "MemoryLifecycle":
         """Return the singleton MemoryLifecycle for the given workspace."""
         if workspace_id not in cls._instances:
-            cls._instances[workspace_id] = cls(workspace_id, services, clock=clock)
+            cls._instances[workspace_id] = cls(
+                workspace_id, services, clock=clock, file_mode=file_mode
+            )
         return cls._instances[workspace_id]
 
     # ------------------------------------------------------------------
@@ -638,6 +653,9 @@ class MemoryLifecycle:
         """
         with self._derive_lock:
             try:
+                if self._file_mode:
+                    # 文件模式：MEMORY.md 不再是数据库投影（索引在记忆目录里）。
+                    return {"status": "skipped", "reason": "file_mode"}
                 with self.services.database.connect() as conn:
                     self._migrate_legacy_memory_md(conn)
                     facts = select_core_facts(
@@ -740,8 +758,12 @@ class MemoryLifecycle:
             try:
                 with self.services.database.connect() as conn:
                     self._migrate_legacy_user_md(conn)
-                    facts = select_user_facts(conn, workspace_id=workspace_id)
                     note = read_user_note(conn, workspace_id)
+                    facts = (
+                        self._file_mode_facts()
+                        if self._file_mode
+                        else select_user_facts(conn, workspace_id=workspace_id)
+                    )
 
                 content = self._render_user_export(facts, note)
                 if self.user_file.exists() and self.user_file.read_text(
@@ -1004,6 +1026,35 @@ class MemoryLifecycle:
             # 是导出格式但手写区被整体删掉：视为「清空手写区」。
             return "", False
         return _strip_user_note_heading(content), False
+
+    def _file_mode_facts(self) -> list[Memory]:
+        """文件模式：USER.md 自动区的事实来源 = 全局记忆文件。
+
+        全局目录里放的是「与人有关的记忆」（偏好、协作习惯、行为规则），
+        正好对应画像；项目事实不进来。
+        """
+        from nanobot.memory.files import GLOBAL_SCOPE, MemoryFileStore, global_memory_dir
+
+        store = MemoryFileStore(global_dir=global_memory_dir())
+        facts: list[Memory] = []
+        now = self._now_iso()
+        for item in store.list_memories(GLOBAL_SCOPE):
+            content = item.content.strip()
+            if not content:
+                continue
+            facts.append(
+                Memory(
+                    id=f"file:{item.name}",
+                    content=content,
+                    type=_FILE_TYPE_TO_MEMORY_TYPE.get(item.type, MemoryType.PREFERENCE),
+                    created_at=now,
+                    updated_at=now,
+                    importance_score=0.7,
+                    workspace_id=self.workspace_id,
+                    metadata={"source": "memory_file", "file": str(item.path)},
+                )
+            )
+        return facts
 
     def _render_user_export(self, facts: list[Memory], note: Memory | None) -> str:
         """渲染 USER.md。

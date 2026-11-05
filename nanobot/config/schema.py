@@ -306,6 +306,20 @@ class AgentDefaults(Base):
     )  # WU-A: idle 增量提取阈值(秒)。每轮 after_run 重置定时器,空闲超过该
     # 时长后触发 ``MemoryExtractor.run_idle_extraction``。<=0 不合法;典型值
     # 600(10 分钟)。测试可短至 0.05 秒验证触发路径。
+    memory_file_mode: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("memoryFileMode", "memory_file_mode"),
+        serialization_alias="memoryFileMode",
+    )  # 文件即记忆本体：记忆写入文件、注入走索引；关闭后回到旧的 SQLite 注入路径
+    memory_extract_interval_minutes: int = Field(
+        default=30,
+        ge=5,
+        validation_alias=AliasChoices(
+            "memoryExtractIntervalMinutes",
+            "memory_extract_interval_minutes",
+        ),
+        serialization_alias="memoryExtractIntervalMinutes",
+    )  # 定时抽取间隔（分钟）：替代旧的空闲触发
     memory_search_backend: str = Field(
         default="fts5",
         validation_alias=AliasChoices("memorySearchBackend", "memory_search_backend"),

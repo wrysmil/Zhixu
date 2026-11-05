@@ -848,7 +848,8 @@ class TestWorkingMemoryInjection:
             ))
 
     def test_injected_before_long_term_memory(self, tmp_path):
-        builder = _builder(tmp_path)
+        # 核心事实（SQLite 投影）注入路径：文件模式下核心事实不进 prompt。
+        builder = _builder(tmp_path, memory_file_mode=False)
         self._seed_long_term_memory(builder)
 
         result = builder.build_system_prompt(working_memory_section=self._SECTION)

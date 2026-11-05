@@ -91,12 +91,24 @@ class _FsTool(Tool):
         )
         sandbox_restricts = bool(ctx.config.exec.sandbox)
         allowed_dir = agent_workspace if restrict else None
+        # 记忆目录是记忆本体的落点：文件模式下模型直接写记忆文件，
+        # 因此读侧与写侧都要放行这两个目录（其余路径仍受 allowed_dir 约束）。
+        memory_dirs: list[Path] = []
+        if (ctx.attributes or {}).get("memory_file_mode"):
+            from nanobot.memory.files import memory_dirs_for
+
+            memory_dirs = memory_dirs_for(agent_workspace)
         # Agent-owned skills stay available from project scopes. History is a narrower
         # capability: expose only the append-only log, not the surrounding memory directory.
         return cls(
             workspace=agent_workspace,
             allowed_dir=allowed_dir,
-            extra_read_allowed_dirs=[BUILTIN_SKILLS_DIR, resolved_agent_workspace / "skills"],
+            extra_read_allowed_dirs=[
+                BUILTIN_SKILLS_DIR,
+                resolved_agent_workspace / "skills",
+                *memory_dirs,
+            ],
+            extra_write_allowed_dirs=memory_dirs,
             extra_read_allowed_files=[resolved_agent_workspace / "memory" / "history.jsonl"],
             file_states=ctx.file_state_store,
             restrict_to_workspace=ctx.config.restrict_to_workspace,

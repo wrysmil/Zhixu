@@ -56,6 +56,8 @@ class _Engine:
 
 
 def _builder(tmp_path: Path, **kw: Any) -> ContextBuilder:
+    # 这些用例覆盖 SQLite 核心事实注入路径（文件模式下核心事实不进 prompt）。
+    kw.setdefault("memory_file_mode", False)
     return ContextBuilder(workspace=tmp_path, **kw)
 
 

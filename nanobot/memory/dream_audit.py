@@ -69,11 +69,11 @@ class DreamRunAudit:
 
     # -- 计数入口（由记忆工具调用） -------------------------------------
 
-    def record_added(self) -> None:
-        self.stats.added += 1
+    def record_added(self, count: int = 1) -> None:
+        self.stats.added += max(0, int(count))
 
-    def record_updated(self) -> None:
-        self.stats.updated += 1
+    def record_updated(self, count: int = 1) -> None:
+        self.stats.updated += max(0, int(count))
 
     def record_deleted(self, count: int = 1) -> None:
         self.stats.deleted += max(0, int(count))

@@ -1,6 +1,7 @@
 """Tests for Dream memory consolidation — build_dream_prompt and cursor management."""
 
 import pytest
+from pathlib import Path
 
 from nanobot.agent.memory import MemoryStore
 from nanobot.config.schema import ModelPresetConfig
@@ -110,7 +111,7 @@ class TestBuildDreamPrompt:
 
         assert result is not None
         prompt, _ = result
-        assert "memory consolidation engine" in prompt
+        assert "file organizer" in prompt
 
     def test_truncates_long_entries_at_1000_chars(self, store):
         long_content = "x" * 2000
@@ -159,15 +160,17 @@ class TestBuildDreamPrompt:
         assert "usable memory" in prompt
 
     def test_dream_prompt_excludes_memory_file_routing(self, store):
-        """新 prompt 不包含 'edit memory.md' 类指令。"""
+        """Dream 的路由目标是记忆目录（文件），不再是记忆库写入工具。"""
         prompt = store._dream_template()
         # 不应包含 "edit memory/MEMORY.md" 或类似指令
         assert "edit memory/MEMORY.md" not in prompt
         assert "write memory/MEMORY.md" not in prompt.lower()
-        # P1：路由目标从「文件」换成「记忆类型」
-        assert 'add_memory(type="preference")' in prompt
-        # 明确禁止写记忆文件
-        assert "must not write MEMORY.md" in prompt
+        # 路由目标：全局记忆目录 / 项目记忆目录 / skills
+        assert "Global memory directory" in prompt
+        assert "Project memory directory" in prompt
+        # 记忆库写入工具不再是出口
+        assert "add_memory(" not in prompt
+        assert "must not write MEMORY.md" not in prompt
 
 
 class TestDreamRunCompletion:
@@ -201,7 +204,7 @@ class TestDreamRunCompletion:
 
 class TestDreamTools:
     def test_dream_tools_are_file_read_plus_memory_write(self, store):
-        """Dream 的文件工具只剩读 + skills/ 写，写记忆走记忆工具。"""
+        """Dream 的工具：文件读写（记忆目录 + skills/）+ 检索；没有记忆库写入工具。"""
         tools = store.build_dream_tools()
 
         assert set(tools.tool_names) == {
@@ -209,10 +212,8 @@ class TestDreamTools:
             "edit_file",
             "apply_patch",
             "write_file",
-            "add_memory",
-            "memory_delete",
-            "memory_stats",
-            "consolidate_memory",
+            "grep",
+            "find_files",
         }
 
     def test_dream_tools_excludes_derived_files(self, store):
@@ -274,35 +275,35 @@ class TestDreamTools:
         )
 
     @pytest.mark.asyncio
-    async def test_dream_writes_memory_through_the_tool(self, store):
-        """Dream 的记忆产出走 add_memory，落库而不是落文件。"""
+    async def test_dream_writes_memory_through_the_tool(self, store, monkeypatch, tmp_path):
+        """Dream 的记忆产出走记忆文件：写文件 + 维护同目录索引。"""
 
-        from nanobot.memory.database import MemoryDatabase
-        from nanobot.memory.repository import list_memories
+        from nanobot.memory.files import MemoryFileStore  # noqa: F401
 
-        db = MemoryDatabase(store.workspace)
-        db.init_schema()
+        home = tmp_path / "home"
+        home.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+
         tools = store.build_dream_tools()
+        memory_dir = home / ".nanobot" / "memory"
+        target = memory_dir / "use-pnpm.md"
 
         result = await tools.execute(
-            "add_memory",
-            {"content": "项目用 pnpm 管包", "type": "fact", "predicate": "包管理器"},
+            "write_file",
+            {
+                "path": str(target),
+                "content": (
+                    "---\nname: use-pnpm\ndescription: 项目用 pnpm 管包\n"
+                    "metadata:\n  type: project\n---\n\n项目用 pnpm 管包。\n"
+                ),
+            },
         )
-        assert "已记住" in result
 
-        with db.connect() as conn:
-            rows = list_memories(conn, workspace_id="default")
-        # fixture 预置的 MEMORY.md 会被 P0 的迁移逻辑收成一条 core-note，
-        # 断言时把它排除掉——这里只关心 Dream 自己写的那条。
-        from nanobot.memory.context import is_core_note_record
-
-        written = [r for r in rows if not is_core_note_record(r.id)]
-        assert [r.content for r in written] == ["项目用 pnpm 管包"]
-        assert written[0].source == "consolidation"
-        # Dream 没有文件写权限，但它写进库的内容会被 lifecycle 投影回 MEMORY.md
-        # ——这正是「AI 只决定记什么，系统决定文件长什么样」的闭环。
-        assert "pnpm" in store.memory_file.read_text(encoding="utf-8")
-        assert "<!-- zhixu:core-view:begin" in store.memory_file.read_text(encoding="utf-8")
+        assert "Successfully wrote" in result
+        assert target.exists()
+        assert "pnpm" in target.read_text(encoding="utf-8")
+        # 记忆库写入工具不再是 Dream 的出口
+        assert tools.get("add_memory") is None
 
     @pytest.mark.asyncio
     async def test_dream_can_write_workspace_skills(self, store):
@@ -704,6 +705,8 @@ class TestEphemeralDirect:
             provider=provider,
             workspace=tmp_path,
             context_window_tokens=32_000,
+            # 核心事实注入路径（文件模式下核心事实不进 prompt）。
+            memory_file_mode=False,
         )
         session_key = "dream:single-memory-copy"
 
@@ -721,6 +724,8 @@ class TestEphemeralDirect:
             assert marker in system_prompt
             assert request_text.count(marker) == 1
         assert "DREAM_MEMORY_FILE_MARKER" not in system_prompt
+        # Dream 需要知道记忆目录的绝对路径（它自己写记忆文件）
+        assert "## Memory Directories" in prompt
         assert loop.sessions._get_session_path(session_key).exists()
 
 
@@ -953,8 +958,10 @@ class TestDreamTemplateP3:
         assert "MEMORY.md.draft" not in template
 
     def test_routes_to_memory_types(self, template):
-        for memory_type in ("preference", "rule", "fact", "experience"):
-            assert f"add_memory(type=\"{memory_type}\")" in template
+        """路由目标：全局 / 项目记忆目录（文件），不再是记忆库写入工具。"""
+        assert "Global memory directory" in template
+        assert "Project memory directory" in template
+        assert "add_memory(" not in template
 
     def test_contains_importance_grading(self, template):
         assert "Importance grading" in template
@@ -970,5 +977,6 @@ class TestDreamTemplateP3:
         assert "one-sentence reason" in template
 
     def test_forbids_claiming_any_file_write(self, template):
-        assert "禁止声称" in template
-        assert "任何其他文件" in template
+        """Dream 现在真的写文件，但只声明被工具结果证实的写入。"""
+        assert "must not write MEMORY.md" not in template
+        assert "successful tool result" in template

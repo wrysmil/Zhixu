@@ -154,6 +154,7 @@ class ContextBuilder:
         active_retrieval_enabled: bool = False,
         retrieval_engine: RetrievalEngine | None = None,
         memory_enabled_provider: "Callable[[], bool] | None" = None,
+        memory_file_mode: bool = True,
     ):
         self.workspace = workspace
         self.timezone = timezone
@@ -170,6 +171,9 @@ class ContextBuilder:
         # via the provider closure, so toggling takes effect without restarting
         # the gateway.
         self._memory_enabled_provider = memory_enabled_provider
+        # 文件模式：记忆本体是文件，注入的是两份 MEMORY.md 索引，核心事实
+        # （SQLite 投影）不再进 prompt。关掉则回到旧的 SQLite 注入路径。
+        self._memory_file_mode = memory_file_mode
         # 核心事实的库句柄：与 AgentLoop 的回退装配同源，按需解析并缓存。
         self._core_services: Any | None = None
 
@@ -317,8 +321,14 @@ class ContextBuilder:
                 "recalled memory must come from the retrieval engine"
             )
         hits = list(cast(Sequence[MemoryHit], recalled)) if recalled is not None else []
+        # 文件模式下核心事实（SQLite 投影）不再注入：记忆本体是文件，注入的是索引。
+        core_hits = (
+            self._load_core_hits()
+            if include_memory and not self._memory_file_mode
+            else []
+        )
         selection = select_memory_context(
-            core_hits=self._load_core_hits() if include_memory else [],
+            core_hits=core_hits,
             working_text=working_text,
             recalled_hits=hits,
             max_tokens=MEMORY_CONTEXT_MAX_TOKENS,
@@ -339,6 +349,23 @@ class ContextBuilder:
             except Exception as exc:  # noqa: BLE001 - 统计失败不能影响 prompt
                 logger.warning("Memory reference tracking failed during injection: {!r}", exc)
         return selection.text
+
+    def _load_memory_index_block(self, project_path: Path | None = None) -> str:
+        """两份记忆索引（全局 + 当前项目）。
+
+        索引是**目录**：只放「标题 + 一句话钩子 + 文件名」，正文由模型按需
+        ``read_file`` 读取。索引缺失或为空时返回空串（不注入空块）。
+        """
+        if not self._memory_file_mode:
+            return ""
+        try:
+            from nanobot.memory.files import MemoryFileStore, render_index_block
+
+            store = MemoryFileStore.for_project(str(project_path or self.workspace))
+            return render_index_block(store)
+        except Exception as exc:  # noqa: BLE001 - 索引读失败不该打断对话
+            logger.warning("Memory index read failed; injecting no index: {!r}", exc)
+            return ""
 
     @staticmethod
     def _log_injection(selection: Any, *, query: str, trace_id: str = "") -> None:
@@ -456,6 +483,12 @@ class ContextBuilder:
         )
         if memory_block:
             parts.append(memory_block)
+
+        # 记忆索引排在记忆块之后：先给「现在在做什么 / 刚搜到什么」，再给
+        # 「长期记忆的目录在哪」。索引本身不含正文，按需 read_file。
+        index_block = self._load_memory_index_block(project_path)
+        if index_block:
+            parts.append(index_block)
 
         excluded_skills = skill_exclude or set()
         active_skills = [

@@ -17,9 +17,12 @@ class TestIdentityTemplate:
         # Must explain proactive vs passive retrieval
         assert "proactive" in text.lower() or "检索" in text
 
-    def test_add_memory_tool_documented(self) -> None:
+    def test_memory_files_documented(self) -> None:
         text = IDENTITY.read_text(encoding="utf-8")
-        assert "add_memory" in text
+        # 文件模式：记忆本体是文件，模型用文件工具写；记忆库写入工具不再出现。
+        assert "write_file" in text
+        assert "~/.nanobot/memory/" in text
+        assert "add_memory" not in text
         assert "确认" in text or "confirmed" in text.lower()
 
     def test_not_too_long(self) -> None:

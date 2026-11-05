@@ -848,11 +848,15 @@ class MemoryExtractor:
         *,
         session_loader: Callable[[str], Session | None] | None = None,
         clock: MemoryClock | None = None,
+        memory_file_writer: Callable[[list[Memory], Session], None] | None = None,
     ) -> None:
         self.database = database
         self.runtime = runtime
         self.workspace_id = workspace_id
         self.user_id = user_id
+        # 文件模式的双出口：抽取产物除了落库，还要写进记忆文件（文件才是本体）。
+        # 缺省为 None（评测 / 旧路径）时行为不变。
+        self._memory_file_writer = memory_file_writer
         # 评测可注入的时钟；缺省时全部走真实时间，生产行为不变。
         self._clock = clock
         # S3 Track 1：画像 + 引用评分 + 经验。SEMANTIC_EXTRACTION_PROMPT 是双轨输出，
@@ -865,6 +869,13 @@ class MemoryExtractor:
         self._session_loader = session_loader
         self._default_session_loader: Callable[[str], Session | None] | None = None
         self._default_session_loader_ready = False
+
+    def set_memory_file_writer(
+        self,
+        writer: Callable[[list[Memory], Session], None] | None,
+    ) -> None:
+        """设置记忆文件写入回调（文件模式的第二出口）。"""
+        self._memory_file_writer = writer
 
     def _now_iso(self) -> str:
         """当前时间戳；注入 clock 时使用虚拟墙上时间（评测确定性）。"""
@@ -1801,6 +1812,7 @@ class MemoryExtractor:
         # 向量刷新在数据库提交之后：失败只记 dirty（index hook 自身绝不抛）。
         for memory in indexed:
             index_memory_best_effort(memory)
+        self._write_memory_files(indexed, session)
         logger.info(
             "memory batch completed: batch={} session={} range=({}, {}] memories={} episodes={} skipped={}",
             row.batch_id,
@@ -2079,7 +2091,23 @@ class MemoryExtractor:
         self,
         session: Session,
     ) -> ExtractionResult:
-        """Idle 定时器触发的薄适配：按 ``(generation, last_seq)`` 提交提取请求。
+        """Idle 定时器触发的薄适配：按 ``(generation, last_seq)`` 提交提取请求。"""
+        return await self._run_incremental_extraction(session, source="idle")
+
+    async def run_scheduled_extraction(
+        self,
+        session: Session,
+    ) -> ExtractionResult:
+        """定时抽取（cron 驱动）：与空闲抽取同协议，来源标记为 ``scheduled``。"""
+        return await self._run_incremental_extraction(session, source="scheduled")
+
+    async def _run_incremental_extraction(
+        self,
+        session: Session,
+        *,
+        source: str,
+    ) -> ExtractionResult:
+        """增量抽取的共同实现：按 ``(generation, last_seq)`` 提交提取请求。
 
         行为契约：
         - ``through_seq <= last_seq``（无新增消息或已覆盖）：return 空结果，
@@ -2107,7 +2135,8 @@ class MemoryExtractor:
             through = self._through_seq(resolved)
             last_seq = self._last_consumed_seq(resolved, generation)
             logger.info(
-                "idle extraction start for session {}{}: through_seq={} last_seq={}",
+                "{} extraction start for session {}{}: through_seq={} last_seq={}",
+                source,
                 session_key,
                 session_label_suffix(session_label(session.messages, session.metadata)),
                 through,
@@ -2115,7 +2144,8 @@ class MemoryExtractor:
             )
             if through <= last_seq:
                 logger.info(
-                    "idle extraction skipped for session {}: no new messages ({} <= {})",
+                    "{} extraction skipped for session {}: no new messages ({} <= {})",
+                    source,
                     session_key,
                     through,
                     last_seq,
@@ -2124,7 +2154,7 @@ class MemoryExtractor:
                     "extraction_skipped",
                     f"【记忆提取·跳过】session={session_key} reason=no_new_messages",
                     session=session_key,
-                    source="idle",
+                    source=source,
                     reason="no_new_messages",
                     through_seq=through,
                     last_seq=last_seq,
@@ -2140,9 +2170,10 @@ class MemoryExtractor:
             ]
             if not self._has_enough_idle_signal(new_slice):
                 logger.info(
-                    "idle extraction skipped for session {}: {} new message(s) below "
+                    "{} extraction skipped for session {}: {} new message(s) below "
                     "signal threshold (min {} messages; single user turn needs "
                     ">= {} chars or a tool call)",
+                    source,
                     session_key,
                     len(new_slice),
                     self.IDLE_MIN_NEW_MESSAGES,
@@ -2152,16 +2183,16 @@ class MemoryExtractor:
                     "extraction_skipped",
                     f"【记忆提取·跳过】session={session_key} reason=signal_threshold",
                     session=session_key,
-                    source="idle",
+                    source=source,
                     reason="signal_threshold",
                     message_count=len(new_slice),
                 )
                 return ExtractionResult()
 
-            return await self._submit_session_request(resolved, source="idle")
+            return await self._submit_session_request(resolved, source=source)
         except Exception as exc:  # noqa: BLE001 - 整个路径绝不上抛
             logger.opt(exception=exc).warning(
-                "run_idle_extraction failed for session {}: {}", session_key, exc
+                "{} extraction failed for session {}: {}", source, session_key, exc
             )
             return ExtractionResult()
 
@@ -2463,8 +2494,22 @@ class MemoryExtractor:
             )
         for memory in created:
             index_memory_best_effort(memory)
+        self._write_memory_files(created, session)
         self._emit_memory_changes(persisted, filtered, session, source=source)
         return persisted
+
+    def _write_memory_files(self, memories: list[Memory], session: Session) -> None:
+        """把新抽取的记忆写进记忆文件（文件模式双出口）。
+
+        失败只记日志：抽取结果已经落库，文件写入失败不该把整批判成失败。
+        """
+        writer = self._memory_file_writer
+        if writer is None or not memories:
+            return
+        try:
+            writer(memories, session)
+        except Exception as exc:  # noqa: BLE001 - 文件写入失败不影响抽取结果
+            logger.warning("memory file export failed for session {}: {!r}", session.key, exc)
 
     def _emit_memory_changes(
         self,

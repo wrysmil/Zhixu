@@ -110,7 +110,8 @@ def test_empty_access_selection_is_noop(records):
 
 def test_final_context_counts_once_after_core_recall_deduplication(records, tmp_path):
     database, fact, _, episode = records
-    builder = ContextBuilder(workspace=tmp_path)
+    # 核心事实注入路径（文件模式下核心事实不进 prompt）。
+    builder = ContextBuilder(workspace=tmp_path, memory_file_mode=False)
     recalled = RecalledMemorySection("", [hit_from_memory(fact), hit_from_episode(episode)])
     result = builder.build_system_prompt(
         include_memory=True, retrieved_memory_section=recalled,
@@ -162,7 +163,8 @@ async def test_statistics_failure_does_not_break_tool_or_context(records, tmp_pa
 
 def test_token_estimate_includes_memory_without_recording_access(records, tmp_path, monkeypatch):
     database, fact, *_ = records
-    builder = ContextBuilder(workspace=tmp_path)
+    # 核心事实注入路径（文件模式下核心事实不进 prompt）。
+    builder = ContextBuilder(workspace=tmp_path, memory_file_mode=False)
     probe_prompts = []
 
     def estimate(_provider, _model, messages, _tools):

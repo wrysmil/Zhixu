@@ -154,6 +154,7 @@ class MemoryExtractionHook(AgentHook):
         workspace_scope: dict[str, str] | None = None,
         operation_registry: MemoryOperationRegistry | None = None,
         namespace: str = "default",
+        memory_file_mode: bool = False,
     ) -> None:
         super().__init__()
         self._extractor = extractor
@@ -182,6 +183,9 @@ class MemoryExtractionHook(AgentHook):
         # 注入后 idle/增量抽取的真实结果可被评测等待。
         self._operation_registry = operation_registry
         self._namespace = namespace
+        # 文件模式：空闲触发停用，抽取改由 cron ``memory_extract`` 定时驱动。
+        # 「用户离开就烧钱、连续聊反而不记」是空闲触发的固有缺陷。
+        self._memory_file_mode = memory_file_mode
 
         # WU-A: 允许通过构造参数覆盖 idle 阈值(供 AgentDefaults.memory_idle_seconds
         # 等配置源注入)。实例属性优先于类属性。
@@ -363,6 +367,9 @@ class MemoryExtractionHook(AgentHook):
         - 完成后通过 ``add_done_callback`` 把任务从 ``_PENDING_IDLE_TIMERS``
           弹出,防止 dict 无限增长。
         """
+        if self._memory_file_mode:
+            # 文件模式：抽取由 cron 定时驱动，空闲触发整体停用。
+            return
         # 取消旧任务(若有)。
         _cancel_pending_idle_timer(self._session_key)
         # 启动新任务。
@@ -548,6 +555,7 @@ def create_memory_extraction_hook_factory(
     workspace_scope_provider: Callable[[AgentTurnHookContext], dict[str, str] | None] | None = None,
     operation_registry: MemoryOperationRegistry | None = None,
     namespace: str = "default",
+    memory_file_mode: bool = False,
 ) -> AgentTurnHookFactory:
     """返回 ``AgentTurnHookFactory``：从 ``AgentTurnHookContext`` 取 ``session_key``
     构造 :class:`MemoryExtractionHook`。
@@ -648,6 +656,7 @@ def create_memory_extraction_hook_factory(
             workspace_scope=workspace_scope,
             operation_registry=operation_registry,
             namespace=namespace,
+            memory_file_mode=memory_file_mode,
         )
 
     return _factory

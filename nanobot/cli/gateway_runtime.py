@@ -724,6 +724,11 @@ def _run_gateway(
         # Dream is an internal job — run directly, not through the agent loop.
         if job.name == "dream":
             from nanobot.agent.memory import MemoryStore
+            from nanobot.memory.files import (
+                MemoryFileStore,
+                diff_snapshots,
+                memory_dir_snapshot,
+            )
 
             dream_session_key = MemoryStore.dream_session_key
             prune_dream_sessions = MemoryStore.prune_dream_sessions
@@ -733,6 +738,10 @@ def _run_gateway(
             audit = None
             run_status = "completed"
             run_error = ""
+            # 审计走文件 diff：新增文件=added、修改=updated、删除=deleted。
+            # 记忆库写入工具已从 Dream 撤下，工具回调不再是可信计数来源。
+            memory_store = MemoryFileStore.for_project(str(agent.workspace))
+            snapshot_before = memory_dir_snapshot(memory_store)
             try:
                 result = store.build_dream_prompt()
                 if result is None:
@@ -779,12 +788,31 @@ def _run_gateway(
                 run_status, run_error = "failed", str(exc)
             finally:
                 if audit is not None:
+                    added, updated, deleted = diff_snapshots(
+                        snapshot_before,
+                        memory_dir_snapshot(memory_store),
+                    )
+                    audit.record_added(added)
+                    audit.record_updated(updated)
+                    audit.record_deleted(deleted)
                     store.end_dream_run(status=run_status, error=run_error)
                 sha = _commit_dream_changes(store)
                 if sha:
                     logger.info("Dream commit: {}", sha)
                 store.compact_history()
                 prune_dream_sessions(agent.sessions)
+            return None
+
+        # memory_extract is an internal job — scheduled semantic extraction, no agent loop.
+        if job.name == "memory_extract":
+            if not config.agents.defaults.memory_enabled:
+                logger.debug("memory_extract: memory disabled, skipping")
+                return None
+            try:
+                processed = await agent.run_scheduled_memory_extraction()
+                logger.info("memory_extract: sessions with new memories={}", processed)
+            except Exception:
+                logger.exception("memory_extract job failed")
             return None
 
         # memory_consolidate is an internal job — pure rule pass, no agent loop.
@@ -1071,6 +1099,41 @@ def _run_gateway(
     else:
         console.print("[yellow]○[/yellow] Memory consolidate: disabled")
         cron.remove_system_job("memory_consolidate")
+
+    # Register the scheduled memory extraction job (file mode; idempotent on restart)
+    defaults = config.agents.defaults
+    if defaults.memory_enabled and defaults.memory_file_mode:
+        cron.register_system_job(CronJob(
+            id="memory_extract",
+            name="memory_extract",
+            schedule=CronSchedule(
+                kind="every",
+                every_ms=defaults.memory_extract_interval_minutes * 60_000,
+                tz=defaults.timezone,
+            ),
+            payload=CronPayload(kind="system_event"),
+        ))
+        console.print(
+            f"[green]✓[/green] Memory extract: every {defaults.memory_extract_interval_minutes} min"
+        )
+    else:
+        cron.remove_system_job("memory_extract")
+
+    # 一次性迁移：旧的 <workspace>/memory/MEMORY.md → 记忆目录（幂等，备份到 legacy/）
+    if defaults.memory_file_mode:
+        try:
+            from nanobot.memory.files import MemoryFileStore, migrate_legacy_memory_dir
+
+            memory_store = MemoryFileStore.for_project(str(config.workspace_path))
+            migrated = migrate_legacy_memory_dir(
+                config.workspace_path / "memory", memory_store
+            )
+            if migrated:
+                console.print(
+                    f"[green]✓[/green] Memory migration: {len(migrated)} 条记忆已迁入记忆目录"
+                )
+        except Exception:
+            logger.exception("memory migration failed")
 
     cron_status = cron.status()
     cron_job_count = cast(int, cron_status["jobs"])

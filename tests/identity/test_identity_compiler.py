@@ -319,7 +319,8 @@ def test_agent_growth_loop_section_is_compiled():
     body = compile_content(template, _target("agent_behavior"))
 
     assert "成长循环" in body
-    assert "add_memory" in body
+    # 文件模式：成长循环写的是记忆文件，不再是记忆库写入工具。
+    assert "记忆文件" in body
 
 
 def test_agent_compiled_output_stays_within_budget():
@@ -332,17 +333,17 @@ def test_agent_compiled_output_stays_within_budget():
 
 
 def test_agent_compiled_output_states_memory_md_is_a_derived_view():
-    """MEMORY.md 是记忆库的派生视图，不能变成「把进度写进 MEMORY.md」的指令。
+    """MEMORY.md 是记忆索引，不能变成「把进度写进 MEMORY.md」的指令。
 
     Ralph 循环天然会诱发「每轮把进度写进 MEMORY.md」这类说法，而知序的
-    MEMORY.md 由记忆系统重新生成——照做只会写完即被覆盖。
+    MEMORY.md 是目录索引——正文在同目录的记忆文件里。
     """
     template = load_identity_template("AGENT.md")
     assert template is not None
 
     body = compile_content(template, _target("agent_behavior"))
 
-    assert "不是存储位置" in body
+    assert "索引" in body
     assert "保存进度到 MEMORY.md" not in body
     assert "写入 MEMORY.md" not in body
 

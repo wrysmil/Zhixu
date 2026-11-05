@@ -93,39 +93,35 @@ class TestDreamAudit:
 
 
 class TestDreamToolWhitelist:
-    def test_no_tool_can_write_memory_files(self, ws):
+    def test_no_tool_can_write_identity_files(self, ws):
         store = MemoryStore(ws)
         tools = store.build_dream_tools()
 
         for name in ("write_file", "edit_file", "apply_patch"):
             tool = tools.get(name)
-            assert tool is not None, f"{name} 应保留（技能生成需要）"
+            assert tool is not None, f"{name} 应保留（技能与记忆文件需要）"
             allowed = getattr(tool, "_extra_write_allowed_files", []) or []
             assert store.soul_file not in allowed
             assert store.user_file not in allowed
             assert (ws / "memory" / "MEMORY.md") not in allowed
-            # 写目录被限制在 skills/
+            # 写目录：skills/ + 两个记忆目录
             assert str(tool._allowed_dir).endswith("skills")
+            write_dirs = [str(p) for p in getattr(tool, "_extra_write_allowed_dirs", []) or []]
+            assert any(path.endswith("memory") for path in write_dirs)
 
     def test_draft_file_is_gone(self, ws):
         store = MemoryStore(ws)
         assert not hasattr(store, "draft_file")
         assert not (ws / "memory" / "MEMORY.md.draft").exists()
 
-    def test_memory_tools_are_registered(self, ws):
+    def test_memory_db_tools_are_not_registered(self, ws):
+        """Dream 是文件整理者：记忆库写入工具不再是它的出口。"""
         store = MemoryStore(ws)
         tools = store.build_dream_tools()
-        assert tools.get("add_memory") is not None
-        assert tools.get("memory_delete") is not None
-        assert tools.get("memory_stats") is not None
-        assert tools.get("consolidate_memory") is not None
-
-    def test_dream_memory_tools_write_as_consolidation(self, ws):
-        store = MemoryStore(ws)
-        add = store.build_dream_tools().get("add_memory")
-        assert add is not None
-        assert add.source_label == "consolidation"
-        assert add.trigger_label == "dream"
+        assert tools.get("add_memory") is None
+        assert tools.get("memory_delete") is None
+        assert tools.get("memory_stats") is None
+        assert tools.get("consolidate_memory") is None
 
     def test_legacy_draft_is_archived_not_deleted(self, ws):
         draft = ws / "memory" / "MEMORY.md.draft"
@@ -155,9 +151,11 @@ class TestDreamPrompt:
         store = MemoryStore(ws)
         prompt = store.default_dream_prompt()
         assert "MEMORY.md.draft" not in prompt
-        assert "add_memory" in prompt
+        assert "add_memory" not in prompt
 
-    def test_prompt_forbids_writing_memory_files(self, ws):
+    def test_prompt_routes_to_memory_directories(self, ws):
         store = MemoryStore(ws)
         prompt = store.default_dream_prompt()
-        assert "must not write MEMORY.md" in prompt
+        assert "Global memory directory" in prompt
+        assert "Project memory directory" in prompt
+        assert "must not write MEMORY.md" not in prompt

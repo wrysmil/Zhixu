@@ -438,6 +438,7 @@ class AgentLoop:
         active_retrieval_enabled: bool = False,
         retrieval_engine: Any | None = None,
         memory_enabled_provider: Callable[[], bool] | None = None,
+        memory_file_mode: bool = True,
     ):
         from nanobot.config.schema import ToolsConfig
 
@@ -528,7 +529,10 @@ class AgentLoop:
             active_retrieval_enabled=active_retrieval_enabled,
             retrieval_engine=retrieval_engine,
             memory_enabled_provider=memory_enabled_provider,
+            memory_file_mode=memory_file_mode,
         )
+        # 文件模式：记忆本体是文件（模型直接写），SQLite 只服务检索。
+        self._memory_file_mode = memory_file_mode
         self.sessions = session_manager or SessionManager(workspace)
         # One file-read/write tracker per logical session. The tool registry is
         # shared by this loop, so tools resolve the active state via contextvars.
@@ -770,6 +774,36 @@ class AgentLoop:
             )
             return ""
 
+    async def run_scheduled_memory_extraction(self) -> int:
+        """定时抽取：对有未消费转录的会话跑一次语义提取。
+
+        空闲触发停用后，抽取由 cron ``memory_extract``（默认 30 分钟）驱动：
+        不看用户在不在，节奏固定。返回本次实际处理的会话数。
+        """
+        provider = getattr(self, "_memory_extractor_provider", None)
+        if provider is None:
+            return 0
+        processed = 0
+        for info in self.sessions.list_sessions():
+            key = str(info.get("key") or "")
+            if not key:
+                continue
+            try:
+                session = self.sessions.read_session_snapshot(key)
+                if session is None:
+                    continue
+                extractor = provider(key)
+                result = await extractor.run_scheduled_extraction(session)
+            except Exception as exc:  # noqa: BLE001 - 单个会话失败不影响其它
+                logger.warning(
+                    "scheduled memory extraction failed for session {}: {!r}", key, exc
+                )
+                continue
+            if getattr(result, "memory_ids", None):
+                processed += 1
+        logger.info("scheduled memory extraction finished: sessions_with_memories={}", processed)
+        return processed
+
     def _wire_memory_extraction(
         self,
         memory_services: MemoryServices | None,
@@ -808,12 +842,43 @@ class AgentLoop:
         def _build_extractor(runtime: LLMRuntime, session_key: str) -> MemoryExtractor:
             # ``user_id`` 必须与 ``ScratchpadWriter`` 写入时同源（从 session_key
             # 派生），否则读取的是另一行，工作记忆快照恒为空。
-            return MemoryExtractor(
+            extractor = MemoryExtractor(
                 services.database,
                 runtime,
                 workspace_id=services.workspace_id,
                 user_id=ScratchpadWriter.user_id_for_key(session_key),
             )
+            if self._memory_file_mode:
+                # 文件模式双出口：抽取产物同时写进记忆文件。
+                setter = getattr(extractor, "set_memory_file_writer", None)
+                if callable(setter):
+                    setter(_memory_file_writer)
+            return extractor
+
+        def _memory_file_writer(memories: list[Any], session: Session) -> None:
+            """抽取产物 → 记忆文件（文件模式第二出口）。"""
+            from nanobot.memory.extract_writer import write_extracted_memories
+            from nanobot.memory.files import MemoryFileStore
+
+            scope = session.metadata.get("workspace_scope")
+            project_path: str | None = None
+            if isinstance(scope, dict):
+                raw_path = cast("dict[str, Any]", scope).get("project_path")
+                project_path = raw_path if isinstance(raw_path, str) else None
+            store = MemoryFileStore.for_project(project_path)
+            written = write_extracted_memories(store, memories)
+            if not written:
+                return
+            # USER.md 自动区的事实来源是记忆文件 → 写完刷新一次画像。
+            try:
+                from nanobot.memory.lifecycle import MemoryLifecycle
+
+                lifecycle = MemoryLifecycle.for_workspace(
+                    services.workspace_id, services, file_mode=True
+                )
+                lifecycle.refresh_user_md_sync(services.workspace_id, trigger="extraction")
+            except Exception as exc:  # noqa: BLE001 - 画像刷新失败不影响记忆写入
+                logger.warning("user profile refresh after memory write failed: {!r}", exc)
 
         def _runtime_for_key(session_key: str) -> LLMRuntime | None:
             """Resolve the session's LLM runtime; ``None`` degrades T5 to a warning."""
@@ -867,6 +932,7 @@ class AgentLoop:
                 memory_enabled_provider=_memory_enabled_provider,
                 label_provider=_session_label_for_key,
                 workspace_scope_provider=self._memory_workspace_scope_for_context,
+                memory_file_mode=self._memory_file_mode,
             )
         )
 
@@ -980,6 +1046,7 @@ class AgentLoop:
             disabled_skills=defaults.disabled_skills,
             session_ttl_minutes=defaults.session_ttl_minutes,
             idle_compact_check_interval_seconds=defaults.idle_compact_check_interval_seconds,
+            memory_file_mode=defaults.memory_file_mode,
             tools_config=config.tools,
             model_presets=preset_helpers.configured_model_presets(config),
             model_preset=defaults.model_preset,
@@ -1125,6 +1192,8 @@ class AgentLoop:
                 # 总开关关着时工具根本不注册，与 memory_search 同模式。
                 "memory_services": self._memory_services_for_tools,
                 "memory_write_enabled": self._memory_write_enabled,
+                # 文件模式：记忆本体是文件（模型直接写），记忆库写入工具撤下。
+                "memory_file_mode": self._memory_file_mode,
             },
         )
         loader = ToolLoader()
