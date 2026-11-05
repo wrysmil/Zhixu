@@ -18,10 +18,11 @@ source:
   - nanobot/memory/files.py
   - webui/src/components/workbench/SessionWorkbench.tsx
 created_at: 2026-11-05
-status: needs_review
-approved: false
+status: approved
+approved: true
+approval: 用户于 2026-11-05 回复“写计划然后执行”，确认书面方案并要求进入计划阶段；计划落盘后仍按仓库组合指令门禁暂停。
 direction_approved: true
-direction_approval: 用户在比较草图并收到推荐后说“那你执行把，必须要对接数据”。设计方向与真实数据要求已确认，书面方案尚待审阅。
+direction_approval: 用户在比较草图并收到推荐后说“那你执行把，必须要对接数据”，确认设计方向与真实数据要求；之后通过“写计划然后执行”确认书面方案。
 ---
 
 # 会话工作台：实时进展、记忆动态与技能归属
@@ -177,4 +178,4 @@ MemoryFileStore.for_project 当前以项目路径解析记忆目录；文件是�
 
 ## Next
 
-设计方向已由用户确认；书面方案等待审阅。确认方案后说“写计划”或“制定实施计划”；有调整直接指出。按 brainstorming 流程下一步进入 writing-plans，形成数据契约、实施计划与调度拆分，再按项目门禁进入实现。
+书面方案已由用户通过“写计划然后执行”确认。进入 writing-plans，形成数据契约、实施计划与调度拆分；计划落盘后按项目门禁等待单独的实现指令。
