@@ -62,6 +62,7 @@ interface MessageBubbleProps {
   message: UIMessage;
   /** The containing agent turn has not received turn_end yet. */
   isTurnStreaming?: boolean;
+  showTurnRunningStatus?: boolean;
   /** Give temporary-chat user turns the dashed private-mode treatment. */
   temporary?: boolean;
   /** When false, hide this message's copy button. Default true. */
@@ -329,6 +330,7 @@ function IncomingSessionMessage({
 export function MessageBubble({
   message,
   isTurnStreaming = false,
+  showTurnRunningStatus = true,
   temporary = false,
   showCopyAction = true,
   cliApps = [],
@@ -477,7 +479,7 @@ export function MessageBubble({
     message.role === "assistant" && !message.isStreaming && !isTurnStreaming && !empty;
   const showRunningStatus = message.role === "assistant"
     && !empty
-    && (!!message.isStreaming || isTurnStreaming);
+    && showTurnRunningStatus && (!!message.isStreaming || isTurnStreaming);
   const showCopyButton = showCopyAction && showAssistantActions;
   const showForkButton = showAssistantActions && !!onForkFromHere;
   const forkLabel = t("message.forkFromHere");

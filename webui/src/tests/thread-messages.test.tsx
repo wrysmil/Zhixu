@@ -16,6 +16,20 @@ afterEach(() => {
 });
 
 describe("ThreadMessages", () => {
+  it("shows the running status only at the current end of a turn", () => {
+    const turnId = "active-turn";
+    const messages: UIMessage[] = [
+      { id: "u", role: "user", content: "Inspect", turnId, createdAt: 1 },
+      { id: "a1", role: "assistant", content: "First update", turnId, turnSeq: 1, createdAt: 2 },
+      { id: "t1", role: "tool", kind: "trace", content: "exec()", traces: ["exec()"], turnId, turnSeq: 2, createdAt: 3 },
+      { id: "a2", role: "assistant", content: "Second update", turnId, turnSeq: 3, createdAt: 4 },
+      { id: "t2", role: "tool", kind: "trace", content: "search()", traces: ["search()"], turnId, turnSeq: 4, createdAt: 5 },
+    ];
+    const { rerender } = render(<ThreadMessages messages={messages} isStreaming activeTurnId={turnId} />);
+    expect(screen.queryAllByTestId("assistant-running-status")).toHaveLength(0);
+    rerender(<ThreadMessages messages={[...messages, { id: "a3", role: "assistant", content: "Final update", turnId, turnSeq: 5, createdAt: 6, isStreaming: true }]} isStreaming activeTurnId={turnId} />);
+    expect(screen.getAllByTestId("assistant-running-status")).toHaveLength(1);
+  });
   it.each([0, -13_000, -14_000, -15_000, 15_000])(
     "keeps the optimistic timer through acknowledgement and output with %i ms server clock skew",
     (clockSkewMs) => {

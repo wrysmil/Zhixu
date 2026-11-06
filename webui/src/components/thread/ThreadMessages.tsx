@@ -157,6 +157,7 @@ export function ThreadMessages({
             userPromptId={userPromptId}
             hasBodyBelow={hasBodyBelow}
             deferOffscreenRender={deferOffscreenRender}
+            showTurnRunningStatus={index === units.length - 1}
             isTurnStreaming={
               unit.type === "activity"
                 ? liveActivityClusterIndices.has(index)
@@ -254,6 +255,7 @@ interface ThreadDisplayUnitProps {
   hasBodyBelow: boolean;
   deferOffscreenRender: boolean;
   isTurnStreaming: boolean;
+  showTurnRunningStatus: boolean;
   retryStatus: RetryStatus | null;
   forkIndex?: number;
   showForkBoundary: boolean;
@@ -275,6 +277,7 @@ const ThreadDisplayUnit = memo(function ThreadDisplayUnit({
   hasBodyBelow,
   deferOffscreenRender,
   isTurnStreaming,
+  showTurnRunningStatus,
   retryStatus,
   forkIndex,
   showForkBoundary,
@@ -320,6 +323,7 @@ const ThreadDisplayUnit = memo(function ThreadDisplayUnit({
           <MessageBubble
             message={unit.message}
             isTurnStreaming={isTurnStreaming}
+            showTurnRunningStatus={showTurnRunningStatus}
             temporary={temporary}
             cliApps={cliApps}
             mcpPresets={mcpPresets}
@@ -346,6 +350,7 @@ function threadDisplayUnitPropsEqual(
     && previous.hasBodyBelow === next.hasBodyBelow
     && previous.deferOffscreenRender === next.deferOffscreenRender
     && previous.isTurnStreaming === next.isTurnStreaming
+    && previous.showTurnRunningStatus === next.showTurnRunningStatus
     && previous.retryStatus === next.retryStatus
     && previous.forkIndex === next.forkIndex
     && previous.showForkBoundary === next.showForkBoundary
