@@ -140,6 +140,35 @@ function installReducedMotion() {
 }
 
 describe("AgentActivityCluster", () => {
+  it("retains retry exhaustion without activity or a running turn", () => {
+    render(<AgentActivityCluster messages={[]} isTurnStreaming={false} hasBodyBelow={false} retryStatus={{ state: "exhausted", attempt: 3, error_kind: "timeout" }} />);
+    expect(screen.getByText(/Model timed out.*ending turn/)).toBeVisible();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it.each(["no-body", "error", "detail", "scroll", "manual", "retry-exhausted"])("keeps completed activity open after %s", (reason) => {
+    vi.useFakeTimers();
+    try {
+      const messages = activityMessages();
+      if (reason === "error") messages[1].toolEvents = [{ phase: "error", call_id: "failed", name: "search", error: "failed" }];
+      const retryStatus = reason === "retry-exhausted" ? { state: "exhausted" as const, attempt: 3, error_kind: "timeout" as const } : null;
+      const { rerender } = render(<AgentActivityCluster messages={messages} isTurnStreaming hasBodyBelow={reason !== "no-body"} retryStatus={retryStatus} />);
+      if (reason === "detail") fireEvent.click(screen.getAllByTestId("activity-step-details-toggle")[0]);
+      if (reason === "scroll") {
+        const pane = screen.getByTestId("agent-activity-scroll");
+        setScrollGeometry(pane, { scrollHeight: 900, clientHeight: 200, scrollTop: 100 });
+        fireEvent.scroll(pane);
+      }
+      if (reason === "manual") {
+        const outer = document.querySelector<HTMLButtonElement>("[data-thread-disclosure]")!;
+        fireEvent.click(outer); fireEvent.click(outer);
+      }
+      rerender(<AgentActivityCluster messages={messages} isTurnStreaming={false} hasBodyBelow={reason !== "no-body"} retryStatus={retryStatus} />);
+      act(() => vi.advanceTimersByTime(500));
+      expect(document.querySelector("[data-thread-disclosure]")).toHaveAttribute("aria-expanded", "true");
+    } finally { vi.useRealTimers(); }
+  });
+
   it("shows model retries in the existing live activity header", () => {
     render(
       <AgentActivityCluster
@@ -410,7 +439,7 @@ describe("AgentActivityCluster", () => {
     await waitFor(() => expect(marker).toHaveClass("animate-in"));
   });
 
-  it("expands the full reasoning text while thinking and collapses it once done", () => {
+  it("previews reasoning and preserves explicitly opened full text after completion", () => {
     const liveReasoning: UIMessage = {
       id: "r-expand",
       role: "assistant",
@@ -429,7 +458,9 @@ describe("AgentActivityCluster", () => {
     );
 
     const toggle = screen.getByTestId("activity-step-details-toggle");
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-controls");
     expect(screen.getByTestId("activity-step-detail")).toHaveTextContent("step two");
 
     rerender(
@@ -446,9 +477,9 @@ describe("AgentActivityCluster", () => {
 
     expect(screen.getByTestId("activity-step-details-toggle")).toHaveAttribute(
       "aria-expanded",
-      "false",
+      "true",
     );
-    expect(screen.queryByTestId("activity-step-detail")).not.toBeInTheDocument();
+    expect(screen.getByTestId("activity-step-detail")).toHaveTextContent("step three");
   });
 
   it("briefly shows completed activity, then auto-collapses before the answer", () => {
@@ -498,32 +529,6 @@ describe("AgentActivityCluster", () => {
     }
   });
 
-  it("keeps chevron color feedback faster than the drawer rotation", () => {
-    render(
-      <AgentActivityCluster
-        messages={[{
-          id: "r-motion",
-          role: "assistant",
-          content: "",
-          reasoning: "checking motion",
-          createdAt: 1,
-        }]}
-        isTurnStreaming={false}
-        hasBodyBelow
-      />,
-    );
-
-    const button = screen.getByRole("button", { name: "Worked" });
-    expect(button).toHaveAttribute("data-thread-disclosure");
-    const chevron = button.querySelector("svg");
-    expect(chevron).toBeInTheDocument();
-    expect(chevron).toHaveClass("transition-colors", "duration-200");
-    expect(chevron?.parentElement).toHaveClass(
-      "transition-transform",
-      "[transition-duration:220ms]",
-    );
-  });
-
   it("uses persisted turn latency for completed history instead of replay timestamps", () => {
     render(
       <AgentActivityCluster
@@ -540,7 +545,7 @@ describe("AgentActivityCluster", () => {
       />,
     );
 
-    expect(screen.getByText("Worked for 12s")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Worked for 12s" })).toBeInTheDocument();
   });
 
   it("labels mixed tool activity as work instead of thought", () => {
@@ -553,7 +558,7 @@ describe("AgentActivityCluster", () => {
       />,
     );
 
-    expect(screen.getByText("Worked for 12s")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Worked for 12s" })).toBeInTheDocument();
     expect(screen.queryByText("Thought for 12s")).not.toBeInTheDocument();
   });
 
@@ -572,7 +577,7 @@ describe("AgentActivityCluster", () => {
       />,
     );
 
-    expect(screen.getByText("Worked")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Worked" })).toBeInTheDocument();
     expect(screen.queryByText("Worked for 0s")).not.toBeInTheDocument();
   });
 
@@ -1384,17 +1389,16 @@ describe("AgentActivityCluster", () => {
       />,
     );
 
-    expect(screen.getByTestId("activity-step-detail"))
-      .toHaveTextContent("**Planning** a focused search for official sources");
-    expect(screen.getByText("Thinking…")).toBeInTheDocument();
+    expect(screen.queryByTestId("activity-step-detail")).not.toBeInTheDocument();
+    expect(screen.getByText("Planning a focused search for official sources")).toBeInTheDocument();
     expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
     const thinkingKicker = screen.getByTestId("activity-kicker");
     expect(thinkingKicker).toHaveTextContent("Reasoning");
     expect(thinkingKicker).toHaveAttribute("data-tone", "active");
-    expect(thinkingKicker.className).toContain("text-sky-700");
+
   });
 
-  it("colors finished activity kickers green and failed ones red", () => {
+  it("distinguishes finished and failed activity with status text", () => {
     const { rerender } = render(
       <AgentActivityCluster
         messages={[{
@@ -1412,7 +1416,7 @@ describe("AgentActivityCluster", () => {
 
     const doneKicker = screen.getByTestId("activity-kicker");
     expect(doneKicker).toHaveAttribute("data-tone", "success");
-    expect(doneKicker.className).toContain("text-emerald-700");
+    expect(doneKicker).toHaveTextContent("Terminal");
 
     rerender(
       <AgentActivityCluster
@@ -1624,7 +1628,8 @@ describe("AgentActivityCluster", () => {
     );
 
     expect(screen.queryByTestId("activity-web-favicon-localhost")).not.toBeInTheDocument();
-    expect(screen.getByText("Reading Private address")).toBeInTheDocument();
+    expect(screen.getByText("Reading")).toBeInTheDocument();
+    expect(screen.getByText("Private address")).toBeInTheDocument();
     expect(screen.queryByText("http://localhost:3000/dashboard")).not.toBeInTheDocument();
   });
 
@@ -1649,7 +1654,8 @@ describe("AgentActivityCluster", () => {
     );
 
     expect(screen.getByText("Found files *.tsx")).toBeInTheDocument();
-    expect(screen.getByText("Listed files memory")).toBeInTheDocument();
+    expect(screen.getByText("Listed files")).toBeInTheDocument();
+    expect(screen.getByText("memory")).toBeInTheDocument();
     expect(screen.getByText("Searching files “dream_cursor”")).toBeInTheDocument();
     expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
     expect(document.querySelector("details")).not.toBeInTheDocument();
@@ -1725,7 +1731,7 @@ describe("AgentActivityCluster", () => {
     );
     expect(row).toBeInTheDocument();
     expect(row).not.toHaveAttribute("title");
-    expect(screen.queryByText(/Permission denied/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Permission denied/)).toBeVisible();
     expect(screen.queryByText(/super-secret/)).not.toBeInTheDocument();
     expect(screen.queryByText(/sk-live-secret/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Authorization/)).not.toBeInTheDocument();
@@ -1780,7 +1786,8 @@ describe("AgentActivityCluster", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Worked" }));
 
-    expect(screen.getByText("Ran command cat << 'EOF' | bash · script, 6 lines")).toBeInTheDocument();
+    expect(screen.getByText("Ran command")).toBeInTheDocument();
+    expect(screen.getByText("cat << 'EOF' | bash · script, 6 lines")).toBeInTheDocument();
     expect(screen.queryByText(/SECRET_TOKEN/)).not.toBeInTheDocument();
     expect(screen.queryByText(/for id in/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Done$/)).not.toBeInTheDocument();
@@ -2210,7 +2217,7 @@ describe("AgentActivityCluster", () => {
     );
     expect(row).toBeInTheDocument();
     expect(row).not.toHaveAttribute("title");
-    expect(screen.queryByText("Image provider quota exceeded")).not.toBeInTheDocument();
+    expect(screen.getByText("Image provider quota exceeded")).toBeVisible();
   });
 
   it("does not add a secondary evidence row when evidence is missing", () => {

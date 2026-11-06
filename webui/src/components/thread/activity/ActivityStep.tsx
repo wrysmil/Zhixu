@@ -1,20 +1,13 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ChevronRight, type LucideIcon } from "lucide-react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { ChevronRight, LoaderCircle, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { StreamingLabelSheen } from "@/components/MessageBubble";
 import { cn } from "@/lib/utils";
 
 export type ActivityStepTone = "neutral" | "active" | "success" | "error";
 
-/** 状态色只落在过程徽标上：绿=已完成，蓝=进行中，红=失败，其余保持石墨中性。 */
+/** 仅错误使用语义色，运行与完成采用中性文字。 */
 function kickerToneClassName(tone: ActivityStepTone): string {
-  if (tone === "success") {
-    return "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/[0.12] dark:text-emerald-300";
-  }
-  if (tone === "active") {
-    return "border-sky-500/30 bg-sky-500/[0.08] text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/[0.12] dark:text-sky-300";
-  }
   if (tone === "error") {
     return "border-destructive/30 bg-destructive/[0.06] text-destructive";
   }
@@ -28,6 +21,10 @@ export interface ActivityStepProps {
   kicker?: ReactNode;
   label: ReactNode;
   ariaLabel?: string;
+  previewMeta?: ReactNode;
+  previewTitle?: string;
+  /** Visible failure summary, kept outside truncated previews. */
+  errorSummary?: ReactNode;
   active?: boolean;
   tone?: ActivityStepTone;
   detail?: ReactNode;
@@ -50,6 +47,9 @@ export function ActivityStep({
   kicker,
   label,
   ariaLabel,
+  previewMeta,
+  previewTitle,
+  errorSummary,
   active = false,
   tone = active ? "active" : "neutral",
   detail,
@@ -65,6 +65,7 @@ export function ActivityStep({
 }: ActivityStepProps) {
   const { t } = useTranslation();
   const [internalDetailOpen, setInternalDetailOpen] = useState(false);
+  const detailId = useId();
   const detailOpen = detailExpanded ?? internalDetailOpen;
   const setDetailOpen = (open: boolean) => {
     setInternalDetailOpen(open);
@@ -82,7 +83,7 @@ export function ActivityStep({
       data-testid="activity-step"
       aria-label={ariaLabel}
       className={cn(
-        "relative grid min-w-0 grid-cols-[1.125rem_minmax(0,1fr)] gap-2 py-1 text-[14px] leading-6",
+        "relative grid min-w-0 grid-cols-[1.125rem_minmax(0,1fr)] gap-2 py-1 text-[13px] font-normal leading-5",
         className,
       )}
       style={style}
@@ -93,12 +94,12 @@ export function ActivityStep({
         )}
         aria-hidden
       >
-        {marker ?? (
+        {marker ?? (active ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground motion-reduce:animate-none" aria-hidden="true" /> : (
           <span
             className={cn(
               "grid h-3.5 w-3.5 place-items-center rounded-full border bg-background transition-colors",
               tone === "active" && "border-muted-foreground/28 text-muted-foreground/72",
-              tone === "success" && "border-emerald-500/28 text-emerald-500/78",
+              tone === "success" && "border-border text-muted-foreground",
               tone === "error" && "border-transparent bg-transparent text-destructive",
               tone === "neutral" && "border-muted-foreground/18 text-muted-foreground/50",
               markerClassName,
@@ -118,7 +119,7 @@ export function ActivityStep({
               <Icon className="h-2.5 w-2.5" strokeWidth={2.15} />
             ) : null}
           </span>
-        )}
+        ))}
       </span>
       <div className={cn("min-w-0", contentClassName)}>
         <div
@@ -138,35 +139,33 @@ export function ActivityStep({
               {kicker}
             </span>
           ) : null}
-          {active ? (
-            <StreamingLabelSheen
-              active
-              className={cn("min-w-0 flex-1 font-medium text-foreground/90", labelClassName)}
-            >
-              {label}
-            </StreamingLabelSheen>
-          ) : (
-            <span className={cn(
-              "min-w-0 flex-1 break-words font-medium",
-              tone === "error" ? "text-destructive" : "text-foreground/80",
-              labelClassName,
-            )}>
-              {label}
-            </span>
-          )}
+          <div className="min-w-0 flex-1">
+            <span className={cn("block break-words [overflow-wrap:anywhere] font-normal", detail && !detailOpen && "line-clamp-2", active && "font-medium", tone === "error" ? "text-destructive" : "text-foreground/80", labelClassName)}>{label}</span>
+            {previewMeta ? <span title={previewTitle} className="block line-clamp-2 break-words [overflow-wrap:anywhere] font-mono text-[12px] leading-[18px] text-muted-foreground">{previewMeta}</span> : null}
+            {errorSummary ? (
+              <p className="break-words [overflow-wrap:anywhere] text-[12px] font-normal leading-[18px] text-destructive">
+                {errorSummary}
+              </p>
+            ) : null}
+          </div>
           {detail ? (
             <button
               type="button"
               aria-expanded={detailOpen}
+              aria-controls={detailId}
               data-testid="activity-step-details-toggle"
-              onClick={() => setDetailOpen(!detailOpen)}
+              onClick={(event) => {
+                const open = !detailOpen;
+                setDetailOpen(open);
+                if (open) event.currentTarget.dispatchEvent(new Event("activity-detail-open", { bubbles: true }));
+              }}
               className={cn(
-                "ml-auto inline-flex min-h-6 shrink-0 cursor-pointer items-center gap-0.5 appearance-none border-0 bg-transparent p-0 text-[12px] font-normal",
+                "ml-auto inline-flex min-h-11 sm:min-h-8 shrink-0 cursor-pointer items-center gap-0.5 appearance-none border-0 bg-transparent p-0 text-[12px] font-normal",
                 "text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
               )}
             >
               <ChevronRight
-                className={cn("h-3 w-3 transition-transform duration-150", detailOpen && "rotate-90")}
+                className={cn("h-3 w-3 transition-transform duration-200 motion-reduce:transition-none", detailOpen && "rotate-90")}
                 aria-hidden
               />
               {detailOpen
@@ -177,11 +176,12 @@ export function ActivityStep({
         </div>
         {detail && detailOpen ? (
           <div
+            id={detailId}
             data-testid="activity-step-detail"
             ref={detailBoxRef}
             className={cn(
-              "mt-2 max-h-96 min-w-0 overflow-y-auto whitespace-pre-wrap break-words rounded-control",
-              "border border-border/60 bg-background/60 px-3 py-3 text-[14px] leading-6 text-foreground/85",
+              "mt-2 min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
+              "border-l border-border pl-3 py-1 text-[13px] font-normal leading-5 text-foreground/85 [&_code]:text-[12px] [&_code]:leading-[18px] [&_pre]:text-[12px] [&_pre]:leading-[18px]",
               "scrollbar-thin scrollbar-track-transparent",
               detailClassName,
             )}

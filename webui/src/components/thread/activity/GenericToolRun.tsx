@@ -9,7 +9,7 @@ import {
 import { useMemo } from "react";
 
 import { ActivityStep } from "@/components/thread/activity/ActivityStep";
-import { safeActivityDetail } from "@/components/thread/activity/activity-text";
+import { activityPathPreview, redactActivityText } from "@/components/thread/activity/activity-text";
 import {
   describeGenericToolRun,
   type GenericToolRunItem,
@@ -32,13 +32,22 @@ export function GenericToolRun({ items }: { items: GenericToolRunItem[] }) {
   const label = model.aside ? `${action} · ${model.aside}` : action;
   const failed = model.status === "error";
 
+  const errorSummary = failed ? items.filter(item => item.status === "error" && item.error)
+    .map(item => activityErrorSummary(item.error!)).join(" · ") : "";
+  const pathField = items.length === 1 && (items[0].trace.family === "read" || items[0].trace.family === "list")
+    ? items[0].trace.fields.find(field => field.key === "path" || field.key === "file_path")
+    : undefined;
+
   return (
     <ActivityStep
       icon={failed ? undefined : model.icon}
       kicker={model.kicker}
       active={model.status === "running"}
       tone={failed ? "error" : model.status === "done" ? "success" : "active"}
-      label={label}
+      label={pathField ? model.label : label}
+      previewMeta={pathField ? activityPathPreview(pathField.value) : undefined}
+      errorSummary={errorSummary || undefined}
+      previewTitle={pathField ? redactActivityText(pathField.value) : undefined}
       detail={items.length ? <GenericToolDetail items={items} /> : null}
     />
   );
@@ -56,12 +65,12 @@ function GenericToolDetail({ items }: { items: GenericToolRunItem[] }) {
           {item.trace.fields.length > 0 ? (
             <span>
               {`(${item.trace.fields
-                .map((field) => `${field.key}: ${safeActivityDetail(field.value, 240)}`)
+                .map((field) => `${field.key}: ${redactActivityText(field.value)}`)
                 .join(", ")})`}
             </span>
           ) : null}
           {item.status === "error" && item.error ? (
-            <span className="text-destructive/85"> · {safeActivityDetail(item.error, 240)}</span>
+            <span className="text-destructive/85"> · {redactActivityText(item.error)}</span>
           ) : null}
         </div>
       ))}
@@ -84,4 +93,16 @@ function activityIcon(family: ToolFamily): LucideIcon {
   if (family === "read") return FolderOpen;
   if (family === "memory") return MemoryStick;
   return Play;
+}
+
+function activityErrorSummary(error: string): string {
+  try {
+    const parsed: unknown = JSON.parse(error);
+    if (parsed && typeof parsed === "object" && "message" in parsed && typeof parsed.message === "string") {
+      return redactActivityText(parsed.message);
+    }
+  } catch {
+    // Plain-text tool errors are already suitable for the summary.
+  }
+  return redactActivityText(error);
 }

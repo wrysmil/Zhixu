@@ -66,3 +66,17 @@ function truncateMiddle(value: string, maxLength: number): string {
   const tail = Math.floor((maxLength - 1) * 0.38);
   return `${value.slice(0, head)}…${value.slice(-tail)}`;
 }
+
+/** Preview only: retain the complete basename; callers keep the original for details. */
+export function activityPathPreview(value: string, maxLength = 72): string {
+  const redacted = redactActivityText(value);
+  const basename = redacted.replaceAll("\\", "/").split("/").at(-1) ?? "";
+  if (/^\/private\/tmp\//.test(redacted)) return `/tmp/…/${basename}`;
+  if (/^\/var\/folders\//.test(redacted)) return `/var/folders/…/${basename}`;
+  const path = compactActivityPath(redacted);
+  if (path.length <= maxLength) return path;
+  const parts = path.replaceAll("\\", "/").split("/");
+  if (parts.length < 2) return path;
+  const tail = parts.slice(-2).join("/");
+  return `…/${tail.length + 2 <= maxLength ? tail : parts.at(-1)}`;
+}

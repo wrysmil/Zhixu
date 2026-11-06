@@ -26,6 +26,8 @@ import { ActivityStep } from "@/components/thread/activity/ActivityStep";
 import { coalesceActivityMessages } from "@/components/thread/activity/activity-message-model";
 import {
   compactActivityPath,
+  activityPathPreview,
+  redactActivityText,
   redactShellCommand,
   safeActivityDetail,
 } from "@/components/thread/activity/activity-text";
@@ -210,6 +212,9 @@ export function AgentActivityCluster({
 
   const [userToggledOuter, setUserToggledOuter] = useState(false);
   const [outerOpenLocal, setOuterOpenLocal] = useState(false);
+  const [inspectingDetails, setInspectingDetails] = useState(false);
+  const hasActivityError = retryStatus?.state === "exhausted" || cliRuns.some(run => run.status === "error") || mcpRuns.some(run => run.status === "error") || fileEdits.some(edit => edit.status === "error") || activityMessages.some(message => message.toolEvents?.some(event => event.phase === "error"));
+  const preserveDetails = inspectingDetails || hasActivityError || !hasBodyBelow;
   const [completionHoldOpen, setCompletionHoldOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [activityScrollFade, setActivityScrollFade] = useState({ top: false, bottom: false });
@@ -222,7 +227,7 @@ export function AgentActivityCluster({
   /** Live work stays open; completed work briefly shows the done state, then tucks away. */
   const outerExpanded = userToggledOuter
     ? outerOpenLocal
-    : isTurnStreaming || completionHoldOpen || (wasTurnStreaming && !isTurnStreaming);
+    : isTurnStreaming || preserveDetails || completionHoldOpen || (wasTurnStreaming && !isTurnStreaming);
 
   const hasVisibleActivity = reasoningSteps > 0 || toolCalls > 0 || modelSegments > 0 || cliCount > 0 || mcpCount > 0 || fileCount > 0;
   const hasOnlyFileActivity = fileCount > 0 && activityMessages.every(messageHasOnlyFileActivity);
@@ -357,21 +362,29 @@ export function AgentActivityCluster({
       setCompletionHoldOpen(false);
       return undefined;
     }
-    if (!wasStreaming || userToggledOuter) return undefined;
+    if (!wasStreaming || userToggledOuter || preserveDetails) return undefined;
     setCompletionHoldOpen(true);
     const timeout = window.setTimeout(() => setCompletionHoldOpen(false), 300);
     return () => window.clearTimeout(timeout);
-  }, [isTurnStreaming, userToggledOuter]);
+  }, [isTurnStreaming, userToggledOuter, preserveDetails]);
 
   const onActivityScroll = useCallback(() => {
     const el = activityScrollRef.current;
     if (!el) return;
     const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
     autoFollowActivityRef.current = distance < ACTIVITY_SCROLL_NEAR_BOTTOM_PX;
+    if (!autoFollowActivityRef.current) setInspectingDetails(true);
     syncActivityScrollFade();
   }, [syncActivityScrollFade]);
 
-  if (!hasVisibleActivity && !isTurnStreaming) return null;
+  useEffect(() => {
+    const content = activityContentRef.current;
+    const keepOpen = () => setInspectingDetails(true);
+    content?.addEventListener("activity-detail-open", keepOpen);
+    return () => content?.removeEventListener("activity-detail-open", keepOpen);
+  }, [hasVisibleActivity]);
+
+  if (!hasVisibleActivity && !isTurnStreaming && retryStatus?.state !== "exhausted") return null;
 
   if (hasOnlyFileActivity) {
     return (
@@ -390,7 +403,11 @@ export function AgentActivityCluster({
       <ThinkingReasoningShell
         active={isTurnStreaming}
         expanded={outerExpanded}
-        label={activityLabel}
+        label={retryStatus ? activityLabel : isTurnStreaming ? t("message.activityWorking", { defaultValue: "Working" }) : t("message.activityWorked", { defaultValue: "Worked" })}
+        accessibleLabel={activityLabel}
+        duration={!retryStatus && durationMs > 0 ? activityDuration : undefined}
+        announcement={retryStatus?.state === "waiting" ? `${retryError} · ${retryAttempt}` : retryStatus?.state === "exhausted" ? retryError : isTurnStreaming ? t("message.activityWorking", { defaultValue: "Working" }) : t("message.activityWorked", { defaultValue: "Worked" })}
+        error={hasActivityError}
         viewportRef={activityScrollRef}
         contentRef={activityContentRef}
         fadeTop={activityScrollFade.top}
@@ -564,8 +581,7 @@ function ActivityModelMessage({
     <div
       data-testid="activity-model-message"
       data-assistant-selectable={active && message.isStreaming ? undefined : "true"}
-      className="w-full min-w-0 py-1 text-[14px]"
-      style={{ lineHeight: "var(--cjk-line-height)" }}
+      className="w-full min-w-0 py-1 text-[13px] leading-5"
     >
       <div className="mb-1 flex items-center gap-2">
         <span
@@ -845,10 +861,12 @@ function ActivityTraceRow({
       kicker={trace.kicker}
       active={rowActive && trace.kind !== "done"}
       tone={status === "error" ? "error" : status === "done" ? "success" : "active"}
-      label={[trace.label, trace.detail].filter(Boolean).join(" ")}
+      label={trace.label}
+      previewMeta={trace.detail && /[\\/]/.test(trace.detail) ? activityPathPreview(trace.detail) : trace.detail}
+      previewTitle={redactActivityText(line)}
       detail={[
-        safeActivityDetail(line, 600),
-        status === "error" && state?.error ? `→ ${safeActivityDetail(state.error, 240)}` : "",
+        redactActivityText(line),
+        status === "error" && state?.error ? `→ ${redactActivityText(state.error)}` : "",
       ].filter(Boolean).join("\n") || null}
     />
   );

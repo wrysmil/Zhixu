@@ -1,5 +1,5 @@
-import { ChevronDown, LoaderCircle } from "lucide-react";
-import type { ReactNode, Ref } from "react";
+import { Check, CircleAlert, ChevronDown, LoaderCircle } from "lucide-react";
+import { useId, type ReactNode, type Ref } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -7,6 +7,10 @@ interface ThinkingReasoningShellProps {
   active: boolean;
   expanded: boolean;
   label: string;
+  accessibleLabel?: string;
+  duration?: string;
+  announcement?: string;
+  error?: boolean;
   children: ReactNode;
   viewportRef: Ref<HTMLDivElement>;
   contentRef: Ref<HTMLDivElement>;
@@ -21,6 +25,10 @@ export function ThinkingReasoningShell({
   active,
   expanded,
   label,
+  accessibleLabel,
+  duration,
+  announcement,
+  error = false,
   children,
   viewportRef,
   contentRef,
@@ -30,81 +38,38 @@ export function ThinkingReasoningShell({
   onToggle,
   onScroll,
 }: ThinkingReasoningShellProps) {
+  const detailsId = useId();
   const statusLabel = (
     <>
       {active ? (
-        <LoaderCircle
-          data-testid="activity-running-indicator"
-          className="h-4 w-4 shrink-0 animate-spin text-sky-500 motion-reduce:animate-none dark:text-sky-400"
-          strokeWidth={2}
-          aria-hidden="true"
-        />
-      ) : null}
-      <span
-        className={cn(
-          "min-w-0 truncate",
-          active ? "text-[15px] font-semibold text-foreground" : "text-[14px] font-medium text-muted-foreground",
-        )}
-      >
-        {label}
-      </span>
+        <LoaderCircle data-testid="activity-running-indicator" className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground", (!expanded || !hasDetails) && "animate-spin motion-reduce:animate-none")} aria-hidden="true" />
+      ) : error ? <CircleAlert className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" /> : <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+      <span className={cn("min-w-0 break-words text-[13px] font-medium leading-5", error ? "text-destructive" : "text-foreground/80")}>{label}</span>
+      {duration ? <span className="shrink-0 text-[12px] font-normal leading-[18px] tabular-nums text-muted-foreground">· {duration}</span> : null}
     </>
   );
-
+  const status = <span role="status" className="sr-only">{announcement ?? ""}</span>;
   if (!hasDetails) {
-    // No activity yet: a compact pill reads as "work in progress" instead of an
-    // empty framed box, and keeps the running state impossible to miss.
-    return (
-      <div
-        className="flex w-full flex-col"
-        data-state={active ? "thinking" : "done"}
-      >
-        <div
-          className={cn(
-            "inline-flex w-fit max-w-full items-center gap-2 self-start rounded-full px-3 py-1.5",
-            active
-              ? "bg-sky-500/[0.08] text-foreground ring-1 ring-inset ring-sky-500/30 dark:bg-sky-400/[0.12] dark:ring-sky-400/30"
-              : "bg-muted/60 text-muted-foreground ring-1 ring-inset ring-border/50",
-          )}
-          role="status"
-          aria-label={label}
-          aria-live={active ? "polite" : undefined}
-        >
-          {statusLabel}
-        </div>
-      </div>
-    );
+    return <div className="flex w-full flex-col" data-state={active ? "thinking" : "done"}>
+      {status}
+      <div className="inline-flex max-w-full flex-wrap items-center gap-2 py-1">{statusLabel}</div>
+    </div>;
   }
-
   return (
-    <div
-      className={cn(
-        "relative flex w-full flex-col",
-        expanded && "overflow-hidden rounded-2xl bg-muted/30 px-3 pb-3 pt-2.5 ring-1 ring-inset ring-border/45 sm:px-4 sm:pb-4",
-      )}
-      data-state={active ? "thinking" : "done"}
-    >
-      {active && expanded ? (
-        <span
-          data-testid="activity-running-sweep"
-          className="pointer-events-none absolute inset-x-0 top-0 h-[2px] overflow-hidden"
-          aria-hidden
-        >
-          <span className="activity-running-sweep block h-full w-1/3 bg-gradient-to-r from-transparent via-sky-500 to-transparent dark:via-sky-400" />
-        </span>
-      ) : null}
+    <div className="relative flex w-full min-w-0 flex-col" data-state={active ? "thinking" : "done"}>
+      {status}
       <button
         type="button"
         data-thread-disclosure=""
         className={cn(
-          "group inline-flex min-h-7 w-full items-center gap-2 rounded-lg bg-transparent p-0 text-left",
+          "group inline-flex min-h-11 sm:min-h-8 w-full cursor-pointer flex-wrap items-center gap-2 rounded-lg bg-transparent p-0 text-left",
           "transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
-          expanded && "-mx-2 px-2",
+
         )}
         onClick={onToggle}
         aria-expanded={expanded}
-        aria-label={label}
-        aria-live={active ? "polite" : undefined}
+        aria-label={accessibleLabel ?? label}
+        aria-controls={detailsId}
       >
         {statusLabel}
         <span
@@ -126,6 +91,7 @@ export function ThinkingReasoningShell({
       </button>
 
       <div
+        id={detailsId}
         {...(!expanded ? { inert: "" } : {})}
         aria-hidden={!expanded}
         className={cn(
@@ -142,9 +108,9 @@ export function ThinkingReasoningShell({
             data-fade-top={fadeTop}
             data-fade-bottom={fadeBottom}
             onScroll={onScroll}
-            className="mt-2.5 max-h-[min(55vh,28rem)] overflow-y-auto pr-1 scrollbar-thin scrollbar-track-transparent"
+            className="mt-2 max-h-[min(55vh,28rem)] overflow-y-auto pr-1 scrollbar-thin scrollbar-track-transparent"
           >
-            <div ref={contentRef} className="flex flex-col gap-1">
+            <div ref={contentRef} className="flex flex-col gap-1 [&_[data-testid=activity-step]]:before:absolute [&_[data-testid=activity-step]]:before:bottom-0 [&_[data-testid=activity-step]]:before:left-[8px] [&_[data-testid=activity-step]]:before:top-5 [&_[data-testid=activity-step]]:before:border-l [&_[data-testid=activity-step]]:before:border-border">
               {children}
             </div>
           </div>

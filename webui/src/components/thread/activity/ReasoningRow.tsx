@@ -25,12 +25,12 @@ export function ReasoningRow({
     : t("message.reasoningDone", { defaultValue: "Thought" });
   const preview = compactReasoningPreview(text) || fallback;
   const detail = text.trim() ? text : undefined;
-  const [expanded, setExpanded] = useState(streaming);
+  const [expanded, setExpanded] = useState(false);
   const userToggledRef = useRef(false);
 
   useEffect(() => {
     if (userToggledRef.current) return;
-    setExpanded(streaming);
+    if (!streaming) setExpanded(false);
   }, [streaming]);
 
   return (
@@ -43,7 +43,7 @@ export function ReasoningRow({
       labelClassName="text-foreground/85"
       contentClassName="overflow-hidden"
       detail={detail}
-      detailClassName="max-h-none overflow-visible rounded-none border-0 border-l-2 border-primary/25 bg-transparent py-1 pl-3 pr-0"
+      detailClassName="max-h-none overflow-visible rounded-none border-0 border-l border-border bg-transparent py-1 pl-3 pr-0"
       detailExpanded={detail ? expanded : undefined}
       detailFollowBottom={streaming}
       onDetailExpandedChange={
@@ -79,7 +79,7 @@ function ReasoningMarker({ streaming }: { streaming: boolean }) {
       <CircleDashed
         data-testid="activity-reasoning-marker"
         data-state="thinking"
-        className="h-3.5 w-3.5 shrink-0 animate-spin text-sky-500 motion-reduce:animate-none dark:text-sky-400"
+        className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none"
         strokeWidth={1.8}
         aria-hidden
       />
@@ -90,10 +90,10 @@ function ReasoningMarker({ streaming }: { streaming: boolean }) {
       data-testid="activity-reasoning-marker"
       data-state="done"
       className={cn(
-        "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border border-emerald-500/28 text-emerald-500/78",
-        "bg-emerald-500/[0.035] transition-[border-color,background-color,box-shadow,transform] duration-300 ease-out",
+        "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border border-border text-muted-foreground",
+        "bg-background transition-[border-color,background-color,box-shadow,transform] duration-300 ease-out",
         justCompleted
-          && "animate-in fade-in-0 zoom-in-75 shadow-[0_0_0_3px_rgba(16,185,129,0.10)] motion-reduce:animate-none",
+          && "animate-in fade-in-0 zoom-in-75 motion-reduce:animate-none",
       )}
       aria-hidden
     >

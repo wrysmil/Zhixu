@@ -22,6 +22,29 @@ function renderShell(expanded: boolean) {
 }
 
 describe("ThinkingReasoningShell", () => {
+  it("connects the disclosure to its controlled content", () => {
+    renderShell(true);
+    const button = screen.getByRole("button", { name: "Thought" });
+    expect(button).toHaveAttribute("aria-controls");
+    expect(document.getElementById(button.getAttribute("aria-controls")!)).toContainElement(screen.getByRole("button", { name: "Hidden action" }));
+  });
+
+  it("announces semantic state without elapsed time", () => {
+    render(<ThinkingReasoningShell active expanded={false} hasDetails={false} label="Working for 12s" announcement="Working" viewportRef={null} contentRef={null} fadeTop={false} fadeBottom={false} onToggle={() => {}} onScroll={() => {}}>{null}</ThinkingReasoningShell>);
+    expect(screen.getByRole("status")).toHaveTextContent(/^Working$/);
+    expect(screen.getByText("Working for 12s")).toBeVisible();
+  });
+
+  it("exposes elapsed time outside the live region without announcing each tick", () => {
+    const props = { active: true, expanded: false, hasDetails: false, label: "Working", announcement: "Working", viewportRef: null, contentRef: null, fadeTop: false, fadeBottom: false, onToggle: () => {}, onScroll: () => {} };
+    const { rerender } = render(<ThinkingReasoningShell {...props} duration="12s">{null}</ThinkingReasoningShell>);
+    const elapsed = screen.getByText("· 12s");
+    expect(elapsed.closest('[aria-hidden="true"], [role="status"], [aria-live]')).toBeNull();
+    rerender(<ThinkingReasoningShell {...props} duration="13s">{null}</ThinkingReasoningShell>);
+    expect(screen.getByText("· 13s")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(/^Working$/);
+  });
+
   it.each([
     { expanded: true, hasDetails: true },
     { expanded: false, hasDetails: true },
@@ -48,7 +71,8 @@ describe("ThinkingReasoningShell", () => {
     const indicator = screen.getByTestId("activity-running-indicator");
     expect(indicator).toBeVisible();
     expect(indicator).toHaveAttribute("aria-hidden", "true");
-    expect(indicator).toHaveClass("animate-spin", "motion-reduce:animate-none");
+    if (!expanded || !hasDetails) expect(indicator).toHaveClass("animate-spin", "motion-reduce:animate-none");
+    else expect(indicator).not.toHaveClass("animate-spin");
     expect(indicator.parentElement).toHaveTextContent("Working for 1m 17s");
 
     rerender(
