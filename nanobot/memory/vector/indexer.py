@@ -169,3 +169,175 @@ class MemoryIndexer:
                 )
         except Exception as exc:
             logger.debug("vector sync state record failed: {}", exc)
+
+
+# ---------------------------------------------------------------------------
+# 经验库（episodes）向量索引
+# ---------------------------------------------------------------------------
+
+
+_ACTIVE_EPISODE_INDEXER: "EpisodeVectorIndexer | None" = None
+
+
+def set_active_episode_indexer(indexer: "EpisodeVectorIndexer | None") -> None:
+    """注册进程级 episodes indexer（gateway 启动时调用一次）。"""
+    global _ACTIVE_EPISODE_INDEXER
+    _ACTIVE_EPISODE_INDEXER = indexer
+
+
+def get_active_episode_indexer() -> "EpisodeVectorIndexer | None":
+    return _ACTIVE_EPISODE_INDEXER
+
+
+def index_episode_best_effort(episode: Any) -> None:
+    """写经验库后的向量钩子：**绝不抛出**；未启用向量时是 no-op。"""
+    indexer = _ACTIVE_EPISODE_INDEXER
+    if indexer is None:
+        return
+    try:
+        indexer.index(episode)
+    except Exception as exc:  # noqa: BLE001 - 向量故障绝不传播
+        logger.warning("episode vector index hook failed: {}", exc)
+
+
+def remove_episode_best_effort(episode_id: str) -> None:
+    indexer = _ACTIVE_EPISODE_INDEXER
+    if indexer is None:
+        return
+    try:
+        indexer.remove(episode_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("episode vector remove hook failed for {}: {}", episode_id, exc)
+
+
+def _episode_metadata_dict(raw: Any) -> dict[str, Any]:
+    import json
+
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+        except ValueError:
+            return {}
+        if isinstance(parsed, dict):
+            return parsed
+    return {}
+
+
+def _enum_text(value: Any) -> str:
+    return str(getattr(value, "value", value) or "")
+
+
+class EpisodeVectorIndexer:
+    """``episodes(source=experience)`` ↔ ``VectorStore`` 的同步器。
+
+    与 ``MemoryIndexer`` 共用同一份 VectorStore/模型，只操作 ``episodes``
+    集合；对账不落新表，靠集合 id 与 SQLite 求差集。
+    """
+
+    def __init__(self, store: Any, database: MemoryDatabase) -> None:
+        self._store = store
+        self._database = database
+
+    def index(self, episode: Any) -> bool:
+        return self.index_values(
+            episode_id=str(getattr(episode, "id", "") or ""),
+            summary=str(getattr(episode, "summary", "") or ""),
+            workspace_id=str(getattr(episode, "workspace_id", "") or "default"),
+            ended_at=str(getattr(episode, "ended_at", "") or ""),
+            outcome=_enum_text(getattr(episode, "outcome", "")),
+            metadata=_episode_metadata_dict(getattr(episode, "metadata", None)),
+        )
+
+    def index_values(
+        self,
+        *,
+        episode_id: str,
+        summary: str,
+        workspace_id: str,
+        ended_at: str,
+        outcome: str,
+        metadata: dict[str, Any],
+    ) -> bool:
+        if not episode_id or not summary.strip():
+            return False
+        payload = {
+            "kind": str(metadata.get("kind") or "experience"),
+            "status": str(metadata.get("status") or "active"),
+            "outcome": outcome,
+            "workspace_id": workspace_id or "default",
+            "ended_at": ended_at,
+        }
+        upsert = getattr(self._store, "upsert_episode", None)
+        if upsert is None:
+            return False
+        return bool(upsert(episode_id, summary, payload))
+
+    def remove(self, episode_id: str) -> bool:
+        remove = getattr(self._store, "remove_episode", None)
+        return bool(remove(episode_id)) if remove is not None else False
+
+    def search(self, query: str, *, limit: int = 15) -> list[tuple[str, float]]:
+        search = getattr(self._store, "search_episodes", None)
+        if search is None:
+            return []
+        return list(search(query, limit=limit))
+
+    def sync_from_sqlite(self) -> dict[str, Any]:
+        """双向对账：删 stale + 补 missing；**绝不抛出**。"""
+        errors: list[str] = []
+        try:
+            with self._database.connect() as conn:
+                rows = conn.execute(
+                    "SELECT id, summary, workspace_id, ended_at, outcome, metadata "
+                    "FROM episodes WHERE source = 'experience'"
+                ).fetchall()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("episode vector sync: cannot read episodes: {}", exc)
+            return {"indexed": 0, "deleted": 0, "error": f"sqlite: {exc}"}
+
+        list_ids = getattr(self._store, "list_episode_ids", None)
+        delete_ids = getattr(self._store, "delete_episode_ids", None)
+        if list_ids is None or delete_ids is None:
+            return {"indexed": 0, "deleted": 0, "error": "store does not support episodes"}
+        try:
+            indexed_ids = set(list_ids())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("episode vector sync: list_ids failed: {}", exc)
+            return {"indexed": 0, "deleted": 0, "error": f"list_ids: {exc}"}
+
+        by_id = {
+            str(row["id"]): row for row in rows
+        }
+        sqlite_ids = set(by_id)
+        stale = sorted(indexed_ids - sqlite_ids)
+        missing = sorted(sqlite_ids - indexed_ids)
+
+        deleted = 0
+        if stale:
+            try:
+                deleted = int(delete_ids(stale))
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"delete: {exc}")
+
+        indexed = 0
+        for eid in missing:
+            row = by_id[eid]
+            try:
+                if self.index_values(
+                    episode_id=eid,
+                    summary=str(row["summary"] or ""),
+                    workspace_id=str(row["workspace_id"] or "default"),
+                    ended_at=str(row["ended_at"] or ""),
+                    outcome=str(row["outcome"] or ""),
+                    metadata=_episode_metadata_dict(row["metadata"]),
+                ):
+                    indexed += 1
+            except Exception as exc:  # noqa: BLE001 - 单条失败不中断
+                errors.append(f"{eid}: {exc}")
+
+        error_text = "; ".join(errors)
+        if error_text:
+            logger.warning("episode vector sync completed with errors: {}", error_text)
+        return {"indexed": indexed, "deleted": deleted, "error": error_text}

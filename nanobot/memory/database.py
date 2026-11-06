@@ -231,6 +231,7 @@ _SCHEMA_STATEMENTS = [
         skipped       INTEGER NOT NULL DEFAULT 0,
         model         TEXT    NOT NULL DEFAULT '',
         error         TEXT    NOT NULL DEFAULT '',
+        metadata      TEXT    NOT NULL DEFAULT '{}',
         started_at    TEXT    NOT NULL,
         finished_at   TEXT    NOT NULL DEFAULT ''
     )
@@ -355,6 +356,20 @@ class MemoryDatabase:
             if "workspace_id" not in episode_columns:
                 conn.execute(
                     "ALTER TABLE episodes ADD COLUMN workspace_id TEXT NOT NULL DEFAULT 'default'"
+                )
+            # 老库可能刚补出 metadata 列，索引必须放在 ALTER 之后；表达式索引
+            # 让 kind 过滤不退化成全表扫描（不新增表）。
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_episodes_kind "
+                "ON episodes(json_extract(metadata,'$.kind'))"
+            )
+            dream_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(memory_dream_runs)")
+            }
+            if "metadata" not in dream_columns:
+                conn.execute(
+                    "ALTER TABLE memory_dream_runs "
+                    "ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'"
                 )
             # 旧库补列后重建工作区索引：语句列表里的同名索引在旧库上因列不存在
             # 被跳过，这里补建（``IF NOT EXISTS`` 保证幂等）。

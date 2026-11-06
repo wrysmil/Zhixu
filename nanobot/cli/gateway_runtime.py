@@ -17,6 +17,7 @@ from rich.console import Console
 from nanobot import __version__
 from nanobot.agent.hook import AgentHook, AgentRunHookContext
 from nanobot.agent.hooks import create_file_edit_activity_hook
+from nanobot.agent.hooks.pitfall_recall import PitfallRecallHook
 from nanobot.agent.loop import _MEMORY_WORKSPACE_ID, AgentLoop
 from nanobot.agent.tools.mcp import MCPProvider
 from nanobot.agent.tools.registry import ToolRegistry
@@ -42,7 +43,12 @@ from nanobot.gateway.runtime import GatewayInstance
 from nanobot.memory.obs import configure_from_config as configure_memory_logging
 from nanobot.memory.retrieval import RetrievalEngine
 from nanobot.memory.retrieval.store_adapter import MemoryStoreAdapter
-from nanobot.memory.vector.indexer import MemoryIndexer, set_active_indexer
+from nanobot.memory.vector.indexer import (
+    EpisodeVectorIndexer,
+    MemoryIndexer,
+    set_active_episode_indexer,
+    set_active_indexer,
+)
 from nanobot.memory.vector.store import VectorStore
 from nanobot.security.network import is_loopback_host
 from nanobot.session.keys import UNIFIED_SESSION_KEY, last_channel_from_metadata
@@ -586,9 +592,15 @@ def _run_gateway(
         if _vector_settings.enabled
         else None
     )
+    _episode_vector_indexer = (
+        EpisodeVectorIndexer(_vector_store, _memory_services.database)
+        if _vector_settings.enabled
+        else None
+    )
     # 进程级注册（与 WU-08 写路径钩子同构）：WebUI 的 stats/reindex/sync
     # 未显式传参时 fallback 到这里读取，规避逐层透传与双 VectorStore 撞锁。
     set_active_indexer(_vector_indexer)
+    set_active_episode_indexer(_episode_vector_indexer)
     # RCA 2026-09-15 根因 1：store 必须是 MemoryStoreAdapter（通道期望的是
     # **方法**契约），不能直接传 MemoryDatabase（它只有 connect/schema 方法）。
     _retrieval_engine = RetrievalEngine(
@@ -600,6 +612,26 @@ def _run_gateway(
 
     def _memory_enabled_provider() -> bool:
         return config.agents.defaults.memory_enabled
+
+    def _pitfall_hook_factory(_turn_context):
+        """踩坑提示钩子：默认关闭，开启后只读检索经验库。"""
+        if not config.agents.defaults.memory_pitfall_hint:
+            return None
+        try:
+            from nanobot.memory.pitfall import find_pitfall_hint
+            from nanobot.memory.provenance import memory_visibility_ids
+
+            workspace_ids = memory_visibility_ids(_memory_services.workspace_id)
+
+            def lookup(text: str) -> str | None:
+                return find_pitfall_hint(
+                    _memory_services.database, text, workspace_ids=workspace_ids
+                )
+
+            return PitfallRecallHook(lookup)
+        except Exception as exc:  # noqa: BLE001 - 钩子装配失败不影响对话
+            logger.warning("pitfall hook factory failed: {}", exc)
+            return None
 
     # Create agent with cron service
     agent = AgentLoop.from_config(
@@ -616,7 +648,7 @@ def _run_gateway(
         provider_signature=provider_snapshot.signature,
         local_trigger_store=trigger_store,
         hooks=[_MCPReadinessHook(mcp_provider)],
-        hook_factories=[create_file_edit_activity_hook],
+        hook_factories=[create_file_edit_activity_hook, _pitfall_hook_factory],
         tool_registry=tools,
         recovery_admission=recovery,
         memory_extraction_enabled=True,
@@ -654,6 +686,14 @@ def _run_gateway(
                     result.get("deleted"),
                     result.get("error"),
                 )
+                if _episode_vector_indexer is not None:
+                    episode_result = _episode_vector_indexer.sync_from_sqlite()
+                    logger.info(
+                        "episode vector startup sync: indexed={} deleted={} error={}",
+                        episode_result.get("indexed"),
+                        episode_result.get("deleted"),
+                        episode_result.get("error"),
+                    )
             except Exception as exc:  # noqa: BLE001 - 对账失败不影响启动
                 logger.warning("vector startup sync failed: {}", exc)
 
@@ -768,6 +808,12 @@ def _run_gateway(
                 # Dream 的文件 delta 现在只剩 skills/，审计计数来自写入决策。
                 store.dream_content_diff()
                 completed = MemoryStore.dream_run_completed(resp)
+                if audit is not None:
+                    final_content = str(getattr(resp, "final_content", "") or "").strip()
+                    if final_content:
+                        audit.record_experience_review(
+                            {"summary": final_content[:4000]}
+                        )
                 if completed:
                     store.set_last_dream_cursor(last_cursor)
                     logger.info(

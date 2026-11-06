@@ -634,11 +634,12 @@ class MemoryLifecycle:
         file_mode: bool = False,
     ) -> "MemoryLifecycle":
         """Return the singleton MemoryLifecycle for the given workspace."""
-        if workspace_id not in cls._instances:
-            cls._instances[workspace_id] = cls(
+        cache_key = f"{workspace_id}:file_mode={int(file_mode)}"
+        if cache_key not in cls._instances:
+            cls._instances[cache_key] = cls(
                 workspace_id, services, clock=clock, file_mode=file_mode
             )
-        return cls._instances[workspace_id]
+        return cls._instances[cache_key]
 
     # ------------------------------------------------------------------
     # Public API
@@ -756,14 +757,13 @@ class MemoryLifecycle:
         """
         with self._derive_lock:
             try:
+                if self._file_mode:
+                    # 文件模式：USER.md 是独立身份文件，不再从记忆正文推导。
+                    return {"status": "skipped", "reason": "file_mode"}
                 with self.services.database.connect() as conn:
                     self._migrate_legacy_user_md(conn)
                     note = read_user_note(conn, workspace_id)
-                    facts = (
-                        self._file_mode_facts()
-                        if self._file_mode
-                        else select_user_facts(conn, workspace_id=workspace_id)
-                    )
+                    facts = select_user_facts(conn, workspace_id=workspace_id)
 
                 content = self._render_user_export(facts, note)
                 if self.user_file.exists() and self.user_file.read_text(

@@ -213,6 +213,7 @@ _WEBUI_MUTATION_PATHS = {
     "memory.create": "/api/settings/memory/memories/create",
     "memory.update": "/api/settings/memory/memories/update",
     "memory.delete": "/api/settings/memory/memories/delete",
+    "memory.doc.save": "/api/settings/memory/doc/save",
     "episode.update": "/api/settings/memory/episodes/update",
     "episode.delete": "/api/settings/memory/episodes/delete",
     "scratchpad.save": "/api/settings/memory/scratchpad/save",

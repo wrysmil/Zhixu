@@ -44,8 +44,8 @@ def test_preference_goes_to_global_scope(tmp_path: Path) -> None:
     )
 
     assert written
-    assert len(store.list_memories(GLOBAL_SCOPE)) == 1
-    assert store.list_memories(PROJECT_SCOPE) == []
+    assert "用户偏好简洁回复" in store.read_memory_doc(GLOBAL_SCOPE)
+    assert store.read_memory_doc(PROJECT_SCOPE).strip() == ""
 
 
 def test_fact_goes_to_project_scope(tmp_path: Path) -> None:
@@ -54,8 +54,8 @@ def test_fact_goes_to_project_scope(tmp_path: Path) -> None:
         store, [_memory("本项目使用 bun", memory_type=MemoryType.FACT, importance=0.6)]
     )
 
-    assert store.list_memories(GLOBAL_SCOPE) == []
-    assert len(store.list_memories(PROJECT_SCOPE)) == 1
+    assert store.read_memory_doc(GLOBAL_SCOPE).strip() == ""
+    assert "本项目使用 bun" in store.read_memory_doc(PROJECT_SCOPE)
 
 
 def test_importance_threshold_filters_low_value_facts(tmp_path: Path) -> None:
@@ -84,7 +84,7 @@ def test_same_subject_appends_to_same_file(tmp_path: Path) -> None:
         ],
     )
 
-    memories = store.list_memories(PROJECT_SCOPE)
-    assert len(memories) == 1
-    assert "第一条" in memories[0].content
-    assert "第二条" in memories[0].content
+    content = store.read_memory_doc(PROJECT_SCOPE)
+    assert "第一条" in content
+    assert "第二条" in content
+    assert content.count("## 项目事实") == 1

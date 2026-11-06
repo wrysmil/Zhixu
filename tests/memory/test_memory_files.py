@@ -11,6 +11,7 @@ from nanobot.memory.files import (
     file_type_for,
     normalize_memory_name,
     render_index_block,
+    render_memory_content_block,
     scope_for_memory_type,
 )
 
@@ -19,7 +20,7 @@ def _store(tmp_path: Path) -> MemoryFileStore:
     return MemoryFileStore(global_dir=tmp_path / "g", project_dir=tmp_path / "p")
 
 
-def test_write_memory_creates_file_and_index(tmp_path: Path) -> None:
+def test_write_memory_creates_file_without_index(tmp_path: Path) -> None:
     store = _store(tmp_path)
     store.write_memory(
         GLOBAL_SCOPE,
@@ -33,10 +34,7 @@ def test_write_memory_creates_file_and_index(tmp_path: Path) -> None:
     assert [item.name for item in files] == ["prefer-direct"]
     assert files[0].type == "user"
     assert files[0].description == "用户讨厌绕弯解释"
-
-    index = store.read_index(GLOBAL_SCOPE)
-    assert "(prefer-direct.md)" in index
-    assert "用户讨厌绕弯解释" in index
+    assert store.read_index(GLOBAL_SCOPE) == ""
 
 
 def test_write_memory_appends_same_name(tmp_path: Path) -> None:
@@ -58,25 +56,23 @@ def test_project_scope_does_not_leak_into_global(tmp_path: Path) -> None:
     assert len(store.list_memories(PROJECT_SCOPE)) == 1
 
 
-def test_delete_memory_updates_index(tmp_path: Path) -> None:
+def test_delete_memory_removes_file(tmp_path: Path) -> None:
     store = _store(tmp_path)
     store.write_memory(GLOBAL_SCOPE, "gone", "内容", description="d")
     assert store.delete_memory(GLOBAL_SCOPE, "gone") is True
     assert store.list_memories(GLOBAL_SCOPE) == []
-    assert "(gone.md)" not in store.read_index(GLOBAL_SCOPE)
 
 
-def test_index_block_lists_both_scopes(tmp_path: Path) -> None:
+def test_memory_content_block_lists_both_scopes(tmp_path: Path) -> None:
     store = _store(tmp_path)
-    store.write_memory(GLOBAL_SCOPE, "g1", "全局一条", description="全局钩子")
-    store.write_memory(PROJECT_SCOPE, "p1", "项目一条", description="项目钩子")
+    store.write_memory_doc(GLOBAL_SCOPE, "# 全局记忆\n\n## 规则\n- 全局一条")
+    store.write_memory_doc(PROJECT_SCOPE, "# 项目记忆\n\n## 约定\n- 项目一条")
 
-    block = render_index_block(store)
-    assert "全局记忆目录" in block
-    assert "项目记忆目录" in block
-    assert "(g1.md)" in block
-    assert "(p1.md)" in block
-    assert "read_file" in block
+    block = render_memory_content_block(store)
+    assert "全局长期记忆" in block
+    assert "项目长期记忆" in block
+    assert "全局一条" in block
+    assert "项目一条" in block
     assert str(store.global_dir) in block
 
 

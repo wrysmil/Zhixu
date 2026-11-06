@@ -107,6 +107,8 @@ _SHORT_TERM_KEYWORDS = ("今天", "这周", "本月", "暂时", "先")
 # 合法枚举值
 _VALID_TYPES = frozenset(t.value for t in MemoryType)
 _VALID_PRIORITIES = frozenset(p.value for p in MemoryPriority)
+#: 文件模式下进入 MEMORY.md 正文的类型；experience/error/skill 仍走原路径。
+_FILE_MEMORY_TYPES = frozenset({"fact", "preference", "rule"})
 
 # FIX-3 Sec-M-1: ActionNode 输入/输出截断阈值（防凭据外发注入攻击）
 ACTION_NODE_INPUT_MAX_CHARS = 512
@@ -379,6 +381,8 @@ class PersistenceResult:
     #: 每条变更的写入决策 ``(kind, memory_id)``，与 ``filtered.memories`` 同序。
     #: 只供观测层逐条打印，不参与业务判断。
     outcomes: list[tuple[str, str]] = field(default_factory=list)
+    #: 文件模式下待写入 MEMORY.md 的记忆（不落 ``memories`` 表）。
+    file_memories: list[Memory] = field(default_factory=list)
 
 
 @dataclass
@@ -1812,7 +1816,7 @@ class MemoryExtractor:
         # 向量刷新在数据库提交之后：失败只记 dirty（index hook 自身绝不抛）。
         for memory in indexed:
             index_memory_best_effort(memory)
-        self._write_memory_files(indexed, session)
+        self._write_memory_files(persisted.file_memories, session)
         logger.info(
             "memory batch completed: batch={} session={} range=({}, {}] memories={} episodes={} skipped={}",
             row.batch_id,
@@ -2494,7 +2498,7 @@ class MemoryExtractor:
             )
         for memory in created:
             index_memory_best_effort(memory)
-        self._write_memory_files(created, session)
+        self._write_memory_files(persisted.file_memories, session)
         self._emit_memory_changes(persisted, filtered, session, source=source)
         return persisted
 
@@ -2577,33 +2581,52 @@ class MemoryExtractor:
         )
 
         # 阶段 4a：事实/记忆经统一写入决策表落库（幂等、纠正、冲突、多值）。
-        changes = [
-            MemoryChange(
-                memory=Memory(
-                    id=str(uuid4()),
-                    content=item.content,
-                    type=MemoryType(item.type.strip().lower()),
-                    priority=_resolve_priority(item),
-                    source="extraction",
-                    importance_score=item.importance,
-                    tags=list(item.tags),
-                    subject=item.subject,
-                    predicate=item.predicate,
-                    workspace_id=row_workspace_id,
-                    user_id=self.user_id,
-                    created_at=now,
-                    updated_at=now,
-                    metadata={"provenance": provenance},
-                )
+        memory_objects = [
+            Memory(
+                id=str(uuid4()),
+                content=item.content,
+                type=MemoryType(item.type.strip().lower()),
+                priority=_resolve_priority(item),
+                source="extraction",
+                importance_score=item.importance,
+                tags=list(item.tags),
+                subject=item.subject,
+                predicate=item.predicate,
+                workspace_id=row_workspace_id,
+                user_id=self.user_id,
+                created_at=now,
+                updated_at=now,
+                metadata={"provenance": provenance},
             )
             for item in filtered.memories
         ]
+        file_mode = self._memory_file_writer is not None
+        if file_mode:
+            file_indexes = [
+                index
+                for index, memory in enumerate(memory_objects)
+                if str(getattr(memory.type, "value", memory.type)).lower()
+                in _FILE_MEMORY_TYPES
+            ]
+        else:
+            file_indexes = []
+        file_index_set = set(file_indexes)
+        db_indexes = [index for index in range(len(memory_objects)) if index not in file_index_set]
+
+        changes = [MemoryChange(memory=memory_objects[index]) for index in db_indexes]
         written = apply_memory_changes(conn, changes, evidence_key=evidence_key)
-        outcome_pairs = [(str(outcome.kind), outcome.memory_id or "") for outcome in written.outcomes]
+        outcome_pairs = [
+            ("filed", "") if index in file_index_set else ("skipped", "")
+            for index in range(len(memory_objects))
+        ]
+        for index, outcome in zip(db_indexes, written.outcomes, strict=False):
+            outcome_pairs[index] = (str(outcome.kind), outcome.memory_id or "")
         saved_memory_ids = list(written.memory_ids)
         created_memories = list(written.created)
+        file_memories = [memory_objects[index] for index in file_indexes]
         memory_by_subject: dict[str, str] = {}
-        for item, outcome in zip(filtered.memories, written.outcomes, strict=False):
+        for index, outcome in zip(db_indexes, written.outcomes, strict=False):
+            item = filtered.memories[index]
             if item.subject and outcome.memory_id:
                 memory_by_subject.setdefault(item.subject, outcome.memory_id)
 
@@ -2673,6 +2696,7 @@ class MemoryExtractor:
                 episode_ids=saved_episode_ids,
                 created_count=len(created_memories),
                 outcomes=outcome_pairs,
+                file_memories=file_memories,
             ),
             created_memories,
         )

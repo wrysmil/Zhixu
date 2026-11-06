@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
@@ -31,6 +32,9 @@ class MemoryHit:
     source_refs: tuple[str, ...] = ()
     occurred_at: str | None = None
     rank: int = 0
+    # 经验库条目的类型/状态（仅 episode 命中有效）；用于注入块和工具输出标注。
+    entry_kind: str | None = None
+    entry_status: str | None = None
 
     def __post_init__(self) -> None:
         if self.kind not in _VALID_KINDS:
@@ -92,6 +96,7 @@ def hit_from_memory(memory: Any) -> MemoryHit:
 
 def hit_from_episode(episode: Any) -> MemoryHit:
     """情节行 → ``MemoryHit``；情节的发生时间取结束时间。"""
+    metadata = _episode_metadata(episode)
     return MemoryHit(
         kind="episode",
         record_id=str(getattr(episode, "id", "") or ""),
@@ -102,7 +107,28 @@ def hit_from_episode(episode: Any) -> MemoryHit:
         occurred_at=_text_or_none(
             getattr(episode, "ended_at", None) or getattr(episode, "updated_at", None)
         ),
+        entry_kind=_metadata_text(metadata, "kind") or "experience",
+        entry_status=_metadata_text(metadata, "status") or "active",
     )
+
+
+def _episode_metadata(episode: Any) -> dict[str, Any]:
+    raw = getattr(episode, "metadata", None)
+    if isinstance(raw, dict):
+        return cast(dict[str, Any], raw)
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+        except ValueError:
+            return {}
+        if isinstance(parsed, dict):
+            return cast(dict[str, Any], parsed)
+    return {}
+
+
+def _metadata_text(metadata: dict[str, Any], key: str) -> str:
+    value = metadata.get(key)
+    return str(value).strip() if isinstance(value, str) else ""
 
 
 def _text_or_none(value: Any) -> str | None:

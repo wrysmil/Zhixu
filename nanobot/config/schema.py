@@ -329,6 +329,11 @@ class AgentDefaults(Base):
     # 兼容读取（str 非 Literal）：仅 "chromadb" 启用向量层；其余任何值（含历史
     # "api_embedding" 与未知值）按 FTS5 降级路径处理，统计口径如实报告实际后端，
     # 不再像旧独立工厂那样静默映射。
+    memory_pitfall_hint: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("memoryPitfallHint", "memory_pitfall_hint"),
+        serialization_alias="memoryPitfallHint",
+    )  # 工具报错时主动检索 active pitfall 并附一行提示；默认关闭，避免误报干扰
     memory_vector: MemoryVectorConfig = Field(
         default_factory=MemoryVectorConfig,
         validation_alias=AliasChoices("memoryVector", "memory_vector"),

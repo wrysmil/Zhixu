@@ -1,8 +1,8 @@
-"""经验库工具：记录失败/任务经验，按需检索。"""
+"""经验库工具：记录失败/任务经验。"""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from loguru import logger
@@ -12,6 +12,7 @@ from nanobot.agent.tools.context import ToolContext, current_request_session_key
 from nanobot.memory.experience import list_experiences, record_experience
 
 if TYPE_CHECKING:
+    from nanobot.memory.database import MemoryDatabase
     from nanobot.webui.memory_services import MemoryServices
 
 ServicesHolder = "MemoryServices | Callable[[], MemoryServices | None] | None"
@@ -32,9 +33,13 @@ def _resolve_services(holder: ServicesHolder) -> "MemoryServices | None":
 class ExperienceRecordTool(Tool):
     name: ClassVar[str] = "experience_record"
     description: ClassVar[str] = (
-        "记录一条任务经验或失败：发生了什么、做了什么、结果、根因、解法、验证方式。"
-        "只写经验库（SQLite），不要写进 MEMORY.md；"
-        "长期规则和项目约定用 memory_write。"
+        "记录一条沉淀条目到经验库（SQLite），按 kind 区分："
+        "experience=一次任务怎么做的/成败原因；"
+        "skill=可复用的标准步骤（需要 capability + steps）；"
+        "pitfall=踩坑（需要 symptom + fix，按报错/症状召回）；"
+        "decision=方案取舍（需要 context + choice，支持 supersede）；"
+        "reference=外部参考指针（需要 pointer，不复制正文）。"
+        "只写经验库，不要写进 MEMORY.md；长期规则和项目约定用 memory_write。"
     )
 
     def __init__(self, services: ServicesHolder = None) -> None:
@@ -61,8 +66,17 @@ class ExperienceRecordTool(Tool):
         return {
             "type": "object",
             "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": ["experience", "skill", "pitfall", "decision", "reference"],
+                    "description": "条目类型；按上面的说明选择",
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["active", "deprecated", "superseded"],
+                },
                 "title": {"type": "string"},
-                "situation": {"type": "string", "description": "发生了什么"},
+                "situation": {"type": "string", "description": "experience：发生了什么"},
                 "action": {"type": "string", "description": "你做了什么"},
                 "outcome": {
                     "type": "string",
@@ -71,21 +85,75 @@ class ExperienceRecordTool(Tool):
                 "root_cause": {"type": "string"},
                 "solution": {"type": "string"},
                 "verification": {"type": "string"},
+                "capability": {"type": "string", "description": "skill：这项技能解决什么"},
+                "prerequisites": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "skill：前置条件",
+                },
+                "steps": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "skill：可执行步骤",
+                },
+                "symptom": {"type": "string", "description": "pitfall：症状/报错文本"},
+                "fix": {"type": "string", "description": "pitfall：修复方式"},
+                "context": {"type": "string", "description": "decision：背景"},
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "pros": {"type": "string"},
+                            "cons": {"type": "string"},
+                        },
+                        "required": ["name"],
+                    },
+                    "description": "decision：候选方案",
+                },
+                "choice": {"type": "string", "description": "decision：最终结论"},
+                "rationale": {"type": "string", "description": "decision：选择理由"},
+                "pointer": {
+                    "type": "string",
+                    "description": "reference：文件路径或链接",
+                },
+                "what_for": {"type": "string", "description": "reference：这个指针用来查什么"},
+                "version": {"type": "string", "description": "skill：版本"},
+                "supersedes": {
+                    "type": "string",
+                    "description": "被本条目替代的旧条目 id（skill/decision）",
+                },
                 "tags": {"type": "array", "items": {"type": "string"}},
             },
-            "required": ["title", "situation", "outcome"],
+            "required": ["title", "kind"],
         }
 
     async def execute(
         self,
         *,
         title: str,
-        situation: str,
+        kind: str = "experience",
+        status: str = "active",
+        situation: str = "",
         action: str = "",
-        outcome: str = "failed",
+        outcome: str | None = None,
         root_cause: str = "",
         solution: str = "",
         verification: str = "",
+        capability: str = "",
+        prerequisites: Sequence[str] | None = None,
+        steps: Sequence[str] | None = None,
+        symptom: str = "",
+        fix: str = "",
+        context: str = "",
+        options: Sequence[dict[str, Any]] | None = None,
+        choice: str = "",
+        rationale: str = "",
+        pointer: str = "",
+        what_for: str = "",
+        version: str = "",
+        supersedes: str = "",
         tags: Sequence[str] | None = None,
         **_: Any,
     ) -> str:
@@ -98,44 +166,59 @@ class ExperienceRecordTool(Tool):
             workspace_id=services.workspace_id,
             session_id=session_key,
             title=title,
+            kind=kind,
+            status=status,
             situation=situation,
             action=action,
             outcome=outcome,
             root_cause=root_cause,
             solution=solution,
             verification=verification,
+            capability=capability,
+            prerequisites=tuple(prerequisites or ()),
+            steps=tuple(steps or ()),
+            symptom=symptom,
+            fix=fix,
+            context=context,
+            options=tuple(options or ()),
+            choice=choice,
+            rationale=rationale,
+            pointer=pointer,
+            what_for=what_for,
+            version=version,
+            supersedes=supersedes,
             tags=tuple(tags or ()),
         )
-        return f"已记录经验：{title}（{episode.id[:8]}）"
+        label = {
+            "experience": "经验",
+            "skill": "技能",
+            "pitfall": "踩坑",
+            "decision": "决策",
+            "reference": "参考",
+        }.get(kind, "条目")
+        return f"已记录{label}：{title}（{episode.id[:8]}）"
 
 
-class ExperienceSearchTool(Tool):
-    name: ClassVar[str] = "experience_search"
+class ExperienceQueryTool(Tool):
+    """Dream 专用的只读经验检索；不进入主 Agent 的自动发现。"""
+
+    _plugin_discoverable = False
+    name: ClassVar[str] = "experience_query"
     description: ClassVar[str] = (
-        "从经验库检索过去做过的任务、失败、根因与解法。"
-        "长期规则和项目约定不在经验库，直接读 MEMORY.md。"
+        "只读检索经验库中的任务、失败、根因与解法。用于 Dream 复盘，不写数据。"
     )
 
     def __init__(
         self,
-        services: ServicesHolder = None,
-        workspace_ids_provider: Callable[[str], Sequence[str]] | None = None,
+        database: "MemoryDatabase",
+        workspace_ids: Sequence[str] = ("default",),
     ) -> None:
-        self._services_holder = services
-        self._workspace_ids_provider = workspace_ids_provider
+        self._database = database
+        self._workspace_ids = tuple(workspace_ids) or ("default",)
 
-    @classmethod
-    def create(cls, ctx: ToolContext) -> Tool:
-        attrs = getattr(ctx, "attributes", {}) or {}
-        return cls(
-            attrs.get("memory_services"),
-            workspace_ids_provider=attrs.get("memory_workspace_ids"),
-        )
-
-    @classmethod
-    def enabled(cls, ctx: ToolContext) -> bool:
-        attrs = getattr(ctx, "attributes", {}) or {}
-        return attrs.get("memory_services") is not None
+    @property
+    def read_only(self) -> bool:
+        return True
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -147,47 +230,52 @@ class ExperienceSearchTool(Tool):
                     "type": "string",
                     "enum": ["failed", "partial", "completed"],
                 },
+                "kind": {
+                    "type": "string",
+                    "enum": ["experience", "skill", "pitfall", "decision", "reference"],
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["active", "deprecated", "superseded"],
+                },
                 "limit": {"type": "integer", "minimum": 1, "maximum": 50},
             },
             "required": ["query"],
         }
-
-    def _workspace_ids(self, session_key: str | None) -> tuple[str, ...]:
-        if self._workspace_ids_provider is None or not session_key:
-            return ("default",)
-        try:
-            return tuple(self._workspace_ids_provider(session_key))
-        except Exception as exc:  # noqa: BLE001 - 退化为全局，但必须留痕
-            logger.warning("experience search workspace resolution failed: {!r}", exc)
-            return ("default",)
 
     async def execute(
         self,
         *,
         query: str,
         outcome: str | None = None,
-        limit: int = 10,
+        kind: str | None = None,
+        status: str | None = None,
+        limit: int = 20,
         **_: Any,
     ) -> str:
-        services = _resolve_services(self._services_holder)
-        if services is None:
-            return ""
-        session_key = current_request_session_key()
         rows = list_experiences(
-            services.database,
-            workspace_ids=self._workspace_ids(session_key),
+            self._database,
+            workspace_ids=self._workspace_ids,
             query=query,
             outcome=outcome,
+            kind=kind,
+            status=status,
             limit=limit,
         )
         if not rows:
             return ""
-        lines = ["# 经验库检索结果"]
+        lines = ["# 经验库"]
         for row in rows:
             title = row.title or row.summary.splitlines()[0]
-            lines.append(f"- [{row.outcome}] {title}（{row.ended_at[:10]}）")
+            lines.append(
+                f"- [{row.kind}/{row.status}] {title}（{row.ended_at[:10]}）"
+                if row.status != "active"
+                else f"- [{row.kind}] {title}（{row.ended_at[:10]}）"
+            )
             if row.root_cause:
                 lines.append(f"  根因：{row.root_cause}")
             if row.solution:
                 lines.append(f"  解法：{row.solution}")
+            elif row.metadata.get("fix"):
+                lines.append(f"  修复：{row.metadata['fix']}")
         return "\n".join(lines)

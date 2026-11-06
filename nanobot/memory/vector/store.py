@@ -18,6 +18,7 @@ from nanobot.memory.vector import model_hub
 from nanobot.memory.vector.settings import VectorSettings
 
 _COLLECTION_NAME = "memories"
+_EPISODES_COLLECTION_NAME = "episodes"
 
 _COOLDOWN_SECONDS = 300.0
 _COOLDOWN_MAX_SECONDS = 3600.0
@@ -39,6 +40,7 @@ class VectorStore:
         self._cooldown_seconds = _COOLDOWN_SECONDS
         self._model: Any = None
         self._collection: Any = None
+        self._episodes_collection: Any = None
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
 
@@ -131,9 +133,15 @@ class VectorStore:
             name=_COLLECTION_NAME,
             metadata={"hnsw:space": "cosine"},
         )
-        self._activate(model, collection)
+        episodes = client.get_or_create_collection(
+            name=_EPISODES_COLLECTION_NAME,
+            metadata={"hnsw:space": "cosine"},
+        )
+        self._activate(model, collection, episodes)
 
-    def _activate(self, model: Any, collection: Any) -> None:
+    def _activate(
+        self, model: Any, collection: Any, episodes_collection: Any = None
+    ) -> None:
         actual = int(model.get_sentence_embedding_dimension() or 0)
         if actual != self._settings.dimensions:
             self._mark_failed(
@@ -146,6 +154,7 @@ class VectorStore:
             return
         self._model = model
         self._collection = collection
+        self._episodes_collection = episodes_collection
         self._state = "ready"
         self._error = None
 
@@ -207,6 +216,85 @@ class VectorStore:
         except Exception as exc:
             logger.warning("vector delete failed for {}: {}", memory_id, exc)
             return False
+
+    def upsert_episode(
+        self, episode_id: str, content: str, metadata: dict[str, Any]
+    ) -> bool:
+        """写入/更新一条经验库条目的向量；集合与模型与 memories 共用。"""
+        if not self._episodes_ready():
+            return False
+        try:
+            vector = self._encode([content])[0]
+            self._episodes_collection.upsert(
+                ids=[episode_id],
+                embeddings=[vector],
+                documents=[content],
+                metadatas=[_clean_metadata(metadata)],
+            )
+            return True
+        except Exception as exc:
+            logger.warning("episode vector upsert failed for {}: {}", episode_id, exc)
+            return False
+
+    def remove_episode(self, episode_id: str) -> bool:
+        if not self._episodes_ready():
+            return False
+        try:
+            self._episodes_collection.delete(ids=[episode_id])
+            return True
+        except Exception as exc:
+            logger.warning("episode vector delete failed for {}: {}", episode_id, exc)
+            return False
+
+    def search_episodes(self, query: str, *, limit: int = 15) -> list[tuple[str, float]]:
+        """返回 ``[(episode_id, score)]``，**score 越大越相关**。"""
+        if not self._episodes_ready():
+            return []
+        try:
+            vector = self._encode([query])[0]
+            res = self._episodes_collection.query(
+                query_embeddings=[vector], n_results=int(limit)
+            )
+            ids = (res.get("ids") or [[]])[0]
+            dists = (res.get("distances") or [[]])[0]
+            return [
+                (str(eid), _distance_to_score(dist))
+                for eid, dist in zip(ids, dists, strict=False)
+            ]
+        except Exception as exc:
+            logger.warning("episode vector search failed: {}", exc)
+            return []
+
+    def list_episode_ids(self) -> list[str]:
+        if not self._episodes_ready():
+            return []
+        try:
+            return [str(i) for i in self._episodes_collection.get().get("ids", [])]
+        except Exception as exc:
+            logger.warning("episode vector list_ids failed: {}", exc)
+            return []
+
+    def delete_episode_ids(self, ids: list[str]) -> int:
+        if not ids or not self._episodes_ready():
+            return 0
+        try:
+            self._episodes_collection.delete(ids=list(ids))
+            return len(ids)
+        except Exception as exc:
+            logger.warning("episode vector bulk delete failed: {}", exc)
+            return 0
+
+    def episode_count(self) -> int:
+        if not self._episodes_ready():
+            return 0
+        try:
+            return int(self._episodes_collection.count())
+        except Exception as exc:
+            logger.warning("episode vector count failed: {}", exc)
+            return 0
+
+    def _episodes_ready(self) -> bool:
+        return self._ready() and self._episodes_collection is not None
 
     def search(self, query: str, *, limit: int = 15) -> list[tuple[str, float]]:
         """返回 ``[(memory_id, score)]``，**score 越大越相关**。"""

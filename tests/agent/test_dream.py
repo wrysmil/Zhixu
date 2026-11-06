@@ -1,7 +1,8 @@
 """Tests for Dream memory consolidation — build_dream_prompt and cursor management."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from nanobot.agent.memory import MemoryStore
 from nanobot.config.schema import ModelPresetConfig
@@ -111,7 +112,7 @@ class TestBuildDreamPrompt:
 
         assert result is not None
         prompt, _ = result
-        assert "file organizer" in prompt
+        assert "memory curator" in prompt
 
     def test_truncates_long_entries_at_1000_chars(self, store):
         long_content = "x" * 2000
@@ -214,6 +215,7 @@ class TestDreamTools:
             "write_file",
             "grep",
             "find_files",
+            "experience_query",
         }
 
     def test_dream_tools_excludes_derived_files(self, store):
@@ -963,13 +965,10 @@ class TestDreamTemplateP3:
         assert "Project memory directory" in template
         assert "add_memory(" not in template
 
-    def test_contains_importance_grading(self, template):
-        assert "Importance grading" in template
-        assert "0.9+" in template
-
     def test_contains_budget_awareness(self, template):
         assert "Budget awareness" in template
         assert "character cap" in template
+        assert "3000" in template and "6000" in template
 
     def test_requires_per_run_reporting_with_reasons(self, template):
         assert "Reporting requirement" in template

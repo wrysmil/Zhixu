@@ -1,0 +1,36 @@
+{
+  "shot": "a5-decision.png",
+  "expected_kind": "decision",
+  "pass": true,
+  "total": 10,
+  "kinds": {
+    "decision": 2,
+    "experience": 2,
+    "pitfall": 3,
+    "reference": 1,
+    "skill": 2
+  },
+  "latest": [
+    [
+      "decision",
+      "active",
+      "健康检查端点用 /healthz 而非 /health（K8s 社区约定 + 网关白名单）"
+    ],
+    [
+      "pitfall",
+      "active",
+      "Docker 容器 unhealthy：Connection refused 可能是 slim 镜像没有 curl，也可能是应用未监听端口"
+    ],
+    [
+      "skill",
+      "active",
+      "容器健康检查统一用 Python 标准库 urllib 探活（不用 curl/wget）"
+    ],
+    [
+      "pitfall",
+      "active",
+      "uv run 报 No module named 'httpx'，pip install 后仍然报错（uv 与 pip 用了不同解释器）"
+    ]
+  ],
+  "vector_count": 10
+}

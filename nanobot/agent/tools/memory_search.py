@@ -19,6 +19,7 @@ from nanobot.agent.tools.schema import IntegerSchema, StringSchema, tool_paramet
 if TYPE_CHECKING:
     from nanobot.memory.retrieval import RetrievalEngine
     from nanobot.session.manager import SessionManager
+    from nanobot.webui.memory_services import MemoryServices
 
 
 @tool_parameters(
@@ -33,11 +34,26 @@ if TYPE_CHECKING:
             minimum=50,
             maximum=2000,
         ),
+        outcome=StringSchema(
+            "只查某种结果：failed / partial / completed",
+            enum=("failed", "partial", "completed"),
+            nullable=True,
+        ),
+        kind=StringSchema(
+            "只查某类沉淀条目：experience / skill / pitfall / decision / reference",
+            enum=("experience", "skill", "pitfall", "decision", "reference"),
+            nullable=True,
+        ),
+        status=StringSchema(
+            "只查某种状态：active / deprecated / superseded",
+            enum=("active", "deprecated", "superseded"),
+            nullable=True,
+        ),
         required=["query"],
     )
 )
 class MemorySearchTool(Tool):
-    """Proactive memory search tool callable by the LLM.
+    """Proactive retrieval over the experience library.
 
     Provide a ``retrieval_engine_provider`` that returns the current
     :class:`RetrievalEngine` instance, or ``None`` when retrieval is
@@ -48,11 +64,11 @@ class MemorySearchTool(Tool):
 
     name: ClassVar[str] = "memory_search"
     description: ClassVar[str] = (
-        "从长期记忆中主动检索相关内容。当用户明确要求查找过去的信息、"
-        "特定项目细节、历史决策或工具使用经验时调用此工具。"
-        "此工具与 Layer 4 自动注入互补：自动注入每轮无感覆盖，"
-        "此工具供 LLM 在多步推理中显式补查，不受 token 预算限制。"
-        "返回格式化的 markdown 记忆列表。"
+        "记忆检索工具（主动检索，补充每轮的自动注入）：从经验库检索过去做过的任务、"
+        "失败、根因与解法。当用户要求查找过去的信息、特定项目细节、历史决策或工具"
+        "使用经验时调用；可按 kind（experience/skill/pitfall/decision/reference）、"
+        "status、outcome 过滤。长期规则和项目约定不在经验库，直接读 MEMORY.md。"
+        "返回格式化的 markdown 结果。"
     )
 
     def __init__(
@@ -60,6 +76,7 @@ class MemorySearchTool(Tool):
         retrieval_engine_provider: Callable[[], "RetrievalEngine | None"],
         sessions: "SessionManager | None" = None,
         workspace_ids_provider: Callable[[str], Sequence[str]] | None = None,
+        services_provider: Callable[[], "MemoryServices | None"] | None = None,
     ) -> None:
         self._get_engine = retrieval_engine_provider
         # RCA 2026-09-15 根因 3：此前 ``execute`` 里判断的是
@@ -70,6 +87,7 @@ class MemorySearchTool(Tool):
         # ``ToolContext.sessions`` 注入，与 ``long_task.py::_GoalToolsMixin`` 同模式。
         self._sessions = sessions
         self._workspace_ids_provider = workspace_ids_provider
+        self._services_provider = services_provider
 
     @classmethod
     def create(cls, ctx: ToolContext) -> Tool:
@@ -78,6 +96,16 @@ class MemorySearchTool(Tool):
             # RetrievalEngine type needed for annotation; imported inside to avoid circular
             attrs = getattr(ctx, "attributes", {})
             return attrs.get("retrieval_engine")
+
+        def services_provider() -> "MemoryServices | None":
+            holder = getattr(ctx, "attributes", {}).get("memory_services")
+            if callable(holder):
+                try:
+                    return holder()
+                except Exception as exc:  # noqa: BLE001 - 解析失败按不可用处理
+                    logger.warning("memory_search services resolution failed: {!r}", exc)
+                    return None
+            return holder
 
         def workspace_ids_provider(session_key: str) -> tuple[str, ...]:
             resolve = getattr(ctx, "attributes", {}).get("memory_workspace_ids")
@@ -89,44 +117,95 @@ class MemorySearchTool(Tool):
             retrieval_engine_provider=provider,
             sessions=getattr(ctx, "sessions", None),
             workspace_ids_provider=workspace_ids_provider,
+            services_provider=services_provider,
         )
 
     @classmethod
     def enabled(cls, ctx: ToolContext) -> bool:
         attrs = getattr(ctx, "attributes", {})
-        return attrs.get("retrieval_engine") is not None
+        return attrs.get("retrieval_engine") is not None or attrs.get("memory_services") is not None
 
-    async def execute(self, *, query: str, max_tokens: int = 500, **kwargs: Any) -> str:
-        engine = self._get_engine()
-        if engine is None:
-            return ""
-
-        recent: list[dict[str, Any]] = []
+    async def execute(
+        self,
+        *,
+        query: str,
+        max_tokens: int = 500,
+        outcome: str | None = None,
+        kind: str | None = None,
+        status: str | None = None,
+        **kwargs: Any,
+    ) -> str:
         session_key = current_request_session_key()
-        if session_key and self._sessions is not None:
-            session = self._sessions.get_cached(session_key)
-            if session is not None:
-                recent = session.messages[-10:]  # last 10 messages as context
+        workspace_ids = self._workspace_ids_for(session_key)
+        engine = self._get_engine()
 
-        try:
-            result = await engine.retrieve(
-                query=query,
-                recent_messages=recent,
-                max_tokens=max_tokens,
-                workspace_ids=self._workspace_ids_for(session_key),
-            )
-            return result if result else ""
-        except Exception as exc:  # noqa: BLE001 - 检索失败不应打断对话，但必须留痕
-            # 静默返回空串会让模型以为「记忆里没有」，进而放弃记忆改用文件搜索
-            # 之类的笨办法；异常必须落到日志里才能定位。
-            logger.warning(
-                "memory_search retrieval failed: query={!r} session={} error={}: {!r}",
-                query,
-                session_key,
-                type(exc).__name__,
-                exc,
-            )
+        if engine is not None:
+            recent: list[dict[str, Any]] = []
+            if session_key and self._sessions is not None:
+                session = self._sessions.get_cached(session_key)
+                if session is not None:
+                    recent = session.messages[-10:]  # last 10 messages as context
+            try:
+                filters = {
+                    name: value
+                    for name, value in (
+                        ("kind", kind),
+                        ("status", status),
+                        ("outcome", outcome),
+                    )
+                    if value
+                }
+                result = await engine.retrieve(
+                    query=query,
+                    recent_messages=recent,
+                    max_tokens=max_tokens,
+                    workspace_ids=workspace_ids,
+                    **filters,
+                )
+                return result if result else ""
+            except Exception as exc:  # noqa: BLE001 - 检索失败不应打断对话，但必须留痕
+                # 静默返回空串会让模型以为「记忆里没有」，进而放弃记忆改用文件搜索
+                # 之类的笨办法；异常必须落到日志里才能定位。
+                logger.warning(
+                    "memory_search retrieval failed: query={!r} session={} error={}: {!r}",
+                    query,
+                    session_key,
+                    type(exc).__name__,
+                    exc,
+                )
+                return ""
+
+        # 无检索引擎时的结构化兜底：只服务带过滤条件的查询。
+        if not (kind or status or outcome):
             return ""
+        services = self._services_provider() if self._services_provider else None
+        if services is None:
+            return ""
+        from nanobot.memory.experience import list_experiences
+
+        rows = list_experiences(
+            services.database,
+            workspace_ids=workspace_ids,
+            query=query,
+            outcome=outcome,
+            kind=kind,
+            status=status,
+            limit=10,
+        )
+        if not rows:
+            return ""
+        lines = ["# 经验库检索结果"]
+        for row in rows:
+            title = row.title or row.summary.splitlines()[0]
+            suffix = f"/{row.status}" if row.status != "active" else ""
+            lines.append(f"- [{row.kind}{suffix}] {title}（{row.ended_at[:10]}）")
+            if row.root_cause:
+                lines.append(f"  根因：{row.root_cause}")
+            if row.solution:
+                lines.append(f"  解法：{row.solution}")
+            elif row.metadata.get("fix"):
+                lines.append(f"  修复：{row.metadata['fix']}")
+        return "\n".join(lines)
 
     def _workspace_ids_for(self, session_key: str | None) -> tuple[str, ...]:
         """解析当前会话可见集合，解析器缺失或异常时只检索全局。"""

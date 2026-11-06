@@ -1,78 +1,104 @@
-"""旧 MEMORY.md → 记忆文件：一次性迁移，幂等，带备份。"""
+"""旧 memories → MEMORY.md / 经验库迁移测试。"""
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from nanobot.memory.files import (
-    GLOBAL_SCOPE,
-    PROJECT_SCOPE,
-    MemoryFileStore,
-    migrate_legacy_memory_dir,
+from nanobot.memory.database import MemoryDatabase
+from nanobot.memory.migrate_memories import (
+    ARCHIVED_AT,
+    Action,
+    apply_migration,
+    plan_migration,
 )
-
-LEGACY = """# 核心记忆
-
-<!-- zhixu:core-view:begin 自动导出区 -->
-## 规则
-- 提交信息统一用中文
-
-## 偏好
-- 用户偏好简洁直接的机制说明
-
-## 事实
-- 本项目使用 bun 作为包管理器
-<!-- zhixu:core-view:end -->
-
-<!-- zhixu:core-note:begin 手工笔记区 -->
-## 特别说明
-
-不要在周报里提竞品
-<!-- zhixu:core-note:end -->
-"""
+from nanobot.memory.models import Memory, MemoryPriority, MemoryType
+from nanobot.memory.repository import add_memory
 
 
-def _store(tmp_path: Path) -> MemoryFileStore:
-    return MemoryFileStore(
-        global_dir=tmp_path / "home" / "memory",
-        project_dir=tmp_path / "home" / "projects" / "ws-1" / "memory",
+def _seed(db: MemoryDatabase) -> None:
+    now = "2026-11-01T00:00:00+00:00"
+    rows = [
+        Memory(
+            id="m-fact",
+            content="项目构建用 bun",
+            type=MemoryType.FACT,
+            priority=MemoryPriority.LONG_TERM,
+            created_at=now,
+            updated_at=now,
+            workspace_id="default",
+        ),
+        Memory(
+            id="m-pref",
+            content="用户偏好中文",
+            type=MemoryType.PREFERENCE,
+            priority=MemoryPriority.LONG_TERM,
+            created_at=now,
+            updated_at=now,
+            workspace_id="default",
+        ),
+        Memory(
+            id="m-exp",
+            content="构建失败：缺少依赖",
+            type=MemoryType.EXPERIENCE,
+            priority=MemoryPriority.LONG_TERM,
+            created_at=now,
+            updated_at=now,
+            workspace_id="default",
+        ),
+        Memory(
+            id="m-short",
+            content="本周临时事项",
+            type=MemoryType.FACT,
+            priority=MemoryPriority.SHORT_TERM,
+            created_at=now,
+            updated_at=now,
+            workspace_id="default",
+        ),
+    ]
+    with db.connect() as conn:
+        for row in rows:
+            add_memory(conn, row)
+
+
+def test_plan_classifies_rows(tmp_path):
+    db = MemoryDatabase(tmp_path, db_path=tmp_path / "state.db")
+    db.init_schema()
+    _seed(db)
+
+    items = {item.memory_id: item for item in plan_migration(db, workspace_id="default")}
+
+    assert items["m-fact"].action is Action.FILE
+    assert items["m-fact"].scope == "project"
+    assert items["m-pref"].action is Action.FILE
+    assert items["m-pref"].scope == "global"
+    assert items["m-exp"].action is Action.EXPERIENCE
+    assert items["m-short"].action is Action.ARCHIVE_ONLY
+
+
+def test_apply_writes_docs_and_archives_rows(tmp_path, monkeypatch):
+    db = MemoryDatabase(tmp_path, db_path=tmp_path / "state.db")
+    db.init_schema()
+    _seed(db)
+    global_dir = tmp_path / "global"
+    project_dir = tmp_path / "project"
+    monkeypatch.setattr(
+        "nanobot.memory.migrate_memories.global_memory_dir", lambda: global_dir
+    )
+    monkeypatch.setattr(
+        "nanobot.memory.migrate_memories.project_memory_dir", lambda _wid: project_dir
     )
 
+    counts = apply_migration(db, plan_migration(db, workspace_id="default"))
 
-def test_migration_splits_facts_into_files(tmp_path: Path) -> None:
-    legacy_dir = tmp_path / "ws" / "memory"
-    legacy_dir.mkdir(parents=True)
-    (legacy_dir / "MEMORY.md").write_text(LEGACY, encoding="utf-8")
+    assert counts["file"] == 2
+    assert counts["experience"] == 1
+    assert "项目构建用 bun" in (project_dir / "MEMORY.md").read_text(encoding="utf-8")
+    assert "用户偏好中文" in (global_dir / "MEMORY.md").read_text(encoding="utf-8")
 
-    store = _store(tmp_path)
-    written = migrate_legacy_memory_dir(legacy_dir, store)
-
-    assert written
-    global_names = {m.name for m in store.list_memories(GLOBAL_SCOPE)}
-    project_names = {m.name for m in store.list_memories(PROJECT_SCOPE)}
-    assert global_names  # 规则 / 偏好 / 手写笔记
-    assert project_names  # 事实
-    bodies = [m.content for m in store.list_memories(GLOBAL_SCOPE)]
-    assert any("提交信息统一用中文" in body for body in bodies)
-    assert any("偏好简洁直接" in body for body in bodies)
-    assert any("不要在周报里提竞品" in body for body in bodies)
-    project_bodies = [m.content for m in store.list_memories(PROJECT_SCOPE)]
-    assert any("bun" in body for body in project_bodies)
-
-
-def test_migration_backs_up_and_is_idempotent(tmp_path: Path) -> None:
-    legacy_dir = tmp_path / "ws" / "memory"
-    legacy_dir.mkdir(parents=True)
-    (legacy_dir / "MEMORY.md").write_text(LEGACY, encoding="utf-8")
-
-    store = _store(tmp_path)
-    migrate_legacy_memory_dir(legacy_dir, store)
-
-    backup = store.global_dir / "legacy" / "MEMORY.md"
-    assert backup.exists()
-    assert "提交信息统一用中文" in backup.read_text(encoding="utf-8")
-
-    before = len(store.list_memories(GLOBAL_SCOPE)) + len(store.list_memories(PROJECT_SCOPE))
-    assert migrate_legacy_memory_dir(legacy_dir, store) == []
-    after = len(store.list_memories(GLOBAL_SCOPE)) + len(store.list_memories(PROJECT_SCOPE))
-    assert before == after
+    with db.connect() as conn:
+        archived = conn.execute(
+            "SELECT COUNT(*) FROM memories WHERE expires_at = ?", (ARCHIVED_AT,)
+        ).fetchone()[0]
+        experiences = conn.execute(
+            "SELECT COUNT(*) FROM episodes WHERE source='experience'"
+        ).fetchone()[0]
+    assert archived == 4
+    assert experiences == 1

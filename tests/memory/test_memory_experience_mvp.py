@@ -5,9 +5,11 @@ from __future__ import annotations
 import pytest
 
 from nanobot.agent.context import ContextBuilder
-from nanobot.agent.tools.experience import ExperienceRecordTool, ExperienceSearchTool
+from nanobot.agent.tools.experience import ExperienceRecordTool
+from nanobot.agent.tools.memory_search import MemorySearchTool
 from nanobot.agent.tools.memory_write import MemoryWriteTool
 from nanobot.memory.database import MemoryDatabase
+from nanobot.memory.decay import run_consolidation
 from nanobot.memory.experience import list_experiences, record_experience
 from nanobot.memory.files import MemoryFileStore, render_memory_content_block
 from nanobot.webui.memory_services import MemoryServices
@@ -93,6 +95,25 @@ def test_experience_workspace_isolation(tmp_path):
     assert list_experiences(db, workspace_ids=["proj-b"], query="依赖") == []
 
 
+def test_consolidation_does_not_touch_experiences(tmp_path):
+    db = MemoryDatabase(tmp_path, db_path=tmp_path / "state.db")
+    record_experience(
+        db,
+        workspace_id="default",
+        session_id="s1",
+        title="构建失败",
+        situation="缺少依赖",
+        action="重跑",
+        outcome="failed",
+    )
+    run_consolidation(db, workspace_id="default")
+    with db.connect() as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM episodes WHERE source='experience'"
+        ).fetchone()[0]
+    assert count == 1
+
+
 async def test_experience_tools(tmp_path):
     db = MemoryDatabase(tmp_path, db_path=tmp_path / "state.db")
     services = MemoryServices(workspace_id="default", database=db)
@@ -109,8 +130,10 @@ async def test_experience_tools(tmp_path):
     )
     assert "已记录经验" in result
 
-    search_tool = ExperienceSearchTool(
-        services, workspace_ids_provider=lambda _session: ("default",)
+    search_tool = MemorySearchTool(
+        retrieval_engine_provider=lambda: None,
+        workspace_ids_provider=lambda _session: ("default",),
+        services_provider=lambda: services,
     )
-    output = await search_tool.execute(query="依赖")
+    output = await search_tool.execute(query="依赖", outcome="failed")
     assert "构建失败" in output

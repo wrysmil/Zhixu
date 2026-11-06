@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from nanobot.memory.database import MemoryDatabase
+from nanobot.memory.experience import record_experience
 from nanobot.memory.lifecycle import MemoryLifecycle
 from nanobot.memory.models import (
     Episode,
@@ -31,9 +32,12 @@ from nanobot.webui.memory_api import (
     delete_memory,
     episode_payload,
     fetch_memory_payload,
+    get_memory_doc_payload,
     list_episodes_payload,
+    list_experiences_payload,
     list_memories_payload,
     memory_payload,
+    save_memory_doc,
     save_scratchpad,
     scratchpad_payload,
     scratchpad_payload_from_entry,
@@ -331,8 +335,12 @@ def test_stats_reports_last_daily_consolidation(services: MemoryServices):
 
 def test_stats_memory_md_no_lifecycle(services: MemoryServices):
     """无 MemoryLifecycle 单例时，各字段返回 None/0。"""
-    # Ensure no singleton exists for this workspace
-    MemoryLifecycle._instances.pop(services.workspace_id, None)
+    # Ensure no singleton exists for this workspace（缓存键带 file_mode 后缀）
+    for key in [
+        key for key in MemoryLifecycle._instances
+        if key == services.workspace_id or key.startswith(f"{services.workspace_id}:")
+    ]:
+        MemoryLifecycle._instances.pop(key, None)
     MemoryLifecycle._last_refresh_iso.pop(services.workspace_id, None)
     MemoryLifecycle._last_refresh_trigger.pop(services.workspace_id, None)
 
@@ -448,3 +456,133 @@ def test_update_memory_rejects_unknown_workspace(workspace_services: MemoryServi
     with pytest.raises(WebUIMemoryError, match="invalid workspace"):
         update_memory(workspace_services, "ws-memory", workspace="ws-unknown", content="不该落库")
     assert fetch_memory_payload(workspace_services, "ws-memory")["memory"]["content"] == "用户偏好 Python"
+
+
+# ---------------------------------------------------------------------------
+# 长期记忆正文 + 经验库（新记忆页）
+# ---------------------------------------------------------------------------
+
+
+def test_memory_doc_roundtrip_and_conflict(tmp_path, monkeypatch):
+    from nanobot.memory.provenance import memory_workspace_id
+
+    seen_project_ids: list[str] = []
+    monkeypatch.setattr(
+        "nanobot.memory.files.global_memory_dir", lambda: tmp_path / "global"
+    )
+    monkeypatch.setattr(
+        "nanobot.memory.files.project_memory_dir",
+        lambda workspace_id: (
+            seen_project_ids.append(workspace_id) or (tmp_path / "project")
+        ),
+    )
+    services = MemoryServices(
+        workspace_id="default",
+        database=MemoryDatabase(tmp_path, db_path=tmp_path / "state.db"),
+    )
+
+    saved = save_memory_doc(
+        services, scope="project", content="# 项目\n\n## 约定\n- 构建用 bun"
+    )
+    assert "构建用 bun" in saved["content"]
+    assert saved["chars"] > 0
+
+    loaded = get_memory_doc_payload(services, scope="project")
+    assert loaded["content"] == saved["content"]
+    assert loaded["limit"] == 6000
+    expected_id = memory_workspace_id(str(tmp_path))
+    assert seen_project_ids and set(seen_project_ids) == {expected_id}
+    assert "default" not in seen_project_ids
+
+    with pytest.raises(WebUIMemoryError) as exc:
+        save_memory_doc(
+            services,
+            scope="project",
+            content="# 项目\n\n## 约定\n- 构建用 pnpm",
+            expected_revision="stale",
+        )
+    assert exc.value.status == 409
+
+
+def test_memory_doc_switches_between_project_workspaces(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "nanobot.memory.files.global_memory_dir", lambda: tmp_path / "global"
+    )
+    monkeypatch.setattr(
+        "nanobot.memory.files.project_memory_dir",
+        lambda workspace_id: tmp_path / "projects" / workspace_id / "memory",
+    )
+    services = MemoryServices(
+        workspace_id="default",
+        database=MemoryDatabase(tmp_path, db_path=tmp_path / "state.db"),
+    )
+    alpha, beta = tmp_path / "alpha", tmp_path / "beta"
+    alpha.mkdir()
+    beta.mkdir()
+
+    save_memory_doc(
+        services, scope="project", content="# alpha\n- 用 Maven",
+        workspace_path=str(alpha),
+    )
+    save_memory_doc(
+        services, scope="project", content="# beta\n- 用 Gradle",
+        workspace_path=str(beta),
+    )
+
+    alpha_doc = get_memory_doc_payload(
+        services, scope="project", workspace_path=str(alpha)
+    )
+    beta_doc = get_memory_doc_payload(
+        services, scope="project", workspace_path=str(beta)
+    )
+    assert alpha_doc["content"].strip() == "# alpha\n- 用 Maven"
+    assert beta_doc["content"].strip() == "# beta\n- 用 Gradle"
+    assert alpha_doc["workspace_path"] == str(alpha)
+    assert alpha_doc["revision"] != beta_doc["revision"]
+
+
+def test_list_experiences_payload(services):
+    record_experience(
+        services.database,
+        workspace_id="default",
+        session_id="s1",
+        title="构建失败",
+        situation="缺少依赖",
+        action="重跑",
+        outcome="failed",
+        root_cause="未安装",
+        solution="安装后重跑",
+    )
+    payload = list_experiences_payload(services, outcome="failed", q="依赖")
+    assert payload["total"] == 1
+    assert payload["items"][0]["title"] == "构建失败"
+    assert payload["items"][0]["root_cause"] == "未安装"
+    assert payload["items"][0]["kind"] == "experience"
+    assert payload["items"][0]["status"] == "active"
+
+
+def test_list_experiences_payload_filters_kind_and_status(services):
+    record_experience(
+        services.database,
+        workspace_id="default",
+        session_id="s1",
+        title="连接超时",
+        kind="pitfall",
+        symptom="数据库连接超时",
+        fix="等待健康检查",
+    )
+    record_experience(
+        services.database,
+        workspace_id="default",
+        session_id="s1",
+        title="旧流程",
+        kind="skill",
+        capability="发布",
+        steps=["打包", "上传"],
+        status="deprecated",
+    )
+    pitfalls = list_experiences_payload(services, kind="pitfall")
+    assert [item["kind"] for item in pitfalls["items"]] == ["pitfall"]
+    deprecated = list_experiences_payload(services, kind="skill", status="deprecated")
+    assert [item["title"] for item in deprecated["items"]] == ["旧流程"]
+    assert deprecated["items"][0]["metadata"]["steps"] == ["打包", "上传"]

@@ -13,11 +13,13 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
+from typing import Any
 
 from nanobot.memory.retrieval.candidate import (
     RetrievalCandidate,
     hit_from_episode,
 )
+from nanobot.memory.retrieval.reranker import rrf_scores
 
 _PATH_RE = re.compile(r"[A-Za-z]:\\[^\s\"']+|/[^\s\"']+\.\w{1,5}\b")
 _EXT_RE = re.compile(r"\b[\w一-鿿\-]+\.\w{1,5}\b")
@@ -76,31 +78,78 @@ def _projection_query_terms(query: str, keywords: Sequence[str] | None) -> list[
 
 
 def search_episodes(
-    store,  # 提供 search_episodes(entity=..., limit=..., workspace_ids=...)
+    store,  # 提供 search_episodes(entity=..., limit=..., workspace_ids=..., kind=...)
     *,
     query: str,
     keywords: list[str] | None = None,
     limit: int,
     workspace_ids: Sequence[str] | None = None,
+    kind: str | None = None,
+    status: str | None = None,
+    outcome: str | None = None,
 ) -> list[RetrievalCandidate]:
-    """按投影检索词逐条召回 Episode；同一 episode 只保留首次命中。"""
-    candidates: list[RetrievalCandidate] = []
-    seen: set[str] = set()
+    """词法 + 向量双路召回 Episode，按 RRF 名次融合；同一 episode 只保留一次。"""
+    filters: dict[str, Any] = {}
+    if workspace_ids is not None:
+        filters["workspace_ids"] = workspace_ids
+    if kind:
+        filters["kind"] = kind
+    if status:
+        filters["status"] = status
+    if outcome:
+        filters["outcome"] = outcome
+
+    rows_by_id: dict[str, Any] = {}
+    lexical_ids: list[str] = []
     for term in _projection_query_terms(query, keywords):
-        eps = store.search_episodes(
-            entity=term, limit=_EPISODES_PER_TERM,
-            **({"workspace_ids": workspace_ids} if workspace_ids is not None else {}),
-        )
+        eps = store.search_episodes(entity=term, limit=_EPISODES_PER_TERM, **filters)
         for ep in eps:
             episode_id = str(getattr(ep, "id", "") or "")
-            if not episode_id or episode_id in seen:
+            if not episode_id or episode_id in rows_by_id:
                 continue
-            seen.add(episode_id)
-            candidates.append(
-                RetrievalCandidate(
-                    hit=hit_from_episode(ep),
-                    source_channel="episodes",
-                    raw=ep,
-                )
-            )
-    return candidates[:limit]
+            rows_by_id[episode_id] = ep
+            lexical_ids.append(episode_id)
+
+    vector_ids: list[str] = []
+    vector_search = getattr(store, "search_episodes_vector", None)
+    if callable(vector_search):
+        try:
+            hits = vector_search(query, limit=max(limit * 3, _EPISODES_PER_TERM))
+        except Exception:  # noqa: BLE001 - 向量故障只降级，不打断词法召回
+            hits = []
+        missing = [str(eid) for eid, _score in hits if eid and str(eid) not in rows_by_id]
+        if missing:
+            getter = getattr(store, "get_episodes_by_ids", None)
+            if callable(getter):
+                try:
+                    fetched = getter(missing, **filters)
+                except Exception:  # noqa: BLE001 - 回表失败按未命中处理
+                    fetched = []
+                for row in fetched:
+                    episode_id = str(getattr(row, "id", "") or "")
+                    if episode_id and episode_id not in rows_by_id:
+                        rows_by_id[episode_id] = row
+        vector_ids = [
+            str(eid) for eid, _score in hits if str(eid) in rows_by_id
+        ]
+
+    if not rows_by_id:
+        return []
+    rankings: list[list[str]] = [lexical_ids]
+    if vector_ids:
+        rankings.append(vector_ids)
+    scores = rrf_scores(rankings)
+    ordered = sorted(
+        rows_by_id,
+        key=lambda eid: str(getattr(rows_by_id[eid], "ended_at", "") or ""),
+        reverse=True,
+    )
+    ordered.sort(key=lambda eid: -scores.get(eid, 0.0))
+    return [
+        RetrievalCandidate(
+            hit=hit_from_episode(rows_by_id[eid]),
+            source_channel="episodes",
+            raw=rows_by_id[eid],
+        )
+        for eid in ordered[:limit]
+    ]

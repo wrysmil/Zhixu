@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from nanobot.agent.memory import MemoryStore
@@ -144,6 +146,16 @@ class TestDreamToolWhitelist:
         runs = store.recent_dream_runs()
         assert len(runs) == 1
         assert runs[0]["added"] == 1
+
+    def test_audit_records_experience_review_metadata(self, ws):
+        store = MemoryStore(ws)
+        audit = store.begin_dream_run(trigger="manual", model="m")
+        audit.record_experience_review({"summary": "重复失败：缺依赖"})
+        store.end_dream_run(status="completed")
+
+        runs = store.recent_dream_runs()
+        metadata = json.loads(runs[0]["metadata"] or "{}")
+        assert metadata["experience_review"]["summary"] == "重复失败：缺依赖"
 
 
 class TestDreamPrompt:

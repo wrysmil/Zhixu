@@ -40,6 +40,8 @@ def test_episode_metadata_round_trip_and_legacy_fallback(db: MemoryDatabase):
 def test_schema_upgrades_old_episode_table_idempotently(db: MemoryDatabase):
     with db.connect() as conn:
         add_episode(conn, Episode("before", "s", "existing summary", "start", "end"))
+        # 模拟老库：表达式索引也一并移除，才能回退到没有 metadata 列的形态。
+        conn.execute("DROP INDEX IF EXISTS idx_episodes_kind")
         conn.execute("ALTER TABLE episodes DROP COLUMN metadata")
     db.ensure_schema()
     db.ensure_schema()

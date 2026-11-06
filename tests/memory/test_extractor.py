@@ -15,7 +15,9 @@ import pytest
 from loguru import logger
 
 from nanobot.memory.database import MemoryDatabase
+from nanobot.memory.extract_writer import build_file_writer
 from nanobot.memory.extractor import (
+    FilteredExtractionResult,
     LLMEpisodeItem,
     LLMExtractionResult,
     LLMMemoryItem,
@@ -26,6 +28,7 @@ from nanobot.memory.extractor import (
     _parse_json_object,
     _resolve_action_success,
 )
+from nanobot.memory.files import MemoryFileStore
 from nanobot.memory.models import (
     EpisodeSource,
     Memory,
@@ -1551,3 +1554,31 @@ class TestParseJsonObject:
         assert _parse_json_object("NONE") is None
         assert _parse_json_object("no json here") is None
 
+
+
+class TestFileModePersistence:
+    def test_file_mode_writes_body_and_skips_long_term_rows(self, db, tmp_path):
+        store = MemoryFileStore(tmp_path / "g", tmp_path / "p")
+        extractor = _make_extractor(
+            db, _FakeProvider(), memory_file_writer=build_file_writer(store)
+        )
+        filtered = FilteredExtractionResult(
+            memories=[
+                LLMMemoryItem(content="项目构建用 bun", type="fact", importance=0.8),
+                LLMMemoryItem(content="用户偏好中文", type="preference", importance=0.8),
+                LLMMemoryItem(content="构建失败：缺依赖", type="experience", importance=0.8),
+            ],
+            episode=LLMEpisodeItem(summary="配置构建", goal="配置构建"),
+        )
+
+        result = extractor._persist(filtered, _session(), source="extraction")
+
+        assert [item.content for item in result.file_memories] == [
+            "项目构建用 bun",
+            "用户偏好中文",
+        ]
+        assert "项目构建用 bun" in store.read_memory_doc("project")
+        assert "用户偏好中文" in store.read_memory_doc("global")
+        with db.connect() as conn:
+            rows = list_memories(conn, workspace_id="default")
+        assert [item.content for item in rows] == ["构建失败：缺依赖"]

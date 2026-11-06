@@ -360,11 +360,27 @@ def _get_last_refresh_trigger(workspace_id: str) -> str | None:
     return MemoryLifecycle._last_refresh_trigger.get(workspace_id)
 
 
-def _current_memory_md_chars(workspace_id: str) -> int:
-    """MEMORY.md 当前字符数，不存在返回 0。"""
+def _lifecycle_instance(workspace_id: str):
+    """按 workspace_id 找 lifecycle 实例。
+
+    ``for_workspace`` 的缓存键带 ``file_mode`` 后缀（``<id>:file_mode=0/1``），
+    只按裸 id 查会永远 miss，导致 MEMORY.md 统计恒为空。
+    """
     from nanobot.memory.lifecycle import MemoryLifecycle
 
     inst = MemoryLifecycle._instances.get(workspace_id)
+    if inst is not None:
+        return inst
+    prefix = f"{workspace_id}:"
+    for key, candidate in MemoryLifecycle._instances.items():
+        if key.startswith(prefix):
+            return candidate
+    return None
+
+
+def _current_memory_md_chars(workspace_id: str) -> int:
+    """MEMORY.md 当前字符数，不存在返回 0。"""
+    inst = _lifecycle_instance(workspace_id)
     if inst is None or not inst.memory_file.exists():
         return 0
     try:
@@ -375,9 +391,7 @@ def _current_memory_md_chars(workspace_id: str) -> int:
 
 def _read_memory_md_content(workspace_id: str) -> str | None:
     """读取 MEMORY.md 文件内容，不存在返回 None。"""
-    from nanobot.memory.lifecycle import MemoryLifecycle
-
-    inst = MemoryLifecycle._instances.get(workspace_id)
+    inst = _lifecycle_instance(workspace_id)
     if inst is None or not inst.memory_file.exists():
         return None
     try:
@@ -397,6 +411,148 @@ def get_memory_md_content(services: MemoryServices) -> dict[str, Any]:
     return {
         "memory_md": memory_md,
         "memory_md_exists": memory_md is not None,
+    }
+
+
+# ---- long-term memory document ------------------------------------------------
+
+
+def _memory_doc_store(
+    services: MemoryServices, *, workspace_path: str | None = None
+):
+    from nanobot.memory.files import (
+        MemoryFileStore,
+        global_memory_dir,
+        project_memory_dir,
+    )
+    from nanobot.memory.provenance import memory_workspace_id
+
+    # ``services.workspace_id`` 是 SQLite 的本地库键（固定 "default"）；
+    # 项目记忆目录按工作区路径哈希定位，必须与写入侧同源。调用方可显式
+    # 指定项目路径，让记忆页在多个已登记项目之间切换。
+    project_id = memory_workspace_id(
+        (workspace_path or "").strip() or str(services.database.workspace)
+    )
+    return MemoryFileStore(global_memory_dir(), project_memory_dir(project_id))
+
+
+def _memory_doc_revision(content: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+
+
+def get_memory_doc_payload(
+    services: MemoryServices,
+    *,
+    scope: str = "global",
+    workspace_path: str | None = None,
+) -> dict[str, Any]:
+    """Read one MEMORY.md body (global or project) for the WebUI editor."""
+    from nanobot.memory.files import MEMORY_DOC_MAX_CHARS
+
+    if scope not in {"global", "project"}:
+        raise WebUIMemoryError("scope must be 'global' or 'project'")
+    store = _memory_doc_store(services, workspace_path=workspace_path)
+    content = store.read_memory_doc(scope)
+    return {
+        "scope": scope,
+        "content": content,
+        "chars": len(content),
+        "limit": MEMORY_DOC_MAX_CHARS[scope],
+        "revision": _memory_doc_revision(content),
+        "exists": bool(content.strip()),
+        "workspace_path": (
+            (workspace_path or "").strip() or str(services.database.workspace)
+            if scope == "project"
+            else None
+        ),
+    }
+
+
+def save_memory_doc(
+    services: MemoryServices,
+    *,
+    scope: str = "global",
+    content: str,
+    expected_revision: str | None = None,
+    workspace_path: str | None = None,
+) -> dict[str, Any]:
+    """Save one MEMORY.md body; reject over-budget and concurrent edits."""
+    if scope not in {"global", "project"}:
+        raise WebUIMemoryError("scope must be 'global' or 'project'")
+    if not isinstance(content, str):
+        raise WebUIMemoryError("content must be a string")
+    store = _memory_doc_store(services, workspace_path=workspace_path)
+    current = store.read_memory_doc(scope)
+    if expected_revision and expected_revision != _memory_doc_revision(current):
+        raise WebUIMemoryError("记忆内容已被其他编辑修改，请刷新后再保存", status=409)
+    try:
+        store.write_memory_doc(scope, content)
+    except ValueError as exc:
+        raise WebUIMemoryError(str(exc)) from exc
+    saved = store.read_memory_doc(scope)
+    return {
+        "scope": scope,
+        "content": saved,
+        "chars": len(saved),
+        "revision": _memory_doc_revision(saved),
+    }
+
+
+# ---- experience library -------------------------------------------------------
+
+
+def list_experiences_payload(
+    services: MemoryServices,
+    *,
+    workspace: str | None = None,
+    outcome: str | None = None,
+    kind: str | None = None,
+    status: str | None = None,
+    q: str | None = None,
+    limit: int | None = 50,
+) -> dict[str, Any]:
+    """List/search the experience library (episodes with source=experience)."""
+    from nanobot.memory.experience import KINDS, STATUSES, list_experiences
+
+    if outcome is not None and outcome not in {"failed", "partial", "completed"}:
+        raise WebUIMemoryError("invalid outcome")
+    if kind is not None and kind not in KINDS:
+        raise WebUIMemoryError("invalid kind")
+    if status is not None and status not in STATUSES:
+        raise WebUIMemoryError("invalid status")
+    workspace_ids = (workspace,) if workspace else tuple(
+        dict.fromkeys((services.workspace_id, "default"))
+    )
+    rows = list_experiences(
+        services.database,
+        workspace_ids=workspace_ids,
+        query=(q or "").strip(),
+        outcome=outcome,
+        kind=kind,
+        status=status,
+        limit=int(limit or 50),
+    )
+    return {
+        "items": [
+            {
+                "id": row.id,
+                "title": row.title,
+                "summary": row.summary,
+                "outcome": row.outcome,
+                "kind": row.kind,
+                "status": row.status,
+                "version": row.version,
+                "root_cause": row.root_cause,
+                "solution": row.solution,
+                "metadata": row.metadata,
+                "workspace_id": row.workspace_id,
+                "ended_at": row.ended_at,
+            }
+            for row in rows
+        ],
+        "total": len(rows),
     }
 
 
@@ -565,12 +721,15 @@ def reindex_vector(
         # **假成功**；用户无法区分「已一致」与「向量挂了」。显式报不可用。
         return {"available": False, "indexed": 0, "deleted": 0, "error": not_ready}
     result = indexer.sync_from_sqlite()
+    episode = _sync_episode_index_best_effort()
     return {
         "available": True,
         "indexed": int(result.get("indexed", 0)),
         "deleted": int(result.get("deleted", 0)),
         "error": result.get("error", ""),
         "vector_count": int(getattr(vector_runtime, "count", lambda: 0)()),
+        "episode_indexed": int(episode.get("indexed", 0)),
+        "episode_deleted": int(episode.get("deleted", 0)),
     }
 
 
@@ -595,12 +754,29 @@ def sync_vector(
     if not_ready:
         return {"available": False, "indexed": 0, "deleted": 0, "error": not_ready}
     result = indexer.sync_from_sqlite()
+    episode = _sync_episode_index_best_effort()
     return {
         "available": True,
         "indexed": int(result.get("indexed", 0)),
         "deleted": int(result.get("deleted", 0)),
         "error": result.get("error", ""),
+        "episode_indexed": int(episode.get("indexed", 0)),
+        "episode_deleted": int(episode.get("deleted", 0)),
     }
+
+
+def _sync_episode_index_best_effort() -> dict[str, Any]:
+    """同步经验库向量；未启用/失败时返回零值，不影响记忆索引结果。"""
+    try:
+        from nanobot.memory.vector.indexer import get_active_episode_indexer
+
+        indexer = get_active_episode_indexer()
+        if indexer is None:
+            return {}
+        return dict(indexer.sync_from_sqlite())
+    except Exception as exc:  # noqa: BLE001 - 派生索引失败不回滚主索引
+        logger.warning("episode vector sync failed: {}", exc)
+        return {}
 
 
 # ---- write action hooks ------------------------------------------------------
@@ -842,6 +1018,15 @@ def update_episode(
             _repo_update_episode(conn, episode_id, **kwargs)
     except KeyError:
         raise WebUIMemoryError("episode not found", status=404)
+    try:
+        from nanobot.memory.vector.indexer import index_episode_best_effort
+
+        with services.database.connect() as conn:
+            updated = get_episode(conn, episode_id)
+        if updated is not None:
+            index_episode_best_effort(updated)
+    except Exception:  # noqa: BLE001 - 派生索引失败不影响更新结果
+        pass
     return fetch_episode_payload(services, episode_id)
 
 
@@ -854,6 +1039,12 @@ def delete_episode(services: MemoryServices, episode_id: str) -> dict[str, Any]:
             _repo_delete_episode(conn, episode_id)
     except KeyError:
         raise WebUIMemoryError("episode not found", status=404)
+    try:
+        from nanobot.memory.vector.indexer import remove_episode_best_effort
+
+        remove_episode_best_effort(episode_id)
+    except Exception:  # noqa: BLE001 - 派生索引失败不影响删除结果
+        pass
     return {"ok": True}
 
 

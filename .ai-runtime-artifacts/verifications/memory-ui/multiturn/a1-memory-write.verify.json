@@ -1,0 +1,36 @@
+{
+  "shot": "a1-memory-write.png",
+  "expected_kind": null,
+  "pass": true,
+  "total": 6,
+  "kinds": {
+    "decision": 1,
+    "experience": 2,
+    "pitfall": 1,
+    "reference": 1,
+    "skill": 1
+  },
+  "latest": [
+    [
+      "reference",
+      "active",
+      "上线检查清单"
+    ],
+    [
+      "decision",
+      "active",
+      "迁移旧记忆时按行归档"
+    ],
+    [
+      "pitfall",
+      "active",
+      "Vite 端口被占用"
+    ],
+    [
+      "skill",
+      "active",
+      "本地启动知序 WebUI"
+    ]
+  ],
+  "vector_count": 6
+}

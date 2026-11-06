@@ -210,12 +210,56 @@ class MemoryStoreAdapter:
 
     # ----- 情节通道 -----
     def search_episodes(
-        self, *, entity: str, limit: int = 5, workspace_ids: Sequence[str] | None = None
+        self,
+        *,
+        entity: str,
+        limit: int = 5,
+        workspace_ids: Sequence[str] | None = None,
+        kind: str | None = None,
+        status: str | None = None,
+        outcome: str | None = None,
     ) -> list[Any]:
-        """按实体名召回 episode。"""
+        """按实体名召回 episode；可附带经验库类型/状态/结果过滤。"""
         with self._database.connect() as conn:
             return repository.search_episodes(
-                conn, entity=entity, limit=limit, workspace_ids=workspace_ids
+                conn,
+                entity=entity,
+                limit=limit,
+                workspace_ids=workspace_ids,
+                kind=kind,
+                status=status,
+                outcome=outcome,
+            )
+
+    def search_episodes_vector(
+        self, query: str, *, limit: int = 15
+    ) -> list[tuple[str, float]]:
+        """经验库向量召回；未启用向量时返回空列表。"""
+        from nanobot.memory.vector.indexer import get_active_episode_indexer
+
+        indexer = get_active_episode_indexer()
+        if indexer is None:
+            return []
+        return indexer.search(query, limit=limit)
+
+    def get_episodes_by_ids(
+        self,
+        ids: Sequence[str],
+        *,
+        workspace_ids: Sequence[str] | None = None,
+        kind: str | None = None,
+        status: str | None = None,
+        outcome: str | None = None,
+    ) -> list[Any]:
+        """向量命中后回表：workspace 与类型过滤必须在 SQL 层完成。"""
+        with self._database.connect() as conn:
+            return repository.get_episodes_by_ids(
+                conn,
+                ids,
+                workspace_ids=workspace_ids,
+                kind=kind,
+                status=status,
+                outcome=outcome,
             )
 
     # ----- 显式时间浏览（不是召回通道）-----

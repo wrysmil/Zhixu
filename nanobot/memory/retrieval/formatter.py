@@ -72,6 +72,8 @@ class RetrievalFormatter:
                 "score": round(raw_score, 2),
                 "reason": self._score_label(raw_score),
                 "memory_id": c.memory_id,
+                "entry_kind": c.hit.entry_kind,
+                "entry_status": c.hit.entry_status,
             })
         return out
 

@@ -1,0 +1,36 @@
+{
+  "shot": "a2-pitfall-httpx.png",
+  "expected_kind": "pitfall",
+  "pass": true,
+  "total": 7,
+  "kinds": {
+    "decision": 1,
+    "experience": 2,
+    "pitfall": 2,
+    "reference": 1,
+    "skill": 1
+  },
+  "latest": [
+    [
+      "pitfall",
+      "active",
+      "uv run 报 No module named 'httpx'，pip install 后仍然报错（uv 与 pip 用了不同解释器）"
+    ],
+    [
+      "reference",
+      "active",
+      "上线检查清单"
+    ],
+    [
+      "decision",
+      "active",
+      "迁移旧记忆时按行归档"
+    ],
+    [
+      "pitfall",
+      "active",
+      "Vite 端口被占用"
+    ]
+  ],
+  "vector_count": 7
+}

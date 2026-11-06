@@ -43,8 +43,9 @@ class _StubStore:
             raise RuntimeError("semantic down")
         return self.semantic_payload
 
-    def search_episodes(self, *, entity, limit=None, workspace_ids=None):
+    def search_episodes(self, *, entity, limit=None, workspace_ids=None, **filters):
         self.search_episodes_called += 1
+        self.episode_filters = filters
         return self.episodes_payload
 
     def list_recent_memories(self, *, since_days, limit, workspace_ids=None):
@@ -304,3 +305,74 @@ async def test_engine_passes_workspace_ids_to_channels(method):
         workspace_ids=("default", "ws-a"),
     )
     assert seen == dict.fromkeys(("semantic", "episodes"), ("default", "ws-a"))
+
+
+# ---- 经验库类型过滤 ----
+
+def _episode(eid: str, summary: str, metadata: dict[str, Any]) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=eid,
+        summary=summary,
+        workspace_id="default",
+        ended_at="2026-11-06T10:00:00+00:00",
+        session_id="s1",
+        metadata=metadata,
+    )
+
+
+@pytest.mark.asyncio
+async def test_kind_filter_restricts_to_episodes_channel():
+    store = _StubStore()
+    store.episodes_payload = [
+        _episode(
+            "e1",
+            "症状：数据库连接超时\n根因：mysql 未就绪\n修复：service_healthy",
+            {"title": "连接超时", "kind": "pitfall", "status": "active"},
+        )
+    ]
+    engine = RetrievalEngine(store=store, brain=None)
+    out = await engine.retrieve(
+        query="数据库连接超时怎么办",
+        recent_messages=[],
+        precomputed_keywords=["数据库连接超时"],
+        kind="pitfall",
+    )
+    assert store.search_semantic_scored_called == 0
+    assert store.episode_filters.get("kind") == "pitfall"
+    assert "[踩坑]" in out
+
+
+@pytest.mark.asyncio
+async def test_non_active_status_is_labeled():
+    store = _StubStore()
+    store.episodes_payload = [
+        _episode(
+            "e1",
+            "能力：初始化项目\n步骤：1. uv init",
+            {"title": "初始化项目", "kind": "skill", "status": "deprecated"},
+        )
+    ]
+    engine = RetrievalEngine(store=store, brain=None)
+    out = await engine.retrieve(
+        query="初始化项目",
+        recent_messages=[],
+        precomputed_keywords=["初始化项目"],
+        kind="skill",
+        status="deprecated",
+    )
+    assert store.episode_filters.get("status") == "deprecated"
+    assert "[技能·已弃用]" in out
+
+
+@pytest.mark.asyncio
+async def test_outcome_filter_skips_semantic_channel():
+    store = _StubStore()
+    engine = RetrievalEngine(store=store, brain=None)
+    await engine.retrieve(
+        query="构建失败",
+        recent_messages=[],
+        precomputed_keywords=["构建失败"],
+        outcome="failed",
+    )
+    assert store.search_semantic_scored_called == 0
+    assert store.episode_filters.get("outcome") == "failed"

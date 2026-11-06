@@ -1272,12 +1272,45 @@ def count_semantic_matches_unfiltered(
     return {"fts5": fts5_count, "like": like_count}
 
 
+def _episode_entry_conditions(
+    *, kind: str | None, status: str | None, outcome: str | None
+) -> tuple[list[str], list[Any]]:
+    """经验库条目的类型/状态/结果过滤子句；旧数据缺字段时按默认值兼容。"""
+    clauses: list[str] = []
+    params: list[Any] = []
+    if kind:
+        if kind == "experience":
+            clauses.append(
+                "(json_extract(metadata,'$.kind') = ? "
+                "OR json_extract(metadata,'$.kind') IS NULL)"
+            )
+        else:
+            clauses.append("json_extract(metadata,'$.kind') = ?")
+        params.append(kind)
+    if status:
+        if status == "active":
+            clauses.append(
+                "(json_extract(metadata,'$.status') = ? "
+                "OR json_extract(metadata,'$.status') IS NULL)"
+            )
+        else:
+            clauses.append("json_extract(metadata,'$.status') = ?")
+        params.append(status)
+    if outcome:
+        clauses.append("outcome = ?")
+        params.append(outcome)
+    return clauses, params
+
+
 def search_episodes(
     conn: sqlite3.Connection,
     *,
     entity: str,
     limit: int = 5,
     workspace_ids: Sequence[str] | None = None,
+    kind: str | None = None,
+    status: str | None = None,
+    outcome: str | None = None,
 ) -> list["_EpisodeRow"]:
     """按检索词 LIKE 子串匹配 episodes 的**可检索投影**。
 
@@ -1319,11 +1352,16 @@ def search_episodes(
     condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
     if condition:
         where = f"{where} AND {condition}"
+    clauses, extra_params = _episode_entry_conditions(
+        kind=kind, status=status, outcome=outcome
+    )
+    if clauses:
+        where = f"{where} AND {' AND '.join(clauses)}"
     cur = conn.execute(
-        f"SELECT id, summary, session_id, workspace_id, ended_at "
+        f"SELECT id, summary, session_id, workspace_id, ended_at, metadata "
         f"FROM episodes WHERE {where} "
         f"ORDER BY datetime(ended_at) DESC, id DESC LIMIT ?",
-        [pattern] * 5 + [*condition_params, limit],
+        [pattern] * 5 + [*condition_params, *extra_params, limit],
     )
     return [
         _EpisodeRow(
@@ -1332,8 +1370,53 @@ def search_episodes(
             session_id=row[2],
             workspace_id=row[3],
             ended_at=row[4],
+            metadata=row[5] or "{}",
         )
         for row in cur.fetchall()
+    ]
+
+
+def get_episodes_by_ids(
+    conn: sqlite3.Connection,
+    ids: Sequence[str],
+    *,
+    workspace_ids: Sequence[str] | None = None,
+    kind: str | None = None,
+    status: str | None = None,
+    outcome: str | None = None,
+) -> list["_EpisodeRow"]:
+    """按 id 批量取情节行（向量命中后回表做可见性与类型过滤）。"""
+    unique_ids = [str(item) for item in dict.fromkeys(ids) if str(item)]
+    if not unique_ids:
+        return []
+    placeholders = ",".join("?" for _ in unique_ids)
+    where = f"id IN ({placeholders})"
+    condition, condition_params = _workspace_ids_condition("workspace_id", workspace_ids)
+    params: list[Any] = [*unique_ids]
+    if condition:
+        where = f"{where} AND {condition}"
+        params.extend(condition_params)
+    clauses, extra_params = _episode_entry_conditions(
+        kind=kind, status=status, outcome=outcome
+    )
+    if clauses:
+        where = f"{where} AND {' AND '.join(clauses)}"
+        params.extend(extra_params)
+    rows = conn.execute(
+        f"SELECT id, summary, session_id, workspace_id, ended_at, metadata "
+        f"FROM episodes WHERE {where}",
+        params,
+    ).fetchall()
+    return [
+        _EpisodeRow(
+            id=row[0],
+            summary=row[1],
+            session_id=row[2],
+            workspace_id=row[3],
+            ended_at=row[4],
+            metadata=row[5] or "{}",
+        )
+        for row in rows
     ]
 
 
@@ -1406,6 +1489,7 @@ class _EpisodeRow:
     session_id: str
     workspace_id: str
     ended_at: str
+    metadata: str = "{}"
 
 
 # ---------- vector_sync_state ----------

@@ -370,3 +370,16 @@ class TestCompileLinkage:
         # 区块标记与空态提示都不该进 system prompt。
         assert "<!--" not in compiled
         assert "暂无" not in compiled
+
+
+# ---------------------------------------------------------------------------
+# 文件模式：USER.md 不再从记忆正文推导
+# ---------------------------------------------------------------------------
+
+
+class TestFileModeUserMd:
+    def test_file_mode_skips_user_md_derivation(self, tmp_ws, services):
+        MemoryLifecycle._instances.clear()
+        lifecycle = MemoryLifecycle("test-ws", services, file_mode=True)
+        result = lifecycle.refresh_user_md_sync("test-ws")
+        assert result == {"status": "skipped", "reason": "file_mode"}

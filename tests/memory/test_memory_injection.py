@@ -16,22 +16,19 @@ def _home(tmp_path: Path, monkeypatch) -> Path:
     return home
 
 
-def test_file_mode_injects_index(monkeypatch, tmp_path: Path) -> None:
+def test_file_mode_injects_memory_doc(monkeypatch, tmp_path: Path) -> None:
     home = _home(tmp_path, monkeypatch)
     store = MemoryFileStore.for_project(str(tmp_path))
-    store.write_memory(
+    store.write_memory_doc(
         GLOBAL_SCOPE,
-        "prefer-direct",
-        "解释机制先讲因果",
-        description="用户讨厌绕弯解释",
-        memory_type="user",
+        "# 全局记忆\n\n## 偏好\n- 解释机制先讲因果",
     )
 
     builder = ContextBuilder(tmp_path, memory_file_mode=True)
     prompt = builder.build_system_prompt(workspace=tmp_path)
 
-    assert "记忆索引" in prompt
-    assert "(prefer-direct.md)" in prompt
+    assert "解释机制先讲因果" in prompt
+    assert "长期记忆（正文）" in prompt
     assert str(home / ".nanobot" / "memory") in prompt
 
 
@@ -52,11 +49,11 @@ def test_legacy_mode_has_no_index(monkeypatch, tmp_path: Path) -> None:
     assert "记忆索引" not in prompt
 
 
-def test_project_index_uses_project_scope(monkeypatch, tmp_path: Path) -> None:
+def test_project_doc_uses_project_scope(monkeypatch, tmp_path: Path) -> None:
     _home(tmp_path, monkeypatch)
     store = MemoryFileStore.for_project(str(tmp_path))
-    store.write_memory(PROJECT_SCOPE, "use-bun", "本项目用 bun", description="项目栈")
+    store.write_memory_doc(PROJECT_SCOPE, "# 项目记忆\n\n## 技术栈\n- 本项目用 bun")
 
     builder = ContextBuilder(tmp_path, memory_file_mode=True)
     prompt = builder.build_system_prompt(workspace=tmp_path)
-    assert "(use-bun.md)" in prompt
+    assert "本项目用 bun" in prompt

@@ -1,13 +1,7 @@
-"""抽取产物 → 记忆文件（文件模式的第二出口）。
+"""抽取产物 → MEMORY.md 正文（文件模式的唯一落点）。
 
-SQLite 只服务检索，记忆本体是文件：定时抽取跑完 LLM 抽取后，把落库的每条事实
-再写成一条记忆文件（同 ``name`` 追加），并由文件层维护索引。
-
-门槛与作用域判定：
-
-* 作用域：``preference`` / ``rule`` → 全局目录；其余 → 当前项目目录。
-* 门槛：全局目录要求 ``importance >= 0.7``，项目目录要求 ``>= 0.5``。
-  门槛用 ``importance`` 而不是 ``confidence``——抽取产物没有 confidence 字段。
+长期抽取产物只写 ``MEMORY.md`` 正文；不再写 ``memories`` 表，也不再维护索引。
+经验/错误类型由抽取器走经验库，不进入本模块。
 """
 
 from __future__ import annotations
@@ -27,21 +21,8 @@ from nanobot.memory.models import Memory
 
 logger = logging.getLogger(__name__)
 
-#: 记忆库类型 → 文件层类型。
-_TYPE_MAP: dict[str, str] = {
-    "preference": "user",
-    "rule": "feedback",
-    "experience": "feedback",
-    "error": "feedback",
-    "fact": "project",
-    "skill": "project",
-}
-
-
-def file_type_for(memory_type: str) -> str:
-    """记忆库类型 → 文件层类型（``user`` / ``feedback`` / ``project``）。"""
-    value = getattr(memory_type, "value", memory_type)
-    return _TYPE_MAP.get(str(value or "").strip().lower(), "project")
+#: 只有这三类进入长期记忆正文；experience/error 走经验库，skill 走技能。
+FILE_MEMORY_TYPES = frozenset({"fact", "preference", "rule"})
 
 
 def memory_name_for(memory: Memory) -> str:
@@ -61,12 +42,16 @@ def write_extracted_memories(
     *,
     append: bool = True,
 ) -> list[str]:
-    """把抽取产物写进记忆文件，返回写入的文件名列表。
+    """把抽取产物追加到 MEMORY.md 正文，返回写入的记忆名列表。
 
-    低于门槛的条目直接丢弃（全局 0.7 / 项目 0.5）。
+    低于门槛的条目直接丢弃（全局 0.7 / 项目 0.5）；experience/error/skill
+    不进入长期记忆正文。
     """
     written: list[str] = []
     for memory in memories:
+        memory_type = str(getattr(memory.type, "value", memory.type)).lower()
+        if memory_type not in FILE_MEMORY_TYPES:
+            continue
         scope = scope_for_memory_type(memory.type)
         threshold = (
             GLOBAL_IMPORTANCE_THRESHOLD
@@ -83,16 +68,14 @@ def write_extracted_memories(
             )
             continue
         name = memory_name_for(memory)
-        description = (memory.content or "").strip().splitlines()[0][:60] if memory.content else ""
+        section = "用户偏好与规则" if scope == GLOBAL_SCOPE else "项目事实"
+        created_at = str(getattr(memory, "created_at", "") or "")
+        date = created_at[:10] if created_at else ""
+        bullet = memory.content.strip()
+        if date:
+            bullet = f"{bullet}（{date}）"
         try:
-            store.write_memory(
-                scope,
-                name,
-                memory.content,
-                description=description,
-                memory_type=file_type_for(memory.type),
-                append=append,
-            )
+            store.append_memory_bullet(scope, section, bullet)
         except Exception as exc:  # noqa: BLE001 - 单条失败不影响其它条目
             logger.warning("memory file export failed for %s: {!r}", name, exc)
             continue

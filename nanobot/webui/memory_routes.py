@@ -57,6 +57,10 @@ class MemorySettingsOperations:
     get_memory_md_content: Callable[..., dict[str, Any]]  # 🆕 WU-6: 读取 MEMORY.md 内容
     #: 按来源会话反查（工作台用）。默认 None，保持既有测试替身与旧接线可用。
     list_memories_by_session: Callable[..., dict[str, Any]] | None = None
+    #: 长期记忆正文 + 经验库（新记忆页）。
+    get_memory_doc: Callable[..., dict[str, Any]] | None = None
+    save_memory_doc: Callable[..., dict[str, Any]] | None = None
+    list_experiences: Callable[..., dict[str, Any]] | None = None
 
 
 # Canonical set of actions this domain understands; the settings router uses
@@ -69,6 +73,7 @@ MEMORY_ACTION_NAMES = frozenset({
     "vector-reindex", "vector-sync",
     "memory-refresh-md",  # 🆕 WU-4
     "memory-get-md-content",  # 🆕 WU-6: 读取 MEMORY.md 内容
+    "memory-doc-get", "memory-doc-save", "experience-list",
 })
 
 
@@ -152,6 +157,42 @@ def dispatch(
 
     if action == "memory-get":
         return operations.fetch_memory(_id(query, payload))
+
+    if action == "memory-doc-get":
+        if operations.get_memory_doc is None:
+            raise WebUISettingsError("memory document API is not wired")
+        return operations.get_memory_doc(
+            scope=query_first(query, "scope") or "global",
+            workspace_path=query_first(query, "path"),
+        )
+
+    if action == "memory-doc-save":
+        if operations.save_memory_doc is None:
+            raise WebUISettingsError("memory document API is not wired")
+        content = payload.get("content")
+        if not isinstance(content, str):
+            raise WebUISettingsError("content must be a string")
+        return operations.save_memory_doc(
+            scope=query_first(query, "scope") or payload.get("scope") or "global",
+            content=content,
+            expected_revision=payload.get("expected_revision"),
+            workspace_path=(
+                query_first(query, "path")
+                or payload.get("workspace_path")
+            ),
+        )
+
+    if action == "experience-list":
+        if operations.list_experiences is None:
+            raise WebUISettingsError("experience API is not wired")
+        return operations.list_experiences(
+            workspace=query_first(query, "workspace"),
+            outcome=query_first(query, "outcome"),
+            kind=query_first(query, "kind"),
+            status=query_first(query, "status"),
+            q=query_first(query, "q"),
+            limit=_maybe_int(query_first(query, "limit")),
+        )
 
     if action == "memory-stats":
         return operations.fetch_stats()

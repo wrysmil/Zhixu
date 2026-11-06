@@ -18,6 +18,7 @@ workspace 维度的活跃表足够，且对主 Agent 的写入天然无副作用
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -66,6 +67,11 @@ class DreamRunAudit:
     model: str = ""
     started_at: str = field(default_factory=_now_iso)
     stats: DreamRunStats = field(default_factory=DreamRunStats)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def record_experience_review(self, review: dict[str, Any]) -> None:
+        """保存 Dream 的经验复盘建议（只落审计，不改记忆）。"""
+        self.metadata["experience_review"] = review
 
     # -- 计数入口（由记忆工具调用） -------------------------------------
 
@@ -95,8 +101,8 @@ class DreamRunAudit:
             with self.database.connect() as conn:
                 conn.execute(
                     "UPDATE memory_dream_runs SET status = ?, added = ?, updated = ?, "
-                    "deleted = ?, skipped = ?, entries_read = ?, error = ?, finished_at = ? "
-                    "WHERE run_id = ?",
+                    "deleted = ?, skipped = ?, entries_read = ?, error = ?, finished_at = ?, "
+                    "metadata = ? WHERE run_id = ?",
                     (
                         status,
                         self.stats.added,
@@ -106,6 +112,7 @@ class DreamRunAudit:
                         self.stats.entries_read,
                         error[:2000],
                         _now_iso(),
+                        json.dumps(self.metadata, ensure_ascii=False, default=str),
                         self.run_id,
                     ),
                 )

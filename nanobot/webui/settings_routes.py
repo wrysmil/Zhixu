@@ -175,6 +175,9 @@ _SYSTEM_ROUTES = {
     "/api/settings/memory/vector/sync": "vector-sync",
     "/api/settings/memory/refresh-md": "memory-refresh-md",  # 🆕 WU-4
     "/api/settings/memory/memory-md/content": "memory-get-md-content",  # 🆕 WU-6
+    "/api/settings/memory/doc": "memory-doc-get",
+    "/api/settings/memory/doc/save": "memory-doc-save",
+    "/api/settings/memory/experiences": "experience-list",
     "/api/settings/identity/files": "identity-list-files",
     "/api/settings/identity/file": "identity-read-file",
     "/api/settings/identity/file/save": "identity-write-file",
@@ -232,6 +235,7 @@ _MEMORY_MUTATION_PATHS = frozenset({
     "/api/settings/memory/vector/reindex",
     "/api/settings/memory/vector/sync",
     "/api/settings/memory/refresh-md",  # 🆕 WU-4
+    "/api/settings/memory/doc/save",
 })
 
 _IDENTITY_MUTATION_PATHS = frozenset({
@@ -375,6 +379,9 @@ def _null_memory_operations() -> MemorySettingsOperations:
         refresh_memory_md=_unavailable,  # 🆕 WU-4
         get_memory_md_content=_unavailable,  # 🆕 WU-6
         list_memories_by_session=_unavailable,
+        get_memory_doc=_unavailable,
+        save_memory_doc=_unavailable,
+        list_experiences=_unavailable,
     )
 
 

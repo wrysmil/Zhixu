@@ -636,7 +636,12 @@ class MemoryStore:
             for e in batch
         )
         template = self._dream_template()
-        prompt = f"{template}\n\n## Memory Directories\n{self._memory_directories_block()}\n\n## Conversation History\n{history_text}"
+        experience_block = self._experience_review_block()
+        prompt = (
+            f"{template}\n\n## Memory Directories\n{self._memory_directories_block()}"
+            f"\n\n## Recent Experiences\n{experience_block}"
+            f"\n\n## Conversation History\n{history_text}"
+        )
         return (prompt, batch[-1]["cursor"])
 
     def _memory_directories_block(self) -> str:
@@ -649,8 +654,50 @@ class MemoryStore:
         return (
             f"- Global memory directory: {global_dir}\n"
             f"- Project memory directory: {project_dir}\n"
-            f"- Each directory holds one memory per file plus a `MEMORY.md` index."
+            f"- Each directory has a `MEMORY.md` body; long details may live in sibling files."
         )
+
+    def _experience_review_block(self, limit: int = 10) -> str:
+        """Dream 复盘用的近期经验摘要；失败只记日志，不影响整理。"""
+        try:
+            from nanobot.memory.experience import list_experiences
+            from nanobot.memory.provenance import (
+                GLOBAL_MEMORY_WORKSPACE_ID,
+                memory_workspace_id,
+            )
+
+            workspace_ids = tuple(
+                dict.fromkeys(
+                    [
+                        memory_workspace_id(str(self.workspace)),
+                        GLOBAL_MEMORY_WORKSPACE_ID,
+                    ]
+                )
+            )
+            rows = list_experiences(
+                self.memory_services.database,
+                workspace_ids=workspace_ids,
+                limit=limit,
+            )
+        except Exception as exc:  # noqa: BLE001 - 复盘摘要失败不阻断 Dream
+            logger.warning("dream experience review failed: {}: {!r}", type(exc).__name__, exc)
+            return "（经验库读取失败，跳过复盘）"
+        if not rows:
+            return "（暂无经验记录）"
+        lines: list[str] = []
+        for row in rows:
+            title = row.title or row.summary.splitlines()[0]
+            status = "" if row.status == "active" else f"/{row.status}"
+            lines.append(
+                f"- [{row.kind}{status}] {title}（{row.ended_at[:10]}）"
+            )
+            if row.root_cause:
+                lines.append(f"  根因：{row.root_cause}")
+            if row.solution:
+                lines.append(f"  解法：{row.solution}")
+            elif row.metadata.get("fix"):
+                lines.append(f"  修复：{row.metadata['fix']}")
+        return "\n".join(lines)
 
     def dream_content_diff(self) -> str:
         """Structured summary of uncommitted changes to the durable memory files.
@@ -678,11 +725,13 @@ class MemoryStore:
         """
         from nanobot.agent.skills import BUILTIN_SKILLS_DIR
         from nanobot.agent.tools.apply_patch import ApplyPatchTool
+        from nanobot.agent.tools.experience import ExperienceQueryTool
         from nanobot.agent.tools.file_state import FileStates
         from nanobot.agent.tools.filesystem import EditFileTool, ReadFileTool, WriteFileTool
         from nanobot.agent.tools.registry import ToolRegistry
         from nanobot.agent.tools.search import FindFilesTool, GrepTool
         from nanobot.memory.files import memory_dirs_for
+        from nanobot.memory.provenance import GLOBAL_MEMORY_WORKSPACE_ID, memory_workspace_id
 
         tools = ToolRegistry()
         file_states = FileStates()
@@ -731,6 +780,14 @@ class MemoryStore:
             extra_read_allowed_dirs=read_dirs,
             file_states=file_states,
         ))
+        workspace_ids = tuple(
+            dict.fromkeys(
+                [memory_workspace_id(str(workspace)), GLOBAL_MEMORY_WORKSPACE_ID]
+            )
+        )
+        tools.register(
+            ExperienceQueryTool(self.memory_services.database, workspace_ids)
+        )
         return tools
 
     @staticmethod

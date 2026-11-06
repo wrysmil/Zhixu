@@ -257,6 +257,24 @@ class MemoryFileStore:
         prefix = f"{current}\n\n" if current else "# 记忆\n\n"
         self.write_memory_doc(scope, f"{prefix}{section}")
 
+    def append_memory_bullet(self, scope: str, section: str, bullet: str) -> None:
+        """把一条 bullet 追加到指定二级小节；小节不存在时新建。"""
+        header = f"## {section.strip()}"
+        lines = self.read_memory_doc(scope).rstrip().splitlines()
+        if header in lines:
+            start = lines.index(header)
+            insert_at = len(lines)
+            for index in range(start + 1, len(lines)):
+                if lines[index].startswith("## "):
+                    insert_at = index
+                    break
+            lines.insert(insert_at, f"- {bullet.strip()}")
+        elif lines:
+            lines.extend(["", header, f"- {bullet.strip()}"])
+        else:
+            lines = ["# 记忆", "", header, f"- {bullet.strip()}"]
+        self.write_memory_doc(scope, "\n".join(lines))
+
     def _read_path(self, path: Path) -> MemoryFile | None:
         try:
             text = path.read_text(encoding="utf-8")
@@ -290,9 +308,10 @@ class MemoryFileStore:
         memory_type: str = "project",
         append: bool = False,
     ) -> MemoryFile:
-        """写入一条记忆并同步索引。
+        """写入一条独立记忆文件（长文/旧数据溢出通道）。
 
         ``append=True`` 时同名文件追加正文（带日期），否则覆盖。
+        不维护 ``MEMORY.md``：正文由 ``write_memory_doc`` / ``memory_write`` 维护。
         """
         slug = normalize_memory_name(name)
         if not _NAME_RE.match(slug):
@@ -319,7 +338,6 @@ class MemoryFileStore:
                 ),
                 encoding="utf-8",
             )
-            self._sync_index(scope)
         return MemoryFile(
             name=slug,
             path=path,
@@ -329,14 +347,13 @@ class MemoryFileStore:
         )
 
     def delete_memory(self, scope: str, name: str) -> bool:
-        """删除一条记忆并同步索引。"""
+        """删除一条独立记忆文件；不重写 MEMORY.md。"""
         slug = normalize_memory_name(name)
         with memory_file_lock():
             path = self.dir_for(scope) / f"{slug}.md"
             if not path.is_file():
                 return False
             path.unlink()
-            self._sync_index(scope)
         return True
 
     # -- 索引 -------------------------------------------------------------
