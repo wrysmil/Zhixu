@@ -37,6 +37,7 @@ class EpisodeSource(str, Enum):
     DAILY_CONSOLIDATION = 'daily_consolidation'
     DELETION = 'deletion'
     IDLE = 'idle'
+    EXPERIENCE = 'experience'
 
 
 def _default_now() -> str:

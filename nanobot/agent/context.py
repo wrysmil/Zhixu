@@ -350,6 +350,21 @@ class ContextBuilder:
                 logger.warning("Memory reference tracking failed during injection: {!r}", exc)
         return selection.text
 
+    def _load_memory_content_block(self, project_path: Path | None = None) -> str:
+        """MEMORY.md 正文块（正文模式）；没有正文时返回空串，由索引模式兜底。"""
+        if not self._memory_file_mode:
+            return ""
+        try:
+            from nanobot.memory.files import MemoryFileStore, render_memory_content_block
+
+            store = MemoryFileStore.for_project(str(project_path or self.workspace))
+            return render_memory_content_block(store)
+        except Exception as exc:  # noqa: BLE001 - 记忆读失败不该打断对话
+            logger.warning(
+                "Memory content read failed; injecting no content: {!r}", exc
+            )
+            return ""
+
     def _load_memory_index_block(self, project_path: Path | None = None) -> str:
         """两份记忆索引（全局 + 当前项目）。
 
@@ -484,11 +499,11 @@ class ContextBuilder:
         if memory_block:
             parts.append(memory_block)
 
-        # 记忆索引排在记忆块之后：先给「现在在做什么 / 刚搜到什么」，再给
-        # 「长期记忆的目录在哪」。索引本身不含正文，按需 read_file。
-        index_block = self._load_memory_index_block(project_path)
-        if index_block:
-            parts.append(index_block)
+        # 长期记忆正文优先；没有正文时回退到旧索引块（兼容迁移期）。
+        memory_doc_block = self._load_memory_content_block(project_path)
+        long_term_memory_block = memory_doc_block or self._load_memory_index_block(project_path)
+        if long_term_memory_block:
+            parts.append(long_term_memory_block)
 
         excluded_skills = skill_exclude or set()
         active_skills = [

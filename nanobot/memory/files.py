@@ -33,6 +33,8 @@ PROJECT_SCOPE = "project"
 
 #: 两份索引注入 prompt 的字符上限合计。
 MEMORY_INDEX_MAX_CHARS = 2000
+#: 正文模式下的 MEMORY.md 字符上限（按作用域）。
+MEMORY_DOC_MAX_CHARS: dict[str, int] = {GLOBAL_SCOPE: 3000, PROJECT_SCOPE: 6000}
 #: 写全局目录的 importance 门槛。
 GLOBAL_IMPORTANCE_THRESHOLD = 0.7
 #: 写项目目录的 importance 门槛。
@@ -223,6 +225,38 @@ class MemoryFileStore:
         """按 name 读一条记忆。"""
         return self._read_path(self.dir_for(scope) / f"{name}.md")
 
+    # -- MEMORY.md 正文（索引模式的替代） --------------------------------
+
+    def read_memory_doc(self, scope: str) -> str:
+        """读 ``MEMORY.md`` 正文；不存在返回空串。"""
+        try:
+            return (self.dir_for(scope) / "MEMORY.md").read_text(encoding="utf-8")
+        except OSError:
+            return ""
+
+    def write_memory_doc(self, scope: str, content: str) -> None:
+        """整篇写入 ``MEMORY.md``，超过作用域上限直接拒绝。"""
+        text = content.strip()
+        limit = MEMORY_DOC_MAX_CHARS.get(scope, MEMORY_DOC_MAX_CHARS[PROJECT_SCOPE])
+        if len(text) > limit:
+            raise ValueError(
+                f"记忆内容超过上限：{len(text)} > {limit} 字符；"
+                "请把长文拆到同目录的独立文件，并在 MEMORY.md 留一行指针"
+            )
+        with memory_file_lock():
+            path = self.dir_for(scope) / "MEMORY.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(path.name + ".tmp")
+            tmp.write_text(text + "\n", encoding="utf-8")
+            tmp.replace(path)
+
+    def append_memory_section(self, scope: str, title: str, body: str) -> None:
+        """在 ``MEMORY.md`` 末尾追加一个二级标题小节。"""
+        current = self.read_memory_doc(scope).rstrip()
+        section = f"## {title.strip()}\n{body.strip()}"
+        prefix = f"{current}\n\n" if current else "# 记忆\n\n"
+        self.write_memory_doc(scope, f"{prefix}{section}")
+
     def _read_path(self, path: Path) -> MemoryFile | None:
         try:
             text = path.read_text(encoding="utf-8")
@@ -393,6 +427,40 @@ def render_index_block(store: MemoryFileStore) -> str:
         "需要具体内容时用 read_file 读上面目录里的对应文件；"
         "更早的记忆用 memory_search 检索。"
     )
+
+
+def _is_legacy_index(text: str) -> bool:
+    """旧索引：没有 ``## `` 小节，正文由目录行和 ``- [标题](file.md)`` 组成。"""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if any(line.startswith("## ") for line in lines):
+        return False
+    bullets = [line for line in lines if line.startswith("- [")]
+    if not bullets:
+        return False
+    return all(
+        line.startswith("#")
+        or line.startswith("- [")
+        or line.startswith("目录：")
+        or line.startswith("（暂无记忆）")
+        for line in lines
+    )
+
+
+def render_memory_content_block(store: MemoryFileStore) -> str:
+    """渲染注入用的 MEMORY.md 正文块（全局 + 当前项目）。
+
+    旧索引格式返回空串，让调用方回退到索引块。
+    """
+    parts: list[str] = []
+    for scope, title in ((GLOBAL_SCOPE, "全局长期记忆"), (PROJECT_SCOPE, "项目长期记忆")):
+        if scope == PROJECT_SCOPE and store.project_dir is None:
+            continue
+        content = store.read_memory_doc(scope).strip()
+        if content and not _is_legacy_index(content):
+            parts.append(f"## {title}\n目录：{store.dir_for(scope)}\n\n{content}")
+    if not parts:
+        return ""
+    return "# 长期记忆（正文）\n\n" + "\n\n".join(parts)
 
 
 def memory_dirs_for(workspace: str | Path | None) -> list[Path]:
