@@ -1,4 +1,4 @@
-import { Bookmark, History } from "lucide-react";
+import { Bookmark, Database, History } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 /** A shared explanation of the two existing memory stores, without new capabilities. */
@@ -19,12 +19,19 @@ export function MemoryGuide(props: { preview?: boolean }) {
         <p className="mt-2 max-w-[50ch] text-[13px] leading-6 text-muted-foreground">
           {t("settings.memory.pageSubtitle")}
         </p>
-        <dl className="mt-4 grid gap-4 text-[12px] leading-5 lg:grid-cols-2">
+        <dl className="mt-4 grid gap-4 text-[12px] leading-5 lg:grid-cols-3">
           <div className="flex items-start gap-2.5">
             <Bookmark className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
             <div>
-              <dt className="font-medium text-foreground">{t("settings.memory.tabSemantic")}</dt>
-              <dd className="mt-0.5 text-muted-foreground">{t("settings.memory.guide.semanticDescription")}</dd>
+              <dt className="font-medium text-foreground">{t("settings.memory.tabLongTerm")}</dt>
+              <dd className="mt-0.5 text-muted-foreground">{t("settings.memory.guide.longTermDescription")}</dd>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <Database className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+            <div>
+              <dt className="font-medium text-foreground">{t("settings.memory.tabExperience")}</dt>
+              <dd className="mt-0.5 text-muted-foreground">{t("settings.memory.guide.experienceDescription")}</dd>
             </div>
           </div>
           <div className="flex items-start gap-2.5">

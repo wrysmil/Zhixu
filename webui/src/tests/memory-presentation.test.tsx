@@ -6,7 +6,7 @@ import { EpisodeListView } from "@/components/settings/memory/EpisodeListView";
 import { MemoryPage } from "@/components/workspace/MemoryPage";
 import type { EpisodePayload, MemoryPayload, SettingsPayload } from "@/lib/types";
 
-const api = vi.hoisted(() => ({ listMemories: vi.fn(), listEpisodes: vi.fn(), fetchMemory: vi.fn(), fetchEpisode: vi.fn(), deleteMemory: vi.fn(), deleteEpisode: vi.fn() }));
+const api = vi.hoisted(() => ({ listMemories: vi.fn(), listEpisodes: vi.fn(), listExperiences: vi.fn(), fetchMemory: vi.fn(), fetchEpisode: vi.fn(), fetchMemoryDoc: vi.fn(), saveMemoryDoc: vi.fn(), deleteMemory: vi.fn(), deleteEpisode: vi.fn() }));
 vi.mock("@/lib/api", async (original) => ({ ...await original<typeof import("@/lib/api")>(), ...api }));
 vi.mock("@/providers/ClientProvider", () => ({ useClient: () => ({ token: "token", client: {} }) }));
 
@@ -28,17 +28,20 @@ beforeEach(async () => {
   api.listEpisodes.mockResolvedValue(result([episode]));
   api.fetchMemory.mockResolvedValue({ memory });
   api.fetchEpisode.mockResolvedValue({ episode });
+  api.fetchMemoryDoc.mockResolvedValue({ scope: "global", content: "", chars: 0, limit: 3000, revision: "", exists: false });
+  api.listExperiences.mockResolvedValue({ items: [], total: 0 });
 });
 afterEach(cleanup);
 
 describe("记忆页面信息与筛选", () => {
   it("显示记忆页标题并保留分类和筛选", async () => {
     const { container } = render(<MemoryPage settingsSnapshot={null} onSettingsChange={vi.fn()} />);
-    expect(await screen.findByRole("tab", { name: "长期信息" })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "长期记忆" })).toBeInTheDocument();
     expect(screen.getByText("关于你的记忆")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "经验库" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "对话片段" })).toBeInTheDocument();
     expect(screen.getByRole("switch")).toBeInTheDocument();
-    expect(screen.getByRole("searchbox")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
     expect(container.querySelector(".assistant-page-header")).toBeNull();
     expect(container.querySelector("img[src='/illustrations/zhixu-toolbox.webp']")).toBeNull();

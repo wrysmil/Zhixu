@@ -1240,6 +1240,97 @@ export interface ListMemoriesOpts {
   limit?: number;
 }
 
+export interface MemoryDocPayload {
+  scope: "global" | "project";
+  content: string;
+  chars: number;
+  limit: number;
+  revision: string;
+  exists: boolean;
+  workspace_path?: string | null;
+}
+
+export interface ExperiencePayload {
+  id: string;
+  title: string;
+  summary: string;
+  outcome: string;
+  kind?: string;
+  status?: string;
+  version?: string;
+  root_cause: string;
+  solution: string;
+  metadata?: Record<string, unknown>;
+  workspace_id: string;
+  ended_at: string;
+}
+
+export interface ExperienceListResult {
+  items: ExperiencePayload[];
+  total: number;
+}
+
+export async function fetchMemoryDoc(
+  token: string,
+  scope: "global" | "project" = "global",
+  opts: { workspacePath?: string } = {},
+  base: string = "",
+): Promise<MemoryDocPayload> {
+  const params = new URLSearchParams({ scope });
+  if (opts.workspacePath) params.set("path", opts.workspacePath);
+  return request<MemoryDocPayload>(
+    `${base}${MEMORY_BASE}/doc?${params.toString()}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
+export async function saveMemoryDoc(
+  transport: WebUIMutationTransport,
+  input: {
+    scope: "global" | "project";
+    content: string;
+    expectedRevision?: string;
+    workspacePath?: string;
+  },
+): Promise<MemoryDocPayload> {
+  return mutation<MemoryDocPayload>(transport, "memory.doc.save", {
+    scope: input.scope,
+    content: input.content,
+    ...(input.expectedRevision ? { expected_revision: input.expectedRevision } : {}),
+    ...(input.workspacePath ? { workspace_path: input.workspacePath } : {}),
+  });
+}
+
+export async function listExperiences(
+  token: string,
+  opts: {
+    q?: string;
+    outcome?: string;
+    kind?: string;
+    status?: string;
+    workspace?: string;
+    limit?: number;
+  } = {},
+  base: string = "",
+): Promise<ExperienceListResult> {
+  const params = new URLSearchParams();
+  if (opts.q) params.set("q", opts.q);
+  if (opts.outcome) params.set("outcome", opts.outcome);
+  if (opts.kind) params.set("kind", opts.kind);
+  if (opts.status) params.set("status", opts.status);
+  if (opts.workspace) params.set("workspace", opts.workspace);
+  if (opts.limit != null) params.set("limit", String(opts.limit));
+  const qs = params.toString();
+  return request<ExperienceListResult>(
+    `${base}${MEMORY_BASE}/experiences${qs ? `?${qs}` : ""}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
 export async function listMemories(
   token: string,
   opts: ListMemoriesOpts = {},

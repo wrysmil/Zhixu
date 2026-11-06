@@ -2571,8 +2571,44 @@
       "pageEyebrow": "Memories about you",
       "pageSubtitle": "Review, add to and organize what Zhixu has remembered.",
       "tabSemantic": "Semantic memory",
+      "tabLongTerm": "Long-term memory",
+      "tabExperience": "Experience library",
       "tabEpisode": "Conversation excerpts",
       "tabsLabel": "Memory sections",
+      "scopeLabel": "Memory scope",
+      "scopeGlobal": "Global",
+      "scopeProject": "Project",
+      "projectLabel": "Project",
+      "projectSelect": "Select project",
+      "currentProject": "Current project",
+      "kindAll": "All types",
+      "statusAll": "All statuses",
+      "kind": {
+        "experience": "Experience",
+        "skill": "Skill",
+        "pitfall": "Pitfall",
+        "decision": "Decision",
+        "reference": "Reference"
+      },
+      "entryStatus": {
+        "active": "Active",
+        "deprecated": "Deprecated",
+        "superseded": "Superseded"
+      },
+      "experienceKind": "Type filter",
+      "experienceStatus": "Status filter",
+      "capability": "Capability",
+      "symptom": "Symptom",
+      "fix": "Fix",
+      "choice": "Decision",
+      "rationale": "Rationale",
+      "pointer": "Pointer",
+      "whatFor": "Used for",
+      "refresh": "Refresh",
+      "longTermHint": "Long-term rules and conventions are injected every turn. Put long details in sibling files and leave a pointer here.",
+      "longTermEditor": "Long-term memory editor",
+      "longTermPlaceholder": "## Conventions\n- Build with bun",
+      "overLimit": "Over the character limit. Split long details into sibling files before saving.",
       "type": {
         "fact": "Fact",
         "preference": "Preference",
@@ -2677,6 +2713,8 @@
       "guide": {
         "eyebrow": "About you, under your control",
         "semanticDescription": "Preferences, facts and instructions for future chats.",
+        "longTermDescription": "Rules, conventions and preferences, injected into every conversation.",
+        "experienceDescription": "Failures, root causes and solutions from past tasks, searchable on demand.",
         "episodeDescription": "Excerpts of what you discussed and how it went, available to revisit."
       }
     }

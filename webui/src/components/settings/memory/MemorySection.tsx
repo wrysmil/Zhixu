@@ -5,14 +5,16 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { notifySaveFailed, notifySaved } from "@/lib/save-feedback";
 import { useClient } from "@/providers/ClientProvider";
 import { EpisodeListView } from "./EpisodeListView";
-import { MemoryListView } from "./MemoryListView";
+import { ExperienceListView } from "./ExperienceListView";
+import { LongTermMemoryView } from "./LongTermMemoryView";
 import type { SettingsPayload } from "@/lib/types";
 
-type MemoryTab = "semantic" | "episode";
+type MemoryTab = "doc" | "experience" | "episode";
 
 const MEMORY_TABS: Array<{ value: MemoryTab; labelKey: string; defaultLabel: string }> = [
-  { value: "semantic", labelKey: "settings.memory.tabSemantic", defaultLabel: "Semantic memory" },
-  { value: "episode", labelKey: "settings.memory.tabEpisode", defaultLabel: "Episode memory" },
+  { value: "doc", labelKey: "settings.memory.tabLongTerm", defaultLabel: "Long-term memory" },
+  { value: "experience", labelKey: "settings.memory.tabExperience", defaultLabel: "Experience library" },
+  { value: "episode", labelKey: "settings.memory.tabEpisode", defaultLabel: "Conversation excerpts" },
 ];
 
 export function MemorySection({
@@ -25,7 +27,7 @@ export function MemorySection({
   const { t } = useTranslation();
   const tx = (key: string, fallback: string) => t(key, { defaultValue: fallback });
   const { client } = useClient();
-  const [tab, setTab] = useState<MemoryTab>("semantic");
+  const [tab, setTab] = useState<MemoryTab>("doc");
   const initialEnabled = settings?.runtime?.memory_enabled ?? false;
   const [enabled, setEnabled] = useState<boolean>(initialEnabled);
   const [saving, setSaving] = useState(false);
@@ -118,7 +120,8 @@ export function MemorySection({
       {error ? (
         <p role="alert" className="text-xs text-destructive">{error}</p>
       ) : null}
-      {tab === "semantic" && <MemoryListView />}
+      {tab === "doc" && <LongTermMemoryView />}
+      {tab === "experience" && <ExperienceListView />}
       {tab === "episode" && <EpisodeListView />}
     </div>
   );

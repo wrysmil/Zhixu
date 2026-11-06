@@ -2571,8 +2571,44 @@
       "pageEyebrow": "关于你的记忆",
       "pageSubtitle": "查看、补充和整理知序记下的事。",
       "tabSemantic": "长期信息",
+      "tabLongTerm": "长期记忆",
+      "tabExperience": "经验库",
       "tabEpisode": "对话片段",
       "tabsLabel": "记忆分类",
+      "scopeLabel": "记忆范围",
+      "scopeGlobal": "全局",
+      "scopeProject": "项目",
+      "projectLabel": "项目",
+      "projectSelect": "选择项目",
+      "currentProject": "当前项目",
+      "kindAll": "全部类型",
+      "statusAll": "全部状态",
+      "kind": {
+        "experience": "经验",
+        "skill": "技能",
+        "pitfall": "踩坑",
+        "decision": "决策",
+        "reference": "参考"
+      },
+      "entryStatus": {
+        "active": "生效中",
+        "deprecated": "已弃用",
+        "superseded": "已替代"
+      },
+      "experienceKind": "类型筛选",
+      "experienceStatus": "状态筛选",
+      "capability": "能力",
+      "symptom": "症状",
+      "fix": "修复",
+      "choice": "结论",
+      "rationale": "理由",
+      "pointer": "指针",
+      "whatFor": "用途",
+      "refresh": "刷新",
+      "longTermHint": "长期规则与项目约定会随每轮对话注入。长内容请拆到同目录的兄弟文件，在这里留指针。",
+      "longTermEditor": "长期记忆编辑器",
+      "longTermPlaceholder": "## 项目约定\n- 构建用 bun",
+      "overLimit": "超出字符上限，请把长内容拆到兄弟文件后再保存。",
       "type": {
         "fact": "事实",
         "preference": "偏好",
@@ -2677,6 +2713,8 @@
       "guide": {
         "eyebrow": "与你有关，始终由你掌握",
         "semanticDescription": "你的偏好、事实与约定，用于之后的对话。",
+        "longTermDescription": "规则、约定与偏好，每轮对话都会带上。",
+        "experienceDescription": "过去任务的失败、根因与解法，需要时检索。",
         "episodeDescription": "聊过的事情与结果的片段，需要时可以回看。"
       }
     }
