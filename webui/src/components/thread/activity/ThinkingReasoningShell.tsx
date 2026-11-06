@@ -42,7 +42,7 @@ export function ThinkingReasoningShell({
   const statusLabel = (
     <>
       {active ? (
-        <LoaderCircle data-testid="activity-running-indicator" className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground", (!expanded || !hasDetails) && "animate-spin motion-reduce:animate-none")} aria-hidden="true" />
+        <LoaderCircle data-testid="activity-running-indicator" className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" aria-hidden="true" />
       ) : error ? <CircleAlert className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" /> : <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
       <span className={cn("min-w-0 break-words text-[13px] font-medium leading-5", error ? "text-destructive" : "text-foreground/80")}>{label}</span>
       {duration ? <span className="shrink-0 text-[12px] font-normal leading-[18px] tabular-nums text-muted-foreground">· {duration}</span> : null}

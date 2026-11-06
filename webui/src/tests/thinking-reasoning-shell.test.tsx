@@ -71,8 +71,7 @@ describe("ThinkingReasoningShell", () => {
     const indicator = screen.getByTestId("activity-running-indicator");
     expect(indicator).toBeVisible();
     expect(indicator).toHaveAttribute("aria-hidden", "true");
-    if (!expanded || !hasDetails) expect(indicator).toHaveClass("animate-spin", "motion-reduce:animate-none");
-    else expect(indicator).not.toHaveClass("animate-spin");
+    expect(indicator).toHaveClass("animate-spin", "motion-reduce:animate-none");
     expect(indicator.parentElement).toHaveTextContent("Working for 1m 17s");
 
     rerender(
