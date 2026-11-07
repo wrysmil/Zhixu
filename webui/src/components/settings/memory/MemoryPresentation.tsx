@@ -5,11 +5,50 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { formControlFocusClassName } from "@/components/ui/form-control";
 import { Input } from "@/components/ui/input";
+import { fetchWorkspaces } from "@/lib/api";
 import type { MemoryListResult, MemoryOrigin, MemoryPresentation, MemoryWorkspace } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useClient } from "@/providers/ClientProvider";
 
 export const memorySelectClass = cn("h-8 max-w-full rounded-control border border-input bg-background px-2 text-[12px] text-foreground", formControlFocusClassName);
 export const memoryRowClass = "group/memory rounded-lg px-4 py-4 transition-colors hover:bg-muted/45 focus-within:bg-muted/45 sm:px-5";
+
+/**
+ * 「当前项目」下拉哨兵值。前端只拿得到项目路径（工作区键写在项目内的
+ * `.nanobot/workspace-id`，前端算不出来），选中它时把路径交给后端解析。
+ */
+export const CURRENT_WORKSPACE = "__current__";
+
+export function normalizeWorkspacePath(path: string): string {
+  return path.trim().replace(/[\\/]+$/, "").toLowerCase();
+}
+
+function workspaceBaseName(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || path;
+}
+
+/** 当前项目作用域；`settled` 之前列表不应发起查询，否则会先拉一遍全量再重拉。 */
+export function useCurrentProject(): { path: string; name: string; settled: boolean } {
+  const { token } = useClient();
+  const [project, setProject] = useState({ path: "", name: "", settled: false });
+  useEffect(() => {
+    let alive = true;
+    void fetchWorkspaces(token)
+      .then((payload) => {
+        if (!alive) return;
+        const path = payload.default_scope.project_path?.trim() ?? "";
+        setProject({ path, name: payload.default_scope.project_name?.trim() || workspaceBaseName(path), settled: true });
+      })
+      .catch(() => {
+        if (alive) setProject({ path: "", name: "", settled: true });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+  return project;
+}
 
 export function useMemoryCopy() {
   const { i18n } = useTranslation();
@@ -95,10 +134,12 @@ export function MemoryActions({ onDetails, onEdit, onDelete, expanded, busy }: {
   </div>;
 }
 
-export function MemoryFilters({ query, onQuery, origin, onOrigin, workspace, onWorkspace, result, children, onClear, active, actions, loading = false }: {
+export function MemoryFilters({ query, onQuery, origin, onOrigin, workspace, onWorkspace, result, children, onClear, active, actions, loading = false, currentWorkspaceLabel, currentWorkspacePath }: {
   query: string; onQuery: (value: string) => void; origin: MemoryOrigin | ""; onOrigin: (value: MemoryOrigin | "") => void;
   workspace: string; onWorkspace: (value: string) => void; result: MemoryListResult<unknown>; children?: ReactNode;
   onClear: () => void; active: boolean; actions?: ReactNode; loading?: boolean;
+  /** 当前项目作用域；有时在下拉里给一个「当前项目」入口（默认选中）。 */
+  currentWorkspaceLabel?: string; currentWorkspacePath?: string;
 }) {
   const { text } = useMemoryCopy();
   const { t } = useTranslation();
@@ -117,8 +158,9 @@ export function MemoryFilters({ query, onQuery, origin, onOrigin, workspace, onW
       <label className="flex h-8 min-w-0 items-center gap-2 rounded-control border border-input bg-background px-2 text-[12px] text-muted-foreground">
         <span className="shrink-0">{text("工作区", "Workspace")}</span>
         <select aria-label={text("工作区", "Workspace")} className="min-w-0 max-w-36 bg-transparent text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={workspace} onChange={(event) => onWorkspace(event.target.value)}>
+          {currentWorkspaceLabel ? <option value={CURRENT_WORKSPACE}>{currentWorkspaceLabel}</option> : null}
           <option value="">{text("全部工作区", "All workspaces")}</option>
-          {result.workspace_options?.map((option) => <option key={option.id} value={option.id} title={option.path}>{option.name}</option>)}
+          {result.workspace_options?.filter((option) => !currentWorkspacePath || normalizeWorkspacePath(option.path ?? "") !== normalizeWorkspacePath(currentWorkspacePath)).map((option) => <option key={option.id} value={option.id} title={option.path}>{option.id === "default" ? text("全局记忆", "Global memory") : option.name}</option>)}
         </select>
       </label>
       {children}

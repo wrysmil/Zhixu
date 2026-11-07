@@ -21,6 +21,7 @@ import type {
   MemoryPriority,
   MemoryStats,
   MemoryType,
+  MemoryWorkspace,
   ZhixuFeaturesPayload,
   ModelConfigurationCreate,
   ModelConfigurationUpdate,
@@ -1268,6 +1269,7 @@ export interface ExperiencePayload {
 export interface ExperienceListResult {
   items: ExperiencePayload[];
   total: number;
+  workspace_options?: MemoryWorkspace[];
 }
 
 export async function fetchMemoryDoc(
@@ -1311,6 +1313,8 @@ export async function listExperiences(
     kind?: string;
     status?: string;
     workspace?: string;
+    /** 当前项目路径；后端据此解析记忆归属工作区键。 */
+    workspacePath?: string;
     limit?: number;
   } = {},
   base: string = "",
@@ -1321,6 +1325,7 @@ export async function listExperiences(
   if (opts.kind) params.set("kind", opts.kind);
   if (opts.status) params.set("status", opts.status);
   if (opts.workspace) params.set("workspace", opts.workspace);
+  if (opts.workspacePath) params.set("workspace_path", opts.workspacePath);
   if (opts.limit != null) params.set("limit", String(opts.limit));
   const qs = params.toString();
   return request<ExperienceListResult>(
@@ -1389,7 +1394,7 @@ export async function fetchMemory(
 
 export async function listEpisodes(
   token: string,
-  opts: { session_id?: string; limit?: number; origin?: MemoryOrigin; workspace?: string; q?: string; order?: "created" | "importance" } = {},
+  opts: { session_id?: string; limit?: number; origin?: MemoryOrigin; workspace?: string; workspacePath?: string; q?: string; order?: "created" | "importance" } = {},
   base: string = "",
 ): Promise<MemoryListResult<EpisodePayload>> {
   const params = new URLSearchParams();
@@ -1398,6 +1403,7 @@ export async function listEpisodes(
   if (opts.limit != null) params.set("limit", String(opts.limit));
   if (opts.origin) params.set("origin", opts.origin);
   if (opts.workspace) params.set("workspace", opts.workspace);
+  if (opts.workspacePath) params.set("workspace_path", opts.workspacePath);
   if (opts.q) params.set("q", opts.q);
   const qs = params.toString();
   return request<MemoryListResult<EpisodePayload>>(

@@ -9,6 +9,7 @@ import {
   fetchMemoryStats,
   fetchScratchpad,
   listEpisodes,
+  listExperiences,
   listMemories,
   saveScratchpad,
   searchMemories,
@@ -105,6 +106,24 @@ describe("memory api helpers", () => {
 
     expect(fetch).toHaveBeenCalledWith(
       "/api/settings/memory/episodes?session_id=websocket%3Achat-1",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer tok" },
+      }),
+    );
+  });
+
+  it("passes the project path to episode and experience lists", async () => {
+    await listEpisodes("tok", { workspacePath: "D:/projects/Zhixu" });
+    expect(fetch).toHaveBeenLastCalledWith(
+      "/api/settings/memory/episodes?workspace_path=D%3A%2Fprojects%2FZhixu",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer tok" },
+      }),
+    );
+
+    await listExperiences("tok", { workspacePath: "D:/projects/Zhixu" });
+    expect(fetch).toHaveBeenLastCalledWith(
+      "/api/settings/memory/experiences?workspace_path=D%3A%2Fprojects%2FZhixu",
       expect.objectContaining({
         headers: { Authorization: "Bearer tok" },
       }),

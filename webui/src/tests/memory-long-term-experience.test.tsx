@@ -157,4 +157,34 @@ describe("长期记忆 + 经验库页面", () => {
       ),
     );
   });
+
+  it("经验库默认只看当前项目，可切回全部工作区", async () => {
+    api.listExperiences.mockResolvedValue({
+      items: [],
+      total: 0,
+      workspace_options: [
+        { id: "default", name: "全局记忆", path: "" },
+        { id: "ws-beta", name: "beta 后端", path: "D:/projects/beta" },
+      ],
+    });
+    render(<ExperienceListView />);
+    const select = await screen.findByRole("combobox", { name: "工作区筛选" });
+    await waitFor(() => expect(select).toHaveValue("__current__"));
+    await waitFor(() =>
+      expect(api.listExperiences).toHaveBeenLastCalledWith(
+        "token",
+        expect.objectContaining({ workspacePath: "D:/projects/alpha", workspace: undefined }),
+      ),
+    );
+    expect(screen.getByRole("option", { name: "alpha" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "beta 后端" })).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: "" } });
+    await waitFor(() =>
+      expect(api.listExperiences).toHaveBeenLastCalledWith(
+        "token",
+        expect.objectContaining({ workspace: undefined, workspacePath: undefined }),
+      ),
+    );
+  });
 });

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from loguru import logger
@@ -42,13 +42,22 @@ class ExperienceRecordTool(Tool):
         "只写经验库，不要写进 MEMORY.md；长期规则和项目约定用 memory_write。"
     )
 
-    def __init__(self, services: ServicesHolder = None) -> None:
+    def __init__(
+        self,
+        services: ServicesHolder = None,
+        workspace_id_provider: Callable[[str], str] | None = None,
+    ) -> None:
         self._services_holder = services
+        self._workspace_id_provider = workspace_id_provider
 
     @classmethod
     def create(cls, ctx: ToolContext) -> Tool:
         attrs = getattr(ctx, "attributes", {}) or {}
-        return cls(attrs.get("memory_services"))
+        provider = attrs.get("memory_workspace_id")
+        return cls(
+            attrs.get("memory_services"),
+            provider if callable(provider) else None,
+        )
 
     @classmethod
     def enabled(cls, ctx: ToolContext) -> bool:
@@ -129,6 +138,16 @@ class ExperienceRecordTool(Tool):
             "required": ["title", "kind"],
         }
 
+    def _workspace_id(self, session_key: str, services: "MemoryServices") -> str:
+        """本会话的记忆归属工作区键；解析失败或未接线时退回全局库键。"""
+        if self._workspace_id_provider is None:
+            return services.workspace_id
+        try:
+            return self._workspace_id_provider(session_key) or services.workspace_id
+        except Exception as exc:  # noqa: BLE001 - 归属解析失败不该让经验丢失
+            logger.warning("experience tool: workspace resolution failed: {!r}", exc)
+            return services.workspace_id
+
     async def execute(
         self,
         *,
@@ -163,7 +182,7 @@ class ExperienceRecordTool(Tool):
         session_key = current_request_session_key() or "unknown"
         episode = record_experience(
             services.database,
-            workspace_id=services.workspace_id,
+            workspace_id=self._workspace_id(session_key, services),
             session_id=session_key,
             title=title,
             kind=kind,

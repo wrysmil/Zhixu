@@ -20,6 +20,7 @@ from nanobot.memory.models import (
     MemoryType,
     ScratchpadEntry,
 )
+from nanobot.memory.provenance import memory_workspace_id
 from nanobot.memory.repository import (
     add_episode,
     add_memory,
@@ -182,6 +183,27 @@ def test_list_episodes_filtered_by_session(services: MemoryServices):
 
     payload = list_episodes_payload(services, session_id="telegram:chat-1")
     assert len(payload["items"]) == 1
+
+
+def test_list_episodes_filters_by_workspace_path(
+    services: MemoryServices, tmp_path: Path
+):
+    project = tmp_path / "alpha"
+    project.mkdir()
+    workspace_id = memory_workspace_id(str(project))
+    with services.database.connect() as conn:
+        add_episode(conn, _ep(summary="项目内片段", workspace_id=workspace_id))
+        add_episode(conn, _ep(summary="全局片段", workspace_id="default"))
+
+    scoped = list_episodes_payload(services, workspace_path=str(project))
+    assert [item["summary"] for item in scoped["items"]] == ["项目内片段"]
+    assert any(option["id"] == workspace_id for option in scoped["workspace_options"])
+
+    everything = list_episodes_payload(services)
+    assert {item["summary"] for item in everything["items"]} == {
+        "项目内片段",
+        "全局片段",
+    }
 
 
 def test_scratchpad_payload_returns_none_when_empty(services: MemoryServices):
@@ -559,6 +581,32 @@ def test_list_experiences_payload(services):
     assert payload["items"][0]["root_cause"] == "未安装"
     assert payload["items"][0]["kind"] == "experience"
     assert payload["items"][0]["status"] == "active"
+
+
+def test_list_experiences_payload_filters_by_workspace_path(services, tmp_path):
+    project = tmp_path / "alpha"
+    project.mkdir()
+    workspace_id = memory_workspace_id(str(project))
+    for title, owner in (("项目内经验", workspace_id), ("全局经验", "default")):
+        record_experience(
+            services.database,
+            workspace_id=owner,
+            session_id="s1",
+            title=title,
+            situation="缺少依赖",
+            action="重跑",
+            outcome="failed",
+        )
+
+    scoped = list_experiences_payload(services, workspace_path=str(project))
+    assert [item["title"] for item in scoped["items"]] == ["项目内经验"]
+    assert any(option["id"] == workspace_id for option in scoped["workspace_options"])
+
+    everything = list_experiences_payload(services)
+    assert {item["title"] for item in everything["items"]} == {
+        "项目内经验",
+        "全局经验",
+    }
 
 
 def test_list_experiences_payload_filters_kind_and_status(services):

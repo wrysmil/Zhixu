@@ -134,6 +134,46 @@ def test_consolidation_does_not_touch_experiences(tmp_path):
     assert count == 1
 
 
+async def test_experience_tool_uses_session_workspace(tmp_path):
+    db = MemoryDatabase(tmp_path, db_path=tmp_path / "state.db")
+    services = MemoryServices(workspace_id="default", database=db)
+
+    tool = ExperienceRecordTool(
+        services, workspace_id_provider=lambda _session: "proj-a"
+    )
+    await tool.execute(
+        title="项目内经验",
+        situation="缺少依赖",
+        action="重跑",
+        outcome="failed",
+    )
+
+    assert [row.title for row in list_experiences(db, workspace_ids=["proj-a"])] == [
+        "项目内经验"
+    ]
+    assert list_experiences(db, workspace_ids=["default"]) == []
+
+
+async def test_experience_tool_falls_back_when_workspace_unresolved(tmp_path):
+    db = MemoryDatabase(tmp_path, db_path=tmp_path / "state.db")
+    services = MemoryServices(workspace_id="default", database=db)
+
+    def boom(_session: str) -> str:
+        raise RuntimeError("no workspace scope")
+
+    tool = ExperienceRecordTool(services, workspace_id_provider=boom)
+    await tool.execute(
+        title="兜底经验",
+        situation="缺少依赖",
+        action="重跑",
+        outcome="failed",
+    )
+
+    assert [row.title for row in list_experiences(db, workspace_ids=["default"])] == [
+        "兜底经验"
+    ]
+
+
 async def test_experience_tools(tmp_path):
     db = MemoryDatabase(tmp_path, db_path=tmp_path / "state.db")
     services = MemoryServices(workspace_id="default", database=db)

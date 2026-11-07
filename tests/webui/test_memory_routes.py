@@ -17,7 +17,9 @@ from typing import Any
 import pytest
 
 from nanobot.memory.database import MemoryDatabase
+from nanobot.memory.experience import record_experience
 from nanobot.memory.models import Episode, EpisodeOutcome, EpisodeSource
+from nanobot.memory.provenance import memory_workspace_id
 from nanobot.memory.repository import add_episode
 from nanobot.webui import memory_api
 from nanobot.webui.memory_routes import (
@@ -42,6 +44,7 @@ def operations(services: MemoryServices) -> MemorySettingsOperations:
         search_memories=partial(memory_api.search_memories_payload, services),
         fetch_memory=partial(memory_api.fetch_memory_payload, services),
         list_episodes=partial(memory_api.list_episodes_payload, services),
+        list_experiences=partial(memory_api.list_experiences_payload, services),
         fetch_episode=partial(memory_api.fetch_episode_payload, services),
         fetch_scratchpad=partial(memory_api.scratchpad_payload, services),
         fetch_stats=partial(memory_api.stats_payload, services),
@@ -108,6 +111,57 @@ def test_handle_memory_search_accepts_q(handler, operations):
     assert result.error is None
     assert result.payload["query"] == "Python"
     assert len(result.payload["items"]) >= 1
+
+
+def test_handle_episode_list_forwards_workspace_path(handler, services, tmp_path: Path):
+    project = tmp_path / "alpha"
+    project.mkdir()
+    workspace_id = memory_workspace_id(str(project))
+    episode_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    with services.database.connect() as conn:
+        add_episode(
+            conn,
+            Episode(
+                id=episode_id,
+                session_id="telegram:project",
+                summary="项目内片段",
+                started_at=now,
+                ended_at=now,
+                workspace_id=workspace_id,
+            ),
+        )
+
+    result = handler.handle(
+        "episode-list", _request(query={"workspace_path": [str(project)]})
+    )
+    assert result.error is None
+    assert [item["id"] for item in result.payload["items"]] == [episode_id]
+
+
+def test_handle_experience_list_forwards_workspace_path(handler, services, tmp_path: Path):
+    project = tmp_path / "alpha"
+    project.mkdir()
+    workspace_id = memory_workspace_id(str(project))
+    for title, owner in (("项目内经验", workspace_id), ("全局经验", "default")):
+        record_experience(
+            services.database,
+            workspace_id=owner,
+            session_id="s1",
+            title=title,
+            situation="缺少依赖",
+            action="重跑",
+            outcome="failed",
+        )
+
+    result = handler.handle(
+        "experience-list", _request(query={"workspace_path": [str(project)]})
+    )
+    assert result.error is None
+    assert [item["title"] for item in result.payload["items"]] == ["项目内经验"]
+    assert any(
+        option["id"] == workspace_id for option in result.payload["workspace_options"]
+    )
 
 
 def test_handle_memory_search_rejects_empty_q(handler):

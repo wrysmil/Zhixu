@@ -187,6 +187,7 @@ def dispatch(
             raise WebUISettingsError("experience API is not wired")
         return operations.list_experiences(
             workspace=query_first(query, "workspace"),
+            workspace_path=query_first(query, "workspace_path"),
             outcome=query_first(query, "outcome"),
             kind=query_first(query, "kind"),
             status=query_first(query, "status"),
@@ -209,6 +210,7 @@ def dispatch(
             limit=_maybe_int(query_first(query, "limit")),
             origin=query_first(query, "origin"),
             workspace=query_first(query, "workspace"),
+            workspace_path=query_first(query, "workspace_path"),
             q=query_first(query, "q"),
             order=query_first(query, "order") or "created",
         )

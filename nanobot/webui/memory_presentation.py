@@ -6,6 +6,7 @@ Only persisted snapshots or explicitly linked session metadata establish ownersh
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, cast
 
 from loguru import logger
@@ -221,14 +222,24 @@ def workspace_options(
 def filter_result(
     items: list[dict[str, Any]], *, options: list[dict[str, str]],
     origin: str | None, workspace: str | None, limit: int | None,
+    workspace_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
+    """按来源/工作区/条数裁剪列表。
+
+    ``workspace`` 是前端下拉传来的工作区 id，必须命中 ``options`` 白名单
+    （防止把任意路径当工作区 id 传进来）；``workspace_ids`` 则是后端已解析好
+    的目标集合（例如由当前项目路径推导的归属键），不再做白名单校验。
+    """
     if origin not in {None, "", "ai", "manual", "unknown"}:
         raise WebUISettingsError("invalid origin")
     if limit is not None and limit < 1:
         raise WebUISettingsError("limit must be >= 1")
     if workspace and workspace not in {option["id"] for option in options}:
         raise WebUISettingsError("invalid workspace")
-    if workspace:
+    if workspace_ids is not None:
+        allowed = set(workspace_ids)
+        items = [item for item in items if item.get("workspace_id") in allowed]
+    elif workspace:
         items = [item for item in items if item.get("workspace_id") == workspace]
     counts = {"all": len(items), "ai": 0, "manual": 0, "unknown": 0}
     for item in items:

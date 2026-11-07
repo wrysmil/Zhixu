@@ -6,7 +6,7 @@ import { EpisodeListView } from "@/components/settings/memory/EpisodeListView";
 import { MemoryPage } from "@/components/workspace/MemoryPage";
 import type { EpisodePayload, MemoryPayload, SettingsPayload } from "@/lib/types";
 
-const api = vi.hoisted(() => ({ listMemories: vi.fn(), listEpisodes: vi.fn(), listExperiences: vi.fn(), fetchMemory: vi.fn(), fetchEpisode: vi.fn(), fetchMemoryDoc: vi.fn(), saveMemoryDoc: vi.fn(), deleteMemory: vi.fn(), deleteEpisode: vi.fn() }));
+const api = vi.hoisted(() => ({ listMemories: vi.fn(), listEpisodes: vi.fn(), listExperiences: vi.fn(), fetchMemory: vi.fn(), fetchEpisode: vi.fn(), fetchMemoryDoc: vi.fn(), saveMemoryDoc: vi.fn(), deleteMemory: vi.fn(), deleteEpisode: vi.fn(), fetchWorkspaces: vi.fn() }));
 vi.mock("@/lib/api", async (original) => ({ ...await original<typeof import("@/lib/api")>(), ...api }));
 vi.mock("@/providers/ClientProvider", () => ({ useClient: () => ({ token: "token", client: {} }) }));
 
@@ -30,6 +30,12 @@ beforeEach(async () => {
   api.fetchEpisode.mockResolvedValue({ episode });
   api.fetchMemoryDoc.mockResolvedValue({ scope: "global", content: "", chars: 0, limit: 3000, revision: "", exists: false });
   api.listExperiences.mockResolvedValue({ items: [], total: 0 });
+  api.fetchWorkspaces.mockResolvedValue({
+    schema_version: 1,
+    default_access_mode: "default",
+    default_scope: { project_path: workspace.path, project_name: workspace.name, access_mode: "restricted" },
+    controls: { can_change_project: true, can_use_full_access: true },
+  });
 });
 afterEach(cleanup);
 
@@ -115,6 +121,23 @@ describe("记忆页面信息与筛选", () => {
     expect(screen.getByText("已完成")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "查看详情" }));
     expect(await screen.findByText(episode.session_id)).toBeInTheDocument();
+  });
+
+  it("对话片段默认按当前项目筛选，清空筛选后回到当前项目", async () => {
+    api.listEpisodes.mockResolvedValue({ ...result([episode]), workspace_options: [{ id: "default", name: "全局记忆", path: "" }, workspace] });
+    render(<EpisodeListView />);
+    await screen.findByText(episode.summary);
+    await waitFor(() => expect(api.listEpisodes).toHaveBeenLastCalledWith("token", expect.objectContaining({ workspacePath: workspace.path, workspace: undefined })));
+    const select = screen.getByRole("combobox", { name: "工作区" });
+    expect(select).toHaveValue("__current__");
+    expect(screen.getByRole("option", { name: "Zhixu" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "全局记忆" })).toHaveValue("default");
+
+    fireEvent.change(select, { target: { value: "default" } });
+    await waitFor(() => expect(api.listEpisodes).toHaveBeenLastCalledWith("token", expect.objectContaining({ workspace: "default", workspacePath: undefined })));
+
+    fireEvent.click(screen.getByRole("button", { name: /清除筛选/ }));
+    await waitFor(() => expect(api.listEpisodes).toHaveBeenLastCalledWith("token", expect.objectContaining({ workspacePath: workspace.path, workspace: undefined })));
   });
 
   it("两类列表支持按重要程度从高到低排序", async () => {

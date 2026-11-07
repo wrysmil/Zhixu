@@ -129,3 +129,21 @@ def test_scoped_channel_uses_session_scope_when_message_has_none(tmp_path: Path)
     assert loop._memory_workspace_ids_for_turn(ctx) == (
         "default", memory_workspace_id(str(project))
     )
+
+
+def test_attribution_workspace_id_picks_project_owner(tmp_path: Path) -> None:
+    """写入打标用的是归属键（项目），不是可见集合。"""
+    loop = object.__new__(AgentLoop)
+    loop.sessions = cast(Any, SimpleNamespace(
+        get_cached=lambda _key: SimpleNamespace(
+            metadata={"workspace_scope": {"project_path": str(tmp_path)}}
+        )
+    ))
+    assert loop._memory_workspace_id_for_key("s1") == memory_workspace_id(str(tmp_path))
+
+
+def test_attribution_workspace_id_falls_back_to_global() -> None:
+    """没有项目作用域的会话写进全局库，与读侧可见集合一致。"""
+    loop = object.__new__(AgentLoop)
+    loop.sessions = cast(Any, SimpleNamespace(get_cached=lambda _key: None))
+    assert loop._memory_workspace_id_for_key("s1") == "default"

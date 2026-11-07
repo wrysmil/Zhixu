@@ -4,8 +4,9 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { listExperiences, type ExperiencePayload } from "@/lib/api";
+import type { MemoryWorkspace } from "@/lib/types";
 import { useClient } from "@/providers/ClientProvider";
-import { memorySelectClass } from "./MemoryPresentation";
+import { CURRENT_WORKSPACE, memorySelectClass, normalizeWorkspacePath, useCurrentProject, useMemoryCopy } from "./MemoryPresentation";
 
 const OUTCOMES = ["failed", "partial", "completed"] as const;
 const KINDS = ["experience", "skill", "pitfall", "decision", "reference"] as const;
@@ -146,15 +147,23 @@ export function ExperienceListView() {
   const { t } = useTranslation();
   const tx = (key: string, fallback: string) => t(key, { defaultValue: fallback });
   const { token } = useClient();
+  const { text } = useMemoryCopy();
+  const project = useCurrentProject();
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState("");
   const [kind, setKind] = useState("");
   const [status, setStatus] = useState("");
+  // 默认看当前项目：经验按产出会话的项目工作区打标，默认「全部工作区」会把别的项目混进来。
+  const [workspace, setWorkspace] = useState(CURRENT_WORKSPACE);
+  const [options, setOptions] = useState<MemoryWorkspace[]>([]);
   const [items, setItems] = useState<ExperiencePayload[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const currentLabel = project.name || text("当前项目", "Current project");
+  const effectiveWorkspace = workspace === CURRENT_WORKSPACE && !project.path ? "" : workspace;
 
   const load = useCallback(async () => {
+    if (!project.settled) return;
     setLoading(true);
     setError(null);
     try {
@@ -163,20 +172,24 @@ export function ExperienceListView() {
         outcome: outcome || undefined,
         kind: kind || undefined,
         status: status || undefined,
+        workspace: effectiveWorkspace && effectiveWorkspace !== CURRENT_WORKSPACE ? effectiveWorkspace : undefined,
+        workspacePath: effectiveWorkspace === CURRENT_WORKSPACE ? project.path : undefined,
         limit: 100,
       });
       setItems(result.items);
+      setOptions(result.workspace_options ?? []);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setLoading(false);
     }
-  }, [kind, outcome, query, status, token]);
+  }, [effectiveWorkspace, kind, outcome, project.path, project.settled, query, status, token]);
 
   useEffect(() => {
+    if (!project.settled) return;
     const timer = window.setTimeout(() => void load(), query ? 250 : 0);
     return () => window.clearTimeout(timer);
-  }, [load, query]);
+  }, [load, query, project.settled]);
 
   return (
     <div className="flex flex-col gap-3" data-testid="experience-list-view">
@@ -188,6 +201,20 @@ export function ExperienceListView() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
+        <select
+          aria-label={text("工作区筛选", "Workspace filter")}
+          className={memorySelectClass}
+          value={effectiveWorkspace}
+          onChange={(event) => setWorkspace(event.target.value)}
+        >
+          {project.path ? <option value={CURRENT_WORKSPACE}>{currentLabel}</option> : null}
+          <option value="">{text("全部工作区", "All workspaces")}</option>
+          {options.filter((option) => !option.path || !project.path || normalizeWorkspacePath(option.path) !== normalizeWorkspacePath(project.path)).map((option) => (
+            <option key={option.id} value={option.id} title={option.path}>
+              {option.id === "default" ? text("全局记忆", "Global memory") : option.name}
+            </option>
+          ))}
+        </select>
         <select
           aria-label={tx("settings.memory.experienceKind", "Type filter")}
           className={memorySelectClass}
@@ -281,7 +308,9 @@ export function ExperienceListView() {
                 ) : null}
                 <ExperienceDetails item={item} />
                 {item.workspace_id && item.workspace_id !== "default" ? (
-                  <p className="mt-1 text-[11px] text-muted-foreground">{item.workspace_id}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {options.find((option) => option.id === item.workspace_id)?.name ?? item.workspace_id}
+                  </p>
                 ) : null}
               </li>
             );

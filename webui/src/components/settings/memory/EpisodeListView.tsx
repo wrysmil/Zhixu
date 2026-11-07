@@ -7,7 +7,7 @@ import { deleteEpisode, fetchEpisode, listEpisodes } from "@/lib/api";
 import type { EpisodeOutcome, EpisodePayload, MemoryOrigin } from "@/lib/types";
 import { useClient } from "@/providers/ClientProvider";
 import { EpisodeDetailPanel } from "./EpisodeDetailPanel";
-import { ImportanceBadge, MemoryActions, MemoryFilters, MemoryLoadState, MemoryTime, SourceBadge, WorkspaceLabels, memoryRowClass, memorySelectClass, useMemoryCopy, useMemoryDetails, useMemoryList } from "./MemoryPresentation";
+import { ImportanceBadge, CURRENT_WORKSPACE, MemoryActions, MemoryFilters, MemoryLoadState, MemoryTime, SourceBadge, WorkspaceLabels, memoryRowClass, memorySelectClass, useCurrentProject, useMemoryCopy, useMemoryDetails, useMemoryList } from "./MemoryPresentation";
 
 export function EpisodeOutcomeLabel({ value }: { value: EpisodeOutcome }) {
   const { text } = useMemoryCopy();
@@ -18,19 +18,33 @@ export function EpisodeOutcomeLabel({ value }: { value: EpisodeOutcome }) {
 export function EpisodeListView() {
   const { text } = useMemoryCopy();
   const { client, token } = useClient();
+  const project = useCurrentProject();
   const [query, setQuery] = useState("");
   const [origin, setOrigin] = useState<MemoryOrigin | "">("");
-  const [workspace, setWorkspace] = useState("");
+  // 默认看当前项目：记忆行按会话的项目工作区打标，默认「全部工作区」会把别的项目混进来。
+  const [workspace, setWorkspace] = useState(CURRENT_WORKSPACE);
   const [order, setOrder] = useState<"created" | "importance">("created");
   const [deleteCandidate, setDeleteCandidate] = useState<EpisodePayload | null>(null);
   const [deleting, setDeleting] = useState(false);
   const deletingRef = useRef(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
-  const load = useCallback(() => listEpisodes(token, { q: query.trim() || undefined, origin: origin || undefined, workspace: workspace || undefined, order }), [token, query, origin, workspace, order]);
+  const currentLabel = project.name || text("当前项目", "Current project");
+  const effectiveWorkspace = workspace === CURRENT_WORKSPACE && !project.path ? "" : workspace;
+  const load = useCallback(() => {
+    if (!project.settled) return Promise.resolve({ items: [] });
+    return listEpisodes(token, {
+      q: query.trim() || undefined,
+      origin: origin || undefined,
+      workspace: effectiveWorkspace && effectiveWorkspace !== CURRENT_WORKSPACE ? effectiveWorkspace : undefined,
+      workspacePath: effectiveWorkspace === CURRENT_WORKSPACE ? project.path : undefined,
+      order,
+    });
+  }, [token, query, origin, effectiveWorkspace, order, project.path, project.settled]);
   const { result, loading, error, refresh } = useMemoryList(load, query.trim() ? 250 : 0);
   const details = useMemoryDetails<EpisodePayload>(async (id) => (await fetchEpisode(token, id)).episode);
-  const filtered = Boolean(query.trim() || origin || workspace);
-  const clear = () => { setQuery(""); setOrigin(""); setWorkspace(""); details.close(); };
+  // 默认选中的「当前项目」不算筛选，否则空态会误报「没有匹配项」。
+  const filtered = Boolean(query.trim() || origin || (effectiveWorkspace !== CURRENT_WORKSPACE && effectiveWorkspace !== ""));
+  const clear = () => { setQuery(""); setOrigin(""); setWorkspace(CURRENT_WORKSPACE); details.close(); };
   const confirmDelete = async () => {
     if (!deleteCandidate || deletingRef.current) return;
     deletingRef.current = true; setDeleting(true); setMutationError(null);
@@ -42,9 +56,9 @@ export function EpisodeListView() {
     finally { deletingRef.current = false; setDeleting(false); }
   };
   return <div className="flex flex-col gap-2.5">
-    <MemoryFilters query={query} onQuery={setQuery} origin={origin} onOrigin={setOrigin} workspace={workspace} onWorkspace={setWorkspace} result={result} onClear={clear} active={filtered} loading={loading}><label className="flex items-center gap-2">{text("排序", "Sort")}<select value={order} onChange={(event) => setOrder(event.target.value as typeof order)} className={memorySelectClass}><option value="created">{text("开始时间 · 最新在前", "Started · newest first")}</option><option value="importance">{text("重要性 · 从高到低", "Importance · highest first")}</option></select></label></MemoryFilters>
+    <MemoryFilters query={query} onQuery={setQuery} origin={origin} onOrigin={setOrigin} workspace={effectiveWorkspace} onWorkspace={setWorkspace} currentWorkspaceLabel={project.path ? currentLabel : undefined} currentWorkspacePath={project.path || undefined} result={result} onClear={clear} active={filtered} loading={loading}><label className="flex items-center gap-2">{text("排序", "Sort")}<select value={order} onChange={(event) => setOrder(event.target.value as typeof order)} className={memorySelectClass}><option value="created">{text("开始时间 · 最新在前", "Started · newest first")}</option><option value="importance">{text("重要性 · 从高到低", "Importance · highest first")}</option></select></label></MemoryFilters>
     {mutationError && <p role="alert" className="text-[12px] text-destructive">{mutationError}</p>}
-    <MemoryLoadState error={error} loading={loading} empty={result.items.length === 0} filtered={filtered} onRetry={refresh} />
+    <MemoryLoadState error={error} loading={loading || !project.settled} empty={!project.settled || result.items.length === 0} filtered={filtered} onRetry={refresh} />
     {!error && result.items.length > 0 && <ul className="divide-y divide-border/55" aria-label={text("对话记录列表", "Conversation memories")} aria-busy={loading}>{result.items.map((episode) => <li key={episode.id} className={memoryRowClass}>
       <div className="flex items-start justify-between gap-2"><div className="min-w-0 flex-1">
         <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]"><SourceBadge record={episode} /><WorkspaceLabels workspaces={episode.workspaces} /><EpisodeOutcomeLabel value={episode.outcome} /></div>

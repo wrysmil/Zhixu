@@ -1188,6 +1188,7 @@ class AgentLoop:
             attributes={
                 "retrieval_engine": self._retrieval_engine,
                 "memory_workspace_ids": self._memory_workspace_ids_for_key,
+                "memory_workspace_id": self._memory_workspace_id_for_key,
                 # 记忆写入工具（P1）：服务按需解析 + 用户侧总开关门控。
                 # 总开关关着时工具根本不注册，与 memory_search 同模式。
                 "memory_services": self._memory_services_for_tools,
@@ -2853,6 +2854,17 @@ class AgentLoop:
         return self._memory_workspace_ids_for_path(
             project_path if isinstance(project_path, str) else None
         )
+
+    def _memory_workspace_id_for_key(self, session_key: str) -> str:
+        """会话的**归属**工作区键（写入打标用），不是可见集合。
+
+        ``_memory_workspace_ids_for_key`` 返回「全局 + 本工作区」的可见集合，
+        这里取其中的非全局键；没有显式项目归属时回退到全局键。
+        """
+        for workspace_id in self._memory_workspace_ids_for_key(session_key):
+            if workspace_id != _MEMORY_WORKSPACE_ID:
+                return workspace_id
+        return _MEMORY_WORKSPACE_ID
 
     async def _compute_retrieval_section(
         self,

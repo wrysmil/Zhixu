@@ -24,7 +24,7 @@ from nanobot.memory.models import (
     MemoryType,
     ScratchpadEntry,
 )
-from nanobot.memory.provenance import memory_visibility_ids
+from nanobot.memory.provenance import memory_visibility_ids, memory_workspace_id
 from nanobot.memory.repository import (
     add_memory,
     get_episode,
@@ -247,11 +247,38 @@ def _read_presentation(
 def _filtered_result(
     items: list[dict[str, Any]], options: list[dict[str, str]], *,
     origin: str | None, workspace: str | None, limit: int | None,
+    workspace_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     try:
-        return filter_result(items, options=options, origin=origin, workspace=workspace, limit=limit)
+        return filter_result(
+            items, options=options, origin=origin, workspace=workspace,
+            limit=limit, workspace_ids=workspace_ids,
+        )
     except WebUISettingsError as exc:
         raise WebUIMemoryError(exc.message, status=exc.status) from exc
+
+
+def _workspace_filter_id(
+    *,
+    workspace: str | None,
+    workspace_path: str | None,
+    options: list[dict[str, str]],
+) -> str | None:
+    """解析前端的工作区筛选：显式 id 走白名单，项目路径走归属推导。
+
+    面板默认按「当前项目」筛选，但前端只拿得到项目路径（工作区键写在项目内的
+    ``.nanobot/workspace-id``，前端算不出来），因此路径必须由后端解析。显式
+    ``workspace`` 是用户在下拉里的选择，仍按白名单校验，避免把任意路径当成 id。
+    """
+    explicit = (workspace or "").strip()
+    if explicit:
+        if explicit not in {option["id"] for option in options}:
+            raise WebUIMemoryError("invalid workspace")
+        return explicit
+    path = (workspace_path or "").strip()
+    if not path:
+        return None
+    return memory_workspace_id(path)
 
 
 def fetch_memory_payload(services: MemoryServices, memory_id: str) -> dict[str, Any]:
@@ -301,6 +328,7 @@ def list_episodes_payload(
     limit: int | None = None,
     origin: str | None = None,
     workspace: str | None = None,
+    workspace_path: str | None = None,
     q: str | None = None,
     order: str = "created",
 ) -> dict[str, Any]:
@@ -309,6 +337,9 @@ def list_episodes_payload(
     memories, rows, context = _read_presentation(services)
     payloads = [episode_payload(row, context) for row in rows]
     options = workspace_options(services, [*payloads, *[memory_payload(m, context) for m in memories]])
+    target = _workspace_filter_id(
+        workspace=workspace, workspace_path=workspace_path, options=options,
+    )
     needle = (q or "").strip().casefold()
     filtered = [
         item for item in payloads
@@ -321,7 +352,10 @@ def list_episodes_payload(
         float(item["importance_score"]) if order == "importance" else _time_order(item["started_at"]),
         _time_order(item["started_at"]), item["id"],
     ), reverse=True)
-    return _filtered_result(filtered, options, origin=origin, workspace=workspace, limit=limit)
+    return _filtered_result(
+        filtered, options, origin=origin, workspace=None, limit=limit,
+        workspace_ids=(target,) if target else None,
+    )
 
 
 def fetch_episode_payload(services: MemoryServices, episode_id: str) -> dict[str, Any]:
@@ -507,13 +541,18 @@ def list_experiences_payload(
     services: MemoryServices,
     *,
     workspace: str | None = None,
+    workspace_path: str | None = None,
     outcome: str | None = None,
     kind: str | None = None,
     status: str | None = None,
     q: str | None = None,
     limit: int | None = 50,
 ) -> dict[str, Any]:
-    """List/search the experience library (episodes with source=experience)."""
+    """List/search the experience library (episodes with source=experience).
+
+    不带工作区筛选时返回全库；``workspace`` / ``workspace_path`` 只保留该工作区
+    的条目。返回 ``workspace_options`` 供面板渲染下拉（与记忆/情节列表同构）。
+    """
     from nanobot.memory.experience import KINDS, STATUSES, list_experiences
 
     if outcome is not None and outcome not in {"failed", "partial", "completed"}:
@@ -522,12 +561,17 @@ def list_experiences_payload(
         raise WebUIMemoryError("invalid kind")
     if status is not None and status not in STATUSES:
         raise WebUIMemoryError("invalid status")
-    workspace_ids = (workspace,) if workspace else tuple(
-        dict.fromkeys((services.workspace_id, "default"))
+    memories, episodes, context = _read_presentation(services)
+    options = workspace_options(services, [
+        *[{"workspaces": context.workspaces(episode)} for episode in episodes],
+        *[{"workspaces": context.workspaces(memory)} for memory in memories],
+    ])
+    target = _workspace_filter_id(
+        workspace=workspace, workspace_path=workspace_path, options=options,
     )
     rows = list_experiences(
         services.database,
-        workspace_ids=workspace_ids,
+        workspace_ids=(target,) if target else None,
         query=(q or "").strip(),
         outcome=outcome,
         kind=kind,
@@ -553,6 +597,7 @@ def list_experiences_payload(
             for row in rows
         ],
         "total": len(rows),
+        "workspace_options": options,
     }
 
 
