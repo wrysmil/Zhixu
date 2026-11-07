@@ -7,7 +7,7 @@ import pytest
 from nanobot.agent.context import ContextBuilder
 from nanobot.agent.tools.experience import ExperienceRecordTool
 from nanobot.agent.tools.memory_search import MemorySearchTool
-from nanobot.agent.tools.memory_write import MemoryWriteTool
+from nanobot.agent.tools.memory_write import MemoryReadTool, MemoryWriteTool
 from nanobot.memory.database import MemoryDatabase
 from nanobot.memory.decay import run_consolidation
 from nanobot.memory.experience import list_experiences, record_experience
@@ -57,7 +57,27 @@ async def test_memory_write_tool(tmp_path):
     tool = MemoryWriteTool(_store(tmp_path))
     result = await tool.execute(scope="global", section="偏好", content="- 用中文回复")
     assert "已写入" in result
+    assert str(tmp_path / "global" / "MEMORY.md") in result
     assert "用中文回复" in tool.store.read_memory_doc("global")
+
+
+async def test_memory_read_tool_reads_both_scopes(tmp_path):
+    store = _store(tmp_path)
+    store.append_memory_section("global", "偏好", "- 用中文回复")
+    store.append_memory_section("project", "构建", "- 用 bun")
+    store.write_memory("project", "long-note", "细节正文", description="长文")
+    tool = MemoryReadTool(store)
+
+    both = await tool.execute(scope="both")
+    assert "用中文回复" in both and "用 bun" in both
+    assert str(tmp_path / "global" / "MEMORY.md") in both
+    assert str(tmp_path / "project" / "MEMORY.md") in both
+
+    single = await tool.execute(scope="project", name="long-note")
+    assert "细节正文" in single
+    assert "未找到" in await tool.execute(scope="project", name="missing")
+    # 路径穿越按普通名字规范化，不会逃出记忆目录
+    assert "未找到" in await tool.execute(scope="project", name="../../etc/passwd")
 
 
 def test_record_and_search_experience(tmp_path):

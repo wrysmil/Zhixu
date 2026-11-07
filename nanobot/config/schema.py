@@ -321,11 +321,12 @@ class AgentDefaults(Base):
         serialization_alias="memoryExtractIntervalMinutes",
     )  # 定时抽取间隔（分钟）：替代旧的空闲触发
     memory_search_backend: str = Field(
-        default="fts5",
+        default="chromadb",
         validation_alias=AliasChoices("memorySearchBackend", "memory_search_backend"),
         serialization_alias="memorySearchBackend",
     )  # 显式开关。openakita 靠 search_backend=="chromadb" 隐式决定，缺独立布尔
-    # 开关（调研文档 §5 缺陷 2）；本方案默认 "fts5" → 现有用户升级后行为不变。
+    # 开关（调研文档 §5 缺陷 2）；2026-11-07 起默认 "chromadb"（向量召回默认开启，
+    # 覆盖 spec 原 D5/R6 契约），未安装 vector extra 时初始化失败并自动降级到 FTS5。
     # 兼容读取（str 非 Literal）：仅 "chromadb" 启用向量层；其余任何值（含历史
     # "api_embedding" 与未知值）按 FTS5 降级路径处理，统计口径如实报告实际后端，
     # 不再像旧独立工厂那样静默映射。

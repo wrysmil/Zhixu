@@ -166,9 +166,11 @@ class VectorStore:
         else:
             self._cooldown_seconds = _COOLDOWN_SECONDS
         self._cooldown_until = time.monotonic() + self._cooldown_seconds
+        hint = "（如需向量召回，请安装 nanobot[vector]）" if is_import_error else ""
         logger.warning(
-            "vector store unavailable ({}), retry in {:.0f}s: {}",
+            "vector store unavailable ({}){}, retry in {:.0f}s: {}",
             "import" if is_import_error else "runtime",
+            hint,
             self._cooldown_seconds,
             self._error,
         )

@@ -617,6 +617,8 @@ CREATE TABLE IF NOT EXISTS embedding_cache (
 
 **兼容性**：默认 `"fts5"` → **现有用户升级后行为完全不变**，零迁移成本。
 
+> **2026-11-07 变更（用户决策）：** `memorySearchBackend` 默认改为 `"chromadb"`，覆盖原 D5/R6 契约（默认 fts5、升级零变化、默认安装体积不变）。`[vector]` 仍为可选 extra，未安装时向量层初始化失败并自动降级到 FTS5；`fts5` 仍可显式回退。对应测试、`docs/memory.md` 与 `AGENTS.md` 已同步更新。
+
 ### 5.4 HTTP API
 
 | 方法 | 路径 | 说明 |

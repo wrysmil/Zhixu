@@ -5,12 +5,19 @@ from nanobot.config.schema import AgentDefaults
 from nanobot.memory.vector.settings import VectorSettings
 
 
-def test_default_backend_is_fts5_and_vector_disabled():
-    """默认配置下向量层完全不启用 —— 升级后行为零改变（D5/R6）。"""
+def test_default_backend_is_chromadb_and_vector_enabled():
+    """2026-11-07 起默认开启向量（覆盖原 D5/R6 契约）。"""
     d = AgentDefaults()
-    assert d.memory_search_backend == "fts5"
+    assert d.memory_search_backend == "chromadb"
     s = d.memory_vector.to_vector_settings(enabled=(d.memory_search_backend == "chromadb"))
     assert isinstance(s, VectorSettings)
+    assert s.enabled is True
+
+
+def test_explicit_fts5_keeps_vector_disabled():
+    """显式回退到 FTS5 时仍是纯词法路径。"""
+    d = AgentDefaults(memorySearchBackend="fts5")
+    s = d.memory_vector.to_vector_settings(enabled=(d.memory_search_backend == "chromadb"))
     assert s.enabled is False
 
 

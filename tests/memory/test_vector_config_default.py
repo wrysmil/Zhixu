@@ -1,4 +1,4 @@
-"""默认配置回归：D5 + R6 —— 不装 vector extra 时行为与体积零改变。"""
+"""默认配置回归：默认开启向量，显式 fts5 时零向量副作用；R6 仍守护安装体积。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,13 +8,24 @@ from nanobot.memory.vector.settings import VectorSettings
 from nanobot.memory.vector.store import VectorStore
 
 
-def test_default_config_creates_no_vector_artifacts(tmp_path):
-    """D5：默认配置下不建 chromadb 目录、不起线程、无网络。"""
+def test_default_config_enables_vector():
+    """2026-11-07 起默认 backend=chromadb（覆盖原 D5）。"""
     d = AgentDefaults()
+    assert d.memory_search_backend == "chromadb"
     s = d.memory_vector.to_vector_settings(
         enabled=(d.memory_search_backend == "chromadb")
     )
-    assert s == VectorSettings(enabled=False) or s.enabled is False
+    assert isinstance(s, VectorSettings)
+    assert s.enabled is True
+
+
+def test_fts5_config_creates_no_vector_artifacts(tmp_path):
+    """显式 fts5 时：不建 chromadb 目录、不起线程、无网络。"""
+    d = AgentDefaults(memorySearchBackend="fts5")
+    s = d.memory_vector.to_vector_settings(
+        enabled=(d.memory_search_backend == "chromadb")
+    )
+    assert s.enabled is False
 
     store = VectorStore(s, workspace=tmp_path)
     assert store.enabled is False

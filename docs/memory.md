@@ -67,7 +67,7 @@ SQLite 的旧「核心事实」投影**不再注入**；`memories` 表迁移后�
 | --- | --- | --- |
 | `memoryFileMode` | `true` | 新链路只在文件模式启用；关闭后回到旧 SQLite 路径 |
 | `memoryExtractIntervalMinutes` | `30` | 定时抽取间隔（最小 5） |
-| `memorySearchBackend` | `fts5` | 设为 `chromadb` 时启用向量层（memories + episodes 两个集合） |
+| `memorySearchBackend` | `chromadb` | 向量召回默认开启（memories + episodes 两个集合）；设为 `fts5` 回退纯词法。需安装 `nanobot[vector]`，缺失时向量层初始化失败并自动降级到 FTS5 |
 | `memoryPitfallHint` | `false` | 工具报错时主动检索 active pitfall，附一行“仅供参考”提示 |
 | `memoryVector.syncOnStartup` | `true` | 启动时后台回填 memories / episodes 向量索引 |
 

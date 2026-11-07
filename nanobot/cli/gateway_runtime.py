@@ -581,8 +581,9 @@ def _run_gateway(
     _memory_services = MemoryServices.for_workspace(
         _MEMORY_WORKSPACE_ID, config.workspace_path,
     )
-    # 向量层：默认 search_backend="fts5" → VectorSettings.enabled=False →
-    # 不建目录、不起线程、不联网（D5）。启用时才构造 store。
+    # 向量层：默认 search_backend="chromadb"（2026-11-07 起）→ 构造 store 并后台加载；
+    # 未安装 vector extra 时 store 进入 failed 冷却，检索自动降级到 FTS5。
+    # 显式设 "fts5" 则不建目录、不起线程、不联网。
     _vector_settings = config.agents.defaults.memory_vector.to_vector_settings(
         enabled=(config.agents.defaults.memory_search_backend == "chromadb")
     )
