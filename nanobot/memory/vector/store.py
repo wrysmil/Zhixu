@@ -24,6 +24,14 @@ _COOLDOWN_SECONDS = 300.0
 _COOLDOWN_MAX_SECONDS = 3600.0
 
 
+def _embedding_dimension(model: Any) -> int:
+    """兼容 sentence-transformers 6.x 的改名；旧版本与测试替身只有旧方法名。"""
+    getter = getattr(model, "get_embedding_dimension", None)
+    if getter is None:
+        getter = model.get_sentence_embedding_dimension
+    return int(getter() or 0)
+
+
 class VectorStore:
     """ChromaDB 向量索引的最小封装。"""
 
@@ -117,7 +125,7 @@ class VectorStore:
 
         model = SentenceTransformer(model_path, device=self._settings.device)
 
-        actual = int(model.get_sentence_embedding_dimension() or 0)
+        actual = _embedding_dimension(model)
         if actual != self._settings.dimensions:
             raise ValueError(
                 f"embedding dimension mismatch: model={actual} "
@@ -142,7 +150,7 @@ class VectorStore:
     def _activate(
         self, model: Any, collection: Any, episodes_collection: Any = None
     ) -> None:
-        actual = int(model.get_sentence_embedding_dimension() or 0)
+        actual = _embedding_dimension(model)
         if actual != self._settings.dimensions:
             self._mark_failed(
                 ValueError(

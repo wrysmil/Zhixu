@@ -79,6 +79,8 @@ _ENTRY_STATUS_LABELS = {
 
 # 单条记忆进注入块前的长度上限（防单条占满 token 预算，也限制注入载荷体积）
 _MAX_ITEM_CHARS = 500
+# Episode 在注入块/工具输出里展示的 id 长度：短前缀便于模型原样抄写
+_DISPLAY_ID_CHARS = 8
 # 残留的 markdown 标题前缀；``_SECTION_SPLITTER`` 只认「## 相关记忆」这类
 # 无后缀段头，认不出「## 相关记忆（自动检索）」，故这里统一去掉标题标记。
 _HEADING_PREFIX_RE = re.compile(r"(?m)^[ \t]*#{1,6}[ \t]*")
@@ -494,6 +496,10 @@ def _render_injection_block(
     把同一批注入记忆送进引用评分 prompt。情节条目改用 ``(Episode: <id>)``，
     避免把情节 id 冒充成记忆 id。
 
+    2026-11-07：Episode 只展示前 8 位（``_DISPLAY_ID_CHARS``）。32 位 UUID 没有
+    任何消费方，实测模型会抄错尾部字符；短前缀足够定位且抄写成本低。记忆 ID
+    保持完整，避免影响既有的引用/评分链路。
+
     安全（2026-09-15 安全审查 I-1）：本块会被 ``agent/context.py`` 拼进
     **system prompt**，而记忆内容来自会话抽取（含 ``web_fetch`` 结果、他人消息），
     属**不可信数据**。因此：
@@ -523,7 +529,7 @@ def _render_injection_block(
             if not memory_id:
                 id_suffix = ""
             elif item.get("kind") == "episode":
-                id_suffix = f" (Episode: {memory_id})"
+                id_suffix = f" (Episode: {str(memory_id)[:_DISPLAY_ID_CHARS]})"
             else:
                 id_suffix = f" (ID: {memory_id})"
             prefix = f"[{label}] " if label else ""

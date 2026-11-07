@@ -186,6 +186,28 @@ async def test_engine_labels_episode_and_keeps_it_out_of_memory_ids():
     assert ids == ["m1"]
 
 
+@pytest.mark.asyncio
+async def test_engine_shortens_episode_id_in_block():
+    """长 UUID 只展示前 8 位，避免模型抄写 32 位 id 时出错。"""
+    episode_id = "0123456789abcdef0123456789abcdef"
+    store = _StubStore()
+    store.episodes_payload = [
+        SimpleNamespace(
+            id=episode_id,
+            summary="情节内容",
+            session_id="s-1",
+            workspace_id="default",
+            ended_at="2026-11-01T11:00:00+00:00",
+        )
+    ]
+    engine = RetrievalEngine(store=store, brain=None)
+    block, _ = await engine.retrieve_with_ids(
+        query="main.py 的历史", recent_messages=[],
+    )
+    assert "(Episode: 01234567)" in block
+    assert episode_id not in block
+
+
 # ---- 纯时间查询 ----
 
 @pytest.mark.parametrize(
