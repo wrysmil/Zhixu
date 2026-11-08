@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -289,3 +290,33 @@ def test_memory_md_trims_facts_before_rules():
     assert "## 规则" in rendered
     assert "禁止无确认的批量删除" in rendered
     assert "超出字符上限" in rendered
+
+
+# ---------------------------------------------------------------------------
+# 多工作区盘账：每日 job 覆盖库内全部作用域
+# ---------------------------------------------------------------------------
+
+
+def test_run_consolidation_for_all_workspaces_covers_each_scope(services):
+    other = replace(_mem("另一个工作区两个月没用的普通事实"), workspace_id="other-ws")
+    local = replace(_mem("本工作区两个月没用的普通事实"), workspace_id=WS)
+    _seed(services, local, other)
+
+    results = decay.run_consolidation_for_all_workspaces(services.database)
+    by_ws = dict(results)
+
+    assert set(by_ws) >= {WS, "other-ws", "default"}
+    assert by_ws[WS].stats.archived == 1
+    assert by_ws["other-ws"].stats.archived == 1
+
+
+def test_run_consolidation_for_all_workspaces_accepts_explicit_ids(services):
+    local = replace(_mem("本工作区两个月没用的普通事实"), workspace_id=WS)
+    _seed(services, local)
+
+    results = decay.run_consolidation_for_all_workspaces(
+        services.database, workspace_ids=[WS], include_global=False
+    )
+
+    assert [ws for ws, _ in results] == [WS]
+    assert results[0][1].stats.archived == 1

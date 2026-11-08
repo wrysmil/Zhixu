@@ -789,7 +789,7 @@ def _run_gateway(
 
         # memory_consolidate is an internal job — pure rule pass, no agent loop.
         if job.name == "memory_consolidate":
-            from nanobot.memory.decay import run_consolidation
+            from nanobot.memory.decay import run_consolidation_for_all_workspaces
 
             if not config.agents.defaults.memory_enabled:
                 logger.debug("memory_consolidate: memory disabled, skipping")
@@ -797,19 +797,22 @@ def _run_gateway(
             services = agent.context.memory.memory_services
             cfg = config.agents.defaults.consolidate
             try:
-                report = run_consolidation(
+                results = run_consolidation_for_all_workspaces(
                     services.database,
-                    workspace_id=services.workspace_id,
                     dry_run=cfg.dry_run,
                     time_budget_seconds=cfg.time_budget_seconds,
                     archive_threshold=cfg.archive_threshold,
                     trigger="cron",
                 )
-                logger.info("memory_consolidate: {}", report.summary())
-                if report.status == "interrupted":
-                    logger.warning(
-                        "memory_consolidate hit time budget; will resume from checkpoint"
+                for workspace_id, report in results:
+                    logger.info(
+                        "memory_consolidate[{}]: {}", workspace_id, report.summary()
                     )
+                    if report.status == "interrupted":
+                        logger.warning(
+                            "memory_consolidate[{}] hit time budget; will resume from checkpoint",
+                            workspace_id,
+                        )
             except Exception:
                 logger.exception("memory_consolidate job failed")
             return None

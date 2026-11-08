@@ -25,9 +25,10 @@
 页面与「上次运行结果」都读它——记忆凭空消失必须有账可查。
 
 Public API:
-    run_consolidation           执行一次全库盘账（dry_run 支持预演）
-    latest_interrupted_run      读取上次中断的 checkpoint
-    list_recent_runs            最近运行记录（WebUI 用）
+    run_consolidation                       执行一次全库盘账（dry_run 支持预演）
+    run_consolidation_for_all_workspaces    按工作区逐个盘账（每日 job 用）
+    latest_interrupted_run                  读取上次中断的 checkpoint
+    list_recent_runs                        最近运行记录（WebUI 用）
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -44,7 +46,8 @@ from loguru import logger
 
 from nanobot.memory.context import is_manual_note_record
 from nanobot.memory.models import Memory, MemoryType
-from nanobot.memory.repository import current_memory_sql
+from nanobot.memory.provenance import GLOBAL_MEMORY_WORKSPACE_ID
+from nanobot.memory.repository import current_memory_sql, known_workspace_ids
 
 #: effective 低于该值 → 归档。
 DECAY_ARCHIVE_THRESHOLD = 0.15
@@ -541,6 +544,55 @@ def run_consolidation(
         report.error = str(exc)
         logger.exception("memory_consolidate run failed")
     return report
+
+
+def run_consolidation_for_all_workspaces(
+    database: Any,
+    *,
+    workspace_ids: Iterable[str] | None = None,
+    include_global: bool = True,
+    dry_run: bool = False,
+    time_budget_seconds: int = 1500,
+    archive_threshold: float = DECAY_ARCHIVE_THRESHOLD,
+    trigger: str = "cron",
+    resume: bool = True,
+) -> list[tuple[str, ConsolidationReport]]:
+    """按工作区逐个盘账，返回 ``(workspace_id, report)`` 列表。
+
+    不传 ``workspace_ids`` 时取库内已出现过的全部工作区键，并按需补上全局
+    ``"default"``。总时间预算在本次涉及的工作区之间均分（每个不低于 30 秒，
+    与 ``run_consolidation`` 的下限一致），避免工作区一多就整体超时。
+    """
+    if workspace_ids is None:
+        with database.connect() as conn:
+            resolved = set(known_workspace_ids(conn))
+    else:
+        resolved = {ws for ws in workspace_ids if ws}
+    if include_global:
+        resolved.add(GLOBAL_MEMORY_WORKSPACE_ID)
+
+    ordered = sorted(resolved)
+    if not ordered:
+        return []
+    per_workspace_budget = (
+        max(30, int(time_budget_seconds) // len(ordered))
+        if time_budget_seconds > 0
+        else 0
+    )
+
+    results: list[tuple[str, ConsolidationReport]] = []
+    for workspace_id in ordered:
+        report = run_consolidation(
+            database,
+            workspace_id=workspace_id,
+            dry_run=dry_run,
+            time_budget_seconds=per_workspace_budget,
+            archive_threshold=archive_threshold,
+            trigger=trigger,
+            resume=resume,
+        )
+        results.append((workspace_id, report))
+    return results
 
 
 def _run_body(
