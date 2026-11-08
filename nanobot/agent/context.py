@@ -525,6 +525,11 @@ class ContextBuilder:
     def _load_bootstrap_files(self, workspace: Path | None = None) -> str:
         """Load project instructions plus the agent's global profile files.
 
+        ``AGENTS.md`` 分两层读取：agent workspace 根的全局副本始终注入；
+        当回合项目根与 agent workspace 不同时，再追加项目根的副本。其余
+        身份文件只解析一次。项目层用独立标题，避免同一份 prompt 里出现两个
+        无从区分的 ``## AGENTS.md``。
+
         Identity files resolve to their rule-compiled ``identity/runtime/``
         products when that set is fresh, and fall back to the source file's
         full text otherwise (never compiled, stale, or unreadable). The
@@ -536,8 +541,29 @@ class ContextBuilder:
         project_root = workspace or self.workspace
         identity_dir = resolve_identity_dir(self.workspace)
         compiled = read_compiled(self.workspace)
+
+        global_agents = self._render_bootstrap_file(
+            "AGENTS.md", self.workspace, compiled, None
+        )
+        if global_agents:
+            parts.append(global_agents)
+
+        same_root = (
+            project_root.expanduser().resolve()
+            == self.workspace.expanduser().resolve()
+        )
+        if not same_root:
+            project_agents = self._render_bootstrap_file(
+                "AGENTS.md",
+                project_root,
+                compiled,
+                None,
+                heading="AGENTS.md (project)",
+            )
+            if project_agents:
+                parts.append(project_agents)
+
         sources: list[tuple[str, Path, str | None]] = [
-            ("AGENTS.md", project_root, None),  # project-level instructions: do not move
             # Identity files: prefer identity/ dir, fall back to workspace root for unmigrated old workspaces
             (
                 "SOUL.md",
@@ -569,12 +595,15 @@ class ContextBuilder:
         root: Path,
         compiled: dict[str, str] | None,
         compiled_key: str | None,
+        *,
+        heading: str | None = None,
     ) -> str:
         """渲染单个 bootstrap 段；出厂未定制或缺失时返回空串。"""
+        title = heading or filename
         if compiled is not None and compiled_key is not None:
             body = compiled.get(compiled_key, "")
             if body.strip():
-                return f"## {filename}\n\n{body}"
+                return f"## {title}\n\n{body}"
         file_path = root / filename
         if not file_path.exists():
             return ""
@@ -585,7 +614,7 @@ class ContextBuilder:
             return ""
         if filename in self._SKIPPABLE_DEFAULTS and self._is_template_content(content, filename):
             return ""
-        return f"## {filename}\n\n{content}"
+        return f"## {title}\n\n{content}"
 
     def _load_persona_section(self) -> str:
         """把激活的 persona 渲染成表现层段落。

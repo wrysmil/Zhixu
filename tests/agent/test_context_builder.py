@@ -132,7 +132,7 @@ class TestLoadBootstrapFiles:
         result = builder._load_bootstrap_files()
         assert "用中文回复" in result
 
-    def test_selected_project_supplies_only_agents_file(self, tmp_path):
+    def test_selected_project_extends_global_agents_file(self, tmp_path):
         agent_home = tmp_path / "agent-home"
         project = tmp_path / "project"
         agent_home.mkdir()
@@ -146,14 +146,14 @@ class TestLoadBootstrapFiles:
 
         result = ContextBuilder(agent_home).build_system_prompt(workspace=project)
 
-        assert "selected project rules" in result
-        assert "global project rules" not in result
+        assert "## AGENTS.md\n\nglobal project rules" in result
+        assert "## AGENTS.md (project)\n\nselected project rules" in result
         assert "global soul" in result
         assert "global user" in result
         assert "project soul collision" not in result
         assert "project user collision" not in result
 
-    def test_selected_project_without_agents_does_not_fall_back(self, tmp_path):
+    def test_selected_project_without_agents_keeps_global_agents_file(self, tmp_path):
         agent_home = tmp_path / "agent-home"
         project = tmp_path / "project"
         agent_home.mkdir()
@@ -162,7 +162,8 @@ class TestLoadBootstrapFiles:
 
         result = ContextBuilder(agent_home).build_system_prompt(workspace=project)
 
-        assert "default workspace rules" not in result
+        assert "default workspace rules" in result
+        assert "## AGENTS.md (project)" not in result
 
     def test_unmodified_agents_and_user_templates_are_skipped(self, tmp_path):
         from nanobot.utils.helpers import sync_workspace_templates

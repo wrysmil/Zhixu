@@ -1405,7 +1405,7 @@ class TestCompactIdleSession:
         assert sent_messages[-1]["content"] == _ARCHIVE_PROMPT
         system = sent_messages[0]["content"]
         assert "PROJECT_WORKSPACE_MARKER" in system
-        assert "GLOBAL_WORKSPACE_MARKER" not in system
+        assert "GLOBAL_WORKSPACE_MARKER" in system
 
     @pytest.mark.asyncio
     async def test_acquires_consolidation_lock(
