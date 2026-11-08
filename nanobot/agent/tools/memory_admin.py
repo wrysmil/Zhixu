@@ -12,7 +12,7 @@
 * :class:`AddMemoryTool`    写一条（复用 ``writer.apply_memory_changes``）
 * :class:`MemoryDeleteTool` 按查询删一批（两次确认）
 * :class:`MemoryStatsTool`  看库里的规模与来源分布
-* :class:`ConsolidateMemoryTool` 立刻重算 MEMORY.md / USER.md
+* :class:`ConsolidateMemoryTool` 先盘账（去重/过期）再重算 MEMORY.md / USER.md
 
 三条设计约束，都是 openakita 那边踩过的坑：
 
@@ -28,6 +28,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Callable, ClassVar
@@ -48,9 +49,12 @@ from nanobot.agent.tools.schema import (
     StringSchema,
     tool_parameters_schema,
 )
+from nanobot.memory.decay import run_consolidation
 from nanobot.memory.dream_audit import active_run
 from nanobot.memory.models import Memory, MemoryPriority, MemoryType
+from nanobot.memory.provenance import memory_workspace_id
 from nanobot.memory.writer import MemoryChange, apply_memory_changes
+from nanobot.security.workspace_access import current_workspace_scope
 
 if TYPE_CHECKING:
     from nanobot.webui.memory_services import MemoryServices
@@ -71,6 +75,25 @@ _DELETE_PREVIEW_LIMIT = 10
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+#: 工具触发的盘账单工作区预算（秒）。用户主动说「整理记忆」时不该等太久；
+#: ``run_consolidation`` 内部会把下限抬到 30 秒。
+_TOOL_CONSOLIDATION_BUDGET_SECONDS = 60
+
+
+def _consolidation_workspace_ids(services: "MemoryServices") -> list[str]:
+    """本次整理要覆盖的工作区：全局 + 当前回合项目（去重，保持顺序）。"""
+    ids = [services.workspace_id]
+    try:
+        scope = current_workspace_scope()
+    except Exception:  # noqa: BLE001 - 作用域解析失败按全局处理
+        scope = None
+    if scope is not None:
+        project_id = memory_workspace_id(str(scope.project_path))
+        if project_id not in ids:
+            ids.append(project_id)
+    return ids
 
 
 class _MemoryAdminBase(Tool):
@@ -600,14 +623,13 @@ class MemoryStatsTool(_MemoryAdminBase):
 
 @tool_parameters(tool_parameters_schema())
 class ConsolidateMemoryTool(_MemoryAdminBase):
-    """立刻重算 MEMORY.md / USER.md。"""
+    """立刻盘账（去重/衰减）并重算 MEMORY.md / USER.md。"""
 
     name: ClassVar[str] = "consolidate_memory"
     description: ClassVar[str] = (
-        "从记忆库重新生成 MEMORY.md 与 USER.md，让两个投影文件与库保持一致。"
-        "用户说「整理一下记忆」「更新一下记忆文件」时调用。"
-        "注意：这一步只做重新投影，不会合并重复或衰减旧记忆——"
-        "那是每日整理任务的事。"
+        "整理记忆：先对全局与当前项目做一次去重与过期清理，再从记忆库"
+        "重新生成 MEMORY.md 与 USER.md。"
+        "用户说「整理一下记忆」「更新一下记忆文件」「清理重复记忆」时调用。"
     )
 
     async def execute(self, **kwargs: Any) -> str:
@@ -616,6 +638,25 @@ class ConsolidateMemoryTool(_MemoryAdminBase):
             return self._fail("记忆库不可用（记忆功能可能已关闭）")
 
         from nanobot.memory.lifecycle import MemoryLifecycle
+
+        reports: list[tuple[str, Any]] = []
+        for workspace_id in _consolidation_workspace_ids(services):
+            try:
+                report = await asyncio.to_thread(
+                    run_consolidation,
+                    services.database,
+                    workspace_id=workspace_id,
+                    time_budget_seconds=_TOOL_CONSOLIDATION_BUDGET_SECONDS,
+                    trigger="tool",
+                )
+            except Exception as exc:  # noqa: BLE001 - 盘账失败不阻止投影刷新
+                logger.warning(
+                    "consolidate_memory: consolidation failed for {}: {!r}",
+                    workspace_id,
+                    exc,
+                )
+                continue
+            reports.append((workspace_id, report))
 
         try:
             lifecycle = MemoryLifecycle.for_workspace(services.workspace_id, services)
@@ -634,8 +675,13 @@ class ConsolidateMemoryTool(_MemoryAdminBase):
                 return f"{label} 无变化"
             return f"{label} 已重写（{item.get('chars', 0)} 字符）"
 
+        scope_summary = "；".join(
+            f"{'全局' if ws == services.workspace_id else '项目'}：{report.summary()}"
+            for ws, report in reports
+        ) or "盘账未执行"
+
         return (
-            "整理完成："
+            f"整理完成：{scope_summary}。"
             + _describe("MEMORY.md", memory_md)
             + "，"
             + _describe("USER.md", user_md)

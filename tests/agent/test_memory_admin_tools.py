@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from nanobot.agent.tools.memory_admin import (
@@ -20,7 +22,8 @@ from nanobot.agent.tools.memory_admin import (
     MemoryStatsTool,
 )
 from nanobot.memory.database import MemoryDatabase
-from nanobot.memory.repository import list_memories, search_memories
+from nanobot.memory.models import Memory, MemoryPriority, MemoryType
+from nanobot.memory.repository import add_memory, get_memory, list_memories, search_memories
 from nanobot.webui.memory_services import MemoryServices
 
 pytestmark = pytest.mark.asyncio
@@ -54,6 +57,23 @@ def _fresh_lifecycle_singletons():
     MemoryLifecycle._last_refresh_trigger.clear()
     yield
     MemoryLifecycle._instances.clear()
+
+
+def _stale_memory(*, workspace_id: str) -> Memory:
+    old = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+    return Memory(
+        id=f"stale-{workspace_id}",
+        content=f"{workspace_id} 两个月没用的普通事实",
+        created_at=old,
+        updated_at=old,
+        type=MemoryType.FACT,
+        priority=MemoryPriority.LONG_TERM,
+        source="manual",
+        importance_score=0.3,
+        decay_rate=0.1,
+        last_accessed_at=None,
+        workspace_id=workspace_id,
+    )
 
 
 def _tool(cls, services):
@@ -253,6 +273,61 @@ class TestStatsAndConsolidate:
         assert "MEMORY.md" in out
         assert "整理完成" in out
         assert (tmp_ws / "memory" / "MEMORY.md").exists()
+
+    async def test_consolidate_archives_stale_memories(self, services, tmp_ws):
+        stale = _stale_memory(workspace_id=services.workspace_id)
+        with services.database.connect() as conn:
+            add_memory(conn, stale)
+
+        out = await _tool(ConsolidateMemoryTool, services).execute()
+
+        assert "归档" in out
+        assert (tmp_ws / "memory" / "MEMORY.md").exists()
+        with services.database.connect() as conn:
+            stored = get_memory(conn, stale.id)
+        assert stored is not None
+        assert stored.expires_at is not None
+
+    async def test_consolidate_covers_current_project_scope(
+        self, services, monkeypatch, tmp_path
+    ):
+        from types import SimpleNamespace
+
+        from nanobot.agent.tools import memory_admin
+
+        project = tmp_path / "proj"
+        project.mkdir()
+        monkeypatch.setattr(
+            memory_admin,
+            "current_workspace_scope",
+            lambda: SimpleNamespace(project_path=project),
+        )
+        monkeypatch.setattr(memory_admin, "memory_workspace_id", lambda _path: "proj-ws")
+        stale = _stale_memory(workspace_id="proj-ws")
+        with services.database.connect() as conn:
+            add_memory(conn, stale)
+
+        out = await _tool(ConsolidateMemoryTool, services).execute()
+
+        assert "项目" in out
+        with services.database.connect() as conn:
+            stored = get_memory(conn, stale.id)
+        assert stored is not None
+        assert stored.expires_at is not None
+
+    async def test_consolidation_workspace_ids_dedupe_global(self, services, monkeypatch):
+        from nanobot.agent.tools import memory_admin
+
+        monkeypatch.setattr(
+            memory_admin,
+            "current_workspace_scope",
+            lambda: type("S", (), {"project_path": "/tmp/whatever"})(),
+        )
+        monkeypatch.setattr(
+            memory_admin, "memory_workspace_id", lambda _path: services.workspace_id
+        )
+
+        assert memory_admin._consolidation_workspace_ids(services) == [services.workspace_id]
 
     async def test_stats_and_consolidate_need_services(self, tmp_ws):
         assert (await _tool(MemoryStatsTool, None).execute()).is_error
