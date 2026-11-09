@@ -334,6 +334,43 @@ class KnowledgeEvalRepository:
                 (status, _dump(dict(metrics or {})), error, now, str(run_id)),
             )
 
+    def update_run_fields(self, run_id: str, **fields: Any) -> None:
+        """更新运行级字段：``status`` / ``pool`` / ``progress``。
+
+        runner 需要在运行途中写入降级标记与进度——这些是**非终态**写入，
+        与 ``finish_run``（写终态与聚合指标）职责不同，故单独提供。
+
+        只接受白名单键，其余一律拒绝（不接受任意列名）。
+        """
+        allowed = {"status", "pool", "progress"}
+        unknown = set(fields) - allowed
+        if unknown:
+            raise ValueError(f"unsupported run fields: {sorted(unknown)}")
+        if not fields:
+            return
+
+        assignments: list[str] = []
+        values: list[Any] = []
+        if "status" in fields:
+            assignments.append("status = ?")
+            values.append(str(fields["status"]))
+        for column, key in (("pool_json", "pool"), ("progress_json", "progress")):
+            if key in fields:
+                assignments.append(f"{column} = ?")
+                values.append(_dump(fields[key]))
+        if not assignments:
+            return
+        values.append(str(run_id))
+        with self._db.connect(immediate=True) as conn:
+            if self._run_row(conn, run_id) is None:
+                raise KnowledgeEvalError(
+                    CODE_RUN_NOT_FOUND, f"知识评测运行不存在：{run_id}"
+                )
+            conn.execute(
+                f"UPDATE knowledge_eval_runs SET {', '.join(assignments)} WHERE id = ?",
+                values,
+            )
+
     def mark_interrupted_runs(self) -> int:
         """服务重启时把残留 ``running`` 的运行置 ``interrupted``，返回处理条数。"""
         now = _utc_now_iso()

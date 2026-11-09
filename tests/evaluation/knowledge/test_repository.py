@@ -311,3 +311,40 @@ def test_mark_interrupted_runs_marks_running(tmp_path: Path) -> None:
     assert loaded["status"] == "interrupted"
     # 已经收尾的不再重复处理。
     assert repo.mark_interrupted_runs() == 0
+
+
+def test_update_run_fields_writes_pool_and_progress(tmp_path) -> None:
+    """运行途中的非终态写入：降级标记与进度。"""
+    repo = KnowledgeEvalRepository(tmp_path / "evaluation.db")
+    repo.init_schema()
+    dataset = repo.create_dataset(name="ds", cases=[{"id": "c1", "query": "q"}])
+    run = repo.create_run(dataset_id=dataset["id"], configs=[{"id": "base"}])
+
+    repo.update_run_fields(
+        run["id"],
+        status="running",
+        pool={"degraded": ["embedding_mismatch:kb1"]},
+        progress={"done": 3},
+    )
+    loaded = repo.get_run(run["id"])
+    assert loaded["status"] == "running"
+    assert loaded["pool"]["degraded"] == ["embedding_mismatch:kb1"]
+    assert loaded["progress"]["done"] == 3
+
+
+def test_update_run_fields_rejects_unknown_field(tmp_path) -> None:
+    """只接受白名单键——不接受任意列名。"""
+    repo = KnowledgeEvalRepository(tmp_path / "evaluation.db")
+    repo.init_schema()
+    dataset = repo.create_dataset(name="ds", cases=[{"id": "c1", "query": "q"}])
+    run = repo.create_run(dataset_id=dataset["id"], configs=[{"id": "base"}])
+
+    with pytest.raises(ValueError):
+        repo.update_run_fields(run["id"], metrics_json="{}")
+
+
+def test_update_run_fields_on_missing_run_raises(tmp_path) -> None:
+    repo = KnowledgeEvalRepository(tmp_path / "evaluation.db")
+    repo.init_schema()
+    with pytest.raises(KnowledgeEvalError):
+        repo.update_run_fields("nope", status="running")

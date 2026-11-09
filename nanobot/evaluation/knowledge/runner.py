@@ -25,7 +25,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields
@@ -216,35 +215,14 @@ def _not_assessable_score(
 def _update_run_fields(repository: Any, run_id: str, **fields: Any) -> bool:
     """把运行级字段（``status`` / ``pool`` / ``progress``）写回仓储。
 
-    仓储层当前只暴露 ``finish_run``（写终态与指标），没有写 ``pool_json`` /
-    ``progress_json`` 的公开方法。这里**优先**调用仓储未来可能提供的
-    ``update_run_fields``；否则退回「同库直写」的兜底通道。SQL 的表名与列名
-    全部来自本模块常量，不接受外部输入。
+    走仓储层的公开 ``update_run_fields``——**不在 runner 里直写数据库**：
+    直写会绕过仓储的事务与校验，也会让「哪些列可写」散落到两处。
+    仓储未提供该方法时视为不可用（返回 False），由调用方决定如何收口。
     """
     updater = getattr(repository, "update_run_fields", None)
-    if callable(updater):
-        updater(run_id, **fields)
-        return True
-    database = getattr(repository, "_db", None)
-    if database is None:
+    if not callable(updater):
         return False
-    assignments: list[str] = []
-    values: list[Any] = []
-    if "status" in fields:
-        assignments.append("status = ?")
-        values.append(str(fields["status"]))
-    for column, key in (("pool_json", "pool"), ("progress_json", "progress")):
-        if key in fields:
-            assignments.append(f"{column} = ?")
-            values.append(json.dumps(fields[key], ensure_ascii=False))
-    if not assignments:
-        return False
-    values.append(str(run_id))
-    with database.connect(immediate=True) as conn:
-        conn.execute(
-            f"UPDATE knowledge_eval_runs SET {', '.join(assignments)} WHERE id = ?",
-            values,
-        )
+    updater(run_id, **fields)
     return True
 
 
