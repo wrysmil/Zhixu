@@ -521,6 +521,20 @@ class KnowledgeService:
         self._drain_queue()
 
     # ---------- 检索 ----------
+    def retriever_with(self, settings: RetrieverSettings) -> Retriever:
+        """用同一份 repo/embedder/vector 构造指定参数的检索器（评测用）。
+
+        评测要在「同一套融合 / 去重 / MMR 实现」上跑不同参数，因此这里只替换
+        ``RetrieverSettings``，其余依赖与产品实例共享——不新建 embedding、
+        不新建向量库，也不改变产品默认行为。
+        """
+        return Retriever(
+            self._repo,
+            embedder=self._embedder,
+            vector_store=self._vector,
+            settings=settings,
+        )
+
     def search(
         self,
         query: str,
