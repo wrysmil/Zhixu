@@ -167,7 +167,8 @@ type ShellView =
   | "agents"
   | "teams"
   | "memory"
-  | "identity";
+  | "identity"
+  | "knowledge";
 type ShellRoute = {
   view: ShellView;
   activeKey: string | null;
@@ -187,6 +188,10 @@ const MemoryPage = lazy(async () => {
 const IdentityPage = lazy(async () => {
   const module = await import("@/components/workspace/IdentityPage");
   return { default: module.IdentityPage };
+});
+const KnowledgePage = lazy(async () => {
+  const module = await import("@/components/workspace/KnowledgePage");
+  return { default: module.KnowledgePage };
 });
 const CreativeWorkspace = lazy(() => import("./components/creative/CreativeWorkspace"));
 // 终端入口已迁移：TerminalSection 由 TerminalSurface + StartDock（Task 7/9）接管。
@@ -3237,7 +3242,7 @@ function Shell({
                 </Suspense>
               </div>
             ) : null}
-            {view === "memory" || view === "identity" ? (
+            {view === "memory" || view === "identity" || view === "knowledge" ? (
               <div
                 className="absolute inset-0 flex flex-col overflow-y-auto bg-surface-raised"
               >
@@ -3247,6 +3252,8 @@ function Shell({
                       settingsSnapshot={settingsSnapshot}
                       onSettingsChange={setSettingsSnapshot}
                     />
+                  ) : view === "knowledge" ? (
+                    <KnowledgePage />
                   ) : (
                     <IdentityPage />
                   )}

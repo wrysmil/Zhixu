@@ -1556,3 +1556,416 @@ export async function setActivePersona(
 ): Promise<{ active: string }> {
   return mutation<{ active: string }>(transport, "identity.persona.set", { stem });
 }
+
+// ---- 知识中心（knowledge center）------------------------------------------
+//
+// 动作名与路径以 `nanobot/webui/knowledge_routes.py` 为唯一真相源：
+// 读动作走认证 HTTP GET（`/api/settings/knowledge/*`），写动作走 WS mutation
+// （`knowledge.kb.*` / `knowledge.doc.*` / `knowledge.repair`）。payload 一律
+// camelCase，和现有 settings 客户端口径一致。
+
+export const KNOWLEDGE_BASE = "/api/settings/knowledge";
+
+export type KnowledgeVisibility = "workspace" | "global";
+export type KnowledgeDocStatus = "pending" | "processing" | "ready" | "failed";
+export type KnowledgeSearchMode = "hybrid" | "semantic" | "keyword";
+
+export interface KnowledgeKb {
+  id: string;
+  name: string;
+  description: string;
+  workspaceId: string;
+  visibility: KnowledgeVisibility | string;
+  isEnabled: boolean;
+  documentCount: number;
+  embeddingBackend?: string;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * 文档读模型。后端刻意不下发 `source_path`（路径泄露面），因此前端只能用
+ * `originalName` / `mime` 充当「来源」列。
+ */
+export interface KnowledgeDoc {
+  id: string;
+  kbId: string;
+  title: string;
+  originalName: string;
+  status: KnowledgeDocStatus | string;
+  chunkCount: number;
+  charCount: number;
+  mime?: string;
+  sourceKind?: string;
+  errorCode?: string;
+  error?: string;
+  vectorStatus?: string;
+  isEnabled?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface KnowledgeChunk {
+  id: string;
+  docId: string;
+  kbId: string;
+  index: number;
+  heading: string;
+  page: number | null;
+  locator: string;
+  content: string;
+  charCount: number;
+}
+
+export interface KnowledgeHit {
+  chunkId: string;
+  docId: string;
+  kbId: string;
+  score: number;
+  content: string;
+  heading: string;
+  page: number | null;
+  locator: string;
+}
+
+export interface KnowledgeSearchResult {
+  enabled: boolean;
+  modeUsed: string;
+  degraded: string[];
+  reason: string | null;
+  routes: string[];
+  hits: KnowledgeHit[];
+}
+
+export interface KnowledgeStats {
+  enabled: boolean;
+  kbs: number;
+  documents: number;
+  chunks: number;
+  pending: number;
+  vector: number | null;
+  byStatus?: Record<string, number>;
+  drift?: number | null;
+  expiredLeases?: number;
+  dbBytes?: number;
+  uploadsBytes?: number;
+}
+
+export interface KnowledgeKbListPayload {
+  enabled: boolean;
+  kbs: KnowledgeKb[];
+}
+
+export interface KnowledgeDocListPayload {
+  enabled: boolean;
+  documents: KnowledgeDoc[];
+  total: number;
+}
+
+export interface KnowledgeDocGetPayload {
+  enabled: boolean;
+  document: KnowledgeDoc | null;
+  chunks: KnowledgeChunk[];
+  chunkCount: number;
+}
+
+export interface KnowledgeChunkGetPayload {
+  enabled: boolean;
+  chunk: KnowledgeChunk | null;
+}
+
+/** 读动作与写动作共用的作用域过滤；缺省时后端按已认证可见集合处理。 */
+export interface KnowledgeScope {
+  workspaceIds?: string[];
+}
+
+function knowledgeQuery(
+  params: Record<string, string | number | string[] | undefined | null>,
+): string {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === null || value === undefined) return;
+    if (Array.isArray(value)) {
+      const joined = value.filter(Boolean).join(",");
+      if (joined) search.set(key, joined);
+      return;
+    }
+    if (typeof value === "number") {
+      if (!Number.isFinite(value)) return;
+      search.set(key, String(value));
+      return;
+    }
+    const trimmed = value.trim();
+    if (trimmed) search.set(key, trimmed);
+  });
+  const query = search.toString();
+  return query ? `?${query}` : "";
+}
+
+export async function fetchKnowledgeKbs(
+  token: string,
+  scope: KnowledgeScope = {},
+  base: string = "",
+): Promise<KnowledgeKbListPayload> {
+  const query = knowledgeQuery({ workspaceIds: scope.workspaceIds });
+  const payload = await request<KnowledgeKbListPayload>(
+    `${base}${KNOWLEDGE_BASE}/kbs${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  return {
+    enabled: payload.enabled !== false,
+    kbs: Array.isArray(payload.kbs) ? payload.kbs : [],
+  };
+}
+
+export async function fetchKnowledgeDocs(
+  token: string,
+  params: { kbId?: string; status?: string; limit?: number; offset?: number } & KnowledgeScope = {},
+  base: string = "",
+): Promise<KnowledgeDocListPayload> {
+  const query = knowledgeQuery({
+    kbId: params.kbId,
+    status: params.status,
+    limit: params.limit,
+    offset: params.offset,
+    workspaceIds: params.workspaceIds,
+  });
+  const payload = await request<KnowledgeDocListPayload>(
+    `${base}${KNOWLEDGE_BASE}/docs${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  return {
+    enabled: payload.enabled !== false,
+    documents: Array.isArray(payload.documents) ? payload.documents : [],
+    total: typeof payload.total === "number" ? payload.total : 0,
+  };
+}
+
+export async function fetchKnowledgeDoc(
+  token: string,
+  params: { id: string; chunkLimit?: number },
+  base: string = "",
+): Promise<KnowledgeDocGetPayload> {
+  const query = knowledgeQuery({ id: params.id, chunkLimit: params.chunkLimit });
+  return request<KnowledgeDocGetPayload>(
+    `${base}${KNOWLEDGE_BASE}/doc${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
+export async function fetchKnowledgeChunk(
+  token: string,
+  chunkId: string,
+  base: string = "",
+): Promise<KnowledgeChunkGetPayload> {
+  const query = knowledgeQuery({ chunkId });
+  return request<KnowledgeChunkGetPayload>(
+    `${base}${KNOWLEDGE_BASE}/chunk${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
+export async function searchKnowledge(
+  token: string,
+  params: {
+    query: string;
+    mode?: KnowledgeSearchMode | string;
+    limit?: number;
+    kbId?: string;
+    kbIds?: string[];
+  } & KnowledgeScope,
+  base: string = "",
+): Promise<KnowledgeSearchResult> {
+  const query = knowledgeQuery({
+    query: params.query,
+    mode: params.mode,
+    limit: params.limit,
+    kbId: params.kbId,
+    kbIds: params.kbIds,
+    workspaceIds: params.workspaceIds,
+  });
+  const payload = await request<KnowledgeSearchResult>(
+    `${base}${KNOWLEDGE_BASE}/search${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  return {
+    enabled: payload.enabled !== false,
+    modeUsed: payload.modeUsed ?? "none",
+    degraded: Array.isArray(payload.degraded) ? payload.degraded : [],
+    reason: payload.reason ?? null,
+    routes: Array.isArray(payload.routes) ? payload.routes : [],
+    hits: Array.isArray(payload.hits) ? payload.hits : [],
+  };
+}
+
+export async function fetchKnowledgeStats(
+  token: string,
+  scope: KnowledgeScope = {},
+  base: string = "",
+): Promise<KnowledgeStats> {
+  const query = knowledgeQuery({ workspaceIds: scope.workspaceIds });
+  const payload = await request<Record<string, unknown>>(
+    `${base}${KNOWLEDGE_BASE}/stats${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  const num = (value: unknown): number =>
+    typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return {
+    enabled: payload.enabled !== false,
+    kbs: num(payload.kbs),
+    documents: num(payload.documents),
+    chunks: num(payload.chunks),
+    pending: num(payload.pending),
+    vector: typeof payload.vector === "number" ? payload.vector : null,
+    byStatus: (payload.by_status ?? payload.byStatus) as Record<string, number> | undefined,
+    drift: typeof payload.drift === "number" ? payload.drift : null,
+    expiredLeases: num(payload.expired_leases ?? payload.expiredLeases),
+    dbBytes: num(payload.db_bytes ?? payload.dbBytes),
+    uploadsBytes: num(payload.uploads_bytes ?? payload.uploadsBytes),
+  };
+}
+
+export interface CreateKnowledgeKbInput {
+  name: string;
+  description?: string;
+  visibility?: KnowledgeVisibility | string;
+  workspaceId?: string;
+}
+
+export async function createKnowledgeKb(
+  transport: WebUIMutationTransport,
+  input: CreateKnowledgeKbInput,
+): Promise<{ id: string }> {
+  return mutation<{ id: string }>(transport, "knowledge.kb.create", {
+    name: input.name,
+    ...(input.description ? { description: input.description } : {}),
+    ...(input.visibility ? { visibility: input.visibility } : {}),
+    ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+  });
+}
+
+export interface UpdateKnowledgeKbInput {
+  id: string;
+  name?: string;
+  description?: string;
+  isEnabled?: boolean;
+}
+
+export async function updateKnowledgeKb(
+  transport: WebUIMutationTransport,
+  input: UpdateKnowledgeKbInput,
+): Promise<{ ok: boolean; id: string }> {
+  return mutation<{ ok: boolean; id: string }>(transport, "knowledge.kb.update", {
+    id: input.id,
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.isEnabled !== undefined ? { isEnabled: input.isEnabled } : {}),
+  });
+}
+
+export async function deleteKnowledgeKb(
+  transport: WebUIMutationTransport,
+  id: string,
+): Promise<{ ok: boolean; id: string }> {
+  return mutation<{ ok: boolean; id: string }>(transport, "knowledge.kb.delete", { id });
+}
+
+export async function reindexKnowledgeKb(
+  transport: WebUIMutationTransport,
+  id: string,
+): Promise<{ ok: boolean; queued: number; documentIds?: string[] }> {
+  return mutation<{ ok: boolean; queued: number; documentIds?: string[] }>(
+    transport,
+    "knowledge.kb.reindex",
+    { id },
+  );
+}
+
+export interface AddKnowledgeDocInput {
+  kbId: string;
+  name: string;
+  /** `data:<mime>;base64,...`；服务端按后缀 + MIME 双校验。 */
+  dataUrl: string;
+  title?: string;
+  workspaceId?: string;
+}
+
+export async function addKnowledgeDoc(
+  transport: WebUIMutationTransport,
+  input: AddKnowledgeDocInput,
+): Promise<{ document: KnowledgeDoc }> {
+  return mutation<{ document: KnowledgeDoc }>(transport, "knowledge.doc.add", {
+    kbId: input.kbId,
+    name: input.name,
+    dataUrl: input.dataUrl,
+    ...(input.title ? { title: input.title } : {}),
+    ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+  });
+}
+
+export interface AddKnowledgeDocFromPathInput {
+  kbId: string;
+  /** 服务端本地路径（仅本地已认证 WebUI 可用）。 */
+  path: string;
+  title?: string;
+  workspaceId?: string;
+}
+
+export async function addKnowledgeDocFromPath(
+  transport: WebUIMutationTransport,
+  input: AddKnowledgeDocFromPathInput,
+): Promise<{ document: KnowledgeDoc }> {
+  return mutation<{ document: KnowledgeDoc }>(transport, "knowledge.doc.add_file", {
+    kbId: input.kbId,
+    path: input.path,
+    ...(input.title ? { title: input.title } : {}),
+    ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+  });
+}
+
+export async function deleteKnowledgeDoc(
+  transport: WebUIMutationTransport,
+  id: string,
+): Promise<{ ok: boolean; id: string }> {
+  return mutation<{ ok: boolean; id: string }>(transport, "knowledge.doc.delete", { id });
+}
+
+export async function reindexKnowledgeDoc(
+  transport: WebUIMutationTransport,
+  id: string,
+): Promise<{ ok: boolean; queued: boolean }> {
+  return mutation<{ ok: boolean; queued: boolean }>(transport, "knowledge.doc.reindex", { id });
+}
+
+export interface RepairKnowledgeInput {
+  fts?: boolean;
+  vectors?: boolean;
+  purge?: boolean;
+  workspaceId?: string;
+}
+
+export async function repairKnowledge(
+  transport: WebUIMutationTransport,
+  input: RepairKnowledgeInput = {},
+): Promise<Record<string, unknown> & { ok: boolean }> {
+  return mutation<Record<string, unknown> & { ok: boolean }>(transport, "knowledge.repair", {
+    ...(input.fts !== undefined ? { fts: input.fts } : {}),
+    ...(input.vectors !== undefined ? { vectors: input.vectors } : {}),
+    ...(input.purge !== undefined ? { purge: input.purge } : {}),
+    ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+  });
+}

@@ -14,6 +14,7 @@ export type WorkspaceView =
   | "settings"
   | "memory"
   | "identity"
+  | "knowledge"
   | "teams";
 
 export interface WorkspaceRoute {

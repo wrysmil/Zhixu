@@ -8,6 +8,7 @@ import {
   Bot,
   BookOpen,
   CalendarClock,
+  Library,
   MessageCircleMore,
   PanelLeftClose,
   PanelLeftOpen,
@@ -65,6 +66,10 @@ const IDENTITY_ITEM: NavItem = {
   view: "identity", labelKey: "settings.nav.identity", labelDefault: "Identity",
   icon: UserRound,
 };
+const KNOWLEDGE_ITEM: NavItem = {
+  view: "knowledge", labelKey: "knowledge.title", labelDefault: "Knowledge",
+  icon: Library,
+};
 const TEAM_ITEM: NavItem = {
   view: "teams", labelKey: "settings.nav.teams", labelDefault: "Teams",
   icon: TeamStructureIcon,
@@ -80,6 +85,7 @@ const PRIMARY_ITEMS: NavItem[] = [
 
 const CAPABILITY_ITEMS: NavItem[] = [
   APP_ITEM,
+  KNOWLEDGE_ITEM,
   SKILLS_ITEM,
   AUTOMATIONS_ITEM,
   TEAM_ITEM,
