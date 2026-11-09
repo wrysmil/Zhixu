@@ -6132,7 +6132,7 @@ export function KnowledgePage({ workspaceIds }: Props) {
 - [ ] **Step 4: 跑测试确认通过**
 
 Run: `cd webui && bun run test -- knowledge-page && bun run build`
-Expected: `13 passed`，构建成功
+Expected: `14 passed`，构建成功
 
 > 实施修正（2026-11-10）：路由 `#/knowledge` + 导航项 + 懒加载；API 按已提交后端
 > 对齐（读 GET、写 WS mutation，动作名逐字一致）；i18n 10 个语言包补

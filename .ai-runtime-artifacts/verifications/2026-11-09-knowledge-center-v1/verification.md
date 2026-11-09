@@ -97,7 +97,36 @@ cd webui && npx vitest run knowledge-page && npm run build
 ```
 
 构建成功，输出到 `nanobot/web/dist`（gitignored，未进工作区）。chunk 体积警告是
-既有现象，与本任务无关。**没有启动浏览器**，所以本记录不声称做过浏览器端 E2E。
+既有现象，与本任务无关。
+
+### 4.1 浏览器端到端（2026-11-10 补测）
+
+启动临时 gateway：
+
+```bash
+.venv/bin/nanobot gateway --config /tmp/zhixu-knowledge-browser/config.json --foreground
+# WebUI: http://127.0.0.1:18998/#/knowledge
+# knowledge.embedding.backend="none"；数据库/上传目录均在 /tmp，未写 ~/.nanobot
+```
+
+实测步骤与结果：
+
+1. `#/knowledge` 页面加载，空状态与索引统计（0）正确。
+2. 新建知识库「浏览器测试库」→ 列表出现，统计 KB=1。
+3. 上传 `rollback.md` → 状态 `处理中` → `就绪`（97 字符 / 1 块），统计 docs=1/chunks=1。
+4. 检索「部署失败怎么回滚」→ 1 条命中，界面显示 `实际模式：keyword`、
+   `检索路径：keyword`、`降级：vector_unavailable`，内容为部署/回滚段落。
+5. 删除文档并确认 → 统计归零、文档列表空、旧检索结果清空。
+6. 删除知识库并确认 → 列表回到「还没有知识库」，统计全 0。
+
+浏览器测试发现并修复了两个前端刷新缺陷（已提交）：
+
+- 上传/删除/重建文档后，左侧知识库列表的「N 篇文档」不刷新；
+- 删除/重建后，检索预览仍展示已失效的旧命中。
+
+修复后 `knowledge-page.test.tsx` **14 passed**，浏览器复测通过。交互通过
+`evaluate_script` 触发 DOM 事件完成（本机 in-app Browser 的指针 surface 不可用，
+未做像素级截图；功能路径与用户点击等价）。
 
 ## 5. CLI 端到端
 
@@ -243,16 +272,20 @@ reason=no_candidates
 | 真实 embedding 模型下载（local / sentence-transformers） | 需网络与模型体积，本次强制 `backend=none` | 向量路、维度自适应、`reindex` 向量重写未实测 |
 | 远程 embedding `/v1/embeddings`（含 key/超时/重试） | 无 API key 与外部服务 | `embedding_error:*` 降级仅由单测覆盖 |
 | Chroma 持久化与 `repair --vectors` 实际 rewrite/purge | 未安装/未启用 vector extra | 由 `tests/knowledge/test_vector_store.py` 等单测覆盖，非端到端 |
-| 浏览器端 WebUI 操作（建库/上传/状态轮询/检索/删除） | 未启动浏览器，只跑组件测试 + 构建 | UI 交互仍需人工或浏览器 E2E 复验 |
+| 浏览器像素级截图 / 多语言切换 | 仅做了 DOM 级功能交互 | 不构成功能缺口 |
 | 真实 PDF/DOCX/XLSX/PPTX 入库 | 离线未准备样本 | 抽取层由 `test_extract_lines.py` 覆盖，CLI 只验了 md |
 | 扫描版 PDF / OCR | v1 非目标 | 文档已写明不支持 |
 | 多进程并发写、崩溃恢复、租约过期回收 | 需多进程/杀进程场景 | 由 repository/ingestor 单测覆盖，未做系统级演练 |
 
 ## 8. 结论
 
-后端 468 项测试、ruff、basedpyright、前端 13 项组件测试与构建、CLI 端到端脚本
-全部通过；golden queries 24/24 命中。文档 `docs/knowledge.md` 已按已实现 CLI/配置
-口径编写，并标注 v1 非目标。
+后端 468 项测试、ruff、basedpyright、前端 14 项组件测试与构建、CLI 端到端脚本、
+浏览器端建库/上传/检索/删除全部通过；golden queries 24/24 命中。文档
+`docs/knowledge.md` 已按已实现 CLI/配置口径编写，并标注 v1 非目标。
+
+整仓 `pytest -q` 为 11 320 passed / 8 failed；8 个失败均与本域无关（CLI serve 4、
+session preview 2、agent profile prompt 1、MCP shutdown timing 1），知识域 scoped
+468 项全绿。
 
 **Verdict: pass（带明确缺口）**——缺口集中在需要联网/凭据/浏览器/真实二进制文档
 的路径，见 §7；本期不以单测或离线脚本冒充这些路径已验证。
