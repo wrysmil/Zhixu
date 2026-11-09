@@ -2,9 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
+  Boxes,
   CheckCircle2,
   CircleSlash,
-  Database,
+  Clock3,
+  FileText,
+  Layers,
+  Library,
   Loader2,
   Plus,
   RefreshCcw,
@@ -13,6 +17,7 @@ import {
   Upload,
   Wrench,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -458,14 +463,40 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         aria-label={t("knowledge.stats")}
         className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5"
       >
-        <StatTile testId="knowledge-stat-kbs" label={t("knowledge.statKbs")} value={visibleStats.kbs} />
-        <StatTile testId="knowledge-stat-docs" label={t("knowledge.statDocs")} value={visibleStats.documents} />
-        <StatTile testId="knowledge-stat-chunks" label={t("knowledge.statChunks")} value={visibleStats.chunks} />
-        <StatTile testId="knowledge-stat-pending" label={t("knowledge.statPending")} value={visibleStats.pending} />
+        <StatTile
+          testId="knowledge-stat-kbs"
+          label={t("knowledge.statKbs")}
+          value={visibleStats.kbs}
+          icon={Library}
+          tone="bg-primary/10 text-primary"
+        />
+        <StatTile
+          testId="knowledge-stat-docs"
+          label={t("knowledge.statDocs")}
+          value={visibleStats.documents}
+          icon={FileText}
+          tone="bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
+        />
+        <StatTile
+          testId="knowledge-stat-chunks"
+          label={t("knowledge.statChunks")}
+          value={visibleStats.chunks}
+          icon={Layers}
+          tone="bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+        />
+        <StatTile
+          testId="knowledge-stat-pending"
+          label={t("knowledge.statPending")}
+          value={visibleStats.pending}
+          icon={Clock3}
+          tone="bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+        />
         <StatTile
           testId="knowledge-stat-vectors"
           label={t("knowledge.statVectors")}
           value={visibleStats.vector ?? 0}
+          icon={Boxes}
+          tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
         />
       </section>
 
@@ -578,24 +609,37 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                     key={kb.id}
                     data-active={active || undefined}
                     className={cn(
-                      "group rounded-control border px-2.5 py-2 transition-colors",
+                      "group relative overflow-hidden rounded-control border transition-all duration-200",
                       active
-                        ? "border-primary/40 bg-primary/10"
-                        : "border-transparent hover:bg-muted/60",
+                        ? "border-primary/30 bg-primary/[0.06] shadow-sm"
+                        : "border-border/50 bg-background hover:border-border hover:bg-muted/40",
                     )}
                   >
-                    <div className="flex items-start gap-1">
+                    {active ? (
+                      <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary" aria-hidden />
+                    ) : null}
+                    <div className="flex items-start gap-2 px-3 py-2.5">
+                      <span
+                        className={cn(
+                          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+                          active
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        <Library className="h-3.5 w-3.5" aria-hidden />
+                      </span>
                       <button
                         type="button"
                         aria-pressed={active}
                         onClick={() => setActiveKbId(kb.id)}
-                        className="min-w-0 flex-1 text-left"
+                        className="min-w-0 flex-1 cursor-pointer rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                       >
                         <span className="block truncate text-[13px] font-semibold text-foreground">
                           {kb.name}
                         </span>
                         <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                          <span className="rounded-full border border-border/70 px-1.5 py-0.5">
+                          <span className="rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5">
                             {kb.visibility === "global"
                               ? t("knowledge.visibilityGlobal")
                               : t("knowledge.visibilityWorkspace")}
@@ -619,7 +663,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                         title={t("knowledge.deleteKb")}
                         disabled={busy}
                         onClick={() => setConfirm({ kind: "kb", id: kb.id, label: kb.name })}
-                        className="shrink-0 rounded-control p-1 text-muted-foreground opacity-60 transition-colors hover:text-destructive"
+                        className="shrink-0 cursor-pointer rounded-control p-1 text-muted-foreground opacity-0 transition-all duration-200 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
                       >
                         <Trash2 className="h-3.5 w-3.5" aria-hidden />
                       </button>
@@ -634,10 +678,13 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
           <div className="rounded-panel border border-border/60 bg-background p-4">
             <div className="flex flex-wrap items-center gap-2 pb-3">
-              <h2 className="flex-1 text-[13px] font-semibold text-foreground">
+              <h2 className="flex flex-1 items-center gap-2 text-[13px] font-semibold text-foreground">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                  <FileText className="h-3.5 w-3.5" aria-hidden />
+                </span>
                 {t("knowledge.documents")}
                 {activeKb ? (
-                  <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+                  <span className="text-[11px] font-normal text-muted-foreground">
                     {activeKb.name}
                   </span>
                 ) : null}
@@ -735,27 +782,35 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse text-left text-[12px]">
                       <thead>
-                        <tr className="text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
-                          <th className="py-1.5 pr-2 font-semibold">{t("knowledge.columnTitle")}</th>
-                          <th className="py-1.5 pr-2 font-semibold">{t("knowledge.columnSource")}</th>
-                          <th className="py-1.5 pr-2 font-semibold">{t("knowledge.columnStatus")}</th>
-                          <th className="py-1.5 pr-2 font-semibold">{t("knowledge.columnSize")}</th>
-                          <th className="py-1.5 pr-2 font-semibold">{t("knowledge.columnChunks")}</th>
-                          <th className="py-1.5 font-semibold">{t("knowledge.columnActions")}</th>
+                        <tr className="border-b border-border/60 text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+                          <th className="py-2 pr-2 font-semibold">{t("knowledge.columnTitle")}</th>
+                          <th className="py-2 pr-2 font-semibold">{t("knowledge.columnSource")}</th>
+                          <th className="py-2 pr-2 font-semibold">{t("knowledge.columnStatus")}</th>
+                          <th className="py-2 pr-2 font-semibold">{t("knowledge.columnSize")}</th>
+                          <th className="py-2 pr-2 font-semibold">{t("knowledge.columnChunks")}</th>
+                          <th className="py-2 font-semibold">{t("knowledge.columnActions")}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {docs.map((doc) => (
-                          <tr key={doc.id} className="border-t border-border/50 align-top">
-                            <td className="py-2 pr-2">
-                              <span className="block max-w-[220px] truncate font-medium text-foreground">
-                                {doc.title}
-                              </span>
-                              {doc.error ? (
-                                <span className="mt-1 block max-w-[240px] break-words text-[11px] text-destructive">
-                                  {t("knowledge.errorLabel", { message: doc.error })}
+                          <tr
+                            key={doc.id}
+                            className="border-t border-border/40 align-top transition-colors hover:bg-muted/30"
+                          >
+                            <td className="py-2.5 pr-2">
+                              <span className="flex min-w-0 items-start gap-1.5">
+                                <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                                <span className="min-w-0">
+                                  <span className="block max-w-[220px] truncate font-medium text-foreground">
+                                    {doc.title}
+                                  </span>
+                                  {doc.error ? (
+                                    <span className="mt-1 block max-w-[240px] break-words text-[11px] text-destructive">
+                                      {t("knowledge.errorLabel", { message: doc.error })}
+                                    </span>
+                                  ) : null}
                                 </span>
-                              ) : null}
+                              </span>
                             </td>
                             <td className="py-2 pr-2">
                               <span className="block max-w-[180px] truncate font-mono text-[11px] text-muted-foreground">
@@ -819,7 +874,10 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
           </div>
 
           <div className="rounded-panel border border-border/60 bg-background p-4">
-            <h2 className="pb-3 text-[13px] font-semibold text-foreground">
+            <h2 className="flex items-center gap-2 pb-3 text-[13px] font-semibold text-foreground">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Search className="h-3.5 w-3.5" aria-hidden />
+              </span>
               {t("knowledge.searchTitle")}
             </h2>
             <form
@@ -1032,21 +1090,31 @@ function StatTile({
   testId,
   label,
   value,
+  icon: Icon,
+  tone,
 }: {
   testId: string;
   label: string;
   value: number;
+  icon: LucideIcon;
+  tone: string;
 }) {
   return (
     <div
       data-testid={testId}
-      className="rounded-control border border-border/60 bg-muted/20 px-2.5 py-2"
+      className="flex items-center gap-2.5 rounded-control border border-border/60 bg-gradient-to-br from-muted/40 to-background px-3 py-2.5"
     >
-      <p className="text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">{label}</p>
-      <p className="mt-0.5 flex items-center gap-1 text-[15px] font-semibold text-foreground">
-        <Database className="h-3 w-3 text-muted-foreground" aria-hidden />
-        {value}
-      </p>
+      <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", tone)}>
+        <Icon className="h-4 w-4" aria-hidden />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+          {label}
+        </span>
+        <span className="mt-0.5 block text-[15px] font-semibold tabular-nums text-foreground">
+          {value}
+        </span>
+      </span>
     </div>
   );
 }
@@ -1100,13 +1168,16 @@ function SearchResults({
         <p className="text-[12px] text-muted-foreground">{emptyLabel}</p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {result.hits.map((hit) => (
+          {result.hits.map((hit, index) => (
             <li
               key={hit.chunkId}
-              className="rounded-control border border-border/60 bg-muted/10 px-3 py-2"
+              className="rounded-control border border-border/60 border-l-2 border-l-primary/50 bg-background px-3 py-2.5 shadow-sm transition-colors hover:border-border"
             >
               <div className="flex flex-wrap items-center gap-2 text-[10.5px] text-muted-foreground">
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 font-semibold tabular-nums text-foreground">
+                  {index + 1}
+                </span>
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold tabular-nums text-primary">
                   {hit.score.toFixed(3)}
                 </span>
                 {hit.heading ? (
@@ -1115,10 +1186,10 @@ function SearchResults({
                 {typeof hit.page === "number" ? (
                   <span>{t("knowledge.pageLabel", { page: hit.page })}</span>
                 ) : null}
-                <span className="font-mono">{hit.chunkId}</span>
-                <span className="font-mono">{hit.docId}</span>
+                <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono">{hit.chunkId}</span>
+                <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono">{hit.docId}</span>
               </div>
-              <p className="mt-1 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-foreground">
+              <p className="mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap break-words pr-1 text-[12.5px] leading-relaxed text-foreground">
                 {hit.content}
               </p>
               {hit.locator ? (
