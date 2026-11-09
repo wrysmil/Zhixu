@@ -162,7 +162,8 @@ WebUI 聊天发送「请再次调用 knowledge_search 检索：部署失败怎�
   `focus-visible` 焦点环。
 - 验证：`knowledge-page.test.tsx` 14 passed；`npm run build` 成功；浏览器刷新后
   无 console 错误，检索预览仍返回 1 条命中（keyword / vector_unavailable）。
-- 受 in-app Browser 的 surface 限制，未生成像素级截图；DOM 结构与运行时已核对。
+- in-app Browser 的 surface 不可用，改用 headless Chrome 生成像素截图
+  `knowledge-page-final.png`；截图复核后把原生上传控件统一成主按钮样式。
 
 ## 5. CLI 端到端
 
