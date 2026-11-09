@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
+  ArrowLeft,
   Boxes,
   CheckCircle2,
   CircleSlash,
@@ -114,6 +115,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [kbs, setKbs] = useState<KnowledgeKb[]>([]);
   const [activeKbId, setActiveKbId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState<"documents" | "search">("documents");
   const [kbsLoading, setKbsLoading] = useState(true);
   const [kbsError, setKbsError] = useState<string | null>(null);
 
@@ -275,6 +278,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
           await loadKbs();
           await loadStats();
           clearSearch();
+          setDetailOpen(false);
+          setDetailTab("documents");
         },
       );
       return;
@@ -416,36 +421,163 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
 
   return (
     <div className="assistant-page flex h-full flex-col" data-testid="knowledge-page">
-      <PageHeading
-        kicker={t("knowledge.kicker")}
-        title={t("knowledge.title")}
-        description={t("knowledge.subtitle")}
-        actions={
-          <>
-            <Button
+      {detailOpen && activeKb ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex min-w-0 items-center gap-2 text-[11px] text-muted-foreground">
+            <button
               type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setRepairOpen(true)}
-              disabled={disabled}
-              className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
+              onClick={() => {
+                setDetailOpen(false);
+                setDetailTab("documents");
+                clearSearch();
+              }}
+              className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Wrench className="h-3.5 w-3.5" aria-hidden />
-              {t("knowledge.repair")}
-            </Button>
-            <Button
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+              {t("knowledge.title")}
+            </button>
+            <span aria-hidden>/</span>
+            <span className="truncate text-foreground">{activeKb.name}</span>
+          </div>
+          <div className="rounded-panel border border-border/60 bg-gradient-to-br from-muted/25 to-background p-4">
+            <div className="flex flex-wrap items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Library className="h-5 w-5" aria-hidden />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-[18px] font-semibold text-foreground">{activeKb.name}</h1>
+                {activeKb.description ? (
+                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                    {activeKb.description}
+                  </p>
+                ) : null}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted-foreground">
+                  <span className="rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5">
+                    {activeKb.visibility === "global"
+                      ? t("knowledge.visibilityGlobal")
+                      : t("knowledge.visibilityWorkspace")}
+                  </span>
+                  <span className="rounded-full bg-muted/60 px-1.5 py-0.5 tabular-nums">
+                    {t("knowledge.docCount", { count: activeKb.documentCount })}
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5",
+                      activeKb.isEnabled
+                        ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {activeKb.isEnabled ? t("knowledge.enabled") : t("knowledge.disabled")}
+                  </span>
+                  {activeKb.updatedAt ? (
+                    <span className="tabular-nums">{activeKb.updatedAt.slice(0, 10)}</span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => {
+                    void runAction(
+                      () => reindexKnowledgeKb(client, activeKb.id),
+                      async () => {
+                        await loadDocs();
+                        await loadKbs();
+                        await loadStats();
+                        clearSearch();
+                      },
+                    );
+                  }}
+                  className="h-8 gap-1.5 rounded-full px-3 text-[11.5px] font-medium"
+                >
+                  <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
+                  {t("knowledge.reindexKb")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t("knowledge.deleteKb")}
+                  title={t("knowledge.deleteKb")}
+                  disabled={busy}
+                  onClick={() => setConfirm({ kind: "kb", id: activeKb.id, label: activeKb.name })}
+                  className="h-8 gap-1.5 rounded-full px-2.5 text-[11.5px] text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  {t("knowledge.deleteKb")}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div role="tablist" className="flex gap-1 border-b border-border/60">
+            <button
               type="button"
-              size="sm"
-              onClick={() => setCreateOpen((open) => !open)}
-              disabled={disabled}
-              className="h-8 gap-1.5 rounded-full px-3.5 text-[12px] font-semibold"
+              role="tab"
+              aria-selected={detailTab === "documents"}
+              onClick={() => setDetailTab("documents")}
+              className={cn(
+                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                detailTab === "documents"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
             >
-              <Plus className="h-3.5 w-3.5" aria-hidden />
-              {t("knowledge.newKb")}
-            </Button>
-          </>
-        }
-      />
+              <FileText className="h-3.5 w-3.5" aria-hidden />
+              {t("knowledge.documents")}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={detailTab === "search"}
+              onClick={() => setDetailTab("search")}
+              className={cn(
+                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                detailTab === "search"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Search className="h-3.5 w-3.5" aria-hidden />
+              {t("knowledge.searchTitle")}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <PageHeading
+          kicker={t("knowledge.kicker")}
+          title={t("knowledge.title")}
+          description={t("knowledge.subtitle")}
+          actions={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRepairOpen(true)}
+                disabled={disabled}
+                className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
+              >
+                <Wrench className="h-3.5 w-3.5" aria-hidden />
+                {t("knowledge.repair")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setCreateOpen((open) => !open)}
+                disabled={disabled}
+                className="h-8 gap-1.5 rounded-full px-3.5 text-[12px] font-semibold"
+              >
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+                {t("knowledge.newKb")}
+              </Button>
+            </>
+          }
+        />
+      )}
 
       {disabled ? (
         <div
@@ -458,6 +590,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </div>
       ) : null}
 
+      {!detailOpen ? (
       <section
         data-testid="knowledge-stats"
         aria-label={t("knowledge.stats")}
@@ -499,6 +632,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
           tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
         />
       </section>
+      ) : null}
 
       {kbsError ? (
         <div role="alert" className="mt-4 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12px] text-destructive">
@@ -527,7 +661,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </div>
       ) : null}
 
-      {createOpen && !disabled ? (
+      {!detailOpen && createOpen && !disabled ? (
         <form
           className="mt-4 grid gap-3 rounded-panel border border-border/60 bg-muted/20 p-4 sm:grid-cols-2"
           onSubmit={(event) => {
@@ -589,6 +723,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       ) : null}
 
       <div className="mt-4 flex flex-col gap-4">
+        {!detailOpen ? (
         <section data-testid="knowledge-kb-list" aria-label={t("knowledge.kbTitle")}>
           <div className="flex items-end justify-between gap-3 pb-2">
             <h2 className="text-[13px] font-semibold text-foreground">
@@ -619,7 +754,10 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                         ? "border-primary/35 bg-primary/[0.05] shadow-[0_1px_0_rgba(15,23,42,0.04)] ring-1 ring-primary/10"
                         : "border-border/60 bg-background hover:-translate-y-0.5 hover:border-border hover:bg-muted/25 hover:shadow-sm",
                     )}
-                    onClick={() => setActiveKbId(kb.id)}
+                    onClick={() => {
+                      setActiveKbId(kb.id);
+                      setDetailOpen(true);
+                    }}
                   >
                     {active ? (
                       <span className="absolute inset-y-3 left-0 w-0.5 rounded-full bg-primary" aria-hidden />
@@ -643,6 +781,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                             onClick={(event) => {
                               event.stopPropagation();
                               setActiveKbId(kb.id);
+                              setDetailOpen(true);
                             }}
                             className="min-w-0 flex-1 cursor-pointer rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                           >
@@ -702,8 +841,11 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             </ul>
           )}
         </section>
+        ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
+        {detailOpen ? (
+        <div className="grid gap-4">
+          {detailTab === "documents" ? (
           <div className="h-fit rounded-panel border border-border/60 bg-background p-4">
             <div className="flex flex-wrap items-center gap-2 pb-3">
               <h2 className="flex flex-1 items-center gap-2 text-[13px] font-semibold text-foreground">
@@ -717,28 +859,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   </span>
                 ) : null}
               </h2>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!activeKbId || busy}
-                onClick={() => {
-                  if (!activeKbId) return;
-                  void runAction(
-                    () => reindexKnowledgeKb(client, activeKbId),
-                    async () => {
-                      await loadDocs();
-                      await loadKbs();
-                      await loadStats();
-                      clearSearch();
-                    },
-                  );
-                }}
-                className="h-7 gap-1.5 rounded-full px-3 text-[11.5px] font-medium"
-              >
-                <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
-                {t("knowledge.reindexKb")}
-              </Button>
             </div>
 
             {!activeKbId ? (
@@ -900,8 +1020,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               </>
             )}
           </div>
-
-          <div className="self-start rounded-panel border border-border/60 bg-background p-4 xl:sticky xl:top-4">
+          ) : (
+          <div className="rounded-panel border border-border/60 bg-background p-4">
             <h2 className="flex items-center gap-2 pb-3 text-[13px] font-semibold text-foreground">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <Search className="h-3.5 w-3.5" aria-hidden />
@@ -994,7 +1114,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               />
             )}
           </div>
+          )}
         </div>
+        ) : null}
       </div>
 
       {confirm ? (

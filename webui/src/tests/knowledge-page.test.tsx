@@ -130,6 +130,15 @@ function renderPage() {
   );
 }
 
+async function openKb(name = "Product manual") {
+  await userEvent.click(await screen.findByRole("button", { name }));
+  await screen.findByRole("tab", { name: "Documents" });
+}
+
+async function openSearchTab() {
+  await userEvent.click(screen.getByRole("tab", { name: "Search preview" }));
+}
+
 describe("knowledge page", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
@@ -229,6 +238,7 @@ describe("knowledge page", () => {
 
   it("renders documents and uploads a picked file as a data url", async () => {
     renderPage();
+    await openKb();
     await screen.findByText("Deploy guide");
 
     const row = screen.getByText("Deploy guide").closest("tr")!;
@@ -250,6 +260,7 @@ describe("knowledge page", () => {
 
   it("adds a server path document", async () => {
     renderPage();
+    await openKb();
     await screen.findByText("Deploy guide");
 
     await userEvent.type(screen.getByLabelText("Add server path"), "/tmp/report.pdf");
@@ -267,6 +278,7 @@ describe("knowledge page", () => {
 
   it("reindexes documents and bases and deletes documents after confirmation", async () => {
     renderPage();
+    await openKb();
     const row = (await screen.findByText("Deploy guide")).closest("tr")!;
 
     await userEvent.click(within(row).getByRole("button", { name: "Reindex" }));
@@ -284,25 +296,30 @@ describe("knowledge page", () => {
   it("clears stale search results and refreshes kb counts after doc mutations", async () => {
     vi.mocked(searchKnowledge).mockResolvedValue(HIT_RESULT);
     renderPage();
+    await openKb();
     await screen.findByText("Deploy guide");
+    await openSearchTab();
 
     await userEvent.type(screen.getByLabelText("Query"), "rollback");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByText("Rollback checklist")).toBeInTheDocument();
 
+    await userEvent.click(screen.getByRole("tab", { name: "Documents" }));
     const row = screen.getByText("Deploy guide").closest("tr")!;
     await userEvent.click(within(row).getByRole("button", { name: "Delete document" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => expect(deleteKnowledgeDoc).toHaveBeenCalledWith(transport, "doc_1"));
     await waitFor(() => expect(fetchKnowledgeKbs).toHaveBeenCalledTimes(2));
+    await openSearchTab();
     expect(screen.queryByText("Rollback checklist")).not.toBeInTheDocument();
   });
 
   it("searches with mode and limit and shows mode, routes, degraded and handles", async () => {
     vi.mocked(searchKnowledge).mockResolvedValue(HIT_RESULT);
     renderPage();
-    await screen.findByText("Deploy guide");
+    await openKb();
+    await openSearchTab();
 
     await userEvent.type(screen.getByLabelText("Query"), "rollback");
     await userEvent.selectOptions(screen.getByLabelText("Mode"), "semantic");
@@ -332,7 +349,8 @@ describe("knowledge page", () => {
 
   it("distinguishes empty results from filtered results", async () => {
     renderPage();
-    await screen.findByText("Deploy guide");
+    await openKb();
+    await openSearchTab();
 
     await userEvent.type(screen.getByLabelText("Query"), "nothing");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
@@ -354,7 +372,8 @@ describe("knowledge page", () => {
 
   it("shows a search failure instead of an empty state", async () => {
     renderPage();
-    await screen.findByText("Deploy guide");
+    await openKb();
+    await openSearchTab();
 
     vi.mocked(searchKnowledge).mockRejectedValueOnce(new Error("gateway down"));
     await userEvent.type(screen.getByLabelText("Query"), "rollback");
