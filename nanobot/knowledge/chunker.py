@@ -190,3 +190,52 @@ def _merge_fragments(
             locator=prev.locator or tail.locator,
         )
     return merged
+
+
+_MAX_CHUNKS = 20_000
+_SMALL_CHUNK_CHARS = 50
+_SMALL_CHUNK_DIVISOR = 4
+_OVERSIZED_RATIO = 2
+
+
+class KnowledgeChunkError(ValueError):
+    """分块校验失败；`code` 直接落库到 `documents.error_code`。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(f"{code}: {message}")
+        self.code = code
+
+
+def validate_chunks(
+    drafts: list[ChunkDraft], *, chunk_size: int, chunk_overlap: int, text: str
+) -> None:
+    """校验切分结果，不合格即抛 `KnowledgeChunkError`（纯函数、无副作用）。
+
+    规则（阈值均为严格大于）：无文本 → `KNOWLEDGE_TEXT_EMPTY`；
+    块数 > 20 000 → `KNOWLEDGE_CHUNK_LIMIT`；单块 > 2×chunk_size、
+    ≥4 块时非末块中 <50 字的块超过 1/4、偏移/重叠不变量破坏
+    → `KNOWLEDGE_CHUNK_INVALID`。
+    """
+    if not drafts:
+        code = "KNOWLEDGE_TEXT_EMPTY" if not text.strip() else "KNOWLEDGE_CHUNK_INVALID"
+        raise KnowledgeChunkError(code, "no chunks produced")
+    if len(drafts) > _MAX_CHUNKS:
+        raise KnowledgeChunkError("KNOWLEDGE_CHUNK_LIMIT", "chunk count > 20000")
+    if len(drafts) == 1 and drafts[0].char_count > _OVERSIZED_RATIO * chunk_size:
+        raise KnowledgeChunkError("KNOWLEDGE_CHUNK_INVALID", "single oversized chunk")
+    if len(drafts) >= _SMALL_CHUNK_DIVISOR:
+        # 最后一块常被剩余文本截短，豁免。
+        small = sum(1 for draft in drafts[:-1] if draft.char_count < _SMALL_CHUNK_CHARS)
+        if small > len(drafts) / _SMALL_CHUNK_DIVISOR:
+            raise KnowledgeChunkError("KNOWLEDGE_CHUNK_INVALID", "too many small chunks")
+    for index, draft in enumerate(drafts):
+        if text[draft.start_offset : draft.end_offset] != draft.content:
+            raise KnowledgeChunkError("KNOWLEDGE_CHUNK_INVALID", "offset mismatch")
+        if draft.start_offset >= draft.end_offset:
+            raise KnowledgeChunkError("KNOWLEDGE_CHUNK_INVALID", "empty span")
+        if index:
+            previous = drafts[index - 1]
+            if not previous.start_offset < draft.start_offset <= previous.end_offset:
+                raise KnowledgeChunkError("KNOWLEDGE_CHUNK_INVALID", "non-monotonic start")
+            if previous.end_offset - draft.start_offset > chunk_overlap:
+                raise KnowledgeChunkError("KNOWLEDGE_CHUNK_INVALID", "overlap too large")
