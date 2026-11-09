@@ -121,11 +121,63 @@ class StoredChunk:
     is_enabled: bool
 
 
+@dataclass(frozen=True, slots=True)
+class FtsHit:
+    """FTS 关键词召回的读模型；score = -bm25()，越大越相关。"""
+
+    chunk_id: str
+    doc_id: str
+    kb_id: str
+    chunk_index: int
+    heading_path: str
+    page: int | None
+    locator: str
+    content: str
+    char_count: int
+    score: float
+
+
+# FTS 必须作为驱动表：CROSS JOIN 把「先召回、后过滤」从优化器的偶然选择
+# 变成语法保证（普通 JOIN 在 SQLite 3.52 上实测 1.7 s vs 0.6 ms）。
+# {kb_filter} / {scope} 只由本模块按占位符数量拼装，绝不插入用户输入。
+_FTS_SQL_TEMPLATE = """
+SELECT c.id            AS chunk_id,
+       c.doc_id        AS doc_id,
+       c.kb_id         AS kb_id,
+       c.chunk_index   AS chunk_index,
+       c.heading_path  AS heading_path,
+       c.page          AS page,
+       c.locator       AS locator,
+       c.content       AS content,
+       c.char_count    AS char_count,
+       -bm25(document_chunks_fts) AS score
+FROM document_chunks_fts
+CROSS JOIN document_chunks c ON c.row_id = document_chunks_fts.rowid
+JOIN documents d        ON d.id = c.doc_id
+JOIN knowledge_bases kb ON kb.id = c.kb_id
+WHERE document_chunks_fts MATCH ?
+  AND c.is_enabled = 1
+  AND d.is_enabled = 1
+  AND d.parse_status = 'ready'
+  AND kb.is_enabled = 1
+  AND {kb_filter}{scope}
+ORDER BY document_chunks_fts.rank
+LIMIT ?
+"""
+
+_FTS_SCOPE_SINGLE = "(kb.visibility = 'global' OR kb.workspace_id = ?)"
+
+
 class _AttemptSupersededError(Exception):
     """commit_chunks 的 attempt/状态守卫失败，需要回滚整笔写入。"""
 
 
 class KnowledgeRepository:
+    # 单 workspace 作用域的完整查询；执行计划测试直接 EXPLAIN 它。
+    FTS_SQL = _FTS_SQL_TEMPLATE.replace("{kb_filter}", "").replace(
+        "{scope}", _FTS_SCOPE_SINGLE
+    )
+
     def __init__(self, database: KnowledgeDatabase) -> None:
         self._db = database
 
@@ -524,6 +576,57 @@ class KnowledgeRepository:
                 (chunk.doc_id, chunk.chunk_index - before, chunk.chunk_index + after),
             ).fetchall()
         return [self._row_to_chunk(row) for row in rows]
+
+    # ---------- FTS 检索 ----------
+    def search_fts(
+        self,
+        match_expr: str,
+        *,
+        workspace_ids: list[str],
+        limit: int = 20,
+        kb_ids: list[str] | None = None,
+    ) -> list[FtsHit]:
+        """关键词召回；match_expr 由 tokenizer.tokenize_query 构造并整串绑定。
+
+        FTS5 对空表达式直接报语法错，因此空表达式在任何 SQL 之前拦下。
+        """
+        if not match_expr.strip():
+            raise ValueError("empty FTS match expression")
+        if not workspace_ids:
+            return []
+        if kb_ids is not None and not kb_ids:
+            return []
+        ws_placeholders = ",".join("?" for _ in workspace_ids)
+        kb_filter = ""
+        params: list[object] = [match_expr]
+        if kb_ids is not None:
+            kb_placeholders = ",".join("?" for _ in kb_ids)
+            kb_filter = f"c.kb_id IN ({kb_placeholders}) AND "
+            params.extend(kb_ids)
+        params.extend(workspace_ids)
+        params.append(limit)
+        sql = _FTS_SQL_TEMPLATE.replace("{kb_filter}", kb_filter).replace(
+            "{scope}",
+            "(kb.visibility = 'global' OR kb.workspace_id IN"
+            f" ({ws_placeholders}))",
+        )
+        with self._db.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [
+            FtsHit(
+                chunk_id=row["chunk_id"],
+                doc_id=row["doc_id"],
+                kb_id=row["kb_id"],
+                chunk_index=row["chunk_index"],
+                heading_path=row["heading_path"],
+                page=row["page"],
+                locator=row["locator"],
+                content=row["content"],
+                char_count=row["char_count"],
+                score=float(row["score"]),
+            )
+            for row in rows
+        ]
 
     @staticmethod
     def _row_to_chunk(row: sqlite3.Row) -> StoredChunk:

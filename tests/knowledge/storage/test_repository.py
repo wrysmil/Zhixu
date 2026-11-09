@@ -1,4 +1,5 @@
 import hashlib
+import itertools
 import sqlite3
 
 import pytest
@@ -273,9 +274,9 @@ def test_reset_expired_leases_keeps_live_lease(repo):
                                now="2026-01-02T00:00:00+00:00") == 2
 
 
-def _chunk(index: int, text: str = "内容") -> ChunkRecord:
+def _chunk(index: int, text: str = "内容", *, chunk_id: str | None = None) -> ChunkRecord:
     return ChunkRecord(
-        id=f"chk_{index:032x}",
+        id=chunk_id or f"chk_{index:032x}",
         doc_id="",  # commit_chunks 填充
         kb_id="",
         workspace_id="",
@@ -467,3 +468,142 @@ def test_list_chunks_paginates_in_index_order(repo):
     repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(i) for i in range(3)])
     page = repo.list_chunks(doc.id, offset=1, limit=1)
     assert [c.chunk_index for c in page] == [1]
+
+
+# ---------- Task 6: FTS 查询 ----------
+_SEED_COUNTER = itertools.count()
+
+
+def _seed_search(repo, db, *, workspace_id="ws1", visibility="workspace", status="ready"):
+    """种一个 KB + 一个 ready 文档（2 块）；status='failed' 由夹具直改文档状态。"""
+    kb = repo.create_kb(
+        name=f"kb-{next(_SEED_COUNTER)}",
+        workspace_id=workspace_id,
+        visibility=visibility,
+    )
+    doc = _insert_doc(repo, kb, path=f"/tmp/{kb.id}.md", file_hash=kb.id)
+    repo.claim_document(doc.id, lease_owner="w1")
+    assert repo.commit_chunks(
+        doc.id,
+        attempt=1,
+        chunks=[
+            # 块 id 全局唯一：用 kb.id 派生，避免跨文档撞 UNIQUE
+            _chunk(0, "用户热爱创作", chunk_id=f"chk_{kb.id}_0"),
+            _chunk(1, "部署失败怎么回滚", chunk_id=f"chk_{kb.id}_1"),
+        ],
+    )
+    if status == "failed":
+        with db.connect(immediate=True) as conn:  # 测试夹具直接改状态
+            conn.execute("UPDATE documents SET parse_status='failed' WHERE id=?", (doc.id,))
+    return kb, doc
+
+
+def test_search_fts_returns_hits(repo, db):
+    _seed_search(repo, db)
+    hits = repo.search_fts(tokenize_query("创作"), workspace_ids=["ws1"], limit=10)
+    assert len(hits) == 1
+    assert hits[0].chunk_id.startswith("chk_")
+    assert hits[0].score >= 0
+
+
+def test_search_fts_filters_failed_and_other_workspace(repo, db):
+    _seed_search(repo, db, workspace_id="ws2")
+    _seed_search(repo, db, status="failed")
+    assert repo.search_fts(tokenize_query("创作"), workspace_ids=["ws1"], limit=10) == []
+
+
+def test_search_fts_sees_global_kb(repo, db):
+    _seed_search(repo, db, workspace_id="ws9", visibility="global")
+    hits = repo.search_fts(tokenize_query("创作"), workspace_ids=["ws1"], limit=10)
+    assert len(hits) == 1
+
+
+def test_search_fts_uses_fts_as_driving_table(repo, db):
+    # 真实 schema + 多 workspace 数据：CROSS JOIN 强制 FTS 作为驱动表
+    for index in range(12):
+        _seed_search(repo, db, workspace_id=f"ws{index % 2 + 1}")
+    _seed_search(repo, db, workspace_id="ws9", visibility="global")
+    _seed_search(repo, db, workspace_id="ws1", status="failed")
+    with db.connect() as conn:
+        plan = [
+            row[3]
+            for row in conn.execute(
+                "EXPLAIN QUERY PLAN " + repo.FTS_SQL,
+                (tokenize_query("创作"), "ws1", 10),
+            )
+        ]
+    assert plan[0].startswith("SCAN document_chunks_fts")
+
+
+def test_search_fts_rejects_empty_expression(repo):
+    with pytest.raises(ValueError):
+        repo.search_fts("", workspace_ids=["ws1"], limit=10)
+
+
+def test_search_fts_empty_expression_never_reaches_sqlite(repo, monkeypatch):
+    # FTS5 对 MATCH '' 直接报语法错；空表达式必须在建连之前拦下
+    def _boom(*args, **kwargs):
+        raise AssertionError("empty MATCH must not reach SQLite")
+
+    monkeypatch.setattr(repo._db, "connect", _boom)
+    with pytest.raises(ValueError):
+        repo.search_fts("   ", workspace_ids=["ws1"], limit=10)
+
+
+def test_search_fts_empty_scope_returns_nothing(repo, db):
+    _seed_search(repo, db)
+    assert repo.search_fts(tokenize_query("创作"), workspace_ids=[], limit=10) == []
+    assert repo.search_fts(
+        tokenize_query("创作"), workspace_ids=["ws1"], limit=10, kb_ids=[]
+    ) == []
+
+
+def test_search_fts_filters_by_kb_ids(repo, db):
+    keep_kb, _ = _seed_search(repo, db)
+    _seed_search(repo, db)
+    hits = repo.search_fts(
+        tokenize_query("创作"), workspace_ids=["ws1"], limit=10, kb_ids=[keep_kb.id]
+    )
+    assert [hit.kb_id for hit in hits] == [keep_kb.id]
+
+
+def test_search_fts_orders_by_rank_and_limits(repo, db):
+    kb = repo.create_kb(name="rank", workspace_id="ws1")
+    doc = _insert_doc(repo, kb, path="/tmp/rank.md", file_hash="rank")
+    repo.claim_document(doc.id, lease_owner="w1")
+    assert repo.commit_chunks(
+        doc.id,
+        attempt=1,
+        chunks=[
+            _chunk(0, "创作 创作 创作", chunk_id=f"chk_{kb.id}_0"),
+            _chunk(1, "创作 部署", chunk_id=f"chk_{kb.id}_1"),
+        ],
+    )
+    hits = repo.search_fts(tokenize_query("创作"), workspace_ids=["ws1"], limit=10)
+    assert [hit.chunk_index for hit in hits] == [0, 1]
+    assert hits[0].score > hits[1].score
+    assert len(repo.search_fts(tokenize_query("创作"), workspace_ids=["ws1"], limit=1)) == 1
+
+
+def test_search_fts_multi_workspace_scope(repo, db):
+    _seed_search(repo, db, workspace_id="ws1")
+    _seed_search(repo, db, workspace_id="ws2")
+    _seed_search(repo, db, workspace_id="ws3")
+    hits = repo.search_fts(tokenize_query("创作"), workspace_ids=["ws1", "ws2"], limit=10)
+    assert len(hits) == 2
+
+
+def test_search_fts_respects_enabled_flags(repo, db):
+    disabled_kb, _ = _seed_search(repo, db)
+    repo.update_kb(disabled_kb.id, is_enabled=False)
+    _, disabled_doc = _seed_search(repo, db)
+    _, chunk_disabled_doc = _seed_search(repo, db)
+    _, visible_doc = _seed_search(repo, db)
+    with db.connect(immediate=True) as conn:
+        conn.execute("UPDATE documents SET is_enabled=0 WHERE id=?", (disabled_doc.id,))
+        conn.execute(
+            "UPDATE document_chunks SET is_enabled=0 WHERE doc_id=?",
+            (chunk_disabled_doc.id,),
+        )
+    hits = repo.search_fts(tokenize_query("创作"), workspace_ids=["ws1"], limit=10)
+    assert [hit.doc_id for hit in hits] == [visible_doc.id]
