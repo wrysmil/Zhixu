@@ -1,4 +1,4 @@
-"""`search_rag` / `knowledge_read` 工具契约（知识中心 plan Task 17）。
+"""`knowledge_search` / `knowledge_read` 工具契约（知识中心 plan Task 17）。
 
 口径来源：
 - `.ai-runtime-artifacts/specs/2026-11-09-knowledge-center-spec.md` §9.1 / §9.2 / §14
@@ -182,7 +182,7 @@ def _run(tool: Any, **kwargs: Any) -> Any:
 
 def test_search_tool_schema_declares_contract() -> None:
     tool = _search_tool(FakeService())
-    assert tool.name == "search_rag"
+    assert tool.name == "knowledge_search"
     params = tool.parameters
     assert params["type"] == "object"
     assert set(params["properties"]) == {"query", "kb", "mode", "limit"}
@@ -675,7 +675,7 @@ def test_loop_injects_knowledge_attributes(tmp_path: Path, monkeypatch: pytest.M
         service = attrs["knowledge_service"]()
         assert service is loop._knowledge_service
         assert loop._knowledge_service_instance is not None
-        assert loop.tools.get("search_rag") is not None
+        assert loop.tools.get("knowledge_search") is not None
         assert loop.tools.get("knowledge_read") is not None
     finally:
         asyncio.run(loop.aclose())

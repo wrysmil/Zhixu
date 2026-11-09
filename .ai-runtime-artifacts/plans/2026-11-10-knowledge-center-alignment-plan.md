@@ -18,7 +18,7 @@ created_at: 2026-11-10
 status: parked
 approved: false
 parked_at: 2026-11-10
-parked_reason: 用户验收改为 `search_rag` 工具 + 会话调用；本对齐计划暂缓，不阻塞 v1 验收
+parked_reason: 用户验收改为知识检索工具 + 会话调用；本对齐计划暂缓，不阻塞 v1 验收
 ---
 
 # 知序知识中心 · 实现对齐收口计划
