@@ -53,12 +53,17 @@ class SearchHit:
 
 @dataclass(frozen=True, slots=True)
 class SearchResult:
-    """一次检索的完整结果；degraded/reason 用于向调用方显式上报降级与空因。"""
+    """一次检索的完整结果；degraded/reason 用于向调用方显式上报降级与空因。
+
+    `routes` 记录**实际产出候选**的路由（顺序恒为 vector → keyword），
+    让调用方知道证据来自哪一路（spec §7.3 R9）；空结果时为 `()`。
+    """
 
     hits: tuple[SearchHit, ...]
     mode_used: str
     degraded: tuple[str, ...] = ()
     reason: str | None = None
+    routes: tuple[str, ...] = ()
 
 
 def _ranked(scores: dict[str, float]) -> dict[str, float]:
