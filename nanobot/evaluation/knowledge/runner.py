@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields
 from typing import Any, cast
@@ -43,6 +44,8 @@ from nanobot.evaluation.knowledge.metrics import (
     case_score,
 )
 from nanobot.knowledge.retriever import RetrieverSettings
+
+logger = logging.getLogger(__name__)
 
 #: 检索四态里「配置或查询问题」的三种——它们不可评，**不补 0**。
 REASON_NOT_ASSESSABLE: frozenset[str] = frozenset(
@@ -339,6 +342,9 @@ class KnowledgeEvalRunner:
     def _fail_budget(self, state: _RunState, run_id: str, detail: str) -> None:
         """预算触顶 → 运行置 ``failed``、不产出半截指标，并停止后续处理。"""
         state.budget_exceeded = True
+        logger.warning(
+            "knowledge_eval_budget_exceeded run=%s detail=%s", run_id, detail
+        )
         self._repository.finish_run(
             run_id,
             status="failed",
@@ -379,6 +385,13 @@ class KnowledgeEvalRunner:
             status="running",
             progress={"total_queries": len(cases), "completed": 0},
         )
+        logger.info(
+            "knowledge_eval_run_started run=%s queries=%d configs=%d concurrency=%d",
+            run_id,
+            len(cases),
+            len(configs),
+            concurrency,
+        )
 
         semaphore = asyncio.Semaphore(concurrency)
 
@@ -406,6 +419,9 @@ class KnowledgeEvalRunner:
         errors = [item for item in outcomes if isinstance(item, BaseException)]
         if errors:
             first = errors[0]
+            logger.error(
+                "knowledge_eval_run_error run=%s error=%s", run_id, first
+            )
             self._finish_failed(
                 run_id, f"RUNNER_ERROR: {type(first).__name__}: {first}"
             )
@@ -427,6 +443,17 @@ class KnowledgeEvalRunner:
         }
         _update_run_fields(
             self._repository, run_id, pool=pool_payload, progress=progress_payload
+        )
+        logger.info(
+            "knowledge_eval_run_finished run=%s completed=%d not_assessable=%d"
+            " failed=%d judge_calls=%d degraded=%d cancelled=%s",
+            run_id,
+            state.completed,
+            state.not_assessable,
+            state.failed,
+            state.judge_calls,
+            len(state.degraded_labels),
+            state.cancelled,
         )
         if state.cancelled:
             self._repository.finish_run(
@@ -488,6 +515,12 @@ class KnowledgeEvalRunner:
 
             labels = [str(item) for item in (getattr(result, "degraded", ()) or ())]
             if labels:
+                logger.warning(
+                    "knowledge_eval_retrieval_degraded run=%s config=%s degraded=%s",
+                    run_id,
+                    config_id,
+                    ",".join(labels),
+                )
                 state.degraded.setdefault(config_id, [])
                 for label in labels:
                     if label not in state.degraded[config_id]:
@@ -501,6 +534,12 @@ class KnowledgeEvalRunner:
 
         if retrieval_error is not None:
             # 检索失败：该题 failed，不参与聚合、不计 0。
+            logger.warning(
+                "knowledge_eval_case_failed run=%s case=%s error=%s",
+                run_id,
+                case_id,
+                retrieval_error,
+            )
             state.failed += 1
             self._save_case_failure(
                 run_id,
