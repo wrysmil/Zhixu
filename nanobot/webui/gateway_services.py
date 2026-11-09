@@ -64,6 +64,7 @@ if TYPE_CHECKING:
     from nanobot.session.manager import SessionManager
     from nanobot.subagent_executions import ExecutionRepository
     from nanobot.triggers.local_store import LocalTriggerStore
+    from nanobot.webui.knowledge_api import KnowledgeApi
 
 
 @dataclass(frozen=True)
@@ -441,6 +442,27 @@ def build_agents_operations(
     )
 
 
+def build_knowledge_operations(
+    config: Config,
+    *,
+    workspace_id: str = "default",
+) -> KnowledgeApi:
+    """懒装配知识域（spec §13.1）。
+
+    与 ``build_memory_operations`` 不同，这里**不**在装配期解析数据库路径：
+    ``KnowledgeServices`` 保留 ``Config.knowledge``，真正的
+    ``KnowledgeService``（进程级单例、单 worker 队列）在首个 WebUI 请求时才
+    构建，``knowledge.enabled=false`` 时连库都不会打开。``workspace_id`` 是已
+    认证 WebUI 上下文的工作区，payload 无法越过它。
+    """
+    from nanobot.webui.knowledge_api import KnowledgeApi
+    from nanobot.webui.knowledge_services import KnowledgeServices
+
+    return KnowledgeApi(
+        KnowledgeServices(config=config.knowledge, workspace_id=workspace_id)
+    )
+
+
 def seed_writing_team(
     team_service: TeamService,
     *,
@@ -798,6 +820,10 @@ def build_gateway_services(
             workspace_path=workspace_path,
             runner=collab_runner,
             database=writing_database,
+        ),
+        knowledge_operations=build_knowledge_operations(
+            config,
+            workspace_id="default",
         ),
         team_operations=team_operations,
         team_bindings=team_bindings,

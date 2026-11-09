@@ -21,6 +21,7 @@ from nanobot.memory.reload import request_memory_reload
 from nanobot.pairing import approve_code, deny_code, list_pending
 from nanobot.webui import agents_routes as agents_domain
 from nanobot.webui import identity_routes as identity_domain
+from nanobot.webui import knowledge_routes as knowledge_domain
 from nanobot.webui import memory_routes as memory_domain
 from nanobot.webui import settings_capabilities as capability_domain
 from nanobot.webui import settings_contracts as contracts
@@ -35,6 +36,7 @@ from nanobot.webui.cli_apps_api import cli_apps_action, cli_apps_payload
 from nanobot.webui.http_utils import http_response as _http_response
 from nanobot.webui.http_utils import is_local_browser_request as _is_local_browser_request
 from nanobot.webui.identity_routes import IdentitySettingsOperations
+from nanobot.webui.knowledge_api import KnowledgeApi
 from nanobot.webui.mcp_oauth_api import McpOAuthManager
 from nanobot.webui.mcp_presets_api import (
     ensure_mcp_oauth_server,
@@ -158,6 +160,10 @@ _SYSTEM_ROUTES = {
     "/api/settings/pairing/deny": "pairing-deny",
     "/api/settings/mcp-presets": "mcp-list",
     "/api/settings/version-check": "version-check",
+    # 知识中心（spec §13.1）：读动作走认证 HTTP GET；工作区作用域由
+    # ``KnowledgeServices``（已认证上下文）决定，payload 只能收窄不能扩权。
+    **knowledge_domain.READ_PATHS,
+    **knowledge_domain.WRITE_PATHS,
     "/api/settings/memory/memories": "memory-list",
     "/api/settings/memory/memories/search": "memory-search",
     "/api/settings/memory/memories/get": "memory-get",
@@ -271,6 +277,10 @@ _WRITING_MUTATION_PATHS = frozenset({
 # 真相源是 writing_collab_routes，这里只做别名，防止两处手抄漂移。
 _WRITING_COLLAB_MUTATION_PATHS = writing_collab_domain.WRITING_COLLAB_MUTATION_PATHS
 
+# 知识中心写动作（spec §13.1）：path→action 的唯一真相源是 knowledge_routes，
+# 这里只取写路径集合，避免与 ws_http 的 WS 动作表手抄漂移。
+_KNOWLEDGE_MUTATION_PATHS = frozenset(knowledge_domain.WRITE_PATHS)
+
 _SETTINGS_MUTATION_PATHS = frozenset({
     "/api/settings/update",
     "/api/settings/model-configurations/create",
@@ -309,6 +319,7 @@ _SETTINGS_MUTATION_PATHS = frozenset({
     *_TEAMS_MUTATION_PATHS,
     *_WRITING_MUTATION_PATHS,
     *_WRITING_COLLAB_MUTATION_PATHS,
+    *_KNOWLEDGE_MUTATION_PATHS,
 })
 
 
@@ -510,6 +521,7 @@ class WebUISettingsRouter:
         writing_operations: WritingSettingsOperations | None = None,
         writing_collab_operations: WritingCollabSettingsOperations | None = None,
         subagent_execution_operations: SubagentExecutionSettingsOperations | None = None,
+        knowledge_operations: KnowledgeApi | None = None,
     ) -> None:
         self.settings = settings
         self.bus = bus
@@ -564,6 +576,11 @@ class WebUISettingsRouter:
             if subagent_execution_operations is not None
             else subagent_execution_domain.build_subagent_execution_operations(None)
         )
+        if knowledge_operations is None:
+            from nanobot.webui.knowledge_services import KnowledgeServices
+
+            knowledge_operations = KnowledgeApi(KnowledgeServices())
+        self._knowledge = knowledge_operations
         if subagent_execution_operations is not None:
             self._runtime_capabilities["subagentExecutionEventsV1"] = True
 
@@ -643,6 +660,17 @@ class WebUISettingsRouter:
                 domain_request,
                 self._capability_operations(),
             )
+        elif action in knowledge_domain.ACTION_NAMES:
+            knowledge_payload = self._knowledge_payload(domain_request)
+            try:
+                knowledge_result = await asyncio.to_thread(
+                    self._knowledge.handle,
+                    action,
+                    knowledge_payload,
+                )
+            except knowledge_domain.KnowledgeRouteError as exc:
+                return self._error_response(exc.status, exc.message)
+            return self._json_response(knowledge_result)
         elif action in memory_domain.MEMORY_ACTION_NAMES:
             # Memory lives under the system route table; route it to its own
             # transport-neutral handler with the injected operations.
@@ -730,6 +758,16 @@ class WebUISettingsRouter:
         if payload is not None:
             return _payload_query(payload)
         return self._parse_query(request.path)
+
+    @staticmethod
+    def _knowledge_payload(request: SettingsRequest) -> dict[str, Any]:
+        """GET 查询参数与 mutation payload 合并；payload 优先。"""
+        payload: dict[str, Any] = {
+            key: values[0] for key, values in request.query.items() if values
+        }
+        if request.payload:
+            payload.update(request.payload)
+        return payload
 
     def _domain_request(
         self,

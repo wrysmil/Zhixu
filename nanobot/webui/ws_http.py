@@ -36,7 +36,7 @@ from nanobot.session.session_handles import (
 )
 from nanobot.teams.binding import TeamBindingStore
 from nanobot.triggers.local_types import LocalTrigger
-from nanobot.webui import writing_collab_routes
+from nanobot.webui import knowledge_routes, writing_collab_routes
 from nanobot.webui.agents_routes import AgentSettingsOperations
 from nanobot.webui.file_preview import (
     WebUIFilePreviewError,
@@ -243,6 +243,9 @@ _WEBUI_MUTATION_PATHS = {
     # 因此**不**在这张表里（放进来的话 HTTP GET 会被 405 弹回）。path→action 的
     # 唯一真相源是 writing_collab_routes，这里按写动作名单派生。
     **writing_collab_routes.WRITING_COLLAB_MUTATION_WS_ACTIONS,
+    # 知识中心（spec §13.1）：九个写动作只能走已认证 WS 的 requestMutation；
+    # path→action 的唯一真相源是 knowledge_routes.WRITE_PATHS，反向派生。
+    **{action: path for path, action in knowledge_routes.WRITE_PATHS.items()},
 }
 
 _WEBUI_CHANNEL_CONNECT_ACTIONS = {
@@ -392,6 +395,7 @@ class GatewayHTTPHandler:
         writing_operations: WritingSettingsOperations | None = None,
         writing_collab_operations: WritingCollabSettingsOperations | None = None,
         team_operations: TeamSettingsOperations | None = None,
+        knowledge_operations: Any | None = None,
         team_bindings: TeamBindingStore | None = None,
         evaluation_passphrase: str = "",
         log: Any = logger,
@@ -416,6 +420,7 @@ class GatewayHTTPHandler:
         self.writing_operations = writing_operations
         self.writing_collab_operations = writing_collab_operations
         self.team_operations = team_operations
+        self.knowledge_operations = knowledge_operations
         # 空聊天的团队绑定暂存；没装配团队服务时为 None，new_chat 会明确拒绝带 team_id 的请求。
         self.team_bindings = team_bindings
         self.disabled_skills: set[str] = (
@@ -457,6 +462,7 @@ class GatewayHTTPHandler:
             writing_operations=self.writing_operations,
             writing_collab_operations=self.writing_collab_operations,
             team_operations=self.team_operations,
+            knowledge_operations=self.knowledge_operations,
         )
 
     def workspace_controls_available(self, connection: Any) -> bool:
