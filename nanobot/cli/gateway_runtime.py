@@ -618,6 +618,7 @@ def _run_gateway(
         hooks=[_MCPReadinessHook(mcp_provider)],
         hook_factories=[create_file_edit_activity_hook],
         tool_registry=tools,
+        knowledge_config=config.knowledge,
         recovery_admission=recovery,
         memory_extraction_enabled=True,
         memory_services=_memory_services,

@@ -138,6 +138,7 @@ class Nanobot:
             image_generation_provider_configs=image_gen_provider_configs(config),
             hook_factories=[create_file_edit_activity_hook],
             tool_registry=tools,
+            knowledge_config=config.knowledge,
         )
         return cls(loop, config=config, mcp_provider=mcp_provider)
 

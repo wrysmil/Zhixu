@@ -382,6 +382,7 @@ def serve(
             image_generation_provider_configs=image_gen_provider_configs(runtime_config),
             hook_factories=[create_file_edit_activity_hook],
             tool_registry=tools,
+            knowledge_config=runtime_config.knowledge,
         )
     except ValueError as exc:
         console.print(f"[red]Error: {exc}[/red]")
