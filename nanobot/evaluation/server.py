@@ -65,11 +65,16 @@ class ServiceContext:
         service: EvaluationService,
         scheduler: Scheduler,
         auth: AuthManager,
+        config: Any | None = None,
     ) -> None:
         self.repository = repository
         self.service = service
         self.scheduler = scheduler
         self.auth = auth
+        # 运行时配置（gateway / CLI 透传进来的 Config）：知识检索评测要用同一份
+        # 检索配置（repo/embedder/vector + 知识库范围）跑评测。可选且默认 None，
+        # 既有调用方行为不变。
+        self.config = config
 
     @property
     def runtime_root(self) -> Any:
@@ -882,6 +887,7 @@ def create_app(
     auth_config: AuthConfig,
     scheduler_config: SchedulerConfig,
     profiles: tuple[Any, ...] = (),
+    config: Any | None = None,
 ) -> web.Application:
     """装配应用；``cleanup_ctx`` 负责逆序回收。"""
     auth = AuthManager(auth_config)
@@ -906,7 +912,11 @@ def create_app(
         run_settled=_memory_run_settled,
     )
     context = ServiceContext(
-        repository=repository, service=service, scheduler=scheduler, auth=auth
+        repository=repository,
+        service=service,
+        scheduler=scheduler,
+        auth=auth,
+        config=config,
     )
     del profiles
 
@@ -995,6 +1005,11 @@ def _routes() -> list[web.RouteDef]:
     from nanobot.evaluation.memory.routes import memory_route_defs
 
     routes.extend(memory_route_defs(API_PREFIX))
+    # 知识检索专项路由同样挂进**这一份**清单：guard（Host/Origin → 会话 → CSRF
+    # → 限流）与未匹配方法的 405 兜底都从这份清单推导，不能另建一套。
+    from nanobot.evaluation.knowledge.routes import knowledge_route_defs
+
+    routes.extend(knowledge_route_defs(API_PREFIX))
     return routes
 
 
@@ -1007,8 +1022,14 @@ def create_eval_app(
     dev_origin: str | None = None,
     profiles: tuple[Any, ...] = (),
     team_runner: Any | None = None,
+    config: Any | None = None,
 ) -> web.Application:
-    """CLI/网关入口用的便捷装配：库、服务、调度器一次到位。"""
+    """CLI/网关入口用的便捷装配：库、服务、调度器一次到位。
+
+    ``config`` 是可选的运行时配置（gateway / CLI 从 ``~/.nanobot/config.json``
+    读到的 Config）：知识检索评测要用同一份检索配置跑评测。不传时为 None，
+    既有调用方行为不变。
+    """
     from pathlib import Path
 
     root = Path(data_dir)
@@ -1031,4 +1052,5 @@ def create_eval_app(
         ),
         scheduler_config=SchedulerConfig(data_dir=root),
         profiles=profiles,
+        config=config,
     )
