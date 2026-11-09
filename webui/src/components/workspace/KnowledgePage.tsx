@@ -731,7 +731,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                         event.target.value = "";
                         if (file) void onUpload(file);
                       }}
-                      className="text-[12px]"
+                      className="block w-full cursor-pointer text-[12px] text-muted-foreground file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-[11.5px] file:font-semibold file:text-primary-foreground hover:file:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                     />
                     <span className="text-[10.5px] font-normal">{t("knowledge.uploadHint")}</span>
                   </label>
