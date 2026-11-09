@@ -504,6 +504,8 @@ def test_search_fts_returns_hits(repo, db):
     assert len(hits) == 1
     assert hits[0].chunk_id.startswith("chk_")
     assert hits[0].score >= 0
+    # 融合层的 L1 精确去重要用 content_hash（检索 spec §5.4），必须随命中带出。
+    assert hits[0].content_hash == hashlib.sha256("用户热爱创作".encode()).hexdigest()
 
 
 def test_search_fts_filters_failed_and_other_workspace(repo, db):

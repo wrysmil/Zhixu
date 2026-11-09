@@ -134,6 +134,7 @@ class FtsHit:
     locator: str
     content: str
     char_count: int
+    content_hash: str
     score: float
 
 
@@ -150,6 +151,7 @@ SELECT c.id            AS chunk_id,
        c.locator       AS locator,
        c.content       AS content,
        c.char_count    AS char_count,
+       c.content_hash  AS content_hash,
        -bm25(document_chunks_fts) AS score
 FROM document_chunks_fts
 CROSS JOIN document_chunks c ON c.row_id = document_chunks_fts.rowid
@@ -623,6 +625,7 @@ class KnowledgeRepository:
                 locator=row["locator"],
                 content=row["content"],
                 char_count=row["char_count"],
+                content_hash=row["content_hash"],
                 score=float(row["score"]),
             )
             for row in rows
