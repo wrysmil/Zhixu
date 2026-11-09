@@ -293,3 +293,75 @@ def test_hit_keeps_optional_grade_absent() -> None:
 def test_hit_rejects_out_of_range_grade() -> None:
     with pytest.raises(ValidationError):
         KnowledgeEvalHit(chunk_id="chk_1", rank=1, score=0.9, content_hash="h1", grade=9)
+
+
+def test_scored_is_false_when_pool_has_no_relevant() -> None:
+    """池里没有相关块 → 该题不可评。
+
+    这类题 hit/precision 等指标仍算出数值，若 ``scored`` 按「有值即已评分」
+    判定，就会把 ``not_assessable`` 伪装成 ``scored``——前端「未评分」徽标
+    会说反。``scored`` 必须由权威结论派生。
+    """
+    metrics = KnowledgeEvalCaseMetrics(
+        hit_at_k=0.0,
+        precision_at_k=0.0,
+        mrr=0.0,
+        ndcg_at_k=0.0,
+        recall_at_k=None,
+        pool_coverage=0.0,
+        reason="POOL_HAS_NO_RELEVANT",
+    )
+    assert metrics.scored is False
+
+
+def test_scored_is_false_when_any_metric_is_not_assessable() -> None:
+    """逐指标状态里有 not_assessable → 该指标不可评。"""
+    metrics = KnowledgeEvalCaseMetrics(
+        hit_at_k=1.0,
+        precision_at_k=0.5,
+        mrr=1.0,
+        ndcg_at_k=1.0,
+        recall_at_k=None,
+        pool_coverage=0.5,
+        metric_status={"recall_at_k": "not_assessable", "precision_at_k": "scored"},
+    )
+    assert metrics.scored is False
+
+
+def test_scored_is_true_for_fully_scored_case() -> None:
+    metrics = KnowledgeEvalCaseMetrics(
+        hit_at_k=1.0,
+        precision_at_k=0.5,
+        mrr=1.0,
+        ndcg_at_k=1.0,
+        recall_at_k=1.0,
+        pool_coverage=0.5,
+    )
+    assert metrics.scored is True
+
+
+def test_case_score_and_metrics_model_agree_on_scored() -> None:
+    """metrics 计算与模型派生必须一致——这是 Task 7 runner 的前提。"""
+    from nanobot.evaluation.knowledge.metrics import case_score
+
+    scored = case_score(
+        case_id="c1",
+        label_source="judge",
+        top_k=[("a", 3)],
+        pool_grades={"a": 3},
+        k=1,
+    )
+    assert scored.status == "scored"
+    model = KnowledgeEvalCaseMetrics(**scored.metrics, reason=scored.reason)
+    assert model.scored is True
+
+    unscored = case_score(
+        case_id="c2",
+        label_source="judge",
+        top_k=[("a", 0)],
+        pool_grades={"a": 0},
+        k=1,
+    )
+    assert unscored.status == "not_assessable"
+    model = KnowledgeEvalCaseMetrics(**unscored.metrics, reason=unscored.reason)
+    assert model.scored is False, "not_assessable 的题不得自称已评分"

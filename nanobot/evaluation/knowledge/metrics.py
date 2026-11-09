@@ -167,6 +167,8 @@ class KnowledgeCaseScore:
     status: str
     metrics: dict[str, float | None] = field(default_factory=dict)
     reason: str = ""
+    #: 逐指标状态：值缺失的指标标 ``not_assessable``，不补 0（契约 §3.2）。
+    metric_status: dict[str, str] = field(default_factory=dict)
     pool_relevant: int = 0
     pool_size: int = 0
 
@@ -260,6 +262,10 @@ def case_score(
         status=status,
         metrics=metrics,
         reason=reason,
+        metric_status={
+            metric_id: ("scored" if value is not None else "not_assessable")
+            for metric_id, value in metrics.items()
+        },
         pool_relevant=pool_relevant,
         pool_size=total_pool_size,
     )

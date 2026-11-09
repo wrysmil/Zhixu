@@ -208,10 +208,29 @@ class KnowledgeEvalCaseMetrics(_Base):
     pool_coverage: float | None = None
     scored: bool = True
     reason: str = ""
+    #: 逐指标状态：``scored`` / ``not_assessable``（契约 §3.2）。
+    metric_status: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def _no_evidence_is_not_scored(self) -> KnowledgeEvalCaseMetrics:
-        """一个指标都没算出来 → 不自称已评分（缺证据不是 0 分）。"""
+    def _derive_scored(self) -> KnowledgeEvalCaseMetrics:
+        """``scored`` 由**权威结论**派生，不由「值是否全 None」猜测。
+
+        三条不可评路径：
+
+        1. ``reason`` 标了「池里没有相关块」→ 该题不可评，尽管 hit/precision
+           等指标仍算出了数值——此时若按「有值即已评分」判定，会把
+           ``not_assessable`` 伪装成 ``scored``，前端徽标会说反。
+        2. ``metric_status`` 里任一指标为 ``not_assessable`` → 该指标不可评。
+        3. 一个指标都没算出来 → 缺证据（不是 0 分）。
+        """
+        if self.reason == "POOL_HAS_NO_RELEVANT":
+            self.scored = False
+            return self
+        if any(
+            state != "scored" for state in self.metric_status.values()
+        ):
+            self.scored = False
+            return self
         if self.scored and all(
             value is None
             for value in (
