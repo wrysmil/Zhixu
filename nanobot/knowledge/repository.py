@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from nanobot.knowledge.database import KnowledgeDatabase
@@ -12,6 +13,21 @@ _KB_FIELDS = (
     "id, name, description, workspace_id, visibility, chunk_size, chunk_overlap,"
     " embedding_backend, embedding_model, embedding_dimensions, is_enabled,"
     " created_at, updated_at"
+)
+
+_CHUNK_FIELDS = (
+    "row_id, id, doc_id, kb_id, workspace_id, chunk_index, content, heading_path,"
+    " page, locator, start_offset, end_offset, char_count, content_hash, is_enabled"
+)
+
+# Task 15 的 Ingestor 会把 index_version/vector_status 改成显式参数。
+_DEFAULT_INDEX_VERSION = "norm1:tok1:chunk1"
+
+_INSERT_CHUNK_SQL = (
+    "INSERT INTO document_chunks"
+    " (id,doc_id,kb_id,workspace_id,chunk_index,content,heading_path,page,locator,"
+    "start_offset,end_offset,char_count,content_hash,search_text,created_at)"
+    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
 )
 
 _DOC_FIELDS = (
@@ -62,6 +78,51 @@ class DuplicateKnowledgeBaseError(ValueError):
 
 class DuplicateDocumentPathError(sqlite3.IntegrityError):
     """同一 KB 内 source_path 重复；仍可被 sqlite3.IntegrityError 捕获。"""
+
+
+@dataclass(frozen=True, slots=True)
+class ChunkRecord:
+    """待写入的块；doc_id/kb_id/workspace_id 由 commit_chunks 按文档填充。"""
+
+    id: str
+    doc_id: str
+    kb_id: str
+    workspace_id: str
+    chunk_index: int
+    content: str
+    heading_path: str
+    page: int | None
+    locator: str
+    start_offset: int
+    end_offset: int
+    char_count: int
+    content_hash: str
+    search_text: str
+
+
+@dataclass(frozen=True, slots=True)
+class StoredChunk:
+    """document_chunks 的读模型。"""
+
+    row_id: int
+    id: str
+    doc_id: str
+    kb_id: str
+    workspace_id: str
+    chunk_index: int
+    content: str
+    heading_path: str
+    page: int | None
+    locator: str
+    start_offset: int
+    end_offset: int
+    char_count: int
+    content_hash: str
+    is_enabled: bool
+
+
+class _AttemptSupersededError(Exception):
+    """commit_chunks 的 attempt/状态守卫失败，需要回滚整笔写入。"""
 
 
 class KnowledgeRepository:
@@ -366,6 +427,123 @@ class KnowledgeRepository:
     def delete_document(self, doc_id: str) -> None:
         with self._db.connect(immediate=True) as conn:
             conn.execute("DELETE FROM documents WHERE id=?", (doc_id,))
+
+    # ---------- 块 ----------
+    def commit_chunks(
+        self,
+        doc_id: str,
+        *,
+        attempt: int,
+        chunks: list[ChunkRecord],
+        index_version: str = _DEFAULT_INDEX_VERSION,
+        vector_status: str | None = None,
+    ) -> bool:
+        """单事务重写该文档的全部块并置 ready；attempt/状态不匹配则整笔回滚。"""
+        document = self.get_document(doc_id)
+        if document is None:
+            return False
+        if vector_status is None:
+            vector_status = "pending" if chunks else "skipped"
+        now = utc_now()
+        try:
+            with self._db.connect(immediate=True) as conn:
+                # 块不可变：重索引必须整体删除后重插，不能 INSERT OR REPLACE。
+                conn.execute("DELETE FROM document_chunks WHERE doc_id=?", (doc_id,))
+                conn.executemany(
+                    _INSERT_CHUNK_SQL,
+                    [
+                        (
+                            chunk.id,
+                            doc_id,
+                            document.kb_id,
+                            document.workspace_id,
+                            chunk.chunk_index,
+                            chunk.content,
+                            chunk.heading_path,
+                            chunk.page,
+                            chunk.locator,
+                            chunk.start_offset,
+                            chunk.end_offset,
+                            chunk.char_count,
+                            chunk.content_hash,
+                            chunk.search_text,
+                            now,
+                        )
+                        for chunk in chunks
+                    ],
+                )
+                cursor = conn.execute(
+                    "UPDATE documents SET parse_status='ready', chunk_count=?,"
+                    " char_count=?, index_version=?, vector_status=?, error_code='',"
+                    " error_message='', indexed_at=?, updated_at=?, lease_owner='',"
+                    " lease_expires_at=''"
+                    " WHERE id=? AND attempt=? AND parse_status='processing'",
+                    (
+                        len(chunks),
+                        sum(chunk.char_count for chunk in chunks),
+                        index_version,
+                        vector_status,
+                        now,
+                        now,
+                        doc_id,
+                        attempt,
+                    ),
+                )
+                if cursor.rowcount == 0:
+                    raise _AttemptSupersededError
+        except _AttemptSupersededError:
+            return False
+        return True
+
+    def fetch_chunk(self, chunk_id: str) -> StoredChunk | None:
+        with self._db.connect() as conn:
+            row = conn.execute(
+                f"SELECT {_CHUNK_FIELDS} FROM document_chunks WHERE id=?", (chunk_id,)
+            ).fetchone()
+        return self._row_to_chunk(row) if row else None
+
+    def list_chunks(
+        self, doc_id: str, *, offset: int = 0, limit: int = 20
+    ) -> list[StoredChunk]:
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                f"SELECT {_CHUNK_FIELDS} FROM document_chunks WHERE doc_id=?"
+                " ORDER BY chunk_index LIMIT ? OFFSET ?",
+                (doc_id, limit, offset),
+            ).fetchall()
+        return [self._row_to_chunk(row) for row in rows]
+
+    def fetch_neighbors(
+        self, chunk: StoredChunk, *, before: int = 1, after: int = 1
+    ) -> list[StoredChunk]:
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                f"SELECT {_CHUNK_FIELDS} FROM document_chunks"
+                " WHERE doc_id=? AND chunk_index BETWEEN ? AND ? AND is_enabled=1"
+                " ORDER BY chunk_index",
+                (chunk.doc_id, chunk.chunk_index - before, chunk.chunk_index + after),
+            ).fetchall()
+        return [self._row_to_chunk(row) for row in rows]
+
+    @staticmethod
+    def _row_to_chunk(row: sqlite3.Row) -> StoredChunk:
+        return StoredChunk(
+            row_id=row["row_id"],
+            id=row["id"],
+            doc_id=row["doc_id"],
+            kb_id=row["kb_id"],
+            workspace_id=row["workspace_id"],
+            chunk_index=row["chunk_index"],
+            content=row["content"],
+            heading_path=row["heading_path"],
+            page=row["page"],
+            locator=row["locator"],
+            start_offset=row["start_offset"],
+            end_offset=row["end_offset"],
+            char_count=row["char_count"],
+            content_hash=row["content_hash"],
+            is_enabled=bool(row["is_enabled"]),
+        )
 
     @staticmethod
     def _row_to_document(row: sqlite3.Row) -> Document:

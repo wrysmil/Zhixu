@@ -1,9 +1,11 @@
+import hashlib
 import sqlite3
 
 import pytest
 
 import nanobot.knowledge.repository as repository_module
-from nanobot.knowledge.repository import DuplicateKnowledgeBaseError
+from nanobot.knowledge.repository import ChunkRecord, DuplicateKnowledgeBaseError
+from nanobot.knowledge.tokenizer import tokenize_index, tokenize_query
 
 
 def test_create_and_get_kb(repo):
@@ -269,3 +271,199 @@ def test_reset_expired_leases_keeps_live_lease(repo):
     assert live.lease_owner == "w1"
     assert repo.claim_document(doc.id, lease_owner="w2",
                                now="2026-01-02T00:00:00+00:00") == 2
+
+
+def _chunk(index: int, text: str = "内容") -> ChunkRecord:
+    return ChunkRecord(
+        id=f"chk_{index:032x}",
+        doc_id="",  # commit_chunks 填充
+        kb_id="",
+        workspace_id="",
+        chunk_index=index,
+        content=text,
+        heading_path="",
+        page=None,
+        locator="",
+        start_offset=index * 10,
+        end_offset=index * 10 + len(text),
+        char_count=len(text),
+        content_hash=hashlib.sha256(text.encode()).hexdigest(),
+        search_text=tokenize_index(text),
+    )
+
+
+def _fts_count(db, query: str) -> int:
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT count(*) FROM document_chunks_fts"
+            " WHERE document_chunks_fts MATCH ?",
+            (tokenize_query(query),),
+        ).fetchone()
+    return int(row[0])
+
+
+def test_commit_chunks_writes_rows_and_fts(repo, db):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    assert repo.commit_chunks(
+        doc.id, attempt=1, chunks=[_chunk(0, "用户热爱创作"), _chunk(1, "部署失败回滚")]
+    ) is True
+    with db.connect() as conn:
+        assert conn.execute("SELECT count(*) FROM document_chunks").fetchone()[0] == 2
+        assert conn.execute("SELECT count(*) FROM document_chunks_fts").fetchone()[0] == 2
+    stored = repo.fetch_chunk("chk_" + "0" * 31 + "0")
+    assert stored is not None
+    assert stored.doc_id == doc.id
+    assert stored.kb_id == kb.id
+    assert stored.workspace_id == "ws1"
+    assert stored.content == "用户热爱创作"
+    assert stored.is_enabled is True
+
+
+def test_commit_chunks_updates_document_summary(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    assert repo.commit_chunks(
+        doc.id, attempt=1, chunks=[_chunk(0, "用户热爱创作"), _chunk(1, "部署失败")]
+    ) is True
+    stored = repo.get_document(doc.id)
+    assert stored.parse_status == "ready"
+    assert stored.chunk_count == 2
+    assert stored.char_count == len("用户热爱创作") + len("部署失败")
+    assert stored.index_version == "norm1:tok1:chunk1"
+    assert stored.vector_status == "pending"
+    assert stored.lease_owner == ""
+    assert stored.lease_expires_at == ""
+    assert stored.error_code == ""
+    assert stored.indexed_at is not None
+
+
+def test_commit_chunks_empty_marks_ready_and_skipped(repo, db):
+    # 空块列表也必须落到 ready + vector_status='skipped'，不能留在 processing
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    assert repo.commit_chunks(doc.id, attempt=1, chunks=[]) is True
+    stored = repo.get_document(doc.id)
+    assert stored.parse_status == "ready"
+    assert stored.vector_status == "skipped"
+    assert stored.chunk_count == 0
+    assert stored.char_count == 0
+    assert stored.lease_owner == ""
+    assert repo.list_chunks(doc.id) == []
+    with db.connect() as conn:
+        assert conn.execute("SELECT count(*) FROM document_chunks_fts").fetchone()[0] == 0
+
+
+def test_commit_chunks_unknown_document_is_noop(repo):
+    assert repo.commit_chunks("doc_missing", attempt=1, chunks=[_chunk(0)]) is False
+
+
+def test_commit_chunks_replaces_old_rows(repo, db):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0), _chunk(1)])
+    repo.mark_reindex_pending(doc.id)
+    repo.claim_document(doc.id, lease_owner="w2")
+    assert repo.commit_chunks(doc.id, attempt=2, chunks=[_chunk(0)]) is True
+    assert len(repo.list_chunks(doc.id)) == 1
+    assert repo.get_document(doc.id).chunk_count == 1
+
+
+def test_commit_chunks_rolls_back_when_attempt_superseded(repo, db):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0)])
+    repo.mark_reindex_pending(doc.id)
+    repo.claim_document(doc.id, lease_owner="w2")
+    assert repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0), _chunk(1)]) is False
+    remaining = repo.list_chunks(doc.id)
+    assert [c.id for c in remaining] == ["chk_" + "0" * 32]
+    assert repo.get_document(doc.id).parse_status == "processing"
+
+
+def test_commit_chunks_rejects_stale_worker_after_ready(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    assert repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0)]) is True
+    # 已 ready 后同一 attempt 不能再次写入，也不能删除既有块
+    assert repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0), _chunk(1)]) is False
+    assert len(repo.list_chunks(doc.id)) == 1
+
+
+def test_chunk_content_is_immutable(repo, db):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0)])
+    with db.connect(immediate=True) as conn:
+        with pytest.raises(sqlite3.IntegrityError, match="CHUNK_IMMUTABLE"):
+            conn.execute("UPDATE document_chunks SET content='x'")
+        conn.execute("UPDATE document_chunks SET is_enabled=0")
+    assert repo.fetch_chunk("chk_" + "0" * 32).is_enabled is False
+
+
+def test_delete_document_cascades_chunks_and_fts(repo, db):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0)])
+    repo.delete_document(doc.id)
+    with db.connect() as conn:
+        assert conn.execute("SELECT count(*) FROM document_chunks").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM document_chunks_fts").fetchone()[0] == 0
+    assert _fts_count(db, "内容") == 0
+
+
+def test_chunk_fts_tracks_reindex_and_delete(repo, db):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(
+        doc.id, attempt=1, chunks=[_chunk(0, "用户热爱创作"), _chunk(1, "部署失败回滚")]
+    )
+    assert _fts_count(db, "热爱") == 1
+    assert _fts_count(db, "回滚") == 1
+    repo.mark_reindex_pending(doc.id)
+    repo.claim_document(doc.id, lease_owner="w2")
+    repo.commit_chunks(doc.id, attempt=2, chunks=[_chunk(0, "用户热爱创作")])
+    assert _fts_count(db, "热爱") == 1
+    assert _fts_count(db, "回滚") == 0
+    repo.delete_document(doc.id)
+    assert _fts_count(db, "热爱") == 0
+
+
+def test_fetch_neighbors_returns_context(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0), _chunk(1), _chunk(2)])
+    chunk = repo.list_chunks(doc.id)[1]
+    neighbors = repo.fetch_neighbors(chunk, before=1, after=1)
+    assert [c.chunk_index for c in neighbors] == [0, 1, 2]
+
+
+def test_fetch_neighbors_skips_disabled(repo, db):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0), _chunk(1), _chunk(2)])
+    with db.connect(immediate=True) as conn:
+        conn.execute("UPDATE document_chunks SET is_enabled=0 WHERE chunk_index=1")
+    middle = repo.list_chunks(doc.id)[1]
+    neighbors = repo.fetch_neighbors(middle, before=1, after=1)
+    assert [c.chunk_index for c in neighbors] == [0, 2]
+
+
+def test_list_chunks_paginates_in_index_order(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(i) for i in range(3)])
+    page = repo.list_chunks(doc.id, offset=1, limit=1)
+    assert [c.chunk_index for c in page] == [1]
