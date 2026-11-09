@@ -609,3 +609,156 @@ def test_search_fts_respects_enabled_flags(repo, db):
         )
     hits = repo.search_fts(tokenize_query("创作"), workspace_ids=["ws1"], limit=10)
     assert [hit.doc_id for hit in hits] == [visible_doc.id]
+
+
+def test_list_documents_filters_and_paginates(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    other = repo.create_kb(name="b", workspace_id="ws2")
+    first = _insert_doc(repo, kb, path="/tmp/1.md", file_hash="h1")
+    second = _insert_doc(repo, kb, path="/tmp/2.md", file_hash="h2")
+    _insert_doc(repo, other, path="/tmp/3.md", file_hash="h3")
+
+    assert [doc.id for doc in repo.list_documents(kb_id=kb.id)] == [
+        second.id,
+        first.id,
+    ]
+    assert [doc.id for doc in repo.list_documents(kb_id=kb.id, limit=1)] == [second.id]
+    assert [doc.id for doc in repo.list_documents(kb_id=kb.id, offset=1)] == [first.id]
+    assert repo.list_documents(workspace_ids=["ws1"]) == [second, first]
+    assert repo.list_documents(workspace_ids=[]) == []
+    assert repo.list_documents(status="ready") == []
+
+
+def test_list_documents_filters_status(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    ready = [item for item in repo.list_documents(kb_id=kb.id) if item.id == doc.id][0]
+    assert ready.parse_status == "processing"
+    assert repo.list_documents(kb_id=kb.id, status="processing")[0].id == doc.id
+    assert repo.list_documents(kb_id=kb.id, status="pending") == []
+
+
+def test_list_pending_documents(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    first = _insert_doc(repo, kb, path="/tmp/1.md", file_hash="h1")
+    second = _insert_doc(repo, kb, path="/tmp/2.md", file_hash="h2")
+    repo.claim_document(second.id, lease_owner="w1")
+
+    assert repo.list_pending_documents() == [first.id]
+
+
+def test_update_source_resets_to_pending(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb, path="/tmp/a.md", file_hash="old")
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0)])
+
+    repo.update_source(
+        doc.id,
+        file_hash="new",
+        file_size=42,
+        source_mtime_ns=99,
+        source_path="/tmp/renamed.md",
+        original_name="renamed.md",
+    )
+
+    updated = repo.get_document(doc.id)
+    assert updated.file_hash == "new"
+    assert updated.file_size == 42
+    assert updated.source_mtime_ns == 99
+    assert updated.source_path == "/tmp/renamed.md"
+    assert updated.original_name == "renamed.md"
+    assert updated.parse_status == "pending"
+    assert updated.attempt == 1
+
+
+def test_list_vector_repair_candidates(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    pending = _insert_doc(repo, kb, path="/tmp/1.md", file_hash="h1")
+    ready = _insert_doc(repo, kb, path="/tmp/2.md", file_hash="h2")
+    clean = _insert_doc(repo, kb, path="/tmp/3.md", file_hash="h3")
+    for doc in (ready, clean):
+        repo.claim_document(doc.id, lease_owner="w1")
+        assert repo.commit_chunks(
+            doc.id,
+            attempt=1,
+            chunks=[_chunk(0, chunk_id=f"chk_{doc.id}")],
+            vector_status="failed",
+        )
+    assert repo.set_vector_status(clean.id, "ok")
+
+    candidates = repo.list_vector_repair_candidates()
+
+    assert candidates == [(ready.id, kb.id)]
+    assert pending.id not in {doc_id for doc_id, _ in candidates}
+
+
+def test_vector_expectations_cover_ready_documents(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    ready = _insert_doc(repo, kb, path="/tmp/1.md", file_hash="h1")
+    pending = _insert_doc(repo, kb, path="/tmp/2.md", file_hash="h2")
+    empty = _insert_doc(repo, kb, path="/tmp/3.md", file_hash="h3")
+    repo.claim_document(ready.id, lease_owner="w1")
+    assert repo.commit_chunks(
+        ready.id,
+        attempt=1,
+        chunks=[_chunk(0, chunk_id="chk_a"), _chunk(1, chunk_id="chk_b")],
+    )
+    repo.claim_document(empty.id, lease_owner="w1")
+    assert repo.commit_chunks(empty.id, attempt=1, chunks=[])
+
+    expected = repo.vector_expectations()
+
+    assert expected[ready.id] == ["chk_a", "chk_b"]
+    assert expected[empty.id] == []
+    assert pending.id not in expected
+
+
+def test_stats_summary_aggregates(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    _insert_doc(repo, kb, path="/tmp/1.md", file_hash="h1")
+    done = _insert_doc(repo, kb, path="/tmp/2.md", file_hash="h2")
+    stale = _insert_doc(repo, kb, path="/tmp/3.md", file_hash="h3")
+    for doc in (done, stale):
+        repo.claim_document(doc.id, lease_owner="w1")
+        assert repo.commit_chunks(
+            doc.id, attempt=1, chunks=[_chunk(0, chunk_id=f"chk_{doc.id}")]
+        )
+    with repo._db.connect(immediate=True) as conn:
+        conn.execute(
+            "UPDATE documents SET index_version='old' WHERE id=?", (stale.id,)
+        )
+    repo.claim_document(
+        _insert_doc(repo, kb, path="/tmp/4.md", file_hash="h4").id,
+        lease_owner="dead",
+        lease_seconds=-1,
+    )
+    _insert_doc(repo, repo.create_kb(name="b", workspace_id="ws2"), path="/tmp/x.md")
+
+    summary = repo.stats_summary(workspace_ids=["ws1"], index_version="norm1:tok1:chunk1")
+
+    assert summary.kbs == 1
+    assert summary.documents == 4
+    assert summary.chunks == 2
+    assert summary.by_status == {"pending": 1, "ready": 2, "processing": 1}
+    assert summary.vector_counts == {"pending": 4}
+    assert summary.pending == 1
+    assert summary.expired_leases == 1
+    assert summary.stale_ready == 1
+    assert summary.index_versions["norm1:tok1:chunk1"] == 1
+    assert summary.index_versions["old"] == 1
+    assert summary.index_versions[""] == 2
+
+
+def test_insert_document_accepts_explicit_id(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = repo.insert_document(
+        doc_id="doc_fixed",
+        kb_id=kb.id,
+        workspace_id="ws1",
+        title="a",
+        source_kind="managed",
+        source_path="/tmp/managed/a.md",
+    )
+    assert doc.id == "doc_fixed"

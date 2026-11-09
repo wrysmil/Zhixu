@@ -140,6 +140,21 @@ class FtsHit:
     score: float
 
 
+@dataclass(frozen=True, slots=True)
+class DocumentStats:
+    """按 workspace 作用域的文档聚合（`stats` 用，避免整表拉行）。"""
+
+    kbs: int
+    documents: int
+    chunks: int
+    by_status: dict[str, int]
+    vector_counts: dict[str, int]
+    index_versions: dict[str, int]
+    pending: int
+    expired_leases: int
+    stale_ready: int
+
+
 # FTS 必须作为驱动表：CROSS JOIN 把「先召回、后过滤」从优化器的偶然选择
 # 变成语法保证（普通 JOIN 在 SQLite 3.52 上实测 1.7 s vs 0.6 ms）。
 # {kb_filter} / {scope} 只由本模块按占位符数量拼装，绝不插入用户输入。
@@ -327,9 +342,10 @@ class KnowledgeRepository:
         file_size: int = 0,
         source_mtime_ns: int = 0,
         source_type: str = "file",
+        doc_id: str | None = None,
     ) -> Document:
         now = utc_now()
-        doc_id = new_id("doc")
+        doc_id = doc_id or new_id("doc")
         try:
             with self._db.connect(immediate=True) as conn:
                 conn.execute(
@@ -395,6 +411,173 @@ class KnowledgeRepository:
                 (kb_id, file_hash, *statuses),
             ).fetchone()
         return self._row_to_document(row) if row else None
+
+    def list_documents(
+        self,
+        *,
+        kb_id: str | None = None,
+        workspace_ids: list[str] | None = None,
+        status: str | None = None,
+        offset: int = 0,
+        limit: int = 100,
+    ) -> list[Document]:
+        if workspace_ids is not None and not workspace_ids:
+            return []
+        clauses: list[str] = []
+        params: list[object] = []
+        if kb_id is not None:
+            clauses.append("kb_id=?")
+            params.append(kb_id)
+        if workspace_ids is not None:
+            placeholders = ",".join("?" for _ in workspace_ids)
+            clauses.append(f"workspace_id IN ({placeholders})")
+            params.extend(workspace_ids)
+        if status is not None:
+            clauses.append("parse_status=?")
+            params.append(status)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.extend((limit, offset))
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                f"SELECT {_DOC_FIELDS} FROM documents{where}"
+                " ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
+                tuple(params),
+            ).fetchall()
+        return [self._row_to_document(row) for row in rows]
+
+    def list_pending_documents(self, *, limit: int = 100_000) -> list[str]:
+        """启动恢复用：所有 `pending` 文档 id，按创建顺序（先到先处理）。"""
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT id FROM documents WHERE parse_status='pending'"
+                " ORDER BY created_at, rowid LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [str(row[0]) for row in rows]
+
+    def update_source(
+        self,
+        doc_id: str,
+        *,
+        file_hash: str | None = None,
+        file_size: int | None = None,
+        source_mtime_ns: int | None = None,
+        source_path: str | None = None,
+        original_name: str | None = None,
+        mime: str | None = None,
+    ) -> None:
+        """复用已有行（同路径新版本 / 同哈希 failed 复用）：更新源指纹并回到 pending。"""
+        assignments = ["parse_status='pending'", "updated_at=?"]
+        params: list[object] = [utc_now()]
+        updates = {
+            "file_hash": file_hash,
+            "file_size": file_size,
+            "source_mtime_ns": source_mtime_ns,
+            "source_path": source_path,
+            "original_name": original_name,
+            "mime": mime,
+        }
+        for column, value in updates.items():
+            if value is not None:
+                assignments.append(f"{column}=?")
+                params.append(value)
+        params.append(doc_id)
+        with self._db.connect(immediate=True) as conn:
+            conn.execute(
+                f"UPDATE documents SET {', '.join(assignments)} WHERE id=?",
+                tuple(params),
+            )
+
+    def list_vector_repair_candidates(self) -> list[tuple[str, str]]:
+        """`ready` 但向量派生状态不完整的文档：`(doc_id, kb_id)`。"""
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT id, kb_id FROM documents"
+                " WHERE parse_status='ready' AND vector_status IN"
+                " ('pending','partial','failed')"
+                " ORDER BY created_at, rowid"
+            ).fetchall()
+        return [(str(row["id"]), str(row["kb_id"])) for row in rows]
+
+    def vector_expectations(self) -> dict[str, list[str]]:
+        """向量修复对账基准：`ready` 文档 → SQLite 现有 chunk id 列表。
+
+        无块的 ready 文档映射为空列表（扫描据此清掉残留向量）；只读，不改任何行。
+        """
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT d.id AS doc_id, c.id AS chunk_id FROM documents d"
+                " LEFT JOIN document_chunks c ON c.doc_id = d.id"
+                " WHERE d.parse_status='ready'"
+                " ORDER BY d.id, c.chunk_index"
+            ).fetchall()
+        expected: dict[str, list[str]] = {}
+        for row in rows:
+            chunks = expected.setdefault(str(row["doc_id"]), [])
+            if row["chunk_id"] is not None:
+                chunks.append(str(row["chunk_id"]))
+        return expected
+
+    def stats_summary(
+        self, *, workspace_ids: list[str], index_version: str
+    ) -> DocumentStats:
+        """一次 GROUP BY 得到统计所需的全部计数（空作用域只保底返回 KB 数）。"""
+        kbs = len(self.list_kbs(workspace_ids=workspace_ids))
+        if not workspace_ids:
+            return DocumentStats(
+                kbs=kbs,
+                documents=0,
+                chunks=0,
+                by_status={},
+                vector_counts={},
+                index_versions={},
+                pending=0,
+                expired_leases=0,
+                stale_ready=0,
+            )
+        placeholders = ",".join("?" for _ in workspace_ids)
+        now = utc_now()
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT parse_status, vector_status, index_version, COUNT(*) AS doc_count,"
+                " COALESCE(SUM(chunk_count), 0) AS chunk_sum,"
+                " SUM(CASE WHEN parse_status='processing' AND lease_expires_at < ?"
+                " THEN 1 ELSE 0 END) AS expired_count,"
+                " SUM(CASE WHEN parse_status='ready' AND index_version != ?"
+                " THEN 1 ELSE 0 END) AS stale_count"
+                f" FROM documents WHERE workspace_id IN ({placeholders})"
+                " GROUP BY parse_status, vector_status, index_version",
+                (now, index_version, *workspace_ids),
+            ).fetchall()
+        by_status: dict[str, int] = {}
+        vector_counts: dict[str, int] = {}
+        index_versions: dict[str, int] = {}
+        documents = chunks = pending = expired = stale = 0
+        for row in rows:
+            count = int(row["doc_count"])
+            status = str(row["parse_status"])
+            vector_status = str(row["vector_status"])
+            version = str(row["index_version"])
+            documents += count
+            chunks += int(row["chunk_sum"])
+            by_status[status] = by_status.get(status, 0) + count
+            vector_counts[vector_status] = vector_counts.get(vector_status, 0) + count
+            index_versions[version] = index_versions.get(version, 0) + count
+            if status == "pending":
+                pending += count
+            expired += int(row["expired_count"] or 0)
+            stale += int(row["stale_count"] or 0)
+        return DocumentStats(
+            kbs=kbs,
+            documents=documents,
+            chunks=chunks,
+            by_status=by_status,
+            vector_counts=vector_counts,
+            index_versions=index_versions,
+            pending=pending,
+            expired_leases=expired,
+            stale_ready=stale,
+        )
 
     def claim_document(
         self,
