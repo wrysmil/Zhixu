@@ -23,6 +23,8 @@ _CHUNK_FIELDS = (
 # Task 15 的 Ingestor 会把 index_version/vector_status 改成显式参数。
 _DEFAULT_INDEX_VERSION = "norm1:tok1:chunk1"
 
+_VECTOR_STATUSES = frozenset({"pending", "ok", "partial", "failed", "skipped"})
+
 _INSERT_CHUNK_SQL = (
     "INSERT INTO document_chunks"
     " (id,doc_id,kb_id,workspace_id,chunk_index,content,heading_path,page,locator,"
@@ -548,6 +550,25 @@ class KnowledgeRepository:
         except _AttemptSupersededError:
             return False
         return True
+
+    def set_vector_status(
+        self, doc_id: str, status: str, *, attempt: int | None = None
+    ) -> bool:
+        """回写向量派生状态；只作用于 `ready` 文档，可选 attempt 守卫防覆盖新结果。"""
+        if status not in _VECTOR_STATUSES:
+            raise ValueError(f"unknown vector status: {status}")
+        clauses = ["id=?", "parse_status='ready'"]
+        params: list[object] = [status, utc_now(), doc_id]
+        if attempt is not None:
+            clauses.append("attempt=?")
+            params.append(attempt)
+        with self._db.connect(immediate=True) as conn:
+            cursor = conn.execute(
+                f"UPDATE documents SET vector_status=?, updated_at=?"
+                f" WHERE {' AND '.join(clauses)}",
+                params,
+            )
+            return cursor.rowcount == 1
 
     def fetch_chunk(self, chunk_id: str) -> StoredChunk | None:
         with self._db.connect() as conn:
