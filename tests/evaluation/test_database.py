@@ -289,7 +289,7 @@ def test_migration_four_upgrades_a_version_three_database(
     _init_at_version(database, "3", monkeypatch)
     assert database.schema_version() == 3
     database.init_schema()
-    assert database.schema_version() == 4
+    assert database.schema_version() == int(SCHEMA_VERSION)
     with database.connect() as conn:
         assert MEMORY_TABLES <= _tables(conn)
 
@@ -308,7 +308,7 @@ def test_migration_four_upgrades_a_version_two_database_with_comparisons_table(
             " result_json TEXT, created_at TEXT NOT NULL)"
         )
     database.init_schema()
-    assert database.schema_version() == 4
+    assert database.schema_version() == int(SCHEMA_VERSION)
     with database.connect() as conn:
         assert MEMORY_TABLES <= _tables(conn)
         assert "comparisons" in _tables(conn)
@@ -368,11 +368,11 @@ def test_migration_four_is_idempotent_when_column_already_exists(
         conn.execute("ALTER TABLE reviews ADD COLUMN memory_ref_json TEXT")
 
     database.init_schema()
-    assert database.schema_version() == 4
+    assert database.schema_version() == int(SCHEMA_VERSION)
 
-    # 已经是 version 4 的库再初始化一次，结构不得变化。
+    # 已经升到当前版本的库再初始化一次，结构不得变化。
     database.init_schema()
-    assert database.schema_version() == 4
+    assert database.schema_version() == int(SCHEMA_VERSION)
     with database.connect() as conn:
         columns = [
             row["name"] for row in conn.execute("PRAGMA table_info(reviews)")
