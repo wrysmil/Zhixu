@@ -376,7 +376,11 @@ query
 
 ## 9. Agent 工具契约
 
-### 9.1 `knowledge_search`（必做）
+### 9.1 `search_rag`（必做；历史名 `knowledge_search`）
+
+> 对外工具名固定为 `search_rag`；`mode` 的 JSON Schema 带
+> `enum=["hybrid","semantic","keyword"]`。下文历史文本中的 `knowledge_search`
+> 均指该工具。
 
 ```python
 @tool_parameters(tool_parameters_schema(

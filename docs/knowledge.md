@@ -2,7 +2,7 @@
 
 知序的本地知识库（Knowledge Center）把 PDF / Office / Markdown / 纯文本切成块，
 写入 SQLite + FTS5（关键词层）与可选的 Chroma（向量层），并同时暴露给 CLI、WebUI
-和 Agent 工具（`knowledge_search` / `knowledge_read`）。v1 定位是「个人与企业内部的
+和 Agent 工具（`search_rag` / `knowledge_read`）。v1 定位是「个人与企业内部的
 私域文档检索」，不是通用 RAG 平台。
 
 ## 快速开始
