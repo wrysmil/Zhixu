@@ -2909,9 +2909,10 @@ function Shell({
     || view === "automations"
     || view === "skills"
     || view === "agents"
-    || view === "teams";
-  // Settings and other surfaces own the full width: keep only the icon rail,
-  // never the conversation list.
+    || view === "teams"
+    || view === "knowledge";
+  // Settings / knowledge and other surfaces own the full width: keep only the
+  // icon rail, never the conversation list.
   const hostChatColumnVisible = hostSidebarOpen && !isSettingsLikeView;
   const hostSidebarFlowWidth = hostChatColumnVisible
     ? SIDEBAR_CHAT_WIDTH

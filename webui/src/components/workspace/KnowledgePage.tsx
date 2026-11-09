@@ -588,20 +588,25 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </form>
       ) : null}
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
-        <aside data-testid="knowledge-kb-list" className="w-full shrink-0 lg:w-64">
-          <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            {t("knowledge.kbTitle")}
-          </p>
+      <div className="mt-4 flex flex-col gap-4">
+        <section data-testid="knowledge-kb-list" aria-label={t("knowledge.kbTitle")}>
+          <div className="flex items-end justify-between gap-3 pb-2">
+            <h2 className="text-[13px] font-semibold text-foreground">
+              {t("knowledge.kbTitle")}
+            </h2>
+            <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10.5px] font-medium tabular-nums text-muted-foreground">
+              {kbs.length}
+            </span>
+          </div>
           {kbsLoading ? (
-            <p className="flex items-center gap-2 px-1 py-3 text-[12px] text-muted-foreground">
+            <p className="flex items-center gap-2 py-4 text-[12px] text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
               {t("knowledge.loading")}
             </p>
           ) : kbs.length === 0 ? (
             <EmptyState title={t("knowledge.kbEmpty")} description={t("knowledge.kbEmptyHint")} />
           ) : (
-            <ul className="flex flex-col gap-1">
+            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {kbs.map((kb) => {
                 const active = kb.id === activeKbId;
                 return (
@@ -609,74 +614,97 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                     key={kb.id}
                     data-active={active || undefined}
                     className={cn(
-                      "group relative overflow-hidden rounded-control border transition-all duration-200",
+                      "group relative flex min-h-[112px] cursor-pointer flex-col overflow-hidden rounded-panel border p-3.5 transition-all duration-200",
                       active
-                        ? "border-primary/30 bg-primary/[0.06] shadow-sm"
-                        : "border-border/50 bg-background hover:border-border hover:bg-muted/40",
+                        ? "border-primary/35 bg-primary/[0.05] shadow-[0_1px_0_rgba(15,23,42,0.04)] ring-1 ring-primary/10"
+                        : "border-border/60 bg-background hover:-translate-y-0.5 hover:border-border hover:bg-muted/25 hover:shadow-sm",
                     )}
+                    onClick={() => setActiveKbId(kb.id)}
                   >
                     {active ? (
-                      <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary" aria-hidden />
+                      <span className="absolute inset-y-3 left-0 w-0.5 rounded-full bg-primary" aria-hidden />
                     ) : null}
-                    <div className="flex items-start gap-2 px-3 py-2.5">
+                    <div className="flex items-start gap-2.5">
                       <span
                         className={cn(
-                          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
                           active
                             ? "bg-primary/10 text-primary"
                             : "bg-muted text-muted-foreground",
                         )}
                       >
-                        <Library className="h-3.5 w-3.5" aria-hidden />
+                        <Library className="h-4 w-4" aria-hidden />
                       </span>
-                      <button
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => setActiveKbId(kb.id)}
-                        className="min-w-0 flex-1 cursor-pointer rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                      >
-                        <span className="block truncate text-[13px] font-semibold text-foreground">
-                          {kb.name}
-                        </span>
-                        <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                          <span className="rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5">
-                            {kb.visibility === "global"
-                              ? t("knowledge.visibilityGlobal")
-                              : t("knowledge.visibilityWorkspace")}
-                          </span>
-                          <span>{t("knowledge.docCount", { count: kb.documentCount })}</span>
-                          <span
-                            className={cn(
-                              "rounded-full px-1.5 py-0.5",
-                              kb.isEnabled
-                                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
-                                : "bg-muted text-muted-foreground",
-                            )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-1.5">
+                          <button
+                            type="button"
+                            aria-pressed={active}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setActiveKbId(kb.id);
+                            }}
+                            className="min-w-0 flex-1 cursor-pointer rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                           >
-                            {kb.isEnabled ? t("knowledge.enabled") : t("knowledge.disabled")}
-                          </span>
+                            <span className="block truncate text-[13px] font-semibold text-foreground">
+                              {kb.name}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={t("knowledge.deleteKb")}
+                            title={t("knowledge.deleteKb")}
+                            disabled={busy}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setConfirm({ kind: "kb", id: kb.id, label: kb.name });
+                            }}
+                            className="shrink-0 cursor-pointer rounded-control p-1 text-muted-foreground opacity-0 transition-all duration-200 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        </div>
+                        {kb.description ? (
+                          <p className="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-muted-foreground">
+                            {kb.description}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-2.5 text-[10.5px] text-muted-foreground">
+                      <span className="rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5">
+                        {kb.visibility === "global"
+                          ? t("knowledge.visibilityGlobal")
+                          : t("knowledge.visibilityWorkspace")}
+                      </span>
+                      <span className="rounded-full bg-muted/60 px-1.5 py-0.5 tabular-nums">
+                        {t("knowledge.docCount", { count: kb.documentCount })}
+                      </span>
+                      {kb.updatedAt ? (
+                        <span className="tabular-nums text-[10px]">
+                          {kb.updatedAt.slice(0, 10)}
                         </span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={t("knowledge.deleteKb")}
-                        title={t("knowledge.deleteKb")}
-                        disabled={busy}
-                        onClick={() => setConfirm({ kind: "kb", id: kb.id, label: kb.name })}
-                        className="shrink-0 cursor-pointer rounded-control p-1 text-muted-foreground opacity-0 transition-all duration-200 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+                      ) : null}
+                      <span
+                        className={cn(
+                          "ml-auto rounded-full px-1.5 py-0.5",
+                          kb.isEnabled
+                            ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                            : "bg-muted text-muted-foreground",
+                        )}
                       >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                      </button>
+                        {kb.isEnabled ? t("knowledge.enabled") : t("knowledge.disabled")}
+                      </span>
                     </div>
                   </li>
                 );
               })}
             </ul>
           )}
-        </aside>
+        </section>
 
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-          <div className="rounded-panel border border-border/60 bg-background p-4">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
+          <div className="h-fit rounded-panel border border-border/60 bg-background p-4">
             <div className="flex flex-wrap items-center gap-2 pb-3">
               <h2 className="flex flex-1 items-center gap-2 text-[13px] font-semibold text-foreground">
                 <span className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
@@ -873,7 +901,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             )}
           </div>
 
-          <div className="rounded-panel border border-border/60 bg-background p-4">
+          <div className="self-start rounded-panel border border-border/60 bg-background p-4 xl:sticky xl:top-4">
             <h2 className="flex items-center gap-2 pb-3 text-[13px] font-semibold text-foreground">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <Search className="h-3.5 w-3.5" aria-hidden />
@@ -881,13 +909,13 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               {t("knowledge.searchTitle")}
             </h2>
             <form
-              className="flex flex-wrap items-end gap-2"
+              className="flex flex-col gap-2"
               onSubmit={(event) => {
                 event.preventDefault();
                 void onSearch();
               }}
             >
-              <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
+              <label className="flex w-full flex-col gap-1 text-[11px] font-medium text-muted-foreground">
                 {t("knowledge.query")}
                 <Input
                   aria-label={t("knowledge.query")}
@@ -897,7 +925,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   className="h-8 text-[12.5px]"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-[11px] font-medium text-muted-foreground">
+              <div className="flex items-end gap-2">
+              <label className="flex min-w-0 flex-1 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
                 {t("knowledge.mode")}
                 <select
                   aria-label={t("knowledge.mode")}
@@ -912,7 +941,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   ))}
                 </select>
               </label>
-              <label className="flex flex-col gap-1 text-[11px] font-medium text-muted-foreground">
+              <label className="flex w-20 shrink-0 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
                 {t("knowledge.limit")}
                 <select
                   aria-label={t("knowledge.limit")}
@@ -940,6 +969,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                 )}
                 {t("knowledge.search")}
               </Button>
+              </div>
             </form>
 
             {searchError ? (
@@ -964,7 +994,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               />
             )}
           </div>
-        </section>
+        </div>
       </div>
 
       {confirm ? (

@@ -163,7 +163,10 @@ WebUI 聊天发送「请再次调用 knowledge_search 检索：部署失败怎�
 - 验证：`knowledge-page.test.tsx` 14 passed；`npm run build` 成功；浏览器刷新后
   无 console 错误，检索预览仍返回 1 条命中（keyword / vector_unavailable）。
 - in-app Browser 的 surface 不可用，改用 headless Chrome 生成像素截图
-  `knowledge-page-final.png`；截图复核后把原生上传控件统一成主按钮样式。
+  `knowledge-page-cards-final.png`；截图复核后把原生上传控件统一成主按钮样式。
+- 布局参考 WeKnora 的信息层级但不照抄皮肤：知识库改为卡片栅格主视图，文档与检索
+  预览在下方双栏；知识库路由不再显示会话列表，只保留左侧图标 rail（`App.tsx`
+  的 full-width 视图集合加入 `knowledge`）。
 
 ## 5. CLI 端到端
 
