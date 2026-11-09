@@ -24,6 +24,36 @@ class KnowledgeBase:
     updated_at: str
 
 
+@dataclass(frozen=True, slots=True)
+class Document:
+    id: str
+    kb_id: str
+    workspace_id: str
+    title: str
+    source_type: str
+    source_kind: str
+    source_path: str
+    original_name: str
+    mime: str
+    file_hash: str
+    file_size: int
+    source_mtime_ns: int
+    parse_status: str
+    error_code: str
+    error_message: str
+    attempt: int
+    lease_owner: str
+    lease_expires_at: str
+    index_version: str
+    vector_status: str
+    chunk_count: int
+    char_count: int
+    is_enabled: bool
+    created_at: str
+    updated_at: str
+    indexed_at: str | None
+
+
 def new_id(prefix: str) -> str:
     return f"{prefix}_{secrets.token_hex(6)}"
 
