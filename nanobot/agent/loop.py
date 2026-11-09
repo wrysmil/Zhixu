@@ -132,6 +132,7 @@ if TYPE_CHECKING:
     from nanobot.config.schema import (
         ChannelsConfig,
         Config,
+        KnowledgeConfig,
         ProviderConfig,
         ToolsConfig,
     )
@@ -438,6 +439,7 @@ class AgentLoop:
         active_retrieval_enabled: bool = False,
         retrieval_engine: Any | None = None,
         memory_enabled_provider: Callable[[], bool] | None = None,
+        knowledge_config: KnowledgeConfig | None = None,
     ):
         from nanobot.config.schema import ToolsConfig
 
@@ -608,6 +610,17 @@ class AgentLoop:
         self._memory_services = memory_services
         self._memory_enabled_provider = memory_enabled_provider
         self._fallback_memory_services: MemoryServices | None = None
+        # 知识域装配态：只保存配置，服务在第一次用到时才构造（避免未启用时导入
+        # Chroma / torch，也避免测试进程在 import / 注册期创建真实知识库目录）。
+        # 只有显式传入 ``knowledge_config`` 的调用方（gateway / CLI）才算「已接线」；
+        # 未接线的 loop（单测、嵌入式）永远不构造服务，工具返回「当前没有可用知识库」。
+        from nanobot.config.schema import KnowledgeConfig as _KnowledgeConfig
+
+        self.knowledge_config = (
+            knowledge_config if knowledge_config is not None else _KnowledgeConfig()
+        )
+        self._knowledge_wired = knowledge_config is not None
+        self._knowledge_service_instance: Any | None = None
         self.consolidator = Consolidator(
             store=self.context.memory,
             sessions=self.sessions,
@@ -701,6 +714,57 @@ class AgentLoop:
         except Exception as exc:  # noqa: BLE001 - 记忆库不可用不该拖垮一次调用
             logger.warning("memory tools: services resolution failed: {!r}", exc)
             return None
+
+    # ---------- 知识域（RAG） ----------
+
+    @property
+    def _knowledge_tools_enabled(self) -> bool:
+        """知识工具门控：已接线且 `knowledge.enabled` 为真。"""
+        config = getattr(self, "knowledge_config", None)
+        return bool(getattr(self, "_knowledge_wired", False)) and bool(
+            getattr(config, "enabled", False)
+        )
+
+    @property
+    def _knowledge_service(self) -> Any | None:
+        """惰性知识服务单例；未接线或未启用时返回 None（不建库、不导入向量依赖）。"""
+        if not self._knowledge_tools_enabled:
+            return None
+        if self._knowledge_service_instance is None:
+            from nanobot.knowledge.service import get_knowledge_service
+
+            self._knowledge_service_instance = get_knowledge_service(self.knowledge_config)
+        return self._knowledge_service_instance
+
+    def _knowledge_service_for_tools(self) -> Any | None:
+        """工具侧 provider：构造失败退化为 None，由工具给出友好提示。"""
+        try:
+            return self._knowledge_service
+        except Exception as exc:  # noqa: BLE001 - 知识库不可用不该拖垮一轮对话
+            logger.warning("knowledge tools: service resolution failed: {!r}", exc)
+            return None
+
+    async def _start_knowledge_service(self) -> None:
+        """启动知识入库 worker（幂等）；未接线 / 未启用 / 启动失败都只是跳过。"""
+        if not self._knowledge_tools_enabled:
+            return
+        try:
+            service = self._knowledge_service
+            if service is not None:
+                await service.start()
+                logger.info("Knowledge service started")
+        except Exception as exc:  # noqa: BLE001 - 启动失败不该阻止 agent loop 起来
+            logger.warning("knowledge service start failed: {!r}", exc)
+
+    async def _stop_knowledge_service(self) -> None:
+        """停止知识 worker（幂等）；只停本 loop 真正构造过的实例。"""
+        service = getattr(self, "_knowledge_service_instance", None)
+        if service is None:
+            return
+        try:
+            await service.stop()
+        except Exception as exc:  # noqa: BLE001 - 停机阶段不让知识域拖垮整体关闭
+            logger.warning("knowledge service stop failed: {!r}", exc)
 
     def _compute_working_memory_section(
         self,
@@ -1125,6 +1189,11 @@ class AgentLoop:
                 # 总开关关着时工具根本不注册，与 memory_search 同模式。
                 "memory_services": self._memory_services_for_tools,
                 "memory_write_enabled": self._memory_write_enabled,
+                # 知识工具（RAG）：与 memory_search 同模式注入；值是可调用的惰性
+                # provider，注册期不构造服务（服务构造会建库目录、导入 Chroma）。
+                "knowledge_service": self._knowledge_service_for_tools,
+                "knowledge_workspace_ids": self._memory_workspace_ids_for_key,
+                "knowledge_enabled": self._knowledge_tools_enabled,
             },
         )
         loader = ToolLoader()
@@ -1915,6 +1984,9 @@ class AgentLoop:
     async def run(self) -> None:
         """Run the agent loop, dispatching messages as tasks to stay responsive to /stop."""
         self._running = True
+        # 知识入库 worker 跟 loop 同生命周期：不启动就没有 worker，WebUI/CLI 的
+        # pending 文档永远不会被处理。停机在 aclose()（本函数 finally 的归宿）。
+        await self._start_knowledge_service()
         try:
             logger.info("Agent loop started")
 
@@ -2224,6 +2296,7 @@ class AgentLoop:
             self.subagents.close,
             self._close_execution_ledger,
             self._exec_session_manager.close_all,
+            self._stop_knowledge_service,
         )
         for cleanup in cleanup_steps:
             try:
