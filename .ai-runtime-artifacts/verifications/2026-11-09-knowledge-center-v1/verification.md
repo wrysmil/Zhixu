@@ -170,6 +170,28 @@ WebUI 聊天发送「请再次调用 knowledge_search 检索：部署失败怎�
   分页，避免所有内容堆在一页。知识库路由不再显示会话列表，只保留左侧图标 rail
   （`App.tsx` 的 full-width 视图集合加入 `knowledge`）。
 
+### 4.4 全功能浏览器回归（2026-11-10）
+
+临时 gateway（embedding=none）+ scripted OpenAI 兼容 mock，从空库开始，在 WebUI
+逐项操作：
+
+1. 空态 → 新建「浏览器验收库」→ 总览卡片出现，统计 KB=1。
+2. 点卡片进入详情（文档 tab）→ 上传 `rollback.md` → `处理中` → `就绪`
+   （97 字符 / 1 块）。
+3. 服务器路径添加 `server.md` → `就绪`，文档数变为 2。
+4. 单文档「重建」+ 知识库「全部重建」→ `处理中/排队中` → 均回到 `就绪`。
+5. 检索预览：hybrid → 2 条命中（部署与回滚、值班手册）；切 `semantic` +
+   `limit=5` → `mode_used=keyword`、
+   `degraded=vector_unavailable,mode_downgraded`，仍返回 2 条。
+6. 「修复索引」→ FTS + 向量重扫 → 页面出现「修复完成」。
+7. 会话发送「请调用 knowledge_search 检索：部署失败怎么回滚」→ mock 发起
+   `knowledge_search({"query": "部署失败怎么回滚", "mode": "keyword", "limit": 5})`
+   → 工具返回结果 → 助手消息展示检索片段；日志有 `Tool call: knowledge_search`。
+8. 删除 `server` 文档 → 剩 1 篇；删除知识库 → 回到空态，统计全 0。
+
+结果：上述路径全部通过，未发现新的功能缺陷；知识库页不再显示会话列表。
+快照中出现的「设置概览」节点是隐藏 DOM，截图像素确认实际画面只有知识库页。
+
 ## 5. CLI 端到端
 
 复跑脚本（新增，可重复）：
