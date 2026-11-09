@@ -821,9 +821,10 @@ def build_gateway_services(
             runner=collab_runner,
             database=writing_database,
         ),
-        knowledge_operations=build_knowledge_operations(
-            config,
-            workspace_id="default",
+        knowledge_operations=(
+            build_knowledge_operations(config, workspace_id="default")
+            if getattr(config, "knowledge", None) is not None
+            else None
         ),
         team_operations=team_operations,
         team_bindings=team_bindings,
