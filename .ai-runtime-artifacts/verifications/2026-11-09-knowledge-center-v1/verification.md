@@ -148,6 +148,19 @@ WebUI 聊天发送「请再次调用 search_rag 检索：部署失败怎么回�
 说明：mock 是脚本化模型，不是真实 LLM；本项验证的是工具注册、参数 schema、
 工具调用协议与执行回传。真实模型的语义决策能力未在本机验证（无凭据）。
 
+### 4.3 视觉评估与 polish（2026-11-10）
+
+- **没有照抄 WeKnora 的视觉配置**。WeKnora 前端是 Vue 3 + TDesign、绿色卡片式；
+  zhixu WebUI 是 React + Tailwind + 既有 workspace 组件。本页借鉴的是信息架构
+  （知识库清单 / 文档管理 / 检索预览），视觉沿用宿主设计系统，避免出现两套皮肤。
+- 按 `ui-ux-pro-max` 的清单做了一轮低风险 polish：统计卡加图标与渐变层级；知识库
+  列表卡片化（图标、active 左侧强调、hover）；文档表加文件图标与行 hover；检索结果
+  加排名、分数徽标、左侧强调与内容滚动区；补齐 `cursor-pointer` 与
+  `focus-visible` 焦点环。
+- 验证：`knowledge-page.test.tsx` 14 passed；`npm run build` 成功；浏览器刷新后
+  无 console 错误，检索预览仍返回 1 条命中（keyword / vector_unavailable）。
+- 受 in-app Browser 的 surface 限制，未生成像素级截图；DOM 结构与运行时已核对。
+
 ## 5. CLI 端到端
 
 复跑脚本（新增，可重复）：
