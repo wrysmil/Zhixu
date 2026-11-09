@@ -1,0 +1,122 @@
+[
+  {
+    "query": "部署失败怎么回滚",
+    "expect_any": ["回滚", "rollback"],
+    "content": "服务部署失败时，先执行 kubectl rollout undo 回滚到上一个稳定版本，并在变更单记录回滚原因与影响范围。"
+  },
+  {
+    "query": "错误码 E-1024 是什么意思",
+    "expect_any": ["E-1024", "1024"],
+    "content": "错误码 E-1024 表示对象存储写入超时，请检查网络连通性与存储桶配额后重试；连续出现请提交工单。"
+  },
+  {
+    "query": "如何配置远程 embedding",
+    "expect_any": ["embedding", "base_url"],
+    "content": "远程 embedding 需要配置 base_url、api_key 与模型名，例如通过 /v1/embeddings 调用 BAAI/bge-m3 服务。"
+  },
+  {
+    "query": "API key 放在哪里",
+    "expect_any": ["api_key", "密钥"],
+    "content": "API key 建议写入环境变量 ZX_API_KEY，不要提交到仓库；配置项 api_key 只保存在本机配置文件中。"
+  },
+  {
+    "query": "计费是怎么算的",
+    "expect_any": ["计费", "价格"],
+    "content": "计费按实际输入与输出 token 数量结算，不同模型档位价格不同，每月一日生成账单并支持导出明细。"
+  },
+  {
+    "query": "权限不足怎么办",
+    "expect_any": ["权限", "403"],
+    "content": "接口返回 403 表示当前角色缺少权限，请管理员在控制台为账号勾选所需权限后重新登录。"
+  },
+  {
+    "query": "如何备份数据库",
+    "expect_any": ["备份", "backup"],
+    "content": "备份脚本 backup.sh 每日凌晨执行全量备份并保留三十天，恢复前应先在隔离环境演练一次。"
+  },
+  {
+    "query": "监控指标有哪些",
+    "expect_any": ["监控", "metrics"],
+    "content": "监控指标包括请求延迟 P99、错误率、队列积压与 CPU 使用率，全部通过 /metrics 端点暴露。"
+  },
+  {
+    "query": "升级需要注意什么",
+    "expect_any": ["升级", "迁移"],
+    "content": "升级前请先阅读迁移说明并做好数据快照；跨大版本升级需要额外执行一次数据库迁移脚本。"
+  },
+  {
+    "query": "日志在哪里查看",
+    "expect_any": ["日志", "log"],
+    "content": "运行日志默认写入 logs/app.log，按天轮转并保留十四天，可以执行 tail -f 实时查看。"
+  },
+  {
+    "query": "模型下载很慢",
+    "expect_any": ["下载", "镜像"],
+    "content": "模型下载很慢时可以切换镜像源 hf-mirror 或 modelscope，也可以指定本地模型目录直接跳过下载。"
+  },
+  {
+    "query": "向量维度不一致",
+    "expect_any": ["维度", "dimensions"],
+    "content": "向量维度不一致会导致集合无法查询，需要确认 dimensions 配置与模型实际输出一致后重建索引。"
+  },
+  {
+    "query": "分块大小怎么设置",
+    "expect_any": ["chunk_size", "分块"],
+    "content": "分块大小由 chunk_size 控制，默认八百字符，重叠部分由 chunk_overlap 控制，默认一百二十字符。"
+  },
+  {
+    "query": "导入 PDF 失败",
+    "expect_any": ["PDF", "导入"],
+    "content": "导入 PDF 失败的常见原因是文件加密或内容损坏，请先解除密码保护，确认可以正常打开后再重新导入。"
+  },
+  {
+    "query": "导出检索结果",
+    "expect_any": ["导出", "export"],
+    "content": "检索结果支持导出为 JSON 或 CSV，可以使用 export 命令，也可以点击检索页面右上角的导出按钮。"
+  },
+  {
+    "query": "删除知识库会删源文件吗",
+    "expect_any": ["删除", "源文件"],
+    "content": "删除知识库只会移除索引与托管副本，通过命令行导入的源文件永远不会被删除，可以放心重建。"
+  },
+  {
+    "query": "多个进程同时写入",
+    "expect_any": ["并发", "锁"],
+    "content": "多个进程并发写入时依赖 SQLite 写锁与文档租约串行化，冲突请求会自动重试而不是直接丢失数据。"
+  },
+  {
+    "query": "容量估算",
+    "expect_any": ["容量", "存储"],
+    "content": "容量估算：每个块约十八 KB 索引开销，一万个块大约占用一百八十 MB 存储空间，可按文档量线性外推。"
+  },
+  {
+    "query": "路径穿越如何防护",
+    "expect_any": ["路径", "安全"],
+    "content": "路径穿越是重点安全风险，服务端会拒绝包含双点号的文件名，上传只取 basename 并校验真实路径位于知识目录内。"
+  },
+  {
+    "query": "扫描版 PDF 没有文字",
+    "expect_any": ["OCR", "扫描"],
+    "content": "扫描版 PDF 没有文字层，当前版本不支持 OCR，请先用其他工具完成文字识别后再导入知识库。"
+  },
+  {
+    "query": "如何创建全局知识库",
+    "expect_any": ["全局", "global"],
+    "content": "创建全局知识库使用 nanobot knowledge create 产品手册 --global，全局库对所有工作区可见。"
+  },
+  {
+    "query": "检索模式有哪些",
+    "expect_any": ["hybrid", "keyword"],
+    "content": "检索模式分为 hybrid、semantic 与 keyword 三种，hybrid 会同时使用关键词与向量两路召回并融合排序。"
+  },
+  {
+    "query": "文档状态 pending 是什么意思",
+    "expect_any": ["pending", "processing"],
+    "content": "文档状态包括 pending、processing、ready 与 failed，pending 表示已经入队等待 gateway 后台处理。"
+  },
+  {
+    "query": "如何修复 FTS 索引",
+    "expect_any": ["FTS", "repair"],
+    "content": "FTS 索引漂移时执行 nanobot knowledge repair --fts 重建并优化索引，再用 stats 核对块数量是否一致。"
+  }
+]
