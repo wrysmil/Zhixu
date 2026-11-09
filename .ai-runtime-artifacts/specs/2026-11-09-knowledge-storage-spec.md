@@ -95,7 +95,7 @@ parent: 2026-11-09-knowledge-center-spec.md
 | `nanobot/utils/document.py:606-615` | `_extract_text_file()` 的反例：UTF-8 失败回退 latin-1，GBK 必乱码（E17），只可借鉴不可复用 |
 | `nanobot/utils/media_decode.py:61-92` | `save_base64_data_url()` 的 data URL 解码与大小守卫（WebUI 上传解码复用，落盘路径由知识库自己决定） |
 | `nanobot/webui/ingress_policy.py:23-26` | `AttachmentIngressLimits.max_file_bytes = 6 MB`（WebUI 上传上限口径） |
-| `nanobot/evaluation/memory/checkpoints.py:52-58` | `hash_file()`：流式 sha256（1 MiB 分块，不整文件入内存），直接复用 |
+| `nanobot/evaluation/memory/checkpoints.py:52-58` | `hash_file()`：流式 sha256（1 MiB 分块，不整文件入内存）；`files.py` 本地实现等价逻辑（AL-S6） |
 | `nanobot/session/manager.py:732-740` | `_fsync_directory()`：目录 fsync 的标准写法（`EINVAL` 容忍） |
 | `nanobot/config/paths.py:20-28` | `get_runtime_subdir()` 的**反例**：它内部 `ensure_dir`，只读推导会留下空目录；知识库用 `get_knowledge_dir()`（§4） |
 
@@ -278,6 +278,9 @@ def init_schema(self) -> None:
   做一次临时表探测；任一失败抛 `KNOWLEDGE_SQLITE_UNSUPPORTED` 并在错误里带上
   `sqlite3.sqlite_version`。本方案只依赖 FTS5（3.9+）与 `detail=column`，不使用
   `contentless_delete`（3.43+）或 `RETURNING`（3.35+），因此不设版本号闸门。
+  > **实现现状（AL-S1）**：`init_schema()` 未做该探测（`nanobot/knowledge/database.py:193-209`）。
+  > 迁移里的 `RETURNING`（`claim_document`）在 SQLite < 3.35 上会直接报错，
+  > 因此探测应同时覆盖 `RETURNING` 能力，并在错误里指明最低版本 3.35。
 
 ## 6. Schema（v1 完整 DDL）
 
@@ -636,10 +639,15 @@ col.upsert(
 - 清理单文档：`col.delete(where={"doc_id": doc_id})`（实测 E10 可用；不存在时也是 no-op）。
 - 批量删除 KB：按 `kb_id` 过滤删除；Chroma `where` 不支持空条件，因此必须逐 KB 调用。
 - 批大小：每批 64 条；失败重试 3 次（指数退避），仍失败 → `documents.vector_status='failed'`，不阻塞 `ready`。
+  > **实现现状（AL-I2）**：`Ingestor._write_vectors` 单批失败即 `break`，**没有重试**（`nanobot/knowledge/ingestor.py:289-305`）。
+  > 本口径保留（3 次退避），实现补齐；这是「向量是派生层」的最后一层保险。
 - `vector_status` 的写入点：认领时 `pending`；提交时按 ⑥ 的结果置 `pending | failed | skipped`；
   ⑧ 写完全部批次置 `ok`，部分批次失败置 `partial`。`failed` 只表示「有块但向量没写成」，
   修复扫描会重试；**没有块**时必须是 `skipped` 而不是 `pending`，否则修复扫描会对一篇失败文档无限重试。
   `partial` 表示「至少一批成功、至少一批失败」，修复扫描按 doc 全量重写（`delete` + `upsert`），不做增量补丁。
+  > **实现现状（AL-I1）**：`claim_document` 的 `_CLAIM_SQL` 未写 `vector_status='pending'`
+  > （`nanobot/knowledge/repository.py:43-51`），认领后该列仍是上一轮的值。
+  > 后果：`failed`/`partial` 的文档被重试时，认领到写入之间存在窗口，修复扫描可能读到过期状态。补齐后认领即置 `pending`。
 
 ### 8.3 检索侧契约（存储层只保证可查）
 
@@ -712,8 +720,9 @@ def copy_and_hash(src: Path, dest: Path) -> tuple[str, int]:
     return digest.hexdigest(), size
 ```
 
-- `external` 文档只读哈希：直接复用 `evaluation/memory/checkpoints.py::hash_file()`（流式 sha256），不复制。
+- `external` 文档只读哈希：`nanobot/knowledge/files.py` 本地实现流式 sha256（1 MiB 分块，不整文件入内存），不复制。
   不要用 `agent/tools/file_state.py::_hash_file`（`read_bytes()` 整文件入内存，50 MB 文件会翻倍占用）。
+  > **实现现状（AL-S6）**：本地实现与 `evaluation/memory/checkpoints.py::hash_file` 行为等价，故不再点名复用后者。
 - 哈希在**抽取之前**完成：重复入库可在解析前短路。
 - `reindex` 必须重新哈希并更新 `file_hash/source_mtime_ns`（同一个写事务、带 attempt 守卫），
   否则源文件在两次入库之间被替换时，去重与漂移报告都会基于旧指纹。
@@ -815,6 +824,10 @@ WHERE id=? AND attempt=?
 | 周期 | 每 60 s 扫一次过期租约 |
 | 关闭 | 不主动改状态；让租约自然过期，保证崩溃安全 |
 
+> **实现现状（AL-I4）**：只有启动时的一次回收（`nanobot/knowledge/service.py:591`），
+> **没有 60 s 周期任务**。后果：worker 崩溃/被杀后，其租约要等到下一次进程启动才会被回收，
+> 文档在此期间一直停在 `processing`，检索侧看到的是「文档未就绪」。本口径保留，实现补齐周期任务。
+
 ## 11. 写入序列与崩溃窗口
 
 ```
@@ -829,6 +842,21 @@ WHERE id=? AND attempt=?
 ⑨ 失败路径（②–⑤ 任一失败）：⑦ 事务从未开始 → **旧 chunks 原样保留** → failed + error_code；
    全新文档没有块时 vector_status='skipped'，有旧版本时不动旧向量状态
 ```
+
+> **实现现状与口径修订（AL-I5）**：`Ingestor` 在 embedding 失败（⑥ 抛错）且新块已提交时，
+> 会调用 `_discard_vectors(doc_id)` **删除该文档的旧向量**（`nanobot/knowledge/ingestor.py:135-137`），
+> 与上句「有旧版本时不动旧向量状态」冲突。
+> **采纳实现口径、修订方案**：旧块的 chunk id 可能与新块相同（分块确定性 → 同 id），
+> 旧向量却对应旧正文，留在集合里就是**脏召回**——命中后回表拿到的是新正文，语义完全不对。
+> 因此 embedding 失败时必须删除该文档的旧向量，并把 `vector_status` 置 `failed`；
+> 关键词路不受影响。修订后的 ⑨：
+>
+> ```
+> ⑨ 失败路径（②–⑤ 任一失败）：⑦ 事务从未开始 → 旧 chunks 原样保留 → failed + error_code；
+>    全新文档没有块时 vector_status='skipped'
+> ⑩ embedding 失败（⑥ 失败、⑦ 已提交）：新块已替换旧块 → 删除该文档旧向量（防脏召回）
+>    → vector_status='failed'，error_code='KNOWLEDGE_EMBEDDING_FAILED'
+> ```
 
 **为什么是这个顺序**（WeKnora `01 §8` 的同一条因果链）
 
@@ -1150,9 +1178,52 @@ S-01 → S-02/S-03 → S-04 → S-05 串行；S-04 只依赖 S-01 的块模型�
 2. `chunk_size` 默认 800 是否合适（中文语义密度高，600–1000 都合理）。
 3. 是否需要 `nanobot knowledge backup`（用 `sqlite3.Connection.backup` 做一致快照）——当前列为 v2。
 
-## 23. Next
+## 23. 实现对齐修订（2026-11-10）
+
+> 本节登记**代码实现与本方案不一致**的地方，逐条给出「实现现状 → 修订口径 → 处置」。
+> 依据：`nanobot/knowledge/` 全部模块 + `nanobot/cli/knowledge.py` 的实读审计
+> （2026-11-10，代码基线 commit `1532b9b8`）。
+> 编号 `AL-*` 供实施计划引用；处置列 `改代码` / `改方案` / `补测试`。
+
+### 24.1 高优先级（破坏不变量，必须改代码）
+
+| # | 位置 | 实现现状 | 修订口径 | 处置 |
+| --- | --- | --- | --- | --- |
+| AL-S1 | `database.py:193-209` | `init_schema()` 无 SQLite 能力探测 | 启动时探测 `ENABLE_FTS5` + 临时 fts5 表 + `RETURNING` 能力；失败抛 `KNOWLEDGE_SQLITE_UNSUPPORTED`（§5.2） | 改代码 |
+| AL-I1 | `repository.py:43-51` | `_CLAIM_SQL` 不写 `vector_status='pending'` | 认领即置 `pending`（§8.2） | 改代码 |
+| AL-I2 | `ingestor.py:289-305` | 向量批写失败无重试，直接 `break` | 每批 3 次指数退避（1s/2s/4s），仍失败置 `partial`/`failed`（§8.2） | 改代码 |
+| AL-I6 | `ingestor.py:232-236` | embedding 失败只写日志，不落 `documents.error_code` | 置 `error_code='KNOWLEDGE_EMBEDDING_FAILED'`（§18.1 错误码表） | 改代码 |
+| AL-I8 | `ingestor.py:108-110` | KB 缺失时直接 `return`，文档停在 `processing` 直到租约过期 | KB 缺失属于不可恢复错误：立即 `_fail(doc_id, attempt, 'KNOWLEDGE_KB_MISSING')` | 改代码 |
+| AL-R1 | `retriever.py:362-364` | 向量回表只查 `chunk.is_enabled`，未 join `documents.parse_status='ready' AND documents.is_enabled=1` | 两路过滤口径必须一致（§13 第 3 条）；否则失败文档的残留旧块会从向量路漏出 | 改代码（见检索 spec §14） |
+
+### 24.2 中优先级（与方案口径冲突，改代码或改方案二选一）
+
+| # | 位置 | 实现现状 | 修订口径 | 处置 |
+| --- | --- | --- | --- | --- |
+| AL-I4 | `service.py:591` | 只有启动时一次租约回收，无 60 s 周期任务 | 保留周期口径（§10.3），实现补齐 | 改代码 |
+| AL-I7 | `service.py:606-607` | `_queued` 在出队瞬间 discard，处理中可被重复入队 | 出队时移入 `_processing` 集合，处理结束再移除；重复入队直接跳过 | 改代码 |
+| AL-I9 | `service.py:307-308` | 改 KB 的 embedding 配置只更新行，不清旧向量/旧 collection | 「先删旧向量 → 更新 KB 行 → 重新入队」，删失败则不更新（§8.1） | 改代码 |
+| AL-I3 | `service.py:732` | 修复扫描用 id 对账（`vector_expectations` 只列 `ready` 文档），`start()` 不触发向量扫描 | 补：`vector_status IN ('pending','failed','partial')` 的文档按 doc 重投；启动时触发一次扫描（§8.4、§14.1） | 改代码 |
+| AL-S2 | `cli/knowledge.py` | `knowledge add` 无 `max_file_mb` 校验 | 入库前校验 `min(config.max_file_mb, 50MB)`，超限报 `KNOWLEDGE_FILE_TOO_LARGE`（§4、§9.1） | 改代码 |
+| AL-I5 | `ingestor.py:135-137` | embedding 失败时删除旧向量 | **采纳实现**：旧向量与新正文语义不符，删除优于保留（§11 ⑩ 已改写） | 改方案（已改） |
+| AL-S3 | `chunker.py:42-51,119-129` | txt/md 的「空行=段落边界」只作为切点优先；office 未按「每行一段」切 | 方案 §7.1 的「结构单元」改写为「切点优先规则」：txt/md 空行优先、office 标点优先，均非硬边界 | 改方案（父方案 §7.1 已同步） |
+| AL-S5 | `extractor.py:41-42,74-79,116` | BOM 先 `lstrip` 再 NFKC；多出 `gb18030` 兜底；replace 兜底无日志；office 逐行归一化 | 采纳实现并写回方案：归一化顺序 = 去 BOM → NFKC；解码链 utf-8 → gb18030 → chardet(≥0.7) → replace（带 `decoded_with` 日志）；office 逐行归一化，偏移以行内偏移为准 | 改方案（父方案 §7 已同步） |
+
+### 24.3 低优先级（口径澄清，不改行为）
+
+| # | 位置 | 实现现状 | 修订口径 | 处置 |
+| --- | --- | --- | --- | --- |
+| AL-S4 | `chunker.py:231-241` | 缺不变量 `end_i <= end_{i+1}` | 补断言（父方案 §7.1 不变量表） | 改代码 |
+| AL-S6 | `files.py:28-40` | 自带流式 sha256，未复用 `evaluation/memory/checkpoints.py::hash_file` | 方案 §9.2 改为「本地实现流式 sha256」，不再点名复用 | 改方案（已改） |
+| AL-I10 | `embedding.py:269-270` | 远端自适应维度只改自身，未写回 KB 行 | KB 记录 `dimensions=0` 时采用首个响应长度并写回（父方案 §10.1） | 改代码 |
+| AL-I11 | `embedding.py:297-301` | 远端 4xx 归为 `EmbeddingUnavailable`（当作后端不可用） | 4xx 属请求错误，不是后端不可用：应归 `EmbeddingError`，检索侧记 `embedding_error:<Type>` | 改代码 |
+| AL-I13 | `knowledge/__init__.py:3` | `__all__ = []`，未导出单例 | 导出 `get_knowledge_service` / `reset_knowledge_service`（父方案 §11） | 改代码 |
+
+## 24. Next
 
 **（存储方案已写入，须暂停等确认 — 见 `harness-kit/core/routing.md` § 阶段门禁）**
 
 - 认可存储方案 → 回「写计划」，我把父方案 + 本方案合并成实施计划
 - 要调整（例如改块大小 / 改租约时长 / 把 `synchronous` 降为 `NORMAL`）→ 直接给修改意见
+- **本轮（2026-11-10）**：§23 的 `AL-*` 偏差已转成收口实施计划
+  `.ai-runtime-artifacts/plans/2026-11-10-knowledge-center-alignment-plan.md`，等确认后执行。

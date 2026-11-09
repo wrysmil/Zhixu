@@ -198,9 +198,12 @@ worker: process_document(doc_id, attempt)
 
 - pdf/docx/xlsx/pptx：复用 `open_document_line_source()`；`searchable=False` 的合成行（`--- Page N ---` 等）不进正文，但用于更新页码上下文。
 - **PDF 必须循环 `continuation`**：单次调用最多 100 页，`continuation="pages='101-200'"` 需解析后继续调用，否则会静默漏掉第 100 页之后的内容。
-- md/txt：`open_document_line_source()` 不支持这两种格式（返回 `None`），走独立读取路径；编码先 UTF-8，失败用核心依赖 `chardet` 检测（置信度 ≥0.7），再失败 `errors="replace"`。
+- md/txt：`open_document_line_source()` 不支持这两种格式（返回 `None`），走独立读取路径；编码链 **UTF-8 → gb18030 → chardet(置信度 ≥0.7) → `errors="replace"`**，
+  兜底到 replace 时记 `decoded_with=replace` 日志（AL-S5）。
   **不要复用 `_extract_text_file()`**（存储方案 §12.1 / E17）：它对 UTF-8 失败回退 `latin-1`，而 latin-1 对任意字节都不抛错，GBK/GB18030 会被静默解成乱码。
-- 归一化：CRLF→LF、NFKC、去除行尾空白、连续空行压缩为一个空行；**所有偏移基于归一化文本**，版本号写入 `documents.index_version`。
+- 归一化：**去 BOM → CRLF→LF → NFKC → 去除行尾空白 → 连续空行压缩为一个空行**；
+  **所有偏移基于归一化文本**，版本号写入 `documents.index_version`。
+  office 文档按**行**归一化（offset 为行内偏移），md/txt 按整篇归一化（AL-S5）。
 - 大小限制：`min(config.max_file_mb, 50MB)`；不支持的后缀直接拒绝并返回明确原因。
 
 ### 7.1 分块规范（chunker v1）
@@ -211,12 +214,16 @@ worker: process_document(doc_id, attempt)
   且已完成存储方案 §12.1 的归一化（NFKC、CRLF→LF、`rstrip`、空行折叠）。NFKC 不跨换行，按行做与整篇做等价。
 - `normalized_text = "\n".join(line.text for line in lines)`，无尾随换行；所有偏移基于它（与存储方案 §12.1 一致）。
 
-**结构单元**
+**结构单元（切点优先规则，非硬边界 · AL-S3）**
 
-- txt/md：段落 = 连续非空行；空行（折叠后的单个空行）是段落边界。
+> 实现口径（`nanobot/knowledge/chunker.py`）：txt/md 的「空行 = 段落边界」与 office 的「每行即一段」
+> **不是硬结构边界**，只是**切点优先级**——切分时优先在这些位置断开，但块可以跨过它们。
+> 下文按此口径表述（原文写作「结构单元」易被理解为强制边界）。
+
+- txt/md：空行（折叠后的单个空行）是**首选切点**；连续非空行构成一个自然段，但块不强制在段末断开。
 - office（pdf/docx/xlsx/pptx）：抽取器在页/段/表/幻灯片之间输出的空行是 `searchable=False`，v1 一律剔除，
-  因此在分块器看来是连续行流，**每行即一个段落**——chunk 可能落在一个自然段中间（v1 接受的取舍）。
-- Markdown 标题行 `^#{1,6}\s+` 自成段落，并更新 `heading_path` 栈（弹掉层级 ≥ 当前标题的项）；标题行本身仍进正文。
+  因此在分块器看来是连续行流；office 的**首选切点是句末标点** `。！？；.!?;`（标点归前句）。
+- Markdown 标题行 `^#{1,6}\s+` 自成一段，并更新 `heading_path` 栈（弹掉层级 ≥ 当前标题的项）；标题行本身仍进正文。
 - 非 Markdown 不做标题推断。代码块与表格不做结构识别（围栏内的空行照常切段）。
 
 **切分顺序（不可交换）**
@@ -262,6 +269,7 @@ worker: process_document(doc_id, attempt)
 不变量断言（实现里直接 `assert`，失败按 `KNOWLEDGE_CHUNK_INVALID` 处理）：
 `normalized_text[start:end] == content`、`start < end`、`start_i < start_{i+1}`、`end_i <= end_{i+1}`、
 相邻块重叠长度 `<= chunk_overlap`。
+> **实现现状（AL-S4）**：`chunker.py:231-241` 缺 `end_i <= end_{i+1}` 断言，需补齐。
 
 **配置与版本**
 
@@ -416,6 +424,8 @@ limit: int = 8       # 仅 doc 句柄：最多返回块数（1..20）
 - `chunk://`：返回该块 + 同文档前后 `context` 块（保持顺序，标注块序号/页码）。
 - `doc://`：返回文档元数据（标题、路径、状态、块数）+ 指定范围的块正文；总字符上限 8000。
 - 句柄必须做作用域校验；不存在的句柄明确报错（防止模型构造幻觉句柄）。
+- **不向模型暴露绝对路径**：`knowledge_read` 只返回 basename 或 doc id，不给 `source_path`
+  （与 WebUI 口径一致，检索 spec AL-T4）；`doc://` 的「路径」字段改为文件名。
 
 **工具注册与门控**
 
@@ -501,10 +511,15 @@ class Embedder(Protocol):
 - 响应：`data[*].embedding`，按 `index` 排序；校验 `len(data) == len(texts)` 且每条维度一致。
 - 批量：每请求 `batch_size` 条；查询单条。
 - 重试：`429/5xx/超时` 指数退避重试 3 次（1s/2s/4s），其他 4xx 直接失败；总超时 `timeout_seconds`。
+  > **实现现状（AL-I11）**：非 429 的 4xx 被归为 `EmbeddingUnavailable`（等于「后端不可用」），
+  > 语义不对——4xx 是**请求错误**（参数错、鉴权错、模型名错），应归 `EmbeddingError`，
+  > 检索侧记 `embedding_error:<Type>`，入库侧记 `KNOWLEDGE_EMBEDDING_FAILED`。
 - 归一化：客户端对返回向量做 L2 归一化（幂等），保证 `1 - cosine_distance` 的分数口径。
 - key：`api_key_env` 非空先读环境变量，否则用 `api_key`；两者都空 → 后端不可用。key 不进日志、不落库、错误信息 redact（`sk-...`、`Bearer ...`）。
 - 维度：KB 已记录 `dimensions` 时逐条校验，不一致 → 该 KB 跳过向量路（`embedding_mismatch`）；
   KB 未记录（`0`）时采用首个响应长度并写回 KB 行。
+  > **实现现状（AL-I10）**：自适应维度只改了 embedder 自身，**未写回 KB 行**（`embedding.py:269-270`），
+  > 导致该 KB 的 `embedding_dimensions` 永远是 0 → 检索期身份比对必然 mismatch，该库永远退化为关键词路。需补写回。
 - 错误映射：入库路径 → `KNOWLEDGE_EMBEDDING_FAILED`（文档仍 `ready`）；检索路径 → 降级关键词，
   `degraded=["embedding_error:<status>"]`，绝不把失败吞成空结果。
 
@@ -539,9 +554,16 @@ class KnowledgeService:
 ```
 
 - `nanobot/knowledge/__init__.py` 导出 `get_knowledge_service(config)` 单例与 `reset_knowledge_service()`。
+  > **实现现状（AL-I13）**：`__init__.py` 的 `__all__ = []`，两个单例未导出；调用方目前直接
+  > `from nanobot.knowledge.service import get_knowledge_service`（`loop.py:734`）。需按本节导出。
 - `AgentLoop` 增加惰性属性 `_knowledge_service`；只在第一次注册工具时构造，避免未启用时加载 torch/Chroma。
+  > **实现现状**：实现为 `_knowledge_service` / `_knowledge_service_for_tools`（`loop.py:729-744`），
+  > 且工具门控要求**显式传入 `knowledge_config`**（`_knowledge_wired`）——未接线的调用方不注册工具。
+  > gateway / CLI / SDK 三处已按此接线（commit `94e56078`）。
 - 工具执行时 `await asyncio.to_thread(service.search, ...)`，避免阻塞事件循环（Chroma/FTS 都是同步 IO）。
 - WebUI 的 `build_knowledge_operations()` 复用同一个单例（`gateway_services.py` 模式）。
+- **实现补充的方法**（超出上表，保留）：`get_kb()`、`reindex_document()`、`ingest_now()`、`repair()`、`local()`；
+  `add_file()` 返回 `AddOutcome`（含 `duplicate` 标记）而非裸 `Document`。
 
 ## 12. CLI（`nanobot/cli/knowledge.py`）
 
@@ -562,6 +584,8 @@ nanobot knowledge stats
 - `knowledge add` 默认 `--wait`（CLI 进程退出前完成处理），并打印每阶段耗时与结果。
 - `--no-wait` 只落库为 `pending` 并返回：CLI 进程内的内存队列随进程退出丢弃，文档由**常驻 gateway worker**（启动时恢复 `pending`）处理；没有任何 gateway 运行时提示「需保持 gateway 运行」，不假装已完成。
 - 路径必须是单个存在的普通文件：目录、通配符、符号链接指向目录一律拒绝（`KNOWLEDGE_UNSUPPORTED_TYPE`）。
+- **文件大小上限**：入库前校验 `min(config.max_file_mb, 50MB)`，超限报 `KNOWLEDGE_FILE_TOO_LARGE`。
+  > **实现现状（AL-S2）**：`nanobot/cli/knowledge.py` 的 add 路径**没有这个校验**，大文件会一路走到抽取器才失败。需补。
 - `knowledge repair`：`--fts` 执行 `rebuild`+`optimize`；`--vectors` 跑修复扫描；`--purge` 清孤儿向量/文件。均为幂等非破坏操作，不需要 `--yes`。
 - 删除类命令必须显式 `--yes`；不删除用户源文件。
 - 退出码：`0` 成功、`1` 运行期失败（解析/入库/IO）、`2` 用法或参数错误（含 `--yes` 缺失）。
@@ -718,6 +742,24 @@ WU-01～WU-05 是后端核心，可严格串行；WU-07 与 WU-08 在 WU-05 后�
 
 检索侧接入：作为第三路召回路（`route=questions`），与正文向量共用 embedding 身份分组；
 RRF 中单独给权重（初值 0.2，正文向量 0.5、关键词 0.3），命中后仍按 `chunk_id` 去重。
+
+## 19. 实现对齐索引（2026-11-10）
+
+> v1 代码已全部落地（commit 至 `1532b9b8`，468 个 knowledge 相关测试通过）。
+> 本轮做了**代码 ↔ 方案**的全量审计，偏差逐条登记在两份子方案里，本文只做索引与正文口径修订：
+
+| 编号域 | 登记位置 | 覆盖范围 |
+| --- | --- | --- |
+| `AL-S*` / `AL-I*` | [存储方案 §23](2026-11-09-knowledge-storage-spec.md) | SQLite 能力探测、认领状态列、向量批重试、周期租约回收、队列去重、旧向量删除、KB 配置变更、修复扫描、CLI 大小上限、分块不变量、抽取归一化、embedding 错误分类与维度写回、单例导出 |
+| `AL-R*` | [检索方案 §14](2026-11-09-knowledge-retrieval-spec.md) | 向量回表可见性过滤、`mode_used` 语义、相关性带分支尺度、`filtered` 近似口径、异常吞掉、长度比与同分容差基数、`routes` 编码、bm25 原始分、短块补邻、两路执行顺序 |
+| `AL-T*` | [检索方案 §15](2026-11-09-knowledge-retrieval-spec.md) | 工具层与 WeKnora `05` 契约的差距：预算配置失效、预算漏项、转义前截断、路径泄露、句柄未绑轮次、扩读不对称、WebUI 口径分裂、WebUI 丢失失败语义、`mode` 无 enum、N+1 查询、测试口径脱节、降级词表缺口、无库文案缺关键词 |
+
+本文正文已同步的口径修订（其余留在子方案里）：§7 抽取归一化顺序与解码链、§7.1 分块「结构单元 → 切点优先」、
+§8 分数代数与去重三级、§9.1 输出字段、§10 配置字段、§10.1 嵌入错误分类与维度写回、§11 服务导出与实现补充方法、
+§12 CLI 大小上限、§15.1 测试矩阵、§9.1 预算口径与 §9.2 路径暴露。
+
+**收口实施计划**：`.ai-runtime-artifacts/plans/2026-11-10-knowledge-center-alignment-plan.md`
+（把上述 `AL-*` 条目转成可执行任务）。
 
 ## Next
 

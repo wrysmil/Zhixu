@@ -52,7 +52,7 @@ parent: 2026-11-09-knowledge-center-spec.md
 | R6 | **MMR 决定选哪些，展示顺序按融合分降序**（分数单调） | LLM 看到的 score 必须单调可解释；MMR 只解决集合冗余（§5.7） |
 | R7 | 候选池**不对称**：关键词池 `min(max(limit×10, keyword_pool_size),300)`，向量池 `min(max(limit×5, pool_size),200)` | FTS 单次 0.6 ms（存储方案 E15），向量侧含 embedding 计算与 Chroma 查询（§4.3） |
 | R8 | 工具输出的 `score` 明确标注为**当前模式下的相对排序分**，非置信度、未精排 | RRF 分数只反映名次，不反映绝对相关性（§7.3） |
-| R9 | 每次结果标注命中路由 `routes="k,v"`，让模型知道证据来自哪一路 | 失败/空/被过滤三态之外，还需「从哪一路来的」以决定是否改写 query（§7.3） |
+| R9 | 每次结果标注命中路由 `routes="vector,keyword"`，让模型知道证据来自哪一路 | 失败/空/被过滤三态之外，还需「从哪一路来的」以决定是否改写 query（§7.3） |
 | R10 | 排序全部带确定性 tie-break（分数降序 → chunk_id 升序） | 重跑、回归测试、缓存都要可复现（§5.3） |
 | R11 | 关键词路保留 `bm25` 原始分仅用于**展示与诊断**，不进融合 | 融合只用名次是 RRF 的定义，不能混用两种口径（§5.1） |
 | R12 | 质量验收用 **golden queries + Recall@5 / MRR@10 / exact-hit** 三指标 | 融合参数可调，必须有可回归的度量口径（§10） |
@@ -206,6 +206,10 @@ query
  └─ ⑧ 装配：句柄、面包屑、预算截断（仅工具渲染层）
 ```
 
+> **两路执行顺序（AL-R10）**：v1 **顺序**执行，先向量后关键词（`nanobot/knowledge/retriever.py:17-18`）。
+> 理由：向量路失败时语义模式可以直接退回关键词单路，省掉一次注定无用的 FTS 查询；
+> v1 单用户单次检索，FTS 实测 0.6 ms，顺序执行的收益（可早退）大于并发的收益。
+
 **四态语义（不可混淆）**
 
 | 状态 | 判定 | `reason` / 异常 | 模型必须看到 |
@@ -225,12 +229,20 @@ query
 - **绝不发送空 MATCH**：token 为空时跳过本路并记 `empty_query_tokens`。
 - SQL 用 `CROSS JOIN` 强制 FTS 驱动（存储方案 §7.3，实测 0.6 ms vs 1694–1806 ms）。
 - 结果携带 `-bm25()` 原始分（`keyword_score`），**只用于展示与诊断**，不参与融合（R11）。
+  > **实现现状（AL-R7）**：`SearchHit` 没有承载原始分，`_assemble` 直接用融合分覆盖（`retriever.py:396-401`）。
+  > 修订口径：原始分**只在 repository 层可见**（`FtsHit.score`），不进 `SearchResult`、不分发给工具层。
+  > 诊断需求由 `stats` 与 golden queries 报告承担，不在单次检索结果里携带第二个分数。
 - 过滤条件在 FTS 召回之后生效：`c.is_enabled=1 AND d.is_enabled=1 AND d.parse_status='ready' AND kb.is_enabled=1`。
 
 ### 4.2 向量路
 
 - 查询必须带 `where={"kb_id": {"$in": visible_kb_ids}}`（存储方案 §8.3），`kb_ids` 来自同一份 SQL 解析结果。
 - 命中 id 必须回表 `document_chunks`，过滤已停用/已删除的孤儿向量后才进入融合。
+  > **实现现状（AL-R1，高优先级）**：回表只查 `chunk.is_enabled`，**未 join `documents.parse_status='ready' AND documents.is_enabled=1'`**
+  > （`retriever.py:362-364`），而 FTS 路在 SQL 里做了 join（`repository.py:173-181`）。
+  > 后果：失败文档（`parse_status='failed'`）残留的旧块会**只从向量路漏出**——FTS 路查不到、向量路能查到，
+  > 回表拿到的还是旧正文，与文档当前状态不一致。这违反父方案 §3「读路径复核启用状态」不变量与存储 spec §13 第 3 条。
+  > **必须改代码**：向量回表与 FTS 路使用同一套可见性过滤（块启用 + 文档 ready + 文档启用）。
 - 余弦距离 → 分数 `max(0, 1 − distance)`，仅用于展示与诊断。
 - **embedding identity 分组**：按 KB 的 `embedding_backend` 先分流，再比对三元组：
   1. `embedding_backend == 'none'` 的 KB **本来就没有向量**（父方案 §10 的 `none` 后端语义），不参与向量路，
@@ -371,6 +383,14 @@ WeKnora `06 §2.4` 的原话也印证这一点——「第 ③ 级的两个约�
 
 **保留方向**：分数差 > 5% 取高分；否则取更长块（更长块信息更全）。纯分数优先会在「短块分高、长块分低但内容更全」时丢信息。
 
+**口径澄清（实现对齐 AL-R4 / AL-R5）**
+
+- **长度比按 token 集合大小计算**，不是字符数：`|longer| / |shorter|`，`longer`/`shorter` 指 token 集合基数。
+  上限取 **5.0**（不是 WeKnora 的 3）——`unigram+bigram` 使 token 数约为字符数的 2 倍，
+  同样的「长短块比例」在 token 口径下数值更大，放宽到 5.0 才等价于 WeKnora 的 3。
+- **5% 同分容差的基数是「高分者」**：`higher.score − lower.score > 0.05 × higher.score` 时取高分，
+  否则取更长块，再同则取 `chunk_id` 较小者。全 0 分时容差退化为 0，直接走长度与 id 比较（确定性不受影响）。
+
 **位置约束（WeKnora `03 §6` 的硬约束，必须遵守）**
 
 1. **去重必须在归一化之后**：级别 ③ 比的是分数，跨 KB 比较分数要求量纲已统一；
@@ -405,6 +425,10 @@ rel(c) = fused(c)
 - **相关性带（R5）**：进入 MMR 的候选必须满足 `fused(c) ≥ fused_max − relevance_band`，`relevance_band = 0.15`（默认）。
   - 作用：MMR 只能在「相关性相近」的候选之间做多样性取舍，不会为了避开重复而跨档选入明显更不相关的块（E2）。
   - 与 `fused` 的压缩分布相容：top-10 的 `fused` 多落在 0.87–1.00，band 0.15 大致覆盖 top-10~top-30。
+  - **尺度前提（AL-R3）**：0.15 是按**分支 C（RRF 归一化分）**的压缩分布标定的。
+    分支 A（cosine）与分支 B（BM25 相对分）的分数尺度不同，直接套用同一 band 没有标定依据。
+    处置：band **只在分支 C 生效**；分支 A/B 不做相关性带过滤（MMR 的多样性项在单路下本就弱）。
+    若后续要在单路分支加带，需按各分支的分数分布单独标定。
 - **λ 的口径**：0.7 表示「相关性主导、多样性纠偏」。若 golden queries 显示同主题重复块仍挤占结果，λ 降到 0.6；若显示多样性压过相关性，λ 提到 0.8。**v1 先跑 golden queries 再定稿**（R12）。
 - **候选集**：MMR 的候选 = 融合 + 去重后的全部条目（上限 = 关键词池 + 向量池去重后的规模，≤ 500）。MMR 是 O(n²) 词面 Jaccard，500 条 × 20 次选择 ≈ 5000 次比较，每次比较两个 token 集合——v1 用「缓存每个候选的 token 集合」避免重复分词。
 
@@ -454,6 +478,9 @@ rel(c) = fused(c)
 
 规则：
 
+- **`mode_used` = 实际跑通的路，不是「哪路有结果」（AL-R2）**：请求 `hybrid` 且两路都执行成功 → `hybrid`（即使关键词路 0 命中）；
+  只有向量路可执行 → `semantic`；退回关键词 → `keyword`。
+  `routes` 才是「哪路产出了候选」。两者分开，模型才能区分「这条路没命中」与「这条路没跑」。
 - **降级永远伴随可见标注**：`degraded` 非空时，工具文案必须说出「哪一路不可用、降级到了什么」。
 - **失败 ≠ 空结果**：本次**参与的路由全部失败**即抛 `KnowledgeSearchError`——包括 `mode=keyword` 时关键词路抛错
   （此时没有第二条路可退，绝不能返回空结果冒充「没搜到」）。
@@ -468,7 +495,8 @@ rel(c) = fused(c)
 
 - 每条结果携带句柄：`chunk://<chunk_id>`；文档级 `doc://<doc_id>` 由 `knowledge_read` 使用。
 - **正文渲染**：`title` + `heading_path`（面包屑）+ 正文（`content`）。面包屑不写进 `content`（父方案 §7.1 不变量），只在渲染层拼接。
-- **短块补邻**（父方案 §8 ⑦）：仅在渲染工具结果时，`char_count < 200` 的块补同文档相邻块正文作为上下文；补进来的内容标注为「邻接上下文」，不占用 rank、不单独成条、不参与去重/MMR。
+- **短块补邻**（父方案 §8 ⑦）：**v1 不做**（AL-R9）——`knowledge_read` 的扩读已覆盖上下文补齐需求，
+  工具层不做「结果里混入邻块正文」这种会混淆 rank 的渲染。
 
 ### 7.2 `knowledge_search` 参数（沿用父方案 §9.1）
 
@@ -478,7 +506,7 @@ rel(c) = fused(c)
 
 ```xml
 <knowledge_results mode="hybrid" mode_used="hybrid" scope="2 个知识库" rerank="none"
-                  degraded="" routes="k,v" reason="">
+                  degraded="" routes="vector,keyword" reason="">
   <result rank="1" score="0.983" chunk="chunk://chk_ab12cd34ef56" doc="doc://doc_1a2b3c4d5e6f"
           kb="产品手册" title="部署指南" heading="第三章 > 3.2" page="12">
     <content>…</content>
@@ -494,7 +522,7 @@ rel(c) = fused(c)
 | `mode` | 请求的模式 | 原样回显 |
 | `mode_used` | 实际使用的模式 | 与父方案一致：`keyword`/`semantic`/`hybrid` |
 | `score` | 当前模式下的相对排序分（∈[0,1]） | **不是置信度**；R8 要求文案说明「未精排，score 仅表示当前模式下的相对排序」 |
-| `routes` | 命中的路由（`k`=关键词，`v`=向量） | 允许模型判断是否需要换一路 |
+| `routes` | **实际产出候选**的路由（`vector` / `keyword`，逗号分隔，顺序恒为 vector → keyword） | 允许模型判断是否需要换一路；与 `mode_used` 区分（前者是「哪路有结果」，后者是「哪路跑通了」） |
 | `degraded` | 降级原因列表 | 非空时文案必须解释 |
 | `reason` | 空/被过滤/无查询词 | 只在空结果时出现 |
 | `rerank` | 恒为 `none` | v1 无精排 |
@@ -687,6 +715,85 @@ rel(c) = fused(c)
 - v2：`relevance_band` 与 λ 的自动调参。
 - v2：**`bestRanks`**（WeKnora `03 §5.4`）——多 KB / 多引擎分组检索时，一个 chunk 出现在多张列表里，名次取「任意一张列表里的最佳名次」；v1 每路只有一张列表，不需要（§1.1）。
 - v2：**统一分数量纲**——目前三条归一化分支的分数不可跨模式比较；若有产品需求要比较「降级前后分数」，需另设口径（§5.2）。
+
+## 14. 实现对齐修订（2026-11-10）
+
+> 本节登记**代码实现与本方案不一致**的地方。依据：`nanobot/knowledge/{fusion,retriever}.py`
+> 与 `nanobot/agent/tools/knowledge_*.py` 的实读审计（2026-11-10，代码基线 commit `1532b9b8`）。
+> 编号 `AL-R*` 供实施计划引用；处置列 `改代码` / `改方案`。
+
+### 14.1 高优先级
+
+| # | 位置 | 实现现状 | 修订口径 | 处置 |
+| --- | --- | --- | --- | --- |
+| AL-R1 | `retriever.py:362-364` | 向量回表只查 `chunk.is_enabled`，未过滤 `documents.parse_status='ready' / is_enabled=1` | 两路可见性过滤必须一致（§4.2、存储 spec §13 第 3 条）；失败文档的残留旧块不得从向量路漏出 | 改代码 |
+
+### 14.2 中优先级
+
+| # | 位置 | 实现现状 | 修订口径 | 处置 |
+| --- | --- | --- | --- | --- |
+| AL-R2 | `retriever.py:369-387` | `mode_used` 由「哪一路产出候选」决定：hybrid 请求但关键词路 0 命中时报 `semantic`，且**不记任何降级标记** | `mode_used` 反映**实际跑通的路**而非「哪路有候选」：请求 hybrid 且两路都执行成功 → `hybrid`；只有向量路可用 → `semantic`；退回关键词 → `keyword` + `degraded` 标注。`routes` 仍标注「实际产出候选的路」 | 改代码 |
+| AL-R3 | `fusion.py:289-290` | 相关性带 `0.15`（按分支 C 标定）无条件套用到分支 A（cosine）/B（BM25 相对分） | band **只在分支 C 生效**；单路分支不做相关性带过滤（§5.6） | 改代码 |
+| AL-R8 | `retriever.py:404-412` | `filtered` 判据只依赖向量路 `raw_count`；关键词路的「被状态过滤」发生在 SQL 内，外部不可见 | 明确近似口径：**只有向量路能区分 `filtered`**；关键词路的过滤只能表现为 `no_candidates`。若要精确区分，需在 FTS 查询里额外统计「命中但被过滤」的条数（v2） | 改方案（已改） |
+| AL-R11 | `retriever.py:186-189,356` | 向量路用泛 `except Exception` 把编程错误也降级为 `vector_unavailable`；用 `assert` 做类型收窄（`-O` 下失效） | 只捕获 `EmbeddingUnavailable` / `EmbeddingError` / `VectorStoreError`；其余异常向上抛（属代码缺陷，不该伪装成降级）；`assert` 换成显式 `if ... is None: raise` | 改代码 |
+
+### 14.3 低优先级（口径澄清）
+
+| # | 位置 | 实现现状 | 修订口径 | 处置 |
+| --- | --- | --- | --- | --- |
+| AL-R4 | `fusion.py:208-215` | `dedup_length_ratio` 默认 **5.0**，且长度比按 token 集合大小算 | 采纳实现：长度比 = token 集合基数之比，上限 5.0（`unigram+bigram` 使 token 数约为字符数 2 倍，5.0 才等价 WeKnora 的 3） | 改方案（已改，§5.4） |
+| AL-R5 | `fusion.py:162-170` | 5% 同分容差以「高分者」为基数 | 写回方案：容差基数 = 高分者（§5.4） | 改方案（已改） |
+| AL-R6 | `fusion.py:66`、`knowledge_common.py:171` | `routes` 取值 `("vector","keyword")`，输出为 `vector,keyword` | 统一为可读形式 `vector,keyword`（不用 `k,v` 缩写），工具层直接拼接 | 改方案（已改，§7.3） |
+| AL-R7 | `retriever.py:396-401` | `bm25` 原始分不进 `SearchHit` | 原始分只在 repository 层可见，不进 `SearchResult`（§4.1） | 改方案（已改） |
+| AL-R9 | `repository.py:774` / 工具层 | 短块补邻（§7.1）有 `fetch_neighbors` 但工具层未调用 | v1 不做短块补邻；`knowledge_read` 的扩读已覆盖上下文补齐需求 | 改方案（已改，§7.1） |
+| AL-R10 | `retriever.py:17-18` | 两路顺序执行（先向量后关键词） | 采纳实现并写回：顺序执行，理由是向量失败可早退（§3） | 改方案（已改） |
+
+## 15. Agent 工具层对齐修订（2026-11-10）
+
+> 本节登记**工具层实现与 WeKnora `05-Agent检索与上下文装配原理` 的差距**，以及与本方案 §7 的偏差。
+> 依据：`nanobot/agent/tools/knowledge_{common,search,read}.py`、`nanobot/webui/knowledge_api.py`
+> 的实读审计（2026-11-10）。编号 `AL-T*` 供实施计划引用。
+
+### 15.1 与 WeKnora `05` 的逐条对照
+
+| WeKnora `05` 口径 | 本方案/实现 | 状态 |
+| --- | --- | --- |
+| 工具 `query` 必填 + `mode` 三值 + `limit` 默认 10 上限 30 | `query` 必填（1..500 字）、`mode` 三值、**limit 默认 8 上限 20** | 设计差异（父方案 §9.1 已定），量级与 WeKnora 同阶 |
+| `kb_ids` 必须在会话作用域内，校验拒绝幻觉 `kb://N` | `kb` 支持名称/`kb://<id>`，越权与幻觉句柄均报错 | **对齐** |
+| 句柄会话级可校验、不暴露 UUID（`chunk://N`） | `chunk://<chunk_id>` / `doc://<doc_id>`，暴露真实 id | **差异**（见 AL-T5） |
+| 输出预算 `OutputBudget*4/5`（留 1/5 给推理与答案） | 固定 6000 字符 | **差异**（WeKnora 是相对预算，我们是绝对值） |
+| 超预算按比例算 N、保留前 N、至少留 1 条、报 `omitted_for_budget` | 按块累加，放不下就 `<omitted count reason="budget"/>` | 对齐（口径略简） |
+| 失败 ≠ 空结果；必须让模型区分「没有」与「没查到」 | `ToolResult.error` 含「没有执行检索」；空结果按 `reason` 分四态 | **对齐**（见 AL-T13 的用词缺口） |
+| 部分 KB 失败 → 返回其余 + 失败列表 | `degraded` 逐项标注（`embedding_mismatch:<kb>` 等） | **对齐** |
+| 扩读两式：`chunk://N + context=k`（前后各 k）、`doc://N` | `chunk://` 前后各 `context` 块、`doc://` 区间 | **对齐**（见 AL-T6 的对称性缺口） |
+| 结果是不可信数据、不是指令 | 工具描述 + `<notice>` 双重声明，`& < > " '` 全转义 | **对齐** |
+
+### 15.2 工具层偏差清单
+
+| # | 位置 | 实现现状 | 修订口径 | 处置 |
+| --- | --- | --- | --- | --- |
+| AL-T1 | `knowledge_common.py:25`、`service.py:142` | `knowledge.retrieval.tool_output_chars` **从未被读取**，工具层硬编码 6000 | 配置必须真正生效：由工具层从 `KnowledgeRetrievalConfig` 取值（经 `ToolContext` 注入或服务侧读取） | 改代码 |
+| AL-T2 | `knowledge_common.py:222-236` | 预算检查在 `</knowledge_results>` 与 `<omitted/>` **之前**完成，收尾标签未计入 | 收尾标签与 `<omitted/>` 计入预算；保证实际输出 ≤ 预算 | 改代码 |
+| AL-T3 | `knowledge_common.py:200-203` | 单条 1000 字符切在**转义前**，转义后实际长度可超 1000 | 截断在转义**后**判定，或对转义增量预留余量 | 改代码 |
+| AL-T4 | `knowledge_read.py:164` | `knowledge_read` 把绝对 `source_path` 交给模型 | 与 WebUI 口径一致：**不向模型暴露绝对路径**（只给 basename 或 doc id） | 改代码 |
+| AL-T5 | `knowledge_read.py:131-153` | 句柄只要 id 存在且库可见即可读，不绑定会话/轮次 | v1 不做会话级句柄映射（成本高）；但需在工具描述中明确「句柄来自上一轮检索结果」，并对**非本次检索来源**的句柄保持可读（WeKnora 也允许历史句柄）。登记为已知差异 | 改方案（已改） |
+| AL-T6 | `knowledge_read.py:136-137` | 扩读起点 `max(0, idx-context)`：焦点在文首时返回「焦点 + 2 个后继」，前后不对称 | 与 WeKnora「前后各 k」对齐：后继数补足到 `context` 个 | 改代码 |
+| AL-T7 | `knowledge_api.py:580-622` | WebUI 检索预览未复用工具层口径：无单条/总预算截断、无 `truncated` 标记、`degraded` 给原始码、句柄无 `chunk://` 前缀、`limit` 上限 50（工具 20） | WebUI 复用工具层同一渲染函数；`limit` 上限与 retriever 一致（20） | 改代码 |
+| AL-T8 | `knowledge_api.py:390-447` | `KnowledgeSearchError` 继承 `RuntimeError`，无翻译分支 → 落到 500「知识服务暂不可用」 | 补分支：检索失败返回明确错误（区别于空结果），文案含「没有执行检索」 | 改代码 |
+| AL-T9 | `knowledge_search.py:58` | `mode` 无 enum：schema 允许任意字符串、运行期才报错；WebUI 则直接 400 | schema 用 enum 收敛（`hybrid`/`semantic`/`keyword`），两端一致 | 改代码 |
+| AL-T10 | `knowledge_search.py:163-174` | 每条 hit 单独 `get_document` 取标题（N+1，limit=20 时 20 次查询） | 一次批量取标题（`get_documents(ids)` 或复用已有列表） | 改代码 |
+| AL-T11 | `tests/tools/test_knowledge_tools.py:163` | 测试仍构造 `routes=("k","v")`，实现输出 `vector,keyword` | 测试改为 `("vector","keyword")`，与 §7.3 一致 | 改测试 |
+| AL-T12 | `knowledge_api.py:768-776` | WebUI 禁用态用 `degraded=["disabled"]` / `reason="knowledge_disabled"`，不在降级词表 | 补进 `_DEGRADED_NOTES` 词表 | 改代码 |
+| AL-T13 | `knowledge_common.py:67-72` | `no_kb_message()` 不含「没有执行检索」字样 | 与 §7.3 的字面校验口径统一 | 改代码 |
+
+### 15.3 与 WeKnora 检索链路的结构性差异（登记，非缺陷）
+
+| 差异 | WeKnora | 本方案 | 判断 |
+| --- | --- | --- | --- |
+| 候选池闸门 | 三路各 50 → 归并 ~500 → 去重 ~380 → **截断 200** → 精排 → 阈值 12 → MMR ~6 | 召回池（关键词 100 / 向量 50）→ 融合 → 去重 → MMR | 我们没有「融合后截断 200」这道闸：v1 无精排，池即 RRF 的输入边界；WeKnora 的 200 是为精排留余量，无精排时无意义 |
+| 池的 KB 数因子 | `pool = max(topK*5, 50) * len(KBs)` ≤ 500 | `min(max(limit*10, keyword_pool_size), 300)` / `min(max(limit*5, pool_size), 200)` | v1 一次检索面向可见库集合、不按 KB 扇出（WeKnora 按模型分组扇出到多个 target）。多 KB 扇出与 `bestRanks` 一并进 v2 |
+| `bestRanks` | 跨多张列表取最佳名次 | 无 | v1 每路一张列表，不需要（§13 已登记） |
+| 查询改写 / 精排 / 图谱路 | 有 | 无 | 有意裁剪（父方案 §1、§18） |
 
 ## Next
 
