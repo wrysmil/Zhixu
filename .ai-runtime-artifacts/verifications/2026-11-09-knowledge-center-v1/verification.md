@@ -128,6 +128,26 @@ cd webui && npx vitest run knowledge-page && npm run build
 `evaluate_script` 触发 DOM 事件完成（本机 in-app Browser 的指针 surface 不可用，
 未做像素级截图；功能路径与用户点击等价）。
 
+### 4.2 会话级工具调用（`search_rag`，2026-11-10）
+
+启动临时 gateway + 本地 OpenAI 兼容 mock（SSE 流式；首轮固定返回 `search_rag`
+tool_call，次轮把 tool 结果回显），知识库 `产品手册` 中只有 `rollback.md`。
+WebUI 聊天发送「请再次调用 search_rag 检索：部署失败怎么回滚」。
+
+证据：
+
+- gateway 启动日志的 28 个工具含 `search_rag`（`knowledge_read` 同时保留）。
+- mock 收到的请求 `tools` 列表含 `search_rag`；assistant tool_call 为
+  `search_rag({"query": "部署失败怎么回滚", "mode": "keyword", "limit": 5})`。
+- tool 消息返回
+  `<knowledge_results mode="keyword" mode_used="keyword" routes="keyword" ...>`，
+  命中标题「部署与回滚」、正文 `kubectl rollout undo`。
+- gateway 日志打印 `Tool call: search_rag({...})`；WebUI 最终助手消息展示
+  工具返回片段，说明「模型调用 → 工具执行 → 结果回传」全链路成立。
+
+说明：mock 是脚本化模型，不是真实 LLM；本项验证的是工具注册、参数 schema、
+工具调用协议与执行回传。真实模型的语义决策能力未在本机验证（无凭据）。
+
 ## 5. CLI 端到端
 
 复跑脚本（新增，可重复）：
@@ -273,6 +293,7 @@ reason=no_candidates
 | 远程 embedding `/v1/embeddings`（含 key/超时/重试） | 无 API key 与外部服务 | `embedding_error:*` 降级仅由单测覆盖 |
 | Chroma 持久化与 `repair --vectors` 实际 rewrite/purge | 未安装/未启用 vector extra | 由 `tests/knowledge/test_vector_store.py` 等单测覆盖，非端到端 |
 | 浏览器像素级截图 / 多语言切换 | 仅做了 DOM 级功能交互 | 不构成功能缺口 |
+| 真实 LLM 供应商（模型自行决定调用工具） | 无 API 凭据，使用 scripted mock | 工具注册/schema/调用协议已验；模型语义决策未验证 |
 | 真实 PDF/DOCX/XLSX/PPTX 入库 | 离线未准备样本 | 抽取层由 `test_extract_lines.py` 覆盖，CLI 只验了 md |
 | 扫描版 PDF / OCR | v1 非目标 | 文档已写明不支持 |
 | 多进程并发写、崩溃恢复、租约过期回收 | 需多进程/杀进程场景 | 由 repository/ingestor 单测覆盖，未做系统级演练 |
@@ -280,8 +301,8 @@ reason=no_candidates
 ## 8. 结论
 
 后端 468 项测试、ruff、basedpyright、前端 14 项组件测试与构建、CLI 端到端脚本、
-浏览器端建库/上传/检索/删除全部通过；golden queries 24/24 命中。文档
-`docs/knowledge.md` 已按已实现 CLI/配置口径编写，并标注 v1 非目标。
+浏览器端建库/上传/检索/删除、会话级 `search_rag` 工具调用全部通过；golden queries
+24/24 命中。文档 `docs/knowledge.md` 已按已实现 CLI/配置口径编写，并标注 v1 非目标。
 
 整仓 `pytest -q` 为 11 320 passed / 8 failed；8 个失败均与本域无关（CLI serve 4、
 session preview 2、agent profile prompt 1、MCP shutdown timing 1），知识域 scoped
