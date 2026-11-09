@@ -76,6 +76,17 @@ def get_teams_dir(workspace: str | Path | None = None) -> Path:
     return base.resolve(strict=False) / "teams"
 
 
+def get_knowledge_dir() -> Path:
+    """知识中心域的数据目录（``<instance data dir>/knowledge``）。
+
+    与 ``get_teams_dir`` 同口径：**不在此处建目录**——``state.db``、``chromadb/``、
+    ``uploads/`` 由知识存储层在真正写入时创建，因此只读路径推导（列表、校验、
+    状态查询）不会留下空的 ``knowledge/``。也**不能**写成
+    ``get_runtime_subdir("knowledge")``，后者内部调用 ``ensure_dir``。
+    """
+    return get_data_dir() / "knowledge"
+
+
 def is_default_workspace(workspace: str | Path | None) -> bool:
     """Return whether a workspace resolves to Zhixu's default workspace path."""
     current = Path(workspace).expanduser() if workspace is not None else Path.home() / ".nanobot" / "workspace"

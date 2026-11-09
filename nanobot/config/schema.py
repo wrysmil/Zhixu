@@ -602,6 +602,77 @@ class ToolsConfig(Base):
     ssrf_whitelist: list[str] = Field(default_factory=list)  # CIDR ranges to exempt from SSRF blocking (e.g. ["100.64.0.0/10"] for Tailscale)
 
 
+class KnowledgeChunkingConfig(Base):
+    """知识文档分块参数（知识中心方案 §10、分块器 spec v1）。
+
+    ``tokenizer_mode`` / ``paragraph_mode`` 为分块器行为开关，取值受
+    ``Literal`` 约束，避免把拼写错误悄悄降级成默认行为。
+    """
+
+    chunk_size: int = 800
+    chunk_overlap: int = 120
+    max_file_mb: int = 50
+    tokenizer_mode: Literal["unigram_bigram", "bigram"] = "unigram_bigram"
+    paragraph_mode: Literal["blank_line", "line"] = "blank_line"
+
+
+class KnowledgeEmbeddingConfig(Base):
+    """知识库嵌入后端参数（知识中心方案 §10 / §10.1）。
+
+    ``backend="auto"`` 只存在于配置层：写 KB 行前必须先解析成
+    ``local | remote | none``。``dimensions=0`` 表示按首个实际返回长度自适应，
+    解析结果与 model 一起作为 collection 的重建指纹。
+    """
+
+    backend: Literal["auto", "local", "remote", "none"] = "auto"
+    model: str = "BAAI/bge-small-zh-v1.5"  # local 模型名 / remote 模型 ID
+    dimensions: int = 512  # 0 = 按实际返回自适应并写回 KB
+    device: Literal["cpu", "cuda"] = "cpu"
+    batch_size: int = 16
+    base_url: str = ""  # 含 /v1，例如 https://ark.cn-beijing.volces.com/api/v3
+    api_key: str = Field(default="", repr=False)  # 不进日志、不落库
+    api_key_env: str = ""  # 非空时优先读环境变量
+    local_model_dir: str = ""  # 空 = 走 model_hub 下载 / HF 缓存
+    download_source: Literal["auto", "huggingface", "hf-mirror", "modelscope"] = "auto"
+    timeout_seconds: float = 30.0
+
+
+class KnowledgeRetrievalConfig(Base):
+    """知识检索融合/去重/MMR 参数（检索 spec §5.8；权重不必和为 1）。"""
+
+    vector_weight: float = 0.7
+    keyword_weight: float = 0.3
+    rrf_k: int = 60
+    pool_size: int = 50  # 向量路召回下限；实际池有硬上限 200
+    keyword_pool_size: int = 100  # 关键词路召回下限；实际池有硬上限 300
+    default_limit: int = 8
+    max_limit: int = 20
+    mmr_lambda: float = 0.7
+    relevance_band: float = 0.15  # MMR 相关性带（检索 spec §5.6）
+    adjacent_similarity_floor: float = 0.25  # 同 doc 邻块相似度下限（§5.5）
+    dedup_containment: float = 0.98  # 短文本包含率下限（§5.4）
+    dedup_unique_ratio: float = 0.02  # 短文本独有 token 占比上限
+    dedup_jaccard: float = 0.6  # 高重合分支的 Jaccard 下限
+    dedup_length_ratio: float = 5.0
+    tool_output_chars: int = 6000
+
+
+class KnowledgeConfig(Base):
+    """知识中心域配置。
+
+    ``database_path`` / ``vector_path`` 为空时分别回退到
+    ``get_knowledge_dir() / "state.db"`` 与 ``<db 目录>/chromadb``；
+    解析逻辑在 service 层，配置层只保留原始字符串。
+    """
+
+    enabled: bool = True
+    database_path: str = ""
+    vector_path: str = ""
+    chunking: KnowledgeChunkingConfig = Field(default_factory=KnowledgeChunkingConfig)
+    embedding: KnowledgeEmbeddingConfig = Field(default_factory=KnowledgeEmbeddingConfig)
+    retrieval: KnowledgeRetrievalConfig = Field(default_factory=KnowledgeRetrievalConfig)
+
+
 class Config(BaseSettings):
     """Root configuration for nanobot."""
 
@@ -614,6 +685,7 @@ class Config(BaseSettings):
     api: ApiConfig = Field(default_factory=ApiConfig)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
+    knowledge: KnowledgeConfig = Field(default_factory=KnowledgeConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     model_presets: dict[str, ModelPresetConfig] = Field(
         default_factory=dict,
