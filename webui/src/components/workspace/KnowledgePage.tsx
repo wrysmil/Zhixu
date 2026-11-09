@@ -229,6 +229,11 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     [],
   );
 
+  const clearSearch = useCallback(() => {
+    setSearchResult(null);
+    setSearchError(null);
+  }, []);
+
   const onCreateKb = useCallback(async () => {
     const name = newName.trim();
     if (!name) return;
@@ -264,6 +269,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         async () => {
           await loadKbs();
           await loadStats();
+          clearSearch();
         },
       );
       return;
@@ -272,10 +278,12 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       () => deleteKnowledgeDoc(client, target.id),
       async () => {
         await loadDocs();
+        await loadKbs();
         await loadStats();
+        clearSearch();
       },
     );
-  }, [client, confirm, loadDocs, loadKbs, loadStats, runAction]);
+  }, [clearSearch, client, confirm, loadDocs, loadKbs, loadStats, runAction]);
 
   const onUpload = useCallback(
     async (file: File) => {
@@ -300,10 +308,12 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         });
       }, async () => {
         await loadDocs();
+        await loadKbs();
         await loadStats();
+        clearSearch();
       });
     },
-    [activeKbId, client, defaultWorkspaceId, loadDocs, loadStats, runAction, t],
+    [activeKbId, clearSearch, client, defaultWorkspaceId, loadDocs, loadKbs, loadStats, runAction, t],
   );
 
   const onAddServerPath = useCallback(async () => {
@@ -318,9 +328,21 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       setServerPath("");
     }, async () => {
       await loadDocs();
+      await loadKbs();
       await loadStats();
+      clearSearch();
     });
-  }, [activeKbId, client, defaultWorkspaceId, loadDocs, loadStats, runAction, serverPath]);
+  }, [
+    activeKbId,
+    clearSearch,
+    client,
+    defaultWorkspaceId,
+    loadDocs,
+    loadKbs,
+    loadStats,
+    runAction,
+    serverPath,
+  ]);
 
   const onSearch = useCallback(async () => {
     const text = query.trim();
@@ -359,12 +381,15 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       setRepairDone(true);
       await loadStats();
       await loadDocs();
+      await loadKbs();
+      clearSearch();
     } catch (reason: unknown) {
       setActionError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setRepairing(false);
     }
   }, [
+    clearSearch,
     client,
     defaultWorkspaceId,
     loadDocs,
@@ -628,7 +653,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                     () => reindexKnowledgeKb(client, activeKbId),
                     async () => {
                       await loadDocs();
+                      await loadKbs();
                       await loadStats();
+                      clearSearch();
                     },
                   );
                 }}
@@ -756,7 +783,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                                       () => reindexKnowledgeDoc(client, doc.id),
                                       async () => {
                                         await loadDocs();
+                                        await loadKbs();
                                         await loadStats();
+                                        clearSearch();
                                       },
                                     );
                                   }}

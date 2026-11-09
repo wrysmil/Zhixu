@@ -281,6 +281,24 @@ describe("knowledge page", () => {
     await waitFor(() => expect(deleteKnowledgeDoc).toHaveBeenCalledWith(transport, "doc_1"));
   });
 
+  it("clears stale search results and refreshes kb counts after doc mutations", async () => {
+    vi.mocked(searchKnowledge).mockResolvedValue(HIT_RESULT);
+    renderPage();
+    await screen.findByText("Deploy guide");
+
+    await userEvent.type(screen.getByLabelText("Query"), "rollback");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(await screen.findByText("Rollback checklist")).toBeInTheDocument();
+
+    const row = screen.getByText("Deploy guide").closest("tr")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Delete document" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => expect(deleteKnowledgeDoc).toHaveBeenCalledWith(transport, "doc_1"));
+    await waitFor(() => expect(fetchKnowledgeKbs).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Rollback checklist")).not.toBeInTheDocument();
+  });
+
   it("searches with mode and limit and shows mode, routes, degraded and handles", async () => {
     vi.mocked(searchKnowledge).mockResolvedValue(HIT_RESULT);
     renderPage();
