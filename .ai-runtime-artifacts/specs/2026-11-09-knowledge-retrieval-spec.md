@@ -455,8 +455,18 @@ rel(c) = fused(c)
 | `dedup_unique_ratio` | 0.02 | 同上 | 短文本独有 token 占比上限 |
 | `dedup_jaccard` | 0.6 | 同上 | 高重合分支的 Jaccard 下限（仅在 `unique_ratio` 同时满足时生效） |
 | `dedup_length_ratio` | 5.0 | 同上 | ↑ 更激进去重；5.0 覆盖 E1 真包含样例（长度比≈4） |
+| `vector_threshold` | 0.15 | 同上 | 向量余弦下限，融合前裁掉弱候选；0 = 不过滤（对齐 WeKnora `retrieval_config`） |
+| `keyword_threshold` | 0.3 | 同上 | 相对**组内最高分**的比例下限（SQLite `-bm25()` 量纲不可比，绝对阈值等于不过滤）；0 = 不过滤 |
+| `expand_on_low_recall` | true | 同上 | 候选数少于 `pool_size` 时做本地查询扩展（只走关键词路） |
+| `expansion_limit` | 5 | 同上 | 查询变体上限 |
 
 配置节沿用父方案 §10 的 `KnowledgeRetrievalConfig`，本节字段为新增；池的硬上限 300 / 200 为常量，不进配置。
+
+### 5.9 召回阈值与查询扩展（WeKnora 对齐）
+
+- **阈值**：向量按 cosine 原值过滤；关键词按「该组最高分 × `keyword_threshold`」过滤。全部候选被裁掉时沿用 `reason="filtered"`，不伪装成 `no_candidates`。
+- **扩展**：`候选数 < pool_size` 且阈值扩展开启时，用本地规则（去停用词、引号短语、分隔片段、去疑问词）生成 ≤`expansion_limit` 个变体；变体**只查关键词路**（不重算 embedding），阈值按 0.8 放宽，结果作为额外关键词列表并入融合。
+- 依据：WeKnora `internal/types/retrieval_config.go`（0.15 / 0.3）、`chat_pipeline/query_expansion.go`（本地变体、`DisableVectorMatch=true`）。
 
 ## 6. 降级与失败语义
 
