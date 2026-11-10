@@ -36,6 +36,18 @@ from nanobot.knowledge.fusion import (
 )
 from nanobot.knowledge.models import KnowledgeBase
 from nanobot.knowledge.repository import FtsHit, KnowledgeRepository, StoredChunk
+from nanobot.knowledge.rerank import (
+    OUTCOME_ALL_BELOW_THRESHOLD,
+    OUTCOME_FALLBACK_TOP1,
+    OUTCOME_MODEL_ERROR,
+    OUTCOME_NO_CANDIDATES,
+    OUTCOME_NO_MODEL,
+    OUTCOME_THRESHOLD_DEGRADED,
+    Reranker,
+    RerankSettings,
+    apply_threshold,
+    composite_score,
+)
 from nanobot.knowledge.tokenizer import tokenize_query
 from nanobot.knowledge.vector import VectorStore
 
@@ -66,10 +78,11 @@ class RetrieverSettings:
     mmr_lambda: float = 0.7
     relevance_band: float = 0.15
     adjacent_similarity_floor: float = 0.25
-    dedup_containment: float = 0.98
+    dedup_containment: float = 0.85
     dedup_unique_ratio: float = 0.02
+    # 兼容旧配置：WeKnora 去重不使用 Jaccard，字段保留但不再参与判定。
     dedup_jaccard: float = 0.6
-    dedup_length_ratio: float = 5.0
+    dedup_length_ratio: float = 3.0
 
 
 def _from_fts(hit: FtsHit) -> SearchHit:
@@ -120,11 +133,15 @@ class Retriever:
         embedder: Embedder,
         vector_store: VectorStore | None,
         settings: RetrieverSettings | None = None,
+        reranker: Reranker | None = None,
+        rerank_settings: RerankSettings | None = None,
     ) -> None:
         self._repo = repository
         self._embedder = embedder
         self._vector = vector_store
         self._settings = settings or RetrieverSettings()
+        self._reranker = reranker
+        self._rerank_settings = rerank_settings or RerankSettings()
 
     # ---------- 入口 ----------
     def search(
@@ -239,12 +256,15 @@ class Retriever:
         deduped = dedup_partial(
             candidates,
             length_ratio=settings.dedup_length_ratio,
-            jaccard=settings.dedup_jaccard,
             containment=settings.dedup_containment,
             unique_ratio=settings.dedup_unique_ratio,
         )
+        reranked, rerank_labels, rerank_outcome = self._apply_rerank(
+            query, deduped, explicit_scope=kb_ids is not None
+        )
+        degraded.extend(rerank_labels)
         ranked = mmr_rerank(
-            deduped,
+            reranked,
             limit=effective_limit,
             lambda_=settings.mmr_lambda,
             relevance_band=settings.relevance_band,
@@ -256,7 +276,81 @@ class Retriever:
             degraded=_dedup_labels(degraded),
             reason=None,
             routes=routes,
+            rerank=rerank_outcome,
         )
+
+    # ---------- 精排（WeKnora §7） ----------
+    def _apply_rerank(
+        self,
+        query: str,
+        candidates: list[SearchHit],
+        *,
+        explicit_scope: bool,
+    ) -> tuple[list[SearchHit], list[str], str]:
+        """精排是增强项：任何失败都退回召回顺序，不抛错、不改变可用性。"""
+        if self._reranker is None:
+            return candidates, [], OUTCOME_NO_MODEL
+        if not candidates:
+            return candidates, [], OUTCOME_NO_CANDIDATES
+        settings = self._rerank_settings
+        pool = candidates[: max(1, settings.max_candidates)]
+        titles = self._repo.list_document_titles({hit.doc_id for hit in pool})
+        passages: list[str] = []
+        indexed: list[tuple[int, SearchHit]] = []
+        for hit in pool:
+            passage = self._passage(hit, titles.get(hit.doc_id, ""))
+            if not passage.strip():
+                continue  # §7.3 空 passage 跳过，不参与打分
+            indexed.append((len(passages), hit))
+            passages.append(passage)
+        if not passages:
+            return candidates, [], OUTCOME_NO_CANDIDATES
+        try:
+            results = self._reranker.rerank(query, passages)
+        except Exception as exc:  # noqa: BLE001 - 精排失败只降级
+            logger.warning("knowledge rerank failed: {!r}", exc)
+            return candidates, ["rerank_model_error"], OUTCOME_MODEL_ERROR
+        scores = {
+            result.index: result.relevance_score
+            for result in results
+            if 0 <= result.index < len(passages)
+        }
+        if not scores:
+            return candidates, ["rerank_model_error"], OUTCOME_MODEL_ERROR
+        kept, outcome = apply_threshold(
+            scores,
+            threshold=settings.threshold,
+            fallback_min_score=settings.fallback_min_score,
+            explicit_scope=explicit_scope,
+        )
+        if not kept:
+            return [], ["rerank_all_below_threshold"], OUTCOME_ALL_BELOW_THRESHOLD
+        labels: list[str] = []
+        if outcome == OUTCOME_THRESHOLD_DEGRADED:
+            labels.append("rerank_threshold_degraded")
+        elif outcome == OUTCOME_FALLBACK_TOP1:
+            labels.append("rerank_fallback_top1")
+        scored: list[SearchHit] = []
+        for passage_index in kept:
+            _position, hit = indexed[passage_index]
+            composite = composite_score(
+                scores[passage_index],
+                hit.score,
+                source_weight_value=1.0,
+                model_weight=settings.model_weight,
+                base_weight=settings.base_weight,
+                source_weight=settings.source_weight,
+            )
+            scored.append(replace(hit, score=composite))
+        scored.sort(key=lambda hit: (-hit.score, hit.chunk_id))
+        return scored, labels, outcome
+
+    def _passage(self, hit: SearchHit, title: str) -> str:
+        """passage = 标题 + 面包屑 + 正文；超长从尾部截断（§7.3）。"""
+        parts = [title, hit.heading_path, hit.content]
+        text = "\n".join(part for part in parts if part)
+        limit = max(1, self._rerank_settings.max_passage_chars)
+        return text[:limit]
 
     # ---------- 作用域 ----------
     def _visible_kbs(

@@ -58,6 +58,26 @@ CAMEL_PAYLOAD: dict[str, object] = {
         "dedupLengthRatio": 3.0,
         "toolOutputChars": 6000,
     },
+    "rerank": {
+        "enabled": False,
+        "backend": "remote",
+        "baseUrl": "",
+        "apiKey": "",
+        "apiKeyEnv": "",
+        "model": "",
+        "device": "cpu",
+        "timeoutSeconds": 30.0,
+        "batchSize": 32,
+        "maxConcurrency": 4,
+        "maxCandidates": 200,
+        "maxPassageChars": 1200,
+        "threshold": 0.3,
+        "fallbackMinScore": 0.15,
+        "modelWeight": 0.6,
+        "baseWeight": 0.3,
+        "sourceWeight": 0.1,
+        "scoreTransform": "probability",
+    },
 }
 
 
@@ -97,10 +117,10 @@ def test_retrieval_defaults() -> None:
     assert config.mmr_lambda == 0.7
     assert config.relevance_band == 0.15
     assert config.adjacent_similarity_floor == 0.25
-    assert config.dedup_containment == 0.98
+    assert config.dedup_containment == 0.85
     assert config.dedup_unique_ratio == 0.02
     assert config.dedup_jaccard == 0.6
-    assert config.dedup_length_ratio == 5.0
+    assert config.dedup_length_ratio == 3.0
     assert config.tool_output_chars == 6000
 
 
@@ -114,7 +134,7 @@ def test_knowledge_defaults_nest_subconfigs() -> None:
     assert isinstance(config.retrieval, KnowledgeRetrievalConfig)
     assert config.chunking.chunk_size == 800
     assert config.embedding.backend == "auto"
-    assert config.retrieval.dedup_length_ratio == 5.0
+    assert config.retrieval.dedup_length_ratio == 3.0
 
 
 def test_camel_case_dict_round_trips() -> None:
@@ -145,12 +165,12 @@ def test_config_includes_knowledge_with_nested_defaults() -> None:
     assert config.knowledge.chunking.chunk_size == 800
     assert config.knowledge.embedding.batch_size == 16
     assert config.knowledge.retrieval.default_limit == 8
-    assert config.knowledge.retrieval.dedup_length_ratio == 5.0
+    assert config.knowledge.retrieval.dedup_length_ratio == 3.0
 
     encoded = config.model_dump(mode="json", by_alias=True)["knowledge"]
     assert encoded["chunking"]["chunkSize"] == 800
     assert encoded["retrieval"]["keywordPoolSize"] == 100
-    assert encoded["retrieval"]["dedupLengthRatio"] == 5.0
+    assert encoded["retrieval"]["dedupLengthRatio"] == 3.0
 
 
 def test_config_accepts_camel_case_knowledge_override() -> None:

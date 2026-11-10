@@ -311,23 +311,23 @@ def test_dedup_true_containment_subset_is_duplicate():
     assert [hit.chunk_id for hit in dedup_partial([wide, narrow])] == ["chk_narrow"]
 
 
-def test_dedup_true_containment_with_jaccard_025_is_duplicate_by_default():
-    # 集合包含时 J = 1/长度比；J≈0.25 ⟺ 长度比≈4。默认长度比必须是 5，
-    # 否则「真包含」这一核心场景会被长度比永久挡住（spec §5.4 的 E1 样例）。
+def test_dedup_true_containment_beyond_length_ratio_is_retained():
+    # WeKnora §6：长度比 > 3 时不判重，即使短文本是长文本子串。
     narrow = _hit("chk_narrow", _words(0, 10), 0.9)
     wide = _hit("chk_wide", _words(0, 40), 0.8)
-    assert jaccard(narrow.content, wide.content) == pytest.approx(0.25)
     assert _containment(narrow.content, wide.content) == 1.0
     assert _length_ratio(narrow.content, wide.content) == 4.0
-    assert [hit.chunk_id for hit in dedup_partial([wide, narrow])] == ["chk_narrow"]
-
-
-def test_dedup_true_containment_respects_tighter_length_ratio():
-    narrow = _hit("chk_narrow", _words(0, 10), 0.9)
-    wide = _hit("chk_wide", _words(0, 40), 0.8)
-    assert [hit.chunk_id for hit in dedup_partial([wide, narrow], length_ratio=3.5)] == [
+    assert [hit.chunk_id for hit in dedup_partial([wide, narrow])] == [
         "chk_narrow",
         "chk_wide",
+    ]
+
+
+def test_dedup_true_containment_respects_length_ratio():
+    narrow = _hit("chk_narrow", _words(0, 10), 0.9)
+    wide = _hit("chk_wide", _words(0, 40), 0.8)
+    assert [hit.chunk_id for hit in dedup_partial([wide, narrow], length_ratio=5.0)] == [
+        "chk_narrow"
     ]
 
 
@@ -401,14 +401,15 @@ def test_dedup_thresholds_are_configurable():
     wide = _hit("chk_wide", _words(0, 20), 0.8)
     assert len(dedup_partial([narrow, wide])) == 1
     assert len(dedup_partial([narrow, wide], length_ratio=1.5)) == 2
-    assert len(dedup_partial([narrow, wide], containment=1.01)) == 2
-    # 包含率 0.97、独有 3%：默认两条子句都不满足；放宽 unique_ratio 后才判重，收紧 J 又不判重。
+    # 短文本是长文本子串：即使 containment 阈值放到 >1 也判重（WeKnora §6）。
+    assert len(dedup_partial([narrow, wide], containment=1.01)) == 1
+    # 覆盖 0.97、独有 3%：默认阈值不判重；放宽 unique_ratio 或收紧覆盖率才改变结果。
     near = _hit("chk_near", _words(0, 100), 0.9)
     near2 = _hit("chk_near2", _words(0, 97) + " " + _words(200, 3), 0.8)
     assert _containment(near.content, near2.content) == pytest.approx(0.97)
     assert len(dedup_partial([near, near2])) == 2
     assert len(dedup_partial([near, near2], unique_ratio=0.05)) == 1
-    assert len(dedup_partial([near, near2], unique_ratio=0.05, jaccard=0.99)) == 2
+    assert len(dedup_partial([near, near2], unique_ratio=0.05, containment=0.99)) == 2
 
 
 def test_dedup_is_order_independent_and_deterministic():

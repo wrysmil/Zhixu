@@ -667,10 +667,10 @@ def test_retriever_settings_defaults() -> None:
     assert settings.mmr_lambda == 0.7
     assert settings.relevance_band == 0.15
     assert settings.adjacent_similarity_floor == 0.25
-    assert settings.dedup_containment == 0.98
+    assert settings.dedup_containment == 0.85
     assert settings.dedup_unique_ratio == 0.02
     assert settings.dedup_jaccard == 0.6
-    assert settings.dedup_length_ratio == 5.0
+    assert settings.dedup_length_ratio == 3.0
 
 
 def test_default_limit_is_applied() -> None:

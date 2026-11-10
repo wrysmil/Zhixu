@@ -650,11 +650,37 @@ class KnowledgeRetrievalConfig(Base):
     mmr_lambda: float = 0.7
     relevance_band: float = 0.15  # MMR 相关性带（检索 spec §5.6）
     adjacent_similarity_floor: float = 0.25  # 同 doc 邻块相似度下限（§5.5）
-    dedup_containment: float = 0.98  # 短文本包含率下限（§5.4）
+    dedup_containment: float = 0.85  # 短文本 token 覆盖率下限（WeKnora §6）
     dedup_unique_ratio: float = 0.02  # 短文本独有 token 占比上限
-    dedup_jaccard: float = 0.6  # 高重合分支的 Jaccard 下限
-    dedup_length_ratio: float = 5.0
+    dedup_jaccard: float = 0.6  # 兼容旧配置：WeKnora 不使用 Jaccard，保留但不参与判定
+    dedup_length_ratio: float = 3.0
     tool_output_chars: int = 6000
+
+
+class KnowledgeRerankConfig(Base):
+    """知识精排（WeKnora §7）：cross-encoder 兼容协议 + 阈值降级 + 复合分。
+
+    ``enabled`` 默认关闭：精排是增强项，未配置模型时检索退化为「用召回顺序继续」。
+    """
+
+    enabled: bool = False
+    backend: str = "remote"  # remote（cohere 兼容 HTTP）/ local（sentence-transformers）
+    base_url: str = ""
+    api_key: str = ""
+    api_key_env: str = ""
+    model: str = ""
+    device: str = "cpu"  # local 后端设备
+    timeout_seconds: float = 30.0
+    batch_size: int = 32
+    max_concurrency: int = 4
+    max_candidates: int = 200  # 进模型前的候选截断（§7.2）
+    max_passage_chars: int = 1200  # 单条 passage 上限，从尾部截断（§7.3）
+    threshold: float = 0.3  # 第一档阈值（§7.4）
+    fallback_min_score: float = 0.15  # 第三档保留最高分的下限
+    model_weight: float = 0.6  # 复合分：语义相关性
+    base_weight: float = 0.3  # 复合分：检索证据
+    source_weight: float = 0.1  # 复合分：来源可信度
+    score_transform: str = "probability"  # "logit" 时用 logistic 还原成概率
 
 
 class KnowledgeConfig(Base):
@@ -671,6 +697,7 @@ class KnowledgeConfig(Base):
     chunking: KnowledgeChunkingConfig = Field(default_factory=KnowledgeChunkingConfig)
     embedding: KnowledgeEmbeddingConfig = Field(default_factory=KnowledgeEmbeddingConfig)
     retrieval: KnowledgeRetrievalConfig = Field(default_factory=KnowledgeRetrievalConfig)
+    rerank: KnowledgeRerankConfig = Field(default_factory=KnowledgeRerankConfig)
 
 
 class Config(BaseSettings):

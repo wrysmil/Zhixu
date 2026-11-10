@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -384,6 +385,19 @@ class KnowledgeRepository:
                 f"SELECT {_DOC_FIELDS} FROM documents WHERE id=?", (doc_id,)
             ).fetchone()
         return self._row_to_document(row) if row else None
+
+    def list_document_titles(self, doc_ids: Sequence[str]) -> dict[str, str]:
+        """批量取文档标题（精排 passage 的标题段，避免逐条 N+1 查询）。"""
+        unique = [doc_id for doc_id in dict.fromkeys(doc_ids) if doc_id]
+        if not unique:
+            return {}
+        placeholders = ",".join("?" * len(unique))
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                f"SELECT id, title FROM documents WHERE id IN ({placeholders})",
+                unique,
+            ).fetchall()
+        return {str(row[0]): str(row[1] or "") for row in rows}
 
     def find_by_path(self, kb_id: str, source_path: str) -> Document | None:
         with self._db.connect() as conn:

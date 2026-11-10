@@ -64,6 +64,7 @@ class SearchResult:
     degraded: tuple[str, ...] = ()
     reason: str | None = None
     routes: tuple[str, ...] = ()
+    rerank: str | None = None
 
 
 def _ranked(scores: dict[str, float]) -> dict[str, float]:
@@ -171,46 +172,46 @@ def _preferred(left: SearchHit, right: SearchHit) -> SearchHit:
 
 
 def _is_partial_duplicate(
+    left_text: str,
+    right_text: str,
     left: frozenset[str],
     right: frozenset[str],
     *,
     length_ratio: float,
-    jaccard_threshold: float,
     containment_threshold: float,
     unique_ratio: float,
 ) -> bool:
-    """§5.4 级别 ③：长度比 + 包含率（对分词粒度不敏感）判重。
+    """级别 ③：长度比 + 子串 / token 覆盖（WeKnora §6）。
 
+    WeKnora 口径：
     ```
     ratio       = len(B)/len(A)          # A = token 集合更小的一侧
-    containment = |A∩B| / |A|
-    unique      = 1 - containment
-    判重 ⟺ ratio <= length_ratio 且 (containment >= containment_threshold
-                                  或 (Jaccard >= jaccard_threshold 且 unique <= unique_ratio))
+    short_text 是 long_text 的子串       → 重复
+    或 token 覆盖率 >= 0.85 且短文本独有 token <= 2% → 重复
+    且 ratio <= 3
     ```
-    长度比按 **token 集合大小** 计算（不是字符数）；空集无定义，直接不判重。
+    长度比按 token 集合大小；空集不判重。v1 曾用「包含率 0.98 或 Jaccard 0.6」，
+    与 WeKnora 不一致，已按文章口径收敛。
     """
     if not left or not right:
         return False
     shorter, longer = (left, right) if len(left) <= len(right) else (right, left)
     if len(longer) / len(shorter) > length_ratio:
         return False
-    overlap = len(shorter & longer)
-    containment = overlap / len(shorter)
-    if containment >= containment_threshold:
+    short_text, long_text = (
+        (left_text, right_text) if len(left_text) <= len(right_text) else (right_text, left_text)
+    )
+    if short_text and short_text in long_text:
         return True
-    unique = 1.0 - containment
-    union = len(shorter | longer)
-    similarity = overlap / union if union else 0.0
-    return similarity >= jaccard_threshold and unique <= unique_ratio
+    containment = len(shorter & longer) / len(shorter)
+    return containment >= containment_threshold and (1.0 - containment) <= unique_ratio + 1e-9
 
 
 def dedup_partial(
     hits: Sequence[SearchHit],
     *,
-    length_ratio: float = 5.0,
-    jaccard: float = 0.6,
-    containment: float = 0.98,
+    length_ratio: float = 3.0,
+    containment: float = 0.85,
     unique_ratio: float = 0.02,
 ) -> list[SearchHit]:
     """三级去重（spec §5.4）：① ID 合并（在 RRF 内完成）→ ② content_hash → ③ 部分包含。
@@ -232,10 +233,11 @@ def dedup_partial(
         for index, other in enumerate(kept):
             same_hash = bool(hit.content_hash) and hit.content_hash == other.content_hash
             duplicate = same_hash or _is_partial_duplicate(
+                hit.content,
+                other.content,
                 tokens,
                 kept_tokens[index],
                 length_ratio=length_ratio,
-                jaccard_threshold=jaccard,
                 containment_threshold=containment,
                 unique_ratio=unique_ratio,
             )
@@ -288,7 +290,8 @@ def mmr_rerank(
     ordered = sorted(hits, key=lambda hit: (-hit.score, hit.chunk_id))
     cutoff = round(round(ordered[0].score, 9) - relevance_band, 9)
     candidates = [hit for hit in ordered if round(hit.score, 9) >= cutoff]
-    tokens = [_tokens(hit.content) for hit in candidates]
+    # WeKnora §8：MMR 的 token 来自 enriched passage（标题/面包屑 + 正文），不是纯正文。
+    tokens = [_tokens(f"{hit.heading_path}\n{hit.content}") for hit in candidates]
     remaining = list(range(len(candidates)))
     selected: list[int] = []
     while remaining and len(selected) < limit:

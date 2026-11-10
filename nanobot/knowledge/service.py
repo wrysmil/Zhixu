@@ -48,6 +48,14 @@ from nanobot.knowledge.repository import (
     DuplicateDocumentPathError,
     KnowledgeRepository,
 )
+from nanobot.knowledge.rerank import (
+    Reranker,
+    RerankSettings,
+    build_reranker,
+)
+from nanobot.knowledge.rerank import (
+    rerank_settings as rerank_settings_for,
+)
 from nanobot.knowledge.retriever import Retriever, RetrieverSettings
 from nanobot.knowledge.vector import RepairAction, VectorStore, VectorStoreError
 
@@ -196,6 +204,8 @@ class KnowledgeService:
         uploads_dir: Path,
         chunk_size: int = _DEFAULT_CHUNK_SIZE,
         chunk_overlap: int = _DEFAULT_CHUNK_OVERLAP,
+        reranker: Reranker | None = None,
+        rerank_settings: RerankSettings | None = None,
     ) -> None:
         self._db = database
         self._repo = repo
@@ -206,6 +216,8 @@ class KnowledgeService:
         self._uploads = Path(uploads_dir)
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
+        self._reranker = reranker
+        self._rerank_settings = rerank_settings or RerankSettings()
         self._identity: tuple[str, str, int] | None = None
         _ensure_private_dir(self._uploads)
 
@@ -226,6 +238,7 @@ class KnowledgeService:
         retrieval: Any = None,
         chunking: Any = None,
         uploads_dir: str | Path | None = None,
+        rerank: Any = None,
     ) -> KnowledgeService:
         """显式路径装配（测试 / CLI 单进程）；默认无 embedding、无向量层。"""
         path = Path(database_path).expanduser().resolve()
@@ -240,6 +253,8 @@ class KnowledgeService:
             if uploads_dir is not None
             else path.parent / "uploads"
         )
+        reranker = build_reranker(rerank)
+        rerank_settings = rerank_settings_for(rerank)
         return cls(
             database=database,
             repo=repo,
@@ -251,12 +266,16 @@ class KnowledgeService:
                 embedder=actual_embedder,
                 vector_store=vector_store,
                 settings=_retriever_settings(retrieval),
+                reranker=reranker,
+                rerank_settings=rerank_settings,
             ),
             uploads_dir=uploads,
             chunk_size=int(getattr(chunking, "chunk_size", _DEFAULT_CHUNK_SIZE)),
             chunk_overlap=int(
                 getattr(chunking, "chunk_overlap", _DEFAULT_CHUNK_OVERLAP)
             ),
+            reranker=reranker,
+            rerank_settings=rerank_settings,
         )
 
     # ---------- KB ----------
@@ -533,6 +552,8 @@ class KnowledgeService:
             embedder=self._embedder,
             vector_store=self._vector,
             settings=settings,
+            reranker=self._reranker,
+            rerank_settings=self._rerank_settings,
         )
 
     def search(
@@ -873,6 +894,7 @@ def _build_service(knowledge: KnowledgeConfig, database_path: Path) -> Knowledge
         vector_store=vector_store,
         retrieval=knowledge.retrieval,
         chunking=knowledge.chunking,
+        rerank=knowledge.rerank,
     )
 
 
