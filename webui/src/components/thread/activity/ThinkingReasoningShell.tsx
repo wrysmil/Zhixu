@@ -1,4 +1,4 @@
-import { ChevronDown, LoaderCircle } from "lucide-react";
+import { Check, ChevronDown, LoaderCircle } from "lucide-react";
 import type { ReactNode, Ref } from "react";
 
 import { cn } from "@/lib/utils";
@@ -35,7 +35,7 @@ export function ThinkingReasoningShell({
       {active ? (
         <LoaderCircle
           data-testid="activity-running-indicator"
-          className="h-4 w-4 shrink-0 animate-spin text-sky-500 motion-reduce:animate-none dark:text-sky-400"
+          className="h-4 w-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none"
           strokeWidth={2}
           aria-hidden="true"
         />
@@ -52,25 +52,41 @@ export function ThinkingReasoningShell({
   );
 
   if (!hasDetails) {
-    // No activity yet: a compact pill reads as "work in progress" instead of an
-    // empty framed box, and keeps the running state impossible to miss.
+    // No activity yet: an inline status line (spinner + caption) reads as
+    // "work in progress" without drawing a pill around a single sentence.
     return (
       <div
         className="flex w-full flex-col"
         data-state={active ? "thinking" : "done"}
       >
         <div
-          className={cn(
-            "inline-flex w-fit max-w-full items-center gap-2 self-start rounded-full px-3 py-1.5",
-            active
-              ? "bg-sky-500/[0.08] text-foreground ring-1 ring-inset ring-sky-500/30 dark:bg-sky-400/[0.12] dark:ring-sky-400/30"
-              : "bg-muted/60 text-muted-foreground ring-1 ring-inset ring-border/50",
-          )}
+          className="inline-flex w-fit max-w-full items-center gap-1.5 self-start py-0.5"
           role="status"
           aria-label={label}
           aria-live={active ? "polite" : undefined}
         >
-          {statusLabel}
+          {active ? (
+            <LoaderCircle
+              data-testid="activity-running-indicator"
+              className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground/70 motion-reduce:animate-none"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+          ) : (
+            <Check
+              className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55"
+              strokeWidth={2.2}
+              aria-hidden="true"
+            />
+          )}
+          <span
+            className={cn(
+              "min-w-0 truncate text-[12.5px] leading-5",
+              active ? "font-medium text-foreground/75" : "text-muted-foreground",
+            )}
+          >
+            {label}
+          </span>
         </div>
       </div>
     );
@@ -90,7 +106,7 @@ export function ThinkingReasoningShell({
           className="pointer-events-none absolute inset-x-0 top-0 h-[2px] overflow-hidden"
           aria-hidden
         >
-          <span className="activity-running-sweep block h-full w-1/3 bg-gradient-to-r from-transparent via-sky-500 to-transparent dark:via-sky-400" />
+          <span className="activity-running-sweep block h-full w-1/3 bg-gradient-to-r from-transparent via-foreground/25 to-transparent" />
         </span>
       ) : null}
       <button

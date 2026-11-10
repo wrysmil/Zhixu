@@ -7,13 +7,13 @@ import { cn } from "@/lib/utils";
 
 export type ActivityStepTone = "neutral" | "active" | "success" | "error";
 
-/** 状态色只落在过程徽标上：绿=已完成，蓝=进行中，红=失败，其余保持石墨中性。 */
+/** 状态色只落在过程徽标上：绿=已完成，红=失败；进行中保持石墨中性，避免整块界面发蓝。 */
 function kickerToneClassName(tone: ActivityStepTone): string {
   if (tone === "success") {
     return "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/[0.12] dark:text-emerald-300";
   }
   if (tone === "active") {
-    return "border-sky-500/30 bg-sky-500/[0.08] text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/[0.12] dark:text-sky-300";
+    return "border-border/70 bg-muted/55 text-foreground/75";
   }
   if (tone === "error") {
     return "border-destructive/30 bg-destructive/[0.06] text-destructive";

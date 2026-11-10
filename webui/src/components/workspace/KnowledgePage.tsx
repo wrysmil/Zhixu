@@ -15,6 +15,7 @@ import {
   Plus,
   RefreshCcw,
   Search,
+  Server,
   Trash2,
   Upload,
   Wrench,
@@ -901,6 +902,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                     {activeKb.name}
                   </span>
                 ) : null}
+                <span className="rounded-full bg-muted/60 px-2 py-0.5 text-[10.5px] font-medium tabular-nums text-muted-foreground">
+                  {docs.length}
+                </span>
               </h2>
             </div>
 
@@ -910,26 +914,56 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               </p>
             ) : (
               <>
-                <div className="flex flex-wrap items-end gap-2 pb-3">
-                  <label className="flex min-w-[180px] flex-1 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
-                    {t("knowledge.upload")}
-                    <input
-                      type="file"
-                      aria-label={t("knowledge.upload")}
-                      disabled={busy}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        event.target.value = "";
-                        if (file) void onUpload(file);
-                      }}
-                      className="block w-full cursor-pointer text-[12px] text-muted-foreground file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-[11.5px] file:font-semibold file:text-primary-foreground hover:file:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                    />
-                    <span className="text-[10.5px] font-normal">{t("knowledge.uploadHint")}</span>
-                  </label>
-                  <div className="flex min-w-[200px] flex-1 flex-col gap-1">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      {t("knowledge.addPath")}
-                    </span>
+                <div className="grid gap-2.5 pb-4 lg:grid-cols-2">
+                  <div className="flex flex-col gap-2.5 rounded-control border border-dashed border-border/70 bg-muted/15 p-3 transition-colors hover:border-border hover:bg-muted/25">
+                    <div className="flex items-start gap-2">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground ring-1 ring-inset ring-border/60">
+                        <FileText className="h-3.5 w-3.5" aria-hidden />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[12px] font-medium text-foreground">
+                          {t("knowledge.upload")}
+                        </span>
+                        <span className="mt-0.5 block text-[10.5px] leading-relaxed text-muted-foreground">
+                          {t("knowledge.uploadHint")}
+                        </span>
+                      </span>
+                    </div>
+                    <label
+                      className={cn(
+                        "inline-flex h-8 w-fit cursor-pointer items-center gap-1.5 rounded-full border border-border/70 bg-background px-3 text-[11.5px] font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1",
+                        busy && "pointer-events-none opacity-60",
+                      )}
+                    >
+                      <Upload className="h-3.5 w-3.5" aria-hidden />
+                      {t("knowledge.upload")}
+                      <input
+                        type="file"
+                        aria-label={t("knowledge.upload")}
+                        disabled={busy}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = "";
+                          if (file) void onUpload(file);
+                        }}
+                        className="sr-only"
+                      />
+                    </label>
+                  </div>
+                  <div className="flex flex-col gap-2.5 rounded-control border border-border/60 bg-muted/15 p-3">
+                    <div className="flex items-start gap-2">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground ring-1 ring-inset ring-border/60">
+                        <Server className="h-3.5 w-3.5" aria-hidden />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[12px] font-medium text-foreground">
+                          {t("knowledge.addPath")}
+                        </span>
+                        <span className="mt-0.5 block text-[10.5px] leading-relaxed text-muted-foreground">
+                          {t("knowledge.addPathPlaceholder")}
+                        </span>
+                      </span>
+                    </div>
                     <div className="flex gap-1.5">
                       <Input
                         aria-label={t("knowledge.addPath")}
@@ -946,7 +980,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                         onClick={() => void onAddServerPath()}
                         className="h-8 shrink-0 rounded-full px-3 text-[11.5px]"
                       >
-                        <Upload className="h-3.5 w-3.5" aria-hidden />
+                        <Plus className="h-3.5 w-3.5" aria-hidden />
                         {t("knowledge.add")}
                       </Button>
                     </div>
@@ -973,13 +1007,13 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse text-left text-[12px]">
                       <thead>
-                        <tr className="border-b border-border/60 text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
-                          <th className="py-2 pr-2 font-semibold">{t("knowledge.columnTitle")}</th>
-                          <th className="py-2 pr-2 font-semibold">{t("knowledge.columnSource")}</th>
-                          <th className="py-2 pr-2 font-semibold">{t("knowledge.columnStatus")}</th>
-                          <th className="py-2 pr-2 font-semibold">{t("knowledge.columnSize")}</th>
-                          <th className="py-2 pr-2 font-semibold">{t("knowledge.columnChunks")}</th>
-                          <th className="py-2 font-semibold">{t("knowledge.columnActions")}</th>
+                        <tr className="border-b border-border/60 text-[11px] text-muted-foreground">
+                          <th className="py-2 pr-3 font-medium">{t("knowledge.columnTitle")}</th>
+                          <th className="py-2 pr-3 font-medium">{t("knowledge.columnSource")}</th>
+                          <th className="py-2 pr-3 font-medium">{t("knowledge.columnStatus")}</th>
+                          <th className="py-2 pr-3 text-right font-medium">{t("knowledge.columnSize")}</th>
+                          <th className="py-2 pr-3 text-right font-medium">{t("knowledge.columnChunks")}</th>
+                          <th className="py-2 text-right font-medium">{t("knowledge.columnActions")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -988,11 +1022,11 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                             key={doc.id}
                             className="border-t border-border/40 align-top transition-colors hover:bg-muted/30"
                           >
-                            <td className="py-2.5 pr-2">
+                            <td className="py-3 pr-3">
                               <span className="flex min-w-0 items-start gap-1.5">
                                 <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                                 <span className="min-w-0">
-                                  <span className="block max-w-[220px] truncate font-medium text-foreground">
+                                  <span className="block max-w-[220px] truncate text-[12.5px] font-medium text-foreground">
                                     {doc.title}
                                   </span>
                                   {doc.error ? (
@@ -1003,29 +1037,29 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                                 </span>
                               </span>
                             </td>
-                            <td className="py-2 pr-2">
-                              <span className="block max-w-[180px] truncate font-mono text-[11px] text-muted-foreground">
+                            <td className="py-3 pr-3">
+                              <span className="block max-w-[180px] truncate font-mono text-[10.5px] text-muted-foreground">
                                 {doc.originalName || doc.mime || "—"}
                               </span>
                             </td>
-                            <td className="py-2 pr-2">
+                            <td className="py-3 pr-3">
                               <DocStatusBadge status={doc.status} label={statusLabel(doc)} />
                             </td>
-                            <td className="py-2 pr-2 text-muted-foreground">
+                            <td className="py-3 pr-3 text-right tabular-nums text-muted-foreground">
                               {t("knowledge.sizeValue", { count: doc.charCount })}
                             </td>
-                            <td className="py-2 pr-2 tabular-nums text-muted-foreground">
+                            <td className="py-3 pr-3 text-right tabular-nums text-muted-foreground">
                               {doc.chunkCount}
                             </td>
-                            <td className="py-2">
-                              <div className="flex items-center gap-1">
+                            <td className="py-3">
+                              <div className="flex items-center justify-end gap-1">
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="sm"
                                   disabled={busy || isDocActive(doc) || doc.chunkCount <= 0}
                                   onClick={() => void onOpenChunkPreview(doc)}
-                                  className="h-7 rounded-full px-2.5 text-[11px]"
+                                  className="h-7 rounded-full px-2.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
                                 >
                                   <ListTree className="h-3 w-3" aria-hidden />
                                   {t("knowledge.viewChunks")}
@@ -1034,6 +1068,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                                   type="button"
                                   variant="ghost"
                                   size="sm"
+                                  aria-label={t("knowledge.reindex")}
+                                  title={t("knowledge.reindex")}
                                   disabled={busy || isDocActive(doc)}
                                   onClick={() => {
                                     void runAction(
@@ -1046,10 +1082,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                                       },
                                     );
                                   }}
-                                  className="h-7 rounded-full px-2.5 text-[11px]"
+                                  className="h-7 w-7 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
                                 >
-                                  <RefreshCcw className="h-3 w-3" aria-hidden />
-                                  {t("knowledge.reindex")}
+                                  <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
                                 </Button>
                                 <Button
                                   type="button"
@@ -1059,7 +1094,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                                   title={t("knowledge.deleteDoc")}
                                   disabled={busy}
                                   onClick={() => setConfirm({ kind: "doc", id: doc.id, label: doc.title })}
-                                  className="h-7 rounded-full px-2 text-destructive"
+                                  className="h-7 w-7 rounded-full p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" aria-hidden />
                                 </Button>

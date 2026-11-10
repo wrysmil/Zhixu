@@ -1391,7 +1391,7 @@ describe("AgentActivityCluster", () => {
     const thinkingKicker = screen.getByTestId("activity-kicker");
     expect(thinkingKicker).toHaveTextContent("Reasoning");
     expect(thinkingKicker).toHaveAttribute("data-tone", "active");
-    expect(thinkingKicker.className).toContain("text-sky-700");
+    expect(thinkingKicker.className).toContain("bg-muted/55");
   });
 
   it("colors finished activity kickers green and failed ones red", () => {
