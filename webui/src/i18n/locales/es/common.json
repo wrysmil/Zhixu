@@ -3830,10 +3830,46 @@
       },
       "error": {
         "load": "Error al cargar",
-        "action": "La acción falló"
+        "action": "La acción falló",
+        "csvEmpty": "La plantilla no contiene ninguna consulta utilizable"
       },
       "detail": {
         "title": "Informe de la ejecución"
+      },
+      "manual": {
+        "open": "Guía",
+        "title": "Guía de la evaluación",
+        "subtitle": "Consigue tu primer informe de evaluación de recuperación en cinco minutos",
+        "close": "Entendido",
+        "steps": {
+          "1": {
+            "title": "Crear un conjunto de datos",
+            "body": "Una consulta por fila. Las consultas con palabras clave esperadas se etiquetan por palabra clave; el resto las juzga el modelo."
+          },
+          "2": {
+            "title": "Elegir la configuración de recuperación",
+            "body": "Modo, límite, rrf_k, pesos de vector/palabras clave. Un campo vacío usa el valor por defecto del producto."
+          },
+          "3": {
+            "title": "Iniciar una ejecución",
+            "body": "La ejecución corre en segundo plano y abre el informe automáticamente al terminar."
+          },
+          "4": {
+            "title": "Leer el informe",
+            "body": "Revisa las cinco métricas principales y la tasa sin puntuar, y despliega «Cómo se calcula cada métrica». La evidencia ausente se muestra como «Sin puntuar», nunca 0."
+          },
+          "5": {
+            "title": "Comparar",
+            "body": "Elige dos ejecuciones para ver las diferencias por métrica y las consultas que empeoran. Nunca compares una ejecución degradada con una normal."
+          }
+        },
+        "conceptsTitle": "Dos conceptos clave",
+        "conceptExpect": "Etiquetas por palabra clave: acertar una palabra clave esperada cuenta como relevante. Gratis y reproducible, ideal para regresión.",
+        "conceptJudge": "Juzgado por el modelo: el texto de los fragmentos se envía al modelo. Más cercano a la relevancia real, pero cuesta tokens y envía datos.",
+        "templateTitle": "Plantilla del conjunto de datos",
+        "templateBody": "Prepara el CSV en Excel e impórtalo con un clic. Una consulta por fila; separa varias palabras clave esperadas con |.",
+        "download": "Descargar plantilla (CSV)",
+        "import": "Importar plantilla"
       }
     }
   }

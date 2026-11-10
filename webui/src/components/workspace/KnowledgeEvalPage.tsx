@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ArrowLeft, Loader2, RefreshCcw } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BookOpen, Loader2, RefreshCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { PageHeading } from "@/components/workspace/PageHeading";
@@ -16,9 +16,14 @@ import {
 import { KnowledgeEvalCaseResults } from "./knowledge-eval/KnowledgeEvalCaseResults";
 import { KnowledgeEvalCompare } from "./knowledge-eval/KnowledgeEvalCompare";
 import { KnowledgeEvalDatasets } from "./knowledge-eval/KnowledgeEvalDatasets";
+import { KnowledgeEvalManual } from "./knowledge-eval/KnowledgeEvalManual";
 import { KnowledgeEvalMetricGuide } from "./knowledge-eval/KnowledgeEvalMetricGuide";
 import { KnowledgeEvalOverview } from "./knowledge-eval/KnowledgeEvalOverview";
 import { KnowledgeEvalRuns } from "./knowledge-eval/KnowledgeEvalRuns";
+import {
+  downloadDatasetTemplate,
+  parseDatasetTemplateCsv,
+} from "./knowledge-eval/dataset-template";
 
 type Section = "datasets" | "runs" | "compare";
 
@@ -60,6 +65,7 @@ export function KnowledgeEvalPage() {
   const [section, setSection] = useState<Section>("datasets");
   /** 两级结构（对齐知识库页）：列表页管数据与运行，点某个运行才进报告详情。 */
   const [detailOpen, setDetailOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -264,6 +270,37 @@ export function KnowledgeEvalPage() {
     });
   }, [baseRunId, candidateRunId, runAction]);
 
+  const onDownloadTemplate = useCallback(() => {
+    downloadDatasetTemplate("knowledge-eval-dataset-template.csv");
+  }, []);
+
+  const onImportTemplate = useCallback(
+    async (file: File) => {
+      setActionError(null);
+      try {
+        const parsed = parseDatasetTemplateCsv(await file.text());
+        if (parsed.errors.length > 0) {
+          setActionError(parsed.errors.join("; "));
+          return;
+        }
+        if (parsed.cases.length === 0) {
+          setActionError(t("knowledge.eval.error.csvEmpty"));
+          return;
+        }
+        await onCreateDataset({
+          name: file.name.replace(/\.csv$/i, ""),
+          cases: parsed.cases.map((item) => ({
+            query: item.query,
+            expect_any: item.expectAny,
+          })),
+        });
+      } catch (reason: unknown) {
+        setActionError(reason instanceof Error ? reason.message : String(reason));
+      }
+    },
+    [onCreateDataset, t],
+  );
+
   const sections: Array<{ key: Section; label: string }> = [
     { key: "datasets", label: t("knowledge.eval.tab.datasets") },
     { key: "runs", label: t("knowledge.eval.tab.runs") },
@@ -278,21 +315,33 @@ export function KnowledgeEvalPage() {
           title={t("knowledge.eval.title")}
           description={t("knowledge.eval.subtitle")}
           actions={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loading}
-              onClick={() => void loadAll()}
-              className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
-            >
-              {loading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-              ) : (
-                <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
-              )}
-              {t("knowledge.eval.action.refresh")}
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setManualOpen(true)}
+                className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
+              >
+                <BookOpen className="h-3.5 w-3.5" aria-hidden />
+                {t("knowledge.eval.manual.open")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={loading}
+                onClick={() => void loadAll()}
+                className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
+              >
+                {loading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
+                )}
+                {t("knowledge.eval.action.refresh")}
+              </Button>
+            </>
           }
         />
       )}
@@ -417,6 +466,8 @@ export function KnowledgeEvalPage() {
               onCreate={onCreateDataset}
               onDelete={onDeleteDataset}
               onUpdateCases={onUpdateCases}
+              onDownloadTemplate={onDownloadTemplate}
+              onImportTemplate={(file) => void onImportTemplate(file)}
             />
           </div>
 
@@ -449,6 +500,12 @@ export function KnowledgeEvalPage() {
           </div>
         </>
       )}
+
+      <KnowledgeEvalManual
+        open={manualOpen}
+        onClose={() => setManualOpen(false)}
+        onDownloadTemplate={onDownloadTemplate}
+      />
 
       {pendingRun ? (
         <div

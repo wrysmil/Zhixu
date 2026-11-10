@@ -3830,10 +3830,46 @@
       },
       "error": {
         "load": "Falha ao carregar",
-        "action": "A ação falhou"
+        "action": "A ação falhou",
+        "csvEmpty": "O modelo não contém nenhuma consulta utilizável"
       },
       "detail": {
         "title": "Relatório da execução"
+      },
+      "manual": {
+        "open": "Guia",
+        "title": "Guia da avaliação",
+        "subtitle": "Faça sua primeira avaliação de recuperação em cinco minutos",
+        "close": "Entendi",
+        "steps": {
+          "1": {
+            "title": "Criar um conjunto de dados",
+            "body": "Uma consulta por linha. Consultas com palavras-chave esperadas são rotuladas por palavra-chave; as demais são julgadas pelo modelo."
+          },
+          "2": {
+            "title": "Escolher as configurações de recuperação",
+            "body": "Modo, limite, rrf_k, pesos de vetor/palavra-chave. Campo vazio usa o padrão do produto."
+          },
+          "3": {
+            "title": "Iniciar uma execução",
+            "body": "A execução roda em segundo plano e abre o relatório automaticamente ao terminar."
+          },
+          "4": {
+            "title": "Ler o relatório",
+            "body": "Confira as cinco métricas principais e a taxa sem pontuação, depois expanda «Como cada métrica é calculada». Evidência ausente aparece como «Sem pontuação», nunca 0."
+          },
+          "5": {
+            "title": "Comparar",
+            "body": "Escolha duas execuções para ver as diferenças por métrica e as consultas que pioraram. Nunca compare uma execução degradada com uma normal."
+          }
+        },
+        "conceptsTitle": "Dois conceitos-chave",
+        "conceptExpect": "Rótulos por palavra-chave: acertar uma palavra-chave esperada conta como relevante. Sem custo e reprodutível, ideal para regressão.",
+        "conceptJudge": "Julgado pelo modelo: o texto dos fragmentos é enviado ao modelo. Mais próximo da relevância real, mas custa tokens e envia dados.",
+        "templateTitle": "Modelo do conjunto de dados",
+        "templateBody": "Prepare o CSV no Excel e importe com um clique. Uma consulta por linha; separe várias palavras-chave esperadas com |.",
+        "download": "Baixar modelo (CSV)",
+        "import": "Importar modelo"
       }
     }
   }

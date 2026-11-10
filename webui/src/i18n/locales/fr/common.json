@@ -3830,10 +3830,46 @@
       },
       "error": {
         "load": "Échec du chargement",
-        "action": "Échec de l'action"
+        "action": "Échec de l'action",
+        "csvEmpty": "Le modèle ne contient aucune requête exploitable"
       },
       "detail": {
         "title": "Rapport d'exécution"
+      },
+      "manual": {
+        "open": "Guide",
+        "title": "Guide de l'évaluation",
+        "subtitle": "Réalisez votre première évaluation de recherche en cinq minutes",
+        "close": "Compris",
+        "steps": {
+          "1": {
+            "title": "Créer un jeu de données",
+            "body": "Une requête par ligne. Les requêtes avec mots-clés attendus sont étiquetées par mots-clés ; les autres sont jugées par le modèle."
+          },
+          "2": {
+            "title": "Choisir les réglages de recherche",
+            "body": "Mode, limite, rrf_k, poids vecteur/mots-clés. Un champ vide utilise la valeur par défaut du produit."
+          },
+          "3": {
+            "title": "Lancer une exécution",
+            "body": "L'exécution se fait en arrière-plan et ouvre automatiquement le rapport à la fin."
+          },
+          "4": {
+            "title": "Lire le rapport",
+            "body": "Vérifiez les cinq indicateurs principaux et le taux non noté, puis dépliez « Comment chaque indicateur est calculé ». Une preuve manquante s'affiche « Non noté », jamais 0."
+          },
+          "5": {
+            "title": "Comparer",
+            "body": "Choisissez deux exécutions pour voir les écarts par indicateur et les requêtes dégradées. Ne comparez jamais une exécution dégradée à une exécution normale."
+          }
+        },
+        "conceptsTitle": "Deux notions clés",
+        "conceptExpect": "Étiquetage par mots-clés : un mot-clé attendu trouvé suffit. Gratuit et reproductible, idéal pour la régression.",
+        "conceptJudge": "Jugé par le modèle : le texte des fragments est envoyé au modèle. Plus proche de la pertinence réelle, mais coûte des jetons et envoie des données.",
+        "templateTitle": "Modèle de jeu de données",
+        "templateBody": "Préparez le CSV dans Excel puis importez-le en un clic. Une requête par ligne ; séparez plusieurs mots-clés attendus par |.",
+        "download": "Télécharger le modèle (CSV)",
+        "import": "Importer le modèle"
       }
     }
   }

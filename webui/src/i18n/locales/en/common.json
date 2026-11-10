@@ -3830,10 +3830,46 @@
       },
       "error": {
         "load": "Failed to load",
-        "action": "Action failed"
+        "action": "Action failed",
+        "csvEmpty": "The template contains no usable query"
       },
       "detail": {
         "title": "Run report"
+      },
+      "manual": {
+        "open": "Guide",
+        "title": "Evaluation guide",
+        "subtitle": "Run your first retrieval evaluation in five minutes",
+        "close": "Got it",
+        "steps": {
+          "1": {
+            "title": "Create a dataset",
+            "body": "One query per row. Queries with expected keywords are labeled by keyword; the rest are judged by the model."
+          },
+          "2": {
+            "title": "Pick retrieval settings",
+            "body": "Mode, limit, rrf_k, vector/keyword weights. Leave a field empty to use the product default."
+          },
+          "3": {
+            "title": "Start a run",
+            "body": "Runs execute in the background and open the report automatically when finished."
+          },
+          "4": {
+            "title": "Read the report",
+            "body": "Check the five main metrics and the unscored rate, then expand “How each metric is computed”. Missing evidence shows as “Not scored”, never 0."
+          },
+          "5": {
+            "title": "Compare",
+            "body": "Pick two runs to see per-metric deltas and the regressed queries. Never compare a degraded run with a normal one."
+          }
+        },
+        "conceptsTitle": "Two key concepts",
+        "conceptExpect": "Keyword labels: hitting an expected keyword counts as relevant — free and reproducible, good for regression.",
+        "conceptJudge": "LLM judged: chunk text is sent to the model for grading — closer to real relevance, but it costs tokens and sends data out.",
+        "templateTitle": "Dataset template",
+        "templateBody": "Prepare the CSV in Excel and import it in one click. One query per row; separate multiple expected keywords with |.",
+        "download": "Download template (CSV)",
+        "import": "Import template"
       }
     }
   }

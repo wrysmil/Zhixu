@@ -3830,10 +3830,46 @@
       },
       "error": {
         "load": "Không tải được",
-        "action": "Thao tác thất bại"
+        "action": "Thao tác thất bại",
+        "csvEmpty": "Mẫu không có câu hỏi nào dùng được"
       },
       "detail": {
         "title": "Báo cáo lần chạy"
+      },
+      "manual": {
+        "open": "Hướng dẫn",
+        "title": "Hướng dẫn đánh giá",
+        "subtitle": "Có báo cáo đánh giá truy hồi đầu tiên trong năm phút",
+        "close": "Đã hiểu",
+        "steps": {
+          "1": {
+            "title": "Tạo bộ dữ liệu",
+            "body": "Mỗi dòng một câu hỏi. Câu hỏi có từ khoá kỳ vọng được chấm theo từ khoá; các câu còn lại do mô hình chấm."
+          },
+          "2": {
+            "title": "Chọn cấu hình truy hồi",
+            "body": "Chế độ, giới hạn, rrf_k, trọng số vector/từ khoá. Để trống nghĩa là dùng mặc định của sản phẩm."
+          },
+          "3": {
+            "title": "Bắt đầu chạy",
+            "body": "Lần chạy diễn ra ở nền và tự mở báo cáo khi xong."
+          },
+          "4": {
+            "title": "Đọc báo cáo",
+            "body": "Xem năm chỉ số chính và tỉ lệ chưa chấm, rồi mở “Cách tính từng chỉ số”. Thiếu bằng chứng sẽ hiển thị “Chưa chấm”, không phải 0."
+          },
+          "5": {
+            "title": "So sánh",
+            "body": "Chọn hai lần chạy để xem chênh lệch từng chỉ số và các câu hỏi bị tụt. Không so sánh trực tiếp lần chạy bị suy giảm với lần chạy bình thường."
+          }
+        },
+        "conceptsTitle": "Hai khái niệm cốt lõi",
+        "conceptExpect": "Nhãn theo từ khoá: khớp từ khoá kỳ vọng là được coi là liên quan. Miễn phí và lặp lại được, phù hợp kiểm thử hồi quy.",
+        "conceptJudge": "Do mô hình chấm: nội dung đoạn được gửi tới mô hình. Sát mức liên quan thực tế hơn, nhưng tốn token và gửi dữ liệu ra ngoài.",
+        "templateTitle": "Mẫu bộ dữ liệu",
+        "templateBody": "Soạn CSV trong Excel rồi nhập một lần. Mỗi dòng một câu hỏi; nhiều từ khoá kỳ vọng cách nhau bằng |.",
+        "download": "Tải mẫu (CSV)",
+        "import": "Nhập mẫu"
       }
     }
   }

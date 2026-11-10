@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -300,5 +300,63 @@ describe("KnowledgeEvalPage", () => {
     await openReport(user);
 
     expect(screen.getByTestId("knowledge-eval-degraded-badge")).toBeInTheDocument();
+  });
+
+  it("opens the operation guide from the header", async () => {
+    const user = userEvent.setup();
+    render(<KnowledgeEvalPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("knowledge-eval-datasets")).toBeInTheDocument();
+    });
+    await user.click(
+      screen.getByRole("button", { name: i18n.t("knowledge.eval.manual.open") }),
+    );
+
+    const dialog = screen.getByRole("dialog", {
+      name: i18n.t("knowledge.eval.manual.title"),
+    });
+    expect(dialog).toBeInTheDocument();
+    for (let step = 1; step <= 5; step += 1) {
+      expect(
+        within(dialog).getByText(i18n.t(`knowledge.eval.manual.steps.${step}.title`)),
+      ).toBeInTheDocument();
+    }
+    expect(
+      within(dialog).getByRole("button", { name: i18n.t("knowledge.eval.manual.download") }),
+    ).toBeInTheDocument();
+  });
+
+  it("imports a dataset from the CSV template", async () => {
+    const user = userEvent.setup();
+    api.createDataset.mockResolvedValue(DATASETS[0]);
+    render(<KnowledgeEvalPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("knowledge-eval-datasets")).toBeInTheDocument();
+    });
+
+    const file = new File(
+      ["query,expect_any\r\n如何回滚部署,回滚|kubectl\r\n数据库多久备份一次,备份\r\n"],
+      "模板导入.csv",
+      { type: "text/csv" },
+    );
+    await user.upload(
+      screen.getByLabelText(i18n.t("knowledge.eval.manual.import")),
+      file,
+    );
+
+    await waitFor(() => {
+      expect(api.createDataset).toHaveBeenCalled();
+    });
+    const payload = api.createDataset.mock.calls[0][0] as {
+      name: string;
+      cases: Array<Record<string, unknown>>;
+    };
+    expect(payload.name).toBe("模板导入");
+    expect(payload.cases).toEqual([
+      { query: "如何回滚部署", expect_any: ["回滚", "kubectl"] },
+      { query: "数据库多久备份一次", expect_any: ["备份"] },
+    ]);
   });
 });

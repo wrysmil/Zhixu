@@ -3830,10 +3830,46 @@
       },
       "error": {
         "load": "Gagal memuat",
-        "action": "Tindakan gagal"
+        "action": "Tindakan gagal",
+        "csvEmpty": "Templat tidak berisi kueri yang bisa dipakai"
       },
       "detail": {
         "title": "Laporan eksekusi"
+      },
+      "manual": {
+        "open": "Panduan",
+        "title": "Panduan evaluasi",
+        "subtitle": "Buat laporan evaluasi retrieval pertama dalam lima menit",
+        "close": "Mengerti",
+        "steps": {
+          "1": {
+            "title": "Buat himpunan data",
+            "body": "Satu kueri per baris. Kueri dengan kata kunci yang diharapkan dinilai dengan kata kunci; sisanya dinilai model."
+          },
+          "2": {
+            "title": "Pilih konfigurasi retrieval",
+            "body": "Mode, batas, rrf_k, bobot vektor/kata kunci. Kolom kosong memakai nilai bawaan produk."
+          },
+          "3": {
+            "title": "Mulai eksekusi",
+            "body": "Eksekusi berjalan di latar belakang dan otomatis membuka laporan saat selesai."
+          },
+          "4": {
+            "title": "Baca laporan",
+            "body": "Periksa lima metrik utama dan tingkat tidak dinilai, lalu buka “Cara setiap metrik dihitung”. Bukti yang hilang tampil sebagai “Tidak dinilai”, bukan 0."
+          },
+          "5": {
+            "title": "Bandingkan",
+            "body": "Pilih dua eksekusi untuk melihat selisih per metrik dan kueri yang memburuk. Jangan bandingkan eksekusi ter-degradasi dengan eksekusi normal."
+          }
+        },
+        "conceptsTitle": "Dua konsep kunci",
+        "conceptExpect": "Label kata kunci: cocok dengan kata kunci yang diharapkan berarti relevan. Gratis dan dapat diulang, cocok untuk regresi.",
+        "conceptJudge": "Dinilai model: teks chunk dikirim ke model. Lebih dekat ke relevansi nyata, tetapi memakai token dan mengirim data.",
+        "templateTitle": "Templat himpunan data",
+        "templateBody": "Siapkan CSV di Excel lalu impor sekali klik. Satu kueri per baris; pisahkan beberapa kata kunci yang diharapkan dengan |.",
+        "download": "Unduh templat (CSV)",
+        "import": "Impor templat"
       }
     }
   }

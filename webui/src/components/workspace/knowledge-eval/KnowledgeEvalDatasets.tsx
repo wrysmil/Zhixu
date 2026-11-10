@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Download, FileUp, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,8 @@ interface KnowledgeEvalDatasetsProps {
   }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onUpdateCases: (dataset: KnowledgeEvalDataset, caseId: string, expectAny: string[]) => Promise<void>;
+  onDownloadTemplate: () => void;
+  onImportTemplate: (file: File) => void;
 }
 
 interface DraftCase {
@@ -49,6 +51,8 @@ export function KnowledgeEvalDatasets({
   onCreate,
   onDelete,
   onUpdateCases,
+  onDownloadTemplate,
+  onImportTemplate,
 }: KnowledgeEvalDatasetsProps) {
   const { t } = useTranslation();
   const [creating, setCreating] = useState(false);
@@ -76,15 +80,43 @@ export function KnowledgeEvalDatasets({
         <h2 className="text-[13px] font-semibold text-foreground">
           {t("knowledge.eval.tab.datasets")}
         </h2>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => setCreating((open) => !open)}
-          className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-semibold"
-        >
-          <Plus className="h-3.5 w-3.5" aria-hidden />
-          {t("knowledge.eval.action.createDataset")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onDownloadTemplate}
+            className="h-8 gap-1.5 rounded-full px-2.5 text-[11.5px]"
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden />
+            {t("knowledge.eval.manual.download")}
+          </Button>
+          <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-input px-2.5 text-[11.5px] font-medium transition-colors hover:bg-accent hover:text-accent-foreground">
+            <FileUp className="h-3.5 w-3.5" aria-hidden />
+            {t("knowledge.eval.manual.import")}
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              aria-label={t("knowledge.eval.manual.import")}
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) onImportTemplate(file);
+              }}
+              className="sr-only"
+            />
+          </label>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => setCreating((open) => !open)}
+            className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-semibold"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            {t("knowledge.eval.action.createDataset")}
+          </Button>
+        </div>
       </div>
 
       {creating ? (
