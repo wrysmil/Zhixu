@@ -62,6 +62,10 @@ CAMEL_PAYLOAD: dict[str, object] = {
         "dedupJaccard": 0.5,
         "dedupLengthRatio": 3.0,
         "toolOutputChars": 6000,
+        "vectorThreshold": 0.15,
+        "keywordThreshold": 0.3,
+        "expandOnLowRecall": True,
+        "expansionLimit": 5,
     },
     "rerank": {
         "enabled": False,
@@ -145,6 +149,10 @@ def test_retrieval_defaults() -> None:
     assert config.dedup_jaccard == 0.6
     assert config.dedup_length_ratio == 3.0
     assert config.tool_output_chars == 6000
+    assert config.vector_threshold == 0.15
+    assert config.keyword_threshold == 0.3
+    assert config.expand_on_low_recall is True
+    assert config.expansion_limit == 5
 
 
 def test_question_generation_defaults() -> None:

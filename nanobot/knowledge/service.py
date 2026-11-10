@@ -263,6 +263,18 @@ def _retriever_settings(retrieval: Any) -> RetrieverSettings:
         dedup_length_ratio=float(
             getattr(retrieval, "dedup_length_ratio", defaults.dedup_length_ratio)
         ),
+        vector_threshold=float(
+            getattr(retrieval, "vector_threshold", defaults.vector_threshold)
+        ),
+        keyword_threshold=float(
+            getattr(retrieval, "keyword_threshold", defaults.keyword_threshold)
+        ),
+        expand_on_low_recall=bool(
+            getattr(retrieval, "expand_on_low_recall", defaults.expand_on_low_recall)
+        ),
+        expansion_limit=int(
+            getattr(retrieval, "expansion_limit", defaults.expansion_limit)
+        ),
     )
 
 

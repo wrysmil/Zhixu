@@ -659,6 +659,14 @@ class KnowledgeRetrievalConfig(Base):
     dedup_jaccard: float = 0.6  # 兼容旧配置：WeKnora 不使用 Jaccard，保留但不参与判定
     dedup_length_ratio: float = 3.0
     tool_output_chars: int = 6000
+    #: 召回阈值（WeKnora retrieval_config：向量 0.15 / 关键词 0.3，0 = 不过滤）。
+    #: 关键词分按「该组最高分」相对计算——SQLite 的 -bm25() 量纲不可比，
+    #: 绝对阈值等于不过滤。
+    vector_threshold: float = 0.15
+    keyword_threshold: float = 0.3
+    #: 候选不足时的本地查询扩展（只走关键词路，不额外调用模型）。
+    expand_on_low_recall: bool = True
+    expansion_limit: int = 5
 
 
 class KnowledgeRerankConfig(Base):

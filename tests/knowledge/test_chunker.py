@@ -362,3 +362,73 @@ def test_chunker_output_always_passes_validator():
     validate_chunks(
         chunk_lines(items, **args), chunk_size=300, chunk_overlap=50, text=text
     )
+
+
+# ---------- 受保护区间（围栏代码 / 表格 / $$） ----------
+
+
+def _joined(items):
+    return "\n".join(line.text for line in items)
+
+
+def _assert_block_intact(items, drafts, start_marker: str, end_marker: str) -> None:
+    text = _joined(items)
+    start = text.index(start_marker)
+    end = text.index(end_marker, start + len(start_marker)) + len(end_marker)
+    holders = [
+        draft
+        for draft in drafts
+        if draft.start_offset < start < draft.end_offset
+    ]
+    assert holders, "块必须从受保护区间之前开始"
+    assert holders[0].end_offset >= end, "受保护区间不能被切开"
+
+
+def test_fenced_code_block_is_not_split():
+    code = ["```python", *[f"x = {index}" for index in range(10)], "```"]
+    items = lines("前" * 60, "", *code, "", "后" * 60)
+    drafts = chunk_lines(
+        items, chunk_size=120, chunk_overlap=0, paragraph_mode="blank_line"
+    )
+
+    _assert_block_intact(items, drafts, "```python", "\n```")
+
+
+def test_markdown_table_is_not_split():
+    table = ["| 列一 | 列二 |", "| --- | --- |"]
+    table.extend(f"| {index} | 值{index} |" for index in range(8))
+    items = lines("说明" * 40, "", *table, "", "结尾" * 40)
+    drafts = chunk_lines(
+        items, chunk_size=150, chunk_overlap=0, paragraph_mode="blank_line"
+    )
+
+    _assert_block_intact(items, drafts, "| 列一", "| 7 |")
+
+
+def test_latex_block_is_not_split():
+    items = lines("前" * 50, "", "$$", "a^2 + b^2 = c^2", "$$", "", "后" * 50)
+    drafts = chunk_lines(
+        items, chunk_size=70, chunk_overlap=0, paragraph_mode="blank_line"
+    )
+
+    _assert_block_intact(items, drafts, "$$", "\n$$")
+
+
+def test_heading_inside_fence_does_not_start_section():
+    items = lines("# 真标题", "```", "# 假标题", "code", "```", "正文")
+    drafts = chunk_lines(
+        items, chunk_size=50, chunk_overlap=0, paragraph_mode="blank_line"
+    )
+
+    assert drafts
+    assert all(draft.heading_path == "真标题" for draft in drafts)
+
+
+def test_oversized_code_block_falls_back_to_hard_cut():
+    items = lines("```", *["x" * 40 for _ in range(10)], "```")
+    drafts = chunk_lines(
+        items, chunk_size=100, chunk_overlap=0, paragraph_mode="line"
+    )
+
+    # 保护失败时回到硬切；碎片合并允许最后一块略超（≤1.5×chunk_size）。
+    assert all(draft.char_count <= 150 for draft in drafts)

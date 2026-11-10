@@ -19,6 +19,7 @@ from nanobot.knowledge.retriever import (
     KnowledgeSearchError,
     Retriever,
     RetrieverSettings,
+    _query_variants,
 )
 
 _UNSET = object()
@@ -115,10 +116,12 @@ class FakeRepo:
         fts_error: Exception | None = None,
         question_fts: list[FtsHit] | None = None,
         question_fts_error: Exception | None = None,
+        fts_handler: Any = None,
     ) -> None:
         self.kbs = list(kbs or [])
         self.fts_hits = list(fts or [])
         self.question_hits = list(question_fts or [])
+        self.fts_handler = fts_handler
         self.chunks = dict(chunks or {})
         self.fts_error = fts_error
         self.question_fts_error = question_fts_error
@@ -151,6 +154,8 @@ class FakeRepo:
         )
         if self.fts_error is not None:
             raise self.fts_error
+        if self.fts_handler is not None:
+            return list(self.fts_handler(match_expr, kb_ids))
         hits = (
             self.fts_hits
             if kb_ids is None
@@ -644,7 +649,9 @@ def test_partial_identity_mismatch_queries_consistent_subset() -> None:
         },
     )
     vector = FakeVector(hits=[("chk_v", 0.9)])
-    result = _retriever(repo, vector=vector).search("alpha", workspace_ids=["ws1"])
+    result = _retriever(repo, vector=vector, expand_on_low_recall=False).search(
+        "alpha", workspace_ids=["ws1"]
+    )
 
     assert vector.calls[0]["kb_ids"] == ["kb_a"]
     # 关键词路按 embedding 空间分组，每个可见库恰好被覆盖一次。
@@ -933,6 +940,10 @@ def test_retriever_settings_defaults() -> None:
     assert settings.dedup_unique_ratio == 0.02
     assert settings.dedup_jaccard == 0.6
     assert settings.dedup_length_ratio == 3.0
+    assert settings.vector_threshold == 0.15
+    assert settings.keyword_threshold == 0.3
+    assert settings.expand_on_low_recall is True
+    assert settings.expansion_limit == 5
 
 
 def test_default_limit_is_applied() -> None:
@@ -948,3 +959,152 @@ def test_default_limit_is_applied() -> None:
 def test_search_result_routes_defaults_to_empty() -> None:
     result = SearchResult(hits=(), mode_used="keyword")
     assert result.routes == ()
+
+
+# ---------- 召回阈值（WeKnora retrieval_config） ----------
+
+
+def test_vector_threshold_drops_low_similarity() -> None:
+    repo = FakeRepo(
+        kbs=[_kb()],
+        chunks={
+            "chk_hi": _stored("chk_hi", _long_text("alpha", "h")),
+            "chk_lo": _stored(
+                "chk_lo", _long_text("beta", "l"), doc_id="doc_2", chunk_index=1
+            ),
+        },
+    )
+    vector = FakeVector(hits=[("chk_hi", 0.9), ("chk_lo", 0.1)])
+    result = _retriever(repo, vector=vector, expand_on_low_recall=False).search(
+        "alpha", workspace_ids=["ws1"], mode="semantic"
+    )
+
+    assert [hit.chunk_id for hit in result.hits] == ["chk_hi"]
+    assert result.reason is None
+
+
+def test_vector_threshold_zero_keeps_everything() -> None:
+    repo = FakeRepo(
+        kbs=[_kb()],
+        chunks={
+            "chk_hi": _stored("chk_hi", _long_text("alpha", "h")),
+            "chk_lo": _stored(
+                "chk_lo", _long_text("beta", "l"), doc_id="doc_2", chunk_index=1
+            ),
+        },
+    )
+    vector = FakeVector(hits=[("chk_hi", 0.9), ("chk_lo", 0.1)])
+    result = _retriever(
+        repo, vector=vector, expand_on_low_recall=False, vector_threshold=0.0
+    ).search("alpha", workspace_ids=["ws1"], mode="semantic")
+
+    assert {hit.chunk_id for hit in result.hits} == {"chk_hi", "chk_lo"}
+
+
+def test_all_vector_hits_below_threshold_reports_filtered() -> None:
+    repo = FakeRepo(
+        kbs=[_kb()],
+        chunks={"chk_lo": _stored("chk_lo", _long_text("alpha", "l"))},
+    )
+    vector = FakeVector(hits=[("chk_lo", 0.05)])
+    result = _retriever(repo, vector=vector, expand_on_low_recall=False).search(
+        "alpha", workspace_ids=["ws1"], mode="semantic"
+    )
+
+    assert result.hits == ()
+    assert result.reason == "filtered"
+
+
+def test_keyword_threshold_is_relative_to_group_best() -> None:
+    repo = FakeRepo(
+        kbs=[_kb()],
+        fts=[
+            _fts("chk_a", _long_text("alpha", "a"), 10.0, content_hash="ha"),
+            _fts(
+                "chk_b",
+                _long_text("beta", "b"),
+                2.0,
+                doc_id="doc_2",
+                chunk_index=1,
+                content_hash="hb",
+            ),
+        ],
+        chunks={
+            "chk_a": _stored("chk_a", _long_text("alpha", "a"), content_hash="ha"),
+            "chk_b": _stored(
+                "chk_b",
+                _long_text("beta", "b"),
+                doc_id="doc_2",
+                chunk_index=1,
+                content_hash="hb",
+            ),
+        },
+    )
+    kept = _retriever(repo, vector=None, expand_on_low_recall=False).search(
+        "alpha", workspace_ids=["ws1"], mode="keyword"
+    )
+    everything = _retriever(
+        repo, vector=None, expand_on_low_recall=False, keyword_threshold=0.0
+    ).search("alpha", workspace_ids=["ws1"], mode="keyword")
+
+    assert [hit.chunk_id for hit in kept.hits] == ["chk_a"]
+    assert {hit.chunk_id for hit in everything.hits} == {"chk_a", "chk_b"}
+
+
+# ---------- 低召回查询扩展（WeKnora query_expansion） ----------
+
+
+def test_query_variants_strip_stopwords_and_question_words() -> None:
+    variants = _query_variants(
+        "请问线上版本出问题了怎么回滚", mode="jieba", limit=5
+    )
+
+    assert variants
+    assert len(variants) <= 5
+    assert len(set(variants)) == len(variants)
+    assert all(len(variant) >= 3 for variant in variants)
+    assert any("回滚" in variant for variant in variants)
+
+
+def test_low_recall_triggers_keyword_expansion() -> None:
+    hit = _fts("chk_x", "回滚流程说明", 5.0, doc_id="doc_x")
+    calls: list[str] = []
+
+    def handler(match_expr: str, kb_ids: list[str] | None) -> list[FtsHit]:
+        calls.append(match_expr)
+        # 原查询返回空；只有变体（第二次及以后）命中。
+        return [] if len(calls) == 1 else [hit]
+
+    repo = FakeRepo(
+        kbs=[_kb()],
+        chunks={"chk_x": _stored("chk_x", "回滚流程说明", doc_id="doc_x")},
+        fts_handler=handler,
+    )
+    result = _retriever(repo, vector=None).search(
+        "线上版本出问题了怎么回滚", workspace_ids=["ws1"], mode="keyword"
+    )
+
+    assert len(calls) > 1
+    assert [item.chunk_id for item in result.hits] == ["chk_x"]
+
+
+def test_expansion_can_be_disabled() -> None:
+    hit = _fts("chk_x", "回滚流程说明", 5.0, doc_id="doc_x")
+    calls: list[str] = []
+
+    def handler(match_expr: str, kb_ids: list[str] | None) -> list[FtsHit]:
+        calls.append(match_expr)
+        return [] if len(calls) == 1 else [hit]
+
+    repo = FakeRepo(
+        kbs=[_kb()],
+        chunks={"chk_x": _stored("chk_x", "回滚流程说明", doc_id="doc_x")},
+        fts_handler=handler,
+    )
+    result = _retriever(repo, vector=None, expand_on_low_recall=False).search(
+        "线上版本出问题了怎么回滚", workspace_ids=["ws1"], mode="keyword"
+    )
+
+    assert len(calls) == 1
+    assert result.hits == ()
+    assert result.reason == "no_candidates"

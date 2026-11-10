@@ -15,6 +15,16 @@ _LIST_ITEM_RE = re.compile(r"[ \t]*(?:[-*+]|\d{1,3}[.)])[ \t]+\S")
 _FRAGMENT_CHARS = 80
 _MERGE_RATIO = 1.5
 
+#: 受保护区间（WeKnora protected_spans）：围栏代码、markdown 表格、`$$` 块。
+#: 切点落在区间内部会把代码/表格从中间切断，向量与倒排都跟着失真。
+_FENCE_OPEN_RE = re.compile(r"^( {0,3})(?P<marker>`{3,}|~{3,})(?P<info>.*)$")
+_TABLE_DELIM_RE = re.compile(
+    r"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$"
+)
+_LATEX_FENCE = "$$"
+#: 区间超过 1.5×chunk_size 时放弃保护——硬切至少还能保证块大小可控。
+_PROTECTED_MAX_FACTOR = 1.5
+
 
 @dataclass(frozen=True, slots=True)
 class ChunkDraft:
@@ -41,25 +51,145 @@ def _build_text(lines: list[Line]) -> tuple[str, list[int]]:
     return "\n".join(line.text for line in lines), starts
 
 
-def _sections(lines: list[Line], mode: str) -> list[tuple[int, int]]:
+def _inside(pos: int, spans: list[tuple[int, int]]) -> bool:
+    """`pos` 是否严格落在某个受保护区间内部（等于区间边界是安全切点）。"""
+    return any(start < pos < end for start, end in spans)
+
+
+def _covering(pos: int, spans: list[tuple[int, int]]) -> tuple[int, int] | None:
+    """覆盖 `pos` 的受保护区间；没有返回 `None`。"""
+    for start, end in spans:
+        if start < pos < end:
+            return (start, end)
+    return None
+
+
+def _scan_fences(lines: list[Line], starts: list[int]) -> list[tuple[int, int]]:
+    """围栏代码块（``` / ~~~）：从开围栏行首到闭围栏行尾；未闭合保护到文末。"""
+    spans: list[tuple[int, int]] = []
+    fence: tuple[str, int] | None = None
+    fence_start = 0
+    for index, line in enumerate(lines):
+        text = line.text.rstrip()
+        if fence is None:
+            match = _FENCE_OPEN_RE.match(text)
+            if match and not (
+                match.group("marker")[0] == "`" and "`" in match.group("info")
+            ):
+                fence = (match.group("marker")[0], len(match.group("marker")))
+                fence_start = starts[index]
+            continue
+        marker, length = fence
+        indent = len(text) - len(text.lstrip(" "))
+        stripped = text.strip()
+        if (
+            indent <= 3
+            and stripped
+            and stripped == marker * len(stripped)
+            and len(stripped) >= length
+        ):
+            spans.append((fence_start, starts[index] + len(line.text)))
+            fence = None
+    if fence is not None:
+        last = len(lines) - 1
+        spans.append((fence_start, starts[last] + len(lines[last].text)))
+    return spans
+
+
+def _scan_tables(lines: list[Line], starts: list[int]) -> list[tuple[int, int]]:
+    """markdown 表格：以分隔行（`|---|`）为锚，向上/向下吃掉连续含 `|` 的行。"""
+    spans: list[tuple[int, int]] = []
+    index = 0
+    while index < len(lines):
+        if not _TABLE_DELIM_RE.match(lines[index].text):
+            index += 1
+            continue
+        top = index
+        while top > 0 and "|" in lines[top - 1].text and lines[top - 1].text.strip():
+            top -= 1
+        bottom = index
+        while (
+            bottom + 1 < len(lines)
+            and "|" in lines[bottom + 1].text
+            and lines[bottom + 1].text.strip()
+        ):
+            bottom += 1
+        spans.append((starts[top], starts[bottom] + len(lines[bottom].text)))
+        index = bottom + 1
+    return spans
+
+
+def _scan_latex(lines: list[Line], starts: list[int]) -> list[tuple[int, int]]:
+    """`$$` 独占一行的 LaTeX 块；未闭合保护到文末。"""
+    spans: list[tuple[int, int]] = []
+    open_start: int | None = None
+    for index, line in enumerate(lines):
+        if line.text.strip() != _LATEX_FENCE:
+            continue
+        if open_start is None:
+            open_start = starts[index]
+            continue
+        spans.append((open_start, starts[index] + len(line.text)))
+        open_start = None
+    if open_start is not None:
+        last = len(lines) - 1
+        spans.append((open_start, starts[last] + len(lines[last].text)))
+    return spans
+
+
+def _protected_spans(
+    lines: list[Line], starts: list[int], chunk_size: int
+) -> list[tuple[int, int]]:
+    """合并重叠区间，并丢掉长到保护不了（>1.5×chunk_size）的块。"""
+    raw = [
+        *_scan_fences(lines, starts),
+        *_scan_tables(lines, starts),
+        *_scan_latex(lines, starts),
+    ]
+    raw.sort()
+    merged: list[tuple[int, int]] = []
+    for start, end in raw:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    limit = int(chunk_size * _PROTECTED_MAX_FACTOR)
+    return [(start, end) for start, end in merged if end - start <= limit]
+
+
+def _heading_flags(
+    lines: list[Line], starts: list[int], spans: list[tuple[int, int]]
+) -> list[bool]:
+    """围栏代码里的 `# 注释` 不是标题，不能开新小节。"""
+    return [
+        bool(_HEADING_RE.match(line.text)) and not _inside(starts[index], spans)
+        for index, line in enumerate(lines)
+    ]
+
+
+def _sections(
+    lines: list[Line], mode: str, headings: list[bool]
+) -> list[tuple[int, int]]:
     bounds = [0]
     if mode == "blank_line":
         bounds.extend(
             index
-            for index, line in enumerate(lines)
-            if index > 0 and _HEADING_RE.match(line.text)
+            for index, is_heading in enumerate(headings)
+            if index > 0 and is_heading
         )
     bounds.append(len(lines))
     return list(zip(bounds, bounds[1:]))
 
 
-def _heading_paths(lines: list[Line], mode: str) -> list[str]:
+def _heading_paths(
+    lines: list[Line], mode: str, headings: list[bool]
+) -> list[str]:
     if mode != "blank_line":
         return ["" for _ in lines]
     stack: list[tuple[int, str]] = []
     paths: list[str] = []
-    for line in lines:
-        match = _HEADING_RE.match(line.text)
+    for index, line in enumerate(lines):
+        match = _HEADING_RE.match(line.text) if headings[index] else None
         if match:
             level = len(match.group(1))
             while stack and stack[-1][0] >= level:
@@ -69,7 +199,9 @@ def _heading_paths(lines: list[Line], mode: str) -> list[str]:
     return paths
 
 
-def _list_break(text: str, start: int, limit: int) -> int:
+def _list_break(
+    text: str, start: int, limit: int, protected: list[tuple[int, int]]
+) -> int:
     """窗口内最后一个「列表项行首」的换行位置；没有返回 -1。
 
     列表项之间通常只有单个换行（没有空行），段落切点找不到时退到这一级，
@@ -77,23 +209,43 @@ def _list_break(text: str, start: int, limit: int) -> int:
     """
     index = text.rfind("\n", start, limit)
     while index > start:
-        if _LIST_ITEM_RE.match(text, index + 1):
+        if _LIST_ITEM_RE.match(text, index + 1) and not _inside(index + 1, protected):
             return index
         index = text.rfind("\n", start, index)
     return -1
 
 
-def _cut(text: str, start: int, limit: int, mode: str) -> int:
+def _cut(
+    text: str,
+    start: int,
+    limit: int,
+    mode: str,
+    protected: list[tuple[int, int]],
+) -> int:
+    """在 `(start, limit]` 内选切点；所有候选都落在受保护区间时切到区间尾部。"""
     if mode == "blank_line":
         index = text.rfind("\n\n", start, limit)
+        while index > start and _inside(index, protected):
+            index = text.rfind("\n\n", start, index)
         if index > start:
             return index
-    index = _list_break(text, start, limit)
+    index = _list_break(text, start, limit, protected)
     if index > start:
         return index + 1
-    boundary = max((text.rfind(mark, start, limit) for mark in _SENTENCE_END), default=-1)
+    boundary = max(
+        (text.rfind(mark, start, limit) for mark in _SENTENCE_END), default=-1
+    )
+    while boundary >= start and _inside(boundary + 1, protected):
+        boundary = max(
+            (text.rfind(mark, start, boundary) for mark in _SENTENCE_END),
+            default=-1,
+        )
     if boundary >= start:
         return boundary + 1
+    span = _covering(limit, protected)
+    if span is not None:
+        # 窗口尾部落在代码/表格里：宁可让这一块略超长，也不从中间切断。
+        return span[1]
     return limit
 
 
@@ -131,11 +283,13 @@ def chunk_lines(
     text, starts = _build_text(lines)
     if not text.strip():
         return []
-    paths = _heading_paths(lines, paragraph_mode)
+    protected = _protected_spans(lines, starts, chunk_size)
+    headings = _heading_flags(lines, starts, protected)
+    paths = _heading_paths(lines, paragraph_mode, headings)
     total = len(text)
     drafts: list[ChunkDraft] = []
 
-    for index0, index1 in _sections(lines, paragraph_mode):
+    for index0, index1 in _sections(lines, paragraph_mode, headings):
         if index0 >= index1:
             continue
         section_start = starts[index0]
@@ -145,7 +299,13 @@ def chunk_lines(
         pos = section_start
         while pos < section_end:
             limit = min(pos + chunk_size, section_end)
-            cut = section_end if limit == section_end else _cut(text, pos, limit, paragraph_mode)
+            cut = (
+                section_end
+                if limit == section_end
+                else _cut(text, pos, limit, paragraph_mode, protected)
+            )
+            # 保护区间可能把切点推到本节之后；标题边界仍然优先。
+            cut = min(cut, section_end)
             if cut <= pos:
                 cut = limit
             content = text[pos:cut]
@@ -164,6 +324,10 @@ def chunk_lines(
             if cut >= section_end:
                 break
             pos = max(pos + 1, cut - chunk_overlap, section_start)
+            span = _covering(pos, protected)
+            if span is not None:
+                # 重叠不要把人带进代码/表格中间：直接跳到区间之后。
+                pos = span[1]
 
     return _merge_fragments(text, drafts, chunk_size)
 

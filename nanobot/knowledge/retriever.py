@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 
@@ -56,7 +57,7 @@ from nanobot.knowledge.rerank import (
     composite_score,
 )
 from nanobot.knowledge.text import build_passage, passage_char_limit
-from nanobot.knowledge.tokenizer import tokenize_query
+from nanobot.knowledge.tokenizer import tokenize_index, tokenize_query
 from nanobot.knowledge.vector import VectorStore
 
 _MODES = frozenset({"hybrid", "semantic", "keyword"})
@@ -106,6 +107,12 @@ class RetrieverSettings:
     # 兼容旧配置：WeKnora 去重不使用 Jaccard，字段保留但不再参与判定。
     dedup_jaccard: float = 0.6
     dedup_length_ratio: float = 3.0
+    #: 召回阈值（0 = 不过滤）：向量按 cosine 原值，关键词按组内最高分相对计算。
+    vector_threshold: float = 0.15
+    keyword_threshold: float = 0.3
+    #: 低召回时的本地查询扩展（只走关键词路，不调用模型）。
+    expand_on_low_recall: bool = True
+    expansion_limit: int = 5
 
 
 def _from_fts(hit: FtsHit) -> SearchHit:
@@ -144,6 +151,79 @@ def _from_chunk(chunk: StoredChunk, score: float) -> SearchHit:
 def _dedup_labels(labels: list[str]) -> tuple[str, ...]:
     """`degraded` 去重且保持首次出现顺序。"""
     return tuple(dict.fromkeys(labels))
+
+
+# ---------- 召回阈值与本地查询扩展（WeKnora 对齐） ----------
+_STOPWORDS = frozenset(
+    {
+        "的", "是", "在", "了", "和", "与", "或", "吗", "呢", "吧", "啊",
+        "我", "你", "他", "她", "它", "我们", "你们", "他们",
+        "这", "那", "这个", "那个", "一下", "请问",
+        "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could",
+        "should", "may", "might", "must", "can", "to", "of", "in", "for",
+        "on", "with", "at",
+    }
+)
+_QUESTION_WORDS = ("什么", "如何", "怎么", "为什么", "哪个", "哪些", "是否", "能否")
+_VARIANT_DELIMITERS = re.compile(r"[，。！？；、,.!?;:：\n\r\t]+")
+_QUOTED_PHRASE = re.compile(r"[“\"']([^”\"']{2,40})[”\"']")
+
+
+def _query_variants(query: str, *, mode: str, limit: int) -> list[str]:
+    """本地生成查询变体（≤limit），只用于关键词路（WeKnora query_expansion）。
+
+    规则：去停用词后的 token 串、引号短语、分隔片段、去疑问词；
+    变体不重新算 embedding，避免无谓的向量调用。
+    """
+    base = query.strip()
+    if not base or limit <= 0:
+        return []
+    seen = {base.lower()}
+    variants: list[str] = []
+
+    def add(text: str) -> None:
+        text = " ".join(text.split())
+        if len(text) < 3:
+            return
+        key = text.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        variants.append(text)
+
+    tokens = [
+        token
+        for token in tokenize_index(base, mode=mode).split()
+        if token.lower() not in _STOPWORDS
+    ]
+    if len(tokens) >= 2:
+        add(" ".join(tokens))
+    for phrase in _QUOTED_PHRASE.findall(base):
+        add(phrase)
+    for segment in _VARIANT_DELIMITERS.split(base):
+        if len(segment.strip()) > 5:
+            add(segment)
+    cleaned = base
+    for word in _QUESTION_WORDS:
+        cleaned = cleaned.replace(word, " ")
+    add(cleaned)
+    return variants[:limit]
+
+
+def _filter_keyword_hits(hits: list[FtsHit], threshold: float) -> list[FtsHit]:
+    """关键词阈值：相对该组最高分（0 = 不过滤）。
+
+    SQLite 的 `-bm25()` 无上界、跨 collection 不可比，绝对阈值等于不过滤；
+    WeKnora 的 0.3 也是相对「该列表自身最好分」才有意义。
+    """
+    if threshold <= 0 or not hits:
+        return hits
+    peak = max(hit.score for hit in hits)
+    if peak <= 0:
+        return hits
+    floor = peak * min(threshold, 1.0)
+    return [hit for hit in hits if hit.score >= floor]
 
 
 class Retriever:
@@ -237,6 +317,7 @@ class Retriever:
         want_keyword = normalized_mode != "semantic" or not vector_ok
         keyword_hits: list[FtsHit] = []
         keyword_lists: list[list[tuple[str, float]]] = []
+        keyword_groups: list[tuple[str, ...]] = []
         keyword_error: Exception | None = None
         keyword_ok = False
         if want_keyword and match_expr:
@@ -244,7 +325,6 @@ class Retriever:
             # 每个可见库必须恰好落进一个关键词组——否则「向量索引过期」的库会
             # 连关键词路也搜不到（它只是不能走向量，不该从检索里消失）。
             covered: set[str] = set()
-            keyword_groups: list[tuple[str, ...]] = []
             for group in groups:
                 keyword_groups.append(group.kb_ids)
                 covered.update(group.kb_ids)
@@ -277,13 +357,41 @@ class Retriever:
                     kb_ids=list(group_kb_ids),
                     limit=pool,
                 )
-                merged = self._merge_group_hits(group_hits, question_hits, limit=pool)
+                merged = self._merge_group_hits(
+                    group_hits,
+                    question_hits,
+                    limit=pool,
+                    threshold=settings.keyword_threshold,
+                )
                 keyword_hits.extend(merged)
                 keyword_lists.append(
                     [(hit.chunk_id, hit.score) for hit in merged]
                 )
             else:
                 keyword_ok = True
+
+        # 召回不足时用本地变体补关键词路（WeKnora query_expansion）：不重建 embedding。
+        if (
+            want_keyword
+            and match_expr
+            and keyword_error is None
+            and settings.expand_on_low_recall
+        ):
+            known = {hit.chunk_id for hit in keyword_hits}
+            known.update(hit.chunk_id for hit in vector_hits)
+            if len(known) < max(1, settings.pool_size):
+                expanded = self._expansion_hits(
+                    query,
+                    keyword_groups,
+                    workspace_ids=list(workspace_ids),
+                    limit=effective_limit,
+                )
+                if expanded:
+                    keyword_hits.extend(expanded)
+                    keyword_lists.append(
+                        [(hit.chunk_id, hit.score) for hit in expanded]
+                    )
+                    keyword_ok = True
 
         # 失败 ≠ 空结果：参与的路由全部失败才抛（§3、§6）。
         if keyword_error is not None and not vector_ok:
@@ -604,21 +712,72 @@ class Retriever:
             logger.warning("knowledge question keyword route failed: {}", exc)
             return []
 
+    def _expansion_hits(
+        self,
+        query: str,
+        groups: list[tuple[str, ...]],
+        *,
+        workspace_ids: list[str],
+        limit: int,
+    ) -> list[FtsHit]:
+        """低召回时的关键词扩展：本地变体 × 每个 KB 组，阈值按 0.8 放宽。"""
+        variants = _query_variants(
+            query, mode=self._tokenizer_mode, limit=self._settings.expansion_limit
+        )
+        if not variants:
+            return []
+        pool = max(limit * 2, self._settings.rerank_top_k * 2)
+        threshold = self._settings.keyword_threshold * 0.8
+        best: dict[str, FtsHit] = {}
+        for variant in variants:
+            expr = tokenize_query(variant, mode=self._tokenizer_mode)
+            if not expr:
+                continue
+            for group_kb_ids in groups:
+                if not group_kb_ids:
+                    continue
+                try:
+                    group_hits = self._repo.search_fts(
+                        expr,
+                        workspace_ids=workspace_ids,
+                        limit=pool,
+                        kb_ids=list(group_kb_ids),
+                    )
+                except Exception as exc:  # noqa: BLE001 - 扩展是增强项，失败只丢变体
+                    logger.warning("knowledge expansion keyword route failed: {}", exc)
+                    continue
+                question_hits = self._question_keyword_hits(
+                    expr,
+                    workspace_ids=workspace_ids,
+                    kb_ids=list(group_kb_ids),
+                    limit=pool,
+                )
+                merged = self._merge_group_hits(
+                    group_hits, question_hits, limit=pool, threshold=threshold
+                )
+                for hit in merged:
+                    current = best.get(hit.chunk_id)
+                    if current is None or hit.score > current.score:
+                        best[hit.chunk_id] = hit
+        ranked = sorted(best.values(), key=lambda hit: (-hit.score, hit.chunk_id))
+        return ranked[:pool]
+
     @staticmethod
     def _merge_group_hits(
         chunk_hits: list[FtsHit],
         question_hits: list[FtsHit],
         *,
         limit: int,
+        threshold: float = 0.0,
     ) -> list[FtsHit]:
-        """块命中与问题命中都映射到父块：同一块取最高分，再按分数截断。"""
+        """块命中与问题命中都映射到父块：同一块取最高分，再按阈值与分数截断。"""
         best: dict[str, FtsHit] = {}
         for hit in (*chunk_hits, *question_hits):
             current = best.get(hit.chunk_id)
             if current is None or hit.score > current.score:
                 best[hit.chunk_id] = hit
         ranked = sorted(best.values(), key=lambda hit: (-hit.score, hit.chunk_id))
-        return ranked[:limit]
+        return _filter_keyword_hits(ranked, threshold)[:limit]
 
     def _run_vector_route(
         self,
@@ -637,6 +796,7 @@ class Retriever:
         raw_count = 0
         failures = 0
         last_error: Exception | None = None
+        threshold = max(0.0, self._settings.vector_threshold)
         for group in groups:
             # 一个库的 embedding/向量库坏了，不该拖垮其他组的向量召回。
             try:
@@ -660,6 +820,9 @@ class Retriever:
             group_chunks: dict[str, StoredChunk] = {}
             group_best: dict[str, float] = {}
             for source_id, cosine in raw_hits:
+                # 阈值裁在回表之前：弱相关块不必再查 SQLite（raw_count 仍记裁前数量）。
+                if threshold > 0 and cosine < threshold:
+                    continue
                 parent = parent_chunk_id(source_id)
                 stored = self._repo.fetch_chunk(parent or source_id)
                 if stored is None or not stored.is_enabled:
