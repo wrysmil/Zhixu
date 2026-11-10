@@ -228,6 +228,7 @@ def serve_eval(
         passphrase=secret,
         allowed_hosts=frozenset({"127.0.0.1", "localhost"}),
         profiles=tuple(service.profiles),
+        config=config,
     )
 
     async def _serve() -> None:

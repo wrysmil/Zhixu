@@ -24,7 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import ParamSpec, TypeVar
 
-SCHEMA_VERSION = "4"
+SCHEMA_VERSION = "5"
 
 BUSY_TIMEOUT_MS = 5000
 
@@ -419,6 +419,59 @@ _MIGRATIONS: tuple[tuple[str, tuple[_MigrationStatement, ...]], ...] = (
             # ----- 逐 probe 复核引用（旧记录保持 NULL） -----
             # 幂等步骤而非裸 ALTER：列已存在时跳过（契约 §7 要求迁移 4 可重复执行）。
             _add_memory_ref_column,
+        ),
+    ),
+    (
+        "5",
+        (
+            # ----- 知识检索专项：数据集 -----
+            """
+            CREATE TABLE IF NOT EXISTS knowledge_eval_datasets (
+              id         TEXT    PRIMARY KEY,
+              name       TEXT    NOT NULL,
+              notes      TEXT    NOT NULL DEFAULT '',
+              revision   INTEGER NOT NULL DEFAULT 1,
+              cases_json TEXT    NOT NULL DEFAULT '[]',
+              created_at TEXT    NOT NULL,
+              updated_at TEXT    NOT NULL
+            )
+            """,
+            # ----- 知识检索专项：运行 -----
+            """
+            CREATE TABLE IF NOT EXISTS knowledge_eval_runs (
+              id            TEXT    PRIMARY KEY,
+              dataset_id    TEXT    NOT NULL,
+              status        TEXT    NOT NULL DEFAULT 'queued',
+              configs_json  TEXT    NOT NULL DEFAULT '[]',
+              judge_json    TEXT    NOT NULL DEFAULT '{}',
+              budgets_json  TEXT    NOT NULL DEFAULT '{}',
+              metrics_json  TEXT    NOT NULL DEFAULT '{}',
+              pool_json     TEXT    NOT NULL DEFAULT '{}',
+              progress_json TEXT    NOT NULL DEFAULT '{}',
+              error         TEXT,
+              created_at    TEXT    NOT NULL,
+              finished_at   TEXT,
+              FOREIGN KEY (dataset_id) REFERENCES knowledge_eval_datasets(id)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS knowledge_eval_runs_status_idx"
+            " ON knowledge_eval_runs (dataset_id, status, created_at)",
+            # ----- 知识检索专项：逐题结果 -----
+            # case_id 是「用例 id::配置 id」复合形式：同一条查询在多个检索配置下
+            # 各存一行，PRIMARY KEY (run_id, case_id) 让重跑天然幂等。
+            """
+            CREATE TABLE IF NOT EXISTS knowledge_eval_results (
+              run_id       TEXT NOT NULL,
+              case_id      TEXT NOT NULL,
+              status       TEXT NOT NULL,
+              label_source TEXT NOT NULL,
+              hits_json    TEXT NOT NULL DEFAULT '[]',
+              metrics_json TEXT NOT NULL DEFAULT '{}',
+              error        TEXT,
+              PRIMARY KEY (run_id, case_id),
+              FOREIGN KEY (run_id) REFERENCES knowledge_eval_runs(id)
+            )
+            """,
         ),
     ),
 )

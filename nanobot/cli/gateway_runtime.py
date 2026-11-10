@@ -408,6 +408,7 @@ async def _start_embedded_evaluation(
             allowed_origins=allowed_origins,
             profiles=(*build_profiles_from_config(config), *default_profiles()),
             team_runner=team_runner,
+            config=config,
         )
         runner = web.AppRunner(app)
         await runner.setup()

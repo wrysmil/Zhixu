@@ -60,6 +60,7 @@ export function parseWorkspaceHash(rawHash: string): WorkspaceRoute {
   if (path === "/memory") return { view: "memory", chatKey };
   if (path === "/identity") return { view: "identity", chatKey };
   if (path === "/knowledge") return { view: "knowledge", chatKey };
+  if (path === "/knowledge-eval") return { view: "knowledge-eval", chatKey };
 
   for (const capability of CAPABILITY_VIEWS) {
     if (path === `/${capability}`) {

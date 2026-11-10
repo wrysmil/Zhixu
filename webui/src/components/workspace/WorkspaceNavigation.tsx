@@ -8,6 +8,7 @@ import {
   Bot,
   BookOpen,
   CalendarClock,
+  FlaskConical,
   Library,
   MessageCircleMore,
   PanelLeftClose,
@@ -70,6 +71,10 @@ const KNOWLEDGE_ITEM: NavItem = {
   view: "knowledge", labelKey: "knowledge.title", labelDefault: "Knowledge",
   icon: Library,
 };
+const KNOWLEDGE_EVAL_ITEM: NavItem = {
+  view: "knowledge-eval", labelKey: "knowledge.eval.title", labelDefault: "Retrieval Eval",
+  icon: FlaskConical,
+};
 const TEAM_ITEM: NavItem = {
   view: "teams", labelKey: "settings.nav.teams", labelDefault: "Teams",
   icon: TeamStructureIcon,
@@ -86,6 +91,7 @@ const PRIMARY_ITEMS: NavItem[] = [
 const CAPABILITY_ITEMS: NavItem[] = [
   APP_ITEM,
   KNOWLEDGE_ITEM,
+  KNOWLEDGE_EVAL_ITEM,
   SKILLS_ITEM,
   AUTOMATIONS_ITEM,
   TEAM_ITEM,

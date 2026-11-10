@@ -97,6 +97,20 @@ ERROR_STATUS: dict[str, int] = {
     "MEMORY_SCENARIO_ID_MISMATCH": 422,
     "MEMORY_TRACK_UNSUPPORTED": 422,
     "TEMPLATE_FAMILY_CROSS_SPLIT": 422,
+    # ----- 知识检索专项（契约 §2/§3 的错误表） -----
+    # 资源不存在：数据集与运行各有自己的 404 码，前端据此分辨该刷新哪一页。
+    "KNOWLEDGE_DATASET_NOT_FOUND": 404,
+    "KNOWLEDGE_RUN_NOT_FOUND": 404,
+    # 状态冲突：能读到数据集，但版本已变（乐观锁）。
+    "KNOWLEDGE_DATASET_REVISION_CONFLICT": 409,
+    # 数据集非空：名下仍有未结束的运行，不能删。
+    "KNOWLEDGE_DATASET_NOT_EMPTY": 422,
+    # 输入不合法：检索参数不在白名单 / 缺必要能力 / 预算不足。
+    "KNOWLEDGE_CONFIG_UNSUPPORTED": 422,
+    "KNOWLEDGE_CAPABILITY_REQUIRED": 422,
+    "KNOWLEDGE_BUDGET_EXCEEDED": 422,
+    # 知识域未配置：没有 config.knowledge 时知识评测整体不可用。
+    "KNOWLEDGE_CONFIG_UNAVAILABLE": 503,
 }
 
 #: 服务内部故障：这些码**不回显 message**，只给一个固定文案。
@@ -139,6 +153,14 @@ def _default_message(code: str) -> str:
         "MEMORY_CAPABILITY_REQUIRED": "被测后端缺少该轨道所需能力",
         "UNSUPPORTED_MEMORY_SETTING": "存在无法落到真实配置的记忆参数",
         "MEMORY_SOURCE_HASH_MISMATCH": "上传内容与声明的摘要不一致",
+        "KNOWLEDGE_DATASET_NOT_FOUND": "知识评测数据集不存在",
+        "KNOWLEDGE_RUN_NOT_FOUND": "知识评测运行不存在",
+        "KNOWLEDGE_DATASET_REVISION_CONFLICT": "数据集版本已更新，请刷新后重试",
+        "KNOWLEDGE_DATASET_NOT_EMPTY": "数据集仍有进行中的运行，不能删除",
+        "KNOWLEDGE_CONFIG_UNSUPPORTED": "存在不在白名单内的检索参数",
+        "KNOWLEDGE_CAPABILITY_REQUIRED": "缺少知识评测所需的能力",
+        "KNOWLEDGE_BUDGET_EXCEEDED": "知识评测预算不足",
+        "KNOWLEDGE_CONFIG_UNAVAILABLE": "知识域未配置，知识评测暂不可用",
     }.get(code, code)
 
 

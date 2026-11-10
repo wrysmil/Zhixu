@@ -3712,6 +3712,125 @@
     "repairDone": "Repair finished",
     "chunkTitle": "Chunk detail",
     "close": "Close",
-    "sizeValue": "{{count}} chars"
+    "sizeValue": "{{count}} chars",
+    "eval": {
+      "title": "Évaluation de la recherche",
+      "kicker": "Connaissances",
+      "subtitle": "Exécutez le même jeu de requêtes avec différentes configurations de recherche, notez la pertinence et voyez quelles requêtes se dégradent.",
+      "loading": "Chargement…",
+      "tab": {
+        "datasets": "Jeux de données",
+        "runs": "Exécutions",
+        "compare": "Comparaison",
+        "caseResults": "Résultats par requête"
+      },
+      "guide": {
+        "title": "Comment chaque indicateur est calculé",
+        "subtitle": "Les formules viennent du service d'évaluation : elles restent toujours alignées sur l'implémentation.",
+        "column": {
+          "name": "Indicateur",
+          "formula": "Formule",
+          "numerator": "Numérateur",
+          "denominator": "Dénominateur",
+          "direction": "Sens"
+        },
+        "direction": {
+          "higherIsBetter": "Plus haut est meilleur",
+          "lowerIsBetter": "Plus bas est meilleur"
+        },
+        "disclaimer": "Les indicateurs sont groupés par source d'étiquetage ; les groupes ne sont jamais mélangés.",
+        "formulaTooltip": "La formule est fournie par le service d'évaluation."
+      },
+      "metric": {
+        "precision": "Précision@k",
+        "recall": "Rappel@k",
+        "hit": "Hit@k",
+        "mrr": "MRR",
+        "ndcg": "nDCG@k",
+        "poolCoverage": "Couverture du pool",
+        "unscoredRate": "Taux non noté"
+      },
+      "result": {
+        "precision": "Précision",
+        "recall": "Rappel",
+        "hit": "Hit",
+        "mrr": "MRR",
+        "ndcg": "nDCG",
+        "status": "Statut",
+        "notScored": "Non noté",
+        "scoredCount": "{{count}} requêtes notées",
+        "unscoredCount": "{{count}} requêtes non notées",
+        "query": "Requête",
+        "config": "Configuration"
+      },
+      "status": {
+        "scored": "Noté",
+        "failed": "Échec"
+      },
+      "badge": {
+        "degraded": "Exécution dégradée",
+        "notAssessable": "Non évaluable",
+        "labelSource": {
+          "expect": "Étiquetage par mots-clés",
+          "judge": "Jugé par le modèle"
+        }
+      },
+      "action": {
+        "createDataset": "Nouveau jeu de données",
+        "deleteDataset": "Supprimer le jeu de données",
+        "addCase": "Ajouter une requête",
+        "addConfig": "Ajouter une configuration",
+        "save": "Enregistrer",
+        "run": "Lancer l'exécution",
+        "cancel": "Annuler",
+        "compare": "Comparer",
+        "confirm": "Lancer quand même",
+        "refresh": "Actualiser"
+      },
+      "dataset": {
+        "name": "Nom du jeu de données",
+        "notes": "Notes",
+        "query": "Requête",
+        "queryPlaceholder": "ex. Comment annuler un déploiement ?",
+        "expect": "Mots-clés attendus",
+        "expectPlaceholder": "séparés par des virgules, ex. rollback, kubectl",
+        "hint": "Un jeu de données exige au moins une requête. Les requêtes avec mots-clés attendus sont notées par mots-clés, les autres par le juge du modèle.",
+        "caseCount": "{{count}} requêtes"
+      },
+      "run": {
+        "dataset": "Jeu de données",
+        "configId": "ID de configuration",
+        "configName": "Nom de la configuration",
+        "mode": "Mode de recherche",
+        "limit": "Limite",
+        "configCount": "{{count}} configurations",
+        "hint": "Choisissez un jeu de données puis lancez une exécution pour voir les indicateurs."
+      },
+      "compare": {
+        "base": "Exécution de référence",
+        "candidate": "Exécution candidate",
+        "delta": "Écart",
+        "regressions": "Requêtes dégradées",
+        "none": "Non sélectionnée",
+        "hint": "Choisissez deux exécutions pour voir les écarts par indicateur et les requêtes qui se dégradent.",
+        "noRegressions": "Aucune requête ne s'est dégradée sur ces indicateurs."
+      },
+      "empty": {
+        "datasets": "Aucun jeu de données pour l'instant",
+        "runs": "Aucune exécution pour l'instant",
+        "compare": "Aucune comparaison pour l'instant",
+        "caseResults": "Aucun résultat par requête pour l'instant"
+      },
+      "hint": {
+        "judgePrivacy": "Le texte des fragments retenus pour les requêtes jugées est envoyé au service de modèle configuré, qui peut être distant.",
+        "judgePrivacyTitle": "Les requêtes jugées envoient le texte des fragments à un modèle",
+        "recallIsPoolRelative": "Le rappel@k est relatif au pool de candidats : le dénominateur est le nombre de fragments pertinents jugés dans ce pool, pas dans toute la base.",
+        "degradedNotComparable": "Une exécution dégradée ne doit pas être comparée directement avec une exécution normale."
+      },
+      "error": {
+        "load": "Échec du chargement",
+        "action": "Échec de l'action"
+      }
+    }
   }
 }

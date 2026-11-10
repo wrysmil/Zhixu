@@ -3712,6 +3712,125 @@
     "repairDone": "Repair finished",
     "chunkTitle": "Chunk detail",
     "close": "Close",
-    "sizeValue": "{{count}} chars"
+    "sizeValue": "{{count}} chars",
+    "eval": {
+      "title": "Retrieval Eval",
+      "kicker": "Knowledge",
+      "subtitle": "Run the same query set against different retrieval settings, score relevance, and see which queries got worse.",
+      "loading": "Loading…",
+      "tab": {
+        "datasets": "Datasets",
+        "runs": "Runs",
+        "compare": "Compare",
+        "caseResults": "Per-query results"
+      },
+      "guide": {
+        "title": "How each metric is computed",
+        "subtitle": "Formulas are served by the evaluation service, so they always match the implementation.",
+        "column": {
+          "name": "Metric",
+          "formula": "Formula",
+          "numerator": "Numerator",
+          "denominator": "Denominator",
+          "direction": "Direction"
+        },
+        "direction": {
+          "higherIsBetter": "Higher is better",
+          "lowerIsBetter": "Lower is better"
+        },
+        "disclaimer": "Metrics are grouped by label source; groups are never mixed together.",
+        "formulaTooltip": "The formula is served by the evaluation service."
+      },
+      "metric": {
+        "precision": "Precision@k",
+        "recall": "Recall@k",
+        "hit": "Hit@k",
+        "mrr": "MRR",
+        "ndcg": "nDCG@k",
+        "poolCoverage": "Pool coverage",
+        "unscoredRate": "Unscored rate"
+      },
+      "result": {
+        "precision": "Precision",
+        "recall": "Recall",
+        "hit": "Hit",
+        "mrr": "MRR",
+        "ndcg": "nDCG",
+        "status": "Status",
+        "notScored": "Not scored",
+        "scoredCount": "{{count}} scored queries",
+        "unscoredCount": "{{count}} unscored queries",
+        "query": "Query",
+        "config": "Configuration"
+      },
+      "status": {
+        "scored": "Scored",
+        "failed": "Failed"
+      },
+      "badge": {
+        "degraded": "Degraded run",
+        "notAssessable": "Not assessable",
+        "labelSource": {
+          "expect": "Keyword labels",
+          "judge": "LLM judged"
+        }
+      },
+      "action": {
+        "createDataset": "New dataset",
+        "deleteDataset": "Delete dataset",
+        "addCase": "Add query",
+        "addConfig": "Add configuration",
+        "save": "Save",
+        "run": "Start run",
+        "cancel": "Cancel",
+        "compare": "Compare",
+        "confirm": "Start anyway",
+        "refresh": "Refresh"
+      },
+      "dataset": {
+        "name": "Dataset name",
+        "notes": "Notes",
+        "query": "Query",
+        "queryPlaceholder": "e.g. How do I roll back a deployment?",
+        "expect": "Expected keywords",
+        "expectPlaceholder": "comma separated, e.g. rollback, kubectl",
+        "hint": "A dataset needs at least one query. Queries with expected keywords are scored by keyword, the rest by the LLM judge.",
+        "caseCount": "{{count}} queries"
+      },
+      "run": {
+        "dataset": "Dataset",
+        "configId": "Config ID",
+        "configName": "Config name",
+        "mode": "Mode",
+        "limit": "Limit",
+        "configCount": "{{count}} configurations",
+        "hint": "Pick a dataset and start a run to see metrics."
+      },
+      "compare": {
+        "base": "Baseline run",
+        "candidate": "Candidate run",
+        "delta": "Difference",
+        "regressions": "Regressed queries",
+        "none": "Not selected",
+        "hint": "Pick two runs to see per-metric differences and the queries that got worse.",
+        "noRegressions": "No query got worse on these metrics."
+      },
+      "empty": {
+        "datasets": "No dataset yet",
+        "runs": "No run yet",
+        "compare": "No comparison yet",
+        "caseResults": "No per-query result yet"
+      },
+      "hint": {
+        "judgePrivacy": "Chunk text of judged queries is sent to the configured model service, which may be remote.",
+        "judgePrivacyTitle": "Judged queries send chunk text to a model",
+        "recallIsPoolRelative": "Recall@k is relative to the candidate pool: the denominator is the number of relevant blocks judged inside this pool, not the whole library.",
+        "degradedNotComparable": "A degraded run must not be compared directly with a normal run."
+      },
+      "error": {
+        "load": "Failed to load",
+        "action": "Action failed"
+      }
+    }
   }
 }

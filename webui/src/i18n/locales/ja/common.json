@@ -3712,6 +3712,125 @@
     "repairDone": "Repair finished",
     "chunkTitle": "Chunk detail",
     "close": "Close",
-    "sizeValue": "{{count}} chars"
+    "sizeValue": "{{count}} chars",
+    "eval": {
+      "title": "検索評価",
+      "kicker": "ナレッジ",
+      "subtitle": "同じクエリ集合を別の検索設定で評価し、関連性を判定して、どのクエリが悪化したかを確認します。",
+      "loading": "読み込み中…",
+      "tab": {
+        "datasets": "データセット",
+        "runs": "実行",
+        "compare": "比較",
+        "caseResults": "設問ごとの結果"
+      },
+      "guide": {
+        "title": "各指標の計算方法",
+        "subtitle": "式は評価サービスから配信されるため、実装とのずれが起きません。",
+        "column": {
+          "name": "指標",
+          "formula": "計算式",
+          "numerator": "分子",
+          "denominator": "分母",
+          "direction": "方向"
+        },
+        "direction": {
+          "higherIsBetter": "大きいほど良い",
+          "lowerIsBetter": "小さいほど良い"
+        },
+        "disclaimer": "指標はラベル種別ごとに分けて表示し、異なる種別を合算することはありません。",
+        "formulaTooltip": "式は評価サービスから配信されます。"
+      },
+      "metric": {
+        "precision": "Precision@k",
+        "recall": "Recall@k",
+        "hit": "Hit@k",
+        "mrr": "MRR",
+        "ndcg": "nDCG@k",
+        "poolCoverage": "候補プールの関連度",
+        "unscoredRate": "未評価率"
+      },
+      "result": {
+        "precision": "Precision",
+        "recall": "Recall",
+        "hit": "Hit",
+        "mrr": "MRR",
+        "ndcg": "nDCG",
+        "status": "状態",
+        "notScored": "未評価",
+        "scoredCount": "評価済み {{count}} 件",
+        "unscoredCount": "未評価 {{count}} 件",
+        "query": "クエリ",
+        "config": "設定"
+      },
+      "status": {
+        "scored": "評価済み",
+        "failed": "失敗"
+      },
+      "badge": {
+        "degraded": "劣化実行",
+        "notAssessable": "評価不能",
+        "labelSource": {
+          "expect": "キーワード判定",
+          "judge": "モデル判定"
+        }
+      },
+      "action": {
+        "createDataset": "データセットを作成",
+        "deleteDataset": "データセットを削除",
+        "addCase": "クエリを追加",
+        "addConfig": "設定を追加",
+        "save": "保存",
+        "run": "実行開始",
+        "cancel": "キャンセル",
+        "compare": "比較",
+        "confirm": "このまま実行",
+        "refresh": "再読み込み"
+      },
+      "dataset": {
+        "name": "データセット名",
+        "notes": "メモ",
+        "query": "クエリ",
+        "queryPlaceholder": "例：デプロイのロールバック方法",
+        "expect": "期待キーワード",
+        "expectPlaceholder": "カンマ区切り（例：rollback, kubectl）",
+        "hint": "データセットには 1 件以上のクエリが必要です。期待キーワードがあるクエリはキーワード判定、残りもモデル判定で評価します。",
+        "caseCount": "{{count}} 件のクエリ"
+      },
+      "run": {
+        "dataset": "データセット",
+        "configId": "設定 ID",
+        "configName": "設定名",
+        "mode": "検索モード",
+        "limit": "取得件数",
+        "configCount": "{{count}} 件の設定",
+        "hint": "データセットを選んで実行すると指標が表示されます。"
+      },
+      "compare": {
+        "base": "ベースライン実行",
+        "candidate": "候補実行",
+        "delta": "差分",
+        "regressions": "劣化したクエリ",
+        "none": "未選択",
+        "hint": "2 つの実行を選ぶと、指標ごとの差と劣化したクエリが表示されます。",
+        "noRegressions": "これらの指標で劣化したクエリはありません。"
+      },
+      "empty": {
+        "datasets": "データセットがまだありません",
+        "runs": "実行がまだありません",
+        "compare": "比較がまだありません",
+        "caseResults": "設問ごとの結果はまだありません"
+      },
+      "hint": {
+        "judgePrivacy": "モデル判定では、命中チャンクの本文が設定されたモデルサービス（リモートの場合もあります）に送信されます。",
+        "judgePrivacyTitle": "モデル判定はチャンク本文をモデルに送信します",
+        "recallIsPoolRelative": "Recall@k は候補プール相対値です。分母はこのプール内で関連と判定されたチャンク数で、ライブラリ全体の関連チャンク数ではありません。",
+        "degradedNotComparable": "劣化実行の指標を正常実行と直接比較してはいけません。"
+      },
+      "error": {
+        "load": "読み込みに失敗しました",
+        "action": "操作に失敗しました"
+      }
+    }
   }
 }

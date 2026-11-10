@@ -27,6 +27,11 @@ MEMORY_TABLES = {
     "memory_experiments", "memory_experiment_runs", "memory_comparisons",
 }
 
+#: 迁移 5 新增的三张知识评测专项表。
+KNOWLEDGE_EVAL_TABLES = {
+    "knowledge_eval_datasets", "knowledge_eval_runs", "knowledge_eval_results",
+}
+
 
 def _tables(conn: sqlite3.Connection) -> set[str]:
     rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
@@ -282,19 +287,19 @@ def _seed_legacy_run(database: EvaluationDatabase, result_json: str) -> None:
         )
 
 
-def test_migration_four_upgrades_a_version_three_database(
+def test_migration_upgrades_from_legacy_version_upgrades_a_version_three_database(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     database = EvaluationDatabase(tmp_path / "evaluation.db")
     _init_at_version(database, "3", monkeypatch)
     assert database.schema_version() == 3
     database.init_schema()
-    assert database.schema_version() == 4
+    assert database.schema_version() == int(SCHEMA_VERSION)
     with database.connect() as conn:
         assert MEMORY_TABLES <= _tables(conn)
 
 
-def test_migration_four_upgrades_a_version_two_database_with_comparisons_table(
+def test_migration_upgrades_from_legacy_version_upgrades_a_version_two_database_with_comparisons_table(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """真实世界存在"版本号仍是 2、但 comparisons 表已经建好"的旧库。"""
@@ -308,13 +313,13 @@ def test_migration_four_upgrades_a_version_two_database_with_comparisons_table(
             " result_json TEXT, created_at TEXT NOT NULL)"
         )
     database.init_schema()
-    assert database.schema_version() == 4
+    assert database.schema_version() == int(SCHEMA_VERSION)
     with database.connect() as conn:
         assert MEMORY_TABLES <= _tables(conn)
         assert "comparisons" in _tables(conn)
 
 
-def test_migration_four_keeps_existing_run_payload_untouched(
+def test_migration_upgrades_from_legacy_version_keeps_existing_run_payload_untouched(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """升级前的 run/result_json 必须逐字不变。"""
@@ -338,7 +343,7 @@ def test_migration_four_keeps_existing_run_payload_untouched(
     assert after_result == payload
 
 
-def test_migration_four_adds_nullable_memory_ref_column_to_reviews(
+def test_migration_upgrades_from_legacy_version_adds_nullable_memory_ref_column_to_reviews(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     database = EvaluationDatabase(tmp_path / "evaluation.db")
@@ -352,7 +357,7 @@ def test_migration_four_adds_nullable_memory_ref_column_to_reviews(
     assert columns["memory_ref_json"]["notnull"] == 0
 
 
-def test_migration_four_is_idempotent_when_column_already_exists(
+def test_migration_upgrades_from_legacy_version_is_idempotent_when_column_already_exists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """契约 §7 / plan §3 Step 4：迁移 4 重复执行无副作用。
@@ -368,11 +373,11 @@ def test_migration_four_is_idempotent_when_column_already_exists(
         conn.execute("ALTER TABLE reviews ADD COLUMN memory_ref_json TEXT")
 
     database.init_schema()
-    assert database.schema_version() == 4
+    assert database.schema_version() == int(SCHEMA_VERSION)
 
-    # 已经是 version 4 的库再初始化一次，结构不得变化。
+    # 已经升到当前版本的库再初始化一次，结构不得变化。
     database.init_schema()
-    assert database.schema_version() == 4
+    assert database.schema_version() == int(SCHEMA_VERSION)
     with database.connect() as conn:
         columns = [
             row["name"] for row in conn.execute("PRAGMA table_info(reviews)")
@@ -502,3 +507,37 @@ def test_concurrent_same_key_insert_does_not_duplicate_rows(tmp_path: Path) -> N
         check.close()
     assert count == 1
 
+
+def test_migration_five_creates_knowledge_eval_tables(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """版本 5 建出知识评测表。"""
+    database = EvaluationDatabase(tmp_path / "evaluation.db")
+    _init_at_version(database, "4", monkeypatch)
+    assert database.schema_version() == 4
+    database.init_schema()
+    assert database.schema_version() == int(SCHEMA_VERSION)
+    with database.connect() as conn:
+        tables = _tables(conn)
+        assert KNOWLEDGE_EVAL_TABLES <= tables
+
+
+def test_migration_five_is_idempotent_when_tables_already_exist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """已经是 version 5 的库再初始化一次，结构不得变化。"""
+    database = EvaluationDatabase(tmp_path / "evaluation.db")
+    database.init_schema()
+    assert database.schema_version() == int(SCHEMA_VERSION)
+    with database.connect() as conn:
+        before = {
+            row["name"]: row["sql"]
+            for row in conn.execute("SELECT name, sql FROM sqlite_master")
+        }
+    database.init_schema()
+    with database.connect() as conn:
+        after = {
+            row["name"]: row["sql"]
+            for row in conn.execute("SELECT name, sql FROM sqlite_master")
+        }
+    assert before == after

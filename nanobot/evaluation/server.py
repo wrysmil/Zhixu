@@ -65,11 +65,16 @@ class ServiceContext:
         service: EvaluationService,
         scheduler: Scheduler,
         auth: AuthManager,
+        config: Any | None = None,
     ) -> None:
         self.repository = repository
         self.service = service
         self.scheduler = scheduler
         self.auth = auth
+        # 运行时配置（gateway / CLI 透传进来的 Config）：知识检索评测要用同一份
+        # 检索配置（repo/embedder/vector + 知识库范围）跑评测。可选且默认 None，
+        # 既有调用方行为不变。
+        self.config = config
 
     @property
     def runtime_root(self) -> Any:
@@ -278,6 +283,27 @@ async def _json_body(request: web.Request, model: type[Any]) -> Any:
 def _scope(request: web.Request) -> str:
     session = request.get("session")
     return getattr(session, "user", "local-user")
+
+
+async def _json_object(request: web.Request) -> dict[str, Any]:
+    """解析请求体为 JSON 对象（**不做模型校验**）。
+
+    知识评测的检索参数白名单检查必须**先于**模型校验：模型 ``extra="forbid"``
+    会把未知字段先拒成通用的 ``VALIDATION_ERROR``，前端就分不清「参数写错了」
+    与「这个参数知识域不支持」。
+    """
+    if request.content_length and request.content_length > MAX_BODY_BYTES:
+        _fail("PAYLOAD_TOO_LARGE", f"请求体上限 {MAX_BODY_BYTES} 字节")
+    raw = await request.read()
+    if len(raw) > MAX_BODY_BYTES:
+        _fail("PAYLOAD_TOO_LARGE", f"请求体上限 {MAX_BODY_BYTES} 字节")
+    try:
+        body = await request.json() if raw else {}
+    except ValueError as exc:
+        _fail("VALIDATION_ERROR", "请求体不是合法 JSON", exc)
+    if not isinstance(body, dict):
+        _fail("VALIDATION_ERROR", "请求体必须是 JSON 对象")
+    return body
 
 
 # --------------------------------------------------------------------------- 路由
@@ -882,6 +908,7 @@ def create_app(
     auth_config: AuthConfig,
     scheduler_config: SchedulerConfig,
     profiles: tuple[Any, ...] = (),
+    config: Any | None = None,
 ) -> web.Application:
     """装配应用；``cleanup_ctx`` 负责逆序回收。"""
     auth = AuthManager(auth_config)
@@ -906,7 +933,11 @@ def create_app(
         run_settled=_memory_run_settled,
     )
     context = ServiceContext(
-        repository=repository, service=service, scheduler=scheduler, auth=auth
+        repository=repository,
+        service=service,
+        scheduler=scheduler,
+        auth=auth,
+        config=config,
     )
     del profiles
 
@@ -933,6 +964,10 @@ def create_app(
         # 先确保专项库到了当前版本：启动路径不假定「别人已经迁移过」。
         service.memory_database.init_schema()
         service.memory_experiment_coordinator().resume_all()
+        # 知识检索专项（WU-08）：先把专项库推进到当前版本，再回收上次进程留下的
+        # ``running`` 运行——它们没有执行器了，留着会让报告永远停在「进行中」。
+        service.knowledge_repository.init_schema()
+        service.knowledge_repository.mark_interrupted_runs()
         try:
             yield
         finally:
@@ -995,6 +1030,11 @@ def _routes() -> list[web.RouteDef]:
     from nanobot.evaluation.memory.routes import memory_route_defs
 
     routes.extend(memory_route_defs(API_PREFIX))
+    # 知识检索专项路由同样挂进**这一份**清单：guard（Host/Origin → 会话 → CSRF
+    # → 限流）与未匹配方法的 405 兜底都从这份清单推导，不能另建一套。
+    from nanobot.evaluation.knowledge.routes import knowledge_route_defs
+
+    routes.extend(knowledge_route_defs(API_PREFIX))
     return routes
 
 
@@ -1007,8 +1047,14 @@ def create_eval_app(
     dev_origin: str | None = None,
     profiles: tuple[Any, ...] = (),
     team_runner: Any | None = None,
+    config: Any | None = None,
 ) -> web.Application:
-    """CLI/网关入口用的便捷装配：库、服务、调度器一次到位。"""
+    """CLI/网关入口用的便捷装配：库、服务、调度器一次到位。
+
+    ``config`` 是可选的运行时配置（gateway / CLI 从 ``~/.nanobot/config.json``
+    读到的 Config）：知识检索评测要用同一份检索配置跑评测。不传时为 None，
+    既有调用方行为不变。
+    """
     from pathlib import Path
 
     root = Path(data_dir)
@@ -1031,4 +1077,5 @@ def create_eval_app(
         ),
         scheduler_config=SchedulerConfig(data_dir=root),
         profiles=profiles,
+        config=config,
     )

@@ -3712,6 +3712,125 @@
     "repairDone": "Repair finished",
     "chunkTitle": "Chunk detail",
     "close": "Close",
-    "sizeValue": "{{count}} chars"
+    "sizeValue": "{{count}} chars",
+    "eval": {
+      "title": "검색 평가",
+      "kicker": "지식",
+      "subtitle": "같은 질의 집합을 다른 검색 설정으로 돌려 관련성을 판정하고, 어떤 질의가 나빠졌는지 확인합니다.",
+      "loading": "불러오는 중…",
+      "tab": {
+        "datasets": "데이터셋",
+        "runs": "실행",
+        "compare": "비교",
+        "caseResults": "질문별 결과"
+      },
+      "guide": {
+        "title": "지표 계산 방식",
+        "subtitle": "공식은 평가 서비스가 내려주므로 구현과 항상 일치합니다.",
+        "column": {
+          "name": "지표",
+          "formula": "계산식",
+          "numerator": "분자",
+          "denominator": "분모",
+          "direction": "방향"
+        },
+        "direction": {
+          "higherIsBetter": "클수록 좋음",
+          "lowerIsBetter": "작을수록 좋음"
+        },
+        "disclaimer": "지표는 라벨 출처별로 나누어 표시하며 서로 합산하지 않습니다.",
+        "formulaTooltip": "공식은 평가 서비스가 내려줍니다."
+      },
+      "metric": {
+        "precision": "정밀도@k",
+        "recall": "재현율@k",
+        "hit": "적중률@k",
+        "mrr": "MRR",
+        "ndcg": "nDCG@k",
+        "poolCoverage": "후보 풀 관련 비중",
+        "unscoredRate": "미평가 비율"
+      },
+      "result": {
+        "precision": "정밀도",
+        "recall": "재현율",
+        "hit": "적중률",
+        "mrr": "MRR",
+        "ndcg": "nDCG",
+        "status": "상태",
+        "notScored": "미평가",
+        "scoredCount": "평가 완료 {{count}}건",
+        "unscoredCount": "미평가 {{count}}건",
+        "query": "질의",
+        "config": "설정"
+      },
+      "status": {
+        "scored": "평가 완료",
+        "failed": "실패"
+      },
+      "badge": {
+        "degraded": "저하된 실행",
+        "notAssessable": "평가 불가",
+        "labelSource": {
+          "expect": "키워드 라벨",
+          "judge": "모델 판정"
+        }
+      },
+      "action": {
+        "createDataset": "데이터셋 만들기",
+        "deleteDataset": "데이터셋 삭제",
+        "addCase": "질의 추가",
+        "addConfig": "설정 추가",
+        "save": "저장",
+        "run": "실행 시작",
+        "cancel": "취소",
+        "compare": "비교",
+        "confirm": "그대로 실행",
+        "refresh": "새로고침"
+      },
+      "dataset": {
+        "name": "데이터셋 이름",
+        "notes": "메모",
+        "query": "질의",
+        "queryPlaceholder": "예: 배포를 되돌리는 방법",
+        "expect": "기대 키워드",
+        "expectPlaceholder": "쉼표로 구분 (예: rollback, kubectl)",
+        "hint": "데이터셋에는 질의가 하나 이상 필요합니다. 기대 키워드가 있는 질의는 키워드로, 나머지는 모델 판정으로 평가합니다.",
+        "caseCount": "질의 {{count}}건"
+      },
+      "run": {
+        "dataset": "데이터셋",
+        "configId": "설정 ID",
+        "configName": "설정 이름",
+        "mode": "검색 모드",
+        "limit": "반환 개수",
+        "configCount": "설정 {{count}}개",
+        "hint": "데이터셋을 고르고 실행하면 지표가 나타납니다."
+      },
+      "compare": {
+        "base": "기준 실행",
+        "candidate": "후보 실행",
+        "delta": "차이",
+        "regressions": "나빠진 질의",
+        "none": "선택 안 함",
+        "hint": "두 실행을 고르면 지표별 차이와 나빠진 질의를 볼 수 있습니다.",
+        "noRegressions": "이 지표에서 나빠진 질의는 없습니다."
+      },
+      "empty": {
+        "datasets": "아직 데이터셋이 없습니다",
+        "runs": "아직 실행이 없습니다",
+        "compare": "아직 비교가 없습니다",
+        "caseResults": "아직 질문별 결과가 없습니다"
+      },
+      "hint": {
+        "judgePrivacy": "모델 판정에서는 적중 청크의 본문이 설정된 모델 서비스(원격일 수 있음)로 전송됩니다.",
+        "judgePrivacyTitle": "모델 판정은 청크 본문을 모델로 전송합니다",
+        "recallIsPoolRelative": "재현율@k는 후보 풀 기준값입니다. 분모는 이번 후보 풀에서 관련로 판정된 청크 수이며 전체 라이브러리의 관련 청크 수가 아닙니다.",
+        "degradedNotComparable": "저하된 실행의 지표는 정상 실행과 직접 비교하면 안 됩니다."
+      },
+      "error": {
+        "load": "불러오지 못했습니다",
+        "action": "작업이 실패했습니다"
+      }
+    }
   }
 }

@@ -1,0 +1,433 @@
+{
+  "steps": [
+    {
+      "step": "eval-login",
+      "ok": true
+    },
+    {
+      "step": "capabilities",
+      "status": 200,
+      "body": {
+        "enabled": true,
+        "kbs": [
+          {
+            "id": "kb_9788851f8bbc",
+            "name": "Eval 回归库",
+            "workspace_id": "default",
+            "visibility": "workspace"
+          }
+        ],
+        "profiles": [
+          {
+            "id": "controlled-judge",
+            "label": "受控评分器",
+            "provider": "controlled",
+            "model": "eval-model",
+            "kind": "judge",
+            "available": true
+          }
+        ],
+        "reason": null
+      }
+    },
+    {
+      "step": "metrics",
+      "status": 200,
+      "metricIds": [
+        "hit_at_k",
+        "mrr",
+        "ndcg_at_k",
+        "pool_coverage",
+        "precision_at_k",
+        "recall_at_k",
+        "unscored_rate"
+      ]
+    },
+    {
+      "step": "create-dataset",
+      "status": 201,
+      "datasetId": "bed80518-f41f-495d-9072-cc0db6219571"
+    },
+    {
+      "step": "create-run-base",
+      "status": 202,
+      "runId": "374b5df1-9336-43d4-a1ce-fb70c103f632"
+    },
+    {
+      "step": "report-base",
+      "status": "completed",
+      "metrics": {
+        "expect": {
+          "total_queries": 2,
+          "scored_queries": 2,
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.2,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.5,
+            "unscored_rate": 0
+          },
+          "metric_status": {
+            "hit_at_k": "scored",
+            "precision_at_k": "scored",
+            "mrr": "scored",
+            "ndcg_at_k": "scored",
+            "recall_at_k": "scored",
+            "pool_coverage": "scored",
+            "unscored_rate": "scored"
+          },
+          "unscored_rate": 0
+        }
+      },
+      "resultCount": 2,
+      "results": [
+        {
+          "run_id": "374b5df1-9336-43d4-a1ce-fb70c103f632",
+          "case_id": "4bd20d53-ddf7-45f6-aa2e-13f31af0afd7::base",
+          "status": "scored",
+          "label_source": "expect",
+          "hits": [
+            {
+              "chunk_id": "chk_dd2b9bd8790397c5",
+              "rank": 1,
+              "score": 0.000012850131015754414,
+              "content_hash": "3f7c7ae22096bad8010db65ceee985be0169eada9a39b379cd06a06ea465563d",
+              "grade": 3,
+              "reason": "expect_any 命中：备份"
+            },
+            {
+              "chunk_id": "chk_d575e8b592dffbb1",
+              "rank": 2,
+              "score": 9.406981634655826e-7,
+              "content_hash": "74cd8fe3e12024e6c3d5e311631997debe6f0be127379c452ebc9111a7e50c28",
+              "grade": 0,
+              "reason": ""
+            }
+          ],
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.2,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.5,
+            "reason": "",
+            "metric_status": {
+              "hit_at_k": "scored",
+              "precision_at_k": "scored",
+              "mrr": "scored",
+              "ndcg_at_k": "scored",
+              "recall_at_k": "scored",
+              "pool_coverage": "scored"
+            }
+          },
+          "error": null
+        },
+        {
+          "run_id": "374b5df1-9336-43d4-a1ce-fb70c103f632",
+          "case_id": "e0ef9b40-a247-4f4e-8440-aa44b5a8b3e9::base",
+          "status": "scored",
+          "label_source": "expect",
+          "hits": [
+            {
+              "chunk_id": "chk_dd2b9bd8790397c5",
+              "rank": 1,
+              "score": 0.000013456276709296115,
+              "content_hash": "3f7c7ae22096bad8010db65ceee985be0169eada9a39b379cd06a06ea465563d",
+              "grade": 3,
+              "reason": "expect_any 命中：回滚"
+            },
+            {
+              "chunk_id": "chk_d575e8b592dffbb1",
+              "rank": 2,
+              "score": 0.000009769715265965332,
+              "content_hash": "74cd8fe3e12024e6c3d5e311631997debe6f0be127379c452ebc9111a7e50c28",
+              "grade": 0,
+              "reason": ""
+            }
+          ],
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.2,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.5,
+            "reason": "",
+            "metric_status": {
+              "hit_at_k": "scored",
+              "precision_at_k": "scored",
+              "mrr": "scored",
+              "ndcg_at_k": "scored",
+              "recall_at_k": "scored",
+              "pool_coverage": "scored"
+            }
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "step": "create-run-candidate",
+      "status": 202,
+      "runId": "f086b05d-938d-4dd2-91db-6dce866371c0"
+    },
+    {
+      "step": "report-candidate",
+      "status": "completed",
+      "metrics": {
+        "expect": {
+          "total_queries": 2,
+          "scored_queries": 2,
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.2,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.5,
+            "unscored_rate": 0
+          },
+          "metric_status": {
+            "hit_at_k": "scored",
+            "precision_at_k": "scored",
+            "mrr": "scored",
+            "ndcg_at_k": "scored",
+            "recall_at_k": "scored",
+            "pool_coverage": "scored",
+            "unscored_rate": "scored"
+          },
+          "unscored_rate": 0
+        }
+      }
+    },
+    {
+      "step": "report-degraded",
+      "status": "completed",
+      "metrics": {
+        "expect": {
+          "total_queries": 2,
+          "scored_queries": 2,
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 1,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 1,
+            "unscored_rate": 0
+          },
+          "metric_status": {
+            "hit_at_k": "scored",
+            "precision_at_k": "scored",
+            "mrr": "scored",
+            "ndcg_at_k": "scored",
+            "recall_at_k": "scored",
+            "pool_coverage": "scored",
+            "unscored_rate": "scored"
+          },
+          "unscored_rate": 0
+        }
+      }
+    },
+    {
+      "step": "compare",
+      "status": 200,
+      "body": {
+        "base": {
+          "id": "374b5df1-9336-43d4-a1ce-fb70c103f632",
+          "status": "completed",
+          "dataset_id": "bed80518-f41f-495d-9072-cc0db6219571",
+          "created_at": "2026-11-10T01:53:23.015569+00:00",
+          "finished_at": "2026-11-10T01:53:23.083387+00:00",
+          "degraded": []
+        },
+        "candidate": {
+          "id": "f086b05d-938d-4dd2-91db-6dce866371c0",
+          "status": "completed",
+          "dataset_id": "bed80518-f41f-495d-9072-cc0db6219571",
+          "created_at": "2026-11-10T01:53:24.567964+00:00",
+          "finished_at": "2026-11-10T01:53:24.656179+00:00",
+          "degraded": [
+            "vector_unavailable"
+          ]
+        },
+        "metrics": [
+          {
+            "label_source": "expect",
+            "metricId": "hit_at_k",
+            "label": "命中率",
+            "direction": "higher_is_better",
+            "base": 1,
+            "candidate": 1,
+            "delta": 0
+          },
+          {
+            "label_source": "expect",
+            "metricId": "precision_at_k",
+            "label": "准确率",
+            "direction": "higher_is_better",
+            "base": 0.2,
+            "candidate": 0.2,
+            "delta": 0
+          },
+          {
+            "label_source": "expect",
+            "metricId": "mrr",
+            "label": "首个命中倒数",
+            "direction": "higher_is_better",
+            "base": 1,
+            "candidate": 1,
+            "delta": 0
+          },
+          {
+            "label_source": "expect",
+            "metricId": "ndcg_at_k",
+            "label": "归一化折损累计增益",
+            "direction": "higher_is_better",
+            "base": 1,
+            "candidate": 1,
+            "delta": 0
+          },
+          {
+            "label_source": "expect",
+            "metricId": "recall_at_k",
+            "label": "召回率",
+            "direction": "higher_is_better",
+            "base": 1,
+            "candidate": 1,
+            "delta": 0
+          },
+          {
+            "label_source": "expect",
+            "metricId": "pool_coverage",
+            "label": "候选池相关占比",
+            "direction": "higher_is_better",
+            "base": 0.5,
+            "candidate": 0.5,
+            "delta": 0
+          },
+          {
+            "label_source": "expect",
+            "metricId": "unscored_rate",
+            "label": "未评率",
+            "direction": "lower_is_better",
+            "base": 0,
+            "candidate": 0,
+            "delta": 0
+          }
+        ],
+        "regressions": [],
+        "regression_count": 0
+      }
+    },
+    {
+      "step": "compare-degraded",
+      "status": 200,
+      "body": {
+        "base": {
+          "id": "374b5df1-9336-43d4-a1ce-fb70c103f632",
+          "status": "completed",
+          "dataset_id": "bed80518-f41f-495d-9072-cc0db6219571",
+          "created_at": "2026-11-10T01:53:23.015569+00:00",
+          "finished_at": "2026-11-10T01:53:23.083387+00:00",
+          "degraded": []
+        },
+        "candidate": {
+          "id": "91560df3-4f87-4289-8fae-f1bd057afdc5",
+          "status": "completed",
+          "dataset_id": "bed80518-f41f-495d-9072-cc0db6219571",
+          "created_at": "2026-11-10T01:53:26.132332+00:00",
+          "finished_at": "2026-11-10T01:53:26.220208+00:00",
+          "degraded": [
+            "vector_unavailable"
+          ]
+        },
+        "metrics": [
+          {
+            "label_source": "expect",
+            "metricId": "hit_at_k",
+            "label": "命中率",
+            "direction": "higher_is_better",
+            "base": 1,
+            "candidate": 1,
+            "delta": 0
+          },
+          {
+            "label_source": "expect",
+            "metricId": "precision_at_k",
+            "label": "准确率",
+            "direction": "higher_is_better",
+            "base": 0.2,
+            "candidate": 1,
+            "delta": 0.8
+          },
+          {
+            "label_source": "expect",
+            "metricId": "mrr",
+            "label": "首个命中倒数",
+            "direction": "higher_is_better",
+            "base": 1,
+            "candidate": 1,
+            "delta": 0
+          },
+          {
+            "label_source": "expect",
+            "metricId": "ndcg_at_k",
+            "label": "归一化折损累计增益",
+            "direction": "higher_is_better",
+            "base": 1,
+            "candidate": 1,
+            "delta": 0
+          },
+          {
+            "label_source": "expect",
+            "metricId": "recall_at_k",
+            "label": "召回率",
+            "direction": "higher_is_better",
+            "base": 1,
+            "candidate": 1,
+            "delta": 0
+          },
+          {
+            "label_source": "expect",
+            "metricId": "pool_coverage",
+            "label": "候选池相关占比",
+            "direction": "higher_is_better",
+            "base": 0.5,
+            "candidate": 1,
+            "delta": 0.5
+          },
+          {
+            "label_source": "expect",
+            "metricId": "unscored_rate",
+            "label": "未评率",
+            "direction": "lower_is_better",
+            "base": 0,
+            "candidate": 0,
+            "delta": 0
+          }
+        ],
+        "regressions": [],
+        "regression_count": 0
+      }
+    },
+    {
+      "step": "browser",
+      "ok": true,
+      "pageErrors": [
+        "console: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ]
+    }
+  ],
+  "browser": {
+    "pageErrors": [
+      "console: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "overviewText": "降级运行 · vector_unavailable\n降级运行的指标不能与正常运行直接对比。\n关键词标注\n2 条查询参与计算\n0 条查询未评\n未评率: 0.000\n准确率@K\n1.000\n相关块数(top-k) ÷ k\n召回率@K\n1.000\n相关块数(top-k) ÷ 相关块数(pool)\n命中率@K\n1.000\n命中查询数 ÷ 可评查询数\nMRR\n1.000\n平均( 1 ÷ 首个相关块名次 )\nNDCG@K\n1.000\nDCG ÷ IDCG，其中 DCG = Σ (2^grade − 1) ÷ log₂(名次+1)",
+    "guideText": "指标是怎么算的\n\n公式由评测服务下发，因此永远与实现一致。\n\n指标\t计算公式\n\t分子\t分母\t方向\n命中率@k\t命中查询数 ÷ 可评查询数\ttop-k 含 ≥1 相关块的查询数\t全部可评查询数\t越大越好\n准确率@k\t相关块数(top-k) ÷ k\ttop-k 中 grade≥2 的块数\tk\t越大越好\nMRR\t平均( 1 ÷ 首个相关块名次 )\t—\t—\t越大越好\nnDCG@k\tDCG ÷ IDCG，其中 DCG = Σ (2^grade − 1) ÷ log₂(名次+1)\t—\t—\t越大越好\n召回率@k\t相关块数(top-k) ÷ 相关块数(pool)\ttop-k 中 grade≥2 的块数\t候选池中 grade≥2 的块数\t越大越好\n候选池相关占比\t相关块数(pool) ÷ 池候选总数\t池中 grade≥2 的块数\t池候选总数\t越大越好\n未评率\tnot_assessable 查询数 ÷ 总查询数\tnot_assessable 查询数\t全部查询数\t越小越好\n\n召回率@k 是候选池相对值：分母是本次候选池中判定为相关的块数，不是全库相关块总数。",
+    "caseText": "逐题结果\n查询\t配置\t准确率@K\t召回率@K\t命中率@K\tMRR\tNDCG@K\t状态\n\n数据库多久备份一次\n关键词标注\tsemantic\t1.000\t1.000\t1.000\t1.000\t1.000\t已评分\n\n回滚部署失败怎么办\n关键词标注\tsemantic\t1.000\t1.000\t1.000\t1.000\t1.000\t已评分"
+  }
+}
