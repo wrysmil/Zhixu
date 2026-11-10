@@ -1,4 +1,4 @@
-"""融合层：三分支归一化 + 三级去重 + 邻块下限 / 相关性带 / MMR。
+"""融合层：三分支归一化 + 三级去重 + MMR。
 
 归一化（检索 spec §5.2，三条互斥路径；**不**做「按参与路由重新归一化」）：
   A 只有向量路：fused = 原始 cosine（`max(0, 1 - distance)`），不缩放、不进 RRF；
@@ -36,6 +36,10 @@ class SearchHit:
 
     `score` 是该分支（cosine / BM25 相对分 / RRF 归一化分）下的展示分，
     只表示「当前模式下的相对排序」，不是置信度。
+
+    `title` 参与 enriched passage（§8.2）：标题相同的块本来就更可能冗余，
+    精排与 MMR 用的是同一份 enriched text。
+    `source_chunk_ids` 记录装配后的来源块（§9.1 合并连续正文时多于一块）。
     """
 
     chunk_id: str
@@ -49,6 +53,8 @@ class SearchHit:
     char_count: int
     content_hash: str = ""
     score: float = 0.0
+    title: str = ""
+    source_chunk_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +63,9 @@ class SearchResult:
 
     `routes` 记录**实际产出候选**的路由（顺序恒为 vector → keyword），
     让调用方知道证据来自哪一路（spec §7.3 R9）；空结果时为 `()`。
+
+    `candidates_in` / `candidates_kept` 记录精排的进出条数（§7 RecordRetrievalCut）：
+    模型必须知道结果是候选的子集，否则会把「被截断」误读成「知识库里只有这些」。
     """
 
     hits: tuple[SearchHit, ...]
@@ -65,6 +74,18 @@ class SearchResult:
     reason: str | None = None
     routes: tuple[str, ...] = ()
     rerank: str | None = None
+    candidates_in: int = 0
+    candidates_kept: int = 0
+
+
+def hit_sort_key(hit: SearchHit) -> tuple[float, str, int, str]:
+    """确定性排序键（§9.2）：Score → KnowledgeID → ChunkIndex → ID。
+
+    同样的请求连跑两次，同分结果的顺序必须一致——否则用户会看到「答案在变」，
+    调试也无法复现。`chunk_index` 进键之前，同文档的块只能靠 chunk_id（哈希）
+    决胜，顺序与文档语义无关。
+    """
+    return (-hit.score, hit.kb_id, hit.chunk_index, hit.chunk_id)
 
 
 def _ranked(scores: dict[str, float]) -> dict[str, float]:
@@ -87,25 +108,112 @@ def weighted_rrf(
     （spec §5.2 明确否决该做法）。同一路内的重复 id 只认首次名次；权重同比例
     缩放不改变结果（分子与分母同比例）。两路都为空返回 `{}`。
     """
+    return weighted_rrf_multi(
+        (
+            RouteSpec(w_v, (tuple(vector_ids),)),
+            RouteSpec(w_k, (tuple(keyword_ids),)),
+        ),
+        k=k,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class RouteSpec:
+    """一路召回：权重 + 该路的多张列表（每 KB / 每引擎一张）。
+
+    多张列表对应文章 §5.4 的场景：同一块可能在多条列表里出现（多个 KB、多个引擎），
+    它的名次取「在任意一张列表里的最好名次」，而不是把名次相加。
+    """
+
+    weight: float
+    lists: tuple[tuple[str, ...], ...]
+
+
+def best_ranks(lists: Sequence[Sequence[str]]) -> dict[str, int]:
+    """跨列表取最佳名次（§5.4 bestRanks）。
+
+    名次是「相对排序」，跨列表可比；分数是「绝对强度」，跨列表不可比。
+    拼接后再排名是错的：第二张列表的第一名会排到第一张列表全部条目之后。
+    """
+    best: dict[str, int] = {}
+    for ids in lists:
+        for rank, chunk_id in enumerate(ids, 1):
+            current = best.get(chunk_id)
+            if current is None or rank < current:
+                best[chunk_id] = rank
+    return best
+
+
+def weighted_rrf_multi(routes: Sequence[RouteSpec], *, k: int = 60) -> dict[str, float]:
+    """多路加权 RRF（§5.3）：`RRF(c) = Σ_route w_route/(k + best_rank_route(c))`。
+
+    每路的权重之和是天花板：`maxRRF = Σw/(k+1)`，除以它把分数映射到 [0,1]，
+    「各路都排第一」恰好是 1.0。仅一路命中时封顶就是那路的权重——
+    这是「双路共识才有最高分」的语义，不是 bug。
+    """
     if k < 0:
         raise ValueError(f"rrf k must be non-negative: {k}")
-    total_weight = w_v + w_k
-    if not vector_ids and not keyword_ids:
-        return {}
+    total_weight = sum(route.weight for route in routes)
     if total_weight <= 0.0:
         return {}
     max_rrf = total_weight / (k + 1)
     scores: dict[str, float] = {}
-    for ids, weight in ((vector_ids, w_v), (keyword_ids, w_k)):
-        seen: set[str] = set()
-        for rank, chunk_id in enumerate(ids, 1):
-            if chunk_id in seen:
-                continue
-            seen.add(chunk_id)
-            scores[chunk_id] = scores.get(chunk_id, 0.0) + weight / (k + rank)
+    for route in routes:
+        if route.weight <= 0.0:
+            continue
+        for chunk_id, rank in best_ranks(route.lists).items():
+            scores[chunk_id] = scores.get(chunk_id, 0.0) + route.weight / (k + rank)
+    if not scores:
+        return {}
     # §5.3：融合分取 9 位小数，消掉浮点尾数抖动，并让排序可复现。
     fused = {chunk_id: round(score / max_rrf, 9) for chunk_id, score in scores.items()}
     return _ranked(fused)
+
+
+def single_vector_scores_multi(
+    lists: Sequence[Sequence[tuple[str, float]]],
+) -> dict[str, float]:
+    """分支 A 的多列表形态：cosine 已是可比量纲，跨列表取最大值。
+
+    不同 embedding 模型的余弦尺度接近但不等价；取最大值而不是相加——
+    相加会让「两个模型都认为相关」的块凭空翻倍。
+    """
+    best: dict[str, float] = {}
+    for hits in lists:
+        for chunk_id, score in hits:
+            current = best.get(chunk_id)
+            if current is None or score > current:
+                best[chunk_id] = float(score)
+    return _ranked(best)
+
+
+def single_keyword_scores_multi(
+    lists: Sequence[Sequence[FtsHit | tuple[str, float]]],
+) -> dict[str, float]:
+    """分支 B 的多列表形态：每张列表各自除以自身最大值，再跨列表取最大值（§5.2）。
+
+    BM25 无上界且不同引擎/索引的绝对值不可比；「各自的 max」才是合理参照。
+    """
+    best: dict[str, float] = {}
+    for hits in lists:
+        local: dict[str, float] = {}
+        for hit in hits:
+            chunk_id, score = (
+                hit if isinstance(hit, tuple) else (hit.chunk_id, hit.score)
+            )
+            current = local.get(chunk_id)
+            if current is None or score > current:
+                local[chunk_id] = float(score)
+        if not local:
+            continue
+        peak = max(local.values())
+        if peak > 1.0:
+            local = {chunk_id: score / peak for chunk_id, score in local.items()}
+        for chunk_id, score in local.items():
+            current = best.get(chunk_id)
+            if current is None or score > current:
+                best[chunk_id] = score
+    return _ranked(best)
 
 
 def single_vector_scores(vector_hits: Sequence[tuple[str, float]]) -> dict[str, float]:
@@ -224,7 +332,7 @@ def dedup_partial(
     """
     if not hits:
         return []
-    ordered = sorted(hits, key=lambda hit: (-hit.score, hit.chunk_id))
+    ordered = sorted(hits, key=hit_sort_key)
     kept: list[SearchHit] = []
     kept_tokens: list[frozenset[str]] = []
     for hit in ordered:
@@ -251,22 +359,13 @@ def dedup_partial(
         if not absorbed:
             kept.append(hit)
             kept_tokens.append(tokens)
-    kept.sort(key=lambda hit: (-hit.score, hit.chunk_id))
+    kept.sort(key=hit_sort_key)
     return kept
 
 
-def _similarity(
-    left: SearchHit,
-    left_tokens: frozenset[str],
-    right: SearchHit,
-    right_tokens: frozenset[str],
-    adjacent_similarity_floor: float,
-) -> float:
-    """MMR 相似度：词面 Jaccard；同文档邻块抬到下限（spec §5.5）。"""
-    similarity = _jaccard(left_tokens, right_tokens)
-    if left.doc_id == right.doc_id and abs(left.chunk_index - right.chunk_index) <= 1:
-        similarity = max(similarity, adjacent_similarity_floor)
-    return similarity
+def _enriched_tokens(hit: SearchHit) -> frozenset[str]:
+    """enriched passage 的 token：标题 + 面包屑 + 正文（§8.2）。"""
+    return _tokens(f"{hit.title}\n{hit.heading_path}\n{hit.content}")
 
 
 def mmr_rerank(
@@ -274,48 +373,46 @@ def mmr_rerank(
     *,
     limit: int,
     lambda_: float = 0.7,
-    relevance_band: float = 0.15,
-    adjacent_similarity_floor: float = 0.25,
 ) -> list[SearchHit]:
-    """相关性带过滤 + MMR 贪心选择；展示顺序按融合分降序（spec §5.5/§5.6/§5.7）。
+    """MMR 贪心选择（§8）：`MMR(i) = λ·score(i) − (1−λ)·max_{j∈已选} Jaccard(i, j)`。
 
-    `mmr = λ·rel − (1−λ)·max_sim`，`rel = fused`；候选必须满足
-    `fused >= fused_max − relevance_band`，且同文档邻块的相似度不低于
-    `adjacent_similarity_floor`（压制 overlap 产生的冗余，但不硬删除）。
-    MMR 只决定选哪些，展示顺序仍是 `fused` 降序（tie-break `chunk_id` 升序），
-    故输出分数单调不增。
+    λ=0.7；相似度用 enriched passage 的词面 Jaccard，不用向量余弦——余弦衡量
+    「语义接近」而不是「内容重复」。用倒排表（token → 候选下标）维护共享边，
+    复杂度从 O(k·n²) 降到 O(k·共享边)；k=1 时直接取最高分，不做分词。
+    输出顺序仍按 `score` 降序（MMR 只决定选哪些），故输出分数单调不增。
     """
     if limit <= 0 or not hits:
         return []
-    ordered = sorted(hits, key=lambda hit: (-hit.score, hit.chunk_id))
-    cutoff = round(round(ordered[0].score, 9) - relevance_band, 9)
-    candidates = [hit for hit in ordered if round(hit.score, 9) >= cutoff]
-    # WeKnora §8：MMR 的 token 来自 enriched passage（标题/面包屑 + 正文），不是纯正文。
-    tokens = [_tokens(f"{hit.heading_path}\n{hit.content}") for hit in candidates]
-    remaining = list(range(len(candidates)))
+    ordered = sorted(hits, key=hit_sort_key)
+    if limit == 1:
+        # 没有冗余项，直接取最高分，避免无谓的分词和倒排构建（§8.4）。
+        return [ordered[0]]
+    tokens = [_enriched_tokens(hit) for hit in ordered]
+    postings: dict[str, list[int]] = {}
+    for index, token_set in enumerate(tokens):
+        for token in token_set:
+            postings.setdefault(token, []).append(index)
+    remaining = set(range(len(ordered)))
+    max_similarity: dict[int, float] = {index: 0.0 for index in remaining}
     selected: list[int] = []
     while remaining and len(selected) < limit:
-        best_position = 0
-        best_score = float("-inf")
-        for position, index in enumerate(remaining):
-            similarity = max(
-                (
-                    _similarity(
-                        candidates[index],
-                        tokens[index],
-                        candidates[chosen],
-                        tokens[chosen],
-                        adjacent_similarity_floor,
-                    )
-                    for chosen in selected
-                ),
-                default=0.0,
-            )
-            score = lambda_ * candidates[index].score - (1.0 - lambda_) * similarity
-            if score > best_score:
-                best_score = score
-                best_position = position
-        selected.append(remaining.pop(best_position))
-    picked = [candidates[index] for index in selected]
-    picked.sort(key=lambda hit: (-hit.score, hit.chunk_id))
+        best_index = max(
+            remaining,
+            key=lambda index: (
+                lambda_ * ordered[index].score - (1.0 - lambda_) * max_similarity[index],
+                -index,
+            ),
+        )
+        selected.append(best_index)
+        remaining.discard(best_index)
+        chosen_tokens = tokens[best_index]
+        for token in chosen_tokens:
+            for candidate in postings.get(token, ()):
+                if candidate not in remaining:
+                    continue
+                similarity = _jaccard(chosen_tokens, tokens[candidate])
+                if similarity > max_similarity[candidate]:
+                    max_similarity[candidate] = similarity
+    picked = [ordered[index] for index in selected]
+    picked.sort(key=hit_sort_key)
     return picked

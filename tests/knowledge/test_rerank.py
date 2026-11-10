@@ -15,6 +15,7 @@ from nanobot.knowledge.rerank import (
     OUTCOME_ALL_BELOW_THRESHOLD,
     OUTCOME_FALLBACK_TOP1,
     OUTCOME_MODEL_ERROR,
+    OUTCOME_MODEL_UNAVAILABLE,
     OUTCOME_NO_MODEL,
     OUTCOME_OK,
     OUTCOME_THRESHOLD_DEGRADED,
@@ -23,6 +24,7 @@ from nanobot.knowledge.rerank import (
     RankResult,
     Reranker,
     RerankerError,
+    RerankerUnavailableError,
     RerankSettings,
     apply_threshold,
     build_reranker,
@@ -252,52 +254,102 @@ def test_http_reranker_batches_documents() -> None:
     assert len(results) == 3
 
 
+def test_http_reranker_splits_batches_by_request_chars() -> None:
+    # query 1 字符 → 可用预算 19；9 字符的文档每批最多 2 条。
+    batches: list[list[str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content.decode("utf-8"))
+        documents = payload["documents"]
+        batches.append(documents)
+        assert len(payload["query"]) + sum(len(item) for item in documents) <= 20
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {"index": index, "relevance_score": 0.5}
+                    for index in range(len(documents))
+                ]
+            },
+        )
+
+    reranker = HttpReranker(
+        base_url="http://rerank.local",
+        model="m",
+        batch_size=10,
+        max_request_chars=20,
+        max_concurrency=1,
+        client=_client(handler),
+    )
+    results = reranker.rerank("q", ["a" * 9, "b" * 9, "c" * 9])
+    assert [len(batch) for batch in batches] == [2, 1]
+    # 分批后 index 必须还原成全局下标。
+    assert sorted(result.index for result in results) == [0, 1, 2]
+
+
 # ---------- 检索侧接入 ----------
 
 
 def test_rerank_reorders_by_model_score_and_reports_outcome() -> None:
     reranker = StubReranker({0: 0.5, 1: 0.9})
     hits = [_hit("chk_a", 0.9), _hit("chk_b", 0.5)]
-    scored, labels, outcome = _retriever(reranker)._apply_rerank(
-        "回滚", hits, explicit_scope=False
-    )
+    scored, labels, outcome, candidates_in, candidates_kept = _retriever(
+        reranker
+    )._apply_rerank("回滚", hits, explicit_scope=False)
     assert outcome == OUTCOME_OK
     assert labels == []
     assert [hit.chunk_id for hit in scored] == ["chk_b", "chk_a"]
     # 复合分：0.6×0.9 + 0.3×0.5 + 0.1×1.0
     assert scored[0].score == pytest.approx(0.6 * 0.9 + 0.3 * 0.5 + 0.1)
+    # §7 RecordRetrievalCut：进出条数透出给工具层。
+    assert (candidates_in, candidates_kept) == (2, 2)
 
 
 def test_rerank_failure_falls_back_to_recall_order() -> None:
     reranker = StubReranker(error=RuntimeError("model down"))
     hits = [_hit("chk_a", 0.9), _hit("chk_b", 0.5)]
-    scored, labels, outcome = _retriever(reranker)._apply_rerank(
-        "回滚", hits, explicit_scope=False
-    )
+    scored, labels, outcome, candidates_in, candidates_kept = _retriever(
+        reranker
+    )._apply_rerank("回滚", hits, explicit_scope=False)
     assert outcome == OUTCOME_MODEL_ERROR
     assert labels == ["rerank_model_error"]
     assert [hit.chunk_id for hit in scored] == ["chk_a", "chk_b"]
+    assert (candidates_in, candidates_kept) == (2, 2)
+
+
+def test_rerank_model_unavailable_is_distinct_from_model_error() -> None:
+    reranker = StubReranker(error=RerankerUnavailableError("model not loaded"))
+    hits = [_hit("chk_a", 0.9)]
+    scored, labels, outcome, candidates_in, candidates_kept = _retriever(
+        reranker
+    )._apply_rerank("回滚", hits, explicit_scope=False)
+    assert outcome == OUTCOME_MODEL_UNAVAILABLE
+    assert labels == ["rerank_model_unavailable"]
+    assert [hit.chunk_id for hit in scored] == ["chk_a"]
+    assert (candidates_in, candidates_kept) == (1, 1)
 
 
 def test_rerank_without_model_reports_no_model() -> None:
     hits = [_hit("chk_a", 0.9)]
-    scored, labels, outcome = _retriever(None)._apply_rerank(
-        "回滚", hits, explicit_scope=False
-    )
+    scored, labels, outcome, candidates_in, candidates_kept = _retriever(
+        None
+    )._apply_rerank("回滚", hits, explicit_scope=False)
     assert outcome == OUTCOME_NO_MODEL
     assert labels == []
     assert scored == hits
+    assert (candidates_in, candidates_kept) == (0, 0)
 
 
 def test_rerank_all_below_threshold_returns_empty() -> None:
     reranker = StubReranker({0: 0.05})
     hits = [_hit("chk_a", 0.9)]
-    scored, labels, outcome = _retriever(reranker)._apply_rerank(
-        "回滚", hits, explicit_scope=False
-    )
+    scored, labels, outcome, candidates_in, candidates_kept = _retriever(
+        reranker
+    )._apply_rerank("回滚", hits, explicit_scope=False)
     assert outcome == OUTCOME_ALL_BELOW_THRESHOLD
     assert scored == []
     assert labels == ["rerank_all_below_threshold"]
+    assert (candidates_in, candidates_kept) == (1, 0)
 
 
 def test_rerank_passage_contains_title_breadcrumb_and_content() -> None:

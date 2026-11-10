@@ -20,44 +20,65 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 
 from loguru import logger
 
+from nanobot.knowledge.assemble import assemble_context
 from nanobot.knowledge.embedding import Embedder, EmbeddingError, EmbeddingUnavailable
 from nanobot.knowledge.fusion import (
+    RouteSpec,
     SearchHit,
     SearchResult,
     dedup_partial,
+    hit_sort_key,
     mmr_rerank,
-    single_keyword_scores,
-    single_vector_scores,
-    weighted_rrf,
+    single_keyword_scores_multi,
+    single_vector_scores_multi,
+    weighted_rrf_multi,
 )
 from nanobot.knowledge.models import KnowledgeBase
+from nanobot.knowledge.questions import parent_chunk_id
 from nanobot.knowledge.repository import FtsHit, KnowledgeRepository, StoredChunk
 from nanobot.knowledge.rerank import (
     OUTCOME_ALL_BELOW_THRESHOLD,
     OUTCOME_FALLBACK_TOP1,
     OUTCOME_MODEL_ERROR,
+    OUTCOME_MODEL_UNAVAILABLE,
     OUTCOME_NO_CANDIDATES,
     OUTCOME_NO_MODEL,
     OUTCOME_THRESHOLD_DEGRADED,
     Reranker,
+    RerankerUnavailableError,
     RerankSettings,
     apply_threshold,
     composite_score,
 )
+from nanobot.knowledge.text import build_passage, passage_char_limit
 from nanobot.knowledge.tokenizer import tokenize_query
 from nanobot.knowledge.vector import VectorStore
 
 _MODES = frozenset({"hybrid", "semantic", "keyword"})
 
-#: §4.3 池硬上限（常量，不进配置）。
-_KEYWORD_POOL_CAP = 300
-_VECTOR_POOL_CAP = 200
+#: §3.2 超取池硬上限（常量，不进配置）：`max(topK*5,50)*len(KBs)` 再截到 500。
+_POOL_CAP = 500
 
 VectorIdentity = tuple[str, str, int]
+
+
+@dataclass(frozen=True, slots=True)
+class VectorGroup:
+    """一个向量空间的召回组（§3.1）。
+
+    同一 embedding 身份的多个 KB 归为一组：共用一次 query embedding、一次向量查询。
+    每组自带 embedder 与向量库，因此不同 KB 用不同 embedding 模型也能各自被检索。
+    """
+
+    identity: VectorIdentity
+    kb_ids: tuple[str, ...]
+    embedder: Embedder
+    store: VectorStore
 
 
 class KnowledgeSearchError(RuntimeError):
@@ -76,8 +97,10 @@ class RetrieverSettings:
     default_limit: int = 8
     max_limit: int = 20
     mmr_lambda: float = 0.7
-    relevance_band: float = 0.15
-    adjacent_similarity_floor: float = 0.25
+    rerank_top_k: int = 10
+    parent_max_chars: int = 2400
+    parent_min_chars: int = 600
+    short_chunk_chars: int = 200
     dedup_containment: float = 0.85
     dedup_unique_ratio: float = 0.02
     # 兼容旧配置：WeKnora 去重不使用 Jaccard，字段保留但不再参与判定。
@@ -135,6 +158,9 @@ class Retriever:
         settings: RetrieverSettings | None = None,
         reranker: Reranker | None = None,
         rerank_settings: RerankSettings | None = None,
+        tokenizer_mode: str = "jieba",
+        identity_resolver: Callable[[KnowledgeBase], tuple[Embedder, VectorStore] | None]
+        | None = None,
     ) -> None:
         self._repo = repository
         self._embedder = embedder
@@ -142,6 +168,8 @@ class Retriever:
         self._settings = settings or RetrieverSettings()
         self._reranker = reranker
         self._rerank_settings = rerank_settings or RerankSettings()
+        self._tokenizer_mode = tokenizer_mode
+        self._identity_resolver = identity_resolver
 
     # ---------- 入口 ----------
     def search(
@@ -152,45 +180,43 @@ class Retriever:
         kb_ids: list[str] | None = None,
         mode: str = "hybrid",
         limit: int | None = None,
+        extra_context: Sequence[SearchHit] = (),
     ) -> SearchResult:
         """执行一次检索。
 
         `mode`：`hybrid`（默认）/ `semantic` / `keyword`；`kb_ids` 为显式作用域，
         任一 id 不可见（不存在、已停用或不在工作区）即抛 `KnowledgeSearchError`。
+        `extra_context` 是调用方注入的补充上下文（§9.1 ③ 历史引用），只读、不参与排序。
         """
         normalized_mode = mode.strip().lower()
         if normalized_mode not in _MODES:
             raise ValueError(f"unsupported knowledge search mode: {mode!r}")
         settings = self._settings
         effective_limit = self._clamp_limit(limit)
-        keyword_pool = self._keyword_pool(effective_limit)
-        vector_pool = self._vector_pool(effective_limit)
 
         visible = self._visible_kbs(workspace_ids, kb_ids)
         if not visible:
             # 作用域为空：没有任何可见库，谈不上「搜不到」（spec §3 四态）。
             return SearchResult(hits=(), mode_used="keyword", reason="no_scope")
-        visible_ids = [kb.id for kb in visible]
+        # §3.2 超取池按**组内**可见库数量放大：`max(topK*5,50)*len(KBs)`，上限 500。
 
         degraded: list[str] = []
-        match_expr = tokenize_query(query)
+        match_expr = tokenize_query(query, mode=self._tokenizer_mode)
         if not match_expr:
             degraded.append("empty_query_tokens")
 
-        identity: VectorIdentity | None = None
-        vector_kb_ids: list[str] = []
         vector_error: Exception | None = None
-        if normalized_mode in ("hybrid", "semantic"):
-            identity, vector_kb_ids, vector_error = self._vector_scope(visible, degraded)
-
         vector_hits: list[SearchHit] = []
+        vector_lists: list[list[tuple[str, float]]] = []
         vector_raw_count = 0
         vector_ok = False
-        groups = self._identity_groups(identity, vector_kb_ids)
+        groups: list[VectorGroup] = []
+        if normalized_mode in ("hybrid", "semantic"):
+            groups = self._vector_groups(visible, degraded)
         if groups:
             try:
-                vector_hits, vector_raw_count = self._run_vector_route(
-                    query, groups, limit=vector_pool
+                vector_hits, vector_lists, vector_raw_count = self._run_vector_route(
+                    query, groups, limit=effective_limit
                 )
             except EmbeddingUnavailable as exc:
                 vector_error = exc
@@ -210,24 +236,52 @@ class Retriever:
         # 语义模式在向量路不可用时退回关键词单路（§6）。
         want_keyword = normalized_mode != "semantic" or not vector_ok
         keyword_hits: list[FtsHit] = []
+        keyword_lists: list[list[tuple[str, float]]] = []
         keyword_error: Exception | None = None
         keyword_ok = False
         if want_keyword and match_expr:
-            try:
-                keyword_hits = self._repo.search_fts(
+            # §3.1：按 embedding 空间分组做检索；向量不可用的库与无向量的库各自成组。
+            # 每个可见库必须恰好落进一个关键词组——否则「向量索引过期」的库会
+            # 连关键词路也搜不到（它只是不能走向量，不该从检索里消失）。
+            covered: set[str] = set()
+            keyword_groups: list[tuple[str, ...]] = []
+            for group in groups:
+                keyword_groups.append(group.kb_ids)
+                covered.update(group.kb_ids)
+            leftover = tuple(kb.id for kb in visible if kb.id not in covered)
+            if leftover:
+                keyword_groups.append(leftover)
+            for group_kb_ids in keyword_groups:
+                if not group_kb_ids:
+                    continue
+                pool = self._keyword_pool(effective_limit, len(group_kb_ids))
+                try:
+                    group_hits = self._repo.search_fts(
+                        match_expr,
+                        workspace_ids=list(workspace_ids),
+                        limit=pool,
+                        kb_ids=list(group_kb_ids),
+                    )
+                except Exception as exc:  # noqa: BLE001 - 关键词路的失败由下方统一裁决
+                    keyword_error = exc
+                    logger.warning("knowledge keyword route failed: {}", exc)
+                    if normalized_mode == "keyword":
+                        # 没有第二条路可退：失败必须抛，不能返回空结果冒充「没搜到」（§6）。
+                        raise KnowledgeSearchError(
+                            "knowledge keyword retrieval failed"
+                        ) from exc
+                    break
+                question_hits = self._question_keyword_hits(
                     match_expr,
                     workspace_ids=list(workspace_ids),
-                    limit=keyword_pool,
-                    kb_ids=visible_ids,
+                    kb_ids=list(group_kb_ids),
+                    limit=pool,
                 )
-            except Exception as exc:  # noqa: BLE001 - 关键词路的失败由下方统一裁决
-                keyword_error = exc
-                logger.warning("knowledge keyword route failed: {}", exc)
-                if normalized_mode == "keyword":
-                    # 没有第二条路可退：失败必须抛，不能返回空结果冒充「没搜到」（§6）。
-                    raise KnowledgeSearchError(
-                        "knowledge keyword retrieval failed"
-                    ) from exc
+                merged = self._merge_group_hits(group_hits, question_hits, limit=pool)
+                keyword_hits.extend(merged)
+                keyword_lists.append(
+                    [(hit.chunk_id, hit.score) for hit in merged]
+                )
             else:
                 keyword_ok = True
 
@@ -251,32 +305,45 @@ class Retriever:
                 reason=reason,
             )
 
-        scores, routes, mode_used = self._fuse(vector_hits, keyword_hits)
+        scores, routes, mode_used = self._fuse(vector_lists, keyword_lists)
         candidates = self._assemble(scores, vector_hits, keyword_hits)
+        candidates = self._with_titles(candidates)
         deduped = dedup_partial(
             candidates,
             length_ratio=settings.dedup_length_ratio,
             containment=settings.dedup_containment,
             unique_ratio=settings.dedup_unique_ratio,
         )
-        reranked, rerank_labels, rerank_outcome = self._apply_rerank(
-            query, deduped, explicit_scope=kb_ids is not None
-        )
-        degraded.extend(rerank_labels)
-        ranked = mmr_rerank(
+        (
             reranked,
-            limit=effective_limit,
+            rerank_labels,
+            rerank_outcome,
+            candidates_in,
+            candidates_kept,
+        ) = self._apply_rerank(query, deduped, explicit_scope=kb_ids is not None)
+        degraded.extend(rerank_labels)
+        # §9.2 FILTER_TOP_K：先进 MMR 的池截到 rerank_top_k，再由 MMR 去冗余。
+        top_pool = reranked[: max(1, settings.rerank_top_k)]
+        ranked = mmr_rerank(
+            top_pool,
+            limit=min(effective_limit, max(1, settings.rerank_top_k)),
             lambda_=settings.mmr_lambda,
-            relevance_band=settings.relevance_band,
-            adjacent_similarity_floor=settings.adjacent_similarity_floor,
         )
+        # §9.1 CHUNK_MERGE：把「一条 chunk」变成「一段读得通的上下文」。
+        assembled = self._assemble_context(ranked, extra_context=list(extra_context))
+        if rerank_outcome != OUTCOME_NO_MODEL:
+            # §7 RecordRetrievalCut：M 必须是最终返回条数（top_k / MMR / 装配之后），
+            # 否则阈值全部通过时模型永远看不到「结果只是候选子集」。
+            candidates_kept = len(assembled)
         return SearchResult(
-            hits=tuple(ranked),
+            hits=tuple(assembled),
             mode_used=mode_used,
             degraded=_dedup_labels(degraded),
             reason=None,
             routes=routes,
             rerank=rerank_outcome,
+            candidates_in=candidates_in,
+            candidates_kept=candidates_kept,
         )
 
     # ---------- 精排（WeKnora §7） ----------
@@ -286,37 +353,57 @@ class Retriever:
         candidates: list[SearchHit],
         *,
         explicit_scope: bool,
-    ) -> tuple[list[SearchHit], list[str], str]:
-        """精排是增强项：任何失败都退回召回顺序，不抛错、不改变可用性。"""
+    ) -> tuple[list[SearchHit], list[str], str, int, int]:
+        """精排是增强项：任何失败都退回召回顺序，不抛错、不改变可用性。
+
+        返回 `(命中, 降级标签, outcome, 候选总数, 过阈值条数)`；检索层在
+        top_k / MMR / 装配之后会把「过阈值条数」覆盖成最终返回条数，
+        这样 §7 RecordRetrievalCut 的「N 进 M 出」才反映真实截断。
+        """
         if self._reranker is None:
-            return candidates, [], OUTCOME_NO_MODEL
+            return candidates, [], OUTCOME_NO_MODEL, 0, 0
         if not candidates:
-            return candidates, [], OUTCOME_NO_CANDIDATES
+            return candidates, [], OUTCOME_NO_CANDIDATES, 0, 0
         settings = self._rerank_settings
+        candidates_in = len(candidates)
         pool = candidates[: max(1, settings.max_candidates)]
         titles = self._repo.list_document_titles({hit.doc_id for hit in pool})
+        limit = passage_char_limit(
+            query,
+            max_passage_chars=settings.max_passage_chars,
+            max_request_chars=settings.max_request_chars,
+        )
         passages: list[str] = []
         indexed: list[tuple[int, SearchHit]] = []
         for hit in pool:
-            passage = self._passage(hit, titles.get(hit.doc_id, ""))
+            passage = self._passage(hit, titles.get(hit.doc_id, ""), limit)
             if not passage.strip():
                 continue  # §7.3 空 passage 跳过，不参与打分
             indexed.append((len(passages), hit))
             passages.append(passage)
         if not passages:
-            return candidates, [], OUTCOME_NO_CANDIDATES
+            return candidates, [], OUTCOME_NO_CANDIDATES, candidates_in, candidates_in
         try:
             results = self._reranker.rerank(query, passages)
+        except RerankerUnavailableError as exc:
+            logger.warning("knowledge rerank model unavailable: {}", exc)
+            return (
+                candidates,
+                ["rerank_model_unavailable"],
+                OUTCOME_MODEL_UNAVAILABLE,
+                candidates_in,
+                len(pool),
+            )
         except Exception as exc:  # noqa: BLE001 - 精排失败只降级
             logger.warning("knowledge rerank failed: {!r}", exc)
-            return candidates, ["rerank_model_error"], OUTCOME_MODEL_ERROR
+            return candidates, ["rerank_model_error"], OUTCOME_MODEL_ERROR, candidates_in, len(pool)
         scores = {
             result.index: result.relevance_score
             for result in results
             if 0 <= result.index < len(passages)
         }
         if not scores:
-            return candidates, ["rerank_model_error"], OUTCOME_MODEL_ERROR
+            return candidates, ["rerank_model_error"], OUTCOME_MODEL_ERROR, candidates_in, len(pool)
         kept, outcome = apply_threshold(
             scores,
             threshold=settings.threshold,
@@ -324,7 +411,13 @@ class Retriever:
             explicit_scope=explicit_scope,
         )
         if not kept:
-            return [], ["rerank_all_below_threshold"], OUTCOME_ALL_BELOW_THRESHOLD
+            return (
+                [],
+                ["rerank_all_below_threshold"],
+                OUTCOME_ALL_BELOW_THRESHOLD,
+                candidates_in,
+                0,
+            )
         labels: list[str] = []
         if outcome == OUTCOME_THRESHOLD_DEGRADED:
             labels.append("rerank_threshold_degraded")
@@ -342,15 +435,57 @@ class Retriever:
                 source_weight=settings.source_weight,
             )
             scored.append(replace(hit, score=composite))
-        scored.sort(key=lambda hit: (-hit.score, hit.chunk_id))
-        return scored, labels, outcome
+        scored.sort(key=hit_sort_key)
+        return scored, labels, outcome, len(passages), len(scored)
 
-    def _passage(self, hit: SearchHit, title: str) -> str:
-        """passage = 标题 + 面包屑 + 正文；超长从尾部截断（§7.3）。"""
-        parts = [title, hit.heading_path, hit.content]
-        text = "\n".join(part for part in parts if part)
-        limit = max(1, self._rerank_settings.max_passage_chars)
-        return text[:limit]
+    def _passage(self, hit: SearchHit, title: str, limit: int) -> str:
+        """passage = 标题 + 面包屑 + 清洗正文；超长从尾部截断（§7.3）。"""
+        return build_passage(
+            title=title,
+            heading_path=hit.heading_path,
+            content=hit.content,
+            limit=limit,
+        )
+
+    # ---------- 装配（WeKnora §9.1） ----------
+    def _with_titles(self, hits: list[SearchHit]) -> list[SearchHit]:
+        """给命中块补文档标题：精排 passage 与 MMR token 都要用（§7.3 / §8.2）。"""
+        titles = self._repo.list_document_titles({hit.doc_id for hit in hits})
+        if not titles:
+            return hits
+        return [
+            replace(hit, title=titles.get(hit.doc_id, hit.title)) for hit in hits
+        ]
+
+    def _assemble_context(
+        self, hits: list[SearchHit], *, extra_context: list[SearchHit] | None = None
+    ) -> list[SearchHit]:
+        """上下文装配：父块回填 + 连续正文合并 + 短块邻居扩展 + 最终去重（§9.1）。"""
+        if not hits and not extra_context:
+            return []
+        chunks: dict[str, StoredChunk] = {}
+        for hit in hits:
+            chunk = self._repo.fetch_chunk(hit.chunk_id)
+            if chunk is not None:
+                chunks[hit.chunk_id] = chunk
+        titles = self._repo.list_document_titles({hit.doc_id for hit in hits})
+
+        def load_neighbors(chunk: StoredChunk, before: int, after: int) -> list[StoredChunk]:
+            return self._repo.fetch_neighbors(chunk, before=before, after=after)
+
+        def load_title(doc_id: str) -> str:
+            return titles.get(doc_id, "")
+
+        return assemble_context(
+            hits,
+            chunks=chunks,
+            load_neighbors=load_neighbors,
+            load_title=load_title,
+            parent_max_chars=self._settings.parent_max_chars,
+            parent_min_chars=self._settings.parent_min_chars,
+            short_chunk_chars=self._settings.short_chunk_chars,
+            extra_blocks=tuple(extra_context or ()),
+        )
 
     # ---------- 作用域 ----------
     def _visible_kbs(
@@ -374,110 +509,205 @@ class Retriever:
         wanted = set(kb_ids)
         return [kb for kb in visible if kb.id in wanted]
 
-    # ---------- 向量作用域 ----------
-    def _vector_scope(
+    # ---------- 向量作用域（按 embedding 空间分组） ----------
+    def _vector_groups(
         self, visible: list[KnowledgeBase], degraded: list[str]
-    ) -> tuple[VectorIdentity | None, list[str], Exception | None]:
-        """解析当前 embedder 身份并把可见 KB 分成「可向量」与「降级」两组（§4.2）。
+    ) -> list[VectorGroup]:
+        """按 KB 自己的 embedding 身份分组（§3.1）。
 
-        返回 `(identity, vector_kb_ids, error)`；`error` 非空表示身份解析阶段已经失败。
+        同一向量空间的多个 KB 只算一次 query embedding；不同空间的 KB 各查各的
+        collection。每组自带 embedder 与向量库，因此「每个库配自己的 embedding 模型」
+        不再需要 reindex 才能被检索到。
         """
-        try:
-            identity = self._embedder.identity
-        except EmbeddingUnavailable as exc:
-            degraded.append("vector_unavailable")
-            logger.warning("knowledge embedding backend unavailable: {}", exc)
-            return None, [], None
-        except EmbeddingError as exc:
-            degraded.append(f"embedding_error:{type(exc).__name__}")
-            logger.warning("knowledge embedding identity failed: {}", exc)
-            return None, [], exc
-        except Exception as exc:  # noqa: BLE001
-            degraded.append("vector_unavailable")
-            logger.warning("knowledge embedding identity failed: {}", exc)
-            return None, [], exc
-        if identity[0] == "none":
-            degraded.append("vector_unavailable")
-            return None, [], None
-        if self._vector is None or not self._vector.available:
-            degraded.append("vector_unavailable")
-            return None, [], None
-        return identity, self._group_kbs(visible, identity, degraded), None
+        default_identity: VectorIdentity | None = None
+        if self._identity_resolver is None:
+            try:
+                default_identity = self._embedder.identity
+            except EmbeddingUnavailable as exc:
+                degraded.append("vector_unavailable")
+                logger.warning("knowledge embedding backend unavailable: {}", exc)
+                return []
+            except EmbeddingError as exc:
+                degraded.append(f"embedding_error:{type(exc).__name__}")
+                logger.warning("knowledge embedding identity failed: {}", exc)
+                return []
+            except Exception as exc:  # noqa: BLE001
+                degraded.append("vector_unavailable")
+                logger.warning("knowledge embedding identity failed: {}", exc)
+                return []
+            if default_identity[0] == "none":
+                degraded.append("vector_unavailable")
+                return []
+            if self._vector is None or not self._vector.available:
+                degraded.append("vector_unavailable")
+                return []
 
-    @staticmethod
-    def _group_kbs(
-        visible: list[KnowledgeBase], identity: VectorIdentity, degraded: list[str]
-    ) -> list[str]:
-        """按 KB 的 embedding 指纹筛出可向量子集；两类排除原因必须区分（R13）。"""
-        kb_ids: list[str] = []
+        groups: dict[VectorIdentity, VectorGroup] = {}
         for kb in visible:
             if kb.embedding_backend == "none":
                 # 该库本就是关键词模式，属配置事实而非索引漂移（§4.2 第 1 条）。
                 degraded.append(f"vector_disabled:{kb.id}")
                 continue
-            kb_identity = (kb.embedding_backend, kb.embedding_model, kb.embedding_dimensions)
-            if kb_identity != identity:
-                # 索引过期：需 reindex；其余一致的 KB 仍走向量路（§4.2 第 3 条）。
-                degraded.append(f"embedding_mismatch:{kb.id}")
-                continue
-            kb_ids.append(kb.id)
-        return kb_ids
+            kb_identity = (
+                kb.embedding_backend,
+                kb.embedding_model,
+                kb.embedding_dimensions,
+            )
+            if self._identity_resolver is not None:
+                try:
+                    resolved = self._identity_resolver(kb)
+                except Exception as exc:  # noqa: BLE001 - 单库装配失败只影响该库
+                    logger.warning(
+                        "knowledge embedding resolve failed: kb={} error={}",
+                        kb.id,
+                        exc,
+                    )
+                    resolved = None
+                if resolved is None:
+                    degraded.append(f"embedding_unavailable:{kb.id}")
+                    continue
+                embedder, store = resolved
+                if not store.available:
+                    degraded.append(f"vector_unavailable:{kb.id}")
+                    continue
+                identity = store.identity
+            else:
+                if default_identity is None or kb_identity != default_identity:
+                    # 索引过期：需 reindex；其余一致的 KB 仍走向量路（§4.2 第 3 条）。
+                    degraded.append(f"embedding_mismatch:{kb.id}")
+                    continue
+                assert self._vector is not None
+                embedder, store = self._embedder, self._vector
+                identity = default_identity
+            group = groups.get(identity)
+            kb_ids = (group.kb_ids if group else ()) + (kb.id,)
+            groups[identity] = VectorGroup(identity, kb_ids, embedder, store)
+        return list(groups.values())
+
+    def _question_keyword_hits(
+        self,
+        match_expr: str,
+        *,
+        workspace_ids: list[str],
+        kb_ids: list[str],
+        limit: int,
+    ) -> list[FtsHit]:
+        """问题索引的关键词召回；问题索引是增强项，失败只丢这一路。"""
+        try:
+            return self._repo.search_questions_fts(
+                match_expr,
+                workspace_ids=workspace_ids,
+                limit=limit,
+                kb_ids=kb_ids,
+            )
+        except Exception as exc:  # noqa: BLE001 - 问题索引坏了不该让检索整体失败
+            logger.warning("knowledge question keyword route failed: {}", exc)
+            return []
 
     @staticmethod
-    def _identity_groups(
-        identity: VectorIdentity | None, vector_kb_ids: list[str]
-    ) -> list[tuple[VectorIdentity, list[str]]]:
-        """v1 只有一个活动 embedder → 单组；保留分组循环以承接 v2 的每库多模型。"""
-        if identity is None or not vector_kb_ids:
-            return []
-        return [(identity, vector_kb_ids)]
+    def _merge_group_hits(
+        chunk_hits: list[FtsHit],
+        question_hits: list[FtsHit],
+        *,
+        limit: int,
+    ) -> list[FtsHit]:
+        """块命中与问题命中都映射到父块：同一块取最高分，再按分数截断。"""
+        best: dict[str, FtsHit] = {}
+        for hit in (*chunk_hits, *question_hits):
+            current = best.get(hit.chunk_id)
+            if current is None or hit.score > current.score:
+                best[hit.chunk_id] = hit
+        ranked = sorted(best.values(), key=lambda hit: (-hit.score, hit.chunk_id))
+        return ranked[:limit]
 
     def _run_vector_route(
         self,
         query: str,
-        groups: list[tuple[VectorIdentity, list[str]]],
+        groups: list[VectorGroup],
         *,
         limit: int,
-    ) -> tuple[list[SearchHit], int]:
+    ) -> tuple[list[SearchHit], list[list[tuple[str, float]]], int]:
         """每组一次 query embedding + 一次向量查询；命中回表过滤孤儿/停用块（§4.2）。
 
-        返回 `(hits, raw_count)`；`raw_count` 用于区分「本来就没有候选」与「候选全被过滤」。
+        返回 `(hits, 每组的 (chunk_id, cosine) 列表, raw_count)`；每组一张列表是
+        bestRanks 的输入，`raw_count` 用于区分「本来就没有候选」与「候选全被过滤」。
         """
         hits: list[SearchHit] = []
+        lists: list[list[tuple[str, float]]] = []
         raw_count = 0
-        for _group_identity, group_kb_ids in groups:
-            query_vector = self._embedder.embed_query(query)
-            assert self._vector is not None
-            raw_hits = self._vector.query(
-                query_vector, kb_ids=list(group_kb_ids), limit=limit
-            )
+        failures = 0
+        last_error: Exception | None = None
+        for group in groups:
+            # 一个库的 embedding/向量库坏了，不该拖垮其他组的向量召回。
+            try:
+                query_vector = group.embedder.embed_query(query)
+                raw_hits = group.store.query(
+                    query_vector,
+                    kb_ids=list(group.kb_ids),
+                    limit=self._vector_pool(limit, len(group.kb_ids)),
+                )
+            except Exception as exc:  # noqa: BLE001 - 组级失败统一裁决
+                failures += 1
+                last_error = exc
+                logger.warning(
+                    "knowledge vector group failed: kbs={} error={}",
+                    ",".join(group.kb_ids),
+                    exc,
+                )
+                continue
             raw_count += len(raw_hits)
-            for chunk_id, cosine in raw_hits:
-                stored = self._repo.fetch_chunk(chunk_id)
+            # 问题行（`<chunk>-qN`）映射回父块：模型要看到答案，不是看到问题。
+            group_chunks: dict[str, StoredChunk] = {}
+            group_best: dict[str, float] = {}
+            for source_id, cosine in raw_hits:
+                parent = parent_chunk_id(source_id)
+                stored = self._repo.fetch_chunk(parent or source_id)
                 if stored is None or not stored.is_enabled:
                     continue
-                hits.append(_from_chunk(stored, cosine))
-        return hits, raw_count
+                current = group_best.get(stored.id)
+                if current is None or cosine > current:
+                    group_best[stored.id] = cosine
+                    group_chunks[stored.id] = stored
+            group_scores: list[tuple[str, float]] = []
+            for chunk_id, cosine in sorted(
+                group_best.items(), key=lambda item: (-item[1], item[0])
+            ):
+                hits.append(_from_chunk(group_chunks[chunk_id], cosine))
+                group_scores.append((chunk_id, cosine))
+            if group_scores:
+                # 空列表不进融合：一张全空的「向量路」会让 mode_used 误报 hybrid。
+                lists.append(group_scores)
+        if groups and failures == len(groups) and last_error is not None:
+            raise last_error
+        return hits, lists, raw_count
 
     # ---------- 融合 ----------
     def _fuse(
-        self, vector_hits: list[SearchHit], keyword_hits: list[FtsHit]
+        self,
+        vector_lists: list[list[tuple[str, float]]],
+        keyword_lists: list[list[tuple[str, float]]],
     ) -> tuple[dict[str, float], tuple[str, ...], str]:
         """§5.2 三条互斥归一化路径；只返回融合分与路由此刻的形态。"""
         settings = self._settings
-        if vector_hits and keyword_hits:
-            scores = weighted_rrf(
-                [hit.chunk_id for hit in vector_hits],
-                [hit.chunk_id for hit in keyword_hits],
-                w_v=settings.vector_weight,
-                w_k=settings.keyword_weight,
+        if vector_lists and keyword_lists:
+            scores = weighted_rrf_multi(
+                (
+                    RouteSpec(
+                        settings.vector_weight,
+                        tuple(tuple(cid for cid, _ in ids) for ids in vector_lists),
+                    ),
+                    RouteSpec(
+                        settings.keyword_weight,
+                        tuple(tuple(cid for cid, _ in ids) for ids in keyword_lists),
+                    ),
+                ),
                 k=settings.rrf_k,
             )
             return scores, ("vector", "keyword"), "hybrid"
-        if vector_hits:
-            scores = single_vector_scores([(hit.chunk_id, hit.score) for hit in vector_hits])
+        if vector_lists:
+            scores = single_vector_scores_multi(vector_lists)
             return scores, ("vector",), "semantic"
-        scores = single_keyword_scores(keyword_hits)
+        scores = single_keyword_scores_multi(keyword_lists)
         return scores, ("keyword",), "keyword"
 
     @staticmethod
@@ -511,10 +741,12 @@ class Retriever:
         raw = settings.default_limit if limit is None else limit
         return max(1, min(raw, settings.max_limit))
 
-    def _keyword_pool(self, limit: int) -> int:
-        size = max(limit * 10, self._settings.keyword_pool_size)
-        return min(size, _KEYWORD_POOL_CAP)
+    def _keyword_pool(self, limit: int, kb_count: int) -> int:
+        """§3.2 超取池：`(max(topK*5, 关键词下限) * len(KBs))`，上限 500。"""
+        size = max(limit * 5, self._settings.keyword_pool_size) * max(1, kb_count)
+        return min(size, _POOL_CAP)
 
-    def _vector_pool(self, limit: int) -> int:
-        size = max(limit * 5, self._settings.pool_size)
-        return min(size, _VECTOR_POOL_CAP)
+    def _vector_pool(self, limit: int, kb_count: int) -> int:
+        """§3.2 超取池：`(max(topK*5, 向量下限) * len(KBs))`，上限 500。"""
+        size = max(limit * 5, self._settings.pool_size) * max(1, kb_count)
+        return min(size, _POOL_CAP)

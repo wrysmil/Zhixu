@@ -59,6 +59,9 @@ dependencies = [
     "python-docx>=1.1.0,<2.0.0",
     "openpyxl>=3.1.0,<4.0.0",
     "python-pptx>=1.0.0,<2.0.0",
+    # 中文分词：词典 + HMM（与 WeKnora 用 Lindera 的「词典优先」路线一致；
+    # Lindera-py 无 Windows wheel，纯 Python 的 jieba 是本机可用的等价实现）。
+    "jieba>=0.42.1,<1.0.0",
 ]
 
 [project.optional-dependencies]

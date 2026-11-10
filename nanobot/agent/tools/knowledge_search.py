@@ -16,6 +16,7 @@ from loguru import logger
 from nanobot.agent.tools.base import Tool, ToolResult, tool_parameters
 from nanobot.agent.tools.context import ToolContext, current_request_session_key
 from nanobot.agent.tools.knowledge_common import (
+    history_chunk_ids_provider_from,
     no_kb_message,
     render_search_result,
     resolve_kb_ids,
@@ -23,7 +24,7 @@ from nanobot.agent.tools.knowledge_common import (
     workspace_ids_provider_from,
 )
 from nanobot.agent.tools.schema import IntegerSchema, StringSchema, tool_parameters_schema
-from nanobot.knowledge.fusion import SearchResult
+from nanobot.knowledge.fusion import SearchHit, SearchResult
 from nanobot.knowledge.retriever import KnowledgeSearchError
 
 _MODES = ("hybrid", "semantic", "keyword")
@@ -111,13 +112,19 @@ class KnowledgeSearchTool(Tool):
         self,
         service_provider: Callable[[], Any | None],
         workspace_ids_provider: Callable[[str | None], Sequence[str]],
+        history_chunk_ids_provider: Callable[[], Sequence[str]] | None = None,
     ) -> None:
         self._service = service_provider
         self._workspaces = workspace_ids_provider
+        self._history_chunk_ids = history_chunk_ids_provider or (lambda: ())
 
     @classmethod
     def create(cls, ctx: ToolContext) -> Tool:
-        return cls(service_provider_from(ctx), workspace_ids_provider_from(ctx))
+        return cls(
+            service_provider_from(ctx),
+            workspace_ids_provider_from(ctx),
+            history_chunk_ids_provider_from(ctx),
+        )
 
     @classmethod
     def enabled(cls, ctx: ToolContext) -> bool:
@@ -177,6 +184,7 @@ class KnowledgeSearchTool(Tool):
         effective_query = (rewrite_query or "").strip() or query
         rewritten = effective_query if effective_query != query else ""
         query_note = f"检索查询使用改写「{rewritten}」" if rewritten else ""
+        extra_context = self._history_blocks(service, kbs)
 
         async def run_search(text: str) -> Any:
             return await asyncio.to_thread(
@@ -186,6 +194,7 @@ class KnowledgeSearchTool(Tool):
                 kb_ids=kb_ids,
                 mode=normalized_mode,
                 limit=effective_limit,
+                extra_context=extra_context,
             )
 
         try:
@@ -252,3 +261,46 @@ class KnowledgeSearchTool(Tool):
             query_note=query_note,
         )
         return ToolResult(rendered)
+
+    # ---------- 历史引用（§9.1 ③） ----------
+    def _history_blocks(self, service: Any, kbs: Sequence[Any]) -> list[SearchHit]:
+        """取回会话历史里引用过的块，作为补充上下文注入。
+
+        作用域校验与检索一致：块不存在、已停用或所属库不可见一律跳过——
+        历史里出现过的句柄不代表现在仍然可读。
+        """
+        try:
+            chunk_ids = list(self._history_chunk_ids())
+        except Exception as exc:  # noqa: BLE001 - 历史读取失败不影响检索
+            logger.warning("knowledge history handles failed: {!r}", exc)
+            return []
+        if not chunk_ids:
+            return []
+        visible = {kb.id for kb in kbs}
+        blocks: list[SearchHit] = []
+        for chunk_id in chunk_ids:
+            try:
+                chunk = service.get_chunk(chunk_id)
+            except Exception as exc:  # noqa: BLE001 - 单块失败跳过
+                logger.warning("knowledge history chunk failed: doc={} error={}", chunk_id, exc)
+                continue
+            if chunk is None or not getattr(chunk, "is_enabled", True):
+                continue
+            if getattr(chunk, "kb_id", "") not in visible:
+                continue
+            blocks.append(
+                SearchHit(
+                    chunk_id=chunk.id,
+                    doc_id=chunk.doc_id,
+                    kb_id=chunk.kb_id,
+                    chunk_index=chunk.chunk_index,
+                    heading_path=chunk.heading_path,
+                    page=chunk.page,
+                    locator=chunk.locator,
+                    content=chunk.content,
+                    char_count=chunk.char_count,
+                    content_hash=chunk.content_hash,
+                    score=0.0,
+                )
+            )
+        return blocks

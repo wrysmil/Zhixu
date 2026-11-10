@@ -5,7 +5,11 @@ import sqlite3
 import pytest
 
 import nanobot.knowledge.repository as repository_module
-from nanobot.knowledge.repository import ChunkRecord, DuplicateKnowledgeBaseError
+from nanobot.knowledge.repository import (
+    ChunkRecord,
+    DuplicateKnowledgeBaseError,
+    QuestionRecord,
+)
 from nanobot.knowledge.tokenizer import tokenize_index, tokenize_query
 
 
@@ -749,6 +753,68 @@ def test_stats_summary_aggregates(repo):
     assert summary.index_versions["norm1:tok1:chunk1"] == 1
     assert summary.index_versions["old"] == 1
     assert summary.index_versions[""] == 2
+
+
+# ---------- 生成问题（doc2query） ----------
+
+
+def _question(doc, kb, chunk, index: int, text: str) -> QuestionRecord:
+    return QuestionRecord(
+        id=f"{chunk.id}-q{index}",
+        chunk_id=chunk.id,
+        doc_id=doc.id,
+        kb_id=kb.id,
+        workspace_id="ws1",
+        chunk_index=chunk.chunk_index,
+        question_index=index,
+        question=text,
+        search_text=tokenize_index(text),
+    )
+
+
+def test_replace_questions_and_search_by_parent(repo, db):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    chunk = _chunk(0, "部署失败后如何回滚")
+    assert repo.commit_chunks(doc.id, attempt=1, chunks=[chunk])
+
+    repo.replace_questions(
+        doc.id,
+        [
+            _question(doc, kb, chunk, 0, "线上版本出问题怎么回滚"),
+            _question(doc, kb, chunk, 1, "回滚失败还能怎么恢复"),
+        ],
+    )
+
+    hits = repo.search_questions_fts(tokenize_query("回滚"), workspace_ids=["ws1"])
+    assert [hit.chunk_id for hit in hits] == [chunk.id]
+    assert hits[0].content == "部署失败后如何回滚"
+    assert repo.vector_expectations()[doc.id] == [chunk.id, f"{chunk.id}-q0", f"{chunk.id}-q1"]
+
+    # 重索引整体替换块：问题随块级联删除，不会留下孤儿行。
+    assert repo.mark_reindex_pending(doc.id)
+    attempt = repo.claim_document(doc.id, lease_owner="w2")
+    assert attempt is not None
+    assert repo.commit_chunks(doc.id, attempt=attempt, chunks=[_chunk(0, "新的内容")])
+    with db.connect() as conn:
+        assert conn.execute("SELECT count(*) FROM chunk_questions").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM chunk_questions_fts").fetchone()[0] == 0
+
+
+def test_replace_questions_empty_clears_rows(repo, db):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    chunk = _chunk(0, "退款流程")
+    assert repo.commit_chunks(doc.id, attempt=1, chunks=[chunk])
+    repo.replace_questions(doc.id, [_question(doc, kb, chunk, 0, "订单怎么退款")])
+
+    repo.replace_questions(doc.id, [])
+
+    with db.connect() as conn:
+        assert conn.execute("SELECT count(*) FROM chunk_questions").fetchone()[0] == 0
+    assert repo.search_questions_fts(tokenize_query("退款"), workspace_ids=["ws1"]) == []
 
 
 def test_insert_document_accepts_explicit_id(repo):

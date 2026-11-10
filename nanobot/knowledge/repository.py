@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -31,6 +31,12 @@ _INSERT_CHUNK_SQL = (
     " (id,doc_id,kb_id,workspace_id,chunk_index,content,heading_path,page,locator,"
     "start_offset,end_offset,char_count,content_hash,search_text,created_at)"
     " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+)
+
+_INSERT_QUESTION_SQL = (
+    "INSERT INTO chunk_questions"
+    " (id,chunk_id,doc_id,kb_id,workspace_id,question_index,question,search_text,created_at)"
+    " VALUES (?,?,?,?,?,?,?,?,?)"
 )
 
 _DOC_FIELDS = (
@@ -101,6 +107,25 @@ class ChunkRecord:
     char_count: int
     content_hash: str
     search_text: str
+
+
+@dataclass(frozen=True, slots=True)
+class QuestionRecord:
+    """一条入库期生成的问题；`id = <chunk_id>-q<序号>`，与父块同集合索引。
+
+    结构上满足向量层的 `ChunkMeta`（id/doc_id/kb_id/workspace_id/chunk_index），
+    因此问题可以直接作为独立的向量行写入，命中后按 id 前缀回填父块。
+    """
+
+    id: str
+    chunk_id: str
+    doc_id: str
+    kb_id: str
+    workspace_id: str
+    chunk_index: int
+    question_index: int
+    question: str
+    search_text: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +211,34 @@ LIMIT ?
 """
 
 _FTS_SCOPE_SINGLE = "(kb.visibility = 'global' OR kb.workspace_id = ?)"
+
+#: 问题行命中的仍是父块：JOIN 回 document_chunks 后按父块去重/排序（WeKnora 口径）。
+_QUESTION_FTS_SQL_TEMPLATE = """
+SELECT c.id            AS chunk_id,
+       c.doc_id        AS doc_id,
+       c.kb_id         AS kb_id,
+       c.chunk_index   AS chunk_index,
+       c.heading_path  AS heading_path,
+       c.page           AS page,
+       c.locator       AS locator,
+       c.content       AS content,
+       c.char_count    AS char_count,
+       c.content_hash  AS content_hash,
+       -bm25(chunk_questions_fts) AS score
+FROM chunk_questions_fts
+JOIN chunk_questions q  ON q.row_id = chunk_questions_fts.rowid
+JOIN document_chunks c  ON c.id = q.chunk_id
+JOIN documents d        ON d.id = c.doc_id
+JOIN knowledge_bases kb ON kb.id = c.kb_id
+WHERE chunk_questions_fts MATCH ?
+  AND c.is_enabled = 1
+  AND d.is_enabled = 1
+  AND d.parse_status = 'ready'
+  AND kb.is_enabled = 1
+  AND {kb_filter}{scope}
+ORDER BY chunk_questions_fts.rank
+LIMIT ?
+"""
 
 
 class _AttemptSupersededError(Exception):
@@ -386,7 +439,7 @@ class KnowledgeRepository:
             ).fetchone()
         return self._row_to_document(row) if row else None
 
-    def list_document_titles(self, doc_ids: Sequence[str]) -> dict[str, str]:
+    def list_document_titles(self, doc_ids: Iterable[str]) -> dict[str, str]:
         """批量取文档标题（精排 passage 的标题段，避免逐条 N+1 查询）。"""
         unique = [doc_id for doc_id in dict.fromkeys(doc_ids) if doc_id]
         if not unique:
@@ -520,16 +573,28 @@ class KnowledgeRepository:
         """
         with self._db.connect() as conn:
             rows = conn.execute(
-                "SELECT d.id AS doc_id, c.id AS chunk_id FROM documents d"
+                "SELECT d.id AS doc_id, c.id AS chunk_id, q.id AS question_id"
+                " FROM documents d"
                 " LEFT JOIN document_chunks c ON c.doc_id = d.id"
+                " LEFT JOIN chunk_questions q ON q.doc_id = d.id"
                 " WHERE d.parse_status='ready'"
-                " ORDER BY d.id, c.chunk_index"
+                " ORDER BY d.id, c.chunk_index, q.question_index"
             ).fetchall()
         expected: dict[str, list[str]] = {}
+        seen: dict[str, set[str]] = {}
         for row in rows:
-            chunks = expected.setdefault(str(row["doc_id"]), [])
-            if row["chunk_id"] is not None:
-                chunks.append(str(row["chunk_id"]))
+            doc_id = str(row["doc_id"])
+            expected_ids = expected.setdefault(doc_id, [])
+            seen_ids = seen.setdefault(doc_id, set())
+            for key in ("chunk_id", "question_id"):
+                value = row[key]
+                # chunk × question 的笛卡尔积会重复父块 id，去重保持稳定顺序。
+                if value is None:
+                    continue
+                text = str(value)
+                if text not in seen_ids:
+                    seen_ids.add(text)
+                    expected_ids.append(text)
         return expected
 
     def stats_summary(
@@ -848,6 +913,85 @@ class KnowledgeRepository:
             )
             for row in rows
         ]
+
+    def search_questions_fts(
+        self,
+        match_expr: str,
+        *,
+        workspace_ids: list[str],
+        limit: int = 20,
+        kb_ids: list[str] | None = None,
+    ) -> list[FtsHit]:
+        """问题索引的关键词召回；返回父块（`chunk_id` 是父块，不是问题行）。"""
+        if not match_expr.strip():
+            raise ValueError("empty FTS match expression")
+        if not workspace_ids:
+            return []
+        if kb_ids is not None and not kb_ids:
+            return []
+        ws_placeholders = ",".join("?" for _ in workspace_ids)
+        kb_filter = ""
+        params: list[object] = [match_expr]
+        if kb_ids is not None:
+            kb_placeholders = ",".join("?" for _ in kb_ids)
+            kb_filter = f"c.kb_id IN ({kb_placeholders}) AND "
+            params.extend(kb_ids)
+        params.extend(workspace_ids)
+        params.append(limit)
+        sql = _QUESTION_FTS_SQL_TEMPLATE.replace("{kb_filter}", kb_filter).replace(
+            "{scope}",
+            "(kb.visibility = 'global' OR kb.workspace_id IN"
+            f" ({ws_placeholders}))",
+        )
+        with self._db.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        # 一条块可能有多条问题同时命中：按父块去重，保留最高分（同块同答案）。
+        best: dict[str, FtsHit] = {}
+        for row in rows:
+            hit = FtsHit(
+                chunk_id=row["chunk_id"],
+                doc_id=row["doc_id"],
+                kb_id=row["kb_id"],
+                chunk_index=row["chunk_index"],
+                heading_path=row["heading_path"],
+                page=row["page"],
+                locator=row["locator"],
+                content=row["content"],
+                char_count=row["char_count"],
+                content_hash=row["content_hash"],
+                score=float(row["score"]),
+            )
+            current = best.get(hit.chunk_id)
+            if current is None or hit.score > current.score:
+                best[hit.chunk_id] = hit
+        return sorted(best.values(), key=lambda hit: (-hit.score, hit.chunk_id))
+
+    def replace_questions(
+        self, doc_id: str, questions: Iterable[QuestionRecord]
+    ) -> None:
+        """原子替换一篇文档的全部生成问题；空列表等价于清空（重索引/关闭开关）。"""
+        rows = list(questions)
+        now = utc_now()
+        with self._db.connect(immediate=True) as conn:
+            conn.execute("DELETE FROM chunk_questions WHERE doc_id=?", (doc_id,))
+            if rows:
+                conn.executemany(
+                    _INSERT_QUESTION_SQL,
+                    [
+                        (
+                            item.id,
+                            item.chunk_id,
+                            doc_id,
+                            item.kb_id,
+                            item.workspace_id,
+                            item.question_index,
+                            item.question,
+                            item.search_text,
+                            now,
+                        )
+                        for item in rows
+                    ],
+                )
 
     @staticmethod
     def _row_to_chunk(row: sqlite3.Row) -> StoredChunk:

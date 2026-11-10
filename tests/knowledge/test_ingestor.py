@@ -12,6 +12,7 @@ from nanobot.knowledge.database import KnowledgeDatabase
 from nanobot.knowledge.embedding import EmbeddingError, EmbeddingUnavailable
 from nanobot.knowledge.extractor import KnowledgeExtractionError
 from nanobot.knowledge.ingestor import Ingestor, chunk_id_for
+from nanobot.knowledge.questions import QuestionGenerationError
 from nanobot.knowledge.repository import KnowledgeRepository
 from nanobot.knowledge.tokenizer import tokenize_index, tokenize_query
 from nanobot.knowledge.vector import VectorStoreError
@@ -53,6 +54,43 @@ class FakeEmbedder:
 
     def embed_query(self, text: str) -> list[float]:
         return [1.0, 0.0]
+
+
+class FakeQuestionGenerator:
+    def __init__(
+        self,
+        questions: list[str] | None = None,
+        *,
+        error: Exception | None = None,
+    ) -> None:
+        self.questions = list(questions or [])
+        self.error = error
+        self.calls: list[dict[str, str]] = []
+
+    @property
+    def model_id(self) -> str:
+        return "fake#questions"
+
+    def generate(
+        self,
+        content: str,
+        *,
+        prev_content: str = "",
+        next_content: str = "",
+        doc_name: str = "",
+        question_count: int = 3,
+    ) -> list[str]:
+        self.calls.append(
+            {
+                "content": content,
+                "prev_content": prev_content,
+                "next_content": next_content,
+                "doc_name": doc_name,
+            }
+        )
+        if self.error is not None:
+            raise self.error
+        return self.questions[:question_count]
 
 
 class FakeVector:
@@ -150,7 +188,7 @@ def test_process_document_ready_path(tmp_path, repo):
     assert final.parse_status == "ready"
     assert final.vector_status == "ok"
     assert final.error_code == ""
-    assert final.index_version == "norm1:tok1:chunk1"
+    assert final.index_version == "norm1:tok2:chunk1"
     assert final.indexed_at
     chunks = _chunks(repo, doc.id)
     assert final.chunk_count == len(chunks) >= 1
@@ -187,7 +225,7 @@ def test_search_text_is_tokenized(tmp_path, repo):
     kb, doc, attempt = _prepare(tmp_path, repo, "部署失败怎么回滚？" * 10)
     _ingestor(repo).process_document(doc.id, attempt)
 
-    assert tokenize_index("部署失败") == "部 署 失 败 部署 署失 失败"
+    assert tokenize_index("部署失败") == "部署 失败"
     hits = repo.search_fts(
         tokenize_query("部署失败"), workspace_ids=["ws1"], kb_ids=[kb.id]
     )
@@ -449,12 +487,82 @@ def test_superseded_attempt_does_not_write(tmp_path, repo):
     assert vector.deletes == []
 
 
+def test_identity_resolver_embeds_with_kb_embedder(tmp_path, repo):
+    kb, doc, attempt = _prepare(tmp_path, repo, CONTENT)
+    embedder = FakeEmbedder(identity=("remote", "other", 2))
+    vector = FakeVector()
+    ingestor = Ingestor(
+        repo,
+        embedder=FakeEmbedder(identity=("none", "", 0)),
+        vector_store=None,
+        identity_resolver=lambda target_kb: (embedder, vector),
+    )
+
+    ingestor.process_document(doc.id, attempt)
+
+    final = repo.get_document(doc.id)
+    assert final is not None
+    assert final.vector_status == "ok"
+    assert embedder.calls == 1
+    assert vector.upserts and vector.upserts[0] == [
+        chunk.id for chunk in _chunks(repo, doc.id)
+    ]
+    assert kb.id == doc.kb_id
+
+
+def test_question_generation_indexes_parent_rows(tmp_path, repo):
+    kb, doc, attempt = _prepare(tmp_path, repo, CONTENT)
+    vector = FakeVector()
+    generator = FakeQuestionGenerator(["回滚步骤是什么？", "部署失败如何恢复？"])
+
+    Ingestor(
+        repo,
+        embedder=FakeEmbedder(),
+        vector_store=vector,
+        question_generator=generator,
+        question_count=2,
+    ).process_document(doc.id, attempt)
+
+    chunks = _chunks(repo, doc.id)
+    assert len(generator.calls) == len(chunks)
+    hits = repo.search_questions_fts(
+        tokenize_query("回滚"), workspace_ids=["ws1"], kb_ids=[kb.id]
+    )
+    assert hits and hits[0].chunk_id == chunks[0].id
+    question_upserts = [
+        batch for batch in vector.upserts[1:] if batch and batch[0].endswith("-q0")
+    ]
+    assert question_upserts
+    assert all(question_id.startswith("chk_") for batch in question_upserts for question_id in batch)
+
+
+def test_question_generation_failure_does_not_block_ingest(tmp_path, repo):
+    _kb, doc, attempt = _prepare(tmp_path, repo, CONTENT)
+    vector = FakeVector()
+    generator = FakeQuestionGenerator(error=QuestionGenerationError("model down"))
+
+    Ingestor(
+        repo,
+        embedder=FakeEmbedder(),
+        vector_store=vector,
+        question_generator=generator,
+    ).process_document(doc.id, attempt)
+
+    final = repo.get_document(doc.id)
+    assert final is not None
+    assert final.parse_status == "ready"
+    assert final.vector_status == "ok"
+    assert repo.search_questions_fts(
+        tokenize_query("回滚"), workspace_ids=["ws1"]
+    ) == []
+
+
 def test_vector_status_does_not_overwrite_newer_attempt(tmp_path, repo, monkeypatch):
     _kb, doc, attempt = _prepare(tmp_path, repo, CONTENT)
     ingestor = _ingestor(repo)
     assert attempt is not None
 
-    def newer_attempt(doc_id, records, vectors):
+    def newer_attempt(doc_id, records, vectors, store):
         assert repo.mark_reindex_pending(doc_id)
         assert repo.claim_document(doc_id, lease_owner="w2") == attempt + 1
         return "ok"

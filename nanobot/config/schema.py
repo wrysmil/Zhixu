@@ -612,7 +612,7 @@ class KnowledgeChunkingConfig(Base):
     chunk_size: int = 800
     chunk_overlap: int = 120
     max_file_mb: int = 50
-    tokenizer_mode: Literal["unigram_bigram", "bigram"] = "unigram_bigram"
+    tokenizer_mode: Literal["jieba", "unigram_bigram", "bigram"] = "jieba"
     paragraph_mode: Literal["blank_line", "line"] = "blank_line"
 
 
@@ -643,13 +643,17 @@ class KnowledgeRetrievalConfig(Base):
     vector_weight: float = 0.7
     keyword_weight: float = 0.3
     rrf_k: int = 60
-    pool_size: int = 50  # 向量路召回下限；实际池有硬上限 200
-    keyword_pool_size: int = 100  # 关键词路召回下限；实际池有硬上限 300
+    pool_size: int = 50  # 向量路召回下限；超取池 = max(topK*5, 下限)*len(KBs)，上限 500
+    keyword_pool_size: int = 100  # 关键词路召回下限；同上
     default_limit: int = 8
     max_limit: int = 20
     mmr_lambda: float = 0.7
-    relevance_band: float = 0.15  # MMR 相关性带（检索 spec §5.6）
-    adjacent_similarity_floor: float = 0.25  # 同 doc 邻块相似度下限（§5.5）
+    rerank_top_k: int = 10  # 精排后进 MMR 的条数上限（WeKnora §10.2）
+    parent_max_chars: int = 2400  # 父块回填的单块上限（§9.1）
+    parent_min_chars: int = 600  # 命中块短于此值才回填父块（§9.1）
+    short_chunk_chars: int = 200  # 短于此值的命中块触发更多邻居扩展（§9.1）
+    relevance_band: float = 0.15  # 已废弃：WeKnora MMR 无相关性带，保留仅为兼容旧配置
+    adjacent_similarity_floor: float = 0.25  # 已废弃：同上
     dedup_containment: float = 0.85  # 短文本 token 覆盖率下限（WeKnora §6）
     dedup_unique_ratio: float = 0.02  # 短文本独有 token 占比上限
     dedup_jaccard: float = 0.6  # 兼容旧配置：WeKnora 不使用 Jaccard，保留但不参与判定
@@ -675,12 +679,32 @@ class KnowledgeRerankConfig(Base):
     max_concurrency: int = 4
     max_candidates: int = 200  # 进模型前的候选截断（§7.2）
     max_passage_chars: int = 1200  # 单条 passage 上限，从尾部截断（§7.3）
+    max_request_chars: int = 8000  # 单次请求字符上限（分批时逐批扣 query）
     threshold: float = 0.3  # 第一档阈值（§7.4）
     fallback_min_score: float = 0.15  # 第三档保留最高分的下限
     model_weight: float = 0.6  # 复合分：语义相关性
     base_weight: float = 0.3  # 复合分：检索证据
     source_weight: float = 0.1  # 复合分：来源可信度
     score_transform: str = "probability"  # "logit" 时用 logistic 还原成概率
+
+
+class KnowledgeQuestionGenerationConfig(Base):
+    """入库期问题生成（doc2query，WeKnora 口径）。
+
+    ``enabled`` 默认关闭：每个块一次 LLM 调用，入库会明显变慢并产生费用。
+    开启后生成/索引失败只降级为「没有生成问题」，不阻断入库。
+    """
+
+    enabled: bool = False
+    base_url: str = ""  # OpenAI 兼容，含 /v1
+    api_key: str = Field(default="", repr=False)
+    api_key_env: str = ""
+    model: str = ""
+    question_count: int = 3  # 1..10；越界由生成器钳制
+    max_tokens: int = 2048
+    temperature: float = 0.7
+    max_context_chars: int = 1200  # 前后邻居块各自的截断上限
+    timeout_seconds: float = 30.0
 
 
 class KnowledgeConfig(Base):
@@ -698,6 +722,9 @@ class KnowledgeConfig(Base):
     embedding: KnowledgeEmbeddingConfig = Field(default_factory=KnowledgeEmbeddingConfig)
     retrieval: KnowledgeRetrievalConfig = Field(default_factory=KnowledgeRetrievalConfig)
     rerank: KnowledgeRerankConfig = Field(default_factory=KnowledgeRerankConfig)
+    question_generation: KnowledgeQuestionGenerationConfig = Field(
+        default_factory=KnowledgeQuestionGenerationConfig
+    )
 
 
 class Config(BaseSettings):

@@ -8,7 +8,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 
 class KnowledgeSchemaTooNewError(RuntimeError):
@@ -161,7 +161,59 @@ _V1_STATEMENTS: tuple[str, ...] = (
     """,
 )
 
-_MIGRATIONS: tuple[tuple[str, tuple[str, ...]], ...] = (("1", _V1_STATEMENTS),)
+#: v2：入库期生成的问题（WeKnora doc2query）。问题作为独立索引行存在，
+#: `id = <chunk_id>-q<序号>`；命中问题行时按前缀回填父块正文。
+_V2_STATEMENTS: tuple[str, ...] = (
+    """
+    CREATE TABLE IF NOT EXISTS chunk_questions (
+      row_id         INTEGER PRIMARY KEY,
+      id             TEXT    NOT NULL UNIQUE,
+      chunk_id       TEXT    NOT NULL REFERENCES document_chunks(id) ON DELETE CASCADE,
+      doc_id         TEXT    NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+      kb_id          TEXT    NOT NULL,
+      workspace_id   TEXT    NOT NULL DEFAULT 'default',
+      question_index INTEGER NOT NULL,
+      question       TEXT    NOT NULL,
+      search_text    TEXT    NOT NULL DEFAULT '',
+      created_at     TEXT    NOT NULL,
+      UNIQUE (chunk_id, question_index),
+      CHECK (question_index >= 0)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_questions_kb ON chunk_questions(kb_id)",
+    "CREATE INDEX IF NOT EXISTS idx_questions_doc ON chunk_questions(doc_id)",
+    """
+    CREATE VIRTUAL TABLE IF NOT EXISTS chunk_questions_fts USING fts5(
+      search_text,
+      id            UNINDEXED,
+      kb_id         UNINDEXED,
+      workspace_id  UNINDEXED,
+      content='chunk_questions',
+      content_rowid='row_id',
+      detail=column,
+      tokenize='unicode61 remove_diacritics 2'
+    )
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS chunk_questions_ai AFTER INSERT ON chunk_questions BEGIN
+      INSERT INTO chunk_questions_fts(rowid, search_text, id, kb_id, workspace_id)
+      VALUES (new.row_id, new.search_text, new.id, new.kb_id, new.workspace_id);
+    END
+    """,
+    """
+    CREATE TRIGGER IF NOT EXISTS chunk_questions_ad AFTER DELETE ON chunk_questions BEGIN
+      INSERT INTO chunk_questions_fts(
+        chunk_questions_fts, rowid, search_text, id, kb_id, workspace_id
+      )
+      VALUES ('delete', old.row_id, old.search_text, old.id, old.kb_id, old.workspace_id);
+    END
+    """,
+)
+
+_MIGRATIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("1", _V1_STATEMENTS),
+    ("2", _V2_STATEMENTS),
+)
 
 
 class KnowledgeDatabase:

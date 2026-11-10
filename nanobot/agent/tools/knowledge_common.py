@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Iterable, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
 DEFAULT_ITEM_CHARS = 1000
 #: 一次检索工具输出的总预算（`knowledge.retrieval.tool_output_chars` 默认值）。
 DEFAULT_TOOL_OUTPUT_CHARS = 6000
+#: §9.3 Agent 模式输出预算 = OutputBudget × 4/5；剩下的留给模型自己提问与回答。
+OUTPUT_BUDGET_RATIO = 0.8
 #: `knowledge_read` 的 `doc://` 输出总预算（spec §9.2）。
 READ_OUTPUT_CHARS = 8000
 
@@ -43,6 +46,11 @@ _DEGRADED_NOTES: dict[str, str] = {
     "embedding_error": "远程 embedding 调用失败，已降级为关键词",
     "vector_disabled": "该知识库配置为关键词模式（无向量）",
     "embedding_mismatch": "该知识库索引模型与当前 embedder 不一致，需要 reindex",
+    "rerank_model_error": "精排调用失败，已按召回顺序返回结果",
+    "rerank_model_unavailable": "精排模型不可用，已按召回顺序返回结果",
+    "rerank_threshold_degraded": "精排阈值已降级，保留的结果可能相关性较弱",
+    "rerank_fallback_top1": "精排全部低于阈值，只保留了相关性最高的一条",
+    "rerank_all_below_threshold": "精排后全部候选低于阈值，已全部拒绝",
 }
 
 
@@ -102,6 +110,56 @@ def workspace_ids_provider_from(
             return ("default",)
 
     return provider
+
+
+#: 会话历史里出现过的块句柄（§9.1 ③ 注入历史引用）。
+_CHUNK_HANDLE_RE = re.compile(r"chunk://([A-Za-z0-9_-]{6,})")
+
+#: 历史引用最多注入的块数（再多对当前轮没有增量价值）。
+_MAX_HISTORY_CHUNKS = 5
+
+
+def history_chunk_ids_provider_from(
+    ctx: ToolContext,
+) -> Callable[[], Sequence[str]]:
+    """从会话历史里取回此前引用过的块 id（§9.1 ③）。
+
+    只读历史、不写历史；会话不可读时返回空列表，不影响检索。
+    """
+    sessions = getattr(ctx, "sessions", None)
+
+    def provider() -> list[str]:
+        if sessions is None:
+            return []
+        from nanobot.agent.tools.context import current_request_session_key
+
+        key = current_request_session_key()
+        if not key:
+            return []
+        try:
+            payload = sessions.read(key)
+        except Exception as exc:  # noqa: BLE001 - 历史不可读不影响检索
+            logger.warning(
+                "knowledge history read failed: session={} error={}: {!r}",
+                key,
+                type(exc).__name__,
+                exc,
+            )
+            return []
+        if not payload:
+            return []
+        found: list[str] = []
+        for message in payload.get("messages", []):
+            content = message.get("content")
+            if not isinstance(content, str):
+                continue
+            for match in _CHUNK_HANDLE_RE.findall(content):
+                if match not in found:
+                    found.append(match)
+        return found[-_MAX_HISTORY_CHUNKS:]
+
+    return provider
+
 
 def resolve_kb_ids(
     kbs: Sequence[KnowledgeBase],
@@ -165,11 +223,16 @@ def render_search_result(
     per_item: int = DEFAULT_ITEM_CHARS,
     total: int = DEFAULT_TOOL_OUTPUT_CHARS,
 ) -> str:
-    """渲染 `<knowledge_results>`：结果按原顺序（score 单调不增），超预算用 `<omitted/>`。"""
+    """渲染 `<knowledge_results>`：结果按原顺序（score 单调不增），超预算用 `<omitted/>`。
+
+    预算口径（§9.3）：输出预算 = `total × 4/5`；超预算时按比例收缩保留条数
+    （保留分数最高的前 N 条），并显式告知模型有内容因预算被省略。
+    """
     titles = doc_titles or {}
     names = kb_names or {}
     degraded = list(result.degraded)
     routes = ",".join(result.routes)
+    budget = max(1, int(total * OUTPUT_BUDGET_RATIO))
 
     header = (
         f'<knowledge_results mode="{escape_xml(mode_requested)}"'
@@ -188,6 +251,12 @@ def render_search_result(
     ]
     if query_note:
         notices.append(f'<notice kind="query_rewrite">{escape_xml(query_note)}</notice>')
+    if result.candidates_in > result.candidates_kept:
+        # §7 RecordRetrievalCut：模型必须知道结果是候选的子集。
+        notices.append(
+            f'<notice kind="rerank_cut">检索从 {result.candidates_in} 条候选中保留了 '
+            f"{result.candidates_kept} 条结果，以下内容只是候选的子集，不代表知识库里只有这些。</notice>"
+        )
     notices.extend(f'<notice kind="degraded">{escape_xml(note)}</notice>' for note in _degraded_notices(degraded))
 
     blocks: list[str] = []
@@ -199,6 +268,7 @@ def render_search_result(
         if truncated:
             content = content[:per_item]
             truncated_any = True
+        sources = hit.source_chunk_ids
         block = (
             f'<result rank="{rank}" score="{hit.score:.3f}"'
             f' chunk="chunk://{escape_xml(hit.chunk_id)}"'
@@ -209,6 +279,7 @@ def render_search_result(
             f' page="{escape_xml(hit.page if hit.page is not None else "")}"'
             + (f' locator="{escape_xml(hit.locator)}"' if hit.locator else "")
             + f' chars="{hit.char_count}"'
+            + (f' blocks="{len(sources)}"' if len(sources) > 1 else "")
             + (' truncated="true">' if truncated else ">")
             + f"<content>{escape_xml(content)}</content></result>"
         )
@@ -221,19 +292,24 @@ def render_search_result(
         )
 
     for notice in notices:
-        if used + len(notice) > total:
+        if used + len(notice) > budget:
             break
         lines.append(notice)
         used += len(notice)
 
     for index, block in enumerate(blocks):
-        if used + len(block) > total:
+        if used + len(block) > budget:
             omitted = len(blocks) - index
             break
         lines.append(block)
         used += len(block)
 
     if omitted:
+        # §9.3：显式告诉模型「有内容因预算被省略」，否则它会以为检索到此为止。
         lines.append(f'<omitted count="{omitted}" reason="budget"/>')
+        lines.append(
+            f'<notice kind="budget">因输出预算（{budget} 字符）省略了 {omitted} 条结果，'
+            "可用 knowledge_read 按句柄扩读被省略的部分。</notice>"
+        )
     lines.append("</knowledge_results>")
     return "\n".join(lines)

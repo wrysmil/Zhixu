@@ -14,6 +14,7 @@ from nanobot.config.schema import (
     KnowledgeChunkingConfig,
     KnowledgeConfig,
     KnowledgeEmbeddingConfig,
+    KnowledgeQuestionGenerationConfig,
     KnowledgeRetrievalConfig,
 )
 
@@ -50,6 +51,10 @@ CAMEL_PAYLOAD: dict[str, object] = {
         "defaultLimit": 5,
         "maxLimit": 10,
         "mmrLambda": 0.6,
+        "rerankTopK": 12,
+        "parentMaxChars": 2000,
+        "parentMinChars": 500,
+        "shortChunkChars": 150,
         "relevanceBand": 0.2,
         "adjacentSimilarityFloor": 0.3,
         "dedupContainment": 0.9,
@@ -71,12 +76,25 @@ CAMEL_PAYLOAD: dict[str, object] = {
         "maxConcurrency": 4,
         "maxCandidates": 200,
         "maxPassageChars": 1200,
+        "maxRequestChars": 6000,
         "threshold": 0.3,
         "fallbackMinScore": 0.15,
         "modelWeight": 0.6,
         "baseWeight": 0.3,
         "sourceWeight": 0.1,
         "scoreTransform": "probability",
+    },
+    "questionGeneration": {
+        "enabled": False,
+        "baseUrl": "",
+        "apiKey": "",
+        "apiKeyEnv": "",
+        "model": "",
+        "questionCount": 3,
+        "maxTokens": 2048,
+        "temperature": 0.7,
+        "maxContextChars": 1200,
+        "timeoutSeconds": 30.0,
     },
 }
 
@@ -86,7 +104,7 @@ def test_chunking_defaults() -> None:
     assert config.chunk_size == 800
     assert config.chunk_overlap == 120
     assert config.max_file_mb == 50
-    assert config.tokenizer_mode == "unigram_bigram"
+    assert config.tokenizer_mode == "jieba"
     assert config.paragraph_mode == "blank_line"
 
 
@@ -115,6 +133,11 @@ def test_retrieval_defaults() -> None:
     assert config.default_limit == 8
     assert config.max_limit == 20
     assert config.mmr_lambda == 0.7
+    assert config.rerank_top_k == 10
+    assert config.parent_max_chars == 2400
+    assert config.parent_min_chars == 600
+    assert config.short_chunk_chars == 200
+    # 已废弃：仅保留字段以兼容旧配置，不再参与判定。
     assert config.relevance_band == 0.15
     assert config.adjacent_similarity_floor == 0.25
     assert config.dedup_containment == 0.85
@@ -122,6 +145,16 @@ def test_retrieval_defaults() -> None:
     assert config.dedup_jaccard == 0.6
     assert config.dedup_length_ratio == 3.0
     assert config.tool_output_chars == 6000
+
+
+def test_question_generation_defaults() -> None:
+    config = KnowledgeQuestionGenerationConfig()
+    assert config.enabled is False
+    assert config.question_count == 3
+    assert config.max_tokens == 2048
+    assert config.temperature == 0.7
+    assert config.max_context_chars == 1200
+    assert config.api_key == ""
 
 
 def test_knowledge_defaults_nest_subconfigs() -> None:
@@ -132,6 +165,9 @@ def test_knowledge_defaults_nest_subconfigs() -> None:
     assert isinstance(config.chunking, KnowledgeChunkingConfig)
     assert isinstance(config.embedding, KnowledgeEmbeddingConfig)
     assert isinstance(config.retrieval, KnowledgeRetrievalConfig)
+    assert isinstance(
+        config.question_generation, KnowledgeQuestionGenerationConfig
+    )
     assert config.chunking.chunk_size == 800
     assert config.embedding.backend == "auto"
     assert config.retrieval.dedup_length_ratio == 3.0

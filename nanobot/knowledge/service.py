@@ -17,6 +17,7 @@ import asyncio
 import os
 import shutil
 import threading
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,7 +25,7 @@ from typing import Any
 
 from loguru import logger
 
-from nanobot.config.schema import KnowledgeConfig
+from nanobot.config.schema import KnowledgeConfig, KnowledgeEmbeddingConfig
 from nanobot.knowledge.database import KnowledgeDatabase
 from nanobot.knowledge.embedding import (
     Embedder,
@@ -40,9 +41,15 @@ from nanobot.knowledge.files import (
     safe_filename,
     write_bytes_atomic,
 )
-from nanobot.knowledge.fusion import SearchResult
+from nanobot.knowledge.fusion import SearchHit, SearchResult
 from nanobot.knowledge.ingestor import INDEX_VERSION, Ingestor
 from nanobot.knowledge.models import Document, KnowledgeBase, new_id
+from nanobot.knowledge.questions import (
+    DEFAULT_QUESTION_COUNT,
+    QuestionGenerator,
+    build_question_generator,
+    question_count_from,
+)
 from nanobot.knowledge.repository import (
     DocumentStats,
     DuplicateDocumentPathError,
@@ -58,6 +65,9 @@ from nanobot.knowledge.rerank import (
 )
 from nanobot.knowledge.retriever import Retriever, RetrieverSettings
 from nanobot.knowledge.vector import RepairAction, VectorStore, VectorStoreError
+
+#: 按库解析 (embedder, 向量库)；`None` 表示该库只走关键词路。
+IdentityResolver = Callable[[KnowledgeBase], tuple[Embedder, VectorStore] | None]
 
 _WORKER_LEASE_OWNER = "gateway"
 _CLI_LEASE_OWNER = "cli"
@@ -146,6 +156,73 @@ def _safe_identity(embedder: Embedder) -> tuple[str, str, int]:
         return ("none", "", 0)
 
 
+class _EmbedderRegistry:
+    """按 `(backend, model, dimensions)` 缓存 embedder 与向量库（检索 spec §3.1）。
+
+    KB 行里记录的是建库时解析出的具体身份；不同库可以指向不同 embedding 模型。
+    同一身份只装配一次，检索与入库都从这里取「这个库自己的」embedder/collection；
+    全局配置命中的身份直接复用进程级实例，不重复加载模型。
+    """
+
+    def __init__(
+        self,
+        embedding: KnowledgeEmbeddingConfig,
+        vector_path: Path,
+        *,
+        default: tuple[Embedder, VectorStore] | None = None,
+    ) -> None:
+        self._config = embedding
+        self._vector_path = Path(vector_path)
+        self._default = default
+        self._cache: dict[tuple[str, str, int], tuple[Embedder, VectorStore]] = {}
+        self._lock = threading.Lock()
+
+    def resolve(self, kb: KnowledgeBase) -> tuple[Embedder, VectorStore] | None:
+        """返回该库的 (embedder, 向量库)；`none` 或维度未定 → `None`（只走关键词）。"""
+        identity = (
+            kb.embedding_backend,
+            kb.embedding_model,
+            kb.embedding_dimensions,
+        )
+        if identity[0] == "none" or identity[2] <= 0:
+            return None
+        with self._lock:
+            cached = self._cache.get(identity)
+        if cached is not None:
+            return cached
+        if self._default is not None and self._default[1].identity == identity:
+            resolved = self._default
+        else:
+            backend, model, dimensions = identity
+            resolved = (
+                self._build_embedder(backend, model, dimensions),
+                VectorStore(
+                    self._vector_path,
+                    backend=backend,
+                    model=model,
+                    dimensions=dimensions,
+                ),
+            )
+        with self._lock:
+            return self._cache.setdefault(identity, resolved)
+
+    def _build_embedder(self, backend: str, model: str, dimensions: int) -> Embedder:
+        cfg = self._config
+        return build_embedder(
+            backend=backend,
+            model=model,
+            dimensions=dimensions,
+            device=cfg.device,
+            download_source=cfg.download_source,
+            local_model_dir=cfg.local_model_dir,
+            base_url=cfg.base_url,
+            api_key=cfg.api_key,
+            api_key_env=cfg.api_key_env,
+            batch_size=cfg.batch_size,
+            timeout_seconds=cfg.timeout_seconds,
+        )
+
+
 def _retriever_settings(retrieval: Any) -> RetrieverSettings:
     """`KnowledgeRetrievalConfig` → `RetrieverSettings`；`tool_output_chars` 留在工具层。"""
     if retrieval is None:
@@ -164,15 +241,15 @@ def _retriever_settings(retrieval: Any) -> RetrieverSettings:
         default_limit=int(getattr(retrieval, "default_limit", defaults.default_limit)),
         max_limit=int(getattr(retrieval, "max_limit", defaults.max_limit)),
         mmr_lambda=float(getattr(retrieval, "mmr_lambda", defaults.mmr_lambda)),
-        relevance_band=float(
-            getattr(retrieval, "relevance_band", defaults.relevance_band)
+        rerank_top_k=int(getattr(retrieval, "rerank_top_k", defaults.rerank_top_k)),
+        parent_max_chars=int(
+            getattr(retrieval, "parent_max_chars", defaults.parent_max_chars)
         ),
-        adjacent_similarity_floor=float(
-            getattr(
-                retrieval,
-                "adjacent_similarity_floor",
-                defaults.adjacent_similarity_floor,
-            )
+        parent_min_chars=int(
+            getattr(retrieval, "parent_min_chars", defaults.parent_min_chars)
+        ),
+        short_chunk_chars=int(
+            getattr(retrieval, "short_chunk_chars", defaults.short_chunk_chars)
         ),
         dedup_containment=float(
             getattr(retrieval, "dedup_containment", defaults.dedup_containment)
@@ -206,6 +283,8 @@ class KnowledgeService:
         chunk_overlap: int = _DEFAULT_CHUNK_OVERLAP,
         reranker: Reranker | None = None,
         rerank_settings: RerankSettings | None = None,
+        tokenizer_mode: str = "jieba",
+        identity_resolver: IdentityResolver | None = None,
     ) -> None:
         self._db = database
         self._repo = repo
@@ -218,6 +297,8 @@ class KnowledgeService:
         self._chunk_overlap = chunk_overlap
         self._reranker = reranker
         self._rerank_settings = rerank_settings or RerankSettings()
+        self._tokenizer_mode = tokenizer_mode
+        self._identity_resolver = identity_resolver
         self._identity: tuple[str, str, int] | None = None
         _ensure_private_dir(self._uploads)
 
@@ -239,8 +320,15 @@ class KnowledgeService:
         chunking: Any = None,
         uploads_dir: str | Path | None = None,
         rerank: Any = None,
+        identity_resolver: IdentityResolver | None = None,
+        question_generator: QuestionGenerator | None = None,
+        question_count: int = DEFAULT_QUESTION_COUNT,
     ) -> KnowledgeService:
-        """显式路径装配（测试 / CLI 单进程）；默认无 embedding、无向量层。"""
+        """显式路径装配（测试 / CLI 单进程）；默认无 embedding、无向量层。
+
+        `identity_resolver` 非空时，检索与入库都按 KB 自己的 embedding 身份取
+        embedder/向量库——这是「每个库配自己的模型」真正生效的入口。
+        """
         path = Path(database_path).expanduser().resolve()
         _ensure_private_dir(path.parent)
         database = KnowledgeDatabase(path)
@@ -255,12 +343,23 @@ class KnowledgeService:
         )
         reranker = build_reranker(rerank)
         rerank_settings = rerank_settings_for(rerank)
+        tokenizer_mode = str(
+            getattr(chunking, "tokenizer_mode", "jieba") or "jieba"
+        )
         return cls(
             database=database,
             repo=repo,
             embedder=actual_embedder,
             vector_store=vector_store,
-            ingestor=Ingestor(repo, embedder=actual_embedder, vector_store=vector_store),
+            ingestor=Ingestor(
+                repo,
+                embedder=actual_embedder,
+                vector_store=vector_store,
+                tokenizer_mode=tokenizer_mode,
+                identity_resolver=identity_resolver,
+                question_generator=question_generator,
+                question_count=question_count,
+            ),
             retriever=Retriever(
                 repo,
                 embedder=actual_embedder,
@@ -268,6 +367,8 @@ class KnowledgeService:
                 settings=_retriever_settings(retrieval),
                 reranker=reranker,
                 rerank_settings=rerank_settings,
+                tokenizer_mode=tokenizer_mode,
+                identity_resolver=identity_resolver,
             ),
             uploads_dir=uploads,
             chunk_size=int(getattr(chunking, "chunk_size", _DEFAULT_CHUNK_SIZE)),
@@ -276,6 +377,7 @@ class KnowledgeService:
             ),
             reranker=reranker,
             rerank_settings=rerank_settings,
+            tokenizer_mode=tokenizer_mode,
         )
 
     # ---------- KB ----------
@@ -554,6 +656,8 @@ class KnowledgeService:
             settings=settings,
             reranker=self._reranker,
             rerank_settings=self._rerank_settings,
+            tokenizer_mode=self._tokenizer_mode,
+            identity_resolver=self._identity_resolver,
         )
 
     def search(
@@ -564,13 +668,16 @@ class KnowledgeService:
         kb_ids: list[str] | None = None,
         mode: str = "hybrid",
         limit: int | None = None,
+        extra_context: Sequence[SearchHit] = (),
     ) -> SearchResult:
+        """检索；`extra_context` 是调用方注入的补充上下文（§9.1 ③ 历史引用）。"""
         return self._retriever.search(
             query,
             workspace_ids=workspace_ids,
             kb_ids=kb_ids,
             mode=mode,
             limit=limit,
+            extra_context=extra_context,
         )
 
     # ---------- 统计 ----------
@@ -870,6 +977,12 @@ def _build_service(knowledge: KnowledgeConfig, database_path: Path) -> Knowledge
         batch_size=embedding.batch_size,
         timeout_seconds=embedding.timeout_seconds,
     )
+    vector_path = (
+        Path(knowledge.vector_path).expanduser().resolve()
+        if knowledge.vector_path.strip()
+        else database_path.parent / "chromadb"
+    )
+    _ensure_private_dir(vector_path)
     vector_store: VectorStore | None = None
     backend, model, dimensions = _safe_identity(embedder)
     if backend != "none":
@@ -879,15 +992,17 @@ def _build_service(knowledge: KnowledgeConfig, database_path: Path) -> Knowledge
                 "knowledge vector disabled: unresolved embedding dimensions"
             )
         else:
-            vector_path = (
-                Path(knowledge.vector_path).expanduser().resolve()
-                if knowledge.vector_path.strip()
-                else database_path.parent / "chromadb"
-            )
-            _ensure_private_dir(vector_path)
             vector_store = VectorStore(
                 vector_path, backend=backend, model=model, dimensions=dimensions
             )
+    registry = _EmbedderRegistry(
+        embedding,
+        vector_path,
+        default=(embedder, vector_store) if vector_store is not None else None,
+    )
+    # `backend=none` 是全局关闭开关：此时不按 KB 身份重建 embedder，保持关键词单路。
+    identity_resolver = registry.resolve if backend != "none" else None
+    questions = knowledge.question_generation
     return KnowledgeService.local(
         database_path,
         embedder=embedder,
@@ -895,6 +1010,9 @@ def _build_service(knowledge: KnowledgeConfig, database_path: Path) -> Knowledge
         retrieval=knowledge.retrieval,
         chunking=knowledge.chunking,
         rerank=knowledge.rerank,
+        identity_resolver=identity_resolver,
+        question_generator=build_question_generator(questions),
+        question_count=question_count_from(questions),
     )
 
 

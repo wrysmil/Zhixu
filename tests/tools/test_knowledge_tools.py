@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -290,8 +291,63 @@ def test_intent_kb_search_empty_and_unknown_all_retrieve() -> None:
 
 def test_image_description_is_accepted_and_ignored() -> None:
     service = QueryAwareService()
-    result = _run(_search_tool(service), query="回滚", image_description="一张截图")
+    _run(_search_tool(service), query="回滚", image_description="一张截图")
     assert len(service.search_calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# search：历史引用注入（§9.1 ③）
+# ---------------------------------------------------------------------------
+
+
+def _history_tool(service: Any, chunk_ids: Any) -> KnowledgeSearchTool:
+    return KnowledgeSearchTool(
+        lambda: service,
+        lambda key: WORKSPACE_IDS,
+        lambda: chunk_ids,
+    )
+
+
+def test_search_injects_history_chunks_as_extra_context() -> None:
+    service = FakeService(result=SearchResult(hits=(make_hit(),), mode_used="hybrid"))
+    tool = _history_tool(service, ["chk_1", "chk_missing"])
+    _run(tool, query="回滚")
+
+    extra = service.search_calls[0]["extra_context"]
+    assert [hit.chunk_id for hit in extra] == ["chk_1"]
+
+
+def test_search_skips_history_chunks_outside_scope() -> None:
+    service = FakeService(result=SearchResult(hits=(make_hit(),), mode_used="hybrid"))
+    service.chunks["chk_7"] = make_chunk(7, kb_id="kb_other")
+    _run(_history_tool(service, ["chk_7"]), query="回滚")
+
+    assert service.search_calls[0]["extra_context"] == []
+
+
+def test_search_skips_disabled_history_chunks() -> None:
+    service = FakeService(result=SearchResult(hits=(make_hit(),), mode_used="hybrid"))
+    service.chunks["chk_2"] = replace(service.chunks["chk_2"], is_enabled=False)
+    _run(_history_tool(service, ["chk_2"]), query="回滚")
+
+    assert service.search_calls[0]["extra_context"] == []
+
+
+def test_search_survives_history_provider_failure() -> None:
+    service = FakeService(result=SearchResult(hits=(make_hit(),), mode_used="hybrid"))
+
+    def boom() -> list[str]:
+        raise RuntimeError("history unavailable")
+
+    tool = KnowledgeSearchTool(
+        lambda: service,
+        lambda key: WORKSPACE_IDS,
+        boom,
+    )
+    result = _run(tool, query="回滚")
+
+    assert not result.is_error
+    assert service.search_calls[0]["extra_context"] == []
     assert "回滚" in str(result)
 
 
@@ -376,6 +432,38 @@ def test_search_score_is_three_decimals_and_ordered() -> None:
     assert output.index('rank="1"') < output.index('rank="2"') < output.index('rank="3"')
 
 
+def test_search_reports_rerank_cut_notice() -> None:
+    service = FakeService(
+        result=SearchResult(
+            hits=(make_hit(),),
+            mode_used="hybrid",
+            rerank="ok",
+            candidates_in=40,
+            candidates_kept=8,
+        )
+    )
+    output = _run(_search_tool(service), query="回滚")
+
+    # §7 RecordRetrievalCut：必须让模型知道结果只是候选子集。
+    assert 'kind="rerank_cut"' in output
+    assert "检索从 40 条候选中保留了 8 条结果" in output
+
+
+def test_search_omits_rerank_cut_when_nothing_was_cut() -> None:
+    service = FakeService(
+        result=SearchResult(
+            hits=(make_hit(),),
+            mode_used="hybrid",
+            rerank="ok",
+            candidates_in=3,
+            candidates_kept=3,
+        )
+    )
+    output = _run(_search_tool(service), query="回滚")
+
+    assert 'kind="rerank_cut"' not in output
+
+
 def test_search_truncates_item_and_total_budget() -> None:
     hits = tuple(
         make_hit(
@@ -393,6 +481,9 @@ def test_search_truncates_item_and_total_budget() -> None:
     assert len(output) <= 6000 + 200
     assert "<omitted count=" in output
     assert 'reason="budget"' in output
+    # §9.3 输出预算 = 6000 × 4/5：显式告诉模型有内容被省略。
+    assert 'kind="budget"' in output
+    assert "4800 字符" in output
     # 单条正文 ≤1000 字符 + 截断提示
     assert "字" * 1001 not in output
     assert "已截断" in output

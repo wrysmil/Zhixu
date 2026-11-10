@@ -14,6 +14,7 @@ from nanobot.knowledge.embedding import EmbeddingError, EmbeddingUnavailable
 from nanobot.knowledge.fusion import SearchResult
 from nanobot.knowledge.models import KnowledgeBase
 from nanobot.knowledge.repository import FtsHit, StoredChunk
+from nanobot.knowledge.rerank import RankResult
 from nanobot.knowledge.retriever import (
     KnowledgeSearchError,
     Retriever,
@@ -112,13 +113,18 @@ class FakeRepo:
         fts: list[FtsHit] | None = None,
         chunks: dict[str, StoredChunk] | None = None,
         fts_error: Exception | None = None,
+        question_fts: list[FtsHit] | None = None,
+        question_fts_error: Exception | None = None,
     ) -> None:
         self.kbs = list(kbs or [])
         self.fts_hits = list(fts or [])
+        self.question_hits = list(question_fts or [])
         self.chunks = dict(chunks or {})
         self.fts_error = fts_error
+        self.question_fts_error = question_fts_error
         self.list_calls: list[list[str]] = []
         self.fts_calls: list[dict[str, Any]] = []
+        self.question_fts_calls: list[dict[str, Any]] = []
         self.fetch_calls: list[str] = []
 
     def list_kbs(
@@ -145,11 +151,60 @@ class FakeRepo:
         )
         if self.fts_error is not None:
             raise self.fts_error
-        return list(self.fts_hits[:limit])
+        hits = (
+            self.fts_hits
+            if kb_ids is None
+            else [hit for hit in self.fts_hits if hit.kb_id in kb_ids]
+        )
+        return list(hits[:limit])
+
+    def search_questions_fts(
+        self,
+        match_expr: str,
+        *,
+        workspace_ids: list[str],
+        limit: int = 20,
+        kb_ids: list[str] | None = None,
+    ) -> list[FtsHit]:
+        self.question_fts_calls.append(
+            {
+                "match_expr": match_expr,
+                "workspace_ids": list(workspace_ids),
+                "limit": limit,
+                "kb_ids": None if kb_ids is None else list(kb_ids),
+            }
+        )
+        if self.question_fts_error is not None:
+            raise self.question_fts_error
+        hits = (
+            self.question_hits
+            if kb_ids is None
+            else [hit for hit in self.question_hits if hit.kb_id in kb_ids]
+        )
+        return list(hits[:limit])
 
     def fetch_chunk(self, chunk_id: str) -> StoredChunk | None:
         self.fetch_calls.append(chunk_id)
         return self.chunks.get(chunk_id)
+
+    def list_document_titles(self, doc_ids: Any) -> dict[str, str]:
+        titles: dict[str, str] = {}
+        for doc_id in doc_ids:
+            chunk = next(
+                (item for item in self.chunks.values() if item.doc_id == doc_id), None
+            )
+            titles[doc_id] = f"title-{doc_id}" if chunk is not None else ""
+        return titles
+
+    def fetch_neighbors(
+        self, chunk: StoredChunk, *, before: int = 1, after: int = 1
+    ) -> list[StoredChunk]:
+        return [
+            item
+            for item in sorted(self.chunks.values(), key=lambda c: c.chunk_index)
+            if item.doc_id == chunk.doc_id
+            and chunk.chunk_index - before <= item.chunk_index <= chunk.chunk_index + after
+        ]
 
 
 class FakeEmbedder:
@@ -188,9 +243,11 @@ class FakeVector:
         *,
         available: bool = True,
         error: Exception | None = None,
+        identity: tuple[str, str, int] = ("local", "m", 2),
     ) -> None:
         self.hits = list(hits or [])
         self.available = available
+        self.identity = identity
         self.error = error
         self.calls: list[dict[str, Any]] = []
 
@@ -220,6 +277,7 @@ def _retriever(
     *,
     embedder: FakeEmbedder | None = None,
     vector: FakeVector | None | object = _UNSET,
+    identity_resolver: Any = None,
     **settings: Any,
 ) -> Retriever:
     store: FakeVector | None = (
@@ -230,20 +288,34 @@ def _retriever(
         embedder=embedder or FakeEmbedder(),  # type: ignore[arg-type]
         vector_store=store,  # type: ignore[arg-type]
         settings=RetrieverSettings(**settings) if settings else None,
+        identity_resolver=identity_resolver,
     )
 
 
+def _long_text(prefix: str, tag: str) -> str:
+    """≥ parent_min_chars 的正文，避免装配阶段触发父块回填。"""
+    return prefix + " " + " ".join(f"{tag}{index}" for index in range(120))
+
+
 def _hybrid_fixture() -> tuple[FakeRepo, FakeEmbedder, FakeVector]:
-    """两路都命中同一对块（顺序相反），让 RRF 分都落在相关性带内。"""
+    """两路都命中同一对块（顺序相反），让 RRF 分都落在相关性带内。
+
+    两块正文都长于 `parent_min_chars` 且序号不相邻，避免装配阶段回填/合并，
+    让本组用例只验证「两路融合」这一层。
+    """
+    keyword_text = _long_text("alpha beta gamma", "k")
+    vector_text = _long_text("delta epsilon zeta", "v")
     repo = FakeRepo(
         kbs=[_kb()],
         fts=[
-            _fts("chk_k", "alpha beta gamma", 9.0, content_hash="hk"),
-            _fts("chk_v", "delta epsilon zeta", 7.0, content_hash="hv"),
+            _fts("chk_k", keyword_text, 9.0, content_hash="hk", chunk_index=0),
+            _fts("chk_v", vector_text, 7.0, content_hash="hv", chunk_index=5),
         ],
         chunks={
-            "chk_k": _stored("chk_k", "alpha beta gamma", content_hash="hk"),
-            "chk_v": _stored("chk_v", "delta epsilon zeta", content_hash="hv"),
+            "chk_k": _stored(
+                "chk_k", keyword_text, content_hash="hk", chunk_index=0
+            ),
+            "chk_v": _stored("chk_v", vector_text, content_hash="hv", chunk_index=5),
         },
     )
     embedder = FakeEmbedder()
@@ -302,11 +374,76 @@ def test_keyword_only_is_keyword_mode() -> None:
     assert result.degraded == ()
 
 
+# ---------- doc2query：问题行命中回填父块 ----------
+
+
+def test_question_keyword_hit_returns_parent_chunk() -> None:
+    parent = _stored(
+        "chk_p", "部署失败后的回滚步骤说明", kb_id="kb_1", doc_id="doc_q"
+    )
+    repo = FakeRepo(
+        kbs=[_kb()],
+        question_fts=[
+            _fts("chk_p", parent.content, 6.0, kb_id="kb_1", doc_id="doc_q")
+        ],
+        chunks={"chk_p": parent},
+    )
+    result = _retriever(repo, vector=None).search(
+        "回滚怎么做", workspace_ids=["ws1"], mode="keyword"
+    )
+
+    assert repo.question_fts_calls
+    assert [hit.chunk_id for hit in result.hits] == ["chk_p"]
+    assert result.hits[0].content == parent.content
+
+
+def test_question_vector_hit_maps_to_parent_chunk() -> None:
+    parent = _stored(
+        "chk_p", _long_text("rollback steps", "r"), kb_id="kb_1", doc_id="doc_q"
+    )
+    repo = FakeRepo(kbs=[_kb()], chunks={"chk_p": parent})
+    vector = FakeVector(hits=[("chk_p-q0", 0.9)])
+    result = _retriever(repo, vector=vector).search(
+        "回滚", workspace_ids=["ws1"], mode="semantic"
+    )
+
+    assert [hit.chunk_id for hit in result.hits] == ["chk_p"]
+    assert result.hits[0].score == pytest.approx(0.9)
+
+
+def test_question_hit_dedupes_with_chunk_hit() -> None:
+    parent = _stored("chk_p", _long_text("alpha", "p"), kb_id="kb_1")
+    repo = FakeRepo(
+        kbs=[_kb()],
+        fts=[_fts("chk_p", parent.content, 5.0)],
+        question_fts=[_fts("chk_p", parent.content, 7.0)],
+        chunks={"chk_p": parent},
+    )
+    result = _retriever(repo, vector=None).search(
+        "alpha", workspace_ids=["ws1"], mode="keyword"
+    )
+
+    assert [hit.chunk_id for hit in result.hits] == ["chk_p"]
+
+
+def test_question_index_failure_keeps_chunk_hits() -> None:
+    repo = FakeRepo(
+        kbs=[_kb()],
+        fts=[_fts("chk_k", "alpha", 3.0)],
+        question_fts_error=RuntimeError("question fts broken"),
+    )
+    result = _retriever(repo, vector=None).search(
+        "alpha", workspace_ids=["ws1"], mode="keyword"
+    )
+
+    assert [hit.chunk_id for hit in result.hits] == ["chk_k"]
+
+
 def test_hybrid_union_when_disjoint_routes() -> None:
     repo, embedder, vector = _hybrid_fixture()
-    result = _retriever(
-        repo, embedder=embedder, vector=vector, relevance_band=1.0
-    ).search("alpha delta", workspace_ids=["ws1"])
+    result = _retriever(repo, embedder=embedder, vector=vector).search(
+        "alpha delta", workspace_ids=["ws1"]
+    )
 
     assert {hit.chunk_id for hit in result.hits} == {"chk_k", "chk_v"}
     assert result.routes == ("vector", "keyword")
@@ -314,7 +451,7 @@ def test_hybrid_union_when_disjoint_routes() -> None:
 
 def test_ordering_is_deterministic() -> None:
     repo, embedder, vector = _hybrid_fixture()
-    retriever = _retriever(repo, embedder=embedder, vector=vector, relevance_band=1.0)
+    retriever = _retriever(repo, embedder=embedder, vector=vector)
     first = retriever.search("alpha delta", workspace_ids=["ws1"])
     second = retriever.search("alpha delta", workspace_ids=["ws1"])
     assert [hit.chunk_id for hit in first.hits] == [hit.chunk_id for hit in second.hits]
@@ -335,6 +472,7 @@ def test_pool_limits_passed_down() -> None:
 
 def test_pool_hard_caps() -> None:
     repo, embedder, vector = _hybrid_fixture()
+    repo.kbs = [_kb("kb_1"), _kb("kb_2")]
     _retriever(
         repo,
         embedder=embedder,
@@ -343,8 +481,9 @@ def test_pool_hard_caps() -> None:
         pool_size=400,
     ).search("alpha", workspace_ids=["ws1"], limit=20)
 
-    assert repo.fts_calls[0]["limit"] == 300
-    assert vector.calls[0]["limit"] == 200
+    # 超取池 = max(topK*5, 下限) × len(KBs)，硬上限 500。
+    assert repo.fts_calls[0]["limit"] == 500  # min(max(100, 500) × 2, 500)
+    assert vector.calls[0]["limit"] == 500  # min(max(100, 400) × 2, 500)
 
 
 def test_limit_clamped_to_max() -> None:
@@ -353,8 +492,8 @@ def test_limit_clamped_to_max() -> None:
         "alpha", workspace_ids=["ws1"], limit=999
     )
 
-    assert repo.fts_calls[0]["limit"] == 200  # limit 被夹到 20：min(max(200, 100), 300)
-    assert vector.calls[0]["limit"] == 100  # min(max(100, 50), 200)
+    assert repo.fts_calls[0]["limit"] == 100  # limit 被夹到 20：max(100, 100) × 1
+    assert vector.calls[0]["limit"] == 100  # max(100, 50) × 1
 
 
 def test_limit_clamped_to_min() -> None:
@@ -365,6 +504,65 @@ def test_limit_clamped_to_min() -> None:
 
     assert repo.fts_calls[0]["limit"] == 100  # limit 被夹到 1
     assert vector.calls[0]["limit"] == 50
+
+
+def test_rerank_top_k_truncates_before_mmr() -> None:
+    # §10.2：精排后先进 MMR 的池截到 rerank_top_k，再按 limit 选。
+    chunks = {
+        f"chk_{index}": _stored(
+            f"chk_{index}",
+            _long_text(f"w{index}", f"f{index}"),
+            chunk_index=index * 10,
+        )
+        for index in range(6)
+    }
+    repo = FakeRepo(kbs=[_kb()], chunks=chunks)
+    vector = FakeVector(hits=[(f"chk_{index}", 0.9 - index * 0.01) for index in range(6)])
+    result = _retriever(repo, vector=vector, rerank_top_k=3).search(
+        "alpha", workspace_ids=["ws1"], limit=6
+    )
+
+    assert [hit.chunk_id for hit in result.hits] == ["chk_0", "chk_1", "chk_2"]
+
+
+class _PassReranker:
+    """所有候选都打高分（0.9）：阈值全部通过，截断只发生在 top_k。"""
+
+    @property
+    def model_name(self) -> str:
+        return "pass"
+
+    @property
+    def model_id(self) -> str:
+        return "pass"
+
+    def rerank(self, query: str, documents: Any) -> list[RankResult]:
+        return [RankResult(index=index, relevance_score=0.9) for index in range(len(documents))]
+
+
+def test_rerank_cut_counts_final_hits_not_threshold_passes() -> None:
+    chunks = {
+        f"chk_{index}": _stored(
+            f"chk_{index}",
+            _long_text(f"w{index}", f"f{index}"),
+            chunk_index=index * 10,
+        )
+        for index in range(6)
+    }
+    repo = FakeRepo(kbs=[_kb()], chunks=chunks)
+    vector = FakeVector(hits=[(f"chk_{index}", 0.9 - index * 0.01) for index in range(6)])
+    retriever = Retriever(
+        repo,  # type: ignore[arg-type]
+        embedder=FakeEmbedder(),  # type: ignore[arg-type]
+        vector_store=vector,  # type: ignore[arg-type]
+        settings=RetrieverSettings(rerank_top_k=3),
+        reranker=_PassReranker(),
+    )
+    result = retriever.search("alpha", workspace_ids=["ws1"], limit=6)
+
+    # 「N 进 M 出」的 M 是最终返回条数：6 条全过阈值，但 top_k 只留 3 条。
+    assert result.candidates_in == 6
+    assert result.candidates_kept == len(result.hits) == 3
 
 
 # ---------- §6 降级矩阵 ----------
@@ -434,19 +632,80 @@ def test_partial_identity_mismatch_queries_consistent_subset() -> None:
             _kb("kb_b", backend="remote", model="other", dims=4),
             _kb("kb_c", backend="none", model="", dims=0),
         ],
-        fts=[_fts("chk_k", "alpha beta", 4.0, kb_id="kb_a")],
-        chunks={"chk_v": _stored("chk_v", "gamma delta", kb_id="kb_a")},
+        fts=[
+            _fts("chk_k", "alpha beta", 4.0, kb_id="kb_a"),
+            _fts("chk_stale", "alpha stale", 3.0, kb_id="kb_b", doc_id="doc_2"),
+        ],
+        chunks={
+            "chk_v": _stored("chk_v", "gamma delta", kb_id="kb_a"),
+            "chk_stale": _stored(
+                "chk_stale", "alpha stale", kb_id="kb_b", doc_id="doc_2"
+            ),
+        },
     )
     vector = FakeVector(hits=[("chk_v", 0.9)])
-    result = _retriever(repo, vector=vector, relevance_band=1.0).search(
+    result = _retriever(repo, vector=vector).search("alpha", workspace_ids=["ws1"])
+
+    assert vector.calls[0]["kb_ids"] == ["kb_a"]
+    # 关键词路按 embedding 空间分组，每个可见库恰好被覆盖一次。
+    covered = [kb_id for call in repo.fts_calls for kb_id in call["kb_ids"]]
+    assert sorted(covered) == ["kb_a", "kb_b", "kb_c"]
+    assert len(covered) == len(set(covered))
+    assert result.degraded == ("embedding_mismatch:kb_b", "vector_disabled:kb_c")
+    # 向量索引过期（kb_b）不代表连关键词都搜不到：它的命中必须还在。
+    assert {hit.chunk_id for hit in result.hits} == {"chk_k", "chk_stale", "chk_v"}
+    assert result.routes == ("vector", "keyword")
+
+
+def test_identity_resolver_fans_out_per_kb() -> None:
+    repo = FakeRepo(
+        kbs=[
+            _kb("kb_a"),
+            _kb("kb_b", backend="remote", model="other", dims=3),
+        ],
+        chunks={
+            "chk_a": _stored("chk_a", _long_text("alpha", "a"), kb_id="kb_a"),
+            "chk_b": _stored(
+                "chk_b", _long_text("beta", "b"), kb_id="kb_b", doc_id="doc_2"
+            ),
+        },
+    )
+    embedder_a = FakeEmbedder(identity=("local", "m", 2))
+    embedder_b = FakeEmbedder(identity=("remote", "other", 3))
+    store_a = FakeVector(hits=[("chk_a", 0.8)], identity=("local", "m", 2))
+    store_b = FakeVector(hits=[("chk_b", 0.9)], identity=("remote", "other", 3))
+    resolved = {"kb_a": (embedder_a, store_a), "kb_b": (embedder_b, store_b)}
+
+    def resolve(kb: KnowledgeBase) -> tuple[FakeEmbedder, FakeVector] | None:
+        return resolved.get(kb.id)
+
+    result = _retriever(repo, identity_resolver=resolve).search(
+        "alpha", workspace_ids=["ws1"], mode="semantic"
+    )
+
+    # 两个库各用各的 embedding 空间，互不标 mismatch。
+    assert result.degraded == ()
+    assert result.routes == ("vector",)
+    assert {hit.chunk_id for hit in result.hits} == {"chk_a", "chk_b"}
+    assert embedder_a.query_calls == ["alpha"]
+    assert embedder_b.query_calls == ["alpha"]
+    assert store_a.calls[0]["kb_ids"] == ["kb_a"]
+    assert store_b.calls[0]["kb_ids"] == ["kb_b"]
+
+
+def test_resolver_none_keeps_kb_in_keyword_route() -> None:
+    repo = FakeRepo(
+        kbs=[_kb("kb_a", backend="remote", model="x", dims=3)],
+        fts=[_fts("chk_k", "alpha", 3.0, kb_id="kb_a")],
+        chunks={"chk_k": _stored("chk_k", "alpha", kb_id="kb_a")},
+    )
+    result = _retriever(repo, identity_resolver=lambda kb: None).search(
         "alpha", workspace_ids=["ws1"]
     )
 
-    assert vector.calls[0]["kb_ids"] == ["kb_a"]
-    assert repo.fts_calls[0]["kb_ids"] == ["kb_a", "kb_b", "kb_c"]
-    assert result.degraded == ("embedding_mismatch:kb_b", "vector_disabled:kb_c")
-    assert {hit.chunk_id for hit in result.hits} == {"chk_k", "chk_v"}
-    assert result.routes == ("vector", "keyword")
+    assert result.mode_used == "keyword"
+    assert result.degraded == ("embedding_unavailable:kb_a",)
+    assert [hit.chunk_id for hit in result.hits] == ["chk_k"]
 
 
 def test_all_identity_mismatch_skips_vector_route() -> None:
@@ -624,7 +883,8 @@ def test_orphan_vector_hits_are_filtered_out() -> None:
     )
 
     assert [hit.chunk_id for hit in result.hits] == ["chk_good"]
-    assert repo.fetch_calls == ["chk_good", "chk_orphan"]
+    # 前两次是向量路回表（含被过滤的孤儿），装配阶段会再次读取命中块。
+    assert repo.fetch_calls[:2] == ["chk_good", "chk_orphan"]
 
 
 def test_disabled_vector_chunk_is_filtered_out() -> None:
@@ -665,8 +925,10 @@ def test_retriever_settings_defaults() -> None:
     assert settings.default_limit == 8
     assert settings.max_limit == 20
     assert settings.mmr_lambda == 0.7
-    assert settings.relevance_band == 0.15
-    assert settings.adjacent_similarity_floor == 0.25
+    assert settings.rerank_top_k == 10
+    assert settings.parent_max_chars == 2400
+    assert settings.parent_min_chars == 600
+    assert settings.short_chunk_chars == 200
     assert settings.dedup_containment == 0.85
     assert settings.dedup_unique_ratio == 0.02
     assert settings.dedup_jaccard == 0.6

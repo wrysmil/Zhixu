@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 
 from loguru import logger
@@ -29,11 +30,36 @@ from nanobot.knowledge.extractor import (
     extract_lines,
 )
 from nanobot.knowledge.models import Document, KnowledgeBase
-from nanobot.knowledge.repository import ChunkRecord, KnowledgeRepository
+from nanobot.knowledge.questions import (
+    DEFAULT_QUESTION_COUNT,
+    QuestionGenerationError,
+    QuestionGenerator,
+    question_id,
+    question_search_text,
+)
+from nanobot.knowledge.repository import (
+    ChunkRecord,
+    KnowledgeRepository,
+    QuestionRecord,
+)
 from nanobot.knowledge.tokenizer import tokenize_index
 from nanobot.knowledge.vector import VectorStore, VectorStoreError
 
-INDEX_VERSION = "norm1:tok1:chunk1"
+INDEX_VERSION = "norm1:tok2:chunk1"
+
+#: 分词模式 → index_version 的 tok 段。分词行为一变，索引必须重建
+#: （建索引与查询必须用同一个分词器，否则 key 对不上，永远零命中）。
+_TOKENIZER_VERSION = {
+    "jieba": "tok2",
+    "unigram_bigram": "tok1",
+    "bigram": "tok1",
+}
+
+
+def index_version_for(tokenizer_mode: str = "jieba") -> str:
+    """按分词模式生成 index_version。"""
+    token = _TOKENIZER_VERSION.get(tokenizer_mode, "tok2")
+    return f"norm1:{token}:chunk1"
 
 SOURCE_MISSING = "KNOWLEDGE_SOURCE_MISSING"
 UNSUPPORTED_TYPE = "KNOWLEDGE_UNSUPPORTED_TYPE"
@@ -72,6 +98,11 @@ class Ingestor:
         batch_size: int = DEFAULT_BATCH_SIZE,
         lease_owner: str = DEFAULT_LEASE_OWNER,
         lease_seconds: int = DEFAULT_LEASE_SECONDS,
+        tokenizer_mode: str = "jieba",
+        identity_resolver: Callable[[KnowledgeBase], tuple[Embedder, VectorStore] | None]
+        | None = None,
+        question_generator: QuestionGenerator | None = None,
+        question_count: int = DEFAULT_QUESTION_COUNT,
     ) -> None:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
@@ -83,6 +114,10 @@ class Ingestor:
         self._batch_size = batch_size
         self._lease_owner = lease_owner
         self._lease_seconds = lease_seconds
+        self._tokenizer_mode = tokenizer_mode
+        self._identity_resolver = identity_resolver
+        self._question_generator = question_generator
+        self._question_count = max(1, question_count)
 
     # ---------- 入口 ----------
     def process_document(self, doc_id: str, attempt: int | None = None) -> None:
@@ -126,15 +161,20 @@ class Ingestor:
             return
 
         records = self._records(document, drafts)
-        vectors, vector_status = self._embed(document, kb, records)
+        target = self._vector_target(kb)
+        vectors, vector_status = self._embed(document, kb, records, target)
         if not self._commit(doc_id, attempt, records, vector_status):
             return
-        if vectors:
-            vector_status = self._write_vectors(doc_id, records, vectors)
+        if vectors and target is not None:
+            vector_status = self._write_vectors(
+                doc_id, records, vectors, target[1]
+            )
             self._set_vector_status(doc_id, attempt, vector_status)
-        elif vector_status == "failed":
+        elif vector_status == "failed" and target is not None:
             # 新块已替换旧块但向量没算成：旧向量与新内容不再对应，best-effort 清掉。
-            self._discard_vectors(doc_id)
+            self._discard_vectors(target[1], doc_id)
+        if self._question_generator is not None:
+            self._generate_questions(document, target, records)
         logger.debug(
             "knowledge ingest finished: doc={} attempt={} chunks={} vector={}",
             doc_id,
@@ -192,41 +232,56 @@ class Ingestor:
                 end_offset=draft.end_offset,
                 char_count=draft.char_count,
                 content_hash=content_digest(draft.content),
-                search_text=tokenize_index(draft.content),
+                search_text=tokenize_index(draft.content, mode=self._tokenizer_mode),
             )
             for index, draft in enumerate(drafts)
         ]
 
     # ---------- embedding（不持 DB 事务） ----------
+    def _vector_target(self, kb: KnowledgeBase) -> tuple[Embedder, VectorStore] | None:
+        """该库自己的 (embedder, 向量库)；未配置 resolver 时退回复用全局实例。"""
+        if self._identity_resolver is not None:
+            return self._identity_resolver(kb)
+        if self._vector is None:
+            return None
+        return self._embedder, self._vector
+
     def _embed(
-        self, document: Document, kb: KnowledgeBase, records: list[ChunkRecord]
+        self,
+        document: Document,
+        kb: KnowledgeBase,
+        records: list[ChunkRecord],
+        target: tuple[Embedder, VectorStore] | None,
     ) -> tuple[list[list[float]], str]:
-        if not records:
+        if not records or target is None:
             return [], "skipped"
-        if self._vector is None or not self._vector.available:
+        embedder, vector = target
+        if not vector.available:
             return [], "skipped"
         try:
-            identity = self._embedder.identity
+            identity = embedder.identity
         except EmbeddingUnavailable:
             return [], "skipped"
         except EmbeddingError:
             return [], "failed"
         if identity[0] == "none":
             return [], "skipped"
-        kb_identity = (
-            kb.embedding_backend,
-            kb.embedding_model,
-            kb.embedding_dimensions,
-        )
-        if kb_identity != identity:
-            # KB 记录的模型与当前 embedder 不一致：等 reindex/配置修复，不换模型。
-            logger.warning(
-                "knowledge embedding mismatch: doc={} kb={}", document.id, kb.id
+        if self._identity_resolver is None:
+            kb_identity = (
+                kb.embedding_backend,
+                kb.embedding_model,
+                kb.embedding_dimensions,
             )
-            return [], "skipped"
+            if kb_identity != identity:
+                # 单 embedder 兼容路径：KB 记录的模型与当前 embedder 不一致，
+                # 等 reindex/配置修复，不换模型。
+                logger.warning(
+                    "knowledge embedding mismatch: doc={} kb={}", document.id, kb.id
+                )
+                return [], "skipped"
         texts = [self._embedding_text(document, record) for record in records]
         try:
-            vectors = self._embedder.embed_documents(texts)
+            vectors = embedder.embed_documents(texts)
         except EmbeddingUnavailable:
             return [], "skipped"
         except EmbeddingError as exc:
@@ -251,6 +306,118 @@ class Ingestor:
         parts = (document.title, record.heading_path, record.content)
         return "\n".join(part for part in parts if part)
 
+    # ---------- 入库期问题生成（doc2query） ----------
+    def _generate_questions(
+        self,
+        document: Document,
+        target: tuple[Embedder, VectorStore] | None,
+        records: list[ChunkRecord],
+    ) -> None:
+        """提交后生成问题并作为独立行索引；任何失败只降级，不改变文档状态。"""
+        generator = self._question_generator
+        if generator is None:
+            return
+        if not records:
+            self._replace_questions(document.id, [], [], target)
+            return
+        questions: list[QuestionRecord] = []
+        texts: list[str] = []
+        for index, record in enumerate(records):
+            prev_content = records[index - 1].content if index > 0 else ""
+            next_content = (
+                records[index + 1].content if index + 1 < len(records) else ""
+            )
+            try:
+                generated = generator.generate(
+                    record.content,
+                    prev_content=prev_content,
+                    next_content=next_content,
+                    doc_name=document.title,
+                    question_count=self._question_count,
+                )
+            except QuestionGenerationError as exc:
+                logger.warning(
+                    "knowledge question generation failed: doc={} chunk={} error={}",
+                    document.id,
+                    record.id,
+                    exc,
+                )
+                continue
+            except Exception as exc:  # noqa: BLE001 - 生成是增强项，逐块失败逐块跳过
+                logger.warning(
+                    "knowledge question generation error: doc={} chunk={} error={!r}",
+                    document.id,
+                    record.id,
+                    exc,
+                )
+                continue
+            for offset, question in enumerate(generated[: self._question_count]):
+                questions.append(
+                    QuestionRecord(
+                        id=question_id(record.id, offset),
+                        chunk_id=record.id,
+                        doc_id=document.id,
+                        kb_id=document.kb_id,
+                        workspace_id=document.workspace_id,
+                        chunk_index=record.chunk_index,
+                        question_index=offset,
+                        question=question,
+                        search_text=question_search_text(question, document.title),
+                    )
+                )
+                texts.append(
+                    f"{document.title}\n{question}" if document.title else question
+                )
+        self._replace_questions(document.id, questions, texts, target)
+
+    def _replace_questions(
+        self,
+        doc_id: str,
+        questions: list[QuestionRecord],
+        texts: list[str],
+        target: tuple[Embedder, VectorStore] | None,
+    ) -> None:
+        try:
+            self._repo.replace_questions(doc_id, questions)
+        except Exception as exc:  # noqa: BLE001 - 问题只是召回增强
+            logger.warning(
+                "knowledge question rows skipped: doc={} error={!r}", doc_id, exc
+            )
+            return
+        if not questions or target is None:
+            return
+        embedder, vector = target
+        if not vector.available:
+            return
+        try:
+            vectors = embedder.embed_documents(texts)
+        except (EmbeddingUnavailable, EmbeddingError) as exc:
+            logger.warning(
+                "knowledge question vectors skipped: doc={} error={}", doc_id, exc
+            )
+            return
+        if len(vectors) != len(questions):
+            logger.warning(
+                "knowledge question vectors skipped: doc={} expected={} got={}",
+                doc_id,
+                len(questions),
+                len(vectors),
+            )
+            return
+        for start in range(0, len(questions), self._batch_size):
+            batch = questions[start : start + self._batch_size]
+            batch_vectors = vectors[start : start + self._batch_size]
+            try:
+                vector.upsert(batch, batch_vectors)
+            except VectorStoreError as exc:
+                logger.warning(
+                    "knowledge question vector batch failed: doc={} offset={} error={}",
+                    doc_id,
+                    start,
+                    exc,
+                )
+                break
+
     # ---------- SQLite 提交（单事务） ----------
     def _commit(
         self,
@@ -264,7 +431,7 @@ class Ingestor:
                 doc_id,
                 attempt=attempt,
                 chunks=records,
-                index_version=INDEX_VERSION,
+                index_version=index_version_for(self._tokenizer_mode),
                 vector_status=vector_status,
             )
         except sqlite3.IntegrityError as exc:
@@ -276,10 +443,12 @@ class Ingestor:
 
     # ---------- 向量（提交后 best-effort） ----------
     def _write_vectors(
-        self, doc_id: str, records: list[ChunkRecord], vectors: list[list[float]]
+        self,
+        doc_id: str,
+        records: list[ChunkRecord],
+        vectors: list[list[float]],
+        vector: VectorStore,
     ) -> str:
-        vector = self._vector
-        assert vector is not None
         try:
             vector.delete_document(doc_id)
         except VectorStoreError as exc:
@@ -312,11 +481,11 @@ class Ingestor:
                 status,
             )
 
-    def _discard_vectors(self, doc_id: str) -> None:
-        if self._vector is None or not self._vector.available:
+    def _discard_vectors(self, vector: VectorStore, doc_id: str) -> None:
+        if not vector.available:
             return
         try:
-            self._vector.delete_document(doc_id)
+            vector.delete_document(doc_id)
         except VectorStoreError as exc:
             logger.warning("knowledge stale vector cleanup failed: doc={} error={}", doc_id, exc)
 

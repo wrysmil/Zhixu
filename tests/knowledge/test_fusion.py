@@ -1,4 +1,4 @@
-"""融合层测试：三分支归一化（A cosine / B BM25 相对分 / C 加权 RRF）、三级去重、邻块下限 + 相关性带 + MMR。
+"""融合层测试：三分支归一化（A cosine / B BM25 相对分 / C 加权 RRF）、三级去重、MMR。
 
 手算基准（spec §5.2 / §9.1；分支 C：k=60、w_v=0.7、w_k=0.3、maxRRF=(0.7+0.3)/61）：
   两路 rank1 同一块        = 1.0
@@ -16,14 +16,19 @@ from __future__ import annotations
 import pytest
 
 from nanobot.knowledge.fusion import (
+    RouteSpec,
     SearchHit,
     SearchResult,
+    best_ranks,
     dedup_partial,
     jaccard,
     mmr_rerank,
     single_keyword_scores,
+    single_keyword_scores_multi,
     single_vector_scores,
+    single_vector_scores_multi,
     weighted_rrf,
+    weighted_rrf_multi,
 )
 from nanobot.knowledge.repository import FtsHit
 from nanobot.knowledge.tokenizer import tokenize_index
@@ -40,6 +45,7 @@ def _hit(
     heading_path: str = "",
     page: int | None = None,
     locator: str = "",
+    title: str = "",
 ) -> SearchHit:
     return SearchHit(
         chunk_id=chunk_id,
@@ -53,6 +59,7 @@ def _hit(
         char_count=len(content),
         content_hash=content_hash,
         score=score,
+        title=title,
     )
 
 
@@ -425,24 +432,25 @@ def test_dedup_empty_input_returns_empty():
     assert dedup_partial([]) == []
 
 
-# ---------- 邻块下限、相关性带、MMR：spec §5.5、§5.6、§9.3 ----------
+# ---------- MMR：spec §8 ----------
 
 
 def _neighbor_pair() -> tuple[str, str]:
-    """同文档邻块夹具：共享 2 个词，J ≈ 0.034（远低于 0.25 下限）。"""
+    """同文档邻块夹具：共享 2 个词，词面 J ≈ 0.034。"""
     return _words(0, 30), _words(28, 30)
 
 
-def test_mmr_adjacent_block_floor_suppresses_neighbor():
+def test_mmr_does_not_floor_adjacent_block_similarity():
+    # WeKnora §8 没有「邻块相似度下限」：相似度只由词面重合决定。
     head, adjacent = _neighbor_pair()
     a = _hit("chk_a", head, 1.0, doc_id="doc-1", chunk_index=0)
     b = _hit("chk_b", adjacent, 0.98, doc_id="doc-1", chunk_index=1)
     c = _hit("chk_c", _words(500, 30), 0.9, doc_id="doc-2", chunk_index=0)
     assert jaccard(a.content, b.content) <= 0.04
-    # b 被抬到 sim=0.25：0.7×0.98 − 0.3×0.25 = 0.611 < c 的 0.63。
+    # 实测 sim≈0.034：0.7×0.98 − 0.3×0.034 ≈ 0.676 > c 的 0.63，邻块不再被硬压低。
     assert [hit.chunk_id for hit in mmr_rerank([a, b, c], limit=2)] == [
         "chk_a",
-        "chk_c",
+        "chk_b",
     ]
 
 
@@ -481,21 +489,47 @@ def test_mmr_shared_half_content_keeps_measured_similarity():
     ]
 
 
-def test_mmr_relevance_band_drops_far_below_top():
+def test_mmr_keeps_candidates_far_below_top():
+    # WeKnora §8 没有相关性带：低分候选仍参与 MMR，由 λ 与冗余度决定。
     a = _hit("chk_a", _words(0, 30), 1.0, doc_id="doc-1")
     b = _hit("chk_b", _words(100, 30), 0.9, doc_id="doc-2")
     c = _hit("chk_c", _words(500, 30), 0.8, doc_id="doc-3")
-    # 1.0 − 0.15 = 0.85 → 0.8 的候选不进 MMR。
     assert [hit.chunk_id for hit in mmr_rerank([a, b, c], limit=3)] == [
+        "chk_a",
+        "chk_b",
+        "chk_c",
+    ]
+
+
+def test_mmr_keeps_candidate_regardless_of_score_gap():
+    a = _hit("chk_a", _words(0, 30), 1.0, doc_id="doc-1")
+    b = _hit("chk_b", _words(100, 30), 0.85, doc_id="doc-2")
+    assert [hit.chunk_id for hit in mmr_rerank([a, b], limit=2)] == ["chk_a", "chk_b"]
+
+
+def test_mmr_uses_enriched_title_tokens():
+    # §8.2：token 来自标题 + 面包屑 + 正文，标题相同的块更易被判冗余。
+    a = _hit("chk_a", "alpha", 1.0, doc_id="doc-1", title="发布 手册")
+    b = _hit("chk_b", "beta", 0.98, doc_id="doc-2", title="发布 手册")
+    c = _hit("chk_c", "gamma", 0.9, doc_id="doc-3", title="")
+    # enriched J(a,b) = 2/4 = 0.5 → b = 0.686 − 0.15 = 0.536 < c 的 0.63。
+    assert [hit.chunk_id for hit in mmr_rerank([a, b, c], limit=2)] == [
+        "chk_a",
+        "chk_c",
+    ]
+    # 去掉标题后词面不重合：b = 0.686 > 0.63，第二个仍是 b。
+    a_plain = _hit("chk_a", "alpha", 1.0, doc_id="doc-1")
+    b_plain = _hit("chk_b", "beta", 0.98, doc_id="doc-2")
+    assert [hit.chunk_id for hit in mmr_rerank([a_plain, b_plain, c], limit=2)] == [
         "chk_a",
         "chk_b",
     ]
 
 
-def test_mmr_relevance_band_boundary_is_inclusive():
-    a = _hit("chk_a", _words(0, 30), 1.0, doc_id="doc-1")
-    b = _hit("chk_b", _words(100, 30), 0.85, doc_id="doc-2")
-    assert [hit.chunk_id for hit in mmr_rerank([a, b], limit=2)] == ["chk_a", "chk_b"]
+def test_mmr_limit_one_returns_highest_score():
+    a = _hit("chk_a", "", 0.5, doc_id="doc-1")
+    b = _hit("chk_b", "", 0.9, doc_id="doc-2")
+    assert [hit.chunk_id for hit in mmr_rerank([a, b], limit=1)] == ["chk_b"]
 
 
 def test_mmr_suppresses_near_duplicate_second_hit():
@@ -550,6 +584,41 @@ def test_mmr_empty_input_or_zero_limit_returns_empty():
 def test_mmr_respects_limit():
     hits = [_hit(f"chk_{index}", _words(index * 100, 10), 1.0) for index in range(5)]
     assert len(mmr_rerank(hits, limit=3)) == 3
+
+
+# ---------- §5.4 bestRanks 与多列表融合 ----------
+
+
+def test_best_ranks_takes_min_rank_across_lists():
+    assert best_ranks([["a", "b"], ["b", "c"]]) == {"a": 1, "b": 1, "c": 2}
+    assert best_ranks([]) == {}
+    assert best_ranks([[], ["x"]]) == {"x": 1}
+
+
+def test_weighted_rrf_multi_uses_best_rank_not_concatenation():
+    # 同一块在第二张列表里排第一，最佳名次必须是 1，而不是被拼到第一张之后。
+    fused = weighted_rrf_multi((RouteSpec(1.0, (("a", "b"), ("b", "c"))),), k=60)
+    # b 在两张列表里分别是 rank2 / rank1，取最佳 1 → 满分；
+    # 拼接后再排名会把它排到 rank3。
+    assert fused["b"] == pytest.approx(1.0)
+    assert fused["a"] == pytest.approx(1.0)
+    assert fused["c"] == pytest.approx(61 / 62)
+
+
+def test_single_route_multi_scores_take_max_across_lists():
+    vector = single_vector_scores_multi([[("a", 0.4)], [("a", 0.9), ("b", 0.5)]])
+    assert vector["a"] == pytest.approx(0.9)
+    assert vector["b"] == pytest.approx(0.5)
+
+    keyword = single_keyword_scores_multi(
+        [
+            [("a", 2.0), ("b", 1.0)],
+            [("b", 8.0)],
+        ]
+    )
+    # 每张列表各自除自身 max，再跨列表取最大。
+    assert keyword["a"] == pytest.approx(1.0)
+    assert keyword["b"] == pytest.approx(1.0)
 
 
 # ---------- DTO 与字段保留 ----------
