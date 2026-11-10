@@ -463,6 +463,7 @@ interface ThreadShellProps {
   onTeamChange?: (team: NewChatTeam | null, teamName: string | null) => void;
   settingsSnapshot?: SettingsPayload | null;
   onOpenModelSettings?: () => void;
+  onOpenKnowledge?: () => void;
   skills?: SkillSummary[];
   draftSeed?: { text: string; token: number } | null;
   onDraftSeedConsumed?: () => void;
@@ -702,6 +703,7 @@ export function ThreadShell({
   onTeamChange,
   settingsSnapshot = null,
   onOpenModelSettings,
+  onOpenKnowledge,
   skills = [],
   draftSeed = null,
   onDraftSeedConsumed,
@@ -2064,6 +2066,7 @@ export function ThreadShell({
               /> : <SessionWorkbench model={workbenchModel} sessionKey={historyKey} token={token} client={client}
                 onOpenExecution={(id) => { setMobileWorkbenchOpen(false); handleOpenExecution(id, null); }}
                 onOpenFilePreview={historyKey ? (path) => { setMobileWorkbenchOpen(false); handleOpenFilePreview(path); } : undefined}
+                onOpenKnowledge={onOpenKnowledge}
               />}
             </DialogContent>
           </Dialog>
@@ -2075,6 +2078,7 @@ export function ThreadShell({
             client={client}
             onOpenExecution={(id) => handleOpenExecution(id, null)}
             onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
+            onOpenKnowledge={onOpenKnowledge}
           />
           {activeRightSurface.kind === "tools" ? (
             // 工具侧边栏不占工作台版面：打开时整列盖住工作台，关掉后工作台原样露出。

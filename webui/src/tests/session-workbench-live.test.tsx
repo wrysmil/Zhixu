@@ -65,6 +65,31 @@ describe("会话工作台真实数据", () => {
     expect(screen.queryByText(/成功 0/)).toBeNull();
   });
 
+  it("在能力页展示本会话知识检索与命中来源", async () => {
+    await i18n.changeLanguage("zh");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply({
+      ...snapshot(),
+      knowledge: {
+        calls: 2, reads: 1, empty: 0, failed: 0,
+        queries: ["回滚流程", "备份策略"],
+        sources: [
+          { doc_id: "doc://d1", chunk_id: "chunk://c1", title: "青鸾发布手册", kb: "发布手册", heading: "生产回滚流程", page: "3", score: "0.912" },
+          { doc_id: "doc://d1", chunk_id: "chunk://c2", title: "青鸾发布手册", kb: "发布手册", heading: "备份策略", page: null, score: "0.700" },
+        ],
+      },
+    })));
+    const open = vi.fn();
+    render(<SessionWorkbench model={model} sessionKey="websocket:one" token="tok" onOpenKnowledge={open} />);
+    await screen.findByText("接通会话计划");
+    fireEvent.click(screen.getByRole("tab", { name: /能力/ }));
+    expect(screen.getByText("本会话检索 2 次 · 扩读 1 次 · 命中 2 个片段")).toBeInTheDocument();
+    expect(screen.getByText("回滚流程")).toBeInTheDocument();
+    expect(screen.getAllByText("青鸾发布手册")).toHaveLength(2);
+    expect(screen.getByText("发布手册 · 第 3 页 · 生产回滚流程")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "打开知识库" }));
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
   it("长任务持续限频刷新，隐藏页面暂停，卸载后不再请求", async () => {
     vi.useFakeTimers();
     const fetcher = vi.fn().mockImplementation(() => Promise.resolve(reply(snapshot())));
@@ -99,6 +124,7 @@ describe("会话工作台真实数据", () => {
     { ...snapshot(), tasks: [null] },
     { ...snapshot(), plan: { explanation: "缺少步骤" } },
     { ...snapshot(), tasks: [{ id: "bad", title: "错误状态", source: "plan", status: "invented" }] },
+    { ...snapshot(), knowledge: { calls: 1, reads: 0, empty: 0, failed: 0, queries: [], sources: [{ doc_id: "d", chunk_id: "c" }] } },
   ])("错形接口响应进入错误面板而不崩溃", async (payload) => {
     await i18n.changeLanguage("zh");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { headers: { "Content-Type": "application/json" } })));

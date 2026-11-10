@@ -1,9 +1,20 @@
 import {
-  FileSearch,
-  FolderOpen,
-  ListTree,
-  MemoryStick,
-  Play,
+  BookOpenCheck,
+  Bot,
+  Brain,
+  CalendarClock,
+  Camera,
+  FileText,
+  FolderSearch,
+  FolderTree,
+  Image,
+  LibraryBig,
+  MessageSquare,
+  Settings2,
+  Target,
+  Terminal,
+  TextSearch,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { useMemo } from "react";
@@ -71,17 +82,49 @@ function GenericToolDetail({ items }: { items: GenericToolRunItem[] }) {
 
 function buildModel(items: GenericToolRunItem[]): GenericToolRunModel {
   const family = items[0]?.trace.family ?? "generic";
+  const name = items[0]?.trace.name ?? "";
   const presentation = describeGenericToolRun(items);
   return {
     ...presentation,
-    icon: activityIcon(family),
+    icon: activityIcon(family, name),
   };
 }
 
-function activityIcon(family: ToolFamily): LucideIcon {
-  if (family === "content-search" || family === "file-search") return FileSearch;
-  if (family === "list") return ListTree;
-  if (family === "read") return FolderOpen;
-  if (family === "memory") return MemoryStick;
-  return Play;
+/** Named tools get a purpose-built glyph; families are the fallback. */
+const TOOL_ICONS: Record<string, LucideIcon> = {
+  knowledge_search: LibraryBig,
+  knowledge_read: BookOpenCheck,
+  generate_image: Image,
+  spawn: Bot,
+  message: MessageSquare,
+  my: Settings2,
+  cron: CalendarClock,
+  create_goal: Target,
+  update_goal: Target,
+  exec_session: Terminal,
+  write_stdin: Terminal,
+  list_exec_sessions: Terminal,
+  screenshot: Camera,
+  capture_screenshot: Camera,
+};
+
+function activityIcon(family: ToolFamily, name: string): LucideIcon {
+  const named = TOOL_ICONS[name];
+  if (named) return named;
+  switch (family) {
+    case "content-search":
+      return TextSearch;
+    case "file-search":
+      return FolderSearch;
+    case "list":
+      return FolderTree;
+    case "read":
+      return FileText;
+    case "memory":
+      return Brain;
+    case "knowledge":
+      return LibraryBig;
+    default:
+      return Wrench;
+  }
 }

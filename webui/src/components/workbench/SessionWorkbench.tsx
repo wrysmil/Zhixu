@@ -4,7 +4,7 @@ import { RefreshCw, Search } from "lucide-react";
 import type { SessionWorkbenchModel } from "./session-workbench-model";
 import { useSessionWorkbench, type WorkbenchEventClient } from "./use-session-workbench";
 import { WorkbenchProgress } from "./workbench-progress";
-import { WorkbenchCapabilities, WorkbenchLimitations, WorkbenchMemories } from "./workbench-context";
+import { WorkbenchCapabilities, WorkbenchKnowledge, WorkbenchLimitations, WorkbenchMemories } from "./workbench-context";
 import { WorkbenchEmpty, WorkbenchSection, useWorkbenchText } from "./workbench-parts";
 import { cn } from "@/lib/utils";
 
@@ -17,10 +17,11 @@ interface SessionWorkbenchProps {
   client?: WorkbenchEventClient;
   onOpenFilePreview?: (path: string) => void;
   onOpenExecution?: (invocationId: string) => void;
+  onOpenKnowledge?: () => void;
 }
 type Tab = "progress" | "memory" | "capabilities";
 
-export function SessionWorkbench({ model, sessionKey, token, client, onOpenFilePreview, onOpenExecution }: SessionWorkbenchProps) {
+export function SessionWorkbench({ model, sessionKey, token, client, onOpenFilePreview, onOpenExecution, onOpenKnowledge }: SessionWorkbenchProps) {
   const { t, i18n } = useTranslation();
   const text = useWorkbenchText();
   const id = useId();
@@ -85,6 +86,7 @@ export function SessionWorkbench({ model, sessionKey, token, client, onOpenFileP
       {tab === "memory" && !loading && !error && <WorkbenchMemories snapshot={snapshot} onOpenFilePreview={onOpenFilePreview} />}
       {tab === "capabilities" && !loading && !error && <>
         <WorkbenchCapabilities snapshot={snapshot} />
+        <WorkbenchKnowledge knowledge={snapshot?.knowledge} onOpenKnowledge={onOpenKnowledge} />
         {!!model.cliUsed.length && <WorkbenchSection title="CLI" count={model.cliUsed.length} defaultOpen><ul className="space-y-2">{model.cliUsed.map((item) => <li key={item.name} className="flex justify-between gap-2 text-xs text-muted-foreground"><span className="min-w-0 truncate">{item.name}</span><span>×{item.count}</span></li>)}</ul></WorkbenchSection>}
       </>}
       {!!snapshot?.limitations.length && <WorkbenchLimitations limitations={snapshot.limitations} />}

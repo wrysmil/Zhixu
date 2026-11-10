@@ -96,7 +96,7 @@ export function ActivityStep({
         {marker ?? (
           <span
             className={cn(
-              "grid h-3.5 w-3.5 place-items-center rounded-full border bg-background transition-colors",
+              "grid h-4 w-4 place-items-center rounded-full border bg-background transition-colors",
               tone === "active" && "border-muted-foreground/28 text-muted-foreground/72",
               tone === "success" && "border-emerald-500/28 text-emerald-500/78",
               tone === "error" && "border-transparent bg-transparent text-destructive",
@@ -115,7 +115,7 @@ export function ActivityStep({
                 />
               </svg>
             ) : Icon ? (
-              <Icon className="h-2.5 w-2.5" strokeWidth={2.15} />
+              <Icon className="h-3 w-3" strokeWidth={2.15} />
             ) : null}
           </span>
         )}

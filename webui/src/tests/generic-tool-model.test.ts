@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import i18n from "@/i18n";
 import { redactActivityText } from "@/components/thread/activity/activity-text";
 import {
   canGroupGenericToolRuns,
@@ -21,6 +22,8 @@ describe("generic tool activity semantics", () => {
     ['list_dir({"path":"memory"})', "Listed files", "memory"],
     ['read_file({"path":"docs/guide.md"})', "Read file", "docs/guide.md"],
     ['memory_search({"query":"launch date"})', "Searched memory", "“launch date”"],
+    ['knowledge_search({"query":"回滚流程"})', "Searched knowledge base", "“回滚流程”"],
+    ['knowledge_read({"handle":"chunk://abc"})', "Read source", "chunk://abc"],
     ['generate_image({"prompt":"private launch art"})', "Generated image", ""],
     ['spawn({"label":"Research competitors","task":"private task"})', "Delegated task", "Research competitors"],
     ['message({"channel":"telegram","content":"private message"})', "Sent message", "telegram"],
@@ -48,6 +51,44 @@ describe("generic tool activity semantics", () => {
     ["error", "Could not generate image"],
   ] as const)("uses human status copy for %s tools", (status, label) => {
     expect(describeRun('generate_image({"prompt":"private"})', status).label).toBe(label);
+  });
+
+  it("uses Chinese copy for activity rows when the locale is Chinese", async () => {
+    await i18n.changeLanguage("zh-CN");
+    try {
+      const search = parseGenericToolTrace('knowledge_search({"query":"回滚流程"})')!;
+      expect(describeGenericToolRun([{ trace: search, status: "done" }])).toMatchObject({
+        kicker: "检索知识库",
+        label: "已检索知识库",
+        detail: "“回滚流程”",
+      });
+      const read = parseGenericToolTrace('knowledge_read({"handle":"chunk://abc"})')!;
+      expect(describeGenericToolRun([{ trace: read, status: "done" }])).toMatchObject({
+        kicker: "扩读知识",
+        label: "已扩读原文",
+      });
+      const second = parseGenericToolTrace('knowledge_search({"query":"备份策略"})')!;
+      expect(describeGenericToolRun([
+        { trace: search, status: "done" },
+        { trace: second, status: "done" },
+      ])).toMatchObject({ label: "已检索知识库", aside: "2 次知识调用" });
+    } finally {
+      await i18n.changeLanguage("en");
+    }
+  });
+
+  it("keeps knowledge search and knowledge read on separate activity rows", () => {
+    const search = parseGenericToolTrace('knowledge_search({"query":"回滚流程"})')!;
+    const read = parseGenericToolTrace('knowledge_read({"handle":"chunk://abc"})')!;
+
+    expect(canGroupGenericToolRuns(
+      { trace: search, status: "done" },
+      { trace: read, status: "done" },
+    )).toBe(false);
+    expect(canGroupGenericToolRuns(
+      { trace: search, status: "done" },
+      { trace: parseGenericToolTrace('knowledge_search({"query":"备份策略"})')!, status: "done" },
+    )).toBe(true);
   });
 
   it("keeps spawn call ids as opaque association keys without grouping by title", () => {

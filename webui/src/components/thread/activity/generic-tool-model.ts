@@ -3,7 +3,14 @@ import { currentLocale } from "@/i18n";
 import { compactActivityPath, redactActivityText } from "./activity-text";
 
 export type GenericToolStatus = "running" | "done" | "error";
-export type ToolFamily = "content-search" | "file-search" | "list" | "read" | "memory" | "generic";
+export type ToolFamily =
+  | "content-search"
+  | "file-search"
+  | "list"
+  | "read"
+  | "memory"
+  | "knowledge"
+  | "generic";
 
 interface ToolField {
   key:
@@ -20,6 +27,7 @@ interface ToolField {
     | "channel"
     | "chat_id"
     | "session_id"
+    | "handle"
     | "ui_summary";
   value: string;
 }
@@ -68,6 +76,7 @@ const FILE_SEARCH_TOOLS = new Set([
 const LIST_TOOLS = new Set(["list_dir", "list_directory", "list_files", "ls"]);
 const READ_TOOLS = new Set(["read", "read_file", "read_text_file"]);
 const MEMORY_TOOLS = new Set(["memory_search", "search_memory", "recall_memory"]);
+const KNOWLEDGE_TOOLS = new Set(["knowledge_search", "knowledge_read"]);
 const EXCLUDED_TOOL_PREFIXES = ["mcp_"];
 const EXCLUDED_TOOLS = new Set([
   "apply_patch",
@@ -96,7 +105,7 @@ export function parseGenericToolTrace(line: string): GenericToolTrace | null {
   return {
     name: call.name,
     family,
-    groupKey: family === "generic"
+    groupKey: family === "generic" || family === "knowledge"
       ? `${family}:${call.name}`
       : `${family}:${collectedSource ? "collected" : "workspace"}`,
     fields,
@@ -130,6 +139,21 @@ export function describeGenericToolRun(items: GenericToolRunItem[]): GenericTool
   };
 }
 
+const GENERIC_KICKERS_ZH: Record<string, string> = {
+  generate_image: "生成图片",
+  spawn: "子 Agent",
+  message: "消息",
+  my: "设置",
+  cron: "定时任务",
+  create_goal: "长任务",
+  update_goal: "长任务",
+  exec_session: "终端",
+  write_stdin: "终端",
+  list_exec_sessions: "终端",
+  screenshot: "截图",
+  capture_screenshot: "截图",
+};
+
 function activityKicker(family: ToolFamily, name: string): string {
   const chinese = /^zh/i.test(currentLocale());
   switch (family) {
@@ -143,8 +167,13 @@ function activityKicker(family: ToolFamily, name: string): string {
       return chinese ? "读取文件" : "Read";
     case "memory":
       return chinese ? "检索记忆" : "Memory";
-    default:
-      return humanizeToolName(name);
+    case "knowledge":
+      if (name === "knowledge_read") return chinese ? "扩读知识" : "Knowledge read";
+      return chinese ? "检索知识库" : "Knowledge search";
+    default: {
+      const localized = chinese ? GENERIC_KICKERS_ZH[name] : undefined;
+      return localized ?? humanizeToolName(name);
+    }
   }
 }
 
@@ -175,6 +204,7 @@ function toolFamily(name: string): ToolFamily {
   if (LIST_TOOLS.has(name)) return "list";
   if (READ_TOOLS.has(name)) return "read";
   if (MEMORY_TOOLS.has(name)) return "memory";
+  if (KNOWLEDGE_TOOLS.has(name)) return "knowledge";
   return "generic";
 }
 
@@ -196,6 +226,7 @@ function safeFields(args: unknown): ToolField[] {
     "channel",
     "chat_id",
     "session_id",
+    "handle",
     "ui_summary",
   ] as const) {
     const value = record[key];
@@ -219,68 +250,172 @@ function activityLabel(
   name: string,
   items: GenericToolRunItem[],
 ): string {
+  const chinese = /^zh/i.test(currentLocale());
+  // 每项按 [中文, English] 成对书写，避免中英文两套分支漂移。
+  const copy = (
+    running: [string, string],
+    done: [string, string],
+    failed: [string, string],
+  ): string => statusCopy(
+    status,
+    running[chinese ? 0 : 1],
+    done[chinese ? 0 : 1],
+    failed[chinese ? 0 : 1],
+  );
+
   if (family === "content-search") {
-    return statusCopy(
-      status,
-      collected ? "Reviewing sources" : "Searching files",
-      collected ? "Reviewed sources" : "Searched files",
-      collected ? "Could not review sources" : "Could not search files",
-    );
+    return collected
+      ? copy(
+        ["正在查阅来源", "Reviewing sources"],
+        ["已查阅来源", "Reviewed sources"],
+        ["无法查阅来源", "Could not review sources"],
+      )
+      : copy(
+        ["正在搜索文件", "Searching files"],
+        ["已搜索文件", "Searched files"],
+        ["无法搜索文件", "Could not search files"],
+      );
   }
   if (family === "file-search") {
-    return statusCopy(status, "Finding files", "Found files", "Could not find files");
-  }
-  if (family === "list") {
-    return statusCopy(status, "Listing files", "Listed files", "Could not list files");
-  }
-  if (family === "read") {
-    return statusCopy(
-      status,
-      collected ? "Reading source" : "Reading file",
-      collected ? "Read source" : "Read file",
-      collected ? "Could not read source" : "Could not read file",
+    return copy(
+      ["正在查找文件", "Finding files"],
+      ["已查找文件", "Found files"],
+      ["无法查找文件", "Could not find files"],
     );
   }
+  if (family === "list") {
+    return copy(
+      ["正在查看目录", "Listing files"],
+      ["已查看目录", "Listed files"],
+      ["无法查看目录", "Could not list files"],
+    );
+  }
+  if (family === "read") {
+    return collected
+      ? copy(
+        ["正在阅读来源", "Reading source"],
+        ["已阅读来源", "Read source"],
+        ["无法阅读来源", "Could not read source"],
+      )
+      : copy(
+        ["正在读取文件", "Reading file"],
+        ["已读取文件", "Read file"],
+        ["无法读取文件", "Could not read file"],
+      );
+  }
   if (family === "memory") {
-    return statusCopy(status, "Searching memory", "Searched memory", "Could not search memory");
+    return copy(
+      ["正在检索记忆", "Searching memory"],
+      ["已检索记忆", "Searched memory"],
+      ["无法检索记忆", "Could not search memory"],
+    );
+  }
+  if (family === "knowledge") {
+    if (name === "knowledge_read") {
+      return copy(
+        ["正在扩读原文", "Reading source"],
+        ["已扩读原文", "Read source"],
+        ["扩读原文失败", "Could not read source"],
+      );
+    }
+    return copy(
+      ["正在检索知识库", "Searching knowledge base"],
+      ["已检索知识库", "Searched knowledge base"],
+      ["检索知识库失败", "Could not search knowledge base"],
+    );
   }
 
   const action = fieldValue(items[0]?.trace, "action").toLowerCase();
   switch (name) {
     case "generate_image":
-      return statusCopy(status, "Generating image", "Generated image", "Could not generate image");
+      return copy(
+        ["正在生成图片", "Generating image"],
+        ["已生成图片", "Generated image"],
+        ["生成图片失败", "Could not generate image"],
+      );
     case "spawn":
-      return statusCopy(status, "Delegating task", "Delegated task", "Could not delegate task");
+      return copy(
+        ["正在委派任务", "Delegating task"],
+        ["已委派任务", "Delegated task"],
+        ["委派任务失败", "Could not delegate task"],
+      );
     case "message":
-      return statusCopy(status, "Sending message", "Sent message", "Could not send message");
+      return copy(
+        ["正在发送消息", "Sending message"],
+        ["已发送消息", "Sent message"],
+        ["发送消息失败", "Could not send message"],
+      );
     case "my":
       return action === "set" || action === "modify"
-        ? statusCopy(status, "Updating agent settings", "Updated agent settings", "Could not update agent settings")
-        : statusCopy(status, "Checking agent settings", "Checked agent settings", "Could not check agent settings");
+        ? copy(
+          ["正在更新智能体设置", "Updating agent settings"],
+          ["已更新智能体设置", "Updated agent settings"],
+          ["更新智能体设置失败", "Could not update agent settings"],
+        )
+        : copy(
+          ["正在检查智能体设置", "Checking agent settings"],
+          ["已检查智能体设置", "Checked agent settings"],
+          ["检查智能体设置失败", "Could not check agent settings"],
+        );
     case "cron":
-      if (action === "add") return statusCopy(status, "Scheduling automation", "Scheduled automation", "Could not schedule automation");
-      if (action === "remove") return statusCopy(status, "Removing automation", "Removed automation", "Could not remove automation");
-      return statusCopy(status, "Checking automations", "Checked automations", "Could not check automations");
+      if (action === "add") {
+        return copy(
+          ["正在创建定时任务", "Scheduling automation"],
+          ["已创建定时任务", "Scheduled automation"],
+          ["创建定时任务失败", "Could not schedule automation"],
+        );
+      }
+      if (action === "remove") {
+        return copy(
+          ["正在删除定时任务", "Removing automation"],
+          ["已删除定时任务", "Removed automation"],
+          ["删除定时任务失败", "Could not remove automation"],
+        );
+      }
+      return copy(
+        ["正在检查定时任务", "Checking automations"],
+        ["已检查定时任务", "Checked automations"],
+        ["检查定时任务失败", "Could not check automations"],
+      );
     case "create_goal":
-      return statusCopy(status, "Starting long task", "Started long task", "Could not start long task");
+      return copy(
+        ["正在开始长任务", "Starting long task"],
+        ["已开始长任务", "Started long task"],
+        ["开始长任务失败", "Could not start long task"],
+      );
     case "update_goal":
-      return statusCopy(status, "Updating long task", "Updated long task", "Could not update long task");
+      return copy(
+        ["正在更新长任务", "Updating long task"],
+        ["已更新长任务", "Updated long task"],
+        ["更新长任务失败", "Could not update long task"],
+      );
     // TODO(0.3.2): Remove write_stdin display compatibility after 0.3.1.
     case "exec_session":
     case "write_stdin":
-      return statusCopy(status, "Continuing command", "Continued command", "Could not continue command");
+      return copy(
+        ["正在继续命令", "Continuing command"],
+        ["已继续命令", "Continued command"],
+        ["继续命令失败", "Could not continue command"],
+      );
     case "list_exec_sessions":
-      return statusCopy(status, "Checking running commands", "Checked running commands", "Could not check running commands");
+      return copy(
+        ["正在检查运行中的命令", "Checking running commands"],
+        ["已检查运行中的命令", "Checked running commands"],
+        ["检查运行中的命令失败", "Could not check running commands"],
+      );
     case "screenshot":
     case "capture_screenshot":
-      return statusCopy(status, "Capturing screenshot", "Captured screenshot", "Could not capture screenshot");
+      return copy(
+        ["正在截取屏幕", "Capturing screenshot"],
+        ["已截取屏幕", "Captured screenshot"],
+        ["截取屏幕失败", "Could not capture screenshot"],
+      );
     default: {
       const humanName = humanizeToolName(name);
-      return statusCopy(
-        status,
-        `Running ${humanName}`,
-        `Completed ${humanName}`,
-        `Could not complete ${humanName}`,
+      return copy(
+        [`正在运行 ${name}`, `Running ${humanName}`],
+        [`已完成 ${name}`, `Completed ${humanName}`],
+        [`${name} 执行失败`, `Could not complete ${humanName}`],
       );
     }
   }
@@ -304,6 +439,10 @@ function activityDetail(items: GenericToolRunItem[], family: ToolFamily, name: s
     return compactDetail(fieldValue(trace, "path") || fieldValue(trace, "file_path"));
   }
   if (family === "memory") return quote(fieldValue(trace, "query"));
+  if (family === "knowledge") {
+    if (name === "knowledge_read") return compactIdentifier(fieldValue(trace, "handle"));
+    return quote(fieldValue(trace, "query"));
+  }
 
   switch (name) {
     case "spawn":
@@ -331,13 +470,17 @@ function activityDetail(items: GenericToolRunItem[], family: ToolFamily, name: s
 }
 
 function activityAside(items: GenericToolRunItem[], family: ToolFamily): string {
+  const chinese = /^zh/i.test(currentLocale());
   const pathCount = uniqueValues(items, ["path", "file_path"]).length;
-  if (pathCount > 1) return `${pathCount} files`;
+  if (pathCount > 1) return chinese ? `${pathCount} 个文件` : `${pathCount} files`;
   if (items.length <= 1) return "";
   if (family === "content-search" || family === "file-search" || family === "memory") {
-    return `${items.length} searches`;
+    return chinese ? `${items.length} 次检索` : `${items.length} searches`;
   }
-  return `${items.length} actions`;
+  if (family === "knowledge") {
+    return chinese ? `${items.length} 次知识调用` : `${items.length} knowledge calls`;
+  }
+  return chinese ? `${items.length} 个操作` : `${items.length} actions`;
 }
 
 function fieldValue(trace: GenericToolTrace | undefined, key: ToolField["key"]): string {

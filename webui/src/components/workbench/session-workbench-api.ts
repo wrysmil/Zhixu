@@ -8,6 +8,23 @@ export interface WorkbenchTask {
   source: string;
   detail?: string;
 }
+export interface WorkbenchKnowledgeSource {
+  doc_id: string;
+  chunk_id: string;
+  title: string;
+  kb: string;
+  heading: string;
+  page: string | null;
+  score: string;
+}
+export interface WorkbenchKnowledge {
+  calls: number;
+  reads: number;
+  empty: number;
+  failed: number;
+  queries: string[];
+  sources: WorkbenchKnowledgeSource[];
+}
 export interface SessionWorkbenchSnapshot {
   schema_version: 1;
   session_key: string;
@@ -19,6 +36,7 @@ export interface SessionWorkbenchSnapshot {
   memories: { id: string; kind: "working" | "long_term"; title: string; content: string; source: string; updated_at: string | null; persisted: boolean; workspace_id?: string; is_global?: boolean }[];
   skills: { name: string; status: "available" | "always_loaded" | "used"; source: string }[];
   mcp: { name: string; status: string; calls: number; successes: number | null; failures: number | null }[];
+  knowledge?: WorkbenchKnowledge;
   limitations: string[];
 }
 
@@ -33,6 +51,17 @@ const task = (row: Row) => [row.id, row.title, row.source].every(string)
   && string(row.status) && ["pending", "in_progress", "completed", "blocked", "cancelled"].includes(row.status)
   && (row.detail === undefined || string(row.detail));
 
+const knowledge = (value: unknown) => {
+  if (value === undefined) return true;
+  if (!record(value) || !count(value.calls) || !count(value.reads)
+    || !count(value.empty) || !count(value.failed)) return false;
+  if (!Array.isArray(value.queries) || !value.queries.every(string)) return false;
+  return rows(value.sources, (row) =>
+    [row.doc_id, row.chunk_id, row.title, row.kb, row.heading, row.score].every(string)
+    && (row.page === null || string(row.page)),
+  );
+};
+
 function validSnapshot(data: unknown, sessionKey: string): data is SessionWorkbenchSnapshot {
   return record(data) && data.schema_version === 1 && data.session_key === sessionKey && nullableString(data.updated_at)
     && (data.goal === null || (record(data.goal) && string(data.goal.objective) && string(data.goal.status)
@@ -46,6 +75,7 @@ function validSnapshot(data: unknown, sessionKey: string): data is SessionWorkbe
       && (row.is_global === undefined || typeof row.is_global === "boolean"))
     && rows(data.skills, (row) => string(row.name) && string(row.source) && string(row.status) && ["available", "always_loaded", "used"].includes(row.status))
     && rows(data.mcp, (row) => string(row.name) && string(row.status) && count(row.calls) && nullableCount(row.successes) && nullableCount(row.failures))
+    && knowledge(data.knowledge)
     && Array.isArray(data.limitations) && data.limitations.every(string);
 }
 

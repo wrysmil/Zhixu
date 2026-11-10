@@ -2292,6 +2292,18 @@ function Shell({
     setMobileSidebarOpen(false);
   }, [navigate]);
 
+  const onOpenKnowledge = useCallback(() => {
+    setSessionSearchOpen(false);
+    navigate({ view: "knowledge", activeKey: null, settingsSection: "overview" });
+    setMobileSidebarOpen(false);
+  }, [navigate]);
+
+  const onOpenKnowledgeEval = useCallback(() => {
+    setSessionSearchOpen(false);
+    navigate({ view: "knowledge-eval", activeKey: null, settingsSection: "overview" });
+    setMobileSidebarOpen(false);
+  }, [navigate]);
+
   const onDraftSeedConsumed = useCallback(() => {
     setComposerDraftSeed(null);
   }, []);
@@ -2880,6 +2892,8 @@ function Shell({
     onOpenCreative,
     onOpenMemory,
     onOpenIdentity,
+    onOpenKnowledge,
+    onOpenKnowledgeEval,
     onOpenSettings,
     onOpenApps,
     onOpenAutomations,
@@ -3134,6 +3148,7 @@ function Shell({
                             onTeamChange={onTeamChange}
                             settingsSnapshot={settingsSnapshot}
                             onOpenModelSettings={onOpenModelSettings}
+                            onOpenKnowledge={onOpenKnowledge}
                             skills={skills}
                             draftSeed={composerDraftSeed}
                             onDraftSeedConsumed={onDraftSeedConsumed}
@@ -3195,6 +3210,7 @@ function Shell({
                           }}
                           settingsSnapshot={settingsSnapshot}
                           onOpenModelSettings={onOpenModelSettings}
+                          onOpenKnowledge={onOpenKnowledge}
                           skills={skills}
                           subagentExecutionEventsCapability={subagentExecutionEventsCapability}
                         />

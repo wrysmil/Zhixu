@@ -65,6 +65,8 @@ interface SidebarProps {
   onOpenTeams: () => void;
   onOpenMemory: () => void;
   onOpenIdentity: () => void;
+  onOpenKnowledge: () => void;
+  onOpenKnowledgeEval: () => void;
   onOpenSearch: () => void;
   onSettingsIntent?: () => void;
   onToggleArchived: () => void;
@@ -163,6 +165,12 @@ export function Sidebar(props: SidebarProps) {
             break;
           case "identity":
             props.onOpenIdentity();
+            break;
+          case "knowledge":
+            props.onOpenKnowledge();
+            break;
+          case "knowledge-eval":
+            props.onOpenKnowledgeEval();
             break;
           default:
             break;

@@ -87,6 +87,57 @@ export function WorkbenchCapabilities({ snapshot }: { snapshot: SessionWorkbench
   </>;
 }
 
+export function WorkbenchKnowledge({ knowledge, onOpenKnowledge }: {
+  knowledge?: SessionWorkbenchSnapshot["knowledge"]; onOpenKnowledge?: () => void;
+}) {
+  const text = useWorkbenchText();
+  const calls = knowledge?.calls ?? 0;
+  const reads = knowledge?.reads ?? 0;
+  const sources = knowledge?.sources ?? [];
+  const queries = knowledge?.queries ?? [];
+  const empty = knowledge?.empty ?? 0;
+  const failed = knowledge?.failed ?? 0;
+  return <WorkbenchSection title={text("知识库", "Knowledge base")} count={sources.length} defaultOpen>
+    <div className="space-y-2.5">
+      <p className="text-[11px] leading-4 text-muted-foreground">
+        {text(
+          `本会话检索 ${calls} 次 · 扩读 ${reads} 次 · 命中 ${sources.length} 个片段`,
+          `${calls} searches · ${reads} reads · ${sources.length} snippets`,
+        )}
+      </p>
+      {(empty > 0 || failed > 0) && <p className="text-[10px] text-muted-foreground">
+        {text(`空结果 ${empty} 次 · 失败 ${failed} 次`, `Empty ${empty} · Failed ${failed}`)}
+      </p>}
+      {queries.length > 0 && <div>
+        <p className="mb-1 text-[10px] text-muted-foreground">{text("最近查询", "Recent queries")}</p>
+        <ul className="flex flex-wrap gap-1">
+          {queries.map((query) => <li key={query} title={query}
+            className="max-w-full truncate rounded border border-border/55 bg-background/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            {query}
+          </li>)}
+        </ul>
+      </div>}
+      {sources.length > 0 ? <ul className="space-y-1.5">
+        {sources.map((source) => {
+          const detail = [
+            source.kb,
+            source.page ? text(`第 ${source.page} 页`, `p.${source.page}`) : "",
+            source.heading,
+          ].filter(Boolean).join(" · ");
+          return <li key={source.chunk_id} className="rounded-md border border-border/45 bg-background/55 px-2.5 py-2">
+            <p className="truncate text-[11px] font-medium" title={source.title}>{source.title}</p>
+            {detail && <p className="mt-0.5 truncate text-[10px] text-muted-foreground" title={detail}>{detail}</p>}
+          </li>;
+        })}
+      </ul> : <WorkbenchEmpty>{text("本会话还没有命中知识库内容。", "No knowledge snippets retrieved in this session.")}</WorkbenchEmpty>}
+      {onOpenKnowledge && <button type="button" onClick={onOpenKnowledge}
+        className="rounded border border-border bg-background px-2 py-1 text-[11px] hover:bg-muted">
+        {text("打开知识库", "Open knowledge base")}
+      </button>}
+    </div>
+  </WorkbenchSection>;
+}
+
 export function WorkbenchLimitations({ limitations }: { limitations: string[] }) {
   const text = useWorkbenchText();
   const messages: Record<string, string> = {
