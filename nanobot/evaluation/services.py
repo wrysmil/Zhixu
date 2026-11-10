@@ -18,6 +18,7 @@ import asyncio
 import contextlib
 import hashlib
 import json
+import logging
 import sys
 import time
 import uuid
@@ -26,6 +27,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from pydantic import ValidationError
 
 from nanobot.config.paths import get_workspace_path
 from nanobot.evaluation.assessment import assess
@@ -52,6 +55,13 @@ from nanobot.evaluation.graders.calibration import (
 from nanobot.evaluation.graders.judge import JudgeResult
 from nanobot.evaluation.graders.rules import evaluate_rules
 from nanobot.evaluation.graders.verdict import derive_verdict, judge_state_of
+from nanobot.evaluation.knowledge.metrics import METRIC_IDS, METRIC_SPECS
+from nanobot.evaluation.knowledge.models import (
+    ALLOWED_RETRIEVAL_FIELDS,
+    KnowledgeEvalDatasetCreate,
+    KnowledgeEvalDatasetPatch,
+    KnowledgeEvalRunCreate,
+)
 from nanobot.evaluation.memory.datasets import MemoryDatasetError
 from nanobot.evaluation.memory.experiments import (
     MemoryBudgetExceeded,
@@ -107,6 +117,8 @@ from nanobot.evaluation.worker import (
 )
 
 WORKER_MODULE = "nanobot.evaluation.worker"
+
+logger = logging.getLogger(__name__)
 
 
 def _null_sink(raw: bytes) -> None:
@@ -231,6 +243,64 @@ def _memory_comparison_engine() -> Any | None:
     return getattr(comparisons, "compare_memory_experiments", None)
 
 
+# ---------------------------------------------------------------- 知识专项常量（WU-08）
+
+#: 知识评测运行的终态集合：终态运行不可再取消（重复取消返回 200）。
+_KNOWLEDGE_TERMINAL_RUN_STATUSES = frozenset(
+    {"completed", "cancelled", "failed", "interrupted"}
+)
+
+#: 判定「退化」时逐题比较的指标：命中、召回、首个命中名次。
+_KNOWLEDGE_REGRESSION_METRICS: tuple[str, ...] = ("hit_at_k", "recall_at_k", "mrr")
+
+#: 知识域未配置时写进运行 ``error`` 的码前缀。
+_KNOWLEDGE_CONFIG_UNAVAILABLE = "KNOWLEDGE_CONFIG_UNAVAILABLE"
+
+#: 判定 provider 不可用时写进运行 ``error`` 的码前缀。
+_KNOWLEDGE_CAPABILITY_REQUIRED = "KNOWLEDGE_CAPABILITY_REQUIRED"
+
+
+def _knowledge_validate(model: type[Any], payload: Mapping[str, Any]) -> Any:
+    """按严格模型解析知识评测请求体。
+
+    字段级错误回 ``VALIDATION_ERROR``（只回字段路径，不回 pydantic 堆栈）——
+    与 :func:`nanobot.evaluation.server._json_body` 的口径一致。
+    """
+    try:
+        return model.model_validate(dict(payload))
+    except ValidationError as exc:
+        fields = sorted(
+            ".".join(str(part) for part in item["loc"]) for item in exc.errors()
+        )
+        raise ServiceError("VALIDATION_ERROR", ", ".join(fields) or "body") from exc
+
+
+def _reject_unknown_retrieval_fields(payload: Mapping[str, Any]) -> None:
+    """检索参数白名单：不在白名单内的字段一律 422，**不静默忽略**。
+
+    检查必须发生在模型校验**之前**：检索配置模型 ``extra="forbid"``，未知字段会先
+    被拒成通用的 ``VALIDATION_ERROR``，那样前端分不清「参数写错了」与
+    「这个参数知识域不支持」。
+    """
+    configs = payload.get("configs")
+    if not isinstance(configs, (list, tuple)):
+        return
+    for entry in configs:
+        if not isinstance(entry, Mapping):
+            continue
+        overrides = entry.get("overrides")
+        if not isinstance(overrides, Mapping):
+            continue
+        unknown = sorted(
+            str(key) for key in overrides if str(key) not in ALLOWED_RETRIEVAL_FIELDS
+        )
+        if unknown:
+            raise ServiceError(
+                "KNOWLEDGE_CONFIG_UNSUPPORTED",
+                f"检索参数不在白名单：{', '.join(unknown)}",
+            )
+
+
 def _effective_candidate(snapshot: Mapping[str, Any]) -> Mapping[str, Any] | None:
     """从子 run 的冻结快照里取生效候选（契约 §1「轨道与生效候选」）。
 
@@ -312,6 +382,7 @@ class EvaluationService:
         memory_unit_prices: MemoryUnitPrice | None = None,
         memory_clock: Any = None,
         memory_capabilities: Any = None,
+        knowledge_judge_provider: Any | None = None,
     ) -> None:
         self._repository = repository
         self._data_dir = Path(data_dir)
@@ -342,6 +413,14 @@ class EvaluationService:
             memory_capabilities = ZhixuMemoryAdapter.configured_capabilities()
         self._memory_capabilities = memory_capabilities
         self._memory_coordinator: Any = None
+        # 知识检索专项（WU-08）：仓储惰性装配；判定 provider 可注入（测试与离线用），
+        # 注入优先于运行时配置。
+        self._knowledge_repository: Any = None
+        self._knowledge_judge_provider = knowledge_judge_provider
+        self._knowledge_runtime_provider: Any = None
+        self._knowledge_runtime_provider_config: Any = None
+        self._knowledge_runners: dict[str, Any] = {}
+        self._knowledge_tasks: set[asyncio.Task[None]] = set()
 
     # ------------------------------------------------------------------ 配置
 
@@ -2961,6 +3040,454 @@ class EvaluationService:
         metric_ids.update(str(metric.get("id")) for metric in graded.get("metrics") or [])
         if str(reference.metric_id) not in metric_ids:
             raise ServiceError("MEMORY_EVIDENCE_INVALID", "metric_id")
+
+    # -------------------------------------------------------------- 知识检索专项
+
+    @property
+    def knowledge_repository(self) -> Any:
+        """知识评测仓储（惰性）：与评估库同一个 evaluation.db 文件。"""
+        if self._knowledge_repository is None:
+            from nanobot.evaluation.knowledge.repository import KnowledgeEvalRepository
+
+            self._knowledge_repository = KnowledgeEvalRepository(self.memory_database)
+        return self._knowledge_repository
+
+    # ------------------------------------------------------------------ 能力
+
+    def knowledge_service_for(self, config: Any | None) -> Any:
+        """按 ``config.knowledge`` 取知识服务；没有配置或构造失败 → ``None``。
+
+        知识评测与产品**共用同一份检索配置**（repo / embedder / vector），
+        因此这里走 ``get_knowledge_service`` 的进程级单例，不另建一套索引。
+        """
+        knowledge = getattr(config, "knowledge", None) if config is not None else None
+        if knowledge is None:
+            return None
+        try:
+            from nanobot.knowledge.service import get_knowledge_service
+
+            return get_knowledge_service(knowledge)
+        except Exception as exc:  # noqa: BLE001 - 知识域不可用不等于内部错误
+            logger.warning("knowledge_service_unavailable error=%s", exc)
+            return None
+
+    def knowledge_judge_provider_for(
+        self, config: Any | None, *, profile: Any = None
+    ) -> tuple[Any, str, str]:
+        """取判定 provider：返回 ``(provider, 来源, 模型)``；不可用时 provider 为 ``None``。
+
+        取值顺序：注入的 provider → 运行时配置构造的 provider → 不可用。
+        「受控」档案没有真实 provider（它是离线回放脚本），此时直接判为不可用，
+        不拿运行时 provider 冒充——否则报告里的判定模型会与档案对不上。
+        """
+        if self._knowledge_judge_provider is not None:
+            provider = self._knowledge_judge_provider
+            return provider, "injected", self._knowledge_model_of(provider)
+        if profile is not None and str(getattr(profile, "provider", "")) == "controlled":
+            return None, "unavailable", str(getattr(profile, "model", "") or "")
+        if config is None:
+            return None, "unavailable", ""
+        if (
+            self._knowledge_runtime_provider is not None
+            and self._knowledge_runtime_provider_config is config
+        ):
+            provider = self._knowledge_runtime_provider
+            return provider, "runtime", self._knowledge_model_of(provider)
+        try:
+            from nanobot.providers.factory import make_provider
+
+            provider = make_provider(config)
+        except Exception as exc:  # noqa: BLE001 - 没有可用 LLM provider 是常态
+            logger.warning("knowledge_judge_provider_unavailable error=%s", exc)
+            return None, "unavailable", ""
+        self._knowledge_runtime_provider = provider
+        self._knowledge_runtime_provider_config = config
+        return provider, "runtime", self._knowledge_model_of(provider)
+
+    @staticmethod
+    def _knowledge_model_of(provider: Any) -> str:
+        getter = getattr(provider, "get_default_model", None)
+        if callable(getter):
+            try:
+                model = getter()
+            except Exception:  # noqa: BLE001 - 取不到模型名不算失败
+                model = ""
+            if isinstance(model, str) and model:
+                return model
+        return ""
+
+    def knowledge_capabilities(self, config: Any | None = None) -> dict[str, Any]:
+        """能力视图：有没有知识域配置、看得见哪些知识库、有哪些判定档案。"""
+        knowledge = getattr(config, "knowledge", None) if config is not None else None
+        profiles = self._knowledge_profiles(config)
+        if knowledge is None:
+            return {"enabled": False, "kbs": [], "profiles": profiles, "reason": "NO_CONFIG"}
+        if self.knowledge_service_for(config) is None:
+            return {
+                "enabled": False,
+                "kbs": [],
+                "profiles": profiles,
+                "reason": "KNOWLEDGE_CONFIG_UNAVAILABLE",
+            }
+        kbs: list[dict[str, Any]] = []
+        try:
+            service = self.knowledge_service_for(config)
+            for kb in service.list_kbs(workspace_ids=["default"], include_global=True):
+                kbs.append(
+                    {
+                        "id": str(kb.id),
+                        "name": str(kb.name),
+                        "workspace_id": str(kb.workspace_id),
+                        "visibility": str(kb.visibility),
+                    }
+                )
+        except Exception as exc:  # noqa: BLE001 - 列表读失败不该让能力视图 500
+            logger.warning("knowledge_capabilities_list_kbs_failed error=%s", exc)
+            kbs = []
+        return {"enabled": True, "kbs": kbs, "profiles": profiles, "reason": None}
+
+    def _knowledge_profiles(self, config: Any | None) -> list[dict[str, Any]]:
+        provider, _source, _model = self.knowledge_judge_provider_for(config)
+        items: list[dict[str, Any]] = []
+        for profile in self.profiles:
+            if profile.kind != "judge":
+                continue
+            items.append(
+                {
+                    "id": profile.id,
+                    "label": profile.label,
+                    "provider": profile.provider,
+                    "model": profile.model,
+                    "kind": profile.kind,
+                    "available": provider is not None,
+                }
+            )
+        return items
+
+    # ------------------------------------------------------------------ 数据集
+
+    def knowledge_create_dataset(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        """建数据集；``label_source`` 由服务端推导（客户端传的不作数）。"""
+        body = _knowledge_validate(KnowledgeEvalDatasetCreate, payload)
+        try:
+            return self.knowledge_repository.create_dataset(
+                name=body.name, notes=body.notes, cases=body.cases
+            )
+        except Exception as exc:  # noqa: BLE001 - 仓储错误统一带码上抛
+            raise self._knowledge_error(exc) from exc
+
+    def knowledge_list_datasets(self) -> list[dict[str, Any]]:
+        return self.knowledge_repository.list_datasets()
+
+    def knowledge_get_dataset(self, dataset_id: str) -> dict[str, Any]:
+        dataset = self.knowledge_repository.get_dataset(str(dataset_id))
+        if dataset is None:
+            raise ServiceError(
+                "KNOWLEDGE_DATASET_NOT_FOUND", f"知识评测数据集不存在：{dataset_id}"
+            )
+        return dataset
+
+    def knowledge_update_dataset(
+        self, dataset_id: str, payload: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """改数据集；``base_revision`` 与库内版本不符 → 409 乐观锁冲突。"""
+        body = _knowledge_validate(KnowledgeEvalDatasetPatch, payload)
+        try:
+            return self.knowledge_repository.update_dataset(
+                str(dataset_id),
+                base_revision=body.base_revision,
+                name=body.name,
+                notes=body.notes,
+                cases=body.cases,
+            )
+        except Exception as exc:  # noqa: BLE001 - 仓储错误统一带码上抛
+            raise self._knowledge_error(exc) from exc
+
+    def knowledge_delete_dataset(self, dataset_id: str) -> dict[str, Any]:
+        """删数据集（幂等）；名下仍有未结束的运行时拒绝删除。"""
+        active = [
+            run
+            for run in self.knowledge_repository.list_runs(str(dataset_id))
+            if str(run.get("status")) in {"queued", "running"}
+        ]
+        if active:
+            raise ServiceError(
+                "KNOWLEDGE_DATASET_NOT_EMPTY",
+                f"数据集仍有 {len(active)} 个未结束的运行",
+            )
+        self.knowledge_repository.delete_dataset(str(dataset_id))
+        return {"id": str(dataset_id), "deleted": True}
+
+    # ------------------------------------------------------------------ 运行
+
+    def knowledge_create_run(
+        self, payload: Mapping[str, Any], *, config: Any | None = None
+    ) -> dict[str, Any]:
+        """登记一次运行并入队：**请求内不执行检索**。"""
+        _reject_unknown_retrieval_fields(payload)
+        body = _knowledge_validate(KnowledgeEvalRunCreate, payload)
+        dataset = self.knowledge_repository.get_dataset(body.dataset_id)
+        if dataset is None:
+            raise ServiceError(
+                "KNOWLEDGE_DATASET_NOT_FOUND", f"知识评测数据集不存在：{body.dataset_id}"
+            )
+        cases = list(dataset.get("cases") or [])
+        if not cases:
+            raise ServiceError("VALIDATION_ERROR", "数据集没有用例，无法发起运行")
+        if len(cases) > body.budgets.max_queries:
+            raise ServiceError(
+                "KNOWLEDGE_BUDGET_EXCEEDED",
+                f"查询数 {len(cases)} 超过 max_queries={body.budgets.max_queries}",
+            )
+        profile = None
+        if body.judge_profile_id:
+            profile = self._profiles.get(body.judge_profile_id)
+            if profile is None:
+                raise ServiceError(
+                    "PROFILE_NOT_FOUND", f"判定档案不存在：{body.judge_profile_id}"
+                )
+            if profile.kind != "judge":
+                raise ServiceError(
+                    "KNOWLEDGE_CAPABILITY_REQUIRED",
+                    f"档案 {body.judge_profile_id} 不是判定档案",
+                )
+        provider, source, model = self.knowledge_judge_provider_for(config, profile=profile)
+        judge_config = {
+            "profile_id": body.judge_profile_id or "",
+            "model": model,
+            "provider_source": source,
+            "available": provider is not None,
+        }
+        try:
+            run = self.knowledge_repository.create_run(
+                dataset_id=body.dataset_id,
+                configs=[entry.model_dump(mode="json") for entry in body.configs],
+                judge_config=judge_config,
+                budgets=body.budgets.model_dump(mode="json"),
+            )
+        except Exception as exc:  # noqa: BLE001 - 仓储错误统一带码上抛
+            raise self._knowledge_error(exc) from exc
+        self._knowledge_schedule_run(str(run["id"]), config=config)
+        return run
+
+    def knowledge_list_runs(self, dataset_id: str | None = None) -> list[dict[str, Any]]:
+        return self.knowledge_repository.list_runs(dataset_id)
+
+    def knowledge_get_run(self, run_id: str) -> dict[str, Any]:
+        run = self.knowledge_repository.get_run(str(run_id))
+        if run is None:
+            raise ServiceError(
+                "KNOWLEDGE_RUN_NOT_FOUND", f"知识评测运行不存在：{run_id}"
+            )
+        return run
+
+    def knowledge_run_report(self, run_id: str) -> dict[str, Any]:
+        """运行详情 + **聚合段** + **逐题段**（两段缺一不可）。"""
+        try:
+            return self.knowledge_repository.get_run_report(str(run_id))
+        except Exception as exc:  # noqa: BLE001 - 仓储错误统一带码上抛
+            raise self._knowledge_error(exc) from exc
+
+    async def knowledge_cancel_run(self, run_id: str) -> tuple[dict[str, Any], bool]:
+        """置取消位；终态运行重复取消返回 ``(详情, False)``。"""
+        run = self.knowledge_get_run(run_id)
+        if str(run.get("status")) in _KNOWLEDGE_TERMINAL_RUN_STATUSES:
+            return run, False
+        runner = self._knowledge_runners.get(str(run_id))
+        if runner is None:
+            # 还没起跑（仍在队列里）：直接落终态，不留悬空的 queued 运行。
+            self.knowledge_repository.finish_run(
+                str(run_id),
+                status="cancelled",
+                metrics=run.get("metrics") or {},
+                error="CANCELLED",
+            )
+        else:
+            await runner.cancel(str(run_id))
+        latest = self.knowledge_repository.get_run(str(run_id)) or run
+        return latest, True
+
+    def knowledge_compare(self, base_id: str, candidate_id: str) -> dict[str, Any]:
+        """两次运行对比：逐指标差 + **退化查询清单**。"""
+        base = self.knowledge_run_report(base_id)
+        candidate = self.knowledge_run_report(candidate_id)
+        base_groups = dict(base.get("metrics") or {})
+        candidate_groups = dict(candidate.get("metrics") or {})
+        rows: list[dict[str, Any]] = []
+        for label_source in sorted(set(base_groups) | set(candidate_groups)):
+            base_metrics = dict(
+                (base_groups.get(label_source) or {}).get("metrics") or {}
+            )
+            candidate_metrics = dict(
+                (candidate_groups.get(label_source) or {}).get("metrics") or {}
+            )
+            for metric_id in METRIC_IDS:
+                base_value = base_metrics.get(metric_id)
+                candidate_value = candidate_metrics.get(metric_id)
+                delta: float | None = None
+                if isinstance(base_value, (int, float)) and isinstance(
+                    candidate_value, (int, float)
+                ):
+                    delta = float(candidate_value) - float(base_value)
+                spec = METRIC_SPECS.get(metric_id)
+                rows.append(
+                    {
+                        "label_source": label_source,
+                        "metricId": metric_id,
+                        "label": spec.label if spec is not None else metric_id,
+                        "direction": spec.direction if spec is not None else "",
+                        "base": base_value,
+                        "candidate": candidate_value,
+                        "delta": delta,
+                    }
+                )
+        regressions = self._knowledge_regressions(
+            list(base.get("results") or []), list(candidate.get("results") or [])
+        )
+        return {
+            "base": self._knowledge_run_head(base),
+            "candidate": self._knowledge_run_head(candidate),
+            "metrics": rows,
+            "regressions": regressions,
+            "regression_count": len(regressions),
+        }
+
+    @staticmethod
+    def _knowledge_run_head(run: Mapping[str, Any]) -> dict[str, Any]:
+        pool = run.get("pool") if isinstance(run.get("pool"), Mapping) else {}
+        return {
+            "id": str(run.get("id") or ""),
+            "status": str(run.get("status") or ""),
+            "dataset_id": str(run.get("dataset_id") or ""),
+            "created_at": run.get("created_at"),
+            "finished_at": run.get("finished_at"),
+            "degraded": list(pool.get("degraded") or []),
+        }
+
+    @staticmethod
+    def _knowledge_regressions(
+        base_results: Sequence[Mapping[str, Any]],
+        candidate_results: Sequence[Mapping[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """退化清单：候选配置下命中/召回/名次变差的用例。"""
+        base_index = {
+            str(item.get("case_id")): dict(item.get("metrics") or {})
+            for item in base_results
+        }
+        candidate_index = {
+            str(item.get("case_id")): dict(item.get("metrics") or {})
+            for item in candidate_results
+        }
+        rows: list[dict[str, Any]] = []
+        for case_id in sorted(set(base_index) & set(candidate_index)):
+            base_metrics = base_index[case_id]
+            candidate_metrics = candidate_index[case_id]
+            for metric_id in _KNOWLEDGE_REGRESSION_METRICS:
+                base_value = base_metrics.get(metric_id)
+                candidate_value = candidate_metrics.get(metric_id)
+                if not isinstance(base_value, (int, float)) or not isinstance(
+                    candidate_value, (int, float)
+                ):
+                    # 缺证据（None）不是「变差」：不补 0，也不进退化清单。
+                    continue
+                if float(candidate_value) >= float(base_value):
+                    continue
+                raw_case, _, config_id = case_id.partition("::")
+                rows.append(
+                    {
+                        "case_id": raw_case or case_id,
+                        "config_id": config_id,
+                        "metricId": metric_id,
+                        "base": float(base_value),
+                        "candidate": float(candidate_value),
+                        "delta": float(candidate_value) - float(base_value),
+                    }
+                )
+        return rows
+
+    # ------------------------------------------------------------------ 编排
+
+    def _knowledge_schedule_run(self, run_id: str, *, config: Any | None) -> None:
+        """把运行交给后台 asyncio 任务：请求内绝不检索。
+
+        知识域未配置 / 判定 provider 不可用时，**运行显式落 failed** 并写明原因，
+        不让运行静默停在 queued，也不假装跑完了。
+        """
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:  # pragma: no cover - 没有事件循环时无处调度
+            return
+        service = self.knowledge_service_for(config)
+        provider, _source, model = self.knowledge_judge_provider_for(config)
+        run = self.knowledge_repository.get_run(run_id) or {}
+        dataset = (
+            self.knowledge_repository.get_dataset(str(run.get("dataset_id") or "")) or {}
+        )
+        cases = list(dataset.get("cases") or [])
+        judge_needed = any(
+            str(case.get("label_source") or "") == "judge" for case in cases
+        )
+        if service is None:
+            self.knowledge_repository.finish_run(
+                run_id,
+                status="failed",
+                metrics={},
+                error=f"{_KNOWLEDGE_CONFIG_UNAVAILABLE}: 未配置知识服务，无法执行检索",
+            )
+            return
+        if judge_needed and provider is None:
+            self.knowledge_repository.finish_run(
+                run_id,
+                status="failed",
+                metrics={},
+                error=(
+                    f"{_KNOWLEDGE_CAPABILITY_REQUIRED}: "
+                    "判定 provider 不可用，judge 标注来源无法判分"
+                ),
+            )
+            return
+        from nanobot.evaluation.knowledge.runner import KnowledgeEvalRunner
+
+        runner = KnowledgeEvalRunner(
+            repository=self.knowledge_repository,
+            knowledge_service=service,
+            provider=provider,
+            model=model or None,
+        )
+        self._knowledge_runners[run_id] = runner
+        task = asyncio.create_task(
+            self._knowledge_run(run_id, runner), name=f"knowledge-eval-{run_id}"
+        )
+        self._knowledge_tasks.add(task)
+
+        def _cleanup(finished: asyncio.Task[None]) -> None:
+            self._knowledge_tasks.discard(finished)
+            self._knowledge_runners.pop(run_id, None)
+
+        task.add_done_callback(_cleanup)
+
+    async def _knowledge_run(self, run_id: str, runner: Any) -> None:
+        try:
+            await runner.run(run_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - 失败原因只留在 error 字段
+            logger.warning("knowledge_eval_run_failed run=%s error=%s", run_id, exc)
+            with contextlib.suppress(Exception):
+                self.knowledge_repository.finish_run(
+                    run_id,
+                    status="failed",
+                    metrics={},
+                    error=f"RUNNER_ERROR: {type(exc).__name__}",
+                )
+
+    @staticmethod
+    def _knowledge_error(exc: BaseException) -> ServiceError:
+        """仓储异常 → 带契约码的服务错误（未知异常一律 500，不 4xx 化）。"""
+        code = getattr(exc, "code", None)
+        if isinstance(code, str) and code in ERROR_STATUS:
+            return ServiceError(code, str(exc))
+        return ServiceError("INTERNAL_ERROR", "")
 
     # -------------------------------------------------------------- 记忆辅助
 

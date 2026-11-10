@@ -285,6 +285,27 @@ def _scope(request: web.Request) -> str:
     return getattr(session, "user", "local-user")
 
 
+async def _json_object(request: web.Request) -> dict[str, Any]:
+    """解析请求体为 JSON 对象（**不做模型校验**）。
+
+    知识评测的检索参数白名单检查必须**先于**模型校验：模型 ``extra="forbid"``
+    会把未知字段先拒成通用的 ``VALIDATION_ERROR``，前端就分不清「参数写错了」
+    与「这个参数知识域不支持」。
+    """
+    if request.content_length and request.content_length > MAX_BODY_BYTES:
+        _fail("PAYLOAD_TOO_LARGE", f"请求体上限 {MAX_BODY_BYTES} 字节")
+    raw = await request.read()
+    if len(raw) > MAX_BODY_BYTES:
+        _fail("PAYLOAD_TOO_LARGE", f"请求体上限 {MAX_BODY_BYTES} 字节")
+    try:
+        body = await request.json() if raw else {}
+    except ValueError as exc:
+        _fail("VALIDATION_ERROR", "请求体不是合法 JSON", exc)
+    if not isinstance(body, dict):
+        _fail("VALIDATION_ERROR", "请求体必须是 JSON 对象")
+    return body
+
+
 # --------------------------------------------------------------------------- 路由
 
 
@@ -943,6 +964,10 @@ def create_app(
         # 先确保专项库到了当前版本：启动路径不假定「别人已经迁移过」。
         service.memory_database.init_schema()
         service.memory_experiment_coordinator().resume_all()
+        # 知识检索专项（WU-08）：先把专项库推进到当前版本，再回收上次进程留下的
+        # ``running`` 运行——它们没有执行器了，留着会让报告永远停在「进行中」。
+        service.knowledge_repository.init_schema()
+        service.knowledge_repository.mark_interrupted_runs()
         try:
             yield
         finally:
