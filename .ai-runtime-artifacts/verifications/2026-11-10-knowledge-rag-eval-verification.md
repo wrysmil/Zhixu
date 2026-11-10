@@ -151,3 +151,30 @@ E2E 脚本（未入库，属一次性验证脚本）：`.tmp-eval-instance/e2e-e
 
 修复后同一条浏览器路径复跑通过（上面的表格即为修复后的结果）。
 
+## 9. 布局调整：列表 / 详情两级（用户反馈）
+
+**反馈**：一屏把概览卡、口径表、逐题表、三个分区全铺开太长；参照知识库页（列表 → 详情）拆成两级。
+
+**改动**（`8ccad73`）：
+
+- **列表页**：只保留 `数据集 / 运行 / 对比` 三个分区；运行行改成「查看报告」按钮。
+- **详情页**：面包屑（← 检索评测台 / 运行 id）+ 运行头部卡（状态、配置数、完成时间、刷新）
+  + 概览卡（5 指标 + 公式行 + 降级徽标）+ 逐题表 + **折叠的**指标口径区（`<details>`）。
+- 发起运行后自动进详情；从详情返回落回原分区（与知识库页一致）。
+- 新增文案键 `eval.action.viewReport`、`eval.detail.title`（10 语言）。
+
+**验证**：
+
+| 项 | 结果 |
+| --- | --- |
+| `npx vitest run src/tests/knowledge-eval-page.test.tsx` | 7 passed（新增「列表页不含详情内容」「详情可作为第二页打开并返回」两条断言） |
+| `npx vitest run`（page + api + i18n） | 47 passed |
+| `npx tsc -p tsconfig.build.json --noEmit` / `npx vite build` | 通过 |
+| 浏览器（msedge）| 列表页无概览/逐题/口径 → 建集 → 发起运行自动进详情 → 出指标（准确率 0.125 / 召回率 1 / 命中率 1 / MRR 1 / nDCG 1，已评分）→ 展开口径表 → 返回落回运行分区 → 切对比分区正常；控制台仅 401 探测 |
+
+证据：`verifications/knowledge-rag-eval/split-{01-list,03-detail,04-guide}.png`、`split-summary.json`。
+
+> 该轮运行显示「降级运行 · vector_unavailable」：网关进程内向量后端当时不可用（本机 hf-mirror 连不上时的
+> 既有现象），检索退化为关键词通道，指标仍是有效的——降级徽标正是为这种情况存在的。
+
+
