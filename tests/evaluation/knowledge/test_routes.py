@@ -84,6 +84,25 @@ def test_knowledge_default_prefix_matches_shared_api_prefix() -> None:
     assert KNOWLEDGE_API_PREFIX == API_PREFIX == PREFIX
 
 
+async def test_cors_preflight_allows_delete_on_knowledge_datasets(tmp_path: Path) -> None:
+    """删数据集是浏览器直连的 DELETE：预检不放行，前端就永远删不掉（真实踩过）。"""
+    app = _build_app(tmp_path, allowed_origins=frozenset({"http://127.0.0.1:8765"}))
+    async with TestClient(TestServer(app, host="127.0.0.1")) as client:
+        response = await client.options(
+            f"{PREFIX}/knowledge/datasets/abc",
+            headers={
+                "Origin": "http://127.0.0.1:8765",
+                "Access-Control-Request-Method": "DELETE",
+            },
+        )
+    assert response.status == 204
+    methods = {
+        method.strip()
+        for method in response.headers["Access-Control-Allow-Methods"].split(",")
+    }
+    assert "DELETE" in methods
+
+
 def test_knowledge_routes_do_not_shadow_existing_routes() -> None:
     """同一 (method, path) 只能挂一次；重复会让 aiohttp 静默选第一条。"""
     knowledge = {(route.method, route.path) for route in knowledge_route_defs(PREFIX)}
@@ -109,6 +128,14 @@ def test_knowledge_handlers_are_real_implementations() -> None:
 @pytest.fixture
 def app(tmp_path: Path) -> Any:
     """真应用（起调度器生命周期）；装配写在本文件里，不改共享 conftest。"""
+    return _build_app(tmp_path)
+
+
+def _build_app(
+    tmp_path: Path,
+    *,
+    allowed_origins: frozenset[str] = frozenset(),
+) -> Any:
     from nanobot.evaluation.auth import AuthConfig
     from nanobot.evaluation.database import EvaluationDatabase
     from nanobot.evaluation.repository import EvaluationRepository
@@ -128,7 +155,7 @@ def app(tmp_path: Path) -> Any:
         auth_config=AuthConfig(
             passphrase=PASSPHRASE,
             allowed_hosts=frozenset({"127.0.0.1", "localhost"}),
-            allowed_origins=frozenset(),
+            allowed_origins=allowed_origins,
         ),
         scheduler_config=SchedulerConfig(
             data_dir=root, concurrency=1, poll_interval_s=0.05

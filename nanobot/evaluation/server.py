@@ -117,7 +117,8 @@ def _cors_middleware(
                 status=204,
                 headers={
                     **_cors_headers(origin),
-                    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+                    # 知识评测的 DELETE（删数据集）也走浏览器直连，预检必须放行。
+                    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
                     "Access-Control-Allow-Headers": (
                         request.headers.get("Access-Control-Request-Headers")
                         or "Content-Type, X-CSRF-Token, Idempotency-Key"
