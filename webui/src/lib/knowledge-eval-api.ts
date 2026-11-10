@@ -123,6 +123,8 @@ export interface KnowledgeEvalRun {
   budgets: Record<string, unknown>;
   metrics: KnowledgeEvalMetricGroup[];
   progress: Record<string, unknown>;
+  /** 降级原因：非空即「降级运行」，与正常运行的指标不得直接对比。 */
+  degraded: string[];
   error: string | null;
   createdAt: string | null;
   finishedAt: string | null;
@@ -146,6 +148,11 @@ export interface KnowledgeEvalReport {
 /** 逐指标对比。 */
 export interface KnowledgeEvalComparisonMetric {
   metricId: string;
+  /** 标注来源分组：后端按 `label_source` 分组给出，跨组不混算。 */
+  labelSource?: string;
+  /** 指标展示名（后端随行下发，不另找来源）。 */
+  label?: string;
+  direction?: string;
   base: number | null;
   candidate: number | null;
   delta: number | null;
@@ -154,7 +161,12 @@ export interface KnowledgeEvalComparisonMetric {
 /** 退化查询（候选侧比基线差）。 */
 export interface KnowledgeEvalRegression {
   caseId: string;
+  configId?: string;
+  metricId?: string;
   reason: string;
+  base?: number | null;
+  candidate?: number | null;
+  delta?: number | null;
   metrics: KnowledgeEvalMetrics;
 }
 
@@ -461,6 +473,7 @@ function normalizeFlatMetrics(raw: unknown): KnowledgeEvalMetrics {
 
 export function normalizeKnowledgeRun(raw: unknown): KnowledgeEvalRun {
   const record = asRecord(raw);
+  const pool = asRecord(record.pool);
   return {
     id: pickString(record, "id"),
     datasetId: pickString(record, "dataset_id", "datasetId"),
@@ -470,6 +483,8 @@ export function normalizeKnowledgeRun(raw: unknown): KnowledgeEvalRun {
     budgets: asRecord(record.budgets),
     metrics: normalizeMetricGroups(record.metrics),
     progress: asRecord(record.progress),
+    // 降级原因落在运行的 `pool` 字段里（后端 runner 落库）。
+    degraded: pickStringArray(pool, "degraded"),
     error: pickNullableString(record, "error"),
     createdAt: pickNullableString(record, "created_at", "createdAt"),
     finishedAt: pickNullableString(record, "finished_at", "finishedAt"),
@@ -493,8 +508,14 @@ function normalizeComparisonMetric(
 ): KnowledgeEvalComparisonMetric {
   if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
     const record = asRecord(raw);
+    const labelSource = pickString(record, "label_source", "labelSource");
+    const label = pickString(record, "label");
+    const direction = pickString(record, "direction");
     return {
       metricId,
+      ...(labelSource ? { labelSource } : {}),
+      ...(label ? { label } : {}),
+      ...(direction ? { direction } : {}),
       base: pickNumber(record, "base", "base_value", "baseValue"),
       candidate: pickNumber(record, "candidate", "candidate_value", "candidateValue"),
       delta: pickNumber(record, "delta", "diff", "difference"),
@@ -506,6 +527,40 @@ function normalizeComparisonMetric(
     base: null,
     candidate: null,
     delta: pickNumber(asRecord({ value: raw }), "value"),
+  };
+}
+
+/** 运行摘要：后端在对比响应里给的是对象（`{id, status, ...}`），不是字符串。 */
+function pickRunId(raw: unknown, ...keys: string[]): string {
+  const record = asRecord(raw);
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value) return value;
+    if (value !== null && typeof value === "object") {
+      const id = pickString(asRecord(value), "id");
+      if (id) return id;
+    }
+  }
+  return "";
+}
+
+function normalizeRegression(raw: unknown): KnowledgeEvalRegression {
+  const entry = asRecord(raw);
+  const metricId = pickString(entry, "metricId", "metric_id");
+  const configId = pickString(entry, "config_id", "configId");
+  const delta = pickNumber(entry, "delta", "diff", "difference");
+  const caseId = pickString(entry, "case_id", "caseId");
+  const parts = [metricId, configId].filter(Boolean);
+  return {
+    caseId,
+    ...(configId ? { configId } : {}),
+    ...(metricId ? { metricId } : {}),
+    // 后端退化行给的是「哪个指标退化了 + 差多少」，不是一整套指标。
+    reason: pickString(entry, "reason") || parts.join(" · "),
+    base: pickNumber(entry, "base", "base_value", "baseValue"),
+    candidate: pickNumber(entry, "candidate", "candidate_value", "candidateValue"),
+    delta,
+    metrics: normalizeKnowledgeMetrics(entry.metrics),
   };
 }
 
@@ -532,19 +587,15 @@ export function normalizeKnowledgeComparison(raw: unknown): KnowledgeEvalCompari
   }
 
   const regressedCases: KnowledgeEvalRegression[] = asArray(
-    record.regressed ?? record.regressed_cases ?? record.regressedCases,
-  ).map((item) => {
-    const entry = asRecord(item);
-    return {
-      caseId: pickString(entry, "case_id", "caseId"),
-      reason: pickString(entry, "reason"),
-      metrics: normalizeKnowledgeMetrics(entry.metrics),
-    };
-  });
+    record.regressions
+      ?? record.regressed
+      ?? record.regressed_cases
+      ?? record.regressedCases,
+  ).map(normalizeRegression);
 
   return {
-    baseRunId: pickString(record, "base_run_id", "baseRunId", "base"),
-    candidateRunId: pickString(
+    baseRunId: pickRunId(record, "base_run_id", "baseRunId", "base"),
+    candidateRunId: pickRunId(
       record,
       "candidate_run_id",
       "candidateRunId",
