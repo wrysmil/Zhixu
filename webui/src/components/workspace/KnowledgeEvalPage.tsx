@@ -98,6 +98,10 @@ export function KnowledgeEvalPage() {
   }, [loadAll]);
 
   // 选中运行 → 拉报告（聚合段 + 逐题段）。
+  // 依赖里带 `selectedRunStatus`：轮询把 queued/running 翻成终态时要重新拉一次，
+  // 否则发起运行后页面会一直停在「还没有逐题结果」。
+  const selectedRunStatus =
+    runs.find((run) => run.id === selectedRunId)?.status ?? null;
   useEffect(() => {
     if (!selectedRunId) {
       setReport(null);
@@ -116,7 +120,7 @@ export function KnowledgeEvalPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedRunId]);
+  }, [selectedRunId, selectedRunStatus]);
 
   // 有未结束的运行时轮询运行列表；全部终态后停表。
   useEffect(() => {
