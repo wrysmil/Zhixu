@@ -1,0 +1,26 @@
+知识精排接真实 cross-encoder 实机证据（2026-11-10）
+
+模型：BAAI/bge-reranker-base（本地 sentence-transformers，CPU），配置 knowledge.rerank.backend=local
+
+同一查询「回滚流程怎么执行」，知识库《青鸾发布手册》（5 个分块）：
+
+不精排（rerank=no_model）
+  0.979  ## 备份策略      ← top1 答非所问
+  0.964  ## 值班交接
+  0.962  # 青鸾发布手册
+
+开精排（rerank=ok）
+  0.836  ## 生产回滚流程  ← top1 正确
+  0.815  ## 备份策略
+  0.693  ## 值班交接
+  0.689  # 青鸾发布手册
+  0.698  ## 产品代号
+
+WebUI 会话实测（工具调用 knowledge_search）：
+  参数 {"query": "回滚流程怎么执行 生产回滚步骤", "mode": "hybrid", "limit": 10,
+        "rewrite_query": "知序生产回滚流程 执行步骤 发布回滚", "intent": "kb_search"}
+  结果头 mode="hybrid" mode_used="hybrid" routes="vector,keyword" rerank="ok" degraded=""
+  hit1 0.837 chunk://chk_ae56bd 青鸾发布手册 > 生产回滚流程
+
+说明：模型缓存在 HF 缓存（~/.cache/huggingface，约 1.1GB）；gateway 常驻进程内只加载一次，
+CLI 每次调用会重新加载（首次约 15s）。测试知识库与会话已删除，配置保留为开。

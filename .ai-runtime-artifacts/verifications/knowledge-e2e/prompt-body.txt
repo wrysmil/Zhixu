@@ -1,0 +1,133 @@
+ZhiXu~
+助手
+智能体
+记忆
+应用
+知识库
+检索评测台
+技能
+定时
+团队
+身份
+收起侧边栏
+新聊天
+搜索
+项目
+使用说明
+Brief Interrupted Chat
+Cursor使用规范
+暂无聊天
+高德打车电子发票
+初次见面打招呼
+话题
+新建话题
+知序
+项目验证与中文
+请用 write_file 工具把这条记忆写到…
+请记住：知序 WebUI 实机验证的临时约定—…
+初次问候与交流
+请记住一条临时测试记忆：【删除测试】临时口令 …
+请记住一条临时测试记忆：【删除测试】临时口令 … · 2
+请记住我的两条长期约定：我的项目代码规范是先读…
+请记住我的两条长期约定：我的项目代码规范是先读… · 2
+改码前阅读和中文提交规范
+简单问候
+新建话题 · 2
+你说少了什么
+问我一个问题,随便问一个
+打招呼
+问我一个问题,随便问一个 · 2
+问我一些问题
+帮我找下网上有关Ai的一些新闻
+派子Agent总结spawn.py作用
+新建话题 · 10/9
+新建话题 · 9/30
+新建话题 · 9/30 · 2
+你好，只回复两个字：好的
+打招呼 · 2
+请用 spawn 工具派一个子 Agent 去…
+请用 spawn 工具派一个子 Agent 去… · 2
+记录我喜欢游泳的偏好
+聊天记忆回顾
+查询项目使用的框架
+创作方向咨询
+你好互动
+上下文记忆工具说明
+问候聊天
+Waiting for clarification
+初次打招呼
+问好
+打招呼聊天
+收起
+
+知序的回滚流程分几步？负责人是谁？
+
+13:51
+已处理 7秒
+已思考
+The user asks about the rollback process for 知序 (Zhixu) — how many steps and who's responsible. Memory shows there's a knowledge base with 《青鸾发布手册》 containing "生产回滚流程". Let me use knowledgesearch to retrieve. Also memorysearch might help. Let me do both in parallel. Note: the user's memory notes say they prefer spawn for file reading tasks, but the AGENT.md says knowledge first for internal docs. Let me useknowledgesearch first.
+查看详情
+检索知识库
+已检索知识库 “生产回滚流程 步骤 负责人”
+查看详情
+检索记忆
+已检索记忆 “回滚流程 负责人 步骤 发布手册”
+查看详情
+扩读知识
+已扩读原文 doc://d…181e7
+查看详情
+已思考
+Let me read the doc to get more context (constraints like backups, failure handling).
+查看详情
+
+三步，负责人是墨白。
+
+依据《青鸾发布手册》(知序桌面版内部发布代号「青鸾」)的「生产回滚流程」章节：
+
+冻结写入 — 停止所有写流量，并确认队列已排空
+切回上一个稳定版本 — 等待健康检查通过
+数据一致性校验并解除冻结
+
+配套约束：
+
+三步按顺序执行，任何一步失败立即停止并通知发布负责人，不得跳步继续
+回滚开始后每 15 分钟在应急群同步一次进展
+回滚前必须确认最近一次全量备份可用（每日 02:00 全量、每 30 分钟增量、保留 14 天），回滚完成后补做一次全量备份
+发布窗口固定每周三 21:00–23:00，节假日顺延
+
+（来源：知识库文档 doc://doc_1119f1e181e7「青鸾发布手册」）
+
+13:51
+工作台
+更新于 13:51
+进展
+记忆
+能力
+16
+
+最近进展
+
+三步，负责人是墨白。 依据《青鸾发布手册》(知序桌面版内部发布代号「青鸾」)的「生产回滚流程」章节： 1. 冻结写入 — 停止所有写流量，并确认队列已排空 2. 切回上一个稳定版本 — 等待健康检查通过 3. 数据一致性校验并解除冻结 配套约束： 三步按顺序执行，任何一步失败立即…
+
+任务清单
+0
+
+还没有记录任务。Agent 更新计划后会显示在这里。
+
+当前计划
+子 Agent
+0
+
+当前会话没有子 Agent 执行记录。
+
+数据来源与统计范围
+环境信息
+产出
+0
+来源
+0
+选择项目
+此计算机
+完全访问权限
+知序指挥官
+MiniMax-M3.2
