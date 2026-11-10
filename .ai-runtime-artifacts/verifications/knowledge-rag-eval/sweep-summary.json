@@ -1,0 +1,44 @@
+{
+  "steps": [
+    {
+      "step": "create-dataset",
+      "ok": true
+    },
+    {
+      "step": "clear-expect-to-judge",
+      "ok": true
+    },
+    {
+      "step": "restore-expect",
+      "ok": true
+    },
+    {
+      "step": "run-1",
+      "ok": true
+    },
+    {
+      "step": "run-2",
+      "ok": true
+    },
+    {
+      "step": "compare",
+      "ok": true
+    },
+    {
+      "step": "cancel",
+      "ok": true,
+      "result": "clicked"
+    },
+    {
+      "step": "privacy-confirm-shown",
+      "ok": true
+    },
+    {
+      "step": "delete-datasets",
+      "ok": true
+    }
+  ],
+  "errors": [
+    "console: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+}

@@ -204,5 +204,40 @@ E2E 脚本（未入库，属一次性验证脚本）：`.tmp-eval-instance/e2e-e
 顺手修的语义问题：手册右上角关闭按钮原本与底部按钮同为「知道了」，屏幕阅读器无法区分，
 改为复用 `knowledge.close`（关闭）。
 
+## 11. 全功能巡检（2026-11-10，用户问「各个功能都正常吗」）
+
+不是只看单测，按用户路径在浏览器里逐项跑了一遍（`browser-sweep.cjs`，9 步全过）：
+
+| # | 功能 | 结果 |
+| --- | --- | --- |
+| 1 | 数据集：表单新建（两条查询 + 期望关键词） | ✅ |
+| 2 | 数据集：清空某条期望关键词 → 该行切「模型判定」 | ✅（逐行断言） |
+| 3 | 数据集：恢复期望关键词 → 回到「关键词标注」 | ✅ |
+| 4 | 运行：发起 → 自动进详情 → 出 5 指标与逐题 | ✅ |
+| 5 | 运行：改 `rrf_k=60` 再跑一次 | ✅ |
+| 6 | 对比：选两次运行 → 逐指标差 + 退化查询区 | ✅ |
+| 7 | 运行：取消按钮可点 | ✅ |
+| 8 | 隐私门禁：模型判定用例发起运行必须先弹确认，取消不发 | ✅ |
+| 9 | 数据集：删除（两个） | ✅ 修复后通过，见下 |
+
+### 巡检抓到并修掉的第 3 个缺陷
+
+| 缺陷 | 影响 | 修复 |
+| --- | --- | --- |
+| CORS 预检 `Access-Control-Allow-Methods` 缺 `DELETE` | 浏览器删数据集被直接拦掉（`Method DELETE is not allowed by Access-Control-Allow-Methods`），前端表现为「点了没反应」 | 补 `DELETE`（`7634671`），并加 `test_cors_preflight_allows_delete_on_knowledge_datasets` 回归测试 |
+
+> 知识评测是评测平台里**唯一**用 `DELETE` 的模块（记忆专项没有），所以这个缺口此前没暴露。
+
+### 测试面
+
+| 项 | 结果 |
+| --- | --- |
+| `pytest tests/evaluation/knowledge` | **183 passed**（含新增预检测试） |
+| `npx vitest run`（全量 167 文件） | 3 个文件失败：`appearance-boot`（3 例，基线同样失败）+ `thread-composer`/`thread-shell` 各 1 例（并行抖动，隔离复跑 179 passed） |
+| `npx tsc` / `npx vite build` | 通过 |
+
+证据：`verifications/knowledge-rag-eval/sweep-{01-dataset,04-compare,05-privacy}.png`、`sweep-summary.json`。
+
+
 
 
