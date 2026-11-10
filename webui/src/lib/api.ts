@@ -1824,13 +1824,24 @@ export async function fetchKnowledgeStats(
   );
   const num = (value: unknown): number =>
     typeof value === "number" && Number.isFinite(value) ? value : 0;
+  // 后端 `stats.vector` 是对象（status/backend/model/ok_docs/failed_docs/pending_docs）；
+  // 统计卡要的是「成功向量化的文档数」，取 ok_docs。裸数字是旧口径，继续兼容。
+  const vectorCount = (value: unknown): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (value && typeof value === "object") {
+      const source = value as { ok_docs?: unknown; okDocs?: unknown };
+      const okDocs = source.ok_docs ?? source.okDocs;
+      if (typeof okDocs === "number" && Number.isFinite(okDocs)) return okDocs;
+    }
+    return null;
+  };
   return {
     enabled: payload.enabled !== false,
     kbs: num(payload.kbs),
     documents: num(payload.documents),
     chunks: num(payload.chunks),
     pending: num(payload.pending),
-    vector: typeof payload.vector === "number" ? payload.vector : null,
+    vector: vectorCount(payload.vector),
     byStatus: (payload.by_status ?? payload.byStatus) as Record<string, number> | undefined,
     drift: typeof payload.drift === "number" ? payload.drift : null,
     expiredLeases: num(payload.expired_leases ?? payload.expiredLeases),
