@@ -24,14 +24,8 @@ export function KnowledgeEvalMetricGuide({ specs }: KnowledgeEvalMetricGuideProp
   };
 
   return (
-    <section
-      data-testid="knowledge-eval-metric-guide"
-      className="mt-4 rounded-panel border border-border/60 bg-background p-4"
-    >
-      <h2 className="text-[13px] font-semibold text-foreground">
-        {t("knowledge.eval.guide.title")}
-      </h2>
-      <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
+    <section data-testid="knowledge-eval-metric-guide" className="px-4 pb-4">
+      <p className="text-[11.5px] leading-relaxed text-muted-foreground">
         {t("knowledge.eval.guide.subtitle")}
       </p>
 

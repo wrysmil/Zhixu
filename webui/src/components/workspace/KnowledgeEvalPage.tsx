@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Loader2, RefreshCcw } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Loader2, RefreshCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { PageHeading } from "@/components/workspace/PageHeading";
@@ -58,6 +58,8 @@ export function KnowledgeEvalPage() {
   const [baseRunId, setBaseRunId] = useState("");
   const [candidateRunId, setCandidateRunId] = useState("");
   const [section, setSection] = useState<Section>("datasets");
+  /** 两级结构（对齐知识库页）：列表页管数据与运行，点某个运行才进报告详情。 */
+  const [detailOpen, setDetailOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -97,13 +99,13 @@ export function KnowledgeEvalPage() {
     void loadAll();
   }, [loadAll]);
 
-  // 选中运行 → 拉报告（聚合段 + 逐题段）。
+  // 详情页才拉报告（聚合段 + 逐题段）。
   // 依赖里带 `selectedRunStatus`：轮询把 queued/running 翻成终态时要重新拉一次，
-  // 否则发起运行后页面会一直停在「还没有逐题结果」。
+  // 否则发起运行后详情页会一直停在「还没有逐题结果」。
   const selectedRunStatus =
     runs.find((run) => run.id === selectedRunId)?.status ?? null;
   useEffect(() => {
-    if (!selectedRunId) {
+    if (!detailOpen || !selectedRunId) {
       setReport(null);
       return;
     }
@@ -120,7 +122,7 @@ export function KnowledgeEvalPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedRunId, selectedRunStatus]);
+  }, [detailOpen, selectedRunId, selectedRunStatus]);
 
   // 有未结束的运行时轮询运行列表；全部终态后停表。
   useEffect(() => {
@@ -222,6 +224,8 @@ export function KnowledgeEvalPage() {
         const created = await knowledgeEvalApi.createRun(input);
         await loadAll();
         setSelectedRunId(created.id);
+        // 发起后直接进报告详情：轮询会把 queued/running 翻成终态并重取报告。
+        setDetailOpen(true);
       });
     },
     [loadAll, runAction],
@@ -268,28 +272,30 @@ export function KnowledgeEvalPage() {
 
   return (
     <div className="assistant-page flex h-full flex-col" data-testid="knowledge-eval-page">
-      <PageHeading
-        kicker={t("knowledge.eval.kicker")}
-        title={t("knowledge.eval.title")}
-        description={t("knowledge.eval.subtitle")}
-        actions={
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            onClick={() => void loadAll()}
-            className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
-          >
-            {loading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
-            )}
-            {t("knowledge.eval.action.refresh")}
-          </Button>
-        }
-      />
+      {detailOpen ? null : (
+        <PageHeading
+          kicker={t("knowledge.eval.kicker")}
+          title={t("knowledge.eval.title")}
+          description={t("knowledge.eval.subtitle")}
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loading}
+              onClick={() => void loadAll()}
+              className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
+            >
+              {loading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
+              )}
+              {t("knowledge.eval.action.refresh")}
+            </Button>
+          }
+        />
+      )}
 
       {loadError ? (
         <div
@@ -309,71 +315,140 @@ export function KnowledgeEvalPage() {
         </div>
       ) : null}
 
-      <KnowledgeEvalOverview
-        groups={report?.groups ?? []}
-        degraded={selectedRun?.degraded ?? []}
-        specs={metricSpecs}
-        loading={loading}
-      />
-
-      <KnowledgeEvalMetricGuide specs={metricSpecs} />
-
-      <KnowledgeEvalCaseResults report={report} loading={loading} queries={queriesByCaseId} />
-
-      <div role="tablist" className="mt-4 flex gap-1 border-b border-border/60">
-        {sections.map((item) => (
+      {detailOpen ? (
+        <div className="flex min-w-0 items-center gap-2 pt-1 text-[11px] text-muted-foreground">
           <button
-            key={item.key}
             type="button"
-            role="tab"
-            aria-selected={section === item.key}
-            onClick={() => setSection(item.key)}
-            className={
-              section === item.key
-                ? "-mb-px inline-flex cursor-pointer items-center border-b-2 border-primary px-3 py-2 text-[12px] font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                : "-mb-px inline-flex cursor-pointer items-center border-b-2 border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            }
+            onClick={() => {
+              setDetailOpen(false);
+              setReport(null);
+            }}
+            className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {item.label}
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+            {t("knowledge.eval.title")}
           </button>
-        ))}
-      </div>
+          <span aria-hidden>/</span>
+          <span className="truncate text-foreground">
+            {selectedRun?.id ?? t("knowledge.eval.detail.title")}
+          </span>
+        </div>
+      ) : null}
 
-      <div hidden={section !== "datasets"}>
-        <KnowledgeEvalDatasets
-          datasets={datasets}
-          busy={busy}
-          onCreate={onCreateDataset}
-          onDelete={onDeleteDataset}
-          onUpdateCases={onUpdateCases}
-        />
-      </div>
+      {detailOpen && selectedRun ? (
+        <>
+          <section
+            data-testid="knowledge-eval-run-header"
+            className="mt-3 flex flex-wrap items-center gap-2 rounded-panel border border-border/60 bg-gradient-to-br from-muted/25 to-background p-4"
+          >
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-[15px] font-semibold text-foreground">
+                {t("knowledge.eval.detail.title")}
+              </h2>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted-foreground">
+                <span className="rounded-full bg-muted/60 px-1.5 py-0.5">{selectedRun.status}</span>
+                <span className="font-mono">{selectedRun.id}</span>
+                <span className="tabular-nums">
+                  {t("knowledge.eval.run.configCount", { count: selectedRun.configs.length })}
+                </span>
+                {selectedRun.finishedAt ? (
+                  <span className="tabular-nums">{selectedRun.finishedAt.slice(0, 19)}</span>
+                ) : null}
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loading}
+              onClick={() => void loadAll()}
+              className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
+            >
+              {loading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
+              )}
+              {t("knowledge.eval.action.refresh")}
+            </Button>
+          </section>
 
-      <div hidden={section !== "runs"}>
-        <KnowledgeEvalRuns
-          runs={runs}
-          datasets={datasets}
-          selectedRunId={selectedRunId}
-          busy={busy}
-          onSelectRun={setSelectedRunId}
-          onCancelRun={onCancelRun}
-          onStartRun={onStartRun}
-        />
-      </div>
+          <KnowledgeEvalOverview
+            groups={report?.groups ?? []}
+            degraded={selectedRun.degraded}
+            specs={metricSpecs}
+            loading={loading}
+          />
 
-      <div hidden={section !== "compare"}>
-        <KnowledgeEvalCompare
-          runs={runs}
-          baseRunId={baseRunId}
-          candidateRunId={candidateRunId}
-          comparison={comparison}
-          busy={busy}
-          onChangeBase={setBaseRunId}
-          onChangeCandidate={setCandidateRunId}
-          onCompare={() => void onCompare()}
-          queries={queriesByCaseId}
-        />
-      </div>
+          <KnowledgeEvalCaseResults report={report} loading={loading} queries={queriesByCaseId} />
+
+          <details className="mt-4 rounded-panel border border-border/60 bg-background">
+            <summary className="cursor-pointer px-4 py-3 text-[12.5px] font-semibold text-foreground">
+              {t("knowledge.eval.guide.title")}
+            </summary>
+            <KnowledgeEvalMetricGuide specs={metricSpecs} />
+          </details>
+        </>
+      ) : (
+        <>
+          <div role="tablist" className="mt-4 flex gap-1 border-b border-border/60">
+            {sections.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-selected={section === item.key}
+                onClick={() => setSection(item.key)}
+                className={
+                  section === item.key
+                    ? "-mb-px inline-flex cursor-pointer items-center border-b-2 border-primary px-3 py-2 text-[12px] font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    : "-mb-px inline-flex cursor-pointer items-center border-b-2 border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                }
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div hidden={section !== "datasets"}>
+            <KnowledgeEvalDatasets
+              datasets={datasets}
+              busy={busy}
+              onCreate={onCreateDataset}
+              onDelete={onDeleteDataset}
+              onUpdateCases={onUpdateCases}
+            />
+          </div>
+
+          <div hidden={section !== "runs"}>
+            <KnowledgeEvalRuns
+              runs={runs}
+              datasets={datasets}
+              busy={busy}
+              onOpenRun={(runId) => {
+                setSelectedRunId(runId);
+                setDetailOpen(true);
+              }}
+              onCancelRun={onCancelRun}
+              onStartRun={onStartRun}
+            />
+          </div>
+
+          <div hidden={section !== "compare"}>
+            <KnowledgeEvalCompare
+              runs={runs}
+              baseRunId={baseRunId}
+              candidateRunId={candidateRunId}
+              comparison={comparison}
+              busy={busy}
+              onChangeBase={setBaseRunId}
+              onChangeCandidate={setCandidateRunId}
+              onCompare={() => void onCompare()}
+              queries={queriesByCaseId}
+            />
+          </div>
+        </>
+      )}
 
       {pendingRun ? (
         <div

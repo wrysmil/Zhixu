@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { KnowledgeEvalPage } from "@/components/workspace/KnowledgeEvalPage";
@@ -197,30 +198,66 @@ describe("KnowledgeEvalPage", () => {
     });
   });
 
-  it("renders the overview, guide, per-case table and the three sections", async () => {
+  async function openReport(user: ReturnType<typeof userEvent.setup>) {
+    await waitFor(() => {
+      expect(screen.getByTestId("knowledge-eval-runs")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("tab", { name: i18n.t("knowledge.eval.tab.runs") }));
+    await user.click(
+      await screen.findByRole("button", { name: i18n.t("knowledge.eval.action.viewReport") }),
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("knowledge-eval-run-header")).toBeInTheDocument();
+    });
+  }
+
+  it("keeps the list page to datasets / runs / compare", async () => {
     render(<KnowledgeEvalPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("knowledge-eval-overview")).toBeInTheDocument();
+      expect(screen.getByTestId("knowledge-eval-datasets")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("knowledge-eval-metric-guide")).toBeInTheDocument();
-    expect(screen.getByTestId("knowledge-eval-case-results")).toBeInTheDocument();
-    expect(screen.getByTestId("knowledge-eval-datasets")).toBeInTheDocument();
     expect(screen.getByTestId("knowledge-eval-runs")).toBeInTheDocument();
     expect(screen.getByTestId("knowledge-eval-compare")).toBeInTheDocument();
+    // 两级结构：列表页不再铺概览卡、逐题表与口径区。
+    expect(screen.queryByTestId("knowledge-eval-overview")).toBeNull();
+    expect(screen.queryByTestId("knowledge-eval-case-results")).toBeNull();
+    expect(screen.queryByTestId("knowledge-eval-metric-guide")).toBeNull();
+  });
+
+  it("opens a run report as a second page", async () => {
+    const user = userEvent.setup();
+    render(<KnowledgeEvalPage />);
+
+    await openReport(user);
+
+    expect(screen.getByTestId("knowledge-eval-overview")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-eval-case-results")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-eval-metric-guide")).toBeInTheDocument();
+    // 详情页不再显示列表的分区。
+    expect(screen.queryByTestId("knowledge-eval-datasets")).toBeNull();
+
+    await user.click(
+      screen.getByRole("button", { name: new RegExp(i18n.t("knowledge.eval.title")) }),
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("knowledge-eval-datasets")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("knowledge-eval-overview")).toBeNull();
   });
 
   it("shows the metric formulas delivered by the backend", async () => {
+    const user = userEvent.setup();
     render(<KnowledgeEvalPage />);
 
-    await waitFor(() => {
-      expect(screen.getByTestId("knowledge-eval-metric-guide")).toBeInTheDocument();
-    });
+    await openReport(user);
+
     // 公式串只能来自 GET /knowledge/metrics——组件里不得内置。
+    // 同一公式会在概览卡与口径表各出现一次。
     await waitFor(() => {
-      expect(screen.getByText("相关块数(top-k) ÷ k")).toBeInTheDocument();
+      expect(screen.getAllByText("相关块数(top-k) ÷ k").length).toBeGreaterThan(0);
     });
-    expect(screen.getByText("相关块数(top-k) ÷ 相关块数(pool)")).toBeInTheDocument();
+    expect(screen.getAllByText("相关块数(top-k) ÷ 相关块数(pool)").length).toBeGreaterThan(0);
   });
 
   it("marks unscored cases as not scored instead of zero", async () => {
@@ -245,12 +282,11 @@ describe("KnowledgeEvalPage", () => {
         }),
       ],
     });
-
+    const user = userEvent.setup();
     render(<KnowledgeEvalPage />);
 
-    await waitFor(() => {
-      expect(screen.getByTestId("knowledge-eval-case-results")).toBeInTheDocument();
-    });
+    await openReport(user);
+
     await waitFor(() => {
       expect(screen.getByText(i18n.t("knowledge.eval.result.notScored"))).toBeInTheDocument();
     });
@@ -258,11 +294,11 @@ describe("KnowledgeEvalPage", () => {
 
   it("flags a degraded run", async () => {
     api.listRuns.mockResolvedValue([{ ...RUN, degraded: ["vector_store_unavailable"] }]);
-
+    const user = userEvent.setup();
     render(<KnowledgeEvalPage />);
 
-    await waitFor(() => {
-      expect(screen.getByTestId("knowledge-eval-degraded-badge")).toBeInTheDocument();
-    });
+    await openReport(user);
+
+    expect(screen.getByTestId("knowledge-eval-degraded-badge")).toBeInTheDocument();
   });
 });

@@ -3785,7 +3785,8 @@
         "cancel": "Cancel",
         "compare": "Compare",
         "confirm": "Start anyway",
-        "refresh": "Refresh"
+        "refresh": "Refresh",
+        "viewReport": "View report"
       },
       "dataset": {
         "name": "Dataset name",
@@ -3830,6 +3831,9 @@
       "error": {
         "load": "Failed to load",
         "action": "Action failed"
+      },
+      "detail": {
+        "title": "Run report"
       }
     }
   }

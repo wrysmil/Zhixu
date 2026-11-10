@@ -3785,7 +3785,8 @@
         "cancel": "Annuler",
         "compare": "Comparer",
         "confirm": "Lancer quand même",
-        "refresh": "Actualiser"
+        "refresh": "Actualiser",
+        "viewReport": "Voir le rapport"
       },
       "dataset": {
         "name": "Nom du jeu de données",
@@ -3830,6 +3831,9 @@
       "error": {
         "load": "Échec du chargement",
         "action": "Échec de l'action"
+      },
+      "detail": {
+        "title": "Rapport d'exécution"
       }
     }
   }

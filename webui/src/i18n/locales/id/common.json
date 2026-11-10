@@ -3785,7 +3785,8 @@
         "cancel": "Batal",
         "compare": "Bandingkan",
         "confirm": "Jalankan saja",
-        "refresh": "Muat ulang"
+        "refresh": "Muat ulang",
+        "viewReport": "Lihat laporan"
       },
       "dataset": {
         "name": "Nama himpunan data",
@@ -3830,6 +3831,9 @@
       "error": {
         "load": "Gagal memuat",
         "action": "Tindakan gagal"
+      },
+      "detail": {
+        "title": "Laporan eksekusi"
       }
     }
   }

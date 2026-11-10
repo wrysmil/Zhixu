@@ -3785,7 +3785,8 @@
         "cancel": "取消",
         "compare": "对比",
         "confirm": "仍然发起",
-        "refresh": "刷新"
+        "refresh": "刷新",
+        "viewReport": "查看报告"
       },
       "dataset": {
         "name": "数据集名称",
@@ -3830,6 +3831,9 @@
       "error": {
         "load": "加载失败",
         "action": "操作失败"
+      },
+      "detail": {
+        "title": "运行报告"
       }
     }
   }

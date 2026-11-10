@@ -3785,7 +3785,8 @@
         "cancel": "Cancelar",
         "compare": "Comparar",
         "confirm": "Iniciar mesmo assim",
-        "refresh": "Atualizar"
+        "refresh": "Atualizar",
+        "viewReport": "Ver relatório"
       },
       "dataset": {
         "name": "Nome do conjunto de dados",
@@ -3830,6 +3831,9 @@
       "error": {
         "load": "Falha ao carregar",
         "action": "A ação falhou"
+      },
+      "detail": {
+        "title": "Relatório da execução"
       }
     }
   }

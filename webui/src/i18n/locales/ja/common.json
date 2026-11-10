@@ -3785,7 +3785,8 @@
         "cancel": "キャンセル",
         "compare": "比較",
         "confirm": "このまま実行",
-        "refresh": "再読み込み"
+        "refresh": "再読み込み",
+        "viewReport": "レポートを見る"
       },
       "dataset": {
         "name": "データセット名",
@@ -3830,6 +3831,9 @@
       "error": {
         "load": "読み込みに失敗しました",
         "action": "操作に失敗しました"
+      },
+      "detail": {
+        "title": "実行レポート"
       }
     }
   }

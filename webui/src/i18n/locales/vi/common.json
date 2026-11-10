@@ -3785,7 +3785,8 @@
         "cancel": "Huỷ",
         "compare": "So sánh",
         "confirm": "Vẫn chạy",
-        "refresh": "Tải lại"
+        "refresh": "Tải lại",
+        "viewReport": "Xem báo cáo"
       },
       "dataset": {
         "name": "Tên bộ dữ liệu",
@@ -3830,6 +3831,9 @@
       "error": {
         "load": "Không tải được",
         "action": "Thao tác thất bại"
+      },
+      "detail": {
+        "title": "Báo cáo lần chạy"
       }
     }
   }

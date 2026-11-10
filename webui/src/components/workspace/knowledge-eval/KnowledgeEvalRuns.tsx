@@ -15,9 +15,8 @@ import { cn } from "@/lib/utils";
 interface KnowledgeEvalRunsProps {
   runs: KnowledgeEvalRun[];
   datasets: KnowledgeEvalDataset[];
-  selectedRunId: string | null;
   busy: boolean;
-  onSelectRun: (runId: string) => void;
+  onOpenRun: (runId: string) => void;
   onCancelRun: (runId: string) => void;
   onStartRun: (input: {
     dataset_id: string;
@@ -68,9 +67,8 @@ function numericOrUndefined(value: string): number | undefined {
 export function KnowledgeEvalRuns({
   runs,
   datasets,
-  selectedRunId,
   busy,
-  onSelectRun,
+  onOpenRun,
   onCancelRun,
   onStartRun,
 }: KnowledgeEvalRunsProps) {
@@ -252,55 +250,61 @@ export function KnowledgeEvalRuns({
         </div>
       ) : (
         <ul className="mt-3 flex flex-col gap-2">
-          {runs.map((run) => {
-            const active = run.id === selectedRunId;
-            return (
-              <li
-                key={run.id}
-                data-testid={`knowledge-eval-run-${run.id}`}
-                className={cn(
-                  "flex flex-wrap items-center gap-2 rounded-control border px-3 py-2",
-                  active
-                    ? "border-primary/35 bg-primary/[0.05]"
-                    : "border-border/60 bg-background",
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={() => onSelectRun(run.id)}
-                  className="min-w-0 flex-1 cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span className="block truncate text-[12.5px] font-medium text-foreground">
-                    {run.id}
+          {runs.map((run) => (
+            <li
+              key={run.id}
+              data-testid={`knowledge-eval-run-${run.id}`}
+              className="flex flex-wrap items-center gap-2 rounded-control border border-border/60 bg-background px-3 py-2 transition-colors hover:bg-muted/30"
+            >
+              <div className="min-w-0 flex-1">
+                <span className="block truncate text-[12.5px] font-medium text-foreground">
+                  {run.id}
+                </span>
+                <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted-foreground">
+                  <span className={cn(
+                    "rounded-full px-1.5 py-0.5",
+                    run.status === "completed"
+                      ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                      : run.status === "failed"
+                        ? "bg-destructive/10 text-destructive"
+                        : "bg-muted/60",
+                  )}>
+                    {run.status}
                   </span>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted-foreground">
-                    <span className="rounded-full bg-muted/60 px-1.5 py-0.5">{run.status}</span>
-                    <span className="tabular-nums">
-                      {t("knowledge.eval.run.configCount", { count: run.configs.length })}
+                  <span className="tabular-nums">
+                    {t("knowledge.eval.run.configCount", { count: run.configs.length })}
+                  </span>
+                  {run.degraded.length > 0 ? (
+                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                      {t("knowledge.eval.badge.degraded")}
                     </span>
-                    {run.degraded.length > 0 ? (
-                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-                        {t("knowledge.eval.badge.degraded")}
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-                {run.status === "queued" || run.status === "running" ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => onCancelRun(run.id)}
-                    className="h-7 gap-1 rounded-full px-2.5 text-[11px]"
-                  >
-                    <Square className="h-3 w-3" aria-hidden />
-                    {t("knowledge.eval.action.cancel")}
-                  </Button>
-                ) : null}
-              </li>
-            );
-          })}
+                  ) : null}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onOpenRun(run.id)}
+                className="h-7 shrink-0 rounded-full px-3 text-[11px]"
+              >
+                {t("knowledge.eval.action.viewReport")}
+              </Button>
+              {run.status === "queued" || run.status === "running" ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => onCancelRun(run.id)}
+                  className="h-7 gap-1 rounded-full px-2.5 text-[11px]"
+                >
+                  <Square className="h-3 w-3" aria-hidden />
+                  {t("knowledge.eval.action.cancel")}
+                </Button>
+              ) : null}
+            </li>
+          ))}
         </ul>
       )}
     </section>

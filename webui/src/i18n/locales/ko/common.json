@@ -3785,7 +3785,8 @@
         "cancel": "취소",
         "compare": "비교",
         "confirm": "그대로 실행",
-        "refresh": "새로고침"
+        "refresh": "새로고침",
+        "viewReport": "보고서 보기"
       },
       "dataset": {
         "name": "데이터셋 이름",
@@ -3830,6 +3831,9 @@
       "error": {
         "load": "불러오지 못했습니다",
         "action": "작업이 실패했습니다"
+      },
+      "detail": {
+        "title": "실행 보고서"
       }
     }
   }

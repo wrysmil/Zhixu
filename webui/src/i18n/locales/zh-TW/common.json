@@ -3785,7 +3785,8 @@
         "cancel": "取消",
         "compare": "比較",
         "confirm": "仍要發起",
-        "refresh": "重新整理"
+        "refresh": "重新整理",
+        "viewReport": "檢視報告"
       },
       "dataset": {
         "name": "資料集名稱",
@@ -3830,6 +3831,9 @@
       "error": {
         "load": "載入失敗",
         "action": "操作失敗"
+      },
+      "detail": {
+        "title": "執行報告"
       }
     }
   }
