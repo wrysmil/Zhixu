@@ -67,6 +67,26 @@ OK
 
 代码块正好在块尾闭合，表格完整落在下一块内，四块均 ≤300（末块 140）。
 
+## WebUI 全流程实机（2026-11-10 晚）
+
+隔离实例：WebUI `127.0.0.1:8766` / health `8767`（独立配置目录，未影响 18790/8765 上的既有 gateway）。
+
+| 步骤 | 结果 |
+| --- | --- |
+| 新建知识库 | UI 创建「E2E 全流程测试」成功 |
+| 入库 | `e2e-rollback.md`（1101 字符）→ ready，6 块，`norm1:tok2:chunk1`，`vector_status=ok` |
+| 分块预览 | 代码块 8 行完整落在 `chk_ebd526cc5afbe235`；表格完整落在 `chk_44503a15d2a15b07` |
+| 检索预览 | 「线上版本出问题了怎么回滚」→ hybrid / vector+keyword / 6 条，top1 回滚流程 0.838 |
+| 检索模式 | keyword「kubectl rollout undo」命中常用命令；semantic 命中回滚流程；hybrid「退款多久到账」命中退款说明 |
+| 聊天 | Agent 调用知识检索并引用 `doc://doc_65498c275bf7` 与 3 个 `chunk://` 句柄，答案覆盖回滚 6 步 |
+
+证据：`knowledge-e2e/webui-fullflow-summary.json`。
+
+**测试中发现的两个问题（均非本轮后端改动引入）**：
+
+1. 知识概览「向量」永远显示 0：后端 `stats.vector` 是对象，前端 `webui/src/lib/api.ts` 按 number 读取。
+2. 知识写操作走 WebSocket mutation；HTTP POST 知识路由不可用（读接口正常）。上传因此改用官方 CLI `knowledge add` 验证。
+
 ## 已知限制
 
 1. 关键词阈值是相对值：与 WeKnora 原始 BM25 阈值的数字不完全同义（这是 SQLite FTS 量纲决定的）。

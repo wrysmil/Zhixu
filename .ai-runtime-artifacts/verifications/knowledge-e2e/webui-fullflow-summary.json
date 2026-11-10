@@ -1,0 +1,70 @@
+{
+  "date": "2026-11-10",
+  "instance": {
+    "webui": "http://127.0.0.1:8766",
+    "health": "http://127.0.0.1:8767/health",
+    "config": ".ai-runtime-artifacts/gateway-test/config.json",
+    "python": "D:/workspace/environment/python3.13/python.exe",
+    "note": "隔离实例，未影响 18790/8765 上另一会话的 gateway"
+  },
+  "ui": {
+    "browser_surface": "in-app browser CDP attached but viewport 0x0/hidden; pointer actions unavailable, DOM-level clicks via evaluate_script used",
+    "kb_created": "E2E 全流程测试",
+    "document": {
+      "title": "e2e-rollback",
+      "source": "e2e-rollback.md",
+      "characters": 1101,
+      "chunks": 6,
+      "index_version": "norm1:tok2:chunk1",
+      "vector_status": "ok"
+    },
+    "chunk_preview": {
+      "code_block_chunk": "chk_ebd526cc5afbe235",
+      "code_block_intact": true,
+      "code_lines": 8,
+      "table_chunk": "chk_44503a15d2a15b07",
+      "table_intact": true
+    },
+    "retrieval_preview": {
+      "query": "线上版本出问题了怎么回滚",
+      "mode_used": "hybrid",
+      "routes": ["vector", "keyword"],
+      "hits": 6,
+      "top_chunk": "chk_7087468f60c0ad7b",
+      "top_heading": "生产发布与回滚手册 > 回滚流程",
+      "top_score": 0.838
+    },
+    "chat": {
+      "query": "知识库里「线上版本出问题了怎么回滚」？请按知识库内容给出具体步骤，并注明引用来源。",
+      "used_knowledge_search": true,
+      "citations": [
+        "doc://doc_65498c275bf7",
+        "chunk://chk_ebd526cc5afbe235",
+        "chunk://chk_7087468f60c0ad7b",
+        "chunk://chk_44503a15d2a15b07"
+      ],
+      "answer_covers": ["回滚前确认", "不可逆迁移降级", "冻结流量", "rollout undo", "监控核对", "事件群同步"],
+      "noise_observed": "低相关「退款说明」块被召回并在答案中说明无关"
+    },
+    "search_modes": [
+      {"mode": "keyword", "query": "kubectl rollout undo", "hits": 2, "top": "chk_ebd526cc5afbe235", "top_heading": "常用命令"},
+      {"mode": "semantic", "query": "线上版本出问题了怎么回滚", "hits": 5, "top": "chk_7087468f60c0ad7b", "top_heading": "回滚流程"},
+      {"mode": "hybrid", "query": "退款多久到账", "hits": 5, "top": "chk_a90d3741b6e72ea5", "top_heading": "退款说明"}
+    ]
+  },
+  "issues_found": [
+    {
+      "area": "WebUI 知识概览「向量」统计",
+      "symptom": "后端 stats.vector.ok_docs=1 且 status=ready，界面仍显示 向量 0",
+      "cause": "webui/src/lib/api.ts 把 payload.vector 当成 number，实际后端返回对象 {status,backend,model,dimensions,ok_docs,...}",
+      "scope": "既有问题，与 2026-11-10 第三轮后端改动无关",
+      "fix_hint": "知识 stats 的 vector 字段改为读取 vector.ok_docs（或后端同时返回 vector_count）"
+    },
+    {
+      "area": "知识写操作走 WebSocket mutation",
+      "symptom": "HTTP POST /api/settings/knowledge/* 返回连接被关闭；读接口 GET 正常",
+      "cause": "WebUI 写操作用 WebSocket mutation transport，HTTP 路由只登记读动作",
+      "scope": "设计如此；本次上传改用官方 CLI（knowledge add）验证入库"
+    }
+  ]
+}
