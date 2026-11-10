@@ -1,6 +1,7 @@
 import hashlib
 import itertools
 import sqlite3
+from contextlib import contextmanager
 
 import pytest
 
@@ -423,6 +424,49 @@ def test_delete_document_cascades_chunks_and_fts(repo, db):
         assert conn.execute("SELECT count(*) FROM document_chunks").fetchone()[0] == 0
         assert conn.execute("SELECT count(*) FROM document_chunks_fts").fetchone()[0] == 0
     assert _fts_count(db, "内容") == 0
+
+
+def _fail_connect_twice(db, monkeypatch) -> dict[str, int]:
+    """让前两次连接抛瞬时 CANTOPEN；返回调用计数。"""
+    real_connect = db.connect
+    calls = {"n": 0}
+
+    @contextmanager
+    def flaky(*, immediate: bool = False):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            raise sqlite3.OperationalError("unable to open database file")
+        with real_connect(immediate=immediate) as conn:
+            yield conn
+
+    monkeypatch.setattr(db, "connect", flaky)
+    return calls
+
+
+def test_delete_document_retries_transient_cantopen(repo, db, monkeypatch):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0)])
+
+    calls = _fail_connect_twice(db, monkeypatch)
+    repo.delete_document(doc.id)
+
+    assert calls["n"] == 3
+    assert repo.get_document(doc.id) is None
+
+
+def test_delete_kb_retries_transient_cantopen(repo, db, monkeypatch):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(doc.id, attempt=1, chunks=[_chunk(0)])
+
+    calls = _fail_connect_twice(db, monkeypatch)
+    repo.delete_kb(kb.id)
+
+    assert calls["n"] == 3
+    assert repo.get_kb(kb.id) is None
 
 
 def test_chunk_fts_tracks_reindex_and_delete(repo, db):

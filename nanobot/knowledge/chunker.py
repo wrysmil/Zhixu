@@ -1,4 +1,4 @@
-"""分块：标题分段、贪心切分、重叠、碎片合并。"""
+"""分块：标题分段、贪心切分（段落 / 列表项 / 句末优先级）、重叠、碎片合并。"""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ from nanobot.knowledge.extractor import Line
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _SENTENCE_END = "。！？；.!?;"
+#: 列表项行首（`- ` / `* ` / `+ ` / `1. ` / `1) `）；参考 WeKnora legacy 的 `\n` 切点。
+_LIST_ITEM_RE = re.compile(r"[ \t]*(?:[-*+]|\d{1,3}[.)])[ \t]+\S")
 _FRAGMENT_CHARS = 80
 _MERGE_RATIO = 1.5
 
@@ -67,11 +69,28 @@ def _heading_paths(lines: list[Line], mode: str) -> list[str]:
     return paths
 
 
+def _list_break(text: str, start: int, limit: int) -> int:
+    """窗口内最后一个「列表项行首」的换行位置；没有返回 -1。
+
+    列表项之间通常只有单个换行（没有空行），段落切点找不到时退到这一级，
+    避免把一条分点从中间硬切开（参考 WeKnora legacy 的 `\\n` 分隔符）。
+    """
+    index = text.rfind("\n", start, limit)
+    while index > start:
+        if _LIST_ITEM_RE.match(text, index + 1):
+            return index
+        index = text.rfind("\n", start, index)
+    return -1
+
+
 def _cut(text: str, start: int, limit: int, mode: str) -> int:
     if mode == "blank_line":
         index = text.rfind("\n\n", start, limit)
         if index > start:
             return index
+    index = _list_break(text, start, limit)
+    if index > start:
+        return index + 1
     boundary = max((text.rfind(mark, start, limit) for mark in _SENTENCE_END), default=-1)
     if boundary >= start:
         return boundary + 1

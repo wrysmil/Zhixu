@@ -378,8 +378,7 @@ class KnowledgeRepository:
         return self._row_to_kb(row)
 
     def delete_kb(self, kb_id: str) -> None:
-        with self._db.connect(immediate=True) as conn:
-            conn.execute("DELETE FROM knowledge_bases WHERE id=?", (kb_id,))
+        self._db.execute_write("DELETE FROM knowledge_bases WHERE id=?", (kb_id,))
 
     # ---------- 文档 ----------
     def insert_document(
@@ -743,8 +742,7 @@ class KnowledgeRepository:
             return cursor.rowcount == 1
 
     def delete_document(self, doc_id: str) -> None:
-        with self._db.connect(immediate=True) as conn:
-            conn.execute("DELETE FROM documents WHERE id=?", (doc_id,))
+        self._db.execute_write("DELETE FROM documents WHERE id=?", (doc_id,))
 
     # ---------- 块 ----------
     def commit_chunks(

@@ -160,6 +160,60 @@ def test_mixed_cjk_ascii_cuts_on_sentence_end():
     assert all(draft.content.endswith("。") for draft in drafts)
 
 
+# --- 列表项切点（参考 WeKnora legacy 的 `\n` 分隔符）---
+
+
+def _list_section(marker: str, count: int, item_chars: int = 48) -> list[Line]:
+    return lines(*(f"{marker} {index} " + "字" * item_chars for index in range(count)))
+
+
+def test_long_bullet_list_cuts_between_items():
+    items = _list_section("-", 12)
+    text = "\n".join(line.text for line in items)
+    drafts = chunk_lines(items, chunk_size=200, chunk_overlap=0, paragraph_mode="blank_line")
+
+    assert len(drafts) >= 2
+    assert all(draft.char_count <= 200 for draft in drafts)
+    # 除最后一块外，切点都落在列表项行首：上一块以换行结束，下一块以 `- ` 开头。
+    for draft in drafts[:-1]:
+        assert draft.content.endswith("\n")
+        assert text[draft.end_offset :].startswith("- ")
+
+
+def test_numbered_list_cuts_between_items():
+    items = _list_section("1.", 12)
+    text = "\n".join(line.text for line in items)
+    drafts = chunk_lines(items, chunk_size=200, chunk_overlap=0, paragraph_mode="blank_line")
+
+    assert len(drafts) >= 2
+    for draft in drafts[:-1]:
+        assert draft.content.endswith("\n")
+        assert text[draft.end_offset :].startswith("1. ")
+
+
+def test_list_marker_must_start_the_line():
+    # 行中的 `- ` / `1. ` 不是列表项，不能当作切点；切点应退到句末。
+    sentence = ("甲" + " - 乙" * 20 + "。") * 3
+    drafts = chunk_lines(
+        lines(sentence), chunk_size=100, chunk_overlap=0, paragraph_mode="blank_line"
+    )
+    assert all(draft.char_count <= 100 for draft in drafts)
+    assert all(draft.content.endswith("。") for draft in drafts)
+
+
+def test_paragraph_break_wins_over_list_item():
+    # 同一窗口里既有空行又有列表项时，空行优先（WeKnora 分隔符顺序 \n\n → \n）。
+    paragraph = "甲" * 100
+    items = _list_section("-", 8)
+    draft_list = chunk_lines(
+        lines(paragraph, "", *[line.text for line in items]),
+        chunk_size=200,
+        chunk_overlap=0,
+        paragraph_mode="blank_line",
+    )
+    assert draft_list[0].content == paragraph
+
+
 def test_fragment_merges_with_following_same_heading_chunk():
     drafts = chunk_lines(
         lines("短句。", "字" * 200),

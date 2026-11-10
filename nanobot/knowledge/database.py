@@ -4,11 +4,29 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
+
+from loguru import logger
 
 SCHEMA_VERSION = "2"
+
+#: Windows 上杀毒/索引器会瞬时占用 state.db 的临时文件，SQLite 报 CANTOPEN。
+#: 事务失败即回滚，重试是安全的；只对这类瞬时错误重试，其余照常抛出。
+_TRANSIENT_MARKERS = (
+    "unable to open database file",
+    "database is locked",
+    "disk i/o error",
+)
+_RETRY_DELAYS = (0.05, 0.1, 0.2)
+
+
+def _is_transient(exc: sqlite3.OperationalError) -> bool:
+    message = str(exc).lower()
+    return any(marker in message for marker in _TRANSIENT_MARKERS)
 
 
 class KnowledgeSchemaTooNewError(RuntimeError):
@@ -231,6 +249,8 @@ class KnowledgeDatabase:
                 conn.execute("PRAGMA synchronous = FULL")
                 conn.execute("PRAGMA foreign_keys = ON")
                 conn.execute("PRAGMA busy_timeout = 15000")
+                # 级联删除 + FTS 触发器会产生临时表；放内存避免临时文件被占用时报 CANTOPEN。
+                conn.execute("PRAGMA temp_store = MEMORY")
                 conn.row_factory = sqlite3.Row
                 conn.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
                 try:
@@ -241,6 +261,27 @@ class KnowledgeDatabase:
                 conn.execute("COMMIT")
             finally:
                 conn.close()
+
+    def execute_write(self, sql: str, params: tuple[Any, ...] = ()) -> None:
+        """单语句写事务；瞬时 CANTOPEN/BUSY 做有界重试。
+
+        删除类语句（`DELETE FROM documents` 会级联删块并触发 FTS 触发器）在 Windows 上
+        偶发「unable to open database file」：文件被占用而不是 SQL 写错。失败事务已回滚，
+        重试不会产生半成品；非瞬时错误（语法、约束、缺表）仍按一次抛出。
+        """
+        attempts = len(_RETRY_DELAYS) + 1
+        for attempt in range(attempts):
+            try:
+                with self.connect(immediate=True) as conn:
+                    conn.execute(sql, params)
+                return
+            except sqlite3.OperationalError as exc:
+                if attempt + 1 >= attempts or not _is_transient(exc):
+                    raise
+                logger.warning(
+                    "knowledge sqlite write retry: attempt={} error={}", attempt + 1, exc
+                )
+                time.sleep(_RETRY_DELAYS[attempt])
 
     def init_schema(self) -> None:
         with self.connect(immediate=True) as conn:
