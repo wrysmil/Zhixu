@@ -126,6 +126,73 @@ def test_workbench_projects_current_session_memory_and_capabilities(tmp_path):
     assert "arguments" not in json.dumps(result)
 
 
+def test_workbench_projects_knowledge_retrieval_and_sources(tmp_path):
+    from nanobot.webui.session_workbench import session_workbench_payload
+
+    session = SessionManager(tmp_path).get_or_create("websocket:a")
+    search_result = (
+        '<knowledge_results mode="hybrid" reason="">'
+        '<result rank="1" score="0.912" chunk="chunk://c1" doc="doc://d1" kb="发布手册"'
+        ' title="青鸾发布手册" heading="生产回滚流程" page="3" chars="120">'
+        "<content>回滚三步</content></result>"
+        '<result rank="2" score="0.700" chunk="chunk://c2" doc="doc://d1" kb="发布手册"'
+        ' title="青鸾发布手册" heading="备份策略" page="" chars="80">'
+        "<content>备份</content></result></knowledge_results>"
+    )
+    session.messages = [
+        {"role": "assistant", "tool_calls": [{"id": "k1", "function": {
+            "name": "knowledge_search", "arguments": json.dumps({"query": "回滚流程"})}}]},
+        {"role": "tool", "tool_call_id": "k1", "content": search_result},
+        {"role": "assistant", "tool_calls": [{"id": "k2", "function": {
+            "name": "knowledge_search", "arguments": json.dumps({"query": "备份策略"})}}]},
+        {"role": "tool", "tool_call_id": "k2", "content": (
+            '<knowledge_results mode="hybrid" reason="no_candidates"><notice>没有检索到相关内容</notice>'
+            "</knowledge_results>"
+        )},
+        {"role": "assistant", "tool_calls": [{"id": "k3", "function": {
+            "name": "knowledge_read", "arguments": json.dumps({"handle": "chunk://c1"})}}]},
+        {"role": "tool", "tool_call_id": "k3", "content": "<document>原文</document>"},
+    ]
+    knowledge = session_workbench_payload(session)["knowledge"]
+    assert knowledge["calls"] == 2
+    assert knowledge["reads"] == 1
+    assert knowledge["empty"] == 1
+    assert knowledge["failed"] == 0
+    assert knowledge["queries"] == ["回滚流程", "备份策略"]
+    assert [source["chunk_id"] for source in knowledge["sources"]] == ["chunk://c1", "chunk://c2"]
+    assert knowledge["sources"][0] == {
+        "doc_id": "doc://d1", "chunk_id": "chunk://c1", "title": "青鸾发布手册",
+        "kb": "发布手册", "heading": "生产回滚流程", "page": "3", "score": "0.912",
+    }
+    assert knowledge["sources"][1]["page"] is None
+    assert "arguments" not in json.dumps(knowledge)
+
+
+def test_workbench_knowledge_deduplicates_and_counts_failures(tmp_path):
+    from nanobot.webui.session_workbench import session_workbench_payload
+
+    session = SessionManager(tmp_path).get_or_create("websocket:a")
+    hit = ('<knowledge_results reason=""><result rank="1" score="0.9" chunk="chunk://c1"'
+           ' doc="doc://d1" kb="库" title="文档" heading="" page="" chars="10">'
+           "<content>x</content></result></knowledge_results>")
+    session.messages = [
+        {"role": "assistant", "tool_calls": [{"id": "k1", "function": {
+            "name": "knowledge_search", "arguments": json.dumps({"query": "问题"})}}]},
+        {"role": "tool", "tool_call_id": "k1", "content": hit},
+        {"role": "assistant", "tool_calls": [{"id": "k2", "function": {
+            "name": "knowledge_search", "arguments": json.dumps({"query": "问题"})}}]},
+        {"role": "tool", "tool_call_id": "k2", "content": hit},
+        {"role": "assistant", "tool_calls": [{"id": "k3", "function": {
+            "name": "knowledge_search", "arguments": json.dumps({"query": "失败"})}}]},
+        {"role": "tool", "tool_call_id": "k3", "content": "检索失败，没有执行检索", "is_error": True},
+    ]
+    knowledge = session_workbench_payload(session)["knowledge"]
+    assert knowledge["calls"] == 3
+    assert knowledge["failed"] == 1
+    assert knowledge["queries"] == ["问题", "失败"]
+    assert [source["chunk_id"] for source in knowledge["sources"]] == ["chunk://c1"]
+
+
 def test_workbench_unavailable_memory_is_explicit_and_bounded(tmp_path):
     from nanobot.webui.session_workbench import session_workbench_payload
 

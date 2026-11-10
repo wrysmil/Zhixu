@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from collections.abc import Mapping
+from html import unescape
 from typing import Any, cast
 
 from loguru import logger
@@ -22,6 +24,11 @@ from nanobot.webui.subagent_execution_routes import SubagentExecutionSettingsOpe
 _MAX_CONTENT = 4000
 _MAX_HISTORY = 500
 _MAX_CAPABILITIES = 100
+_MAX_KNOWLEDGE_QUERIES = 5
+_MAX_KNOWLEDGE_SOURCES = 8
+_KNOWLEDGE_TOOLS = frozenset({"knowledge_search", "knowledge_read"})
+_RESULT_TAG_RE = re.compile(r"<result\b([^>]*)>")
+_ATTR_RE = re.compile(r'([a-zA-Z_][\w-]*)="([^"]*)"')
 
 
 def _text(value: Any, limit: int = _MAX_CONTENT) -> str:
@@ -83,6 +90,90 @@ def _observed_tools(session: Session) -> tuple[Counter[str], set[str]]:
                     and not content.lstrip().startswith(("Error:", "error:"))):
                 used_skills.add(read_requests[call_id])
     return calls, used_skills
+
+
+def _knowledge_activity(session: Session) -> dict[str, Any]:
+    """Project knowledge tool calls and search citations from recent messages.
+
+    Search output is an XML-ish block. Only the ``<result>`` attributes are
+    parsed, so truncated bodies or new notice kinds cannot break the workbench.
+    """
+    searches = 0
+    reads = 0
+    empty = 0
+    failed = 0
+    queries: list[str] = []
+    collected: list[dict[str, str | None]] = []
+    seen_chunks: set[str] = set()
+    pending: dict[str, str] = {}
+
+    for message in session.messages[-_MAX_HISTORY:]:
+        for call in _rows(message.get("tool_calls"), 50):
+            function = _mapping(call.get("function"))
+            if function is None:
+                continue
+            name = _text(function.get("name"), 150)
+            if name not in _KNOWLEDGE_TOOLS:
+                continue
+            arguments = function.get("arguments")
+            if isinstance(arguments, str) and len(arguments) <= 4096:
+                try:
+                    arguments = json.loads(arguments)
+                except ValueError:
+                    arguments = {}
+            arguments = _mapping(arguments) or {}
+            if name == "knowledge_search":
+                searches += 1
+                query = _text(arguments.get("query"), 300)
+                if query:
+                    queries.append(query)
+            else:
+                reads += 1
+            call_id = _text(call.get("id"), 150)
+            if call_id:
+                pending[call_id] = name
+        if message.get("role") != "tool":
+            continue
+        call_id = _text(message.get("tool_call_id"), 150)
+        name = pending.pop(call_id, None) if call_id else None
+        if name is None:
+            continue
+        content = message.get("content")
+        if message.get("is_error") or not isinstance(content, str):
+            failed += 1
+            continue
+        if name != "knowledge_search":
+            continue
+        blocks = _RESULT_TAG_RE.findall(content)
+        if not blocks:
+            if "检索失败" in content or content.lstrip().startswith(("Error:", "error:")):
+                failed += 1
+            else:
+                empty += 1
+            continue
+        for block in blocks:
+            attrs = {key: unescape(value) for key, value in _ATTR_RE.findall(block)}
+            chunk_id = attrs.get("chunk", "")
+            if not chunk_id or chunk_id in seen_chunks:
+                continue
+            seen_chunks.add(chunk_id)
+            collected.append({
+                "doc_id": attrs.get("doc", ""),
+                "chunk_id": chunk_id,
+                "title": attrs.get("title", ""),
+                "kb": attrs.get("kb", ""),
+                "heading": attrs.get("heading", ""),
+                "page": attrs.get("page") or None,
+                "score": attrs.get("score", ""),
+            })
+    return {
+        "calls": searches,
+        "reads": reads,
+        "empty": empty,
+        "failed": failed,
+        "queries": list(dict.fromkeys(queries))[-_MAX_KNOWLEDGE_QUERIES:],
+        "sources": collected[-_MAX_KNOWLEDGE_SOURCES:],
+    }
 
 
 def session_workbench_payload(
@@ -259,4 +350,5 @@ def session_workbench_payload(
             "updated_at": session.updated_at.isoformat() if session.updated_at else None,
             "goal": goal, "tasks": tasks, "plan": plan, "agents": agents,
             "memories": memories, "skills": projected_skills, "mcp": mcp,
+            "knowledge": _knowledge_activity(session),
             "limitations": list(dict.fromkeys(limitations))}
