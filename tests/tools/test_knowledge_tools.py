@@ -163,6 +163,29 @@ class FakeService:
         return SearchResult(hits=(make_hit(),), mode_used="hybrid", routes=("k", "v"))
 
 
+class QueryAwareService(FakeService):
+    """按查询返回不同命中数，用于验证改写命中与回退。"""
+
+    def __init__(
+        self,
+        *,
+        original_hits: int = 1,
+        rewritten_hits: int = 1,
+    ) -> None:
+        super().__init__(result=SearchResult(hits=(), mode_used="hybrid"))
+        self.original_hits = original_hits
+        self.rewritten_hits = rewritten_hits
+
+    def search(self, query: str, **kwargs: Any) -> SearchResult:
+        self.search_calls.append({"query": query, **kwargs})
+        hits = self.original_hits if query == "原始问题" else self.rewritten_hits
+        return SearchResult(
+            hits=tuple(make_hit(index) for index in range(hits)),
+            mode_used="hybrid",
+            routes=("vector", "keyword") if hits else (),
+        )
+
+
 def _search_tool(service: Any) -> KnowledgeSearchTool:
     return KnowledgeSearchTool(lambda: service, lambda key: WORKSPACE_IDS)
 
@@ -185,13 +208,23 @@ def test_search_tool_schema_declares_contract() -> None:
     assert tool.name == "knowledge_search"
     params = tool.parameters
     assert params["type"] == "object"
-    assert set(params["properties"]) == {"query", "kb", "mode", "limit"}
+    assert set(params["properties"]) == {
+        "query",
+        "kb",
+        "mode",
+        "limit",
+        "rewrite_query",
+        "intent",
+        "image_description",
+    }
     assert params["required"] == ["query"]
     assert params["properties"]["limit"]["minimum"] == 1
     assert params["properties"]["limit"]["maximum"] == 20
+    assert params["properties"]["rewrite_query"]["type"] == "string"
     assert "不可信数据" in tool.description
     assert "优先调用本工具" in tool.description
     assert "grep" in tool.description
+    assert "rewrite_query" in tool.description
 
 
 def test_read_tool_schema_declares_contract() -> None:
@@ -203,6 +236,63 @@ def test_read_tool_schema_declares_contract() -> None:
     assert params["properties"]["context"]["maximum"] == 3
     assert params["properties"]["limit"]["maximum"] == 20
     assert "不可信数据" in tool.description
+
+
+def test_search_uses_rewrite_query_string() -> None:
+    service = QueryAwareService()
+    result = _run(
+        _search_tool(service),
+        query="原始问题",
+        rewrite_query="升级失败如何回滚",
+    )
+    assert [call["query"] for call in service.search_calls] == ["升级失败如何回滚"]
+    assert "检索查询使用改写" in str(result)
+    assert "升级失败如何回滚" in str(result)
+
+
+def test_search_uses_original_query_when_rewrite_query_is_blank() -> None:
+    service = QueryAwareService()
+    _run(_search_tool(service), query="原始问题", rewrite_query="   ")
+    assert [call["query"] for call in service.search_calls] == ["原始问题"]
+
+
+def test_search_does_not_rewrite_without_rewrite_query() -> None:
+    service = QueryAwareService()
+    _run(_search_tool(service), query="原始问题")
+    assert [call["query"] for call in service.search_calls] == ["原始问题"]
+
+
+def test_search_falls_back_to_original_when_rewrite_has_no_hits() -> None:
+    service = QueryAwareService(original_hits=1, rewritten_hits=0)
+    result = _run(
+        _search_tool(service),
+        query="原始问题",
+        rewrite_query="改写查询",
+    )
+    assert [call["query"] for call in service.search_calls] == ["改写查询", "原始问题"]
+    assert "已回退原查询" in str(result)
+
+
+def test_intent_gates_retrieval_for_non_kb_intents() -> None:
+    service = QueryAwareService()
+    result = _run(_search_tool(service), query="你好", intent="chitchat")
+    assert service.search_calls == []
+    assert "不检索知识库" in str(result)
+
+
+def test_intent_kb_search_empty_and_unknown_all_retrieve() -> None:
+    service = QueryAwareService()
+    _run(_search_tool(service), query="回滚", intent="kb_search")
+    _run(_search_tool(service), query="回滚", intent="")
+    _run(_search_tool(service), query="回滚", intent="unknown_tag")
+    assert len(service.search_calls) == 3
+
+
+def test_image_description_is_accepted_and_ignored() -> None:
+    service = QueryAwareService()
+    result = _run(_search_tool(service), query="回滚", image_description="一张截图")
+    assert len(service.search_calls) == 1
+    assert "回滚" in str(result)
 
 
 def test_limit_out_of_range_rejected_by_schema() -> None:

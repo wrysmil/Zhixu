@@ -84,7 +84,10 @@ def _resolve_kb(service: KnowledgeService, value: str, workspace_id: str) -> str
 def _print_search_header(result: SearchResult) -> None:
     routes = ",".join(result.routes) or "-"
     degraded = ",".join(result.degraded) or "-"
-    console.print(f"mode={result.mode_used} routes={routes} degraded={degraded}")
+    console.print(
+        f"mode={result.mode_used} routes={routes} rerank={result.rerank or 'none'} "
+        f"degraded={degraded}"
+    )
     if result.reason:
         console.print(f"reason={result.reason}")
 

@@ -130,6 +130,8 @@
 3. **命中为空再降级** — 只有检索为空、被过滤或明显不相关时，才用 `grep` / `read_file` / `spawn` 继续找。
 4. **不要绕过知识库** — 不要直接读 `knowledge/uploads` 下的文件来替代检索，也不要在还没检索知识库前就派子 Agent 做资料调研。
 5. **区分失败与空结果** — 工具报错时说检索失败，不要说「知识库里没有」。
+6. **改写查询时保留检索词** — 调用 `knowledge_search` 前先根据对话生成 `rewrite_query`：补全「它/这个」等指代，但必须保留专名、型号、错误码、条款号、时间等检索词；不要把「iPhone 16 Pro」泛化成「这款手机」，也不要输出「请在知识库中查找」这类元指令。改不出来就留空，工具会退回 `query`。
+7. **先判断意图再检索** — 调用 `knowledge_search` 时把判定结果写进 `intent` 参数：`kb_search` / `clarification` 检索，`greeting` / `chitchat` / `follow_up` / `summarize` / `image_only` / `doc_only` 不检索（这类问题直接回答即可），留空或未知意图按检索处理。外部事实用 `web_search`（且仅在联网开启时）。
 
 ### 工具选择顺序
 
