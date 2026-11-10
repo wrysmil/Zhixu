@@ -108,3 +108,59 @@ Context: ~67%
 Output: none
 Error: 基线既有 lint（nanobot/memory/__init__.py 3 处 F401、tests/evaluation 3 处 I001）在 feature/desktop-app 上同样存在，非本次引入，已核实。
 Next: 派发 GROUP-3
+
+[2026-11-10 09:20] RESUME-WIN | Leader | Status: completed
+Detail: 换机续做——分支远端已有 WU-08/WU-09 提交（ad2be96a / 79ee089c），在本机重建 worktree（harness/wt-knowledge-rag-eval @ ad2be96a）并校验环境：Python 解释器复用主仓 venv（worktree 代码优先），webui/node_modules 用 junction 挂载；vitest 需本地 config 把 cacheDir 指到 worktree 内（主仓 .vite 被占用，EPERM）。
+Sub-agents: 0
+Context: ~70%
+Output: .ai-runtime-artifacts/execution-logs/tracking/DISPATCH-TRACK-2026-11-10-knowledge-rag-eval.md
+Error: none
+Next: 实施 Task 10（路由与导航注册）
+
+[2026-11-10 09:29] TASK-10 | Leader | Status: completed
+Detail: 注册 #/knowledge-eval：contracts.ts 加 view、routes.ts 解析、WorkspaceNavigation 加导航项、App.tsx 渲染分支。
+Sub-agents: 0
+Context: ~75%
+Output: webui/src/{App.tsx,workspace/routes.ts,components/workspace/{contracts.ts,WorkspaceNavigation.tsx}}
+Error: none
+Next: 实施 Task 11（页面组件）
+
+[2026-11-10 09:35] TASK-11 | Leader | Status: completed
+Detail: 页面 6 个组件 + 指标工具模块 + 页面单测（6 例）。同时发现后端 compare 用 `regressions` 键、运行降级在 `pool.degraded`——客户端归一化补齐这两处形状。
+Sub-agents: 0
+Context: ~82%
+Output: webui/src/components/workspace/KnowledgeEvalPage.tsx + knowledge-eval/{KnowledgeEvalOverview,KnowledgeEvalMetricGuide,KnowledgeEvalCaseResults,KnowledgeEvalDatasets,KnowledgeEvalRuns,KnowledgeEvalCompare}.tsx + knowledge-eval/metrics.ts
+Error: none
+Next: 实施 Task 12（10 语言文案）
+
+[2026-11-10 09:40] TASK-12 | Leader | Status: completed
+Detail: 10 个 locale 补 knowledge.eval.*（121 行/语言）；公式串一律不进语言文件（grep 无 ÷ / log₂ / 2^grade）。
+Sub-agents: 0
+Context: ~85%
+Output: webui/src/i18n/locales/*/common.json
+Error: none
+Next: Task 13（端到端验证）
+
+[2026-11-10 09:44] BLOCKER-01 | Leader | Status: completed
+Detail: 端到端起网关时暴露**分支代码无法启动**：`nanobot.evaluation.knowledge.__init__` 包初始化导入 routes → memory.routes → server → services（services 又模块级导入本包 metrics）形成循环导入，gateway 直接 ImportError；pytest 因导入顺序不同测不出来。
+Sub-agents: 0
+Context: ~86%
+Output: nanobot/evaluation/knowledge/__init__.py + tests/evaluation/knowledge/test_import_order.py
+Error: 已改为 PEP 562 惰性导出；补 2 条子进程导入顺序回归测试（按 gateway 真实顺序），tests/evaluation/knowledge 182 passed。
+Next: 重启网关继续 E2E
+
+[2026-11-10 09:52] BLOCKER-02 | Leader | Status: completed
+Detail: 浏览器回归时发现页面默认选中**最旧**一次运行（后端 listRuns 按 created_at 升序返回，前端取 [0]）→ 打开页面看到的是历史旧结果。
+Sub-agents: 0
+Context: ~90%
+Output: webui/src/components/workspace/KnowledgeEvalPage.tsx
+Error: 已改为按 createdAt 降序并默认选最新；逐题表补「查询原文」映射（原来只显示 UUID）。
+Next: 重建前端并复跑 E2E
+
+[2026-11-10 09:53] VERIFY-TASK-13 | Leader | Status: completed
+Detail: E2E 真实跑通（隔离实例 + 真实知识库 kb_9788851f8bbc + 2 篇文档）：建集 → 运行 → 聚合段+逐题段 → 二次运行 → 对比；浏览器出概览卡（5 指标 + 后端公式）、降级徽标、口径区、逐题表。截图与报告落盘。
+Sub-agents: 0
+Context: ~95%
+Output: .ai-runtime-artifacts/verifications/2026-11-10-knowledge-rag-eval-verification.md + verifications/knowledge-rag-eval/*.png
+Error: 未验证项已显式列出（judge 组真实质量、regressions 非空的浏览器呈现、桌面端打包等）。
+Next: 合流回 feature/desktop-app（需用户确认）
