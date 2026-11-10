@@ -25,6 +25,13 @@ type Section = "datasets" | "runs" | "compare";
 const POLL_INTERVAL_MS = 3000;
 const RUNNING_STATUSES = new Set(["queued", "running"]);
 
+/** 运行按「新的在前」排列：后端按创建时间升序返回，默认选中的应该是最新一次。 */
+function newestFirst(runs: KnowledgeEvalRun[]): KnowledgeEvalRun[] {
+  return [...runs].sort((left, right) =>
+    (right.createdAt ?? "").localeCompare(left.createdAt ?? ""),
+  );
+}
+
 interface PendingRun {
   dataset_id: string;
   configs: Array<Record<string, unknown>>;
@@ -59,7 +66,7 @@ export function KnowledgeEvalPage() {
 
   const loadRuns = useCallback(async () => {
     const payload = await knowledgeEvalApi.listRuns();
-    setRuns(payload);
+    setRuns(newestFirst(payload));
     return payload;
   }, []);
 
@@ -74,11 +81,10 @@ export function KnowledgeEvalPage() {
       ]);
       setMetricSpecs(specs);
       setDatasets(datasetPayload);
-      setRuns(runPayload);
+      const ordered = newestFirst(runPayload);
+      setRuns(ordered);
       setSelectedRunId((current) =>
-        current && runPayload.some((run) => run.id === current)
-          ? current
-          : runPayload[0]?.id ?? null,
+        current && ordered.some((run) => run.id === current) ? current : ordered[0]?.id ?? null,
       );
     } catch (reason: unknown) {
       setLoadError(reason instanceof Error ? reason.message : String(reason));
@@ -125,6 +131,17 @@ export function KnowledgeEvalPage() {
     () => runs.find((run) => run.id === selectedRunId) ?? null,
     [runs, selectedRunId],
   );
+
+  /** 用例 id → 查询原文：逐题表显示问的是什么，而不是 UUID。 */
+  const queriesByCaseId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const dataset of datasets) {
+      for (const item of dataset.cases) {
+        map[item.id] = item.query;
+      }
+    }
+    return map;
+  }, [datasets]);
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>) => {
@@ -297,7 +314,7 @@ export function KnowledgeEvalPage() {
 
       <KnowledgeEvalMetricGuide specs={metricSpecs} />
 
-      <KnowledgeEvalCaseResults report={report} loading={loading} />
+      <KnowledgeEvalCaseResults report={report} loading={loading} queries={queriesByCaseId} />
 
       <div role="tablist" className="mt-4 flex gap-1 border-b border-border/60">
         {sections.map((item) => (
@@ -350,6 +367,7 @@ export function KnowledgeEvalPage() {
           onChangeBase={setBaseRunId}
           onChangeCandidate={setCandidateRunId}
           onCompare={() => void onCompare()}
+          queries={queriesByCaseId}
         />
       </div>
 

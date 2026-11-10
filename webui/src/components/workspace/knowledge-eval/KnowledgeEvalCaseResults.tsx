@@ -8,6 +8,8 @@ import { CASE_METRICS, formatMetricValue, metricValue, splitCaseId } from "./met
 interface KnowledgeEvalCaseResultsProps {
   report: KnowledgeEvalReport | null;
   loading: boolean;
+  /** 用例 id → 查询原文：逐题表要显示问的是什么，而不是一串 UUID。 */
+  queries?: Record<string, string>;
 }
 
 /**
@@ -16,7 +18,11 @@ interface KnowledgeEvalCaseResultsProps {
  * 一行 = 一条查询 × 一个配置；未评的题显示「未评分」而不是 0 分——
  * 「算不出来」与「0 分」在报告里必须能区分。
  */
-export function KnowledgeEvalCaseResults({ report, loading }: KnowledgeEvalCaseResultsProps) {
+export function KnowledgeEvalCaseResults({
+  report,
+  loading,
+  queries = {},
+}: KnowledgeEvalCaseResultsProps) {
   const { t } = useTranslation();
 
   return (
@@ -61,7 +67,7 @@ export function KnowledgeEvalCaseResults({ report, loading }: KnowledgeEvalCaseR
                   >
                     <td className="py-2 pr-2">
                       <span className="block max-w-[260px] truncate font-medium text-foreground">
-                        {caseId}
+                        {queries[caseId] ?? caseId}
                       </span>
                       <span className="mt-0.5 inline-block rounded-full border border-border/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
                         {result.labelSource === "expect"

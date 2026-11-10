@@ -20,6 +20,8 @@ interface KnowledgeEvalCompareProps {
   onChangeBase: (runId: string) => void;
   onChangeCandidate: (runId: string) => void;
   onCompare: () => void;
+  /** 用例 id → 查询原文：退化清单显示问的是什么。 */
+  queries?: Record<string, string>;
 }
 
 /**
@@ -36,6 +38,7 @@ export function KnowledgeEvalCompare({
   onChangeBase,
   onChangeCandidate,
   onCompare,
+  queries = {},
 }: KnowledgeEvalCompareProps) {
   const { t } = useTranslation();
 
@@ -167,7 +170,9 @@ export function KnowledgeEvalCompare({
                     key={`${item.caseId}:${item.configId ?? ""}:${item.metricId ?? ""}:${index}`}
                     className="flex flex-wrap items-center gap-2 rounded-control border border-destructive/25 bg-destructive/5 px-2.5 py-1.5 text-[11.5px]"
                   >
-                    <span className="font-medium text-foreground">{item.caseId}</span>
+                    <span className="font-medium text-foreground">
+                      {queries[item.caseId] ?? item.caseId}
+                    </span>
                     {item.configId ? (
                       <span className="font-mono text-[10.5px] text-muted-foreground">
                         {item.configId}
