@@ -3712,6 +3712,125 @@
     "repairDone": "Repair finished",
     "chunkTitle": "Chunk detail",
     "close": "Close",
-    "sizeValue": "{{count}} chars"
+    "sizeValue": "{{count}} chars",
+    "eval": {
+      "title": "Đánh giá truy hồi",
+      "kicker": "Kiến thức",
+      "subtitle": "Chạy cùng một bộ câu hỏi với các cấu hình truy hồi khác nhau, chấm điểm mức độ liên quan và thấy câu hỏi nào bị tụt.",
+      "loading": "Đang tải…",
+      "tab": {
+        "datasets": "Bộ dữ liệu",
+        "runs": "Lần chạy",
+        "compare": "So sánh",
+        "caseResults": "Kết quả từng câu hỏi"
+      },
+      "guide": {
+        "title": "Cách tính từng chỉ số",
+        "subtitle": "Công thức do dịch vụ đánh giá gửi xuống nên luôn khớp với phần hiện thực.",
+        "column": {
+          "name": "Chỉ số",
+          "formula": "Công thức",
+          "numerator": "Tử số",
+          "denominator": "Mẫu số",
+          "direction": "Hướng"
+        },
+        "direction": {
+          "higherIsBetter": "Càng lớn càng tốt",
+          "lowerIsBetter": "Càng nhỏ càng tốt"
+        },
+        "disclaimer": "Các chỉ số được nhóm theo nguồn nhãn và không bao giờ trộn lẫn giữa các nhóm.",
+        "formulaTooltip": "Công thức do dịch vụ đánh giá gửi xuống."
+      },
+      "metric": {
+        "precision": "Độ chính xác@k",
+        "recall": "Độ bao phủ@k",
+        "hit": "Hit@k",
+        "mrr": "MRR",
+        "ndcg": "nDCG@k",
+        "poolCoverage": "Tỉ lệ phủ của tập ứng viên",
+        "unscoredRate": "Tỉ lệ chưa chấm"
+      },
+      "result": {
+        "precision": "Độ chính xác",
+        "recall": "Độ bao phủ",
+        "hit": "Hit",
+        "mrr": "MRR",
+        "ndcg": "nDCG",
+        "status": "Trạng thái",
+        "notScored": "Chưa chấm",
+        "scoredCount": "{{count}} câu hỏi đã chấm",
+        "unscoredCount": "{{count}} câu hỏi chưa chấm",
+        "query": "Câu hỏi",
+        "config": "Cấu hình"
+      },
+      "status": {
+        "scored": "Đã chấm",
+        "failed": "Thất bại"
+      },
+      "badge": {
+        "degraded": "Lần chạy bị suy giảm",
+        "notAssessable": "Không thể chấm",
+        "labelSource": {
+          "expect": "Nhãn theo từ khóa",
+          "judge": "Do mô hình chấm"
+        }
+      },
+      "action": {
+        "createDataset": "Bộ dữ liệu mới",
+        "deleteDataset": "Xoá bộ dữ liệu",
+        "addCase": "Thêm câu hỏi",
+        "addConfig": "Thêm cấu hình",
+        "save": "Lưu",
+        "run": "Chạy",
+        "cancel": "Huỷ",
+        "compare": "So sánh",
+        "confirm": "Vẫn chạy",
+        "refresh": "Tải lại"
+      },
+      "dataset": {
+        "name": "Tên bộ dữ liệu",
+        "notes": "Ghi chú",
+        "query": "Câu hỏi",
+        "queryPlaceholder": "ví dụ: rollback triển khai thế nào?",
+        "expect": "Từ khoá kỳ vọng",
+        "expectPlaceholder": "phân tách bằng dấu phẩy, ví dụ: rollback, kubectl",
+        "hint": "Bộ dữ liệu cần ít nhất một câu hỏi. Câu hỏi có từ khoá kỳ vọng được chấm theo từ khoá, các câu còn lại do mô hình chấm.",
+        "caseCount": "{{count}} câu hỏi"
+      },
+      "run": {
+        "dataset": "Bộ dữ liệu",
+        "configId": "ID cấu hình",
+        "configName": "Tên cấu hình",
+        "mode": "Chế độ truy hồi",
+        "limit": "Giới hạn",
+        "configCount": "{{count}} cấu hình",
+        "hint": "Chọn bộ dữ liệu rồi chạy để xem chỉ số."
+      },
+      "compare": {
+        "base": "Lần chạy gốc",
+        "candidate": "Lần chạy đối chiếu",
+        "delta": "Chênh lệch",
+        "regressions": "Câu hỏi bị tụt",
+        "none": "Chưa chọn",
+        "hint": "Chọn hai lần chạy để xem chênh lệch theo chỉ số và các câu hỏi bị tụt.",
+        "noRegressions": "Không câu hỏi nào bị tụt trên các chỉ số này."
+      },
+      "empty": {
+        "datasets": "Chưa có bộ dữ liệu",
+        "runs": "Chưa có lần chạy",
+        "compare": "Chưa có so sánh",
+        "caseResults": "Chưa có kết quả từng câu hỏi"
+      },
+      "hint": {
+        "judgePrivacy": "Nội dung các đoạn truy hồi của câu hỏi do mô hình chấm được gửi tới dịch vụ mô hình đã cấu hình, có thể là dịch vụ từ xa.",
+        "judgePrivacyTitle": "Câu hỏi do mô hình chấm sẽ gửi nội dung đoạn truy hồi cho mô hình",
+        "recallIsPoolRelative": "Độ bao phủ@k mang tính tương đối so với tập ứng viên: mẫu số là số đoạn liên quan được chấm trong chính tập ứng viên đó, không phải toàn bộ thư viện.",
+        "degradedNotComparable": "Lần chạy bị suy giảm không được so sánh trực tiếp với lần chạy bình thường."
+      },
+      "error": {
+        "load": "Không tải được",
+        "action": "Thao tác thất bại"
+      }
+    }
   }
 }

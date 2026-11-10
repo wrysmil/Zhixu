@@ -3712,6 +3712,125 @@
     "repairDone": "修复完成",
     "chunkTitle": "分块详情",
     "close": "关闭",
-    "sizeValue": "{{count}} 字符"
+    "sizeValue": "{{count}} 字符",
+    "eval": {
+      "title": "检索评测台",
+      "kicker": "知识中心",
+      "subtitle": "在同一批查询上跑不同的检索配置，判定相关性，并看清哪些查询变差了。",
+      "loading": "加载中…",
+      "tab": {
+        "datasets": "数据集",
+        "runs": "运行",
+        "compare": "对比",
+        "caseResults": "逐题结果"
+      },
+      "guide": {
+        "title": "指标是怎么算的",
+        "subtitle": "公式由评测服务下发，因此永远与实现一致。",
+        "column": {
+          "name": "指标",
+          "formula": "计算公式",
+          "numerator": "分子",
+          "denominator": "分母",
+          "direction": "方向"
+        },
+        "direction": {
+          "higherIsBetter": "越大越好",
+          "lowerIsBetter": "越小越好"
+        },
+        "disclaimer": "指标按标注来源分组呈现，不同分组之间不混算。",
+        "formulaTooltip": "公式由评测服务下发。"
+      },
+      "metric": {
+        "precision": "准确率@k",
+        "recall": "召回率@k",
+        "hit": "命中率@k",
+        "mrr": "MRR",
+        "ndcg": "nDCG@k",
+        "poolCoverage": "候选池相关占比",
+        "unscoredRate": "未评率"
+      },
+      "result": {
+        "precision": "准确率",
+        "recall": "召回率",
+        "hit": "命中率",
+        "mrr": "MRR",
+        "ndcg": "nDCG",
+        "status": "状态",
+        "notScored": "未评分",
+        "scoredCount": "{{count}} 条查询参与计算",
+        "unscoredCount": "{{count}} 条查询未评",
+        "query": "查询",
+        "config": "配置"
+      },
+      "status": {
+        "scored": "已评分",
+        "failed": "失败"
+      },
+      "badge": {
+        "degraded": "降级运行",
+        "notAssessable": "不可评",
+        "labelSource": {
+          "expect": "关键词标注",
+          "judge": "模型判定"
+        }
+      },
+      "action": {
+        "createDataset": "新建数据集",
+        "deleteDataset": "删除数据集",
+        "addCase": "添加查询",
+        "addConfig": "添加配置",
+        "save": "保存",
+        "run": "发起运行",
+        "cancel": "取消",
+        "compare": "对比",
+        "confirm": "仍然发起",
+        "refresh": "刷新"
+      },
+      "dataset": {
+        "name": "数据集名称",
+        "notes": "备注",
+        "query": "查询",
+        "queryPlaceholder": "例如：如何回滚部署？",
+        "expect": "期望关键词",
+        "expectPlaceholder": "用逗号分隔，例如：回滚, kubectl",
+        "hint": "数据集至少要有一条查询。带期望关键词的查询走关键词标注，其余走模型判定。",
+        "caseCount": "{{count}} 条查询"
+      },
+      "run": {
+        "dataset": "数据集",
+        "configId": "配置 ID",
+        "configName": "配置名称",
+        "mode": "检索模式",
+        "limit": "返回条数",
+        "configCount": "{{count}} 个配置",
+        "hint": "选一个数据集并发起运行，就能看到指标。"
+      },
+      "compare": {
+        "base": "基线运行",
+        "candidate": "候选运行",
+        "delta": "差值",
+        "regressions": "退化查询",
+        "none": "未选择",
+        "hint": "选两次运行，就能看到逐指标差与变差的查询。",
+        "noRegressions": "这些指标上没有查询变差。"
+      },
+      "empty": {
+        "datasets": "还没有数据集",
+        "runs": "还没有运行",
+        "compare": "还没有对比",
+        "caseResults": "还没有逐题结果"
+      },
+      "hint": {
+        "judgePrivacy": "模型判定会把命中块的正文发给所配置的模型服务（可能是远程服务）。",
+        "judgePrivacyTitle": "模型判定会把命中块正文发给模型",
+        "recallIsPoolRelative": "召回率@k 是候选池相对值：分母是本次候选池中判定为相关的块数，不是全库相关块总数。",
+        "degradedNotComparable": "降级运行的指标不能与正常运行直接对比。"
+      },
+      "error": {
+        "load": "加载失败",
+        "action": "操作失败"
+      }
+    }
   }
 }

@@ -3712,6 +3712,125 @@
     "repairDone": "Repair finished",
     "chunkTitle": "Chunk detail",
     "close": "Close",
-    "sizeValue": "{{count}} chars"
+    "sizeValue": "{{count}} chars",
+    "eval": {
+      "title": "Evaluación de recuperación",
+      "kicker": "Conocimiento",
+      "subtitle": "Ejecuta el mismo conjunto de consultas con distintas configuraciones de recuperación, puntúa la relevancia y comprueba qué consultas empeoran.",
+      "loading": "Cargando…",
+      "tab": {
+        "datasets": "Conjuntos de datos",
+        "runs": "Ejecuciones",
+        "compare": "Comparación",
+        "caseResults": "Resultados por consulta"
+      },
+      "guide": {
+        "title": "Cómo se calcula cada métrica",
+        "subtitle": "Las fórmulas las envía el servicio de evaluación, así que siempre coinciden con la implementación.",
+        "column": {
+          "name": "Métrica",
+          "formula": "Fórmula",
+          "numerator": "Numerador",
+          "denominator": "Denominador",
+          "direction": "Dirección"
+        },
+        "direction": {
+          "higherIsBetter": "Cuanto mayor, mejor",
+          "lowerIsBetter": "Cuanto menor, mejor"
+        },
+        "disclaimer": "Las métricas se agrupan por fuente de etiquetado y los grupos nunca se mezclan.",
+        "formulaTooltip": "La fórmula la envía el servicio de evaluación."
+      },
+      "metric": {
+        "precision": "Precisión@k",
+        "recall": "Cobertura@k",
+        "hit": "Hit@k",
+        "mrr": "MRR",
+        "ndcg": "nDCG@k",
+        "poolCoverage": "Cobertura del conjunto candidato",
+        "unscoredRate": "Tasa sin puntuar"
+      },
+      "result": {
+        "precision": "Precisión",
+        "recall": "Cobertura",
+        "hit": "Hit",
+        "mrr": "MRR",
+        "ndcg": "nDCG",
+        "status": "Estado",
+        "notScored": "Sin puntuar",
+        "scoredCount": "{{count}} consultas puntuadas",
+        "unscoredCount": "{{count}} consultas sin puntuar",
+        "query": "Consulta",
+        "config": "Configuración"
+      },
+      "status": {
+        "scored": "Puntuado",
+        "failed": "Fallido"
+      },
+      "badge": {
+        "degraded": "Ejecución degradada",
+        "notAssessable": "No evaluable",
+        "labelSource": {
+          "expect": "Etiquetado por palabras clave",
+          "judge": "Juzgado por el modelo"
+        }
+      },
+      "action": {
+        "createDataset": "Nuevo conjunto de datos",
+        "deleteDataset": "Eliminar conjunto de datos",
+        "addCase": "Añadir consulta",
+        "addConfig": "Añadir configuración",
+        "save": "Guardar",
+        "run": "Iniciar ejecución",
+        "cancel": "Cancelar",
+        "compare": "Comparar",
+        "confirm": "Iniciar de todos modos",
+        "refresh": "Actualizar"
+      },
+      "dataset": {
+        "name": "Nombre del conjunto de datos",
+        "notes": "Notas",
+        "query": "Consulta",
+        "queryPlaceholder": "p. ej. ¿Cómo revierto un despliegue?",
+        "expect": "Palabras clave esperadas",
+        "expectPlaceholder": "separadas por comas, p. ej. rollback, kubectl",
+        "hint": "Un conjunto de datos necesita al menos una consulta. Las consultas con palabras clave esperadas se puntúan por palabras clave; el resto, con el juez del modelo.",
+        "caseCount": "{{count}} consultas"
+      },
+      "run": {
+        "dataset": "Conjunto de datos",
+        "configId": "ID de configuración",
+        "configName": "Nombre de la configuración",
+        "mode": "Modo de recuperación",
+        "limit": "Límite",
+        "configCount": "{{count}} configuraciones",
+        "hint": "Elige un conjunto de datos e inicia una ejecución para ver las métricas."
+      },
+      "compare": {
+        "base": "Ejecución base",
+        "candidate": "Ejecución candidata",
+        "delta": "Diferencia",
+        "regressions": "Consultas que empeoran",
+        "none": "Sin seleccionar",
+        "hint": "Elige dos ejecuciones para ver las diferencias por métrica y las consultas que empeoran.",
+        "noRegressions": "Ninguna consulta empeoró en estas métricas."
+      },
+      "empty": {
+        "datasets": "Todavía no hay conjuntos de datos",
+        "runs": "Todavía no hay ejecuciones",
+        "compare": "Todavía no hay comparaciones",
+        "caseResults": "Todavía no hay resultados por consulta"
+      },
+      "hint": {
+        "judgePrivacy": "El texto de los fragmentos recuperados de las consultas juzgadas se envía al servicio de modelo configurado, que puede ser remoto.",
+        "judgePrivacyTitle": "Las consultas juzgadas envían el texto de los fragmentos a un modelo",
+        "recallIsPoolRelative": "La cobertura@k es relativa al conjunto candidato: el denominador es el número de fragmentos relevantes juzgados en ese conjunto, no en toda la biblioteca.",
+        "degradedNotComparable": "Una ejecución degradada no debe compararse directamente con una ejecución normal."
+      },
+      "error": {
+        "load": "Error al cargar",
+        "action": "La acción falló"
+      }
+    }
   }
 }

@@ -3712,6 +3712,125 @@
     "repairDone": "Repair finished",
     "chunkTitle": "Chunk detail",
     "close": "Close",
-    "sizeValue": "{{count}} chars"
+    "sizeValue": "{{count}} chars",
+    "eval": {
+      "title": "Evaluasi Retrieval",
+      "kicker": "Pengetahuan",
+      "subtitle": "Jalankan kumpulan kueri yang sama dengan konfigurasi retrieval berbeda, beri nilai relevansi, dan lihat kueri mana yang memburuk.",
+      "loading": "Memuat…",
+      "tab": {
+        "datasets": "Himpunan data",
+        "runs": "Eksekusi",
+        "compare": "Perbandingan",
+        "caseResults": "Hasil per kueri"
+      },
+      "guide": {
+        "title": "Cara setiap metrik dihitung",
+        "subtitle": "Rumus dikirim oleh layanan evaluasi, sehingga selalu selaras dengan implementasi.",
+        "column": {
+          "name": "Metrik",
+          "formula": "Rumus",
+          "numerator": "Pembilang",
+          "denominator": "Penyebut",
+          "direction": "Arah"
+        },
+        "direction": {
+          "higherIsBetter": "Semakin besar semakin baik",
+          "lowerIsBetter": "Semakin kecil semakin baik"
+        },
+        "disclaimer": "Metrik dikelompokkan menurut sumber label; antar kelompok tidak pernah dicampur.",
+        "formulaTooltip": "Rumus dikirim oleh layanan evaluasi."
+      },
+      "metric": {
+        "precision": "Presisi@k",
+        "recall": "Recall@k",
+        "hit": "Hit@k",
+        "mrr": "MRR",
+        "ndcg": "nDCG@k",
+        "poolCoverage": "Cakupan kandidat",
+        "unscoredRate": "Tingkat tidak dinilai"
+      },
+      "result": {
+        "precision": "Presisi",
+        "recall": "Recall",
+        "hit": "Hit",
+        "mrr": "MRR",
+        "ndcg": "nDCG",
+        "status": "Status",
+        "notScored": "Tidak dinilai",
+        "scoredCount": "{{count}} kueri dinilai",
+        "unscoredCount": "{{count}} kueri tidak dinilai",
+        "query": "Kueri",
+        "config": "Konfigurasi"
+      },
+      "status": {
+        "scored": "Dinilai",
+        "failed": "Gagal"
+      },
+      "badge": {
+        "degraded": "Eksekusi ter degraded",
+        "notAssessable": "Tidak dapat dinilai",
+        "labelSource": {
+          "expect": "Label kata kunci",
+          "judge": "Dinilai model"
+        }
+      },
+      "action": {
+        "createDataset": "Himpunan data baru",
+        "deleteDataset": "Hapus himpunan data",
+        "addCase": "Tambah kueri",
+        "addConfig": "Tambah konfigurasi",
+        "save": "Simpan",
+        "run": "Jalankan",
+        "cancel": "Batal",
+        "compare": "Bandingkan",
+        "confirm": "Jalankan saja",
+        "refresh": "Muat ulang"
+      },
+      "dataset": {
+        "name": "Nama himpunan data",
+        "notes": "Catatan",
+        "query": "Kueri",
+        "queryPlaceholder": "mis. Bagaimana cara rollback deployment?",
+        "expect": "Kata kunci yang diharapkan",
+        "expectPlaceholder": "pisahkan dengan koma, mis. rollback, kubectl",
+        "hint": "Himpunan data minimal punya satu kueri. Kueri dengan kata kunci yang diharapkan dinilai dengan kata kunci, sisanya dinilai oleh model.",
+        "caseCount": "{{count}} kueri"
+      },
+      "run": {
+        "dataset": "Himpunan data",
+        "configId": "ID konfigurasi",
+        "configName": "Nama konfigurasi",
+        "mode": "Mode retrieval",
+        "limit": "Batas",
+        "configCount": "{{count}} konfigurasi",
+        "hint": "Pilih himpunan data lalu jalankan evaluasi untuk melihat metrik."
+      },
+      "compare": {
+        "base": "Eksekusi dasar",
+        "candidate": "Eksekusi kandidat",
+        "delta": "Selisih",
+        "regressions": "Kueri yang memburuk",
+        "none": "Belum dipilih",
+        "hint": "Pilih dua eksekusi untuk melihat selisih per metrik dan kueri yang memburuk.",
+        "noRegressions": "Tidak ada kueri yang memburuk pada metrik ini."
+      },
+      "empty": {
+        "datasets": "Belum ada himpunan data",
+        "runs": "Belum ada eksekusi",
+        "compare": "Belum ada perbandingan",
+        "caseResults": "Belum ada hasil per kueri"
+      },
+      "hint": {
+        "judgePrivacy": "Teks chunk yang diambil untuk kueri yang dinilai model dikirim ke layanan model yang dikonfigurasi, yang bisa bersifat remote.",
+        "judgePrivacyTitle": "Kueri yang dinilai model mengirim teks chunk ke model",
+        "recallIsPoolRelative": "Recall@k bersifat relatif terhadap kumpulan kandidat: penyebutnya adalah jumlah chunk relevan yang dinilai di dalam kumpulan itu, bukan di seluruh pustaka.",
+        "degradedNotComparable": "Eksekusi yang degraded tidak boleh dibandingkan langsung dengan eksekusi normal."
+      },
+      "error": {
+        "load": "Gagal memuat",
+        "action": "Tindakan gagal"
+      }
+    }
   }
 }

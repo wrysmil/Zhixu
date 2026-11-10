@@ -3712,6 +3712,125 @@
     "repairDone": "修復完成",
     "chunkTitle": "分塊詳情",
     "close": "關閉",
-    "sizeValue": "{{count}} 字元"
+    "sizeValue": "{{count}} 字元",
+    "eval": {
+      "title": "檢索評測台",
+      "kicker": "知識中心",
+      "subtitle": "在同一批查詢上跑不同的檢索設定，判定相關性，並看清哪些查詢變差了。",
+      "loading": "載入中…",
+      "tab": {
+        "datasets": "資料集",
+        "runs": "執行",
+        "compare": "比較",
+        "caseResults": "逐題結果"
+      },
+      "guide": {
+        "title": "指標是怎麼算的",
+        "subtitle": "公式由評測服務下發，因此永遠與實作一致。",
+        "column": {
+          "name": "指標",
+          "formula": "計算公式",
+          "numerator": "分子",
+          "denominator": "分母",
+          "direction": "方向"
+        },
+        "direction": {
+          "higherIsBetter": "越大越好",
+          "lowerIsBetter": "越小越好"
+        },
+        "disclaimer": "指標依標註來源分組呈現，不同分組之間不混算。",
+        "formulaTooltip": "公式由評測服務下發。"
+      },
+      "metric": {
+        "precision": "準確率@k",
+        "recall": "召回率@k",
+        "hit": "命中率@k",
+        "mrr": "MRR",
+        "ndcg": "nDCG@k",
+        "poolCoverage": "候選池相關占比",
+        "unscoredRate": "未評率"
+      },
+      "result": {
+        "precision": "準確率",
+        "recall": "召回率",
+        "hit": "命中率",
+        "mrr": "MRR",
+        "ndcg": "nDCG",
+        "status": "狀態",
+        "notScored": "未評分",
+        "scoredCount": "{{count}} 條查詢參與計算",
+        "unscoredCount": "{{count}} 條查詢未評",
+        "query": "查詢",
+        "config": "設定"
+      },
+      "status": {
+        "scored": "已評分",
+        "failed": "失敗"
+      },
+      "badge": {
+        "degraded": "降級執行",
+        "notAssessable": "不可評",
+        "labelSource": {
+          "expect": "關鍵字標註",
+          "judge": "模型判定"
+        }
+      },
+      "action": {
+        "createDataset": "新增資料集",
+        "deleteDataset": "刪除資料集",
+        "addCase": "新增查詢",
+        "addConfig": "新增設定",
+        "save": "儲存",
+        "run": "發起執行",
+        "cancel": "取消",
+        "compare": "比較",
+        "confirm": "仍要發起",
+        "refresh": "重新整理"
+      },
+      "dataset": {
+        "name": "資料集名稱",
+        "notes": "備註",
+        "query": "查詢",
+        "queryPlaceholder": "例如：如何回滾部署？",
+        "expect": "期望關鍵字",
+        "expectPlaceholder": "以逗號分隔，例如：回滾, kubectl",
+        "hint": "資料集至少要有一條查詢。帶期望關鍵字的查詢走關鍵字標註，其餘走模型判定。",
+        "caseCount": "{{count}} 條查詢"
+      },
+      "run": {
+        "dataset": "資料集",
+        "configId": "設定 ID",
+        "configName": "設定名稱",
+        "mode": "檢索模式",
+        "limit": "回傳筆數",
+        "configCount": "{{count}} 組設定",
+        "hint": "選一個資料集並發起執行，就能看到指標。"
+      },
+      "compare": {
+        "base": "基準執行",
+        "candidate": "候選執行",
+        "delta": "差值",
+        "regressions": "退化查詢",
+        "none": "未選擇",
+        "hint": "選兩次執行，就能看到逐指標差與變差的查詢。",
+        "noRegressions": "這些指標上沒有查詢變差。"
+      },
+      "empty": {
+        "datasets": "還沒有資料集",
+        "runs": "還沒有執行",
+        "compare": "還沒有比較",
+        "caseResults": "還沒有逐題結果"
+      },
+      "hint": {
+        "judgePrivacy": "模型判定會把命中區塊的正文送給所設定的模型服務（可能是遠端服務）。",
+        "judgePrivacyTitle": "模型判定會把命中區塊正文送給模型",
+        "recallIsPoolRelative": "召回率@k 是候選池相對值：分母是本次候選池中判定為相關的區塊數，不是全庫相關區塊總數。",
+        "degradedNotComparable": "降級執行的指標不能與正常執行直接比較。"
+      },
+      "error": {
+        "load": "載入失敗",
+        "action": "操作失敗"
+      }
+    }
   }
 }
