@@ -190,6 +190,8 @@ def test_search_tool_schema_declares_contract() -> None:
     assert params["properties"]["limit"]["minimum"] == 1
     assert params["properties"]["limit"]["maximum"] == 20
     assert "不可信数据" in tool.description
+    assert "优先调用本工具" in tool.description
+    assert "grep" in tool.description
 
 
 def test_read_tool_schema_declares_contract() -> None:
