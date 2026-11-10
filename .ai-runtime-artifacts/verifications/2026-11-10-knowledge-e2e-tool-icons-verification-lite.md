@@ -106,6 +106,14 @@ Playwright 实测左侧点击：
 
 测试：`pytest tests/webui/test_session_workbench.py` 14 passed；`vitest run src/tests/session-workbench-live.test.tsx src/tests/session-workbench.test.tsx src/tests/workbench-memories.test.tsx` 14 passed；`npm run build` 通过。
 
+## 文档分块预览
+
+文档行动作区新增「查看分块」：复用既有 `GET /api/settings/knowledge/doc?id=...&chunkLimit=20`，弹窗展示块序号、标题路径、页码、字符数、`chunk://` 句柄与正文；超过 20 块时页脚提示「共 N 块 · 显示前 20 块」。失败展示错误且不关闭弹窗，点击遮罩或「关闭」退出。
+
+实机验证：上传 4 块文档后，弹窗显示 4 个块、正文与统计 `共 4 块`，关闭正常。证据：`verifications/knowledge-e2e/chunk-preview.png`、`chunk-summary.json`。
+
+测试：`vitest run src/tests/knowledge-page.test.tsx` 16 passed（含预览成功与加载失败两条）；`npm run build` 通过；10 语言补齐 `viewChunks / chunksSummary / chunksShowing / chunksEmpty / chunksLoadError` 文案。
+
 ## 发现的既有行为（未改动）
 
 - **短且标题密集的文档会被分块校验拒绝**：428 字、4 个小节的 Markdown 会得到 4 个短块，触发既有规则 `KNOWLEDGE_CHUNK_INVALID: too many small chunks`（`chunk_size=800`、≥4 块、非末块中 <50 字的块超过 1/4）。这是 `nanobot/knowledge/chunker.py::validate_chunks` 的现有设计，需要单独决策是否放宽；本次用正常长度文档验证主链路。

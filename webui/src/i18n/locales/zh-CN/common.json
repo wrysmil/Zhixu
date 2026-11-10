@@ -3711,6 +3711,11 @@
     "repairing": "修复中…",
     "repairDone": "修复完成",
     "chunkTitle": "分块详情",
+    "viewChunks": "查看分块",
+    "chunksSummary": "共 {{count}} 块",
+    "chunksShowing": "共 {{total}} 块 · 显示前 {{shown}} 块",
+    "chunksEmpty": "暂无可预览的分块",
+    "chunksLoadError": "分块加载失败",
     "close": "关闭",
     "sizeValue": "{{count}} 字符",
     "eval": {

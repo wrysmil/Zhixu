@@ -3711,6 +3711,11 @@
     "repairing": "修復中…",
     "repairDone": "修復完成",
     "chunkTitle": "分塊詳情",
+    "viewChunks": "檢視分塊",
+    "chunksSummary": "共 {{count}} 塊",
+    "chunksShowing": "共 {{total}} 塊 · 顯示前 {{shown}} 塊",
+    "chunksEmpty": "暫無可預覽的分塊",
+    "chunksLoadError": "分塊載入失敗",
     "close": "關閉",
     "sizeValue": "{{count}} 字元",
     "eval": {

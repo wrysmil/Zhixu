@@ -3711,6 +3711,11 @@
     "repairing": "Repairing…",
     "repairDone": "Repair finished",
     "chunkTitle": "Chunk detail",
+    "viewChunks": "View chunks",
+    "chunksSummary": "{{count}} chunks",
+    "chunksShowing": "{{total}} chunks total · showing first {{shown}}",
+    "chunksEmpty": "No chunks to preview.",
+    "chunksLoadError": "Could not load chunks",
     "close": "Close",
     "sizeValue": "{{count}} chars",
     "eval": {

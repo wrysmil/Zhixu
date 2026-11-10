@@ -11,6 +11,7 @@ import {
   createKnowledgeKb,
   deleteKnowledgeDoc,
   deleteKnowledgeKb,
+  fetchKnowledgeDoc,
   fetchKnowledgeDocs,
   fetchKnowledgeKbs,
   fetchKnowledgeStats,
@@ -32,6 +33,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...actual,
     fetchKnowledgeKbs: vi.fn(),
     fetchKnowledgeDocs: vi.fn(),
+    fetchKnowledgeDoc: vi.fn(),
     fetchKnowledgeStats: vi.fn(),
     searchKnowledge: vi.fn(),
     createKnowledgeKb: vi.fn(),
@@ -148,6 +150,12 @@ describe("knowledge page", () => {
       enabled: true,
       documents: DOCS,
       total: DOCS.length,
+    });
+    vi.mocked(fetchKnowledgeDoc).mockReset().mockResolvedValue({
+      enabled: true,
+      document: DOCS[0],
+      chunks: [],
+      chunkCount: DOCS[0].chunkCount,
     });
     vi.mocked(fetchKnowledgeStats).mockReset().mockResolvedValue(STATS);
     vi.mocked(searchKnowledge).mockReset().mockResolvedValue({
@@ -291,6 +299,51 @@ describe("knowledge page", () => {
     expect(deleteKnowledgeDoc).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(deleteKnowledgeDoc).toHaveBeenCalledWith(transport, "doc_1"));
+  });
+
+  it("previews document chunks with heading, page and content", async () => {
+    vi.mocked(fetchKnowledgeDoc).mockResolvedValueOnce({
+      enabled: true,
+      document: DOCS[0],
+      chunks: [
+        {
+          id: "chk_1", docId: "doc_1", kbId: "kb_1", index: 0,
+          heading: "Deploy > Rollback", page: 3, locator: "p3",
+          content: "Rollback checklist", charCount: 18,
+        },
+        {
+          id: "chk_2", docId: "doc_1", kbId: "kb_1", index: 1,
+          heading: "", page: null, locator: "",
+          content: "Second chunk", charCount: 12,
+        },
+      ],
+      chunkCount: 12,
+    });
+    renderPage();
+    await openKb();
+    await screen.findByText("Deploy guide");
+    await userEvent.click(screen.getAllByRole("button", { name: "View chunks" })[0]);
+
+    expect(fetchKnowledgeDoc).toHaveBeenCalledWith("tok", { id: "doc_1", chunkLimit: 20 });
+    const dialog = await screen.findByTestId("knowledge-chunk-preview");
+    expect(within(dialog).getByText("Rollback checklist")).toBeInTheDocument();
+    expect(within(dialog).getByText("Deploy > Rollback")).toBeInTheDocument();
+    expect(within(dialog).getByText("12 chunks total · showing first 2")).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("knowledge-chunk-preview")).not.toBeInTheDocument();
+  });
+
+  it("keeps the chunk preview open and shows load failures", async () => {
+    vi.mocked(fetchKnowledgeDoc).mockRejectedValueOnce(new Error("boom"));
+    renderPage();
+    await openKb();
+    await screen.findByText("Deploy guide");
+    await userEvent.click(screen.getAllByRole("button", { name: "View chunks" })[0]);
+
+    const dialog = await screen.findByTestId("knowledge-chunk-preview");
+    expect(await within(dialog).findByText("Could not load chunks: boom")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
   it("clears stale search results and refreshes kb counts after doc mutations", async () => {

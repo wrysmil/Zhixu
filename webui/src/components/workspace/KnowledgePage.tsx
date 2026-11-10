@@ -10,6 +10,7 @@ import {
   FileText,
   Layers,
   Library,
+  ListTree,
   Loader2,
   Plus,
   RefreshCcw,
@@ -31,6 +32,7 @@ import {
   createKnowledgeKb,
   deleteKnowledgeDoc,
   deleteKnowledgeKb,
+  fetchKnowledgeDoc,
   fetchKnowledgeDocs,
   fetchKnowledgeKbs,
   fetchKnowledgeStats,
@@ -38,6 +40,7 @@ import {
   reindexKnowledgeKb,
   repairKnowledge,
   searchKnowledge,
+  type KnowledgeChunk,
   type KnowledgeDoc,
   type KnowledgeKb,
   type KnowledgeSearchMode,
@@ -136,6 +139,13 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+
+  const [chunkPreview, setChunkPreview] = useState<KnowledgeDoc | null>(null);
+  const [previewChunks, setPreviewChunks] = useState<KnowledgeChunk[]>([]);
+  const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewSeq = useRef(0);
 
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<KnowledgeSearchMode>("hybrid");
@@ -294,6 +304,39 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       },
     );
   }, [clearSearch, client, confirm, loadDocs, loadKbs, loadStats, runAction]);
+
+  const closeChunkPreview = useCallback(() => {
+    previewSeq.current += 1;
+    setChunkPreview(null);
+    setPreviewChunks([]);
+    setPreviewTotal(0);
+    setPreviewError(null);
+    setPreviewLoading(false);
+  }, []);
+
+  const onOpenChunkPreview = useCallback(
+    async (doc: KnowledgeDoc) => {
+      const seq = previewSeq.current + 1;
+      previewSeq.current = seq;
+      setChunkPreview(doc);
+      setPreviewChunks([]);
+      setPreviewTotal(doc.chunkCount);
+      setPreviewError(null);
+      setPreviewLoading(true);
+      try {
+        const payload = await fetchKnowledgeDoc(token, { id: doc.id, chunkLimit: 20 });
+        if (seq !== previewSeq.current) return;
+        setPreviewChunks(payload.chunks);
+        setPreviewTotal(payload.chunkCount);
+      } catch (reason: unknown) {
+        if (seq !== previewSeq.current) return;
+        setPreviewError(reason instanceof Error ? reason.message : String(reason));
+      } finally {
+        if (seq === previewSeq.current) setPreviewLoading(false);
+      }
+    },
+    [token],
+  );
 
   const onUpload = useCallback(
     async (file: File) => {
@@ -980,6 +1023,17 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                                   type="button"
                                   variant="ghost"
                                   size="sm"
+                                  disabled={busy || isDocActive(doc) || doc.chunkCount <= 0}
+                                  onClick={() => void onOpenChunkPreview(doc)}
+                                  className="h-7 rounded-full px-2.5 text-[11px]"
+                                >
+                                  <ListTree className="h-3 w-3" aria-hidden />
+                                  {t("knowledge.viewChunks")}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
                                   disabled={busy || isDocActive(doc)}
                                   onClick={() => {
                                     void runAction(
@@ -1118,6 +1172,93 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </div>
         ) : null}
       </div>
+
+      {chunkPreview ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="knowledge-chunks-title"
+          data-testid="knowledge-chunk-preview"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={closeChunkPreview}
+        >
+          <div
+            className="flex max-h-[82vh] w-full max-w-[760px] flex-col rounded-panel border border-border bg-background shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="border-b border-border/60 px-5 py-4">
+              <h2 id="knowledge-chunks-title" className="text-[14px] font-semibold text-foreground">
+                {t("knowledge.chunkTitle")}
+              </h2>
+              <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{chunkPreview.title}</p>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+              {previewLoading ? (
+                <p className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  {t("knowledge.loading")}
+                </p>
+              ) : previewError ? (
+                <div
+                  role="alert"
+                  className="rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12px] text-destructive"
+                >
+                  {t("knowledge.chunksLoadError")}: {previewError}
+                </div>
+              ) : previewChunks.length === 0 ? (
+                <p className="py-6 text-center text-[12px] text-muted-foreground">
+                  {t("knowledge.chunksEmpty")}
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {previewChunks.map((chunk) => (
+                    <article
+                      key={chunk.id}
+                      data-testid="knowledge-chunk"
+                      className="rounded-control border border-border/60 bg-muted/15 p-3"
+                    >
+                      <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted-foreground">
+                        <span className="rounded-full bg-muted px-2 py-0.5 font-semibold tabular-nums text-foreground">
+                          #{chunk.index}
+                        </span>
+                        {chunk.heading ? (
+                          <span className="max-w-[320px] truncate text-foreground">{chunk.heading}</span>
+                        ) : null}
+                        {chunk.page !== null ? (
+                          <span>{t("knowledge.pageLabel", { page: chunk.page })}</span>
+                        ) : null}
+                        <span>{t("knowledge.sizeValue", { count: chunk.charCount })}</span>
+                        <span className="ml-auto font-mono text-[10px]">{chunk.id}</span>
+                      </div>
+                      <p className="mt-2 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-foreground">
+                        {chunk.content}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 border-t border-border/60 px-5 py-3">
+              {previewChunks.length > 0 ? (
+                <span className="text-[11px] text-muted-foreground">
+                  {previewChunks.length < previewTotal
+                    ? t("knowledge.chunksShowing", { total: previewTotal, shown: previewChunks.length })
+                    : t("knowledge.chunksSummary", { count: previewTotal })}
+                </span>
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={closeChunkPreview}
+                className="ml-auto h-8 rounded-full px-3 text-[12px]"
+              >
+                {t("knowledge.close")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {confirm ? (
         <div
