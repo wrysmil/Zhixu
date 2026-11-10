@@ -125,3 +125,29 @@ cd "$WT/webui" && WINTMP=$(cd node_modules/.tmp && pwd -W) \
 
 E2E 脚本（未入库，属一次性验证脚本）：`.tmp-eval-instance/e2e-eval.cjs`，
 输出 `e2e-out/e2e-report.json` 与三张截图。
+
+## 8. 合流后回归（2026-11-10 晚，`feature/desktop-app` 上）
+
+分支已合入 `feature/desktop-app`（merge 提交 `0a99ddf4`）。合流后在**用户实例**
+（`8765` WebUI / `8790` 评测，真实知识库 `kb_c27ec95f0bb1`「E2E 临时库」）用 msedge 走了一遍完整用户路径：
+
+| 步骤 | 结果 |
+| --- | --- |
+| 打开 `#/knowledge-eval` | 页面加载 ~2.1s，左侧「检索评测台」高亮，口径区 7 行公式均来自后端 |
+| UI 建数据集（表单填名称 / 查询 / 期望关键词） | 成功，列表出现新数据集 |
+| 运行分区选数据集 → 发起运行 | 202 入队，页面自动轮询 |
+| 等运行结束 | 无人工刷新，概览卡与逐题表自动出数：准确率 0.125 / 召回率 1.000 / 命中率 1.000 / MRR 1.000 / nDCG 1.000，状态「已评分」，逐题行显示查询原文 |
+| 切到对比分区 | 正常渲染（两次运行都没变差，退化清单为空态） |
+| 控制台 | 只有一条 `401 Unauthorized`（`/auth/session` 未登录探测，随后自动登录成功），无 JS 报错 |
+
+证据：`verifications/knowledge-rag-eval/merged-{01-page,02-dataset,04-report,05-compare}.png`、
+`merged-summary.json`。
+
+### 合流后又修掉 1 个缺陷
+
+| 缺陷 | 影响 | 修复 |
+| --- | --- | --- |
+| 轮询只刷新**运行列表**，选中运行的**报告**不会重取 | 发起运行后页面一直停在「还没有逐题结果」，必须手动刷新才看得到结果（后端其实早已 `completed`） | 把选中运行的状态纳入报告 effect 依赖，`queued/running` 翻成终态时重新拉一次（`d28f0ab`） |
+
+修复后同一条浏览器路径复跑通过（上面的表格即为修复后的结果）。
+

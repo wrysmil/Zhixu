@@ -1,0 +1,8 @@
+{
+  "errors": [
+    "console: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "caseText": "逐题结果\n查询\t配置\t准确率@K\t召回率@K\t命中率@K\tMRR\tNDCG@K\t状态\n\n回滚部署失败怎么办\n关键词标注\tbase\t0.125\t1.000\t1.000\t1.000\t1.000\t已评分",
+  "overviewText": "关键词标注\n1 条查询参与计算\n0 条查询未评\n未评率: 0.000\n准确率@K\n0.125\n相关块数(top-k) ÷ k\n召回率@K\n1.000\n相关块数(top-k) ÷ 相关块数(pool)\n命中率@K\n1.000\n命中查询数 ÷ 可评查询数\nMRR\n1.000\n平均( 1 ÷ 首个相关块名次 )\nNDCG@K\n1.000\nDCG ÷ IDCG，其中 DCG = Σ (2^grade − 1) ÷ log₂(名次+1)",
+  "datasetName": "浏览器回归 871747"
+}
