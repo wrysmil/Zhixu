@@ -4,7 +4,7 @@ type: weknora-alignment
 date: 2026-11-10
 scope: nanobot/knowledge + knowledge_search tool
 source: 03 · 检索原理（WeKnora 文章）+ knowledge-center/retrieval spec
-status: partial
+status: aligned-v2
 ---
 
 # 知识检索与 WeKnora 对齐审查
@@ -37,10 +37,10 @@ status: partial
 | §5.4 bestRanks | 多列表取最佳名次 | 当前只有一张向量列表 + 一张关键词列表，没有跨 KB/引擎多列表 | v1 不需要；v2 多列表再补 |
 | §5.4 同分保留规则 | 文章未定义 | 分数差 >5% 取高分，否则取更长块，再取小 chunk_id | **自定（spec §5.4）** |
 | §6 去重 ③ | 长度比 ≤3；短文本是长文本子串；或 token 覆盖 ≥0.85 且独有 ≤2% | **本轮已改为同一口径**；`dedup_jaccard` 字段保留但不再参与判定 | **已修正** |
-| §7 精排 | cross-encoder，200 候选，三档阈值 + 复合分 | **已实现并接真模型**：`Reranker` 协议 + 两种后端（cohere 兼容 HTTP / 本地 sentence-transformers cross-encoder）、候选截断 200、passage=标题+面包屑+正文、三档阈值降级、复合分 0.6/0.3/0.1、失败退化为召回顺序；当前实例用 `BAAI/bge-reranker-base`（本地 CPU） | 对齐 |
-| §8 MMR | λ=0.7，token 来自 enriched passage（标题/面包屑 + 正文） | λ=0.7；**本轮 token 已改为 heading_path + content**；同文档邻块相似度下限 0.25 | 部分对齐（邻块下限自定） |
-| §9 上下文装配 | 子块→父块、相邻块合并、邻居扩展 | 不做父子块；`knowledge_read` 按 chunk/doc 句柄扩读 | **v1 裁剪**（spec 已记录） |
-| §9.3 Agent 预算 | 输出预算 4/5，超预算按比例收缩，带句柄 | 单条 1000 字、总预算 6000 字；句柄 `chunk://`/`doc://`；未做 4/5 动态收缩 | 部分对齐 |
+| §7 精排 | cross-encoder，200 候选，三档阈值 + 复合分 | `Reranker` 协议 + 两种后端（cohere 兼容 HTTP / 本地 cross-encoder）、候选截断 200、passage=标题+面包屑+清洗正文、三档阈值降级、复合分 0.6/0.3/0.1、失败退化；**v2 补**：按字符预算分批、`model_unavailable`/`model_error` 区分、「N 进 M 出」写进工具结果 | 对齐（v2） |
+| §8 MMR | λ=0.7，token 来自 enriched passage（标题/面包屑 + 正文） | λ=0.7；token = 标题 + heading_path + 正文；**v2 删除**邻块相似度下限（自定项） | 对齐（v2） |
+| §9 上下文装配 | 子块→父块、相邻块合并、邻居扩展 | **v2 新增** `assemble.py`：父块按需合成（不建父块表）、连续正文合并、短块邻居扩展、最终去重、历史引用注入 | 对齐（v2，父块不落库） |
+| §9.3 Agent 预算 | 输出预算 4/5，超预算按比例收缩，带句柄 | **v2**：输出预算 = total×4/5，超预算按条数收缩 + `budget` notice + `<omitted/>`；句柄 `chunk://`/`doc://` | 对齐（v2） |
 | §10 失败语义 | 单路/单 target/embedding 失败分别降级 | 向量失败退关键词；关键词失败且向量失败才抛；`degraded` 标记 | 基本对齐 |
 | 查询扩展 | 变体 ≤5、并发 16 | 未做 | v2 |
 
@@ -49,27 +49,30 @@ status: partial
 我们实际顺序（`nanobot/knowledge/retriever.py::Retriever.search`）：
 
 ```
-作用域校验 → 分词 → 向量召回(池≤200) → 关键词召回(池≤300)
-→ 融合(_fuse) → 去重(dedup_partial) → 精排(截断200→拼passage→打分→三档阈值→复合分)
-→ MMR(relevance_band 过滤 + λ=0.7 贪心) → 直接返回
+作用域校验 → 分词 → 向量召回(池=max(topK*5,50)×len(KBs)≤500)
+→ 关键词召回(同公式) → 融合(_fuse) → 去重(dedup_partial)
+→ 精排(截断200→passage=标题+面包屑+清洗正文→字符分批打分→三档阈值→复合分)
+→ 截到 rerank_top_k(10) → MMR(λ=0.7, enriched token, 倒排加速)
+→ 装配(父块回填 + 连续正文合并 + 短块邻居扩展 + 最终去重 + 历史引用)
 ```
 
 文章骨架：①融合 ②去重 ③截断200 ④精排 ⑤阈值+复合分+top_k ⑥MMR ⑦装配。
-**前六道都有，第七道完全没有。**
+**七道齐了（⑦ 为 v2 按需合成父块，不落库）。**
 
 | 工序 | 文章 | 我们 | 判定 |
 | --- | --- | --- | --- |
 | ① 融合在去重之前 | §6 强调顺序 | `retriever.py` 融合 → 去重 | 对齐 |
 | ③ 截断 200 | `topByScore(200)` 按分取 | `candidates[:200]` | 对齐（无图谱豁免） |
 | ④ 精排 query 同源 | §7.0 ③「送模型的是 RewriteQuery」 | 工具传 `effective_query`，召回与精排同一句 | 对齐 |
-| ④ passage | 标题+面包屑+清洗正文+图注/OCR | title+heading+content，无清洗 | 部分对齐 |
+| ④ passage | 标题+面包屑+清洗正文+图注/OCR | title+heading+clean_text(content)（`knowledge/text.py`） | 对齐（v2） |
 | ⑤ 三档阈值 | 含显式作用域无下限 | `rerank.py::apply_threshold` | 对齐 |
 | ⑤ 复合分 | 0.6/0.3/0.1 + clamp[0,1] | `rerank.py::composite_score` | 对齐 |
-| ⑥ MMR | λ=0.7，token=enriched passage（含标题） | heading+content，缺标题 | 部分对齐 |
-| ⑦ 上下文装配 | CHUNK_MERGE 七步 | 无 | **缺失** |
+| ⑥ MMR | λ=0.7，token=enriched passage（含标题） | 标题 + heading + 正文 | 对齐（v2） |
+| ⑦ 上下文装配 | CHUNK_MERGE 七步 | `assemble.py`（父块按需合成 / 连续合并 / 邻居扩展 / 最终去重 / 历史引用） | 对齐（v2） |
 
 ### 3.1 缺口清单
 
+> 下表是**补齐前**的快照；14 项缺口的闭环状态见 §8（WU1–WU10，2026-11-10 晚）。
 | # | 缺口 | 位置 | 严重度 | 说明 |
 | --- | --- | --- | --- | --- |
 | 1 | 上下文装配整段缺失 | `retriever.py` / `chunker.py` | 高 | 文章 §9.1：子块→父块回填、相邻块合并、邻居扩展、注入历史引用、FAQ 补答、最终去重。我们 `chunker.py` 不产父子块（无 `parent` 字段），相邻块合并也没有，只靠 `knowledge_read` 让模型自己扩读 |
@@ -103,6 +106,8 @@ status: partial
 | `routes` / `mode_used` 词表 | `fusion.py` / tool | 低 | 产品/UI 契约，自定；语义与文章 `outcome` 不同 |
 | CJK uni+bigram 分词 | `tokenizer.py` | 中 | 自研，非 Lindera；spec 已记录，中文召回质量需评测台验证 |
 | 无精排 / 图谱 / 父子块 / bestRanks / 查询扩展 | 全局 | 高 | 精排本轮已补；图谱/父子块/bestRanks/查询扩展仍是 v2 缺口，不应宣称对齐 WeKnora 全链路 |
+
+> 后续：缺口 #5、#6 的自定参数已按文章删除；父子块以「按需合成」补齐（不落库）。详见 §8。
 
 ## 5. 本轮落地
 
@@ -153,3 +158,45 @@ status: partial
    要么按文章删掉，要么明确标注为自定口径并补测——目前两者方向与文章相反。
 5. **查询理解的独立调用**：当前是「agent 填参数」形态，若要严格照文章的「一次 JSON 调用」，
    需要把查询理解从工具参数升级成独立步骤——先看当前形态的实际效果再决定。
+
+## 8. 补齐结果（WU1–WU10，2026-11-10 晚）
+
+> 验证：`.ai-runtime-artifacts/verifications/2026-11-10-knowledge-weknora-alignment-v2-verification.md`
+> 实机证据：`.ai-runtime-artifacts/verifications/knowledge-e2e/wu9-v2-evidence.md`
+
+| 缺口 | 处置 | 状态 |
+| --- | --- | --- |
+| 1 上下文装配整段缺失 | 新增 `knowledge/assemble.py`：父块按需合成（同文档同 heading 邻块，≤`parent_max_chars`）、连续正文合并、短块邻居扩展、最终三级去重、历史引用并入 | 已补（不建父块表） |
+| 2 精排截断未告知模型 | 工具输出 `<notice kind="rerank_cut">`；M 取最终返回条数（top_k/MMR/装配后），N 取截断前候选总数 | 已补 |
+| 3 无独立 rerank_top_k | `RetrieverSettings.rerank_top_k=10`：精排后先进 MMR 的池截到 10 | 已补 |
+| 4 超取池口径 | `max(topK*5, 下限)×len(KBs)`，上限 500（两路同公式） | 已对齐 |
+| 5 `relevance_band` 自定裁剪 | 删除判定逻辑，字段保留为 deprecated | 已删 |
+| 6 `adjacent_similarity_floor` 自定惩罚 | 删除判定逻辑，字段保留为 deprecated；邻块冗余交给装配合并 | 已删 |
+| 7 passage 无清洗、限长固定 | 新增 `knowledge/text.py`：控制字符/空白/图片链接标记清洗；`passage = min(单条上限, 请求上限−query)` | 已补 |
+| 8 MMR token 缺标题 | enriched token = 标题 + 面包屑 + 正文；工具命中带 `title` | 已补 |
+| 9 分批只按条数 | 按 `batch_size` + 单批字符预算（`max_request_chars`，扣 query）分批，offset 正确映射 | 已补 |
+| 10 outcome 命名混装 | 新增 `model_unavailable`（加载失败/依赖缺失）与 `model_error`（调用失败） | 已补 |
+| 11 MMR 朴素 O(k·n²) | 倒排表维护共享边；k=1 直取最高分 | 已补 |
+| 12 确定性排序键 | Score → kb_id → chunk_index → chunk_id（无 FAQ 类型，省略 ChunkType 位） | 已补 |
+| 13 Agent 预算固定 6000/1000 | 输出预算 = total×4/5，超预算按条数收缩并追加 `budget` notice + `<omitted/>` | 已补 |
+| 14 FAQ 加权缺失 | 无 FAQ chunk 类型，不适用 | 忽略 |
+
+追加（用户要求「分点也要，参考原项目」）：
+
+- 分块对齐 WeKnora 的「heading → heuristic → legacy 递归」三级链，补 legacy 里的 `\n` 切点：
+  `chunker._cut` 在段落空行之后、句末标点之前，优先断在列表项行首
+  （`-` / `*` / `+` / `1.` / `1)` 加空白）。spec §7.1 已同步。
+- 实机：分点文档的块尾落在完整分点行首，不再把一条分点从中间硬切。
+
+第二轮补齐（2026-11-10，详见 `verifications/2026-11-10-knowledge-weknora-alignment-round2-verification.md`）：
+
+| 缺口 | 处置 | 状态 |
+| --- | --- | --- |
+| bestRanks 多列表 | `fusion.best_ranks` / `weighted_rrf_multi` / `single_*_scores_multi`；检索按 embedding 空间扇出 | 已补 |
+| 每 KB 独立 embedding | `service._EmbedderRegistry` 同时接 `Retriever` 与 `Ingestor` | 已补 |
+| 中文分词 | jieba 词典优先（WU13），索引版本 `tok2` | 已补（需 reindex） |
+| 精排 remote 实机 | 本地 cohere 兼容服务 + 真实 HTTP 探针 | 已补 |
+| doc2query | 可选、默认关；每块 3 条（1..10）；问题独立入 FTS 与向量、命中回填父块；失败不阻断入库 | 已补 |
+| KB 级问题开关 | 当前为知识配置级全局开关 | 未做（遗留） |
+
+仍属 v1 裁剪（未做）：图谱、父子块落库、查询扩展、表格/代码块结构化保护。

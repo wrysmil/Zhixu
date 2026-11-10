@@ -1,0 +1,43 @@
+{
+  "elapsed_s": 8.97,
+  "chunks": 4,
+  "questions": 10,
+  "question_ids": [
+    "chk_59a3e69e3305ef9f-q0",
+    "chk_59a3e69e3305ef9f-q1",
+    "chk_87fc5778b440b0dd-q0",
+    "chk_87fc5778b440b0dd-q1",
+    "chk_bce58cc70131df90-q0",
+    "chk_bce58cc70131df90-q1",
+    "chk_bce58cc70131df90-q2",
+    "chk_bd8b3b17f4a4dc13-q0",
+    "chk_bd8b3b17f4a4dc13-q1",
+    "chk_bd8b3b17f4a4dc13-q2"
+  ],
+  "question_fts_hits": 2,
+  "keyword": {
+    "mode": "hybrid",
+    "routes": [
+      "vector",
+      "keyword"
+    ],
+    "top_chunk": "chk_bce58cc70131df90",
+    "top_content": "## 回滚\n\n线上版本出问题时的回滚流程:先冻结流量,确认没有新的写入进入,再执"
+  },
+  "semantic": {
+    "mode": "semantic",
+    "routes": [
+      "vector"
+    ],
+    "rerank": "ok",
+    "candidates_in": 4,
+    "candidates_kept": 3,
+    "top_chunk": "chk_bce58cc70131df90",
+    "top_score": 0.8115
+  },
+  "document": {
+    "status": "ready",
+    "vector_status": "ok",
+    "index_version": "norm1:tok2:chunk1"
+  }
+}
