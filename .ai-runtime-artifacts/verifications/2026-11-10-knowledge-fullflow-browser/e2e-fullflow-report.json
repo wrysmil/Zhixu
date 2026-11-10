@@ -1,0 +1,884 @@
+{
+  "at": "2026-11-10T14:03:46.953Z",
+  "baseUrl": "http://127.0.0.1:8765",
+  "kbName": "E2E 全流程回归知识库",
+  "datasetName": "E2E 全流程数据集",
+  "steps": [
+    {
+      "step": "打开 WebUI 首页",
+      "ok": true,
+      "detail": "知序",
+      "at": "2026-11-10T14:03:06.597Z"
+    },
+    {
+      "step": "清理同名知识库",
+      "ok": true,
+      "detail": "E2E 全流程回归知识库",
+      "at": "2026-11-10T14:03:10.019Z"
+    },
+    {
+      "step": "知识库总览渲染",
+      "ok": true,
+      "detail": {
+        "kbs": "知识库 0",
+        "docs": "文档 0",
+        "chunks": "分块 0",
+        "pending": "待处理 0",
+        "vectors": "向量 0"
+      },
+      "at": "2026-11-10T14:03:10.065Z"
+    },
+    {
+      "step": "新建知识库",
+      "ok": true,
+      "detail": "E2E 全流程回归知识库",
+      "at": "2026-11-10T14:03:10.661Z"
+    },
+    {
+      "step": "文档入库并 ready",
+      "ok": true,
+      "detail": "e2e-rollback e2e-rollback.md 就绪 633 字符 4 查看分块 重建",
+      "at": "2026-11-10T14:03:15.197Z"
+    },
+    {
+      "step": "分块预览",
+      "ok": true,
+      "detail": {
+        "chunkCount": 4,
+        "fenceIntact": true,
+        "tableIntact": true
+      },
+      "at": "2026-11-10T14:03:15.274Z"
+    },
+    {
+      "step": "检索预览 hybrid",
+      "ok": true,
+      "detail": {
+        "modeUsed": "hybrid",
+        "degraded": [],
+        "hits": 4,
+        "top": "## 线上版本回滚 线上版本出问题时,优先按以下步骤回滚: 1. 确认当前版本:kubectl rollout history deployment/web-a"
+      },
+      "at": "2026-11-10T14:03:16.434Z"
+    },
+    {
+      "step": "检索预览 keyword",
+      "ok": true,
+      "detail": {
+        "modeUsed": "keyword",
+        "hits": 1,
+        "top": "## 线上版本回滚 线上版本出问题时,优先按以下步骤回滚: 1. 确认当前版本:kubectl rollout history deployment/web-a"
+      },
+      "at": "2026-11-10T14:03:18.016Z"
+    },
+    {
+      "step": "检索预览 semantic",
+      "ok": true,
+      "detail": {
+        "modeUsed": "semantic",
+        "degraded": [],
+        "hits": 4,
+        "top": "## 退款说明 用户申请退款后,原路退回一般 1-3 个工作日到账;跨行或境外卡最长 7 个工作日。超过 7 个工作日未到账,请联系客服核对支付流水号。 | 支"
+      },
+      "at": "2026-11-10T14:03:20.604Z"
+    },
+    {
+      "step": "入库后统计卡",
+      "ok": true,
+      "detail": {
+        "kbs": "知识库 1",
+        "docs": "文档 1",
+        "chunks": "分块 4",
+        "pending": "待处理 0",
+        "vectors": "向量 0"
+      },
+      "at": "2026-11-10T14:03:22.165Z"
+    },
+    {
+      "step": "聊天内知识检索",
+      "ok": true,
+      "detail": {
+        "detail": "回答出现 doc:// 引用或回滚命令",
+        "tail": "3 进展 记忆 1 能力 21 最近进展 线上版本回滚步骤 来源：知识库《运维手册(E2E 全流程回归语料) > 线上版本回滚》 标准流程 1. 确认当前版本历史 2. 回滚到上一个版本 3. 观察滚动状态 4. 若仍异常，回滚到指定版本 最常用的两条命令 注意 回滚只切换镜像版本，不修改数据库，回滚后数据不会丢失。 回… 任务清单 0 还没有记录任务。Agent 更新计划后会显示在这里。 当前计划 子 Agent 0 当前会话没有子 Agent 执行记录。 数据来源与统计范围 环境信息 产出 0 来源 0 选择项目 此计算机 完全访问权限 知序指挥官 MiniMax-M3.1-Flash 中"
+      },
+      "at": "2026-11-10T14:03:29.801Z"
+    },
+    {
+      "step": "评测台列表页加载",
+      "ok": true,
+      "detail": {
+        "metrics": 7
+      },
+      "at": "2026-11-10T14:03:31.516Z"
+    },
+    {
+      "step": "新建评测数据集",
+      "ok": true,
+      "detail": "E2E 全流程数据集",
+      "at": "2026-11-10T14:03:34.496Z"
+    },
+    {
+      "step": "首个运行完成并出报告",
+      "ok": true,
+      "detail": {
+        "header": "运行报告 completed 2d3c9088-1ad1-44ee-8499-a1daa7fee67c 1 个配置 2026-11-10T14:03:34 刷新",
+        "agg": {
+          "hit_at_k": 1,
+          "precision_at_k": 0.125,
+          "mrr": 1,
+          "ndcg_at_k": 1,
+          "recall_at_k": 1,
+          "pool_coverage": 0.25,
+          "unscored_rate": 0
+        }
+      },
+      "at": "2026-11-10T14:03:39.152Z"
+    },
+    {
+      "step": "第二个配置运行完成",
+      "ok": true,
+      "detail": "运行报告 completed eb6c9070-fc79-43eb-9636-883c8df5c47d 2 个配置 2026-11-10T14:03:40 刷新",
+      "at": "2026-11-10T14:03:44.529Z"
+    },
+    {
+      "step": "两次运行对比",
+      "ok": true,
+      "detail": {
+        "runIds": [
+          "eb6c9070-fc79-43eb-9636-883c8df5c47d",
+          "2d3c9088-1ad1-44ee-8499-a1daa7fee67c"
+        ],
+        "tail": "636-883c8df5c47d 2d3c9088-1ad1-44ee-8499-a1daa7fee67c 对比 指标 基线运行 候选运行 差值 命中率@kexpect 1.000 1.000 0.000 准确率@kexpect 0.125 0.125 0.000 MRRexpect 1.000 1.000 0.000 nDCG@kexpect 1.000 1.000 0.000 召回率@kexpect 1.000 1.000 0.000 候选池相关占比expect 0.250 0.250 0.000 未评率expect 0.000 0.000 0.000 退化查询0 这些指标上没有查询变差。"
+      },
+      "at": "2026-11-10T14:03:46.953Z"
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "httpErrors": [
+    {
+      "url": "http://127.0.0.1:8765/api/sessions/websocket%3A403fe674-6d03-44ff-9a26-4a48ba931e3a/workbench",
+      "status": 404
+    },
+    {
+      "url": "http://127.0.0.1:8790/api/eval/v1/auth/session",
+      "status": 401
+    }
+  ],
+  "capturedMetricsSpecs": 0,
+  "reports": [
+    {
+      "id": "2d3c9088-1ad1-44ee-8499-a1daa7fee67c",
+      "dataset_id": "2136c33f-c375-4ec3-95a5-d9c8faa0fad5",
+      "status": "running",
+      "configs": [
+        {
+          "id": "base",
+          "name": "Base",
+          "overrides": {
+            "vector_weight": null,
+            "keyword_weight": null,
+            "rrf_k": null,
+            "pool_size": null,
+            "keyword_pool_size": null,
+            "default_limit": null,
+            "max_limit": null,
+            "mmr_lambda": null,
+            "relevance_band": null,
+            "adjacent_similarity_floor": null,
+            "dedup_containment": null,
+            "dedup_unique_ratio": null,
+            "dedup_jaccard": null,
+            "dedup_length_ratio": null,
+            "mode": "hybrid",
+            "limit": 8
+          }
+        }
+      ],
+      "judge": {
+        "profile_id": "",
+        "model": "MiniMax-M3.1-Flash",
+        "provider_source": "runtime",
+        "available": true
+      },
+      "budgets": {
+        "max_queries": 200,
+        "max_judge_calls": 500,
+        "per_query_timeout_s": 60,
+        "concurrency": 4
+      },
+      "metrics": {},
+      "pool": {},
+      "progress": {
+        "total_queries": 2,
+        "completed": 0
+      },
+      "error": null,
+      "created_at": "2026-11-10T14:03:34.560640+00:00",
+      "finished_at": null,
+      "results": []
+    },
+    {
+      "id": "2d3c9088-1ad1-44ee-8499-a1daa7fee67c",
+      "dataset_id": "2136c33f-c375-4ec3-95a5-d9c8faa0fad5",
+      "status": "completed",
+      "configs": [
+        {
+          "id": "base",
+          "name": "Base",
+          "overrides": {
+            "vector_weight": null,
+            "keyword_weight": null,
+            "rrf_k": null,
+            "pool_size": null,
+            "keyword_pool_size": null,
+            "default_limit": null,
+            "max_limit": null,
+            "mmr_lambda": null,
+            "relevance_band": null,
+            "adjacent_similarity_floor": null,
+            "dedup_containment": null,
+            "dedup_unique_ratio": null,
+            "dedup_jaccard": null,
+            "dedup_length_ratio": null,
+            "mode": "hybrid",
+            "limit": 8
+          }
+        }
+      ],
+      "judge": {
+        "profile_id": "",
+        "model": "MiniMax-M3.1-Flash",
+        "provider_source": "runtime",
+        "available": true
+      },
+      "budgets": {
+        "max_queries": 200,
+        "max_judge_calls": 500,
+        "per_query_timeout_s": 60,
+        "concurrency": 4
+      },
+      "metrics": {
+        "expect": {
+          "total_queries": 2,
+          "scored_queries": 2,
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.125,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.25,
+            "unscored_rate": 0
+          },
+          "metric_status": {
+            "hit_at_k": "scored",
+            "precision_at_k": "scored",
+            "mrr": "scored",
+            "ndcg_at_k": "scored",
+            "recall_at_k": "scored",
+            "pool_coverage": "scored",
+            "unscored_rate": "scored"
+          },
+          "unscored_rate": 0
+        }
+      },
+      "pool": {
+        "degraded": [],
+        "degraded_detail": {},
+        "by_config": {
+          "base": {
+            "expect": {
+              "total_queries": 2,
+              "scored_queries": 2,
+              "metrics": {
+                "hit_at_k": 1,
+                "precision_at_k": 0.125,
+                "mrr": 1,
+                "ndcg_at_k": 1,
+                "recall_at_k": 1,
+                "pool_coverage": 0.25,
+                "unscored_rate": 0
+              },
+              "metric_status": {
+                "hit_at_k": "scored",
+                "precision_at_k": "scored",
+                "mrr": "scored",
+                "ndcg_at_k": "scored",
+                "recall_at_k": "scored",
+                "pool_coverage": "scored",
+                "unscored_rate": "scored"
+              },
+              "unscored_rate": 0
+            }
+          }
+        }
+      },
+      "progress": {
+        "total_queries": 2,
+        "completed": 2,
+        "not_assessable": 0,
+        "failed": 0,
+        "judge_calls": 0,
+        "cancelled": false
+      },
+      "error": null,
+      "created_at": "2026-11-10T14:03:34.560640+00:00",
+      "finished_at": "2026-11-10T14:03:34.641513+00:00",
+      "results": [
+        {
+          "run_id": "2d3c9088-1ad1-44ee-8499-a1daa7fee67c",
+          "case_id": "59207afe-2053-4c92-b319-63aea306bcc2::base",
+          "status": "scored",
+          "label_source": "expect",
+          "hits": [
+            {
+              "chunk_id": "chk_803d38cd622a99dd",
+              "rank": 1,
+              "score": 1,
+              "content_hash": "68ce52718f6b1fecec6ac39fc256d8cf9f83b974d8a1242ccb986e6c71ae08d7",
+              "grade": 3,
+              "reason": "expect_any 命中：到账"
+            },
+            {
+              "chunk_id": "chk_3e3e77c005aba73b",
+              "rank": 2,
+              "score": 0.688709677,
+              "content_hash": "dc18fb062213ba86e250adaf5ecb1f082727d742d5ae72dc9b666efa7e05a878",
+              "grade": 0,
+              "reason": ""
+            },
+            {
+              "chunk_id": "chk_d8159257b782dabe",
+              "rank": 3,
+              "score": 0.677777778,
+              "content_hash": "e9d96ac4d450b341d654b0b98a155bd91cd4f133f4a4c1a430dbeea880239b3f",
+              "grade": 0,
+              "reason": ""
+            },
+            {
+              "chunk_id": "chk_153e79fa5818ebd8",
+              "rank": 4,
+              "score": 0.6671875,
+              "content_hash": "356a4169b63bedc830faba2cb337ad4f20cad5d131f9fe39dc0f73e62d17675c",
+              "grade": 0,
+              "reason": ""
+            }
+          ],
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.125,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.25,
+            "reason": "",
+            "metric_status": {
+              "hit_at_k": "scored",
+              "precision_at_k": "scored",
+              "mrr": "scored",
+              "ndcg_at_k": "scored",
+              "recall_at_k": "scored",
+              "pool_coverage": "scored"
+            }
+          },
+          "error": null
+        },
+        {
+          "run_id": "2d3c9088-1ad1-44ee-8499-a1daa7fee67c",
+          "case_id": "6a3db2af-ca64-48db-aca4-6719ccea8e18::base",
+          "status": "scored",
+          "label_source": "expect",
+          "hits": [
+            {
+              "chunk_id": "chk_d8159257b782dabe",
+              "rank": 1,
+              "score": 1,
+              "content_hash": "e9d96ac4d450b341d654b0b98a155bd91cd4f133f4a4c1a430dbeea880239b3f",
+              "grade": 3,
+              "reason": "expect_any 命中：kubectl rollout undo"
+            },
+            {
+              "chunk_id": "chk_3e3e77c005aba73b",
+              "rank": 2,
+              "score": 0.688709677,
+              "content_hash": "dc18fb062213ba86e250adaf5ecb1f082727d742d5ae72dc9b666efa7e05a878",
+              "grade": 0,
+              "reason": ""
+            },
+            {
+              "chunk_id": "chk_803d38cd622a99dd",
+              "rank": 3,
+              "score": 0.677777778,
+              "content_hash": "68ce52718f6b1fecec6ac39fc256d8cf9f83b974d8a1242ccb986e6c71ae08d7",
+              "grade": 0,
+              "reason": ""
+            },
+            {
+              "chunk_id": "chk_153e79fa5818ebd8",
+              "rank": 4,
+              "score": 0.6671875,
+              "content_hash": "356a4169b63bedc830faba2cb337ad4f20cad5d131f9fe39dc0f73e62d17675c",
+              "grade": 0,
+              "reason": ""
+            }
+          ],
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.125,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.25,
+            "reason": "",
+            "metric_status": {
+              "hit_at_k": "scored",
+              "precision_at_k": "scored",
+              "mrr": "scored",
+              "ndcg_at_k": "scored",
+              "recall_at_k": "scored",
+              "pool_coverage": "scored"
+            }
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "eb6c9070-fc79-43eb-9636-883c8df5c47d",
+      "dataset_id": "2136c33f-c375-4ec3-95a5-d9c8faa0fad5",
+      "status": "running",
+      "configs": [
+        {
+          "id": "base",
+          "name": "Base",
+          "overrides": {
+            "vector_weight": null,
+            "keyword_weight": null,
+            "rrf_k": null,
+            "pool_size": null,
+            "keyword_pool_size": null,
+            "default_limit": null,
+            "max_limit": null,
+            "mmr_lambda": null,
+            "relevance_band": null,
+            "adjacent_similarity_floor": null,
+            "dedup_containment": null,
+            "dedup_unique_ratio": null,
+            "dedup_jaccard": null,
+            "dedup_length_ratio": null,
+            "mode": "hybrid",
+            "limit": 8
+          }
+        },
+        {
+          "id": "keyword",
+          "name": "Keyword",
+          "overrides": {
+            "vector_weight": null,
+            "keyword_weight": null,
+            "rrf_k": null,
+            "pool_size": null,
+            "keyword_pool_size": null,
+            "default_limit": null,
+            "max_limit": null,
+            "mmr_lambda": null,
+            "relevance_band": null,
+            "adjacent_similarity_floor": null,
+            "dedup_containment": null,
+            "dedup_unique_ratio": null,
+            "dedup_jaccard": null,
+            "dedup_length_ratio": null,
+            "mode": "keyword",
+            "limit": 8
+          }
+        }
+      ],
+      "judge": {
+        "profile_id": "",
+        "model": "MiniMax-M3.1-Flash",
+        "provider_source": "runtime",
+        "available": true
+      },
+      "budgets": {
+        "max_queries": 200,
+        "max_judge_calls": 500,
+        "per_query_timeout_s": 60,
+        "concurrency": 4
+      },
+      "metrics": {},
+      "pool": {},
+      "progress": {
+        "total_queries": 2,
+        "completed": 0
+      },
+      "error": null,
+      "created_at": "2026-11-10T14:03:40.232543+00:00",
+      "finished_at": null,
+      "results": []
+    },
+    {
+      "id": "eb6c9070-fc79-43eb-9636-883c8df5c47d",
+      "dataset_id": "2136c33f-c375-4ec3-95a5-d9c8faa0fad5",
+      "status": "completed",
+      "configs": [
+        {
+          "id": "base",
+          "name": "Base",
+          "overrides": {
+            "vector_weight": null,
+            "keyword_weight": null,
+            "rrf_k": null,
+            "pool_size": null,
+            "keyword_pool_size": null,
+            "default_limit": null,
+            "max_limit": null,
+            "mmr_lambda": null,
+            "relevance_band": null,
+            "adjacent_similarity_floor": null,
+            "dedup_containment": null,
+            "dedup_unique_ratio": null,
+            "dedup_jaccard": null,
+            "dedup_length_ratio": null,
+            "mode": "hybrid",
+            "limit": 8
+          }
+        },
+        {
+          "id": "keyword",
+          "name": "Keyword",
+          "overrides": {
+            "vector_weight": null,
+            "keyword_weight": null,
+            "rrf_k": null,
+            "pool_size": null,
+            "keyword_pool_size": null,
+            "default_limit": null,
+            "max_limit": null,
+            "mmr_lambda": null,
+            "relevance_band": null,
+            "adjacent_similarity_floor": null,
+            "dedup_containment": null,
+            "dedup_unique_ratio": null,
+            "dedup_jaccard": null,
+            "dedup_length_ratio": null,
+            "mode": "keyword",
+            "limit": 8
+          }
+        }
+      ],
+      "judge": {
+        "profile_id": "",
+        "model": "MiniMax-M3.1-Flash",
+        "provider_source": "runtime",
+        "available": true
+      },
+      "budgets": {
+        "max_queries": 200,
+        "max_judge_calls": 500,
+        "per_query_timeout_s": 60,
+        "concurrency": 4
+      },
+      "metrics": {
+        "expect": {
+          "total_queries": 4,
+          "scored_queries": 4,
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.125,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.25,
+            "unscored_rate": 0
+          },
+          "metric_status": {
+            "hit_at_k": "scored",
+            "precision_at_k": "scored",
+            "mrr": "scored",
+            "ndcg_at_k": "scored",
+            "recall_at_k": "scored",
+            "pool_coverage": "scored",
+            "unscored_rate": "scored"
+          },
+          "unscored_rate": 0
+        }
+      },
+      "pool": {
+        "degraded": [],
+        "degraded_detail": {},
+        "by_config": {
+          "base": {
+            "expect": {
+              "total_queries": 2,
+              "scored_queries": 2,
+              "metrics": {
+                "hit_at_k": 1,
+                "precision_at_k": 0.125,
+                "mrr": 1,
+                "ndcg_at_k": 1,
+                "recall_at_k": 1,
+                "pool_coverage": 0.25,
+                "unscored_rate": 0
+              },
+              "metric_status": {
+                "hit_at_k": "scored",
+                "precision_at_k": "scored",
+                "mrr": "scored",
+                "ndcg_at_k": "scored",
+                "recall_at_k": "scored",
+                "pool_coverage": "scored",
+                "unscored_rate": "scored"
+              },
+              "unscored_rate": 0
+            }
+          },
+          "keyword": {
+            "expect": {
+              "total_queries": 2,
+              "scored_queries": 2,
+              "metrics": {
+                "hit_at_k": 1,
+                "precision_at_k": 0.125,
+                "mrr": 1,
+                "ndcg_at_k": 1,
+                "recall_at_k": 1,
+                "pool_coverage": 0.25,
+                "unscored_rate": 0
+              },
+              "metric_status": {
+                "hit_at_k": "scored",
+                "precision_at_k": "scored",
+                "mrr": "scored",
+                "ndcg_at_k": "scored",
+                "recall_at_k": "scored",
+                "pool_coverage": "scored",
+                "unscored_rate": "scored"
+              },
+              "unscored_rate": 0
+            }
+          }
+        }
+      },
+      "progress": {
+        "total_queries": 2,
+        "completed": 2,
+        "not_assessable": 0,
+        "failed": 0,
+        "judge_calls": 0,
+        "cancelled": false
+      },
+      "error": null,
+      "created_at": "2026-11-10T14:03:40.232543+00:00",
+      "finished_at": "2026-11-10T14:03:40.347836+00:00",
+      "results": [
+        {
+          "run_id": "eb6c9070-fc79-43eb-9636-883c8df5c47d",
+          "case_id": "59207afe-2053-4c92-b319-63aea306bcc2::base",
+          "status": "scored",
+          "label_source": "expect",
+          "hits": [
+            {
+              "chunk_id": "chk_803d38cd622a99dd",
+              "rank": 1,
+              "score": 1,
+              "content_hash": "68ce52718f6b1fecec6ac39fc256d8cf9f83b974d8a1242ccb986e6c71ae08d7",
+              "grade": 3,
+              "reason": "expect_any 命中：到账"
+            },
+            {
+              "chunk_id": "chk_3e3e77c005aba73b",
+              "rank": 2,
+              "score": 0.688709677,
+              "content_hash": "dc18fb062213ba86e250adaf5ecb1f082727d742d5ae72dc9b666efa7e05a878",
+              "grade": 0,
+              "reason": ""
+            },
+            {
+              "chunk_id": "chk_d8159257b782dabe",
+              "rank": 3,
+              "score": 0.677777778,
+              "content_hash": "e9d96ac4d450b341d654b0b98a155bd91cd4f133f4a4c1a430dbeea880239b3f",
+              "grade": 0,
+              "reason": ""
+            },
+            {
+              "chunk_id": "chk_153e79fa5818ebd8",
+              "rank": 4,
+              "score": 0.6671875,
+              "content_hash": "356a4169b63bedc830faba2cb337ad4f20cad5d131f9fe39dc0f73e62d17675c",
+              "grade": 0,
+              "reason": ""
+            }
+          ],
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.125,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.25,
+            "reason": "",
+            "metric_status": {
+              "hit_at_k": "scored",
+              "precision_at_k": "scored",
+              "mrr": "scored",
+              "ndcg_at_k": "scored",
+              "recall_at_k": "scored",
+              "pool_coverage": "scored"
+            }
+          },
+          "error": null
+        },
+        {
+          "run_id": "eb6c9070-fc79-43eb-9636-883c8df5c47d",
+          "case_id": "59207afe-2053-4c92-b319-63aea306bcc2::keyword",
+          "status": "scored",
+          "label_source": "expect",
+          "hits": [
+            {
+              "chunk_id": "chk_803d38cd622a99dd",
+              "rank": 1,
+              "score": 1,
+              "content_hash": "68ce52718f6b1fecec6ac39fc256d8cf9f83b974d8a1242ccb986e6c71ae08d7",
+              "grade": 3,
+              "reason": "expect_any 命中：到账"
+            }
+          ],
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.125,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.25,
+            "reason": "",
+            "metric_status": {
+              "hit_at_k": "scored",
+              "precision_at_k": "scored",
+              "mrr": "scored",
+              "ndcg_at_k": "scored",
+              "recall_at_k": "scored",
+              "pool_coverage": "scored"
+            }
+          },
+          "error": null
+        },
+        {
+          "run_id": "eb6c9070-fc79-43eb-9636-883c8df5c47d",
+          "case_id": "6a3db2af-ca64-48db-aca4-6719ccea8e18::base",
+          "status": "scored",
+          "label_source": "expect",
+          "hits": [
+            {
+              "chunk_id": "chk_d8159257b782dabe",
+              "rank": 1,
+              "score": 1,
+              "content_hash": "e9d96ac4d450b341d654b0b98a155bd91cd4f133f4a4c1a430dbeea880239b3f",
+              "grade": 3,
+              "reason": "expect_any 命中：kubectl rollout undo"
+            },
+            {
+              "chunk_id": "chk_3e3e77c005aba73b",
+              "rank": 2,
+              "score": 0.688709677,
+              "content_hash": "dc18fb062213ba86e250adaf5ecb1f082727d742d5ae72dc9b666efa7e05a878",
+              "grade": 0,
+              "reason": ""
+            },
+            {
+              "chunk_id": "chk_803d38cd622a99dd",
+              "rank": 3,
+              "score": 0.677777778,
+              "content_hash": "68ce52718f6b1fecec6ac39fc256d8cf9f83b974d8a1242ccb986e6c71ae08d7",
+              "grade": 0,
+              "reason": ""
+            },
+            {
+              "chunk_id": "chk_153e79fa5818ebd8",
+              "rank": 4,
+              "score": 0.6671875,
+              "content_hash": "356a4169b63bedc830faba2cb337ad4f20cad5d131f9fe39dc0f73e62d17675c",
+              "grade": 0,
+              "reason": ""
+            }
+          ],
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.125,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.25,
+            "reason": "",
+            "metric_status": {
+              "hit_at_k": "scored",
+              "precision_at_k": "scored",
+              "mrr": "scored",
+              "ndcg_at_k": "scored",
+              "recall_at_k": "scored",
+              "pool_coverage": "scored"
+            }
+          },
+          "error": null
+        },
+        {
+          "run_id": "eb6c9070-fc79-43eb-9636-883c8df5c47d",
+          "case_id": "6a3db2af-ca64-48db-aca4-6719ccea8e18::keyword",
+          "status": "scored",
+          "label_source": "expect",
+          "hits": [
+            {
+              "chunk_id": "chk_d8159257b782dabe",
+              "rank": 1,
+              "score": 1,
+              "content_hash": "e9d96ac4d450b341d654b0b98a155bd91cd4f133f4a4c1a430dbeea880239b3f",
+              "grade": 3,
+              "reason": "expect_any 命中：kubectl rollout undo"
+            }
+          ],
+          "metrics": {
+            "hit_at_k": 1,
+            "precision_at_k": 0.125,
+            "mrr": 1,
+            "ndcg_at_k": 1,
+            "recall_at_k": 1,
+            "pool_coverage": 0.25,
+            "reason": "",
+            "metric_status": {
+              "hit_at_k": "scored",
+              "precision_at_k": "scored",
+              "mrr": "scored",
+              "ndcg_at_k": "scored",
+              "recall_at_k": "scored",
+              "pool_coverage": "scored"
+            }
+          },
+          "error": null
+        }
+      ]
+    }
+  ],
+  "searches": [
+    {
+      "modeUsed": "hybrid",
+      "degraded": [],
+      "hits": 4,
+      "top": "## 线上版本回滚 线上版本出问题时,优先按以下步骤回滚: 1. 确认当前版本:kubectl rollout history deployment/web-api 2. 回滚到上一个版本:kubectl rollout undo depl"
+    },
+    {
+      "modeUsed": "keyword",
+      "degraded": [],
+      "hits": 1,
+      "top": "## 线上版本回滚 线上版本出问题时,优先按以下步骤回滚: 1. 确认当前版本:kubectl rollout history deployment/web-api 2. 回滚到上一个版本:kubectl rollout undo depl"
+    },
+    {
+      "modeUsed": "semantic",
+      "degraded": [],
+      "hits": 4,
+      "top": "## 退款说明 用户申请退款后,原路退回一般 1-3 个工作日到账;跨行或境外卡最长 7 个工作日。超过 7 个工作日未到账,请联系客服核对支付流水号。 | 支付方式 | 到账时间 | | --- | --- | | 余额 | 即时到账 |"
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "at": "2026-11-10T14:59:58.895Z",
+  "kbName": "E2E 全流程回归知识库",
+  "document": "e2e-release",
+  "steps": [
+    {
+      "step": "上传并入库解析 ready",
+      "ok": true,
+      "detail": "e2e-release e2e-release.md 就绪 530 字符 4 查看分块 重建",
+      "at": "2026-11-10T14:59:47.602Z"
+    },
+    {
+      "step": "分块内容含关键事实",
+      "ok": true,
+      "detail": {
+        "chunkCount": 4,
+        "facts": [
+          {
+            "key": "5% 流量",
+            "ok": true
+          },
+          {
+            "key": "15 分钟",
+            "ok": true
+          },
+          {
+            "key": "P1 电话",
+            "ok": true
+          },
+          {
+            "key": "发布窗口",
+            "ok": true
+          }
+        ]
+      },
+      "at": "2026-11-10T14:59:47.686Z"
+    },
+    {
+      "step": "聊天检索到文档内容",
+      "ok": true,
+      "detail": {
+        "retrieved": true,
+        "answerChecks": {
+          "percent": true,
+          "observe": true,
+          "escalation": true,
+          "phone": true,
+          "citation": true
+        },
+        "answerTail": "障升级 升级对象：值班二号 电话：021-6688-9900 触发条件：错误率 > 2% 或支付不可用 要求：10 分钟内完成电话确认，并在事故群同步 补充参考：发布窗口为工作日 10:00–16:00，周五 16:00 后及法定节假日前一天禁止发布；线上异常回滚步骤见《运维手册》kubectl rollout undo deployment/web-api。 22:59 工作台 更新于 22:59 进展 记忆 1 能力 21 最近进展 两处都在《发布值班手册(2026 Q4)》(doc://doc9c79bad03e9c) 里： 灰度第一批 放 5% 流量，观察 15 分钟 （后续第二批 30%/30 分钟；全量前需确认错误率 < 0.5%） P1 故障升级 升级对象：值班二号 电话：021-6688-9900… 任务清单 0 还没有记录任务。Agent 更新计划后会显示在这里。 当前计划 子 Agent 0 当前会话没有子 Agent 执行记录。 数据来源与统计范围 环境信息 产出 0 来源 0 选择项目 此计算机 完全访问权限 知序指挥官 MiniMax-M3.1-Flash 中"
+      },
+      "at": "2026-11-10T14:59:56.835Z"
+    },
+    {
+      "step": "二次追问命中发布窗口",
+      "ok": true,
+      "detail": {
+        "windowHit": true
+      },
+      "at": "2026-11-10T14:59:58.894Z"
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}
