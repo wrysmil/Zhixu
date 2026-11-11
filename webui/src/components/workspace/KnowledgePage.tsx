@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
@@ -12,6 +12,7 @@ import {
   Library,
   ListTree,
   Loader2,
+  Network,
   Plus,
   RefreshCcw,
   Search,
@@ -65,6 +66,13 @@ const MAX_UPLOAD_BYTES = 6 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
 const SEARCH_LIMITS = [5, 8, 12, 20];
 const SEARCH_MODES: KnowledgeSearchMode[] = ["hybrid", "semantic", "keyword"];
+
+// 图谱 tab 独立 chunk：图关闭时 d3-force 不进首屏包。
+const KnowledgeGraphPanel = lazy(() =>
+  import("@/components/workspace/knowledge/GraphPanel").then((module) => ({
+    default: module.GraphPanel,
+  })),
+);
 const DOC_STATUS_KEYS: Record<string, string> = {
   pending: "statusPending",
   processing: "statusProcessing",
@@ -120,7 +128,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [kbs, setKbs] = useState<KnowledgeKb[]>([]);
   const [activeKbId, setActiveKbId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState<"documents" | "search">("documents");
+  const [detailTab, setDetailTab] = useState<"documents" | "search" | "graph">(
+    "documents",
+  );
   const [kbsLoading, setKbsLoading] = useState(true);
   const [kbsError, setKbsError] = useState<string | null>(null);
 
@@ -587,6 +597,21 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             >
               <Search className="h-3.5 w-3.5" aria-hidden />
               {t("knowledge.searchTitle")}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={detailTab === "graph"}
+              onClick={() => setDetailTab("graph")}
+              className={cn(
+                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                detailTab === "graph"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Network className="h-3.5 w-3.5" aria-hidden />
+              {t("knowledge.graph.tab")}
             </button>
           </div>
         </div>
@@ -1109,7 +1134,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               </>
             )}
           </div>
-          ) : (
+          ) : null}
+          {detailTab === "search" ? (
           <div className="rounded-panel border border-border/60 bg-background p-4">
             <h2 className="flex items-center gap-2 pb-3 text-[13px] font-semibold text-foreground">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -1203,7 +1229,30 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               />
             )}
           </div>
-          )}
+          ) : null}
+          {detailTab === "graph" && activeKb ? (
+            <Suspense
+              fallback={
+                <p className="flex items-center gap-2 rounded-panel border border-border/60 bg-background p-4 text-[12px] text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  {t("knowledge.loading")}
+                </p>
+              }
+            >
+              <KnowledgeGraphPanel
+                kbId={activeKb.id}
+                token={token}
+                client={client}
+                onOpenChunk={async (docId) => {
+                  const payload = await fetchKnowledgeDoc(token, {
+                    id: docId,
+                    chunkLimit: 20,
+                  });
+                  if (payload.document) await onOpenChunkPreview(payload.document);
+                }}
+              />
+            </Suspense>
+          ) : null}
         </div>
         ) : null}
       </div>

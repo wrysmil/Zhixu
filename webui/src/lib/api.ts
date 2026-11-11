@@ -1980,3 +1980,183 @@ export async function repairKnowledge(
     ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
   });
 }
+
+// ---- 知识图谱（可选 Neo4j 后端）------------------------------------------
+
+export interface KnowledgeGraphStats {
+  enabled: boolean;
+  backend: string;
+  status: "ready" | "degraded" | "disabled" | string;
+  reason?: string;
+  entities: number;
+  relations: number;
+  docsReady: number;
+  docsPending: number;
+  docsFailed: number;
+  docsSkipped: number;
+  truncatedDocs: number;
+  lastExtractedAt?: string | null;
+}
+
+export interface KnowledgeGraphEntity {
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  mentionCount: number;
+}
+
+export interface KnowledgeGraphNode {
+  id: string;
+  name: string;
+  type: string;
+  mentionCount: number;
+}
+
+export interface KnowledgeGraphEdge {
+  source: string;
+  target: string;
+  relation: string;
+  weight: number;
+}
+
+export interface KnowledgeGraphMention {
+  docId: string;
+  docTitle: string;
+  chunkId: string;
+  chunkIndex: number;
+  heading: string;
+}
+
+export interface KnowledgeGraphNeighbor {
+  entity: KnowledgeGraphEntity;
+  relation: string;
+  direction: "in" | "out" | string;
+  weight: number;
+}
+
+export interface KnowledgeGraphEntityDetail {
+  entity: KnowledgeGraphEntity;
+  mentions: KnowledgeGraphMention[];
+  neighbors: KnowledgeGraphNeighbor[];
+}
+
+export interface KnowledgeGraphPage {
+  entities: KnowledgeGraphEntity[];
+  total: number;
+}
+
+export async function fetchKnowledgeGraphStats(
+  token: string,
+  kbId: string,
+  base: string = "",
+): Promise<KnowledgeGraphStats> {
+  const query = knowledgeQuery({ kbId });
+  return request<KnowledgeGraphStats>(
+    `${base}${KNOWLEDGE_BASE}/graph/stats${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
+export async function fetchKnowledgeGraphEntities(
+  token: string,
+  params: { kbId: string; q?: string; type?: string; limit?: number; offset?: number },
+  base: string = "",
+): Promise<KnowledgeGraphPage> {
+  const query = knowledgeQuery({
+    kbId: params.kbId,
+    q: params.q,
+    type: params.type,
+    limit: params.limit,
+    offset: params.offset,
+  });
+  const payload = await request<Partial<KnowledgeGraphPage>>(
+    `${base}${KNOWLEDGE_BASE}/graph/entities${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  return {
+    entities: Array.isArray(payload.entities) ? payload.entities : [],
+    total: typeof payload.total === "number" ? payload.total : 0,
+  };
+}
+
+export async function fetchKnowledgeGraphEntity(
+  token: string,
+  id: string,
+  base: string = "",
+): Promise<KnowledgeGraphEntityDetail> {
+  const query = knowledgeQuery({ id });
+  return request<KnowledgeGraphEntityDetail>(
+    `${base}${KNOWLEDGE_BASE}/graph/entity${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+}
+
+export async function fetchKnowledgeGraphSubgraph(
+  token: string,
+  params: { entityId: string; hops?: number; limit?: number },
+  base: string = "",
+): Promise<{ nodes: KnowledgeGraphNode[]; edges: KnowledgeGraphEdge[] }> {
+  const query = knowledgeQuery({
+    entityId: params.entityId,
+    hops: params.hops,
+    limit: params.limit,
+  });
+  const payload = await request<{
+    nodes?: KnowledgeGraphNode[];
+    edges?: KnowledgeGraphEdge[];
+  }>(
+    `${base}${KNOWLEDGE_BASE}/graph/subgraph${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  return {
+    nodes: Array.isArray(payload.nodes) ? payload.nodes : [],
+    edges: Array.isArray(payload.edges) ? payload.edges : [],
+  };
+}
+
+export interface KnowledgeGraphExtractInput {
+  kbId?: string;
+  docId?: string;
+  force?: boolean;
+  confirm?: boolean;
+}
+
+export async function knowledgeGraphExtract(
+  transport: WebUIMutationTransport,
+  input: KnowledgeGraphExtractInput,
+): Promise<{ queued: number; docs: string[] }> {
+  return mutation<{ queued: number; docs: string[] }>(
+    transport,
+    "knowledge.graph.extract",
+    {
+      ...(input.kbId ? { kbId: input.kbId } : {}),
+      ...(input.docId ? { docId: input.docId } : {}),
+      ...(input.force !== undefined ? { force: input.force } : {}),
+      ...(input.confirm !== undefined ? { confirm: input.confirm } : {}),
+    },
+  );
+}
+
+export async function knowledgeGraphRebuild(
+  transport: WebUIMutationTransport,
+  input: { kbId: string; purge?: boolean; confirm?: boolean },
+): Promise<{ queued: number; docs?: string[] }> {
+  return mutation<{ queued: number; docs?: string[] }>(
+    transport,
+    "knowledge.graph.rebuild",
+    {
+      kbId: input.kbId,
+      ...(input.purge !== undefined ? { purge: input.purge } : {}),
+      ...(input.confirm !== undefined ? { confirm: input.confirm } : {}),
+    },
+  );
+}
