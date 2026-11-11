@@ -222,7 +222,15 @@ graph?: { seeds: string[]; path: Array<{from: string; relation: string; to: stri
 
 ## 11. 配置契约（`nanobot/config/schema.py`）
 
-`Base`（`nanobot/config_base.py:12-15`）已提供 `alias_generator=to_camel` + `populate_by_name=True`，camelCase 兼容**无需额外代码**。新增三个配置块（字段见 spec §8）挂到 `KnowledgeConfig.graph: KnowledgeGraphConfig`；`KnowledgeRetrievalConfig` 同步新增 5 个图参数（与 §6 的 `RetrieverSettings` 字段同名，便于评测映射）。
+`Base`（`nanobot/config_base.py:12-15`）已提供 `alias_generator=to_camel` + `populate_by_name=True`，camelCase 兼容**无需额外代码**。新增三个配置块（字段见 spec §8）挂到 `KnowledgeConfig.graph: KnowledgeGraphConfig`。
+
+**图参数单一来源（实施修订）**：不在 `KnowledgeRetrievalConfig` 重复声明 `graph_*` 字段；唯一来源是
+`knowledge.graph.expansion`，装配时映射进 `RetrieverSettings`。评测覆写仍直接写
+`RetrieverSettings`（`nanobot/evaluation/knowledge/models.py` 的 `KnowledgeRetrievalConfig`
+只声明允许覆写的字段与范围），避免「配置改了两处、只有一处生效」的二义性。
+
+**前端注入（实施修订）**：`GraphPanel` 由 `KnowledgePage` 注入 `token` 与 `client`
+（来自 `useClient()`），不自行获取认证上下文，与现有知识页口径一致。
 
 **凭据**：`api_key` / `password` 一律 `Field(default="", repr=False)`；优先读 `*_env` 环境变量；日志/错误消息脱敏（复用 `questions.py:101-106` 的 `_redact` 口径）。
 

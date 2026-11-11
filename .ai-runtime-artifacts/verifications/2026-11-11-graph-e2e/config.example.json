@@ -1,0 +1,88 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "D:\\studyspace\\project\\Zhixu\\.ai-runtime-artifacts\\verifications\\2026-11-11-graph-e2e\\workspace",
+      "provider": "minimax",
+      "model": "MiniMax-M3",
+      "maxTokens": 8192,
+      "contextWindowTokens": 65536,
+      "temperature": 0.1,
+      "maxToolIterations": 20,
+      "memoryEnabled": false,
+      "timezone": "UTC"
+    }
+  },
+  "providers": {
+    "minimax": {
+      "apiKey": "<set-in-local-config>",
+      "apiBase": "https://api.minimax.cn/v1",
+      "apiType": "auto",
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "openrouter": {
+      "apiKey": "<set-in-local-config>",
+      "apiBase": "https://openrouter.ai/api/v1",
+      "apiType": "auto",
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    }
+  },
+  "channels": {
+    "websocket": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 8775,
+      "tokenIssueSecret": "zhixu-graph-e2e-secret"
+    }
+  },
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 18791
+  },
+  "evaluation": {
+    "passphrase": "zhixu-graph-e2e-secret"
+  },
+  "knowledge": {
+    "enabled": true,
+    "databasePath": "D:\\studyspace\\project\\Zhixu\\.ai-runtime-artifacts\\verifications\\2026-11-11-graph-e2e\\state.db",
+    "vectorPath": "D:\\studyspace\\project\\Zhixu\\.ai-runtime-artifacts\\verifications\\2026-11-11-graph-e2e\\chromadb",
+    "embedding": {
+      "backend": "none"
+    },
+    "rerank": {
+      "enabled": false
+    },
+    "questionGeneration": {
+      "enabled": false
+    },
+    "graph": {
+      "enabled": true,
+      "uri": "bolt://localhost:7687",
+      "username": "neo4j",
+      "password": "zhixu-test-password",
+      "database": "neo4j",
+      "extraction": {
+        "enabled": true,
+        "baseUrl": "https://api.minimax.cn/v1",
+        "apiKey": "<set-in-local-config>",
+        "model": "MiniMax-M3",
+        "maxTokens": 4096,
+        "maxContextChars": 1200,
+        "concurrency": 2,
+        "requireConfirmation": true
+      },
+      "expansion": {
+        "enabled": true,
+        "hops": 1,
+        "maxEntities": 20,
+        "maxChunks": 50,
+        "weight": 0.25
+      }
+    }
+  }
+}

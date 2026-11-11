@@ -1,0 +1,38 @@
+{
+  "name": "孔乙己",
+  "id": "ent_92e9d8c5e7bc180fcf2d315e0ce80e07",
+  "nodes": 15,
+  "edges": 15,
+  "sample": [
+    {
+      "source": "ent_92e9d8c5e7bc180fcf2d315e0ce80e07",
+      "target": "ent_04bbee441d36b704266d9e69ecdf618e",
+      "relation": "分发",
+      "weight": 10.0
+    },
+    {
+      "source": "ent_92e9d8c5e7bc180fcf2d315e0ce80e07",
+      "target": "ent_04bbee441d36b704266d9e69ecdf618e",
+      "relation": "考问讲解",
+      "weight": 9.0
+    },
+    {
+      "source": "ent_92e9d8c5e7bc180fcf2d315e0ce80e07",
+      "target": "ent_1ffce17095223bf547b5210bd8b63ecf",
+      "relation": "蘸取",
+      "weight": 8.0
+    },
+    {
+      "source": "ent_92e9d8c5e7bc180fcf2d315e0ce80e07",
+      "target": "ent_3ea2dbe9ca779cca4a46bb1d5efab91f",
+      "relation": "使用",
+      "weight": 9.0
+    },
+    {
+      "source": "ent_92e9d8c5e7bc180fcf2d315e0ce80e07",
+      "target": "ent_75d31ae8ef91c84e4368e6ae59670082",
+      "relation": "讲解写法",
+      "weight": 9.0
+    }
+  ]
+}
