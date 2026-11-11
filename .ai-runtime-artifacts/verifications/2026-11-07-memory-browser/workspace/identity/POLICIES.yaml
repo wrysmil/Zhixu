@@ -1,0 +1,11 @@
+# 知序权限与执行边界
+# 语义（当前阶段仅作声明与 UI 提示，执行器接入前不强制拦截）：
+#   allow = 允许自动执行 | ask = 每次确认 | deny = 拒绝
+tool_policies:
+  shell: ask            # 例：信任环境可改 allow
+  filesystem_write: ask
+  web_fetch: allow
+  web_search: allow
+  image_generation: ask
+scope_policy: workspace   # 工具默认活动范围限定在 workspace 内
+auto_confirm: false       # true 时跳过 ask 类确认（危险，慎开）

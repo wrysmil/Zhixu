@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "memory_consolidate",
+      "name": "memory_consolidate",
+      "enabled": true,
+      "schedule": {
+        "kind": "cron",
+        "atMs": null,
+        "everyMs": null,
+        "expr": "0 3 * * *",
+        "tz": "UTC"
+      },
+      "payload": {
+        "kind": "system_event",
+        "message": "",
+        "deliver": false,
+        "channel": null,
+        "to": null,
+        "channelMeta": {},
+        "sessionKey": null,
+        "originChannel": null,
+        "originChatId": null,
+        "originMetadata": {}
+      },
+      "state": {
+        "nextRunAtMs": 1794279600000,
+        "lastRunAtMs": 1794195501923,
+        "lastStatus": "ok",
+        "lastError": null,
+        "runHistory": [
+          {
+            "runAtMs": 1794195501923,
+            "status": "ok",
+            "durationMs": 15,
+            "error": null
+          }
+        ]
+      },
+      "createdAtMs": 1794125212102,
+      "updatedAtMs": 1794195501938,
+      "deleteAfterRun": false
+    },
+    {
+      "id": "memory_extract",
+      "name": "memory_extract",
+      "enabled": true,
+      "schedule": {
+        "kind": "every",
+        "atMs": null,
+        "everyMs": 1800000,
+        "expr": null,
+        "tz": "UTC"
+      },
+      "payload": {
+        "kind": "system_event",
+        "message": "",
+        "deliver": false,
+        "channel": null,
+        "to": null,
+        "channelMeta": {},
+        "sessionKey": null,
+        "originChannel": null,
+        "originChatId": null,
+        "originMetadata": {}
+      },
+      "state": {
+        "nextRunAtMs": 1794273902318,
+        "lastRunAtMs": 1794272102314,
+        "lastStatus": "ok",
+        "lastError": null,
+        "runHistory": [
+          {
+            "runAtMs": 1794218431660,
+            "status": "ok",
+            "durationMs": 9,
+            "error": null
+          },
+          {
+            "runAtMs": 1794224016414,
+            "status": "ok",
+            "durationMs": 11,
+            "error": null
+          },
+          {
+            "runAtMs": 1794225816484,
+            "status": "ok",
+            "durationMs": 9,
+            "error": null
+          },
+          {
+            "runAtMs": 1794227616494,
+            "status": "ok",
+            "durationMs": 4,
+            "error": null
+          },
+          {
+            "runAtMs": 1794229416500,
+            "status": "ok",
+            "durationMs": 8,
+            "error": null
+          },
+          {
+            "runAtMs": 1794231216509,
+            "status": "ok",
+            "durationMs": 7,
+            "error": null
+          },
+          {
+            "runAtMs": 1794233016517,
+            "status": "ok",
+            "durationMs": 4,
+            "error": null
+          },
+          {
+            "runAtMs": 1794234816522,
+            "status": "ok",
+            "durationMs": 5,
+            "error": null
+          },
+          {
+            "runAtMs": 1794236616527,
+            "status": "ok",
+            "durationMs": 4,
+            "error": null
+          },
+          {
+            "runAtMs": 1794238416533,
+            "status": "ok",
+            "durationMs": 5,
+            "error": null
+          },
+          {
+            "runAtMs": 1794240216550,
+            "status": "ok",
+            "durationMs": 8,
+            "error": null
+          },
+          {
+            "runAtMs": 1794242016560,
+            "status": "ok",
+            "durationMs": 7,
+            "error": null
+          },
+          {
+            "runAtMs": 1794243816569,
+            "status": "ok",
+            "durationMs": 5,
+            "error": null
+          },
+          {
+            "runAtMs": 1794245616575,
+            "status": "ok",
+            "durationMs": 7,
+            "error": null
+          },
+          {
+            "runAtMs": 1794247442825,
+            "status": "ok",
+            "durationMs": 9,
+            "error": null
+          },
+          {
+            "runAtMs": 1794249242837,
+            "status": "ok",
+            "durationMs": 4,
+            "error": null
+          },
+          {
+            "runAtMs": 1794251042846,
+            "status": "ok",
+            "durationMs": 12,
+            "error": null
+          },
+          {
+            "runAtMs": 1794260374443,
+            "status": "ok",
+            "durationMs": 6,
+            "error": null
+          },
+          {
+            "runAtMs": 1794265764497,
+            "status": "ok",
+            "durationMs": 6,
+            "error": null
+          },
+          {
+            "runAtMs": 1794272102314,
+            "status": "ok",
+            "durationMs": 4,
+            "error": null
+          }
+        ]
+      },
+      "createdAtMs": 1794125212119,
+      "updatedAtMs": 1794272102318,
+      "deleteAfterRun": false
+    }
+  ]
+}

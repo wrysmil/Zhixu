@@ -1,0 +1,667 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "/Users/mima0000/Documents/学习-001/do-project/zhixu/.ai-runtime-artifacts/verifications/2026-11-07-memory-browser/workspace",
+      "modelPreset": "MiniMax-M3.1-Flash",
+      "model": "claude-sonnet-4-6",
+      "provider": "auto",
+      "maxTokens": 8192,
+      "contextWindowTokens": 200000,
+      "temperature": 0.1,
+      "fallbackModels": [],
+      "maxToolIterations": 200,
+      "maxConcurrentSubagents": 1,
+      "maxToolResultChars": 16000,
+      "providerRetryMode": "standard",
+      "toolHintMaxLength": 40,
+      "reasoningEffort": "medium",
+      "timezone": "UTC",
+      "timezoneMode": "manual",
+      "botName": "nanobot",
+      "botIcon": "🐈",
+      "unifiedSession": false,
+      "disabledSkills": [],
+      "idleCompactAfterMinutes": 0,
+      "idleCompactCheckIntervalSeconds": 60,
+      "memoryEnabled": true,
+      "memoryIdleSeconds": 120,
+      "memoryFileMode": true,
+      "memoryExtractIntervalMinutes": 30,
+      "memorySearchBackend": "fts5",
+      "memoryPitfallHint": false,
+      "memoryVector": {
+        "embeddingModel": "BAAI/bge-small-zh-v1.5",
+        "embeddingDimensions": 512,
+        "device": "cpu",
+        "downloadSource": "auto",
+        "localModelDir": "",
+        "indexPath": "",
+        "syncOnStartup": true,
+        "maxCandidates": 45
+      },
+      "memoryLogging": {
+        "enabled": true,
+        "consoleLevel": "INFO",
+        "includeContent": true,
+        "maxContentChars": 240,
+        "maxItems": 8,
+        "fileEnabled": true,
+        "filePath": "",
+        "eventsEnabled": false,
+        "eventsPath": "",
+        "rotation": "10 MB",
+        "retention": "7 days",
+        "eventsMaxMb": 20
+      },
+      "dream": {
+        "enabled": false,
+        "intervalH": 2,
+        "modelOverride": null
+      },
+      "consolidate": {
+        "enabled": false,
+        "cron": "0 3 * * *",
+        "dryRun": false,
+        "timeBudgetSeconds": 1500,
+        "archiveThreshold": 0.15
+      }
+    },
+    "teams": {
+      "enabled": true
+    }
+  },
+  "channels": {
+    "sendProgress": true,
+    "sendToolHints": true,
+    "showReasoning": true,
+    "extractDocumentText": true,
+    "sendMaxRetries": 3,
+    "transcriptionProvider": "groq",
+    "transcriptionLanguage": null,
+    "websocket": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 8765,
+      "path": "/",
+      "tokenIssuePath": "/auth/token",
+      "tokenIssueSecret": "memory-browser-local-test-20261107",
+      "websocketRequiresToken": true,
+      "allowFrom": [
+        "*"
+      ],
+      "streaming": true
+    }
+  },
+  "transcription": {
+    "enabled": true,
+    "provider": null,
+    "model": null,
+    "language": null,
+    "maxDurationSec": 120,
+    "maxUploadMb": 25
+  },
+  "providers": {
+    "custom": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "azureOpenai": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "bedrock": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null,
+      "region": null,
+      "profile": null
+    },
+    "anthropic": {
+      "apiKey": "",
+      "apiBase": "${ZHIXU_BROWSER_TEST_PROVIDER_1}",
+      "apiType": "auto",
+      "extraHeaders": {
+        "x-cmd-zdr": "${ZHIXU_BROWSER_TEST_PROVIDER_2}"
+      },
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "openai": {
+      "apiKey": "",
+      "apiBase": "${ZHIXU_BROWSER_TEST_PROVIDER_3}",
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "openrouter": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "orcarouter": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "assemblyai": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "huggingface": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "skywork": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "deepseek": {
+      "apiKey": "${ZHIXU_BROWSER_TEST_PROVIDER_4}",
+      "apiBase": "${ZHIXU_BROWSER_TEST_PROVIDER_5}",
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": {
+        "tools": []
+      },
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "groq": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "zhipu": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "dashscope": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "modelscope": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "vllm": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "ollama": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "lmStudio": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "atomicChat": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "ovms": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "gemini": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "moonshot": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "kimiCoding": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "minimax": {
+      "apiKey": "${ZHIXU_BROWSER_TEST_PROVIDER_6}",
+      "apiBase": "${ZHIXU_BROWSER_TEST_PROVIDER_7}",
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "minimaxAnthropic": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "mistral": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "stepfun": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "xiaomiMimo": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "longcat": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "antLing": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "aihubmix": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "siliconflow": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "edenai": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "novita": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "volcengine": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "volcengineCodingPlan": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "byteplus": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "byteplusCodingPlan": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "qianfan": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "nvidia": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "opencode": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "opencodeZen": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "opencodeGo": {
+      "apiKey": null,
+      "apiBase": null,
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "custom-provider": {
+      "displayName": "${ZHIXU_BROWSER_TEST_PROVIDER_8}",
+      "apiKey": "${ZHIXU_BROWSER_TEST_PROVIDER_9}",
+      "apiBase": "${ZHIXU_BROWSER_TEST_PROVIDER_10}",
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "custom-minmax": {
+      "displayName": "${ZHIXU_BROWSER_TEST_PROVIDER_11}",
+      "apiKey": "${ZHIXU_BROWSER_TEST_PROVIDER_12}",
+      "apiBase": "${ZHIXU_BROWSER_TEST_PROVIDER_13}",
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    },
+    "custom-volcano-engine-agent-plan": {
+      "displayName": "${ZHIXU_BROWSER_TEST_PROVIDER_14}",
+      "apiKey": "${ZHIXU_BROWSER_TEST_PROVIDER_15}",
+      "apiBase": "${ZHIXU_BROWSER_TEST_PROVIDER_16}",
+      "apiType": "auto",
+      "extraHeaders": null,
+      "extraBody": null,
+      "extraQuery": null,
+      "proxy": null,
+      "thinkingStyle": null
+    }
+  },
+  "api": {
+    "host": "127.0.0.1",
+    "port": 8900,
+    "timeout": 120.0,
+    "apiKey": ""
+  },
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 18791,
+    "restartMode": "auto",
+    "heartbeat": {
+      "enabled": false,
+      "intervalS": 1800
+    }
+  },
+  "evaluation": {
+    "passphrase": ""
+  },
+  "tools": {
+    "web": {
+      "enable": true,
+      "proxy": null,
+      "userAgent": null,
+      "search": {
+        "provider": "duckduckgo",
+        "apiKey": "",
+        "baseUrl": "",
+        "maxResults": 5,
+        "timeout": 30
+      },
+      "fetch": {
+        "useJinaReader": true
+      }
+    },
+    "exec": {
+      "enable": true,
+      "timeout": 60,
+      "pathPrepend": "",
+      "pathAppend": "",
+      "sandbox": "",
+      "sandboxRoBinds": [],
+      "sandboxRwBinds": [],
+      "allowedEnvKeys": [],
+      "allowPatterns": [],
+      "denyPatterns": []
+    },
+    "file": {
+      "enable": true
+    },
+    "cliApps": {
+      "enable": true,
+      "installTimeout": 300,
+      "runTimeout": 60,
+      "catalogTtlSeconds": 3600
+    },
+    "my": {
+      "enable": true,
+      "allowSet": false
+    },
+    "imageGeneration": {
+      "enabled": false,
+      "provider": "openrouter",
+      "model": "openai/gpt-5.4-image-2",
+      "defaultAspectRatio": "1:1",
+      "defaultImageSize": "1K",
+      "maxImagesPerTurn": 4,
+      "saveDir": "generated"
+    },
+    "maxSessionMessagesPerMinute": 6,
+    "restrictToWorkspace": true,
+    "webuiAllowLocalServiceAccess": true,
+    "webuiAllowRemotePackageInstall": true,
+    "mcpServers": {},
+    "ssrfWhitelist": []
+  },
+  "modelPresets": {
+    "deepseek-flash": {
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "maxTokens": 8192,
+      "contextWindowTokens": 200000,
+      "temperature": 0.1,
+      "reasoningEffort": "medium"
+    },
+    "MiniMax-M3.1-Flash": {
+      "model": "MiniMax-M3.1-Flash",
+      "provider": "custom-minmax",
+      "maxTokens": 8192,
+      "contextWindowTokens": 1048576,
+      "temperature": 0.1,
+      "reasoningEffort": "medium"
+    }
+  }
+}

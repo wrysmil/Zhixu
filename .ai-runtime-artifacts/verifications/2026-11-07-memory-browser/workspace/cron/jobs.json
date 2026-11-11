@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "memory_extract",
+      "name": "memory_extract",
+      "enabled": true,
+      "schedule": {
+        "kind": "every",
+        "atMs": null,
+        "everyMs": 1800000,
+        "expr": null,
+        "tz": "UTC"
+      },
+      "payload": {
+        "kind": "system_event",
+        "message": "",
+        "deliver": false,
+        "channel": null,
+        "to": null,
+        "channelMeta": {},
+        "sessionKey": null,
+        "originChannel": null,
+        "originChatId": null,
+        "originMetadata": {}
+      },
+      "state": {
+        "nextRunAtMs": 1794273941542,
+        "lastRunAtMs": 1794272141536,
+        "lastStatus": "ok",
+        "lastError": null,
+        "runHistory": [
+          {
+            "runAtMs": 1794224380804,
+            "status": "ok",
+            "durationMs": 10,
+            "error": null
+          },
+          {
+            "runAtMs": 1794226180815,
+            "status": "ok",
+            "durationMs": 16,
+            "error": null
+          },
+          {
+            "runAtMs": 1794227980832,
+            "status": "ok",
+            "durationMs": 8,
+            "error": null
+          },
+          {
+            "runAtMs": 1794229780849,
+            "status": "ok",
+            "durationMs": 10,
+            "error": null
+          },
+          {
+            "runAtMs": 1794231580861,
+            "status": "ok",
+            "durationMs": 4,
+            "error": null
+          },
+          {
+            "runAtMs": 1794233380868,
+            "status": "ok",
+            "durationMs": 5,
+            "error": null
+          },
+          {
+            "runAtMs": 1794235180873,
+            "status": "ok",
+            "durationMs": 5,
+            "error": null
+          },
+          {
+            "runAtMs": 1794236980879,
+            "status": "ok",
+            "durationMs": 6,
+            "error": null
+          },
+          {
+            "runAtMs": 1794238780887,
+            "status": "ok",
+            "durationMs": 9,
+            "error": null
+          },
+          {
+            "runAtMs": 1794240580898,
+            "status": "ok",
+            "durationMs": 5,
+            "error": null
+          },
+          {
+            "runAtMs": 1794242380905,
+            "status": "ok",
+            "durationMs": 4,
+            "error": null
+          },
+          {
+            "runAtMs": 1794244180910,
+            "status": "ok",
+            "durationMs": 9,
+            "error": null
+          },
+          {
+            "runAtMs": 1794245980919,
+            "status": "ok",
+            "durationMs": 5,
+            "error": null
+          },
+          {
+            "runAtMs": 1794247780947,
+            "status": "ok",
+            "durationMs": 10,
+            "error": null
+          },
+          {
+            "runAtMs": 1794249580961,
+            "status": "ok",
+            "durationMs": 13,
+            "error": null
+          },
+          {
+            "runAtMs": 1794251380979,
+            "status": "ok",
+            "durationMs": 13,
+            "error": null
+          },
+          {
+            "runAtMs": 1794253792073,
+            "status": "ok",
+            "durationMs": 4,
+            "error": null
+          },
+          {
+            "runAtMs": 1794261108210,
+            "status": "ok",
+            "durationMs": 3,
+            "error": null
+          },
+          {
+            "runAtMs": 1794266705005,
+            "status": "ok",
+            "durationMs": 10,
+            "error": null
+          },
+          {
+            "runAtMs": 1794272141536,
+            "status": "ok",
+            "durationMs": 6,
+            "error": null
+          }
+        ]
+      },
+      "createdAtMs": 1794052602534,
+      "updatedAtMs": 1794272141542,
+      "deleteAfterRun": false
+    }
+  ]
+}
