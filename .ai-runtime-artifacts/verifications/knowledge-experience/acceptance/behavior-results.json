@@ -1,0 +1,65 @@
+[
+  {
+    "name": "摘要指针移入保持、Esc关闭、焦点打开详情",
+    "status": "通过",
+    "evidence": {
+      "visible": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  },
+  {
+    "name": "文档Sheet焦点进入、关闭回原触发器及20次开关",
+    "status": "未通过",
+    "error": "TimeoutError: locator.click: Timeout 7000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-kb-id=\"kb-product\"]')\u001b[22m\n"
+  },
+  {
+    "name": "添加资料Sheet键盘与本地文件/服务器路径",
+    "status": "未通过",
+    "error": "TimeoutError: locator.click: Timeout 7000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-kb-id=\"kb-product\"]')\u001b[22m\n"
+  },
+  {
+    "name": "空库、筛选为空、请求失败可区分",
+    "status": "未通过",
+    "error": "TimeoutError: locator.click: Timeout 7000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-kb-id=\"kb-empty\"]')\u001b[22m\n"
+  },
+  {
+    "name": "处理中无虚假百分比，失败原因可见且重试",
+    "status": "未通过",
+    "error": "TimeoutError: locator.click: Timeout 7000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-kb-id=\"kb-product\"]')\u001b[22m\n"
+  },
+  {
+    "name": "快速切换Tab10次请求计数",
+    "status": "未通过",
+    "error": "TimeoutError: locator.click: Timeout 7000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-kb-id=\"kb-product\"]')\u001b[22m\n"
+  },
+  {
+    "name": "快速切换知识库10次请求计数与最终归属",
+    "status": "未通过",
+    "error": "TimeoutError: locator.click: Timeout 7000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-kb-id=\"kb-product\"]')\u001b[22m\n"
+  },
+  {
+    "name": "图谱节点选择与展开关联",
+    "status": "未通过",
+    "error": "TimeoutError: locator.click: Timeout 7000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-kb-id=\"kb-product\"]')\u001b[22m\n"
+  },
+  {
+    "name": "评测运行、题集与单题Sheet键盘焦点",
+    "status": "未通过",
+    "error": "TimeoutError: locator.waitFor: Timeout 7000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('dialog') to be hidden\u001b[22m\n\u001b[2m    17 × locator resolved to visible <div role=\"dialog\" tabindex=\"-1\" id=\"radix-:rq:\" data-state=\"open\" data-side=\"right\" data-knowledge-surface=\"\" aria-labelledby=\"radix-:rr:\" aria-describedby=\"radix-:rs:\" class=\"bg-background text-foreground shadow-[0_12px_36px_rgba(15,23,42,0.12)] dark:bg-popover dark:shadow-[0_18px_44px_rgba(0,0,0,0.32)] fixed z-50 gap-4 flex flex-col knowledge-experience-surface knowledge-motion knowledge-sheet p-6 sm:p-8\">…</div>\u001b[22m\n"
+  },
+  {
+    "name": "评测null与expect/judge分组不混算",
+    "status": "未通过",
+    "error": "TimeoutError: locator.waitFor: Timeout 7000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('banner') to be visible\u001b[22m\n"
+  }
+]

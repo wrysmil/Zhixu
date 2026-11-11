@@ -3,31 +3,30 @@ import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   ArrowLeft,
-  Boxes,
   CheckCircle2,
   CircleSlash,
-  Clock3,
   FileText,
-  Layers,
   Library,
-  ListTree,
   Loader2,
   Network,
   Plus,
   RefreshCcw,
   Search,
-  Server,
   Trash2,
-  Upload,
   Wrench,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/workspace/EmptyState";
-import { PageHeading } from "@/components/workspace/PageHeading";
+import { KnowledgeLibraryList } from "./knowledge/KnowledgeLibraryList";
+import { KnowledgeDocumentTable } from "./knowledge/KnowledgeDocumentTable";
+import { KnowledgeDocumentSheet } from "./knowledge/KnowledgeDocumentSheet";
+import { KnowledgeImportSheet } from "./knowledge/KnowledgeImportSheet";
+import { KnowledgeStatus } from "./knowledge-shared/KnowledgeStatus";
+import "./knowledge-shared/experience.css";
 import {
   addKnowledgeDoc,
   addKnowledgeDocFromPath,
@@ -73,12 +72,6 @@ const KnowledgeGraphPanel = lazy(() =>
     default: module.GraphPanel,
   })),
 );
-const DOC_STATUS_KEYS: Record<string, string> = {
-  pending: "statusPending",
-  processing: "statusProcessing",
-  ready: "statusReady",
-  failed: "statusFailed",
-};
 
 function fileSuffix(name: string): string {
   const index = name.lastIndexOf(".");
@@ -124,6 +117,22 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   );
   const defaultWorkspaceId = workspaceIds?.[0];
 
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listPosition = useRef<{ id: string; positions: [HTMLElement, number][] } | null>(null);
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState("all");
+  const [sort, setSort] = useState("name");
+  const [docOffset, setDocOffset] = useState(0);
+  const [docTotal, setDocTotal] = useState(0);
+  const docsViewRef = useRef<object | null>(null);
+  const docsSeq = useRef(0);
+  const searchSeq = useRef(0);
+  const mutationLock = useRef(false);
+  const createLock = useRef(false);
+  const repairLock = useRef(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadStage, setUploadStage] = useState("");
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [kbs, setKbs] = useState<KnowledgeKb[]>([]);
   const [activeKbId, setActiveKbId] = useState<string | null>(null);
@@ -206,26 +215,34 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     void loadStats();
   }, [loadKbs, loadStats]);
 
+  const docsView = useMemo(() => ({}), [activeKbId, detailOpen, docOffset, scope, token]);
   const loadDocs = useCallback(async () => {
-    if (!activeKbId) {
-      setDocs([]);
+    if (docsViewRef.current !== docsView) return;
+    if (!activeKbId || !detailOpen) {
+      if (!activeKbId) setDocs([]);
       return;
     }
+    const seq = ++docsSeq.current;
     setDocsLoading(true);
     try {
-      const payload = await fetchKnowledgeDocs(token, { kbId: activeKbId, workspaceIds: scope });
+      const payload = await fetchKnowledgeDocs(token, { kbId: activeKbId, workspaceIds: scope, limit: 20, offset: docOffset });
+      if (seq !== docsSeq.current) return;
+      setDocTotal(payload.total);
       setDocs(payload.documents);
       setDocsError(null);
     } catch (reason: unknown) {
+      if (seq !== docsSeq.current) return;
       setDocsError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      setDocsLoading(false);
+      if (seq === docsSeq.current) setDocsLoading(false);
     }
-  }, [activeKbId, scope, token]);
+  }, [activeKbId, detailOpen, docOffset, docsView, scope, token]);
 
   useEffect(() => {
+    docsViewRef.current = docsView;
     void loadDocs();
-  }, [loadDocs]);
+    return () => { docsSeq.current += 1; docsViewRef.current = null; };
+  }, [docsView, loadDocs]);
 
   // 仅当有文档仍在 pipelined 状态时轮询；ready/failed 立即停表。
   useEffect(() => {
@@ -244,6 +261,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>, after?: () => Promise<void> | void) => {
+      if (mutationLock.current) return;
+      mutationLock.current = true;
       setBusy(true);
       setActionError(null);
       try {
@@ -252,6 +271,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       } catch (reason: unknown) {
         setActionError(reason instanceof Error ? reason.message : String(reason));
       } finally {
+        mutationLock.current = false;
         setBusy(false);
       }
     },
@@ -259,13 +279,16 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   );
 
   const clearSearch = useCallback(() => {
+    searchSeq.current += 1;
+    setSearching(false);
     setSearchResult(null);
     setSearchError(null);
   }, []);
 
   const onCreateKb = useCallback(async () => {
     const name = newName.trim();
-    if (!name) return;
+    if (!name || createLock.current) return;
+    createLock.current = true;
     setCreating(true);
     setActionError(null);
     try {
@@ -284,6 +307,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     } catch (reason: unknown) {
       setActionError(reason instanceof Error ? reason.message : String(reason));
     } finally {
+      createLock.current = false;
       setCreating(false);
     }
   }, [client, defaultWorkspaceId, loadKbs, loadStats, newDescription, newName, newVisibility]);
@@ -337,6 +361,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       try {
         const payload = await fetchKnowledgeDoc(token, { id: doc.id, chunkLimit: 20 });
         if (seq !== previewSeq.current) return;
+        setChunkPreview(payload.document ?? doc);
         setPreviewChunks(payload.chunks);
         setPreviewTotal(payload.chunkCount);
       } catch (reason: unknown) {
@@ -351,7 +376,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
 
   const onUpload = useCallback(
     async (file: File) => {
-      if (!activeKbId) return;
+      if (!activeKbId || mutationLock.current) return;
+      setUploadFile(file);
       const suffix = fileSuffix(file.name);
       const mime = UPLOAD_MIME_BY_SUFFIX[suffix];
       if (!mime) {
@@ -363,13 +389,19 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         return;
       }
       await runAction(async () => {
-        const base64 = await readFileAsBase64(file);
+        setUploadStage(t("knowledge.experience.reading", { defaultValue: "正在读取文件" }));
+        let base64: string;
+        try { base64 = await readFileAsBase64(file); }
+        catch { throw new Error(t("knowledge.experience.readFailed", { defaultValue: "无法读取文件，请重新选择后重试" })); }
+        setUploadStage(t("knowledge.experience.submitting", { defaultValue: "正在提交资料" }));
         await addKnowledgeDoc(client, {
           kbId: activeKbId,
           name: file.name,
           dataUrl: `data:${mime};base64,${base64}`,
           workspaceId: defaultWorkspaceId,
         });
+        setUploadFile(null);
+        setImportOpen(false);
       }, async () => {
         await loadDocs();
         await loadKbs();
@@ -390,6 +422,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         workspaceId: defaultWorkspaceId,
       });
       setServerPath("");
+      setImportOpen(false);
     }, async () => {
       await loadDocs();
       await loadKbs();
@@ -411,6 +444,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const onSearch = useCallback(async () => {
     const text = query.trim();
     if (!text) return;
+    if (searching) return;
+    const seq = ++searchSeq.current;
     setSearching(true);
     setSearchError(null);
     try {
@@ -421,16 +456,19 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         kbIds: activeKbId ? [activeKbId] : undefined,
         workspaceIds: scope,
       });
-      setSearchResult(result);
+      if (seq === searchSeq.current) setSearchResult(result);
     } catch (reason: unknown) {
+      if (seq !== searchSeq.current) return;
       setSearchResult(null);
       setSearchError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      setSearching(false);
+      if (seq === searchSeq.current) setSearching(false);
     }
-  }, [activeKbId, limit, mode, query, scope, token]);
+  }, [activeKbId, limit, mode, query, scope, token, searching]);
 
   const onRepair = useCallback(async () => {
+    if (repairLock.current) return;
+    repairLock.current = true;
     setRepairing(true);
     setRepairDone(false);
     setActionError(null);
@@ -450,6 +488,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     } catch (reason: unknown) {
       setActionError(reason instanceof Error ? reason.message : String(reason));
     } finally {
+      repairLock.current = false;
       setRepairing(false);
     }
   }, [
@@ -463,28 +502,53 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     repairVectors,
   ]);
 
-  const statusLabel = (doc: KnowledgeDoc): string => {
-    const key = DOC_STATUS_KEYS[doc.status];
-    return key ? t(`knowledge.${key}`) : doc.status;
-  };
-
   const disabled = enabled === false;
   const visibleStats = stats ?? {
     enabled: true, kbs: 0, documents: 0, chunks: 0, pending: 0, vector: 0,
   };
 
+  const filteredKbs = kbs.filter(kb => kb.name.toLocaleLowerCase().includes(libraryQuery.toLocaleLowerCase())
+    && (visibilityFilter === "all" || kb.visibility === visibilityFilter)).sort((a, b) =>
+      sort === "documents" ? b.documentCount - a.documentCount :
+      sort === "updated" ? (b.updatedAt || "").localeCompare(a.updatedAt || "") : a.name.localeCompare(b.name));
+
+  const openLibrary = (kb: KnowledgeKb) => {
+    const positions: [HTMLElement, number][] = [];
+    let element: HTMLElement | null = rootRef.current;
+    while (element) { positions.push([element, element.scrollTop]); element = element.parentElement; }
+    if (document.scrollingElement instanceof HTMLElement) positions.push([document.scrollingElement, document.scrollingElement.scrollTop]);
+    listPosition.current = { id: kb.id, positions };
+    docsSeq.current += 1;
+    clearSearch();
+    if (kb.id !== activeKbId) { setDocs([]); setDocTotal(0); }
+    setDocOffset(0);
+    setActiveKbId(kb.id);
+    setDetailTab("documents");
+    setDetailOpen(true);
+  };
+  const returnToLibraries = () => {
+    docsSeq.current += 1;
+    clearSearch();
+    closeChunkPreview();
+    setDetailOpen(false);
+  };
+  useEffect(() => {
+    if (detailOpen || !listPosition.current) return;
+    const { id, positions } = listPosition.current;
+    rootRef.current?.querySelector<HTMLButtonElement>(`[data-kb-id="${id}"]`)?.focus({ preventScroll: true });
+    for (const [element, top] of positions) element.scrollTop = top;
+  }, [detailOpen]);
+  useEffect(() => () => { searchSeq.current += 1; previewSeq.current += 1; }, []);
+
   return (
-    <div className="assistant-page flex h-full flex-col" data-testid="knowledge-page">
+    <div ref={rootRef} className="knowledge-experience assistant-page flex h-full min-w-0 flex-col" data-testid="knowledge-page">
       {detailOpen && activeKb ? (
         <div className="flex flex-col gap-3">
-          <div className="flex min-w-0 items-center gap-2 text-[11px] text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
             <button
               type="button"
-              onClick={() => {
-                setDetailOpen(false);
-                setDetailTab("documents");
-                clearSearch();
-              }}
+              aria-label={t("knowledge.experience.backToLibraries", { defaultValue: "返回知识库" })}
+              onClick={returnToLibraries}
               className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
@@ -493,7 +557,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             <span aria-hidden>/</span>
             <span className="truncate text-foreground">{activeKb.name}</span>
           </div>
-          <div className="rounded-panel border border-border/60 bg-gradient-to-br from-muted/25 to-background p-4">
+          <div className="knowledge-panel knowledge-page-header p-5">
             <div className="flex flex-wrap items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Library className="h-5 w-5" aria-hidden />
@@ -501,11 +565,11 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               <div className="min-w-0 flex-1">
                 <h1 className="text-[18px] font-semibold text-foreground">{activeKb.name}</h1>
                 {activeKb.description ? (
-                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                     {activeKb.description}
                   </p>
                 ) : null}
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted-foreground">
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5">
                     {activeKb.visibility === "global"
                       ? t("knowledge.visibilityGlobal")
@@ -546,7 +610,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                       },
                     );
                   }}
-                  className="h-8 gap-1.5 rounded-full px-3 text-[11.5px] font-medium"
+                  className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium"
                 >
                   <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
                   {t("knowledge.reindexKb")}
@@ -559,7 +623,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   title={t("knowledge.deleteKb")}
                   disabled={busy}
                   onClick={() => setConfirm({ kind: "kb", id: activeKb.id, label: activeKb.name })}
-                  className="h-8 gap-1.5 rounded-full px-2.5 text-[11.5px] text-destructive"
+                  className="h-8 gap-1.5 rounded-full px-2.5 text-sm text-destructive"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden />
                   {t("knowledge.deleteKb")}
@@ -574,7 +638,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               aria-selected={detailTab === "documents"}
               onClick={() => setDetailTab("documents")}
               className={cn(
-                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 detailTab === "documents"
                   ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground",
@@ -589,7 +653,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               aria-selected={detailTab === "search"}
               onClick={() => setDetailTab("search")}
               className={cn(
-                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 detailTab === "search"
                   ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground",
@@ -604,7 +668,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               aria-selected={detailTab === "graph"}
               onClick={() => setDetailTab("graph")}
               className={cn(
-                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 detailTab === "graph"
                   ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground",
@@ -616,19 +680,16 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
           </div>
         </div>
       ) : (
-        <PageHeading
-          kicker={t("knowledge.kicker")}
-          title={t("knowledge.title")}
-          description={t("knowledge.subtitle")}
-          actions={
-            <>
+        <header className="knowledge-page-header">
+          <div className="space-y-2"><h1>{t("knowledge.title")}</h1><p className="text-sm text-muted-foreground">{t("knowledge.subtitle")}</p></div>
+          <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setRepairOpen(true)}
                 disabled={disabled}
-                className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
+                className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium"
               >
                 <Wrench className="h-3.5 w-3.5" aria-hidden />
                 {t("knowledge.repair")}
@@ -638,21 +699,20 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                 size="sm"
                 onClick={() => setCreateOpen((open) => !open)}
                 disabled={disabled}
-                className="h-8 gap-1.5 rounded-full px-3.5 text-[12px] font-semibold"
+                className="h-8 gap-1.5 rounded-full px-3.5 text-sm font-semibold"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden />
                 {t("knowledge.newKb")}
               </Button>
-            </>
-          }
-        />
+</div>
+        </header>
       )}
 
       {disabled ? (
         <div
           data-testid="knowledge-disabled-banner"
           role="status"
-          className="mt-4 flex items-start gap-2 rounded-control border border-amber-300/70 bg-amber-50/80 px-3 py-2 text-[12px] leading-relaxed text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100"
+          className="mt-4 flex items-start gap-2 rounded-control border border-amber-300/70 bg-amber-50/80 px-3 py-2 text-sm leading-relaxed text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100"
         >
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden />
           <span>{t("knowledge.disabledBanner")}</span>
@@ -663,54 +723,28 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       <section
         data-testid="knowledge-stats"
         aria-label={t("knowledge.stats")}
-        className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5"
+        className="mt-5 flex flex-wrap gap-x-6 gap-y-2 border-y py-4"
       >
-        <StatTile
-          testId="knowledge-stat-kbs"
-          label={t("knowledge.statKbs")}
-          value={visibleStats.kbs}
-          icon={Library}
-          tone="bg-primary/10 text-primary"
-        />
-        <StatTile
-          testId="knowledge-stat-docs"
-          label={t("knowledge.statDocs")}
-          value={visibleStats.documents}
-          icon={FileText}
-          tone="bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
-        />
-        <StatTile
-          testId="knowledge-stat-chunks"
-          label={t("knowledge.statChunks")}
-          value={visibleStats.chunks}
-          icon={Layers}
-          tone="bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
-        />
-        <StatTile
-          testId="knowledge-stat-pending"
-          label={t("knowledge.statPending")}
-          value={visibleStats.pending}
-          icon={Clock3}
-          tone="bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
-        />
-        <StatTile
-          testId="knowledge-stat-vectors"
-          label={t("knowledge.statVectors")}
-          value={visibleStats.vector ?? 0}
-          icon={Boxes}
-          tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-        />
+        {[
+          ["kbs", t("knowledge.statKbs"), visibleStats.kbs],
+          ["docs", t("knowledge.statDocs"), visibleStats.documents],
+          ["chunks", t("knowledge.statChunks"), visibleStats.chunks],
+          ["pending", t("knowledge.statPending"), visibleStats.pending],
+          ["vectors", t("knowledge.statVectors"), visibleStats.vector ?? 0],
+        ].map(([id, label, value]) => <div key={id} className="flex items-baseline gap-2 text-sm text-muted-foreground">
+          <span data-testid={`knowledge-stat-${id}`} className="font-semibold tabular-nums text-foreground">{stats ? value : "—"}</span><span>{label}</span>
+        </div>)}
       </section>
       ) : null}
 
       {kbsError ? (
-        <div role="alert" className="mt-4 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12px] text-destructive">
+        <div role="alert" className="mt-4 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {t("knowledge.loadError")}: {kbsError}
         </div>
       ) : null}
 
       {actionError ? (
-        <div role="alert" className="mt-4 flex items-start gap-2 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12px] text-destructive">
+        <div role="alert" className="mt-4 flex items-start gap-2 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           <span className="min-w-0 flex-1 break-words">{t("knowledge.actionError")}: {actionError}</span>
           <button
             type="button"
@@ -724,7 +758,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       ) : null}
 
       {repairDone ? (
-        <div role="status" className="mt-4 flex items-center gap-2 rounded-control border border-emerald-300/70 bg-emerald-50/80 px-3 py-2 text-[12px] text-emerald-900 dark:border-emerald-700/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+        <div role="status" className="mt-4 flex items-center gap-2 rounded-control border border-emerald-300/70 bg-emerald-50/80 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-700/40 dark:bg-emerald-950/30 dark:text-emerald-100">
           <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
           {t("knowledge.repairDone")}
         </div>
@@ -738,34 +772,34 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             void onCreateKb();
           }}
         >
-          <label className="flex flex-col gap-1 text-[12px] font-medium text-foreground">
+          <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
             {t("knowledge.name")}
             <Input
               value={newName}
               onChange={(event) => setNewName(event.target.value)}
               placeholder={t("knowledge.namePlaceholder")}
-              className="h-9 text-[13px]"
+              className="h-9 text-sm"
             />
           </label>
-          <label className="flex flex-col gap-1 text-[12px] font-medium text-foreground">
+          <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
             {t("knowledge.visibility")}
             <select
               value={newVisibility}
               onChange={(event) => setNewVisibility(event.target.value as KnowledgeVisibility)}
-              className="h-9 rounded-control border border-input bg-background px-2 text-[13px]"
+              className="h-9 rounded-control border border-input bg-background px-2 text-sm"
             >
               <option value="workspace">{t("knowledge.visibilityWorkspace")}</option>
               <option value="global">{t("knowledge.visibilityGlobal")}</option>
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[12px] font-medium text-foreground sm:col-span-2">
+          <label className="flex flex-col gap-1 text-sm font-medium text-foreground sm:col-span-2">
             {t("knowledge.description")}
             <Textarea
               value={newDescription}
               onChange={(event) => setNewDescription(event.target.value)}
               placeholder={t("knowledge.descriptionPlaceholder")}
               rows={2}
-              className="text-[13px]"
+              className="text-sm"
             />
           </label>
           <div className="flex items-center gap-2 sm:col-span-2">
@@ -773,9 +807,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               type="submit"
               size="sm"
               disabled={creating || !newName.trim()}
-              className="h-8 rounded-full px-3.5 text-[12px] font-semibold"
+              className="h-8 rounded-full px-3.5 text-sm font-semibold"
             >
-              {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+              {creating ? <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden /> : null}
               {t("knowledge.create")}
             </Button>
             <Button
@@ -783,7 +817,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               variant="ghost"
               size="sm"
               onClick={() => setCreateOpen(false)}
-              className="h-8 rounded-full px-3 text-[12px]"
+              className="h-8 rounded-full px-3 text-sm"
             >
               {t("knowledge.cancel")}
             </Button>
@@ -793,234 +827,70 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
 
       <div className="mt-4 flex flex-col gap-4">
         {!detailOpen ? (
-        <section data-testid="knowledge-kb-list" aria-label={t("knowledge.kbTitle")}>
-          <div className="flex items-end justify-between gap-3 pb-2">
-            <h2 className="text-[13px] font-semibold text-foreground">
-              {t("knowledge.kbTitle")}
-            </h2>
-            <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10.5px] font-medium tabular-nums text-muted-foreground">
-              {kbs.length}
-            </span>
+        <section className="knowledge-motion knowledge-motion-enter" data-testid="knowledge-kb-list" aria-label={t("knowledge.kbTitle")}>
+          <div className="knowledge-toolbar mb-5">
+            <Input className="h-10 w-full sm:max-w-xs" aria-label={t("knowledge.experience.searchLibraries", { defaultValue: "搜索知识库名称" })} placeholder={t("knowledge.experience.searchLibraries", { defaultValue: "搜索知识库名称" })} value={libraryQuery} onChange={e => setLibraryQuery(e.target.value)} />
+            {libraryQuery && <Button variant="ghost" onClick={() => setLibraryQuery("")}>{t("knowledge.experience.clearSearch", { defaultValue: "清空搜索" })}</Button>}
+            <label className="flex items-center gap-2 text-sm">{t("knowledge.experience.filterScope", { defaultValue: "筛选范围" })}<select className="h-10 rounded border bg-background px-3" value={visibilityFilter} onChange={e => setVisibilityFilter(e.target.value)}>
+              <option value="all">{t("knowledge.experience.allScopes", { defaultValue: "全部范围" })}</option>
+              <option value="workspace">{t("knowledge.visibilityWorkspace")}</option><option value="global">{t("knowledge.visibilityGlobal")}</option>
+            </select></label>
+            <label className="flex items-center gap-2 text-sm">{t("knowledge.experience.sort", { defaultValue: "排序" })}<select className="h-10 rounded border bg-background px-3" value={sort} onChange={e => setSort(e.target.value)}>
+              <option value="name">{t("knowledge.name")}</option>
+              <option value="documents">{t("knowledge.statDocs")}</option>
+              <option value="updated">{t("knowledge.experience.updated", { defaultValue: "更新日期" })}</option>
+            </select></label>
           </div>
-          {kbsLoading ? (
-            <p className="flex items-center gap-2 py-4 text-[12px] text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-              {t("knowledge.loading")}
-            </p>
-          ) : kbs.length === 0 ? (
-            <EmptyState title={t("knowledge.kbEmpty")} description={t("knowledge.kbEmptyHint")} />
-          ) : (
-            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {kbs.map((kb) => {
-                const active = kb.id === activeKbId;
-                return (
-                  <li
-                    key={kb.id}
-                    data-active={active || undefined}
-                    className={cn(
-                      "group relative flex min-h-[112px] cursor-pointer flex-col overflow-hidden rounded-panel border p-3.5 transition-all duration-200",
-                      active
-                        ? "border-primary/35 bg-primary/[0.05] shadow-[0_1px_0_rgba(15,23,42,0.04)] ring-1 ring-primary/10"
-                        : "border-border/60 bg-background hover:-translate-y-0.5 hover:border-border hover:bg-muted/25 hover:shadow-sm",
-                    )}
-                    onClick={() => {
-                      setActiveKbId(kb.id);
-                      setDetailOpen(true);
-                    }}
-                  >
-                    {active ? (
-                      <span className="absolute inset-y-3 left-0 w-0.5 rounded-full bg-primary" aria-hidden />
-                    ) : null}
-                    <div className="flex items-start gap-2.5">
-                      <span
-                        className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                          active
-                            ? "bg-primary/10 text-primary"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        <Library className="h-4 w-4" aria-hidden />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start gap-1.5">
-                          <button
-                            type="button"
-                            aria-pressed={active}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setActiveKbId(kb.id);
-                              setDetailOpen(true);
-                            }}
-                            className="min-w-0 flex-1 cursor-pointer rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                          >
-                            <span className="block truncate text-[13px] font-semibold text-foreground">
-                              {kb.name}
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={t("knowledge.deleteKb")}
-                            title={t("knowledge.deleteKb")}
-                            disabled={busy}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setConfirm({ kind: "kb", id: kb.id, label: kb.name });
-                            }}
-                            className="shrink-0 cursor-pointer rounded-control p-1 text-muted-foreground opacity-0 transition-all duration-200 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                          </button>
-                        </div>
-                        {kb.description ? (
-                          <p className="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-muted-foreground">
-                            {kb.description}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-2.5 text-[10.5px] text-muted-foreground">
-                      <span className="rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5">
-                        {kb.visibility === "global"
-                          ? t("knowledge.visibilityGlobal")
-                          : t("knowledge.visibilityWorkspace")}
-                      </span>
-                      <span className="rounded-full bg-muted/60 px-1.5 py-0.5 tabular-nums">
-                        {t("knowledge.docCount", { count: kb.documentCount })}
-                      </span>
-                      {kb.updatedAt ? (
-                        <span className="tabular-nums text-[10px]">
-                          {kb.updatedAt.slice(0, 10)}
-                        </span>
-                      ) : null}
-                      <span
-                        className={cn(
-                          "ml-auto rounded-full px-1.5 py-0.5",
-                          kb.isEnabled
-                            ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {kb.isEnabled ? t("knowledge.enabled") : t("knowledge.disabled")}
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {kbsLoading && !kbs.length ? <KnowledgeStatus label={t("knowledge.loading")} tone="pending" busy /> :
+            !kbs.length ? <EmptyState title={t("knowledge.kbEmpty")} description={t("knowledge.kbEmptyHint")} /> :
+            !filteredKbs.length ? <p className="py-8 text-sm text-muted-foreground">{t("knowledge.experience.noMatchingLibraries", { defaultValue: "没有符合条件的知识库" })}</p> :
+            <KnowledgeLibraryList kbs={filteredKbs} busy={busy} onOpen={openLibrary} onDelete={kb => setConfirm({ kind: "kb", id: kb.id, label: kb.name })} />}
+          {kbsError && <Button variant="outline" onClick={() => void loadKbs()}>{t("knowledge.experience.retry", { defaultValue: "重试" })}</Button>}
         </section>
         ) : null}
 
         {detailOpen ? (
         <div className="grid gap-4">
           {detailTab === "documents" ? (
-          <div className="h-fit rounded-panel border border-border/60 bg-background p-4">
+          <div className="h-fit min-w-0 rounded-panel border border-border/60 bg-background p-4">
             <div className="flex flex-wrap items-center gap-2 pb-3">
-              <h2 className="flex flex-1 items-center gap-2 text-[13px] font-semibold text-foreground">
+              <h2 className="flex flex-1 items-center gap-2 text-sm font-semibold text-foreground">
                 <span className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
                   <FileText className="h-3.5 w-3.5" aria-hidden />
                 </span>
                 {t("knowledge.documents")}
                 {activeKb ? (
-                  <span className="text-[11px] font-normal text-muted-foreground">
+                  <span className="text-xs font-normal text-muted-foreground">
                     {activeKb.name}
                   </span>
                 ) : null}
-                <span className="rounded-full bg-muted/60 px-2 py-0.5 text-[10.5px] font-medium tabular-nums text-muted-foreground">
+                <span className="rounded-full bg-muted/60 px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
                   {docs.length}
                 </span>
               </h2>
             </div>
 
             {!activeKbId ? (
-              <p className="py-6 text-center text-[12.5px] text-muted-foreground">
+              <p className="py-6 text-center text-sm text-muted-foreground">
                 {t("knowledge.noSelection")}
               </p>
             ) : (
               <>
-                <div className="grid gap-2.5 pb-4 lg:grid-cols-2">
-                  <div className="flex flex-col gap-2.5 rounded-control border border-dashed border-border/70 bg-muted/15 p-3 transition-colors hover:border-border hover:bg-muted/25">
-                    <div className="flex items-start gap-2">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground ring-1 ring-inset ring-border/60">
-                        <FileText className="h-3.5 w-3.5" aria-hidden />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-[12px] font-medium text-foreground">
-                          {t("knowledge.upload")}
-                        </span>
-                        <span className="mt-0.5 block text-[10.5px] leading-relaxed text-muted-foreground">
-                          {t("knowledge.uploadHint")}
-                        </span>
-                      </span>
-                    </div>
-                    <label
-                      className={cn(
-                        "inline-flex h-8 w-fit cursor-pointer items-center gap-1.5 rounded-full border border-border/70 bg-background px-3 text-[11.5px] font-medium text-foreground shadow-sm transition-colors hover:bg-muted/60 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1",
-                        busy && "pointer-events-none opacity-60",
-                      )}
-                    >
-                      <Upload className="h-3.5 w-3.5" aria-hidden />
-                      {t("knowledge.upload")}
-                      <input
-                        type="file"
-                        aria-label={t("knowledge.upload")}
-                        disabled={busy}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          event.target.value = "";
-                          if (file) void onUpload(file);
-                        }}
-                        className="sr-only"
-                      />
-                    </label>
-                  </div>
-                  <div className="flex flex-col gap-2.5 rounded-control border border-border/60 bg-muted/15 p-3">
-                    <div className="flex items-start gap-2">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground ring-1 ring-inset ring-border/60">
-                        <Server className="h-3.5 w-3.5" aria-hidden />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-[12px] font-medium text-foreground">
-                          {t("knowledge.addPath")}
-                        </span>
-                        <span className="mt-0.5 block text-[10.5px] leading-relaxed text-muted-foreground">
-                          {t("knowledge.addPathPlaceholder")}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <Input
-                        aria-label={t("knowledge.addPath")}
-                        value={serverPath}
-                        onChange={(event) => setServerPath(event.target.value)}
-                        placeholder={t("knowledge.addPathPlaceholder")}
-                        className="h-8 font-mono text-[11.5px]"
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={busy || !serverPath.trim()}
-                        onClick={() => void onAddServerPath()}
-                        className="h-8 shrink-0 rounded-full px-3 text-[11.5px]"
-                      >
-                        <Plus className="h-3.5 w-3.5" aria-hidden />
-                        {t("knowledge.add")}
-                      </Button>
-                    </div>
-                  </div>
+                <div className="knowledge-toolbar mb-4">
+                  <Button onClick={() => { setActionError(null); setImportOpen(true); }} disabled={busy}>{t("knowledge.experience.addMaterial", { defaultValue: "添加资料" })}</Button>
+                  {docsLoading && <KnowledgeStatus label={t("knowledge.loading")} tone="pending" busy />}
                 </div>
 
                 {docsError ? (
-                  <div role="alert" className="mb-2 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12px] text-destructive">
+                  <div role="alert" className="mb-2 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                     {t("knowledge.documentsError")}: {docsError}
+                    <Button variant="ghost" onClick={() => void loadDocs()}>{t("knowledge.experience.retry", { defaultValue: "重试" })}</Button>
                   </div>
                 ) : null}
 
                 {docsLoading && docs.length === 0 ? (
-                  <p className="flex items-center gap-2 py-4 text-[12px] text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  <p className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
                     {t("knowledge.loading")}
                   </p>
                 ) : docs.length === 0 ? (
@@ -1029,115 +899,24 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                     description={t("knowledge.documentsEmptyHint")}
                   />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-left text-[12px]">
-                      <thead>
-                        <tr className="border-b border-border/60 text-[11px] text-muted-foreground">
-                          <th className="py-2 pr-3 font-medium">{t("knowledge.columnTitle")}</th>
-                          <th className="py-2 pr-3 font-medium">{t("knowledge.columnSource")}</th>
-                          <th className="py-2 pr-3 font-medium">{t("knowledge.columnStatus")}</th>
-                          <th className="py-2 pr-3 text-right font-medium">{t("knowledge.columnSize")}</th>
-                          <th className="py-2 pr-3 text-right font-medium">{t("knowledge.columnChunks")}</th>
-                          <th className="py-2 text-right font-medium">{t("knowledge.columnActions")}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {docs.map((doc) => (
-                          <tr
-                            key={doc.id}
-                            className="border-t border-border/40 align-top transition-colors hover:bg-muted/30"
-                          >
-                            <td className="py-3 pr-3">
-                              <span className="flex min-w-0 items-start gap-1.5">
-                                <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                                <span className="min-w-0">
-                                  <span className="block max-w-[220px] truncate text-[12.5px] font-medium text-foreground">
-                                    {doc.title}
-                                  </span>
-                                  {doc.error ? (
-                                    <span className="mt-1 block max-w-[240px] break-words text-[11px] text-destructive">
-                                      {t("knowledge.errorLabel", { message: doc.error })}
-                                    </span>
-                                  ) : null}
-                                </span>
-                              </span>
-                            </td>
-                            <td className="py-3 pr-3">
-                              <span className="block max-w-[180px] truncate font-mono text-[10.5px] text-muted-foreground">
-                                {doc.originalName || doc.mime || "—"}
-                              </span>
-                            </td>
-                            <td className="py-3 pr-3">
-                              <DocStatusBadge status={doc.status} label={statusLabel(doc)} />
-                            </td>
-                            <td className="py-3 pr-3 text-right tabular-nums text-muted-foreground">
-                              {t("knowledge.sizeValue", { count: doc.charCount })}
-                            </td>
-                            <td className="py-3 pr-3 text-right tabular-nums text-muted-foreground">
-                              {doc.chunkCount}
-                            </td>
-                            <td className="py-3">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={busy || isDocActive(doc) || doc.chunkCount <= 0}
-                                  onClick={() => void onOpenChunkPreview(doc)}
-                                  className="h-7 rounded-full px-2.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
-                                >
-                                  <ListTree className="h-3 w-3" aria-hidden />
-                                  {t("knowledge.viewChunks")}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  aria-label={t("knowledge.reindex")}
-                                  title={t("knowledge.reindex")}
-                                  disabled={busy || isDocActive(doc)}
-                                  onClick={() => {
-                                    void runAction(
-                                      () => reindexKnowledgeDoc(client, doc.id),
-                                      async () => {
-                                        await loadDocs();
-                                        await loadKbs();
-                                        await loadStats();
-                                        clearSearch();
-                                      },
-                                    );
-                                  }}
-                                  className="h-7 w-7 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
-                                >
-                                  <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  aria-label={t("knowledge.deleteDoc")}
-                                  title={t("knowledge.deleteDoc")}
-                                  disabled={busy}
-                                  onClick={() => setConfirm({ kind: "doc", id: doc.id, label: doc.title })}
-                                  className="h-7 w-7 rounded-full p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <KnowledgeDocumentTable docs={docs} busy={busy} onOpenChunkPreview={doc => void onOpenChunkPreview(doc)}
+                    onDelete={doc => setConfirm({ kind: "doc", id: doc.id, label: doc.title })}
+                    onReindex={doc => void runAction(() => reindexKnowledgeDoc(client, doc.id), async () => {
+                      await loadDocs(); await loadKbs(); await loadStats(); clearSearch();
+                    })} />
                 )}
+                <nav className="mt-4 flex flex-wrap items-center justify-end gap-3 text-sm" aria-label={t("knowledge.experience.pagination", { defaultValue: "文档分页" })}>
+                  <span className="tabular-nums">{docTotal ? docOffset + 1 : 0}–{Math.min(docOffset + docs.length, docTotal)} / {docTotal}</span>
+                  <Button variant="outline" disabled={docsLoading || docOffset === 0} onClick={() => { docsSeq.current += 1; setDocOffset(Math.max(0, docOffset - 20)); }}>{t("knowledge.experience.previous", { defaultValue: "上一页" })}</Button>
+                  <Button variant="outline" disabled={docsLoading || docOffset + 20 >= docTotal} onClick={() => { docsSeq.current += 1; setDocOffset(docOffset + 20); }}>{t("knowledge.experience.next", { defaultValue: "下一页" })}</Button>
+                </nav>
               </>
             )}
           </div>
           ) : null}
           {detailTab === "search" ? (
           <div className="rounded-panel border border-border/60 bg-background p-4">
-            <h2 className="flex items-center gap-2 pb-3 text-[13px] font-semibold text-foreground">
+            <h2 className="flex items-center gap-2 pb-3 text-sm font-semibold text-foreground">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <Search className="h-3.5 w-3.5" aria-hidden />
               </span>
@@ -1150,24 +929,24 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                 void onSearch();
               }}
             >
-              <label className="flex w-full flex-col gap-1 text-[11px] font-medium text-muted-foreground">
+              <label className="flex w-full flex-col gap-1 text-xs font-medium text-muted-foreground">
                 {t("knowledge.query")}
                 <Input
                   aria-label={t("knowledge.query")}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder={t("knowledge.queryPlaceholder")}
-                  className="h-8 text-[12.5px]"
+                  className="h-8 text-sm"
                 />
               </label>
               <div className="flex items-end gap-2">
-              <label className="flex min-w-0 flex-1 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
+              <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-muted-foreground">
                 {t("knowledge.mode")}
                 <select
                   aria-label={t("knowledge.mode")}
                   value={mode}
                   onChange={(event) => setMode(event.target.value as KnowledgeSearchMode)}
-                  className="h-8 rounded-control border border-input bg-background px-2 text-[12px]"
+                  className="h-8 rounded-control border border-input bg-background px-2 text-sm"
                 >
                   {SEARCH_MODES.map((value) => (
                     <option key={value} value={value}>
@@ -1176,13 +955,13 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   ))}
                 </select>
               </label>
-              <label className="flex w-20 shrink-0 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
+              <label className="flex w-20 shrink-0 flex-col gap-1 text-xs font-medium text-muted-foreground">
                 {t("knowledge.limit")}
                 <select
                   aria-label={t("knowledge.limit")}
                   value={String(limit)}
                   onChange={(event) => setLimit(Number(event.target.value))}
-                  className="h-8 rounded-control border border-input bg-background px-2 text-[12px]"
+                  className="h-8 rounded-control border border-input bg-background px-2 text-sm"
                 >
                   {SEARCH_LIMITS.map((value) => (
                     <option key={value} value={String(value)}>
@@ -1195,10 +974,10 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                 type="submit"
                 size="sm"
                 disabled={searching || !query.trim()}
-                className="h-8 gap-1.5 rounded-full px-3.5 text-[12px] font-semibold"
+                className="h-8 gap-1.5 rounded-full px-3.5 text-sm font-semibold"
               >
                 {searching ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
                 ) : (
                   <Search className="h-3.5 w-3.5" aria-hidden />
                 )}
@@ -1208,16 +987,16 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             </form>
 
             {searchError ? (
-              <div role="alert" className="mt-3 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12px] text-destructive">
+              <div role="alert" className="mt-3 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 {t("knowledge.searchError")}: {searchError}
               </div>
             ) : searching ? (
-              <p className="mt-3 flex items-center gap-2 text-[12px] text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
                 {t("knowledge.searching")}
               </p>
             ) : !searchResult ? (
-              <p className="mt-3 text-[12px] text-muted-foreground">{t("knowledge.searchIdle")}</p>
+              <p className="mt-3 text-sm text-muted-foreground">{t("knowledge.searchIdle")}</p>
             ) : (
               <SearchResults
                 result={searchResult}
@@ -1233,8 +1012,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
           {detailTab === "graph" && activeKb ? (
             <Suspense
               fallback={
-                <p className="flex items-center gap-2 rounded-panel border border-border/60 bg-background p-4 text-[12px] text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                <p className="flex items-center gap-2 rounded-panel border border-border/60 bg-background p-4 text-sm text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
                   {t("knowledge.loading")}
                 </p>
               }
@@ -1244,11 +1023,10 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                 token={token}
                 client={client}
                 onOpenChunk={async (docId) => {
-                  const payload = await fetchKnowledgeDoc(token, {
-                    id: docId,
-                    chunkLimit: 20,
+                  await onOpenChunkPreview(docs.find(doc => doc.id === docId) ?? {
+                    id: docId, kbId: activeKb.id, title: docId, originalName: "",
+                    status: "ready", chunkCount: 0, charCount: 0,
                   });
-                  if (payload.document) await onOpenChunkPreview(payload.document);
                 }}
               />
             </Suspense>
@@ -1257,92 +1035,10 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         ) : null}
       </div>
 
-      {chunkPreview ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="knowledge-chunks-title"
-          data-testid="knowledge-chunk-preview"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={closeChunkPreview}
-        >
-          <div
-            className="flex max-h-[82vh] w-full max-w-[760px] flex-col rounded-panel border border-border bg-background shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="border-b border-border/60 px-5 py-4">
-              <h2 id="knowledge-chunks-title" className="text-[14px] font-semibold text-foreground">
-                {t("knowledge.chunkTitle")}
-              </h2>
-              <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{chunkPreview.title}</p>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-              {previewLoading ? (
-                <p className="flex items-center gap-2 text-[12px] text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                  {t("knowledge.loading")}
-                </p>
-              ) : previewError ? (
-                <div
-                  role="alert"
-                  className="rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12px] text-destructive"
-                >
-                  {t("knowledge.chunksLoadError")}: {previewError}
-                </div>
-              ) : previewChunks.length === 0 ? (
-                <p className="py-6 text-center text-[12px] text-muted-foreground">
-                  {t("knowledge.chunksEmpty")}
-                </p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {previewChunks.map((chunk) => (
-                    <article
-                      key={chunk.id}
-                      data-testid="knowledge-chunk"
-                      className="rounded-control border border-border/60 bg-muted/15 p-3"
-                    >
-                      <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted-foreground">
-                        <span className="rounded-full bg-muted px-2 py-0.5 font-semibold tabular-nums text-foreground">
-                          #{chunk.index}
-                        </span>
-                        {chunk.heading ? (
-                          <span className="max-w-[320px] truncate text-foreground">{chunk.heading}</span>
-                        ) : null}
-                        {chunk.page !== null ? (
-                          <span>{t("knowledge.pageLabel", { page: chunk.page })}</span>
-                        ) : null}
-                        <span>{t("knowledge.sizeValue", { count: chunk.charCount })}</span>
-                        <span className="ml-auto font-mono text-[10px]">{chunk.id}</span>
-                      </div>
-                      <p className="mt-2 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-foreground">
-                        {chunk.content}
-                      </p>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2 border-t border-border/60 px-5 py-3">
-              {previewChunks.length > 0 ? (
-                <span className="text-[11px] text-muted-foreground">
-                  {previewChunks.length < previewTotal
-                    ? t("knowledge.chunksShowing", { total: previewTotal, shown: previewChunks.length })
-                    : t("knowledge.chunksSummary", { count: previewTotal })}
-                </span>
-              ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={closeChunkPreview}
-                className="ml-auto h-8 rounded-full px-3 text-[12px]"
-              >
-                {t("knowledge.close")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <KnowledgeImportSheet open={importOpen} onClose={() => setImportOpen(false)} busy={busy} error={actionError} stage={uploadStage}
+        file={uploadFile} path={serverPath} onPath={setServerPath} onUpload={file => void onUpload(file)} onAddPath={() => void onAddServerPath()} />
+      <KnowledgeDocumentSheet doc={chunkPreview} previewChunks={previewChunks} previewTotal={previewTotal} previewLoading={previewLoading}
+        previewError={previewError} onClose={closeChunkPreview} onRetry={() => { if (chunkPreview) void onOpenChunkPreview(chunkPreview); }} />
 
       {confirm ? (
         <div
@@ -1355,7 +1051,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             <h2 id="knowledge-confirm-title" className="text-[14px] font-semibold text-destructive">
               {confirm.kind === "kb" ? t("knowledge.deleteKb") : t("knowledge.deleteDoc")}
             </h2>
-            <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               {confirm.kind === "kb"
                 ? t("knowledge.deleteKbConfirm", { name: confirm.label })
                 : t("knowledge.deleteDocConfirm", { title: confirm.label })}
@@ -1366,7 +1062,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                 variant="ghost"
                 size="sm"
                 onClick={() => setConfirm(null)}
-                className="h-8 rounded-full px-3 text-[12px]"
+                className="h-8 rounded-full px-3 text-sm"
               >
                 {t("knowledge.cancel")}
               </Button>
@@ -1375,7 +1071,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                 variant="destructive"
                 size="sm"
                 onClick={() => void onConfirmDelete()}
-                className="h-8 rounded-full px-3.5 text-[12px] font-semibold"
+                className="h-8 rounded-full px-3.5 text-sm font-semibold"
               >
                 {t("knowledge.confirm")}
               </Button>
@@ -1395,10 +1091,10 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             <h2 id="knowledge-repair-title" className="text-[14px] font-semibold text-foreground">
               {t("knowledge.repairTitle")}
             </h2>
-            <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               {t("knowledge.repairHint")}
             </p>
-            <div className="mt-3 flex flex-col gap-2 text-[12.5px]">
+            <div className="mt-3 flex flex-col gap-2 text-sm">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -1428,7 +1124,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               </label>
             </div>
             {repairPurge ? (
-              <p className="mt-2 flex items-start gap-1.5 rounded-control border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-[11.5px] text-destructive">
+              <p className="mt-2 flex items-start gap-1.5 rounded-control border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-sm text-destructive">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                 {t("knowledge.repairPurgeWarning")}
               </p>
@@ -1440,7 +1136,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                 size="sm"
                 onClick={() => setRepairOpen(false)}
                 disabled={repairing}
-                className="h-8 rounded-full px-3 text-[12px]"
+                className="h-8 rounded-full px-3 text-sm"
               >
                 {t("knowledge.cancel")}
               </Button>
@@ -1450,9 +1146,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                 size="sm"
                 onClick={() => void onRepair()}
                 disabled={repairing || (!repairFts && !repairVectors && !repairPurge)}
-                className="h-8 gap-1.5 rounded-full px-3.5 text-[12px] font-semibold"
+                className="h-8 gap-1.5 rounded-full px-3.5 text-sm font-semibold"
               >
-                {repairing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+                {repairing ? <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden /> : null}
                 {repairing ? t("knowledge.repairing") : t("knowledge.repairRun")}
               </Button>
             </div>
@@ -1460,56 +1156,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </div>
       ) : null}
     </div>
-  );
-}
-
-function StatTile({
-  testId,
-  label,
-  value,
-  icon: Icon,
-  tone,
-}: {
-  testId: string;
-  label: string;
-  value: number;
-  icon: LucideIcon;
-  tone: string;
-}) {
-  return (
-    <div
-      data-testid={testId}
-      className="flex items-center gap-2.5 rounded-control border border-border/60 bg-gradient-to-br from-muted/40 to-background px-3 py-2.5"
-    >
-      <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", tone)}>
-        <Icon className="h-4 w-4" aria-hidden />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
-          {label}
-        </span>
-        <span className="mt-0.5 block text-[15px] font-semibold tabular-nums text-foreground">
-          {value}
-        </span>
-      </span>
-    </div>
-  );
-}
-
-function DocStatusBadge({ status, label }: { status: string; label: string }) {
-  const tone =
-    status === "ready"
-      ? "border-emerald-300/70 bg-emerald-50 text-emerald-900 dark:border-emerald-700/40 dark:bg-emerald-950/30 dark:text-emerald-200"
-      : status === "failed"
-        ? "border-destructive/40 bg-destructive/5 text-destructive"
-        : "border-amber-300/70 bg-amber-50 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100";
-  return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-medium", tone)}>
-      {status === "pending" || status === "processing" ? (
-        <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden />
-      ) : null}
-      {label}
-    </span>
   );
 }
 
@@ -1523,7 +1169,7 @@ function SearchResults({
   const { t } = useTranslation();
   return (
     <div className="mt-3 flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-1.5 text-[10.5px]">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
         <span className="rounded-full border border-border/70 px-2 py-0.5 font-medium text-foreground">
           {t("knowledge.modeUsed", { mode: result.modeUsed })}
         </span>
@@ -1542,7 +1188,7 @@ function SearchResults({
         </span>
       </div>
       {result.hits.length === 0 ? (
-        <p className="text-[12px] text-muted-foreground">{emptyLabel}</p>
+        <p className="text-sm text-muted-foreground">{emptyLabel}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {result.hits.map((hit, index) => (
@@ -1550,7 +1196,7 @@ function SearchResults({
               key={hit.chunkId}
               className="rounded-control border border-border/60 border-l-2 border-l-primary/50 bg-background px-3 py-2.5 shadow-sm transition-colors hover:border-border"
             >
-              <div className="flex flex-wrap items-center gap-2 text-[10.5px] text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 font-semibold tabular-nums text-foreground">
                   {index + 1}
                 </span>
@@ -1566,7 +1212,7 @@ function SearchResults({
                 <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono">{hit.chunkId}</span>
                 <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono">{hit.docId}</span>
               </div>
-              <p className="mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap break-words pr-1 text-[12.5px] leading-relaxed text-foreground">
+              <p className="mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap break-words pr-1 text-sm leading-relaxed text-foreground">
                 {hit.content}
               </p>
               {hit.locator ? (

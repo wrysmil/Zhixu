@@ -9,7 +9,7 @@ import type {
 } from "@/lib/knowledge-eval-api";
 import { cn } from "@/lib/utils";
 
-import { formatMetricValue, OVERVIEW_METRICS } from "./metrics";
+import { formatMetricValue, OVERVIEW_METRICS, splitCaseId } from "./metrics";
 
 interface KnowledgeEvalCompareProps {
   runs: KnowledgeEvalRun[];
@@ -22,6 +22,8 @@ interface KnowledgeEvalCompareProps {
   onCompare: () => void;
   /** 用例 id → 查询原文：退化清单显示问的是什么。 */
   queries?: Record<string, string>;
+  runNames?: Record<string,string>;
+  onOpenRegression?: (caseId:string) => void;
 }
 
 /**
@@ -39,6 +41,8 @@ export function KnowledgeEvalCompare({
   onChangeCandidate,
   onCompare,
   queries = {},
+  runNames = {},
+  onOpenRegression,
 }: KnowledgeEvalCompareProps) {
   const { t } = useTranslation();
 
@@ -48,40 +52,40 @@ export function KnowledgeEvalCompare({
   };
 
   return (
-    <section data-testid="knowledge-eval-compare" className="mt-4 rounded-panel border border-border/60 bg-background p-4">
-      <h2 className="text-[13px] font-semibold text-foreground">
+    <section data-testid="knowledge-eval-compare" className="knowledge-panel mt-5">
+      <h2 className="text-base font-semibold text-foreground">
         {t("knowledge.eval.tab.compare")}
       </h2>
 
       <div className="mt-3 flex flex-wrap items-end gap-2">
-        <label className="flex min-w-[180px] flex-1 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
+        <label className="flex min-w-[180px] flex-1 flex-col gap-1 text-sm font-medium text-muted-foreground">
           {t("knowledge.eval.compare.base")}
           <select
             aria-label={t("knowledge.eval.compare.base")}
             value={baseRunId}
             onChange={(event) => onChangeBase(event.target.value)}
-            className="h-8 rounded-control border border-input bg-background px-2 text-[12px]"
+            className="h-8 rounded-control border border-input bg-background px-2 text-sm"
           >
             <option value="">{t("knowledge.eval.compare.none")}</option>
             {runs.map((run) => (
               <option key={run.id} value={run.id}>
-                {run.id}
+                {runNames[run.id] ?? run.id}
               </option>
             ))}
           </select>
         </label>
-        <label className="flex min-w-[180px] flex-1 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
+        <label className="flex min-w-[180px] flex-1 flex-col gap-1 text-sm font-medium text-muted-foreground">
           {t("knowledge.eval.compare.candidate")}
           <select
             aria-label={t("knowledge.eval.compare.candidate")}
             value={candidateRunId}
             onChange={(event) => onChangeCandidate(event.target.value)}
-            className="h-8 rounded-control border border-input bg-background px-2 text-[12px]"
+            className="h-8 rounded-control border border-input bg-background px-2 text-sm"
           >
             <option value="">{t("knowledge.eval.compare.none")}</option>
             {runs.map((run) => (
               <option key={run.id} value={run.id}>
-                {run.id}
+                {runNames[run.id] ?? run.id}
               </option>
             ))}
           </select>
@@ -89,9 +93,9 @@ export function KnowledgeEvalCompare({
         <Button
           type="button"
           size="sm"
-          disabled={busy || !baseRunId || !candidateRunId}
+          disabled={busy || !baseRunId || !candidateRunId || baseRunId===candidateRunId}
           onClick={onCompare}
-          className="h-8 gap-1.5 rounded-full px-3.5 text-[12px] font-semibold"
+          className="h-8 gap-1.5 rounded-full px-3.5 text-sm font-semibold"
         >
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
           {t("knowledge.eval.action.compare")}
@@ -107,10 +111,10 @@ export function KnowledgeEvalCompare({
         </div>
       ) : (
         <div className="mt-3 flex flex-col gap-3">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-[12px]">
+          <div className="knowledge-table-scroll">
+            <table className="knowledge-table">
               <thead>
-                <tr className="border-b border-border/60 text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+                <tr className="border-b border-border/60 text-sm uppercase tracking-[0.06em] text-muted-foreground">
                   <th className="py-2 pr-2 font-semibold">{t("knowledge.eval.guide.column.name")}</th>
                   <th className="py-2 pr-2 font-semibold">{t("knowledge.eval.compare.base")}</th>
                   <th className="py-2 pr-2 font-semibold">{t("knowledge.eval.compare.candidate")}</th>
@@ -123,7 +127,7 @@ export function KnowledgeEvalCompare({
                     <td className="py-2 pr-2 font-medium text-foreground">
                       {metricLabel(row.metricId, row.label ?? row.metricId)}
                       {row.labelSource ? (
-                        <span className="ml-1.5 rounded-full border border-border/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        <span className="ml-1.5 rounded-full border border-border/70 px-1.5 py-0.5 text-sm text-muted-foreground">
                           {row.labelSource}
                         </span>
                       ) : null}
@@ -139,7 +143,7 @@ export function KnowledgeEvalCompare({
                         "py-2 tabular-nums",
                         row.delta === null
                           ? "text-muted-foreground"
-                          : row.delta < 0
+                          : (row.direction === "lower_is_better" ? row.delta > 0 : row.direction === "higher_is_better" ? row.delta < 0 : false)
                             ? "text-destructive"
                             : "text-emerald-600 dark:text-emerald-400",
                       )}
@@ -153,14 +157,14 @@ export function KnowledgeEvalCompare({
           </div>
 
           <div>
-            <h3 className="pb-1.5 text-[12px] font-semibold text-foreground">
+            <h3 className="pb-1.5 text-sm font-semibold text-foreground">
               {t("knowledge.eval.compare.regressions")}
-              <span className="ml-1.5 rounded-full bg-muted/60 px-1.5 py-0.5 text-[10.5px] font-medium tabular-nums text-muted-foreground">
+              <span className="ml-1.5 rounded-full bg-muted/60 px-1.5 py-0.5 text-sm font-medium tabular-nums text-muted-foreground">
                 {comparison.regressedCases.length}
               </span>
             </h3>
             {comparison.regressedCases.length === 0 ? (
-              <p className="text-[12px] text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {t("knowledge.eval.compare.noRegressions")}
               </p>
             ) : (
@@ -168,21 +172,23 @@ export function KnowledgeEvalCompare({
                 {comparison.regressedCases.map((item, index) => (
                   <li
                     key={`${item.caseId}:${item.configId ?? ""}:${item.metricId ?? ""}:${index}`}
-                    className="flex flex-wrap items-center gap-2 rounded-control border border-destructive/25 bg-destructive/5 px-2.5 py-1.5 text-[11.5px]"
+                    className="flex flex-wrap items-center gap-2 rounded-control border border-destructive/25 bg-destructive/5 px-2.5 py-1.5 text-sm"
                   >
                     <span className="font-medium text-foreground">
-                      {queries[item.caseId] ?? item.caseId}
+                      {queries[splitCaseId(item.caseId).caseId] ?? item.caseId}
                     </span>
                     {item.configId ? (
-                      <span className="font-mono text-[10.5px] text-muted-foreground">
+                      <span className="font-mono text-sm text-muted-foreground">
                         {item.configId}
                       </span>
                     ) : null}
                     {item.metricId ? (
-                      <span className="rounded-full bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      <span className="rounded-full bg-muted/60 px-1.5 py-0.5 text-sm text-muted-foreground">
                         {metricLabel(item.metricId, item.metricId)}
                       </span>
                     ) : null}
+                    <p className="w-full text-sm">{item.reason}</p>
+                    <Button variant="outline" disabled={!item.caseId.includes("::")&&!item.configId} onClick={()=>onOpenRegression?.(item.caseId.includes("::") ? item.caseId : item.caseId+"::"+item.configId)}>{t("knowledge.experience.viewRegression",{defaultValue:"查看退步题目"})}</Button>
                     {item.delta !== null && item.delta !== undefined ? (
                       <span className="tabular-nums text-destructive">
                         {formatMetricValue(item.delta)}

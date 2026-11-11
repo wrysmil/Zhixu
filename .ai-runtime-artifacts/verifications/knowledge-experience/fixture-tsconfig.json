@@ -1,0 +1,8 @@
+{
+  "extends": "../../../webui/tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client"],
+    "typeRoots": ["../../../webui/node_modules/@types", "../../../webui/node_modules"]
+  },
+  "include": ["./fixture.tsx", "./fixture-data.ts", "./fixture-transport.ts", "./fixture-check.ts"]
+}

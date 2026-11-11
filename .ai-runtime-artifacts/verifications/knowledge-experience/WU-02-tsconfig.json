@@ -1,0 +1,12 @@
+{
+  "extends": "../../../webui/tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
+    "typeRoots": ["../../../webui/node_modules/@types", "../../../webui/node_modules"]
+  },
+  "include": [
+    "../../../webui/src/components/workspace/KnowledgePage.tsx",
+    "../../../webui/src/tests/knowledge-page.test.tsx"
+  ],
+  "exclude": []
+}

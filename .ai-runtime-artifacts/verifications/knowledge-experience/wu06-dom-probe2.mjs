@@ -1,0 +1,14 @@
+import { chromium } from '../../../webui/node_modules/playwright-core/index.mjs';
+const url='http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/knowledge-experience/fixture.html';
+const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+const ctx=await browser.newContext({viewport:{width:1440,height:900}});
+const page=await ctx.newPage();
+await ctx.route('**/*',r=>{const u=new URL(r.request().url());return u.origin==='http://127.0.0.1:5186'?r.continue():r.abort('blockedbyclient');});
+const dump=async(label)=>{const out=await page.evaluate(()=>{const q=(s)=>[...document.querySelectorAll(s)].map(e=>({t:(e.textContent||'').trim().slice(0,40),al:e.getAttribute('aria-label'),tid:e.getAttribute('data-testid'),role:e.getAttribute('role'),sel:e.getAttribute('aria-selected')}));
+return{buttons:q('button'),tabs:q('[role=tab]'),inputs:q('input'),dialogs:q('[role=dialog]').map(d=>({tid:d.getAttribute('data-testid'),t:(d.textContent||'').trim().slice(0,300)})),testids:q('[data-testid]').filter(e=>e.tid)};});
+console.log('=== '+label);console.log(JSON.stringify(out,null,1));};
+await page.goto(url+'#/knowledge-eval',{waitUntil:'domcontentloaded'});await page.waitForTimeout(1800);
+await dump('eval runs');
+await page.getByTestId('knowledge-eval-run-run-candidate').getByRole('button').first().click();await page.waitForTimeout(1200);
+await dump('eval report');
+await browser.close();

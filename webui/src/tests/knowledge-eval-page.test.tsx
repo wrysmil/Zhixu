@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -225,6 +225,113 @@ describe("KnowledgeEvalPage", () => {
     expect(screen.queryByTestId("knowledge-eval-metric-guide")).toBeNull();
   });
 
+  it("defaults to records when runs exist and keeps the user's tab on refresh", async () => {
+    const user = userEvent.setup();
+    render(<KnowledgeEvalPage />);
+    const runs = await screen.findByRole("tab", { name: i18n.t("knowledge.eval.tab.runs") });
+    await waitFor(() => expect(runs).toHaveAttribute("aria-selected", "true"));
+    expect(screen.queryByRole("combobox", { name: i18n.t("knowledge.eval.run.dataset") })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: i18n.t("knowledge.eval.tab.datasets") }));
+    await user.click(screen.getByRole("button", { name: i18n.t("knowledge.eval.action.refresh") }));
+    expect(screen.getByRole("tab", { name: i18n.t("knowledge.eval.tab.datasets") })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("submits exactly once while creation is pending", async () => {
+    const user = userEvent.setup();
+    api.createRun.mockImplementation(() => new Promise(() => {}));
+    render(<KnowledgeEvalPage />);
+    await user.click(await screen.findByRole("button", { name: i18n.t("knowledge.experience.newEval") }));
+    await user.dblClick(screen.getByRole("button", { name: i18n.t("knowledge.eval.action.run") }));
+    expect(api.createRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves record filtering and focus after returning from a report", async () => {
+    const user = userEvent.setup(); render(<KnowledgeEvalPage />);
+    const filter = await screen.findByRole("textbox", { name: i18n.t("knowledge.experience.filterRuns") });
+    await user.type(filter,"run_1"); await openReport(user);
+    await user.click(screen.getByRole("button", {name:new RegExp(i18n.t("knowledge.eval.title"))}));
+    expect(screen.getByRole("textbox",{name: i18n.t("knowledge.experience.filterRuns")})).toHaveValue("run_1");
+    await waitFor(()=>expect(screen.getByRole("button",{name:i18n.t("knowledge.eval.action.viewReport")})).toHaveFocus());
+  });
+
+  it("requires privacy confirmation for judge cases before submitting", async () => {
+    api.listDatasets.mockResolvedValue([{...DATASETS[0],cases:[{...DATASETS[0].cases[0],labelSource:"judge",expectAny:[]}]}]);
+    api.createRun.mockImplementation(()=>new Promise(()=>{}));
+    const user=userEvent.setup();render(<KnowledgeEvalPage />);
+    await user.click(await screen.findByRole("button",{name: i18n.t("knowledge.experience.newEval")}));
+    await user.click(screen.getByRole("button",{name:i18n.t("knowledge.eval.action.run")}));
+    expect(api.createRun).not.toHaveBeenCalled();
+    const privacy=screen.getByRole("dialog",{name:i18n.t("knowledge.eval.hint.judgePrivacyTitle")});
+    await user.dblClick(within(privacy).getByRole("button",{name:i18n.t("knowledge.eval.action.confirm")}));
+    expect(api.createRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels a running run and refreshes the open report on terminal status", async () => {
+    api.listRuns.mockResolvedValueOnce([{...RUN,status:"running"}]).mockResolvedValue([{...RUN,status:"cancelled"}]);
+    api.cancelRun.mockResolvedValue({...RUN,status:"cancelled"});
+    const user=userEvent.setup();render(<KnowledgeEvalPage />);
+    await user.click(await screen.findByRole("button",{name:i18n.t("knowledge.eval.action.cancel")}));
+    expect(api.cancelRun).toHaveBeenCalledWith(RUN.id);
+    await openReport(user);
+    expect(api.getRunReport).toHaveBeenCalledWith(RUN.id);
+  });
+
+  it("fetches the report again when polling changes a run to terminal", async () => {
+    api.listRuns.mockResolvedValueOnce([{...RUN,status:"running"}]).mockResolvedValue([RUN]);
+    const user=userEvent.setup();render(<KnowledgeEvalPage />);await openReport(user);
+    await waitFor(()=>expect(api.getRunReport).toHaveBeenCalledTimes(2),{timeout:4500});
+    expect(api.listRuns).toHaveBeenCalledTimes(2);
+  });
+
+  it("locates a regression using the complete query and config identity", async () => {
+    api.listRuns.mockResolvedValue([RUN,{...RUN,id:"run_2"}]);
+    api.compare.mockResolvedValue({baseRunId:RUN.id,candidateRunId:"run_2",metrics:[],regressedCases:[{caseId:"c1",configId:"base",reason:"rank fell",metrics:GROUPS[0].metrics}]});
+    const user=userEvent.setup();render(<KnowledgeEvalPage />);
+    await user.click(await screen.findByRole("tab",{name:i18n.t("knowledge.eval.tab.compare")}));
+    await user.selectOptions(screen.getByRole("combobox",{name:i18n.t("knowledge.eval.compare.base")}),RUN.id);
+    await user.selectOptions(screen.getByRole("combobox",{name:i18n.t("knowledge.eval.compare.candidate")}),"run_2");
+    await user.click(screen.getByRole("button",{name:i18n.t("knowledge.eval.action.compare")}));
+    await user.click(await screen.findByRole("button",{name: i18n.t("knowledge.experience.viewRegression")}));
+    const rows=await screen.findAllByTestId("knowledge-eval-case-c1::base");
+    expect(rows).toHaveLength(1);
+    await user.click(within(rows[0]).getByRole("button",{name:"如何回滚部署"}));
+    expect(screen.getByRole("dialog")).toHaveTextContent("c1::base");
+  });
+
+  it("shows hit evidence with null grades distinct from zero", async () => {
+    api.getRunReport.mockResolvedValue({ runId: RUN.id, status: "completed", metrics: GROUPS[0].metrics, groups: GROUPS,
+      results: [makeResult({ hits: [
+        { chunkId: "chunk-null", rank: 1, score: 0.8, contentHash: "h", grade: null, reason: "缺少证据" },
+        { chunkId: "chunk-zero", rank: 2, score: 0.2, contentHash: "h2", grade: 0, reason: "不相关" },
+      ] })] });
+    const user = userEvent.setup();
+    render(<KnowledgeEvalPage />);
+    await openReport(user);
+    await user.click(await screen.findByRole("button", { name: "如何回滚部署" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("chunk-null")).toBeInTheDocument();
+    expect(within(dialog).getByText(i18n.t("knowledge.eval.result.notScored"))).toBeInTheDocument();
+    expect(within(dialog).getByText("0")).toBeInTheDocument();
+    expect(within(dialog).getByText("缺少证据")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(()=>expect(screen.getByRole("button",{name:"如何回滚部署"})).toHaveFocus());
+  });
+
+  it("ignores an old report failure after opening another run", async () => {
+    let rejectOld!: (reason: Error) => void;
+    api.listRuns.mockResolvedValue([RUN, { ...RUN, id: "run_2" }]);
+    api.getRunReport.mockImplementation((id) => id === "run_1" ? new Promise((_resolve, reject) => { rejectOld = reject; }) : Promise.resolve({ runId: "run_2", status: "completed", metrics: GROUPS[0].metrics, groups: GROUPS, results: [makeResult({})] }));
+    const user = userEvent.setup();
+    render(<KnowledgeEvalPage />);
+    await user.click(within(await screen.findByTestId("knowledge-eval-run-run_1")).getByRole("button", { name: i18n.t("knowledge.eval.action.viewReport") }));
+    expect(screen.getByRole("status", { name: i18n.t("knowledge.experience.reportLoading") })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: new RegExp(i18n.t("knowledge.eval.title")) }));
+    await user.click(within(screen.getByTestId("knowledge-eval-run-run_2")).getByRole("button", { name: i18n.t("knowledge.eval.action.viewReport") }));
+    await screen.findByText("如何回滚部署");
+    await act(async () => rejectOld(new Error("obsolete failure")));
+    expect(screen.queryByText(/obsolete failure/)).toBeNull();
+  });
+
   it("opens a run report as a second page", async () => {
     const user = userEvent.setup();
     render(<KnowledgeEvalPage />);
@@ -302,6 +409,21 @@ describe("KnowledgeEvalPage", () => {
     expect(screen.getByTestId("knowledge-eval-degraded-badge")).toBeInTheDocument();
   });
 
+  it("keeps failed, unassessable, scored-null and actual zero distinct", async () => {
+    api.getRunReport.mockResolvedValue({runId:RUN.id,status:"completed",metrics:GROUPS[0].metrics,groups:[...GROUPS,{...GROUPS[0],labelSource:"judge"}],results:[
+      makeResult({caseId:"failed::base",status:"failed",error:"judge timed out"}),
+      makeResult({caseId:"missing::base",status:"not_assessable"}),
+      makeResult({caseId:"null::base",metrics:{...GROUPS[0].metrics,precisionAtK:null}}),
+      makeResult({caseId:"zero::base",metrics:{...GROUPS[0].metrics,precisionAtK:0}}),
+    ]});
+    const user=userEvent.setup();render(<KnowledgeEvalPage />);await openReport(user);
+    expect(await screen.findByText("judge timed out")).toBeInTheDocument();
+    expect(within(screen.getByTestId("knowledge-eval-case-failed::base")).getByText(i18n.t("knowledge.eval.status.failed"))).toBeInTheDocument();
+    expect(within(screen.getByTestId("knowledge-eval-case-null::base")).getByText(i18n.t("knowledge.eval.result.notScored"))).toBeInTheDocument();
+    expect(within(screen.getByTestId("knowledge-eval-case-zero::base")).getByText("0.000")).toBeInTheDocument();
+    expect(within(screen.getByTestId("knowledge-eval-overview")).getByText(i18n.t("knowledge.eval.badge.labelSource.judge"))).toBeInTheDocument();
+  });
+
   it("opens the operation guide from the header", async () => {
     const user = userEvent.setup();
     render(<KnowledgeEvalPage />);
@@ -336,6 +458,8 @@ describe("KnowledgeEvalPage", () => {
       expect(screen.getByTestId("knowledge-eval-datasets")).toBeInTheDocument();
     });
 
+    await user.click(screen.getByRole("tab", { name: i18n.t("knowledge.eval.tab.datasets") }));
+
     const file = new File(
       ["query,expect_any\r\n如何回滚部署,回滚|kubectl\r\n数据库多久备份一次,备份\r\n"],
       "模板导入.csv",
@@ -358,5 +482,22 @@ describe("KnowledgeEvalPage", () => {
       { query: "如何回滚部署", expect_any: ["回滚", "kubectl"] },
       { query: "数据库多久备份一次", expect_any: ["备份"] },
     ]);
+  });
+
+  it("keeps a dirty dataset draft on conflict and asks before leaving", async () => {
+    const user = userEvent.setup();
+    api.updateDataset.mockRejectedValue(new Error("409 revision conflict"));
+    render(<KnowledgeEvalPage />);
+    await user.click(await screen.findByRole("tab", { name: i18n.t("knowledge.eval.tab.datasets") }));
+    await user.click(screen.getByRole("button", { name: "检索基线" }));
+    const input = screen.getByRole("textbox", { name: i18n.t("knowledge.eval.dataset.expect") });
+    await user.clear(input); await user.type(input, "新的答案");
+    await user.click(screen.getByRole("button", { name: i18n.t("knowledge.eval.action.save") }));
+    await within(screen.getByRole("dialog")).findByText(/409 revision conflict/);
+    expect(input).toHaveValue("新的答案");
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.keepEditing") }));
+    expect(input).toHaveValue("新的答案");
   });
 });

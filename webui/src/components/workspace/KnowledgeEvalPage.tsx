@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ArrowLeft, BookOpen, Loader2, RefreshCcw } from "lucide-react";
+import { ArrowLeft, BookOpen, Loader2, RefreshCcw } from "lucide-react";
 
+import "./knowledge-shared/experience.css";
+import { KnowledgeStatus } from "./knowledge-shared/KnowledgeStatus";
+import { KnowledgeEvalCaseSheet } from "./knowledge-eval/KnowledgeEvalCaseSheet";
+import type { KnowledgeEvalCaseResult } from "@/lib/knowledge-eval-api";
+import { KnowledgeSheet, KnowledgeSheetContent, KnowledgeSheetTitle, KnowledgeSheetDescription } from "./knowledge-shared/KnowledgeSurfaces";
 import { Button } from "@/components/ui/button";
 import { PageHeading } from "@/components/workspace/PageHeading";
 import {
@@ -54,6 +59,16 @@ interface PendingRun {
 export function KnowledgeEvalPage() {
   const { t } = useTranslation();
 
+  const initialSection = useRef(false);
+  const [runFilter,setRunFilter]=useState("");
+  const [caseFilter,setCaseFilter]=useState<string | null>(null);
+  const compareVersion=useRef(0);
+  const actionLock = useRef(false);
+  const returnPoint = useRef<{id:string;positions:Array<{element:Element;top:number}>} | null>(null);
+  const [caseResult,setCaseResult] = useState<KnowledgeEvalCaseResult | null>(null);
+  const [reportLoading,setReportLoading] = useState(false);
+  const [reportError,setReportError] = useState<string | null>(null);
+  const [reportRetry,setReportRetry] = useState(0);
   const [metricSpecs, setMetricSpecs] = useState<KnowledgeMetricSpec[]>([]);
   const [datasets, setDatasets] = useState<KnowledgeEvalDataset[]>([]);
   const [runs, setRuns] = useState<KnowledgeEvalRun[]>([]);
@@ -91,6 +106,7 @@ export function KnowledgeEvalPage() {
       setDatasets(datasetPayload);
       const ordered = newestFirst(runPayload);
       setRuns(ordered);
+      if (!initialSection.current) { setSection(ordered.length ? "runs" : "datasets"); initialSection.current=true; }
       setSelectedRunId((current) =>
         current && ordered.some((run) => run.id === current) ? current : ordered[0]?.id ?? null,
       );
@@ -116,19 +132,19 @@ export function KnowledgeEvalPage() {
       return;
     }
     let cancelled = false;
+    setReport(null); setReportLoading(true); setReportError(null);
     void knowledgeEvalApi
       .getRunReport(selectedRunId)
       .then((payload) => {
         if (!cancelled) setReport(payload);
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setReport(null);
-        setLoadError(reason instanceof Error ? reason.message : String(reason));
-      });
+        if (!cancelled) { setReport(null); setReportError(reason instanceof Error ? reason.message : String(reason)); }
+      }).finally(() => { if (!cancelled) setReportLoading(false); });
     return () => {
       cancelled = true;
     };
-  }, [detailOpen, selectedRunId, selectedRunStatus]);
+  }, [detailOpen, selectedRunId, selectedRunStatus, reportRetry]);
 
   // 有未结束的运行时轮询运行列表；全部终态后停表。
   useEffect(() => {
@@ -157,13 +173,18 @@ export function KnowledgeEvalPage() {
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>) => {
+      if(actionLock.current) return false;
+      actionLock.current=true;
       setBusy(true);
       setActionError(null);
       try {
         await action();
+        return true;
       } catch (reason: unknown) {
         setActionError(reason instanceof Error ? reason.message : String(reason));
+        return false;
       } finally {
+        actionLock.current=false;
         setBusy(false);
       }
     },
@@ -172,7 +193,7 @@ export function KnowledgeEvalPage() {
 
   const onCreateDataset = useCallback(
     async (input: { name: string; notes?: string; cases?: Array<Record<string, unknown>> }) => {
-      await runAction(async () => {
+      return runAction(async () => {
         await knowledgeEvalApi.createDataset(input);
         await loadAll();
       });
@@ -182,7 +203,7 @@ export function KnowledgeEvalPage() {
 
   const onDeleteDataset = useCallback(
     async (id: string) => {
-      await runAction(async () => {
+      return runAction(async () => {
         await knowledgeEvalApi.deleteDataset(id);
         await loadAll();
       });
@@ -192,7 +213,7 @@ export function KnowledgeEvalPage() {
 
   const onUpdateCases = useCallback(
     async (dataset: KnowledgeEvalDataset, caseId: string, expectAny: string[]) => {
-      await runAction(async () => {
+      return runAction(async () => {
         // 后端按严格模型收口：字段名必须是 snake_case，且不带 label_source
         // （标注来源由服务端推导，客户端传什么都不作数）。
         const cases = dataset.cases.map((item) =>
@@ -226,9 +247,10 @@ export function KnowledgeEvalPage() {
 
   const startRun = useCallback(
     async (input: PendingRun) => {
-      await runAction(async () => {
+      return runAction(async () => {
         const created = await knowledgeEvalApi.createRun(input);
         await loadAll();
+        setRuns(current=>newestFirst([created,...current.filter(run=>run.id!==created.id)]));
         setSelectedRunId(created.id);
         // 发起后直接进报告详情：轮询会把 queued/running 翻成终态并重取报告。
         setDetailOpen(true);
@@ -255,7 +277,7 @@ export function KnowledgeEvalPage() {
 
   const onCancelRun = useCallback(
     async (runId: string) => {
-      await runAction(async () => {
+      return runAction(async () => {
         await knowledgeEvalApi.cancelRun(runId);
         await loadRuns();
       });
@@ -266,7 +288,9 @@ export function KnowledgeEvalPage() {
   const onCompare = useCallback(async () => {
     if (!baseRunId || !candidateRunId) return;
     await runAction(async () => {
-      setComparison(await knowledgeEvalApi.compare(baseRunId, candidateRunId));
+      const version=compareVersion.current;
+      const payload=await knowledgeEvalApi.compare(baseRunId, candidateRunId);
+      if(version===compareVersion.current)setComparison(payload);
     });
   }, [baseRunId, candidateRunId, runAction]);
 
@@ -308,9 +332,10 @@ export function KnowledgeEvalPage() {
   ];
 
   return (
-    <div className="assistant-page flex h-full flex-col" data-testid="knowledge-eval-page">
+    <div className="knowledge-experience assistant-page flex h-full min-w-0 flex-col pb-6" data-testid="knowledge-eval-page">
       {detailOpen ? null : (
         <PageHeading
+          className="knowledge-page-header"
           kicker={t("knowledge.eval.kicker")}
           title={t("knowledge.eval.title")}
           description={t("knowledge.eval.subtitle")}
@@ -321,7 +346,7 @@ export function KnowledgeEvalPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setManualOpen(true)}
-                className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
+                className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium"
               >
                 <BookOpen className="h-3.5 w-3.5" aria-hidden />
                 {t("knowledge.eval.manual.open")}
@@ -332,10 +357,10 @@ export function KnowledgeEvalPage() {
                 size="sm"
                 disabled={loading}
                 onClick={() => void loadAll()}
-                className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
+                className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium"
               >
                 {loading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
                 ) : (
                   <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
                 )}
@@ -349,7 +374,7 @@ export function KnowledgeEvalPage() {
       {loadError ? (
         <div
           role="alert"
-          className="mt-4 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12px] text-destructive"
+          className="mt-4 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
         >
           {t("knowledge.eval.error.load")}: {loadError}
         </div>
@@ -358,19 +383,20 @@ export function KnowledgeEvalPage() {
       {actionError ? (
         <div
           role="alert"
-          className="mt-4 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12px] text-destructive"
+          className="mt-4 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
         >
           {t("knowledge.eval.error.action")}: {actionError}
         </div>
       ) : null}
 
       {detailOpen ? (
-        <div className="flex min-w-0 items-center gap-2 pt-1 text-[11px] text-muted-foreground">
+        <div className="flex min-w-0 items-center gap-2 pt-1 text-sm text-muted-foreground">
           <button
             type="button"
             onClick={() => {
               setDetailOpen(false);
               setReport(null);
+              requestAnimationFrame(()=>{const point=returnPoint.current;if(point){const row=Array.from(document.querySelectorAll("[data-testid]")).find(element=>element.getAttribute("data-testid")===`knowledge-eval-run-${point.id}`);(row?.querySelector("button") as HTMLElement | null)?.focus({preventScroll:true});for(const position of point.positions)position.element.scrollTop=position.top;}});
             }}
             className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -388,13 +414,13 @@ export function KnowledgeEvalPage() {
         <>
           <section
             data-testid="knowledge-eval-run-header"
-            className="mt-3 flex flex-wrap items-center gap-2 rounded-panel border border-border/60 bg-gradient-to-br from-muted/25 to-background p-4"
+            className="mt-3 flex flex-wrap items-center gap-2 rounded-panel border border-border/60 bg-background p-4"
           >
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-[15px] font-semibold text-foreground">
                 {t("knowledge.eval.detail.title")}
               </h2>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted-foreground">
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
                 <span className="rounded-full bg-muted/60 px-1.5 py-0.5">{selectedRun.status}</span>
                 <span className="font-mono">{selectedRun.id}</span>
                 <span className="tabular-nums">
@@ -411,10 +437,10 @@ export function KnowledgeEvalPage() {
               size="sm"
               disabled={loading}
               onClick={() => void loadAll()}
-              className="h-8 gap-1.5 rounded-full px-3 text-[12px] font-medium"
+              className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium"
             >
               {loading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
               ) : (
                 <RefreshCcw className="h-3.5 w-3.5" aria-hidden />
               )}
@@ -422,17 +448,21 @@ export function KnowledgeEvalPage() {
             </Button>
           </section>
 
+          {reportLoading ? <div className="py-4"><KnowledgeStatus label={t("knowledge.experience.reportLoading",{defaultValue:"加载评测报告"})} tone="pending" busy /></div> : null}
+          {reportError ? <div role="alert" className="knowledge-panel mt-4 text-destructive">{reportError}<Button onClick={()=>setReportRetry(n=>n+1)}>{t("knowledge.experience.retry",{defaultValue:"重试"})}</Button></div> : null}
+          {selectedRun.error ? <p role="alert" className="text-destructive">{selectedRun.error}</p> : null}
           <KnowledgeEvalOverview
             groups={report?.groups ?? []}
             degraded={selectedRun.degraded}
             specs={metricSpecs}
-            loading={loading}
+            loading={reportLoading}
           />
 
-          <KnowledgeEvalCaseResults report={report} loading={loading} queries={queriesByCaseId} />
+          {caseFilter ? <Button variant="outline" className="mt-4 self-start" onClick={()=>setCaseFilter(null)}>{t("knowledge.experience.allCases",{defaultValue:"显示全部题目"})}</Button> : null}
+          <KnowledgeEvalCaseResults report={report && caseFilter ? {...report,results:report.results.filter(r=>r.caseId===caseFilter)} : report} loading={reportLoading} queries={queriesByCaseId} onOpenCase={setCaseResult} />
 
           <details className="mt-4 rounded-panel border border-border/60 bg-background">
-            <summary className="cursor-pointer px-4 py-3 text-[12.5px] font-semibold text-foreground">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-foreground">
               {t("knowledge.eval.guide.title")}
             </summary>
             <KnowledgeEvalMetricGuide specs={metricSpecs} />
@@ -450,8 +480,8 @@ export function KnowledgeEvalPage() {
                 onClick={() => setSection(item.key)}
                 className={
                   section === item.key
-                    ? "-mb-px inline-flex cursor-pointer items-center border-b-2 border-primary px-3 py-2 text-[12px] font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    : "-mb-px inline-flex cursor-pointer items-center border-b-2 border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    ? "-mb-px inline-flex cursor-pointer items-center border-b-2 border-primary px-3 py-2 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    : "-mb-px inline-flex cursor-pointer items-center border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 }
               >
                 {item.label}
@@ -463,6 +493,7 @@ export function KnowledgeEvalPage() {
             <KnowledgeEvalDatasets
               datasets={datasets}
               busy={busy}
+              error={actionError}
               onCreate={onCreateDataset}
               onDelete={onDeleteDataset}
               onUpdateCases={onUpdateCases}
@@ -473,11 +504,21 @@ export function KnowledgeEvalPage() {
 
           <div hidden={section !== "runs"}>
             <KnowledgeEvalRuns
+              error={actionError}
+              filter={runFilter}
+              onFilter={setRunFilter}
               runs={runs}
               datasets={datasets}
               busy={busy}
               onOpenRun={(runId) => {
+                const positions:Array<{element:Element;top:number}>=[];
+                let element:Element|null=document.querySelector("[data-testid=knowledge-eval-page]");
+                while(element){positions.push({element,top:element.scrollTop});element=element.parentElement;}
+                if(document.scrollingElement)positions.push({element:document.scrollingElement,top:document.scrollingElement.scrollTop});
+                returnPoint.current={id:runId,positions};
+                setReport(null); setReportLoading(true); setReportError(null);
                 setSelectedRunId(runId);
+                setCaseFilter(null);
                 setDetailOpen(true);
               }}
               onCancelRun={onCancelRun}
@@ -492,8 +533,10 @@ export function KnowledgeEvalPage() {
               candidateRunId={candidateRunId}
               comparison={comparison}
               busy={busy}
-              onChangeBase={setBaseRunId}
-              onChangeCandidate={setCandidateRunId}
+              onChangeBase={id=>{compareVersion.current++;setComparison(null);setBaseRunId(id);}}
+              onChangeCandidate={id=>{compareVersion.current++;setComparison(null);setCandidateRunId(id);}}
+              runNames={Object.fromEntries(runs.map(run=>[run.id,`${datasets.find(d=>d.id===run.datasetId)?.name??run.datasetId} · ${run.configs.map(c=>c.name||c.id).join(", ")} · ${run.createdAt?.slice(0,19)??"—"} · ${run.id}`]))}
+              onOpenRegression={id=>{setReport(null);setReportLoading(true);setReportError(null);setCaseFilter(id);setSelectedRunId(candidateRunId);setDetailOpen(true);}}
               onCompare={() => void onCompare()}
               queries={queriesByCaseId}
             />
@@ -501,56 +544,20 @@ export function KnowledgeEvalPage() {
         </>
       )}
 
+      <KnowledgeEvalCaseSheet result={caseResult} query={caseResult ? queriesByCaseId[caseResult.caseId.split("::")[0]] : undefined} onClose={()=>setCaseResult(null)} />
       <KnowledgeEvalManual
         open={manualOpen}
         onClose={() => setManualOpen(false)}
         onDownloadTemplate={onDownloadTemplate}
       />
 
-      {pendingRun ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="knowledge-eval-privacy-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-        >
-          <div className="w-full max-w-[440px] rounded-panel border border-border bg-background p-5 shadow-2xl">
-            <h2
-              id="knowledge-eval-privacy-title"
-              className="flex items-center gap-2 text-[14px] font-semibold text-foreground"
-            >
-              <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden />
-              {t("knowledge.eval.hint.judgePrivacyTitle")}
-            </h2>
-            <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
-              {t("knowledge.eval.hint.judgePrivacy")}
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setPendingRun(null)}
-                className="h-8 rounded-full px-3 text-[12px]"
-              >
-                {t("knowledge.eval.action.cancel")}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  const input = pendingRun;
-                  setPendingRun(null);
-                  void startRun(input);
-                }}
-                className="h-8 rounded-full px-3.5 text-[12px] font-semibold"
-              >
-                {t("knowledge.eval.action.confirm")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <KnowledgeSheet open={!!pendingRun} onOpenChange={v=>{if(!v)setPendingRun(null);}}>
+      <KnowledgeSheetContent className="p-6 sm:p-8">
+      <KnowledgeSheetTitle>{t("knowledge.eval.hint.judgePrivacyTitle")}</KnowledgeSheetTitle>
+      <KnowledgeSheetDescription>{t("knowledge.eval.hint.judgePrivacy")}</KnowledgeSheetDescription>
+      <div className="flex gap-3"><Button variant="outline" onClick={()=>setPendingRun(null)}>{t("knowledge.eval.action.cancel")}</Button>
+      <Button disabled={busy} onClick={()=>{if(pendingRun){const input=pendingRun;setPendingRun(null);void startRun(input);}}}>{t("knowledge.eval.action.confirm")}</Button></div>
+      </KnowledgeSheetContent></KnowledgeSheet>
     </div>
   );
 }

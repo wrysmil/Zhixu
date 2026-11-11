@@ -1,0 +1,1088 @@
+{
+  "errors": [],
+  "network": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/knowledge-experience/fixture.html"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@react-refresh"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@vite/client"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/vite/dist/client/env.mjs"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/knowledge-experience/fixture.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/react_jsx-dev-runtime.js?v=b0c90bfe"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/knowledge-experience/fixture-transport.ts?t=1794390680382"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/knowledge-experience/fixture-data.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/chunk-UHNVLHWX.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/chunk-DC5AMYBS.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/react.js?v=b0c90bfe"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/react-dom_client.js?v=7edd0f0b"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/providers/ClientProvider.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/KnowledgePage.tsx?t=1794391807485"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/KnowledgeEvalPage.tsx?t=1794390735292"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/i18n/index.ts?t=1794391089031"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/ui/tooltip.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/globals.css?t=1794392077246"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/chunk-IC2B4KMG.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/react-i18next.js?v=2fab2016"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/lucide-react.js?v=87e7935e"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-shared/experience.css?t=1794388867334"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-shared/KnowledgeStatus.tsx?t=1794388867334"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/KnowledgeEvalCaseSheet.tsx?t=1794390735272"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-shared/KnowledgeSurfaces.tsx?t=1794388867306"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/ui/button.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/PageHeading.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/lib/knowledge-eval-api.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/KnowledgeEvalCaseResults.tsx?t=1794388911256"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/KnowledgeEvalCompare.tsx?t=1794389995975"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/KnowledgeEvalDatasets.tsx?t=1794390735291"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/KnowledgeEvalManual.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/KnowledgeEvalMetricGuide.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/KnowledgeEvalOverview.tsx?t=1794388919930"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/KnowledgeEvalRuns.tsx?t=1794390735292"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/dataset-template.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/i18next.js?v=7e32bae6"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/channel-plugins/locale-registry.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/i18n/config.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/@radix-ui_react-tooltip.js?v=afbb30a7"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/ui/floating-surface.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/lib/utils.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/ui/input.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/ui/textarea.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/EmptyState.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge/KnowledgeLibraryList.tsx?t=1794388867334"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge/KnowledgeDocumentTable.tsx?t=1794388867334"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge/KnowledgeDocumentSheet.tsx?t=1794390735271"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge/KnowledgeImportSheet.tsx?t=1794390735253"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/lib/api.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/chunk-BXND5IWL.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/@radix-ui_react-slot.js?v=c45aedc1"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/class-variance-authority.js?v=174aa465"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-dialog/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/metrics.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/lib/evaluation-api.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-shared/KnowledgePreview.tsx?t=1794388867334"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/KnowledgeEvalDatasetSheet.tsx?t=1794390735291"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/workspace/knowledge-eval/KnowledgeEvalRunSheet.tsx?t=1794390735292"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/channel-plugins/i18n.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/clsx.js?v=4635d679"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/tailwind-merge.js?v=bce01092"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/chunk-DZEX64H4.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/chunk-46N3RICT.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/chunk-AEQJVZQV.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/chunk-RGCFURI5.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/ui/form-control.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/ui/dropdown-menu.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/lib/http.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/chunk-O5QPYVY3.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/primitive/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-compose-refs/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-context/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-id/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-use-controllable-state/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-focus-scope/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-portal/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-presence/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-primitive/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-focus-guards/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll/dist/es2015/index.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/aria-hidden/dist/es2015/index.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/react_jsx-runtime.js?v=b0c90bfe"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/lib/bootstrap.ts"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/components/ui/alert-dialog.tsx"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/@radix-ui_react-dropdown-menu.js?v=3f90774f"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-use-layout-effect/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-use-effect-event/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/react-dom.js?v=b0c90bfe"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-use-callback-ref/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/@radix-ui/react-use-escape-keydown/dist/index.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll/dist/es2015/Combination.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/@radix-ui_react-alert-dialog.js?v=7ebbaf49"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/.ai-runtime-artifacts/verifications/k-cache/deps/chunk-KFXL23AG.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/tslib/tslib.es6.mjs?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll/dist/es2015/UI.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll/dist/es2015/sidecar.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll-bar/dist/es2015/constants.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-callback-ref/dist/es2015/index.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll/dist/es2015/medium.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-sidecar/dist/es2015/index.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll/dist/es2015/SideEffect.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-callback-ref/dist/es2015/assignRef.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-callback-ref/dist/es2015/useRef.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-callback-ref/dist/es2015/createRef.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-callback-ref/dist/es2015/mergeRef.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-callback-ref/dist/es2015/useMergeRef.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-callback-ref/dist/es2015/useTransformRef.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-callback-ref/dist/es2015/transformRef.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-callback-ref/dist/es2015/refToCallback.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-sidecar/dist/es2015/hoc.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-sidecar/dist/es2015/hook.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-sidecar/dist/es2015/config.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-sidecar/dist/es2015/medium.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-sidecar/dist/es2015/renderProp.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-sidecar/dist/es2015/exports.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll-bar/dist/es2015/index.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-style-singleton/dist/es2015/index.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll/dist/es2015/aggresiveCapture.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll/dist/es2015/handleScroll.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/use-sidecar/dist/es2015/env.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll-bar/dist/es2015/component.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-remove-scroll-bar/dist/es2015/utils.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-style-singleton/dist/es2015/component.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-style-singleton/dist/es2015/singleton.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/react-style-singleton/dist/es2015/hook.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/detect-node-es/esm/browser.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/Zhixu/webui/node_modules/get-nonce/dist/es2015/index.js?v=74e5394c"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/i18n/locales/en/common.json?t=1794391088981&import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/dingtalk/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/discord/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/email/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/feishu/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/matrix/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/mattermost/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/msteams/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/napcat/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/qq/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/signal/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/slack/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/telegram/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/websocket/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/wecom/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/weixin/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/whatsapp/webui/locales/en.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/src/i18n/locales/zh-CN/common.json?t=1794391089023&import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/dingtalk/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/discord/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/email/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/feishu/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/matrix/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/mattermost/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/msteams/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/napcat/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/qq/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/signal/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/slack/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/telegram/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/websocket/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/wecom/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/weixin/webui/locales/zh-CN.json?import"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5186/@fs/D:/studyspace/project/.harness-worktrees/Zhixu/wt-2026-11-11-knowledge-experience/nanobot/channels/whatsapp/webui/locales/zh-CN.json?import"
+    }
+  ],
+  "final": {
+    "title": "测试数据 · 知识工作区验收夹具",
+    "text": "测试数据 · 隔离夹具\n所有修改仅在本页内存中生效；刷新恢复；无模型调用。\n知识库\n检索评测\n切换深色\n重置测试数据\n\n知识中心\n\n检索评测台\n\n在同一批查询上跑不同的检索配置，判定相关性，并看清哪些查询变差了。\n\n使用指南\n刷新\n数据集\n运行\n对比\n数据集\n下载模板（CSV）\n导入模板\n新建数据集\n部署检索验收题集\n\n4 条查询 · 2026-11-11\n\n删除数据集\n空题集\n\n0 条查询 · 2026-11-11\n\n删除数据集\n部署检索验收题集\n\n4 条查询\n\n如何回滚部署？\n\nhybrid · K=5 · expect\n\n期望关键词\n保存\n\n部署前需要检查什么？\n\nsemantic · K=5 · judge\n\n期望关键词\n保存\n\n不存在的证据如何评分？\n\nkeyword · K=5 · judge\n\n期望关键词\n保存\n\n失败查询如何显示？\n\nhybrid · K=5 · expect\n\n期望关键词\n保存\n关闭",
+    "focus": {
+      "tag": "INPUT",
+      "text": "",
+      "connected": true
+    },
+    "dialogs": [
+      "部署检索验收题集4 条查询如何回滚部署？hybrid · K=5 · expect期望关键词保存部署前需要检查什么？semantic · K=5 · judge期望关键词保存不存在的证据如何评分？keyword · K=5 · judge期望关键词保存失败查询如何显示？hybrid · K=5 · expect期望关键词保存关闭"
+    ],
+    "overflow": {
+      "client": 1440,
+      "scroll": 1440
+    },
+    "audit": [
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/kbs",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392729038
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392729038
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392730919
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392732934
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392732934
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392734946
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392734946
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392736952
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392736952
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392738960
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392738960
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392740968
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392740968
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392742977
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392742977
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392744983
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392744983
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392746994
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392746994
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392749002
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392749002
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392751010
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392751010
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392753019
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392753019
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392755027
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392755027
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392757036
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392757036
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392759044
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392759044
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392761053
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392761053
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392763061
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392763061
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392765069
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392765069
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392767077
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392767078
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392769086
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392769086
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392771094
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392771095
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392773219
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392773220
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392775352
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392775353
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392777486
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392777486
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392779619
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392779619
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392781761
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392781761
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/docs",
+        "query": "?kbId=kb-product&limit=20&offset=0&workspaceIds=fixture-workspace",
+        "at": 1794392783895
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/settings/knowledge/stats",
+        "query": "?workspaceIds=fixture-workspace",
+        "at": 1794392783895
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/eval/v1/auth/session",
+        "query": "",
+        "at": 1794392784018
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/eval/v1/knowledge/metrics",
+        "query": "",
+        "at": 1794392784145
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/eval/v1/knowledge/datasets",
+        "query": "",
+        "at": 1794392784145
+      },
+      {
+        "kind": "fetch",
+        "method": "GET",
+        "path": "/api/eval/v1/knowledge/runs",
+        "query": "",
+        "at": 1794392784145
+      }
+    ]
+  }
+}

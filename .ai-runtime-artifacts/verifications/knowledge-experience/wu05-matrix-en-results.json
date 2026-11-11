@@ -1,0 +1,926 @@
+[
+ {
+  "name": "en-light-1440x900-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-light-1440x900-reduce",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-light-1280x800-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-light-1280x800-reduce",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-light-390x844-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-light-390x844-reduce",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 390,
+     "scroll": 390,
+     "dark": false,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-dark-1440x900-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-dark-1440x900-reduce",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 1440,
+     "scroll": 1440,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-dark-1280x800-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-dark-1280x800-reduce",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 1280,
+     "scroll": 1280,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-dark-390x844-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-dark-390x844-reduce",
+  "status": "未通过",
+  "evidence": {
+   "overflow": [],
+   "clipped": [
+    {
+     "stage": "eval-case",
+     "t": "Close",
+     "sw": 38,
+     "cw": 1
+    }
+   ],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "documents",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "document-sheet",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    },
+    {
+     "stage": "eval-runs",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-report",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogSurface": false
+    },
+    {
+     "stage": "eval-case",
+     "client": 390,
+     "scroll": 390,
+     "dark": true,
+     "reduced": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogSurface": true
+    }
+   ]
+  }
+ }
+]

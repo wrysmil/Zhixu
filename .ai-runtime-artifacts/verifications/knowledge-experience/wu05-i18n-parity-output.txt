@@ -1,0 +1,18 @@
+代码调用点键数: 46
+┌─────────┬─────────┬──────┬─────────────┐
+│ (index) │ lang    │ keys │ matchesCode │
+├─────────┼─────────┼──────┼─────────────┤
+│ 0       │ 'en'    │ 46   │ true        │
+│ 1       │ 'es'    │ 46   │ true        │
+│ 2       │ 'fr'    │ 46   │ true        │
+│ 3       │ 'id'    │ 46   │ true        │
+│ 4       │ 'ja'    │ 46   │ true        │
+│ 5       │ 'ko'    │ 46   │ true        │
+│ 6       │ 'pt-BR' │ 46   │ true        │
+│ 7       │ 'vi'    │ 46   │ true        │
+│ 8       │ 'zh-CN' │ 46   │ true        │
+│ 9       │ 'zh-TW' │ 46   │ true        │
+└─────────┴─────────┴──────┴─────────────┘
+代码键清单: addMaterial,advanced,allCases,allScopes,backToLibraries,clearSearch,discard,discardDescription,discardTitle,draftSaveError,filterRuns,filterScope,formula,grade,graphDetailLoading,graphExpand,graphLoading,graphNoRelations,graphRetryDetail,graphRetryGraph,graphSelectHint,graphSelected,hitEvidence,importStages,keepEditing,localFile,more,newEval,next,noDescription,noHits,noMatchingLibraries,pagination,previous,rank,readFailed,reading,reportLoading,retry,retryUpload,searchLibraries,serverPath,sort,submitting,updated,viewRegression
+
+OK: 10 种语言的 knowledge.experience 键集合与代码调用点完全一致，zh-CN 与 defaultValue 逐字一致。

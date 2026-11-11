@@ -1,0 +1,986 @@
+[
+ {
+  "name": "zh-CN-light-1440x900-no-preference",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    }
+   ]
+  }
+ },
+ {
+  "name": "zh-CN-light-1440x900-reduce",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    }
+   ]
+  }
+ },
+ {
+  "name": "zh-CN-light-1280x800-no-preference",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    }
+   ]
+  }
+ },
+ {
+  "name": "zh-CN-light-1280x800-reduce",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    }
+   ]
+  }
+ },
+ {
+  "name": "zh-CN-light-390x844-no-preference",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": false,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    }
+   ]
+  }
+ },
+ {
+  "name": "zh-CN-light-390x844-reduce",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": false,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    }
+   ]
+  }
+ },
+ {
+  "name": "zh-CN-dark-1440x900-no-preference",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    }
+   ]
+  }
+ },
+ {
+  "name": "zh-CN-dark-1440x900-reduce",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 1440,
+     "scroll": 1440,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    }
+   ]
+  }
+ },
+ {
+  "name": "zh-CN-dark-1280x800-no-preference",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    }
+   ]
+  }
+ },
+ {
+  "name": "zh-CN-dark-1280x800-reduce",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 1280,
+     "scroll": 1280,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    }
+   ]
+  }
+ },
+ {
+  "name": "zh-CN-dark-390x844-no-preference",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 390,
+     "scroll": 390,
+     "reduced": false,
+     "dark": true,
+     "dialogAnim": "knowledge-sheet-in",
+     "dialogDur": "0.22s",
+     "dialogHasSurface": true,
+     "overlayAnim": "knowledge-fade-in"
+    }
+   ]
+  }
+ },
+ {
+  "name": "zh-CN-dark-390x844-reduce",
+  "status": "通过",
+  "evidence": {
+   "overflowStages": [],
+   "stages": [
+    {
+     "stage": "libraries",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "documents",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "document-sheet",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    },
+    {
+     "stage": "eval-runs",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-report",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": null,
+     "dialogDur": null,
+     "dialogHasSurface": false,
+     "overlayAnim": null
+    },
+    {
+     "stage": "eval-case",
+     "client": 390,
+     "scroll": 390,
+     "reduced": true,
+     "dark": true,
+     "dialogAnim": "none",
+     "dialogDur": "0s",
+     "dialogHasSurface": true,
+     "overlayAnim": "none"
+    }
+   ]
+  }
+ },
+ {
+  "name": "en-light-1440x900-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ },
+ {
+  "name": "en-light-1440x900-reduce",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ },
+ {
+  "name": "en-light-1280x800-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ },
+ {
+  "name": "en-light-1280x800-reduce",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ },
+ {
+  "name": "en-light-390x844-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ },
+ {
+  "name": "en-light-390x844-reduce",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ },
+ {
+  "name": "en-dark-1440x900-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ },
+ {
+  "name": "en-dark-1440x900-reduce",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ },
+ {
+  "name": "en-dark-1280x800-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ },
+ {
+  "name": "en-dark-1280x800-reduce",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ },
+ {
+  "name": "en-dark-390x844-no-preference",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ },
+ {
+  "name": "en-dark-390x844-reduce",
+  "status": "未通过",
+  "evidence": {
+   "error": "TimeoutError: locator.click: Timeout 8000ms exceeded."
+  }
+ }
+]

@@ -1,0 +1,46 @@
+[
+ {
+  "name": "纯键盘：Tab进入、焦点陷阱、focus-visible、Esc归还焦点",
+  "status": "通过",
+  "evidence": {
+   "triggerText": "部署与回滚操作指南",
+   "inside": {
+    "inDialog": true,
+    "active": "BUTTON|关闭"
+   },
+   "wrapStayedInDialog": true,
+   "outline": {
+    "tag": "BUTTON",
+    "outlineStyle": "solid",
+    "outlineWidth": "2px",
+    "outlineColor": "rgb(39, 39, 42)"
+   },
+   "afterEscape": {
+    "text": "部署与回滚操作指南",
+    "connected": true
+   }
+  }
+ },
+ {
+  "name": "连续开关20次：知识页文档Sheet",
+  "status": "通过",
+  "evidence": {
+   "badCount": 0,
+   "bad": [],
+   "sampleFocus": [
+    "部署与回滚操作指南"
+   ]
+  }
+ },
+ {
+  "name": "连续开关20次：评测新建Sheet",
+  "status": "通过",
+  "evidence": {
+   "badCount": 0,
+   "bad": [],
+   "sampleFocus": [
+    "新建评测"
+   ]
+  }
+ }
+]

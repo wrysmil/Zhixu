@@ -1,5 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GraphView } from "@/components/workspace/knowledge/GraphView";
 import i18n from "@/i18n";
@@ -10,6 +11,41 @@ beforeEach(() => {
 });
 
 describe("GraphView", () => {
+  it("separates keyboard selection from explicit expansion and highlights connected items", async () => {
+    const onSelect = vi.fn();
+    const onExpand = vi.fn();
+    render(<GraphView nodes={[
+      { id: "a", name: "Alpha", type: "concept", mentionCount: 1 },
+      { id: "b", name: "Beta", type: "concept", mentionCount: 1 },
+      { id: "c", name: "Gamma", type: "concept", mentionCount: 1 },
+    ]} edges={[{ source: "a", target: "b", relation: "uses", weight: 1 }]}
+      centerId="a" onSelect={onSelect} onExpand={onExpand} />);
+    const beta = await screen.findByRole("button", { name: "Beta · concept" });
+    beta.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onSelect).toHaveBeenLastCalledWith("b");
+    expect(onExpand).not.toHaveBeenCalled();
+    expect(beta).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Alpha · concept" })).toHaveAttribute("data-related", "true");
+    expect(screen.getByRole("button", { name: "Gamma · concept" })).toHaveAttribute("data-related", "false");
+    expect(document.querySelector("line")).toHaveAttribute("data-related", "true");
+    await userEvent.keyboard(" ");
+    expect(onSelect).toHaveBeenCalledTimes(2);
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.graphExpand") }));
+    expect(onExpand).toHaveBeenLastCalledWith("b");
+  });
+
+  it("preserves zoom and node identity on equal graph refreshes", async () => {
+    const nodes = [{ id: "a", name: "Alpha", type: "concept", mentionCount: 1 }];
+    const { rerender } = render(<GraphView nodes={nodes} edges={[]} centerId="a" />);
+    const node = await screen.findByRole("button", { name: "Alpha · concept" });
+    const svg = screen.getByRole("group", { name: "Neighborhood" });
+    fireEvent.wheel(svg, { deltaY: 100 });
+    const zoom = svg.getAttribute("viewBox");
+    rerender(<GraphView nodes={nodes.map(n => ({ ...n }))} edges={[]} centerId="a" />);
+    await waitFor(() => expect(svg).toHaveAttribute("viewBox", zoom));
+    expect(screen.getByRole("button", { name: "Alpha · concept" })).toBe(node);
+  });
   it("draws edges with real coordinates", async () => {
     render(
       <GraphView
