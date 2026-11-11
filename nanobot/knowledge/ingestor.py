@@ -103,6 +103,7 @@ class Ingestor:
         | None = None,
         question_generator: QuestionGenerator | None = None,
         question_count: int = DEFAULT_QUESTION_COUNT,
+        graph_hook: Callable[[str], None] | None = None,
     ) -> None:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
@@ -118,6 +119,11 @@ class Ingestor:
         self._identity_resolver = identity_resolver
         self._question_generator = question_generator
         self._question_count = max(1, question_count)
+        self._graph_hook = graph_hook
+
+    def set_graph_hook(self, hook: Callable[[str], None] | None) -> None:
+        """服务装配完成后注入图抽取钩子（避免构造期循环引用）。"""
+        self._graph_hook = hook
 
     # ---------- 入口 ----------
     def process_document(self, doc_id: str, attempt: int | None = None) -> None:
@@ -175,6 +181,15 @@ class Ingestor:
             self._discard_vectors(target[1], doc_id)
         if self._question_generator is not None:
             self._generate_questions(document, target, records)
+        if self._graph_hook is not None:
+            try:
+                self._graph_hook(document.id)
+            except Exception as exc:  # noqa: BLE001 - 图抽取是增强项
+                logger.warning(
+                    "knowledge graph enqueue skipped: doc={} error={!r}",
+                    document.id,
+                    exc,
+                )
         logger.debug(
             "knowledge ingest finished: doc={} attempt={} chunks={} vector={}",
             doc_id,

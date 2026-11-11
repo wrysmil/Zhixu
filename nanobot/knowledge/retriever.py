@@ -39,6 +39,8 @@ from nanobot.knowledge.fusion import (
     single_vector_scores_multi,
     weighted_rrf_multi,
 )
+from nanobot.knowledge.graph.models import GraphEvidencePayload
+from nanobot.knowledge.graph.route import GraphRoute
 from nanobot.knowledge.models import KnowledgeBase
 from nanobot.knowledge.questions import parent_chunk_id
 from nanobot.knowledge.repository import FtsHit, KnowledgeRepository, StoredChunk
@@ -113,6 +115,14 @@ class RetrieverSettings:
     #: 低召回时的本地查询扩展（只走关键词路，不调用模型）。
     expand_on_low_recall: bool = True
     expansion_limit: int = 5
+    #: 图谱第三路（默认关闭；关闭时既有两路实现与数值完全不变）。
+    graph_enabled: bool = False
+    graph_weight: float = 0.25
+    graph_hops: int = 1
+    graph_seed_limit: int = 5
+    graph_max_entities: int = 20
+    graph_max_chunks: int = 50
+    graph_timeout_seconds: float = 0.8
 
 
 def _from_fts(hit: FtsHit) -> SearchHit:
@@ -241,6 +251,7 @@ class Retriever:
         tokenizer_mode: str = "jieba",
         identity_resolver: Callable[[KnowledgeBase], tuple[Embedder, VectorStore] | None]
         | None = None,
+        graph_route: GraphRoute | None = None,
     ) -> None:
         self._repo = repository
         self._embedder = embedder
@@ -250,6 +261,7 @@ class Retriever:
         self._rerank_settings = rerank_settings or RerankSettings()
         self._tokenizer_mode = tokenizer_mode
         self._identity_resolver = identity_resolver
+        self._graph_route = graph_route
 
     # ---------- 入口 ----------
     def search(
@@ -393,6 +405,25 @@ class Retriever:
                     )
                     keyword_ok = True
 
+        # ---------- 图路（第三路，失败只降级） ----------
+        graph_lists: list[list[tuple[str, float]]] = []
+        graph_hits: list[SearchHit] = []
+        graph_evidence: dict[str, GraphEvidencePayload] = {}
+        if settings.graph_enabled:
+            if self._graph_route is None:
+                # 评测覆写打开图、但进程未装配后端：显式降级，不静默变两路。
+                degraded.append("graph_unavailable")
+            else:
+                (
+                    graph_hits,
+                    graph_evidence,
+                    graph_labels,
+                    graph_used,
+                ) = self._graph_route.search(query, visible)
+                degraded.extend(graph_labels)
+                if graph_used:
+                    graph_lists.append([(hit.chunk_id, 0.0) for hit in graph_hits])
+
         # 失败 ≠ 空结果：参与的路由全部失败才抛（§3、§6）。
         if keyword_error is not None and not vector_ok:
             raise KnowledgeSearchError("all attempted knowledge routes failed") from keyword_error
@@ -404,7 +435,7 @@ class Retriever:
         if normalized_mode == "semantic" and not vector_ok:
             degraded.append("mode_downgraded")
 
-        if not keyword_hits and not vector_hits:
+        if not keyword_hits and not vector_hits and not graph_hits:
             reason = self._empty_reason(match_expr, vector_raw_count)
             return SearchResult(
                 hits=(),
@@ -413,8 +444,16 @@ class Retriever:
                 reason=reason,
             )
 
-        scores, routes, mode_used = self._fuse(vector_lists, keyword_lists)
-        candidates = self._assemble(scores, vector_hits, keyword_hits)
+        scores, routes, mode_used = self._fuse(
+            vector_lists, keyword_lists, graph_lists
+        )
+        candidates = self._assemble(
+            scores,
+            vector_hits,
+            keyword_hits,
+            graph_hits=graph_hits,
+            graph_evidence=graph_evidence,
+        )
         candidates = self._with_titles(candidates)
         deduped = dedup_partial(
             candidates,
@@ -849,9 +888,39 @@ class Retriever:
         self,
         vector_lists: list[list[tuple[str, float]]],
         keyword_lists: list[list[tuple[str, float]]],
+        graph_lists: list[list[tuple[str, float]]] | None = None,
     ) -> tuple[dict[str, float], tuple[str, ...], str]:
-        """§5.2 三条互斥归一化路径；只返回融合分与路由此刻的形态。"""
+        """§5.2 三条互斥归一化路径；图关闭时严格保留既有两路实现与数值。"""
         settings = self._settings
+        if graph_lists:
+            specs: list[RouteSpec] = []
+            modes: list[str] = []
+            if vector_lists:
+                specs.append(
+                    RouteSpec(
+                        settings.vector_weight,
+                        tuple(tuple(cid for cid, _ in ids) for ids in vector_lists),
+                    )
+                )
+                modes.append("vector")
+            if keyword_lists:
+                specs.append(
+                    RouteSpec(
+                        settings.keyword_weight,
+                        tuple(tuple(cid for cid, _ in ids) for ids in keyword_lists),
+                    )
+                )
+                modes.append("keyword")
+            specs.append(
+                RouteSpec(
+                    settings.graph_weight,
+                    (tuple(cid for cid, _ in graph_lists[0]),),
+                )
+            )
+            modes.append("graph")
+            scores = weighted_rrf_multi(tuple(specs), k=settings.rrf_k)
+            mode_used = "hybrid" if len(modes) > 1 else "graph"
+            return scores, tuple(modes), mode_used
         if vector_lists and keyword_lists:
             scores = weighted_rrf_multi(
                 (
@@ -878,14 +947,28 @@ class Retriever:
         scores: dict[str, float],
         vector_hits: list[SearchHit],
         keyword_hits: list[FtsHit],
+        *,
+        graph_hits: Sequence[SearchHit] = (),
+        graph_evidence: dict[str, GraphEvidencePayload] | None = None,
     ) -> list[SearchHit]:
-        """每个候选一条 `SearchHit`：同一块两路命中时优先用关键词读模型（字段等价）。"""
+        """每个候选一条 `SearchHit`：两路命中时优先关键词读模型（字段等价）。
+
+        图路只补充「其他两路没召回的块」，并给命中的块附最短路径证据。
+        """
+        evidence = graph_evidence or {}
         by_id: dict[str, SearchHit] = {hit.chunk_id: hit for hit in vector_hits}
         for keyword_hit in keyword_hits:
             by_id[keyword_hit.chunk_id] = _from_fts(keyword_hit)
-        return [
-            replace(by_id[chunk_id], score=score) for chunk_id, score in scores.items()
-        ]
+        for graph_hit in graph_hits:
+            by_id.setdefault(graph_hit.chunk_id, graph_hit)
+        assembled: list[SearchHit] = []
+        for chunk_id, score in scores.items():
+            hit = replace(by_id[chunk_id], score=score)
+            payload = evidence.get(chunk_id)
+            if payload is not None:
+                hit = replace(hit, graph_evidence=payload)
+            assembled.append(hit)
+        return assembled
 
     # ---------- 空结果 ----------
     @staticmethod

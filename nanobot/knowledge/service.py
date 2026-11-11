@@ -19,7 +19,7 @@ import shutil
 import threading
 from collections.abc import Callable, Sequence
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +42,11 @@ from nanobot.knowledge.files import (
     write_bytes_atomic,
 )
 from nanobot.knowledge.fusion import SearchHit, SearchResult
+from nanobot.knowledge.graph.extractor import build_graph_extractor
+from nanobot.knowledge.graph.neo4j_store import Neo4jGraphStore
+from nanobot.knowledge.graph.repo import GraphRepository
+from nanobot.knowledge.graph.route import GraphRoute
+from nanobot.knowledge.graph.service import GraphService
 from nanobot.knowledge.ingestor import INDEX_VERSION, Ingestor
 from nanobot.knowledge.models import Document, KnowledgeBase, new_id
 from nanobot.knowledge.questions import (
@@ -223,7 +228,28 @@ class _EmbedderRegistry:
         )
 
 
-def _retriever_settings(retrieval: Any) -> RetrieverSettings:
+def _graph_settings(graph: Any) -> dict[str, Any]:
+    """`KnowledgeGraphConfig` → `RetrieverSettings` 的图字段（唯一配置来源）。"""
+    expansion = graph.expansion
+    return {
+        "graph_enabled": bool(graph.enabled and expansion.enabled),
+        "graph_weight": float(expansion.weight),
+        "graph_hops": max(1, min(2, int(expansion.hops))),
+        "graph_seed_limit": max(1, int(expansion.seed_limit)),
+        "graph_max_entities": max(1, int(expansion.max_entities)),
+        "graph_max_chunks": max(1, int(expansion.max_chunks)),
+        "graph_timeout_seconds": float(expansion.timeout_seconds),
+    }
+
+
+def _retriever_settings(retrieval: Any, graph: Any = None) -> RetrieverSettings:
+    base = _base_retriever_settings(retrieval)
+    if graph is None:
+        return base
+    return replace(base, **_graph_settings(graph))
+
+
+def _base_retriever_settings(retrieval: Any) -> RetrieverSettings:
     """`KnowledgeRetrievalConfig` → `RetrieverSettings`；`tool_output_chars` 留在工具层。"""
     if retrieval is None:
         return RetrieverSettings()
@@ -297,6 +323,7 @@ class KnowledgeService:
         rerank_settings: RerankSettings | None = None,
         tokenizer_mode: str = "jieba",
         identity_resolver: IdentityResolver | None = None,
+        graph: GraphService | None = None,
     ) -> None:
         self._db = database
         self._repo = repo
@@ -312,6 +339,8 @@ class KnowledgeService:
         self._tokenizer_mode = tokenizer_mode
         self._identity_resolver = identity_resolver
         self._identity: tuple[str, str, int] | None = None
+        self._graph = graph
+        self._graph_route: GraphRoute | None = None
         _ensure_private_dir(self._uploads)
 
         self._queue: asyncio.Queue[str] = asyncio.Queue()
@@ -319,6 +348,9 @@ class KnowledgeService:
         self._queued_lock = threading.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._worker: asyncio.Task[None] | None = None
+        self._graph_queue: asyncio.Queue[str] = asyncio.Queue()
+        self._graph_queued: set[str] = set()
+        self._graph_worker: asyncio.Task[None] | None = None
 
     # ---------- 构造 ----------
     @classmethod
@@ -335,6 +367,9 @@ class KnowledgeService:
         identity_resolver: IdentityResolver | None = None,
         question_generator: QuestionGenerator | None = None,
         question_count: int = DEFAULT_QUESTION_COUNT,
+        graph: GraphService | None = None,
+        graph_factory: Callable[[KnowledgeRepository], GraphService | None]
+        | None = None,
     ) -> KnowledgeService:
         """显式路径装配（测试 / CLI 单进程）；默认无 embedding、无向量层。
 
@@ -347,6 +382,8 @@ class KnowledgeService:
         database.init_schema()
         _harden_sqlite_files(path)
         repo = KnowledgeRepository(database)
+        if graph is None and graph_factory is not None:
+            graph = graph_factory(repo)
         actual_embedder = embedder or NoneEmbedder()
         uploads = (
             Path(uploads_dir).expanduser().resolve()
@@ -358,29 +395,43 @@ class KnowledgeService:
         tokenizer_mode = str(
             getattr(chunking, "tokenizer_mode", "jieba") or "jieba"
         )
-        return cls(
+        ingestor = Ingestor(
+            repo,
+            embedder=actual_embedder,
+            vector_store=vector_store,
+            tokenizer_mode=tokenizer_mode,
+            identity_resolver=identity_resolver,
+            question_generator=question_generator,
+            question_count=question_count,
+        )
+        graph_route = (
+            GraphRoute(
+                repo=graph.repo,
+                knowledge_repo=repo,
+                store=graph.store,
+                settings=RetrieverSettings(**_graph_settings(graph.config)),
+            )
+            if graph is not None and graph.enabled
+            else None
+        )
+        service = cls(
             database=database,
             repo=repo,
             embedder=actual_embedder,
             vector_store=vector_store,
-            ingestor=Ingestor(
-                repo,
-                embedder=actual_embedder,
-                vector_store=vector_store,
-                tokenizer_mode=tokenizer_mode,
-                identity_resolver=identity_resolver,
-                question_generator=question_generator,
-                question_count=question_count,
-            ),
+            ingestor=ingestor,
             retriever=Retriever(
                 repo,
                 embedder=actual_embedder,
                 vector_store=vector_store,
-                settings=_retriever_settings(retrieval),
+                settings=_retriever_settings(
+                    retrieval, graph.config if graph is not None else None
+                ),
                 reranker=reranker,
                 rerank_settings=rerank_settings,
                 tokenizer_mode=tokenizer_mode,
                 identity_resolver=identity_resolver,
+                graph_route=graph_route,
             ),
             uploads_dir=uploads,
             chunk_size=int(getattr(chunking, "chunk_size", _DEFAULT_CHUNK_SIZE)),
@@ -390,7 +441,13 @@ class KnowledgeService:
             reranker=reranker,
             rerank_settings=rerank_settings,
             tokenizer_mode=tokenizer_mode,
+            graph=graph,
         )
+        service._graph_route = graph_route
+        if graph is not None:
+            graph.bind_notifier(service._wake_graph_worker)
+            ingestor.set_graph_hook(service.enqueue_graph_document)
+        return service
 
     # ---------- KB ----------
     def create_kb(
@@ -445,6 +502,8 @@ class KnowledgeService:
             self.delete_document(document.id)
         self._delete_kb_vectors(kb_id)
         self._repo.delete_kb(kb_id)
+        if self._graph is not None:
+            self._graph.delete_kb_namespace(kb_id)
 
     # ---------- 文档 ----------
     def add_file(
@@ -557,8 +616,14 @@ class KnowledgeService:
         document = self._repo.get_document(doc_id)
         if document is None:
             return
+        graph = self._graph
+        entity_ids = (
+            graph.entity_ids_for_document(doc_id) if graph is not None else []
+        )
         self._repo.delete_document(doc_id)
         self._delete_document_vectors(doc_id)
+        if graph is not None:
+            graph.delete_document(doc_id, document.kb_id, entity_ids)
         if document.source_kind == "managed":
             self._remove_managed_copy(document.source_path)
 
@@ -631,6 +696,66 @@ class KnowledgeService:
                 self._queued.discard(doc_id)
             logger.debug("knowledge enqueue skipped: doc={} error={}", doc_id, exc)
 
+    # ---------- 图抽取（独立 worker，不阻塞文档队列） ----------
+    @property
+    def graph(self) -> GraphService | None:
+        return self._graph
+
+    def attach_graph(self, graph: GraphService | None) -> None:
+        """测试/延迟装配：注入图服务并同步 Ingestor 钩子。"""
+        self._graph = graph
+        if graph is not None:
+            graph.bind_notifier(self._wake_graph_worker)
+        self._ingestor.set_graph_hook(
+            self.enqueue_graph_document if graph is not None else None
+        )
+
+    def enqueue_graph_document(self, doc_id: str) -> None:
+        """Ingestor 钩子：写 pending 状态并唤醒 worker（可由 worker 线程调用）。"""
+        graph = self._graph
+        if graph is None or not graph.enabled:
+            return
+        graph.enqueue_document(doc_id, force=True)
+
+    def _wake_graph_worker(self, doc_id: str) -> None:
+        """只投递事件、不写库；作为 GraphService 的 notifier，避免递归入队。"""
+        loop = self._loop
+        if loop is None or loop.is_closed() or self._graph_worker is None:
+            return
+        with self._queued_lock:
+            if doc_id in self._graph_queued:
+                return
+            self._graph_queued.add(doc_id)
+        try:
+            loop.call_soon_threadsafe(self._graph_queue.put_nowait, doc_id)
+        except RuntimeError as exc:
+            with self._queued_lock:
+                self._graph_queued.discard(doc_id)
+            logger.debug("knowledge graph enqueue skipped: doc={} error={}", doc_id, exc)
+
+    async def _run_graph_worker(self) -> None:
+        while True:
+            doc_id = await self._graph_queue.get()
+            try:
+                with self._queued_lock:
+                    self._graph_queued.discard(doc_id)
+                await asyncio.to_thread(self._graph_process_queued, doc_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("knowledge graph worker failed: doc={}", doc_id)
+            finally:
+                self._graph_queue.task_done()
+
+    def _graph_process_queued(self, doc_id: str) -> None:
+        graph = self._graph
+        if graph is None:
+            return
+        state = graph.claim(doc_id)
+        if state is None:
+            return
+        graph.process_document(doc_id, attempt=state.attempt)
+
     async def start(self) -> None:
         """幂等启动：恢复过期租约与 pending 文档，然后拉起单 worker。"""
         if self._worker is not None and not self._worker.done():
@@ -641,17 +766,35 @@ class KnowledgeService:
         self._worker = asyncio.create_task(self._run_worker(), name="knowledge-worker")
         for doc_id in recovered:
             self.enqueue_document(doc_id)
+        graph = self._graph
+        if graph is not None and graph.enabled:
+            self._graph_queue = asyncio.Queue()
+            graph.bind_notifier(self._wake_graph_worker)
+            graph_docs = await asyncio.to_thread(graph.reset_expired_and_pending)
+            self._graph_worker = asyncio.create_task(
+                self._run_graph_worker(), name="knowledge-graph-worker"
+            )
+            for doc_id in graph_docs:
+                self._wake_graph_worker(doc_id)
 
     async def stop(self) -> None:
         """幂等停止：取消并等待 worker，再清空内存队列（DB 状态保持不变）。"""
         worker = self._worker
         self._worker = None
         self._loop = None
+        graph_worker = self._graph_worker
+        self._graph_worker = None
+        if graph_worker is not None:
+            graph_worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await graph_worker
         if worker is not None:
             worker.cancel()
             with suppress(asyncio.CancelledError):
                 await worker
         self._drain_queue()
+        with self._queued_lock:
+            self._graph_queued.clear()
 
     # ---------- 检索 ----------
     def retriever_with(self, settings: RetrieverSettings) -> Retriever:
@@ -670,6 +813,7 @@ class KnowledgeService:
             rerank_settings=self._rerank_settings,
             tokenizer_mode=self._tokenizer_mode,
             identity_resolver=self._identity_resolver,
+            graph_route=self._graph_route,
         )
 
     def search(
@@ -974,6 +1118,34 @@ def get_knowledge_service(knowledge: KnowledgeConfig) -> KnowledgeService:
         return instance
 
 
+def _build_graph(graph_config: Any, repo: KnowledgeRepository) -> GraphService | None:
+    if not getattr(graph_config, "enabled", False):
+        return None
+    extractor = build_graph_extractor(graph_config.extraction)
+    if not extractor:
+        logger.warning(
+            "knowledge graph enabled but extraction model is not configured"
+        )
+    password = str(getattr(graph_config, "password", "") or "")
+    password_env = str(getattr(graph_config, "password_env", "") or "")
+    if password_env:
+        password = os.environ.get(password_env, "") or password
+    store = Neo4jGraphStore(
+        uri=str(getattr(graph_config, "uri", "") or ""),
+        username=str(getattr(graph_config, "username", "neo4j") or "neo4j"),
+        password=password,
+        database=str(getattr(graph_config, "database", "neo4j") or "neo4j"),
+        timeout=float(getattr(graph_config, "connect_timeout_seconds", 5.0)),
+    )
+    return GraphService(
+        repo=GraphRepository(repo.database),
+        knowledge_repo=repo,
+        store=store,
+        extractor=extractor,
+        config=graph_config,
+    )
+
+
 def _build_service(knowledge: KnowledgeConfig, database_path: Path) -> KnowledgeService:
     embedding = knowledge.embedding
     embedder = build_embedder(
@@ -1025,6 +1197,7 @@ def _build_service(knowledge: KnowledgeConfig, database_path: Path) -> Knowledge
         identity_resolver=identity_resolver,
         question_generator=build_question_generator(questions),
         question_count=question_count_from(questions),
+        graph_factory=lambda graph_repo: _build_graph(knowledge.graph, graph_repo),
     )
 
 

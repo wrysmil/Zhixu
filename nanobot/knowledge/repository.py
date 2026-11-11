@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -252,6 +252,7 @@ class KnowledgeRepository:
     )
 
     def __init__(self, database: KnowledgeDatabase) -> None:
+        self.database = database
         self._db = database
 
     # ---------- KB ----------
@@ -847,6 +848,35 @@ class KnowledgeRepository:
                 (doc_id, limit, offset),
             ).fetchall()
         return [self._row_to_chunk(row) for row in rows]
+
+    def fetch_search_chunks(
+        self, chunk_ids: Sequence[str], *, kb_ids: Sequence[str]
+    ) -> list[StoredChunk]:
+        """图候选回表复核：只信已通过 `_visible_kbs` 的 kb_ids。
+
+        不按块 workspace 过滤——global 库的块 workspace 属于库所在工作区，
+        不属于请求方。保持调用方传入的 chunk_id 顺序（即图路名次）。
+        """
+        if not chunk_ids or not kb_ids:
+            return []
+        fields = ",".join(f"c.{name.strip()}" for name in _CHUNK_FIELDS.split(","))
+        chunk_placeholders = ",".join("?" for _ in chunk_ids)
+        kb_placeholders = ",".join("?" for _ in kb_ids)
+        sql = f"""
+          SELECT {fields} FROM document_chunks c
+          JOIN documents d ON d.id = c.doc_id
+          JOIN knowledge_bases kb ON kb.id = c.kb_id
+          WHERE c.id IN ({chunk_placeholders})
+            AND c.is_enabled = 1 AND d.is_enabled = 1 AND kb.is_enabled = 1
+            AND d.parse_status = 'ready'
+            AND c.kb_id IN ({kb_placeholders})
+        """
+        with self._db.connect() as conn:
+            rows = conn.execute(sql, (*chunk_ids, *kb_ids)).fetchall()
+        order = {chunk_id: index for index, chunk_id in enumerate(chunk_ids)}
+        chunks = [self._row_to_chunk(row) for row in rows]
+        chunks.sort(key=lambda chunk: order.get(chunk.id, 10**9))
+        return chunks
 
     def fetch_neighbors(
         self, chunk: StoredChunk, *, before: int = 1, after: int = 1

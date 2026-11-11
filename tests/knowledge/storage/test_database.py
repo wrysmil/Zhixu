@@ -27,7 +27,7 @@ def test_init_schema_is_idempotent(db):
             row[0]
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type='trigger'")
         }
-    assert version == "2"
+    assert version == "3"
     assert {
         "knowledge_bases",
         "documents",
@@ -35,6 +35,11 @@ def test_init_schema_is_idempotent(db):
         "document_chunks_fts",
         "chunk_questions",
         "chunk_questions_fts",
+        "graph_entities",
+        "graph_relations",
+        "graph_mentions",
+        "graph_relation_evidence",
+        "graph_extraction_state",
     } <= tables
     assert {
         "document_chunks_immutable",

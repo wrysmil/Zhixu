@@ -408,3 +408,36 @@ def stats(
 ) -> None:
     """输出统计信息。"""
     _print_json(_service(config).stats(workspace_ids=[workspace_id]))
+
+
+graph_app = typer.Typer(help="知识图谱维护", no_args_is_help=True)
+knowledge_app.add_typer(graph_app, name="graph")
+
+
+@graph_app.command("rebuild")
+def graph_rebuild(
+    kb: str = typer.Option(..., "--kb", help="知识库 id 或名称"),
+    purge: bool = typer.Option(False, "--purge", help="先清空该库派生图数据"),
+    wait: bool = typer.Option(False, "--wait", help="同步跑完抽取"),
+    yes: bool = typer.Option(False, "--yes", help="确认把分块正文发送给抽取模型"),
+    workspace_id: str = typer.Option("default", "--workspace-id", "--workspace"),
+    config: str | None = typer.Option(None, "--config", "-c", help="Path to config file"),
+) -> None:
+    """重建知识库图谱（手动全量动作，需 --yes 确认）。"""
+    if not yes:
+        _abort("重建会把分块正文发送给图谱抽取模型；请加 --yes 确认")
+    service = _service(config)
+    graph = getattr(service, "graph", None)
+    if graph is None or not graph.enabled:
+        _abort("知识图谱未启用或后端未配置")
+    if not graph.extractor_ready:
+        _abort("图谱抽取模型未配置")
+    kb_id = _resolve_kb(service, kb, workspace_id)
+    report = graph.rebuild_kb(kb_id, purge=purge)
+    queued = int(report.get("queued", 0))
+    waited = 0
+    if wait:
+        for doc_id in graph.pending_documents(kb_id):
+            graph.process_document(doc_id)
+            waited += 1
+    _print_json({"queued": queued, "waited": waited})

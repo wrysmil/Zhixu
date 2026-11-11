@@ -100,6 +100,43 @@ CAMEL_PAYLOAD: dict[str, object] = {
         "maxContextChars": 1200,
         "timeoutSeconds": 30.0,
     },
+    "graph": {
+        "enabled": False,
+        "backend": "neo4j",
+        "uri": "",
+        "username": "neo4j",
+        "password": "",
+        "passwordEnv": "",
+        "database": "neo4j",
+        "connectTimeoutSeconds": 5.0,
+        "extraction": {
+            "enabled": True,
+            "model": "",
+            "baseUrl": "",
+            "apiKey": "",
+            "apiKeyEnv": "",
+            "temperature": 0.2,
+            "maxTokens": 2048,
+            "timeoutSeconds": 30.0,
+            "maxContextChars": 1200,
+            "concurrency": 2,
+            "maxEntitiesPerChunk": 20,
+            "maxRelationsPerChunk": 30,
+            "maxChunksPerDoc": 200,
+            "promptVersion": "graph1",
+            "maxRetries": 1,
+            "requireConfirmation": True,
+        },
+        "expansion": {
+            "enabled": True,
+            "hops": 1,
+            "seedLimit": 5,
+            "maxEntities": 20,
+            "maxChunks": 50,
+            "weight": 0.25,
+            "timeoutSeconds": 0.8,
+        },
+    },
 }
 
 
@@ -176,6 +213,10 @@ def test_knowledge_defaults_nest_subconfigs() -> None:
     assert isinstance(
         config.question_generation, KnowledgeQuestionGenerationConfig
     )
+    from nanobot.config.schema import KnowledgeGraphConfig
+
+    assert isinstance(config.graph, KnowledgeGraphConfig)
+    assert config.graph.enabled is False
     assert config.chunking.chunk_size == 800
     assert config.embedding.backend == "auto"
     assert config.retrieval.dedup_length_ratio == 3.0

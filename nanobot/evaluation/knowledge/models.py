@@ -51,6 +51,11 @@ ALLOWED_RETRIEVAL_FIELDS = frozenset(
         "dedup_length_ratio",
         "mode",
         "limit",
+        "graph_enabled",
+        "graph_hops",
+        "graph_seed_limit",
+        "graph_weight",
+        "graph_max_chunks",
     }
 )
 
@@ -147,6 +152,11 @@ class KnowledgeRetrievalConfig(_Base):
     dedup_length_ratio: float | None = Field(default=None, ge=1.0, le=100.0)
     mode: SearchMode | None = None
     limit: int | None = Field(default=None, ge=1, le=20)
+    graph_enabled: bool | None = None
+    graph_hops: int | None = Field(default=None, ge=1, le=2)
+    graph_seed_limit: int | None = Field(default=None, ge=1, le=10)
+    graph_weight: float | None = Field(default=None, ge=0.0, le=1.0)
+    graph_max_chunks: int | None = Field(default=None, ge=10, le=200)
 
 
 class KnowledgeEvalBudgets(_Base):

@@ -24,6 +24,10 @@ DOC_GET: Final = "knowledge-doc-get"
 CHUNK_GET: Final = "knowledge-chunk-get"
 SEARCH: Final = "knowledge-search"
 STATS: Final = "knowledge-stats"
+GRAPH_STATS: Final = "knowledge-graph-stats"
+GRAPH_ENTITIES: Final = "knowledge-graph-entities"
+GRAPH_ENTITY: Final = "knowledge-graph-entity"
+GRAPH_SUBGRAPH: Final = "knowledge-graph-subgraph"
 
 KB_CREATE: Final = "knowledge.kb.create"
 KB_UPDATE: Final = "knowledge.kb.update"
@@ -34,6 +38,8 @@ DOC_ADD_FILE: Final = "knowledge.doc.add_file"
 DOC_DELETE: Final = "knowledge.doc.delete"
 DOC_REINDEX: Final = "knowledge.doc.reindex"
 REPAIR: Final = "knowledge.repair"
+GRAPH_EXTRACT: Final = "knowledge.graph.extract"
+GRAPH_REBUILD: Final = "knowledge.graph.rebuild"
 
 READ_ACTIONS: Final = frozenset({
     KB_LIST,
@@ -42,6 +48,10 @@ READ_ACTIONS: Final = frozenset({
     CHUNK_GET,
     SEARCH,
     STATS,
+    GRAPH_STATS,
+    GRAPH_ENTITIES,
+    GRAPH_ENTITY,
+    GRAPH_SUBGRAPH,
 })
 
 WRITE_ACTIONS: Final = frozenset({
@@ -54,6 +64,8 @@ WRITE_ACTIONS: Final = frozenset({
     DOC_DELETE,
     DOC_REINDEX,
     REPAIR,
+    GRAPH_EXTRACT,
+    GRAPH_REBUILD,
 })
 
 ACTION_NAMES: Final = READ_ACTIONS | WRITE_ACTIONS
@@ -67,6 +79,10 @@ READ_PATHS: Final[dict[str, str]] = {
     "/api/settings/knowledge/chunk": CHUNK_GET,
     "/api/settings/knowledge/search": SEARCH,
     "/api/settings/knowledge/stats": STATS,
+    "/api/settings/knowledge/graph/stats": GRAPH_STATS,
+    "/api/settings/knowledge/graph/entities": GRAPH_ENTITIES,
+    "/api/settings/knowledge/graph/entity": GRAPH_ENTITY,
+    "/api/settings/knowledge/graph/subgraph": GRAPH_SUBGRAPH,
 }
 
 WRITE_PATHS: Final[dict[str, str]] = {
@@ -79,6 +95,8 @@ WRITE_PATHS: Final[dict[str, str]] = {
     "/api/settings/knowledge/docs/delete": DOC_DELETE,
     "/api/settings/knowledge/docs/reindex": DOC_REINDEX,
     "/api/settings/knowledge/repair": REPAIR,
+    "/api/settings/knowledge/graph/extract": GRAPH_EXTRACT,
+    "/api/settings/knowledge/graph/rebuild": GRAPH_REBUILD,
 }
 
 

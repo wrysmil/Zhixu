@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 from nanobot.knowledge.tokenizer import tokenize_index
 
 if TYPE_CHECKING:
+    from nanobot.knowledge.graph.models import GraphEvidencePayload
     from nanobot.knowledge.repository import FtsHit
 
 #: §5.4 保留规则：相对分数差在此以内视为「同分」，改取更长块。
@@ -55,6 +56,8 @@ class SearchHit:
     score: float = 0.0
     title: str = ""
     source_chunk_ids: tuple[str, ...] = ()
+    #: 图路证据（仅当该命中由图谱路贡献时存在）；默认 None，既有构造点零改动。
+    graph_evidence: "GraphEvidencePayload | None" = None
 
 
 @dataclass(frozen=True, slots=True)

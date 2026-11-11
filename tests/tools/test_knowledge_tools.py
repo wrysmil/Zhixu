@@ -19,10 +19,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from nanobot.agent.tools.context import ToolContext
+from nanobot.agent.tools.knowledge_common import (
+    _history_messages,
+    render_search_result,
+)
 from nanobot.agent.tools.knowledge_read import KnowledgeReadTool
 from nanobot.agent.tools.knowledge_search import KnowledgeSearchTool
 from nanobot.bus.queue import MessageBus
 from nanobot.knowledge.fusion import SearchHit, SearchResult
+from nanobot.knowledge.graph.models import GraphEvidencePayload
 from nanobot.knowledge.models import KnowledgeBase
 from nanobot.knowledge.repository import StoredChunk
 from nanobot.knowledge.retriever import KnowledgeSearchError
@@ -892,3 +897,49 @@ def test_loop_disabled_knowledge_config(tmp_path: Path, monkeypatch: pytest.Monk
         assert not KnowledgeSearchTool.enabled(captured["ctx"])
     finally:
         asyncio.run(loop.aclose())
+
+
+def test_history_messages_supports_snapshot_api():
+    class Sessions:
+        def read_session_snapshot(self, key):
+            assert key == "websocket:1"
+            return SimpleNamespace(messages=[{"content": "see chunk://chk_1"}])
+
+    messages = _history_messages(Sessions(), "websocket:1")
+    assert messages == [{"content": "see chunk://chk_1"}]
+
+
+def test_history_messages_supports_legacy_read_dict():
+    class Sessions:
+        def read(self, key):
+            return {"messages": [{"content": "chunk://chk_2"}]}
+
+    assert _history_messages(Sessions(), "k") == [{"content": "chunk://chk_2"}]
+
+
+def test_render_includes_graph_path_when_evidence_present():
+    hit = SearchHit(
+        chunk_id="c1",
+        doc_id="d1",
+        kb_id="kb",
+        chunk_index=0,
+        heading_path="",
+        page=None,
+        locator="",
+        content="x",
+        char_count=1,
+        score=0.9,
+        graph_evidence=GraphEvidencePayload(
+            seeds=("A",),
+            path=(("A", "依赖", "B"),),
+            hop=1,
+            entity_ids=("e1", "e2"),
+        ),
+    )
+    text = render_search_result(
+        SearchResult(
+            hits=(hit,), mode_used="hybrid", routes=("vector", "graph")
+        ),
+        mode_requested="hybrid",
+    )
+    assert 'graph_path="A —依赖→ B"' in text

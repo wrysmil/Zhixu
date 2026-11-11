@@ -85,6 +85,9 @@ documents = [
 langfuse = [
     "langfuse>=3.0.0,<4.0.0",
 ]
+graph = [
+    "neo4j>=5.26,<6.0",
+]
 pdf = [
     # Compatibility extra: PDF reading is bundled since v0.2.3.
     "pypdf>=5.0.0,<6.0.0",
@@ -187,6 +190,7 @@ pythonVersion = "3.11"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests", "nanobot/channels"]
+markers = ["neo4j: 需要 NEO4J_TEST_URI 的真实 Neo4j 集成测试"]
 
 [tool.coverage.run]
 source = ["nanobot"]

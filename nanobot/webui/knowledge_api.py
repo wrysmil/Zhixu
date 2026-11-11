@@ -471,6 +471,12 @@ class KnowledgeApi:
             routes.DOC_DELETE: self._doc_delete,
             routes.DOC_REINDEX: self._doc_reindex,
             routes.REPAIR: self._repair,
+            routes.GRAPH_STATS: self._graph_stats,
+            routes.GRAPH_ENTITIES: self._graph_entities,
+            routes.GRAPH_ENTITY: self._graph_entity,
+            routes.GRAPH_SUBGRAPH: self._graph_subgraph,
+            routes.GRAPH_EXTRACT: self._graph_extract,
+            routes.GRAPH_REBUILD: self._graph_rebuild,
         }
 
     @property
@@ -753,6 +759,141 @@ class KnowledgeApi:
             default: Any = [] if key.endswith("_docs") else 0
             merged[key] = result.get(key, default)
         return merged
+
+    # ---- 图谱写 ----
+    def _graph(self, services: KnowledgeServices) -> Any:
+        graph = getattr(services.service, "graph", None)
+        if graph is None or not getattr(graph, "enabled", False):
+            raise KnowledgeRouteError(
+                "知识图谱未启用",
+                code="KNOWLEDGE_GRAPH_DISABLED",
+                status=409,
+            )
+        return graph
+
+    def _graph_stats(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        kb = _require_kb(_kb_id_from(payload), services)
+        return cast(dict[str, Any], self._graph(services).stats(kb.id))
+
+    def _graph_entities(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        kb = _require_kb(_kb_id_from(payload), services)
+        limit = _optional_int(
+            payload, "limit", default=50, minimum=1, maximum=100
+        )
+        offset = _optional_int(
+            payload, "offset", default=0, minimum=0, maximum=1_000_000
+        )
+        return cast(
+            dict[str, Any],
+            self._graph(services).list_entities(
+                kb.id,
+                query=_optional_str(payload, "q") or "",
+                type_=_optional_str(payload, "type") or "",
+                limit=limit,
+                offset=offset,
+            ),
+        )
+
+    def _graph_entity(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        entity_id = _required_str(payload, "id", "id 不能为空")
+        detail = self._graph(services).get_entity(
+            entity_id, services.workspace_ids
+        )
+        if detail is None:
+            raise KnowledgeRouteError(
+                "图谱实体不存在或不在作用域",
+                code="KNOWLEDGE_GRAPH_ENTITY_NOT_FOUND",
+                status=404,
+            )
+        return cast(dict[str, Any], detail)
+
+    def _graph_subgraph(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        entity_id = _required_str(payload, "entityId", "entityId 不能为空")
+        hops = _optional_int(
+            payload, "hops", default=1, minimum=1, maximum=2
+        )
+        limit = _optional_int(
+            payload, "limit", default=50, minimum=1, maximum=50
+        )
+        return cast(
+            dict[str, Any],
+            self._graph(services).subgraph(
+                entity_id, services.workspace_ids, hops=hops, limit=limit
+            ),
+        )
+
+    def _graph_extract(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        graph = self._graph(services)
+        document_id = _optional_str(payload, "docId")
+        kb_id = _optional_str(payload, "kbId")
+        if not document_id and not kb_id:
+            raise KnowledgeRouteError("kbId 或 docId 至少需要一个")
+        if document_id:
+            document = _require_document(document_id, services)
+            kb_id = str(getattr(document, "kb_id", ""))
+        assert kb_id is not None
+        kb = _require_kb(kb_id, services)
+        if not getattr(graph, "extractor_ready", False):
+            raise KnowledgeRouteError(
+                "图谱抽取模型未配置",
+                code="KNOWLEDGE_GRAPH_EXTRACTION_NOT_CONFIGURED",
+                status=409,
+            )
+        if graph.health().status != "ready":
+            raise KnowledgeRouteError(
+                "图谱后端不可用",
+                code="KNOWLEDGE_GRAPH_BACKEND_UNAVAILABLE",
+                status=503,
+            )
+        confirm = _optional_bool(payload, "confirm", default=False)
+        if graph.require_confirmation and document_id is None and not confirm:
+            raise KnowledgeRouteError(
+                "手动全量抽取需要确认",
+                code="KNOWLEDGE_GRAPH_CONFIRM_REQUIRED",
+                status=409,
+            )
+        force = _optional_bool(payload, "force", default=False)
+        if document_id:
+            return cast(dict[str, Any], graph.extract_documents(document_id, force=force))
+        return cast(dict[str, Any], graph.backfill_kb(kb.id))
+
+    def _graph_rebuild(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        graph = self._graph(services)
+        kb = _require_kb(_kb_id_from(payload), services)
+        if not getattr(graph, "extractor_ready", False):
+            raise KnowledgeRouteError(
+                "图谱抽取模型未配置",
+                code="KNOWLEDGE_GRAPH_EXTRACTION_NOT_CONFIGURED",
+                status=409,
+            )
+        if graph.require_confirmation and not _optional_bool(
+            payload, "confirm", default=False
+        ):
+            raise KnowledgeRouteError(
+                "重建需要确认",
+                code="KNOWLEDGE_GRAPH_CONFIRM_REQUIRED",
+                status=409,
+            )
+        if graph.health().status != "ready":
+            raise KnowledgeRouteError(
+                "图谱后端不可用",
+                code="KNOWLEDGE_GRAPH_BACKEND_UNAVAILABLE",
+                status=503,
+            )
+        purge = _optional_bool(payload, "purge", default=False)
+        return cast(dict[str, Any], graph.rebuild_kb(kb.id, purge=purge))
 
     # ---- 读动作在禁用时的空响应 ----
     @staticmethod

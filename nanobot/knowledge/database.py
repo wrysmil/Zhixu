@@ -12,7 +12,7 @@ from typing import Any
 
 from loguru import logger
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 
 #: Windows 上杀毒/索引器会瞬时占用 state.db 的临时文件，SQLite 报 CANTOPEN。
 #: 事务失败即回滚，重试是安全的；只对这类瞬时错误重试，其余照常抛出。
@@ -228,9 +228,93 @@ _V2_STATEMENTS: tuple[str, ...] = (
     """,
 )
 
+#: v3：知识图谱派生层（SQLite 为真相源，Neo4j 可重建）。
+#: 实体/关系不随文档级联删——删除后由 GraphSyncService 按剩余证据重算并清理孤儿。
+_V3_STATEMENTS: tuple[str, ...] = (
+    """
+    CREATE TABLE IF NOT EXISTS graph_entities (
+      id            TEXT PRIMARY KEY,
+      kb_id         TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+      name          TEXT NOT NULL,
+      name_norm     TEXT NOT NULL,
+      type          TEXT NOT NULL DEFAULT 'concept',
+      description   TEXT NOT NULL DEFAULT '',
+      mention_count INTEGER NOT NULL DEFAULT 0,
+      created_at    TEXT NOT NULL,
+      updated_at    TEXT NOT NULL,
+      UNIQUE (kb_id, name_norm)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_graph_entities_kb ON graph_entities(kb_id)",
+    """
+    CREATE TABLE IF NOT EXISTS graph_relations (
+      id               TEXT PRIMARY KEY,
+      kb_id            TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+      source_entity_id TEXT NOT NULL REFERENCES graph_entities(id) ON DELETE CASCADE,
+      target_entity_id TEXT NOT NULL REFERENCES graph_entities(id) ON DELETE CASCADE,
+      relation         TEXT NOT NULL,
+      description      TEXT NOT NULL DEFAULT '',
+      weight           REAL NOT NULL DEFAULT 5.0,
+      mention_count    INTEGER NOT NULL DEFAULT 0,
+      created_at       TEXT NOT NULL,
+      updated_at       TEXT NOT NULL,
+      UNIQUE (kb_id, source_entity_id, target_entity_id, relation)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_graph_relations_source"
+    " ON graph_relations(source_entity_id)",
+    "CREATE INDEX IF NOT EXISTS idx_graph_relations_target"
+    " ON graph_relations(target_entity_id)",
+    """
+    CREATE TABLE IF NOT EXISTS graph_mentions (
+      entity_id  TEXT NOT NULL REFERENCES graph_entities(id) ON DELETE CASCADE,
+      doc_id     TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+      chunk_id   TEXT NOT NULL REFERENCES document_chunks(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (entity_id, chunk_id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_graph_mentions_doc ON graph_mentions(doc_id)",
+    """
+    CREATE TABLE IF NOT EXISTS graph_relation_evidence (
+      relation_id TEXT NOT NULL REFERENCES graph_relations(id) ON DELETE CASCADE,
+      doc_id      TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+      chunk_id    TEXT NOT NULL REFERENCES document_chunks(id) ON DELETE CASCADE,
+      created_at  TEXT NOT NULL,
+      PRIMARY KEY (relation_id, chunk_id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_graph_relation_evidence_doc"
+    " ON graph_relation_evidence(doc_id)",
+    """
+    CREATE TABLE IF NOT EXISTS graph_extraction_state (
+      doc_id           TEXT PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+      status           TEXT NOT NULL
+                       CHECK (status IN ('pending','processing','ready','failed','skipped')),
+      attempt          INTEGER NOT NULL DEFAULT 0,
+      lease_owner      TEXT,
+      lease_expires_at TEXT,
+      model            TEXT NOT NULL DEFAULT '',
+      prompt_version   TEXT NOT NULL DEFAULT '',
+      chunk_total      INTEGER NOT NULL DEFAULT 0,
+      chunk_done       INTEGER NOT NULL DEFAULT 0,
+      entity_count     INTEGER NOT NULL DEFAULT 0,
+      relation_count   INTEGER NOT NULL DEFAULT 0,
+      truncated        INTEGER NOT NULL DEFAULT 0,
+      error_code       TEXT NOT NULL DEFAULT '',
+      error_message    TEXT NOT NULL DEFAULT '',
+      extracted_at     TEXT,
+      updated_at       TEXT NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_graph_state_status"
+    " ON graph_extraction_state(status)",
+)
+
 _MIGRATIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("1", _V1_STATEMENTS),
     ("2", _V2_STATEMENTS),
+    ("3", _V3_STATEMENTS),
 )
 
 

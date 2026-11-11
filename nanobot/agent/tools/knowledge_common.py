@@ -119,6 +119,24 @@ _CHUNK_HANDLE_RE = re.compile(r"chunk://([A-Za-z0-9_-]{6,})")
 _MAX_HISTORY_CHUNKS = 5
 
 
+def _history_messages(sessions: Any, key: str) -> list[dict[str, Any]]:
+    """兼容 SessionManager 的两种读法：旧测试桩的 `read()` 与真实快照 API。"""
+    reader = getattr(sessions, "read", None)
+    if callable(reader):
+        payload = reader(key)
+        if isinstance(payload, dict):
+            messages = payload.get("messages", [])
+            return [item for item in messages if isinstance(item, dict)]
+        messages = getattr(payload, "messages", None)
+        return [item for item in messages or () if isinstance(item, dict)]
+    snapshot = getattr(sessions, "read_session_snapshot", None)
+    if callable(snapshot):
+        session = snapshot(key)
+        messages = getattr(session, "messages", None) if session is not None else None
+        return [item for item in messages or () if isinstance(item, dict)]
+    return []
+
+
 def history_chunk_ids_provider_from(
     ctx: ToolContext,
 ) -> Callable[[], Sequence[str]]:
@@ -137,7 +155,7 @@ def history_chunk_ids_provider_from(
         if not key:
             return []
         try:
-            payload = sessions.read(key)
+            messages = _history_messages(sessions, key)
         except Exception as exc:  # noqa: BLE001 - 历史不可读不影响检索
             logger.warning(
                 "knowledge history read failed: session={} error={}: {!r}",
@@ -146,10 +164,8 @@ def history_chunk_ids_provider_from(
                 exc,
             )
             return []
-        if not payload:
-            return []
         found: list[str] = []
-        for message in payload.get("messages", []):
+        for message in messages:
             content = message.get("content")
             if not isinstance(content, str):
                 continue
@@ -210,6 +226,20 @@ def _degraded_notices(labels: Iterable[str]) -> list[str]:
         seen.add(text)
         notes.append(text)
     return notes
+
+
+def _graph_path(payload: object | None) -> str:
+    """图证据 → `A —关系→ B`；无证据返回空串。"""
+    if payload is None:
+        return ""
+    path = getattr(payload, "path", ())
+    if not path:
+        return ""
+    first = path[0]
+    parts = [str(first[0])]
+    for _source, relation, target in path:
+        parts.append(f"—{relation}→ {target}")
+    return " ".join(parts)
 
 
 def render_search_result(
@@ -280,6 +310,11 @@ def render_search_result(
             + (f' locator="{escape_xml(hit.locator)}"' if hit.locator else "")
             + f' chars="{hit.char_count}"'
             + (f' blocks="{len(sources)}"' if len(sources) > 1 else "")
+            + (
+                f' graph_path="{escape_xml(_graph_path(hit.graph_evidence))}"'
+                if hit.graph_evidence is not None
+                else ""
+            )
             + (' truncated="true">' if truncated else ">")
             + f"<content>{escape_xml(content)}</content></result>"
         )

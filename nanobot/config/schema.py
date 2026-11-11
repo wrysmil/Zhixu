@@ -715,6 +715,58 @@ class KnowledgeQuestionGenerationConfig(Base):
     timeout_seconds: float = 30.0
 
 
+class KnowledgeGraphExtractionConfig(Base):
+    """图谱抽取：每个 chunk 一次 OpenAI 兼容调用；失败只影响图谱状态。"""
+
+    enabled: bool = True
+    model: str = ""
+    base_url: str = ""  # OpenAI 兼容，含 /v1
+    api_key: str = Field(default="", repr=False)
+    api_key_env: str = ""
+    temperature: float = 0.2
+    max_tokens: int = 2048
+    timeout_seconds: float = 30.0
+    max_context_chars: int = 1200
+    concurrency: int = 2
+    max_entities_per_chunk: int = 20
+    max_relations_per_chunk: int = 30
+    max_chunks_per_doc: int = 200
+    prompt_version: str = "graph1"
+    max_retries: int = 1
+    require_confirmation: bool = True
+
+
+class KnowledgeGraphExpansionConfig(Base):
+    """检索侧图扩展参数（图参数的唯一来源）。"""
+
+    enabled: bool = True
+    hops: int = 1  # 1..2
+    seed_limit: int = 5
+    max_entities: int = 20
+    max_chunks: int = 50
+    weight: float = 0.25
+    timeout_seconds: float = 0.8
+
+
+class KnowledgeGraphConfig(Base):
+    """可选 Neo4j 派生索引；默认关闭，桌面/Lite 零外部依赖。"""
+
+    enabled: bool = False
+    backend: Literal["neo4j"] = "neo4j"
+    uri: str = ""
+    username: str = "neo4j"
+    password: str = Field(default="", repr=False)
+    password_env: str = ""
+    database: str = "neo4j"
+    connect_timeout_seconds: float = 5.0
+    extraction: KnowledgeGraphExtractionConfig = Field(
+        default_factory=KnowledgeGraphExtractionConfig
+    )
+    expansion: KnowledgeGraphExpansionConfig = Field(
+        default_factory=KnowledgeGraphExpansionConfig
+    )
+
+
 class KnowledgeConfig(Base):
     """知识中心域配置。
 
@@ -733,6 +785,7 @@ class KnowledgeConfig(Base):
     question_generation: KnowledgeQuestionGenerationConfig = Field(
         default_factory=KnowledgeQuestionGenerationConfig
     )
+    graph: KnowledgeGraphConfig = Field(default_factory=KnowledgeGraphConfig)
 
 
 class Config(BaseSettings):

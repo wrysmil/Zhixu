@@ -865,12 +865,20 @@ class GatewayHTTPHandler:
         if self.session_manager is None:
             return _http_error(503, "session manager unavailable")
         session = await asyncio.to_thread(
-            self.session_manager.read_session_snapshot,
+            self._session_snapshot_or_cached,
             decoded_key,
         )
         if session is None:
             return _http_error(404, "session not found")
         return _http_json_response(session_context_payload(session))
+
+    def _session_snapshot_or_cached(self, key: str):
+        """进行中的会话尚未落盘时，回退到进程内缓存，避免 WebUI 轮询 404。"""
+        assert self.session_manager is not None
+        session = self.session_manager.read_session_snapshot(key)
+        if session is None:
+            session = self.session_manager.get_cached(key)
+        return session
 
     async def _handle_session_workbench_get(self, request: WsRequest, key: str) -> Response:
         if not self.check_api_token(request):
@@ -887,7 +895,7 @@ class GatewayHTTPHandler:
 
         def read_payload() -> dict[str, Any] | None:
             assert self.session_manager is not None
-            session = self.session_manager.read_session_snapshot(decoded_key)
+            session = self._session_snapshot_or_cached(decoded_key)
             if session is None:
                 return None
             skills = None
