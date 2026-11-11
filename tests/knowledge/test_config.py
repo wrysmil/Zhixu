@@ -17,6 +17,11 @@ from nanobot.config.schema import (
     KnowledgeQuestionGenerationConfig,
     KnowledgeRetrievalConfig,
 )
+from nanobot.knowledge.graph.prompts import (
+    DEFAULT_GRAPH_EXTRACTION_PROMPT,
+    DEFAULT_QUERY_ENTITY_SYSTEM_PROMPT,
+    DEFAULT_QUERY_ENTITY_USER_PROMPT,
+)
 
 CAMEL_PAYLOAD: dict[str, object] = {
     "enabled": True,
@@ -66,6 +71,7 @@ CAMEL_PAYLOAD: dict[str, object] = {
         "keywordThreshold": 0.3,
         "expandOnLowRecall": True,
         "expansionLimit": 5,
+        "enableRewrite": True,
     },
     "rerank": {
         "enabled": False,
@@ -126,15 +132,22 @@ CAMEL_PAYLOAD: dict[str, object] = {
             "promptVersion": "graph1",
             "maxRetries": 1,
             "requireConfirmation": True,
+            "thinking": "disabled",
         },
         "expansion": {
             "enabled": True,
             "hops": 1,
             "seedLimit": 5,
             "maxEntities": 20,
-            "maxChunks": 50,
-            "weight": 0.25,
+            "maxChunks": 30,
             "timeoutSeconds": 0.8,
+            "queryEntityExtraction": True,
+            "queryExtractionTimeoutSeconds": 5.0,
+        },
+        "prompts": {
+            "extraction": DEFAULT_GRAPH_EXTRACTION_PROMPT,
+            "queryEntities": DEFAULT_QUERY_ENTITY_SYSTEM_PROMPT,
+            "queryUser": DEFAULT_QUERY_ENTITY_USER_PROMPT,
         },
     },
 }
@@ -190,6 +203,7 @@ def test_retrieval_defaults() -> None:
     assert config.keyword_threshold == 0.3
     assert config.expand_on_low_recall is True
     assert config.expansion_limit == 5
+    assert config.enable_rewrite is True
 
 
 def test_question_generation_defaults() -> None:

@@ -69,3 +69,14 @@ def test_neo4j_upsert_and_expand():
     two_hop = store.expand(kb, ["e1"], hops=2, max_entities=20, max_chunks=50)
     assert {"e2", "e3"} <= set(two_hop.entity_ids)
     assert {"c1", "c2", "c3"} <= set(two_hop.chunk_ids)
+
+    # 种子是入边的终点时也必须能扩展（WeKnora 用无向 (n)-[r]-(m)）。
+    incoming = store.expand(kb, ["e3"], hops=1, max_entities=20, max_chunks=50)
+    assert "e2" in incoming.entity_ids
+    assert {"c2", "c3"} <= set(incoming.chunk_ids)
+    assert any(
+        edge.source_entity_id == "e2"
+        and edge.target_entity_id == "e3"
+        and edge.relation == "依赖"
+        for edge in incoming.edges
+    )

@@ -15,9 +15,9 @@ def test_graph_fields_are_whitelisted():
         "graph_enabled",
         "graph_hops",
         "graph_seed_limit",
-        "graph_weight",
         "graph_max_chunks",
     } <= ALLOWED_RETRIEVAL_FIELDS
+    assert "graph_weight" not in ALLOWED_RETRIEVAL_FIELDS
 
 
 def test_graph_hops_out_of_range_is_rejected():
@@ -25,9 +25,10 @@ def test_graph_hops_out_of_range_is_rejected():
         KnowledgeRetrievalConfig(graph_hops=3)
 
 
-def test_graph_weight_out_of_range_is_rejected():
+def test_graph_weight_is_not_supported():
+    # 图命中不参与 RRF（WeKnora §4.3），权重不再是一个有效口径。
     with pytest.raises(ValidationError):
-        KnowledgeRetrievalConfig(graph_weight=1.5)
+        KnowledgeRetrievalConfig(graph_weight=0.4)
 
 
 def test_overrides_map_to_retriever_settings():
@@ -36,14 +37,12 @@ def test_overrides_map_to_retriever_settings():
             "graph_enabled": True,
             "graph_hops": 2,
             "graph_seed_limit": 8,
-            "graph_weight": 0.4,
             "graph_max_chunks": 80,
         }
     )
     assert settings.graph_enabled is True
     assert settings.graph_hops == 2
     assert settings.graph_seed_limit == 8
-    assert settings.graph_weight == 0.4
     assert settings.graph_max_chunks == 80
 
 
@@ -51,4 +50,4 @@ def test_graph_defaults_stay_off():
     settings = _retriever_settings({})
     assert settings.graph_enabled is False
     assert settings.graph_hops == 1
-    assert settings.graph_weight == 0.25
+    assert settings.graph_max_chunks == 30

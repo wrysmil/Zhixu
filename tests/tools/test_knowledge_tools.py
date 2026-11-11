@@ -286,6 +286,25 @@ def test_intent_gates_retrieval_for_non_kb_intents() -> None:
     assert "不检索知识库" in str(result)
 
 
+def test_search_ignores_rewrite_and_intent_when_rewrite_disabled() -> None:
+    service = QueryAwareService()
+    tool = KnowledgeSearchTool(
+        lambda: service,
+        lambda key: WORKSPACE_IDS,
+        None,
+        lambda: False,
+    )
+    result = _run(
+        tool,
+        query="原始问题",
+        rewrite_query="升级失败如何回滚",
+        intent="chitchat",
+    )
+    # 对齐 WeKnora enable_rewrite=false：RewriteQuery 保持原句，意图门控也跳过。
+    assert [call["query"] for call in service.search_calls] == ["原始问题"]
+    assert "不检索知识库" not in str(result)
+
+
 def test_intent_kb_search_empty_and_unknown_all_retrieve() -> None:
     service = QueryAwareService()
     _run(_search_tool(service), query="回滚", intent="kb_search")
@@ -857,6 +876,10 @@ def test_loop_injects_knowledge_attributes(tmp_path: Path, monkeypatch: pytest.M
         assert resolver.__self__ is loop
         assert resolver.__func__ is loop._memory_workspace_ids_for_key.__func__
         assert attrs["knowledge_enabled"] is True
+        assert callable(attrs["knowledge_graph_enabled"])
+        assert attrs["knowledge_graph_enabled"]() is False
+        assert callable(attrs["knowledge_rewrite_enabled"])
+        assert attrs["knowledge_rewrite_enabled"]() is True
         # 惰性：注册期不构造真实服务
         assert loop._knowledge_service_instance is None
         assert callable(attrs["knowledge_service"])
@@ -865,6 +888,55 @@ def test_loop_injects_knowledge_attributes(tmp_path: Path, monkeypatch: pytest.M
         assert loop._knowledge_service_instance is not None
         assert loop.tools.get("knowledge_search") is not None
         assert loop.tools.get("knowledge_read") is not None
+        assert loop.tools.get("knowledge_graph") is None
+    finally:
+        asyncio.run(loop.aclose())
+
+
+def test_loop_registers_graph_tool_when_graph_enabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nanobot.config.schema import (
+        KnowledgeConfig,
+        KnowledgeEmbeddingConfig,
+        KnowledgeGraphConfig,
+    )
+
+    captured = _capture_tool_context(monkeypatch)
+    config = KnowledgeConfig(
+        database_path=str(tmp_path / "knowledge" / "state.db"),
+        embedding=KnowledgeEmbeddingConfig(backend="none"),
+        graph=KnowledgeGraphConfig(enabled=True),
+    )
+    loop = _make_loop(tmp_path, knowledge_config=config)
+    try:
+        attrs = captured["ctx"].attributes
+        assert attrs["knowledge_graph_enabled"]() is True
+        assert loop.tools.get("knowledge_graph") is not None
+    finally:
+        asyncio.run(loop.aclose())
+
+
+def test_loop_rewrite_flag_follows_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nanobot.config.schema import (
+        KnowledgeConfig,
+        KnowledgeEmbeddingConfig,
+        KnowledgeRetrievalConfig,
+    )
+
+    captured = _capture_tool_context(monkeypatch)
+    config = KnowledgeConfig(
+        database_path=str(tmp_path / "knowledge" / "state.db"),
+        embedding=KnowledgeEmbeddingConfig(backend="none"),
+        retrieval=KnowledgeRetrievalConfig(enable_rewrite=False),
+    )
+    loop = _make_loop(tmp_path, knowledge_config=config)
+    try:
+        attrs = captured["ctx"].attributes
+        assert attrs["knowledge_rewrite_enabled"]() is False
+        assert loop.tools.get("knowledge_search") is not None
     finally:
         asyncio.run(loop.aclose())
 
@@ -878,9 +950,11 @@ def test_loop_without_knowledge_config_keeps_tools_disabled(
         attrs = captured["ctx"].attributes
         assert attrs["knowledge_service"]() is None
         assert attrs["knowledge_enabled"] is False
+        assert attrs["knowledge_graph_enabled"]() is False
         assert not KnowledgeSearchTool.enabled(captured["ctx"])
         assert not KnowledgeReadTool.enabled(captured["ctx"])
         assert loop._knowledge_service_instance is None
+        assert loop.tools.get("knowledge_graph") is None
     finally:
         asyncio.run(loop.aclose())
 

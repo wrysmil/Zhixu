@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from loguru import logger
 
 from nanobot.knowledge.fusion import SearchHit
-from nanobot.knowledge.graph.linker import find_seed_entities
+from nanobot.knowledge.graph.linker import (
+    find_seed_entities,
+    find_seed_entities_by_names,
+)
 from nanobot.knowledge.graph.models import GraphEvidencePayload, GraphExpansion
 from nanobot.knowledge.graph.repo import GraphRepository
 from nanobot.knowledge.graph.store import GraphStore
@@ -44,10 +47,19 @@ def _evidence_for(
 ) -> GraphEvidencePayload:
     mention_entities = repo.entities_for_chunk(chunk_id)
     seed_names = tuple(seed.name for seed in seeds[:1])
-    adjacency: dict[str, list[tuple[str, str]]] = {}
+    # 种子既可能是边的起点，也可能是终点；遍历时双向可达，展示仍保留真实方向。
+    adjacency: dict[str, list[tuple[str, tuple[str, str, str]]]] = {}
     for edge in expansion.edges:
+        step = (
+            names.get(edge.source_entity_id, edge.source_entity_id),
+            edge.relation,
+            names.get(edge.target_entity_id, edge.target_entity_id),
+        )
         adjacency.setdefault(edge.source_entity_id, []).append(
-            (edge.target_entity_id, edge.relation)
+            (edge.target_entity_id, step)
+        )
+        adjacency.setdefault(edge.target_entity_id, []).append(
+            (edge.source_entity_id, step)
         )
     queue: list[tuple[str, tuple[tuple[str, str, str], ...]]] = [
         (seed.id, ()) for seed in seeds
@@ -67,23 +79,11 @@ def _evidence_for(
             # 同块种子只作兜底：继续找「种子 → 另一实体 → 该块」的非空路径。
             if fallback is None:
                 fallback = current
-        for target, relation in adjacency.get(current, ()):
+        for target, step in adjacency.get(current, ()):
             if target in seen:
                 continue
             seen.add(target)
-            queue.append(
-                (
-                    target,
-                    path
-                    + (
-                        (
-                            names.get(current, current),
-                            relation,
-                            names.get(target, target),
-                        ),
-                    ),
-                )
-            )
+            queue.append((target, path + (step,)))
     return GraphEvidencePayload(
         seeds=seed_names,
         path=(),
@@ -100,11 +100,13 @@ class GraphRoute:
         knowledge_repo: KnowledgeRepository,
         store: GraphStore,
         settings: Any,
+        query_entities: Callable[[str], Sequence[str]] | None = None,
     ) -> None:
         self._repo = repo
         self._knowledge = knowledge_repo
         self._store = store
         self._settings = settings
+        self._query_entities = query_entities
 
     def search(
         self, query: str, visible_kbs: Sequence[Any]
@@ -113,18 +115,56 @@ class GraphRoute:
         if self._store.health().status != "ready":
             return [], {}, ["graph_unavailable"], False
 
+        # WeKnora 口径：图路开启时先用 LLM 从（改写后的）query 抽实体名；
+        # 失败/空结果回退本地归一化子串 + 分词。
+        extracted: tuple[str, ...] = ()
+        if self._query_entities is not None:
+            try:
+                future = _EXPAND_POOL.submit(self._query_entities, query)
+                extracted = tuple(
+                    future.result(
+                        timeout=float(
+                            getattr(
+                                self._settings,
+                                "graph_query_extraction_timeout_seconds",
+                                5.0,
+                            )
+                        )
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 - 抽实体失败只回退本地链接
+                logger.warning(
+                    "knowledge graph query entity extraction failed: query={!r} error={!r}",
+                    query,
+                    exc,
+                )
+                extracted = ()
+
         hits: list[SearchHit] = []
         evidence: dict[str, GraphEvidencePayload] = {}
         labels: list[str] = []
         produced = False
         for kb in visible_kbs:
             try:
-                seeds = find_seed_entities(
-                    self._repo,
-                    kb.id,
-                    query,
-                    limit=self._settings.graph_seed_limit,
+                seeds = (
+                    find_seed_entities_by_names(
+                        self._repo,
+                        kb.id,
+                        extracted,
+                        limit=self._settings.graph_seed_limit,
+                    )
+                    if extracted
+                    else []
                 )
+                if not seeds:
+                    # LLM 可能抽出「发布负责人」这类泛化名，图里没有对应实体；
+                    # 此时按 KB 回退本地链接，避免图路静默缺席。
+                    seeds = find_seed_entities(
+                        self._repo,
+                        kb.id,
+                        query,
+                        limit=self._settings.graph_seed_limit,
+                    )
                 if not seeds:
                     continue
                 future = _EXPAND_POOL.submit(

@@ -10,6 +10,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from nanobot.config.timezone import detect_system_timezone
 from nanobot.config_base import Base
 from nanobot.cron.types import CronSchedule
+from nanobot.knowledge.graph.prompts import (
+    DEFAULT_GRAPH_EXTRACTION_PROMPT,
+    DEFAULT_QUERY_ENTITY_SYSTEM_PROMPT,
+    DEFAULT_QUERY_ENTITY_USER_PROMPT,
+)
 from nanobot.memory.vector.settings import VectorSettings
 
 if TYPE_CHECKING:
@@ -667,6 +672,9 @@ class KnowledgeRetrievalConfig(Base):
     #: 候选不足时的本地查询扩展（只走关键词路，不额外调用模型）。
     expand_on_low_recall: bool = True
     expansion_limit: int = 5
+    #: 查询改写/意图门控（WeKnora `conversation.enable_rewrite`）：
+    #: 关闭时忽略工具参数里的 rewrite_query/intent，直接用原 query 检索。
+    enable_rewrite: bool = True
 
 
 class KnowledgeRerankConfig(Base):
@@ -734,6 +742,9 @@ class KnowledgeGraphExtractionConfig(Base):
     prompt_version: str = "graph1"
     max_retries: int = 1
     require_confirmation: bool = True
+    #: OpenAI 兼容抽取请求的 thinking 控制；默认关闭，避免模型先长篇推理再输出 JSON。
+    #: 不支持该参数的供应商可设为 "auto"。
+    thinking: Literal["auto", "enabled", "disabled"] = "disabled"
 
 
 class KnowledgeGraphExpansionConfig(Base):
@@ -743,9 +754,44 @@ class KnowledgeGraphExpansionConfig(Base):
     hops: int = 1  # 1..2
     seed_limit: int = 5
     max_entities: int = 20
-    max_chunks: int = 50
-    weight: float = 0.25
+    max_chunks: int = 30
     timeout_seconds: float = 0.8
+    #: 查询侧 LLM 抽实体（WeKnora `extract_entity`）：开启后每次带图的检索
+    #: 先用图谱抽取模型从 query 抽实体名，失败/空结果回退本地子串+分词链接。
+    query_entity_extraction: bool = True
+    query_extraction_timeout_seconds: float = 5.0
+
+
+class KnowledgeGraphPromptsConfig(Base):
+    """图谱 prompt 统一配置；占位符在字段说明中声明。"""
+
+    #: 入库抽取 prompt；必须包含 `<<content>>`，可选 `<<heading>>`。
+    extraction: str = DEFAULT_GRAPH_EXTRACTION_PROMPT
+    #: 查询侧实体抽取 system prompt（WeKnora `extract_entity` 同款）。
+    query_entities: str = DEFAULT_QUERY_ENTITY_SYSTEM_PROMPT
+    #: 查询侧实体抽取 user prompt；必须包含 `<<query>>`。
+    query_user: str = DEFAULT_QUERY_ENTITY_USER_PROMPT
+
+    @field_validator("extraction")
+    @classmethod
+    def _extraction_has_content(cls, value: str) -> str:
+        if not value.strip() or "<<content>>" not in value:
+            raise ValueError("graph prompts.extraction 必须包含 <<content>>")
+        return value
+
+    @field_validator("query_entities")
+    @classmethod
+    def _query_entities_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("graph prompts.query_entities 不能为空")
+        return value
+
+    @field_validator("query_user")
+    @classmethod
+    def _query_user_has_query(cls, value: str) -> str:
+        if not value.strip() or "<<query>>" not in value:
+            raise ValueError("graph prompts.query_user 必须包含 <<query>>")
+        return value
 
 
 class KnowledgeGraphConfig(Base):
@@ -764,6 +810,9 @@ class KnowledgeGraphConfig(Base):
     )
     expansion: KnowledgeGraphExpansionConfig = Field(
         default_factory=KnowledgeGraphExpansionConfig
+    )
+    prompts: KnowledgeGraphPromptsConfig = Field(
+        default_factory=KnowledgeGraphPromptsConfig
     )
 
 

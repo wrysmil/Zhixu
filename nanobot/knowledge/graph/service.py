@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from typing import Any
 
 from loguru import logger
@@ -13,7 +14,13 @@ from nanobot.knowledge.graph.extractor import (
     GraphExtractionError,
     GraphExtractor,
 )
-from nanobot.knowledge.graph.models import GraphExtractionState, GraphHealth
+from nanobot.knowledge.graph.linker import find_seed_entities
+from nanobot.knowledge.graph.models import (
+    GraphEntity,
+    GraphExtractionState,
+    GraphHealth,
+    GraphRelation,
+)
 from nanobot.knowledge.graph.repo import GraphRepository
 from nanobot.knowledge.graph.store import GraphStore, GraphStoreError
 from nanobot.knowledge.graph.sync import GraphSyncService
@@ -22,6 +29,19 @@ _MAX_CHUNKS_LIST = 100_000
 _VISUALIZE_POOL = ThreadPoolExecutor(
     max_workers=2, thread_name_prefix="knowledge-graph-view"
 )
+
+
+@dataclass(frozen=True, slots=True)
+class GraphQueryResult:
+    """一次 Agent 图谱查询的结果；计数用于把「被截断」显式告诉模型。"""
+
+    seeds: tuple[GraphEntity, ...] = ()
+    entities: tuple[GraphEntity, ...] = ()
+    relations: tuple[GraphRelation, ...] = ()
+    chunks: tuple[Any, ...] = ()
+    relations_total: int = 0
+    chunks_total: int = 0
+    truncated: bool = False
 
 
 class GraphService:
@@ -107,6 +127,124 @@ class GraphService:
 
     def entity_ids_for_document(self, doc_id: str) -> list[str]:
         return self.repo.entity_ids_for_document(doc_id)
+
+    def extract_query_entities(self, query: str) -> tuple[str, ...]:
+        """查询侧抽实体：复用图谱抽取模型，只取实体名；失败/无实体返回空。
+
+        调用方（GraphRoute）会用本地链接兜底，因此这里不抛错。
+        """
+        extraction = getattr(self.config, "extraction", None)
+        if (
+            not self.enabled
+            or self._extractor is None
+            or not query.strip()
+            or not bool(getattr(extraction, "enabled", True))
+        ):
+            return ()
+        try:
+            extract_query = getattr(self._extractor, "extract_query", None)
+            if callable(extract_query):
+                raw_names = tuple(extract_query(query))
+            else:
+                result = self._extractor.extract("query", query)
+                raw_names = tuple(entity[0] for entity in result.entities)
+        except Exception as exc:  # noqa: BLE001 - 图路增强失败不阻断检索
+            logger.warning(
+                "knowledge graph query entity extraction failed: {!r}", exc
+            )
+            return ()
+        names: list[str] = []
+        for name in raw_names:
+            text = str(name).strip()
+            if not text or text in names:
+                continue
+            names.append(text)
+            if len(names) >= 8:
+                break
+        return tuple(names)
+
+    def query_related(
+        self,
+        kb_id: str,
+        query: str,
+        *,
+        hops: int = 1,
+        seed_limit: int = 5,
+        max_entities: int = 20,
+        max_chunks: int = 30,
+        display_chunks: int | None = None,
+        max_relations: int = 30,
+        timeout_seconds: float = 0.8,
+    ) -> GraphQueryResult:
+        """实体名 → 无向子图 → 仍存活的证据块。
+
+        `query` 直接放实体名或关系问题；种子只取有边的实体（WeKnora 口径）。
+        `max_chunks` 是校验/扩展预算，`display_chunks` 是展示上限
+        （WeKnora 工具同样是「多校验、少展示」）。图是派生索引，实体/关系
+        只有在仍有存活 chunk 证据时才返回。
+        """
+        seeds = find_seed_entities(
+            self.repo, kb_id, query, limit=max(1, seed_limit)
+        )
+        if not seeds:
+            return GraphQueryResult()
+        future = _VISUALIZE_POOL.submit(
+            self.store.expand,
+            kb_id,
+            [seed.id for seed in seeds],
+            hops=max(1, min(2, hops)),
+            max_entities=max(1, max_entities),
+            max_chunks=max(1, max_chunks),
+            include_inner_edges=True,
+        )
+        expansion = future.result(timeout=max(0.1, timeout_seconds))
+        entity_ids = tuple(
+            dict.fromkeys([seed.id for seed in seeds] + list(expansion.entity_ids))
+        )
+        selected = self.repo.list_entities_by_ids(kb_id, entity_ids)
+        chunk_ids = self.repo.mention_chunks(entity_ids)
+        chunks = list(
+            self._knowledge.fetch_search_chunks(chunk_ids, kb_ids=[kb_id])
+        )
+        chunks_total = len(chunks)
+        backed = self.repo.entities_for_chunks([chunk.id for chunk in chunks])
+        order = {entity_id: index for index, entity_id in enumerate(entity_ids)}
+        entities = tuple(
+            sorted(
+                (entity for entity in selected if entity.id in backed),
+                key=lambda entity: (order.get(entity.id, 10**9), entity.id),
+            )
+        )
+        if not entities:
+            return GraphQueryResult(
+                seeds=tuple(seeds),
+                chunks_total=chunks_total,
+                truncated=expansion.truncated,
+            )
+        backed_ids = {entity.id for entity in entities}
+        all_relations = [
+            relation
+            for relation in self.repo.list_relations_for_entities(kb_id, entity_ids)
+            if relation.source_entity_id in backed_ids
+            and relation.target_entity_id in backed_ids
+        ]
+        all_relations.sort(key=lambda relation: (-relation.weight, relation.id))
+        relations = tuple(all_relations[: max(1, max_relations)])
+        shown_limit = max(1, display_chunks if display_chunks is not None else max_chunks)
+        shown_chunks = tuple(chunks[:shown_limit])
+        return GraphQueryResult(
+            seeds=tuple(seeds),
+            entities=entities,
+            relations=relations,
+            chunks=shown_chunks,
+            relations_total=len(all_relations),
+            chunks_total=chunks_total,
+            truncated=(
+                expansion.truncated
+                or len(all_relations) > len(relations)
+                or chunks_total > len(shown_chunks)
+            ),
+        )
 
     # ---------- 执行 ----------
     def process_document(self, doc_id: str, attempt: int | None = None) -> None:

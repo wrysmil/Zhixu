@@ -725,6 +725,22 @@ class AgentLoop:
             getattr(config, "enabled", False)
         )
 
+    def _knowledge_graph_tools_enabled(self) -> bool:
+        """图谱工具门控：知识工具可用且 `knowledge.graph.enabled` 为真。"""
+        config = getattr(self, "knowledge_config", None)
+        graph = getattr(config, "graph", None)
+        return self._knowledge_tools_enabled and bool(
+            getattr(graph, "enabled", False)
+        )
+
+    def _knowledge_rewrite_tools_enabled(self) -> bool:
+        """查询改写门控：对齐 WeKnora `conversation.enable_rewrite`，默认开启。"""
+        config = getattr(self, "knowledge_config", None)
+        retrieval = getattr(config, "retrieval", None)
+        return self._knowledge_tools_enabled and bool(
+            getattr(retrieval, "enable_rewrite", True)
+        )
+
     @property
     def _knowledge_service(self) -> Any | None:
         """惰性知识服务单例；未接线或未启用时返回 None（不建库、不导入向量依赖）。"""
@@ -1194,6 +1210,8 @@ class AgentLoop:
                 "knowledge_service": self._knowledge_service_for_tools,
                 "knowledge_workspace_ids": self._memory_workspace_ids_for_key,
                 "knowledge_enabled": self._knowledge_tools_enabled,
+                "knowledge_graph_enabled": self._knowledge_graph_tools_enabled,
+                "knowledge_rewrite_enabled": self._knowledge_rewrite_tools_enabled,
             },
         )
         loader = ToolLoader()

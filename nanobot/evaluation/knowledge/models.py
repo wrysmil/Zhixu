@@ -54,7 +54,6 @@ ALLOWED_RETRIEVAL_FIELDS = frozenset(
         "graph_enabled",
         "graph_hops",
         "graph_seed_limit",
-        "graph_weight",
         "graph_max_chunks",
     }
 )
@@ -155,7 +154,6 @@ class KnowledgeRetrievalConfig(_Base):
     graph_enabled: bool | None = None
     graph_hops: int | None = Field(default=None, ge=1, le=2)
     graph_seed_limit: int | None = Field(default=None, ge=1, le=10)
-    graph_weight: float | None = Field(default=None, ge=0.0, le=1.0)
     graph_max_chunks: int | None = Field(default=None, ge=10, le=200)
 
 

@@ -8,6 +8,7 @@ from nanobot.knowledge.graph.extractor import (
     OpenAICompatGraphExtractor,
     clean_model_text,
     parse_extraction,
+    parse_query_entities,
 )
 
 
@@ -37,9 +38,13 @@ class _Client:
     def __init__(self, responses):
         self.responses = list(responses)
         self.calls: list[str] = []
+        self.messages: list[list[dict[str, str]]] = []
+        self.requests: list[dict] = []
 
     def post(self, url, json, headers, timeout):
         self.calls.append(json["messages"][0]["content"])
+        self.messages.append(json["messages"])
+        self.requests.append(json)
         return self.responses.pop(0)
 
 
@@ -141,3 +146,92 @@ def test_missing_config_raises_not_configured():
     with pytest.raises(GraphExtractionError) as exc:
         extractor.extract("h", "x")
     assert exc.value.code == "not_configured"
+
+
+def test_parse_query_entities_accepts_weknora_entity_array():
+    text = '[{"entity":"Romeo and Juliet"},{"entity":"William Shakespeare"}]'
+    assert parse_query_entities(text) == ("Romeo and Juliet", "William Shakespeare")
+
+
+def test_parse_query_entities_accepts_entities_key_and_strings():
+    assert parse_query_entities('{"entities":["A","B"]}') == ("A", "B")
+
+
+def test_parse_query_entities_drops_pronouns_and_duplicates():
+    text = '[{"entity":"它"},{"entity":"A"},{"name":"A"}]'
+    assert parse_query_entities(text) == ("A",)
+
+
+def test_parse_query_entities_rejects_prose():
+    with pytest.raises(GraphExtractionError):
+        parse_query_entities("抱歉，这段内容没有可抽取的实体。")
+
+
+def test_extract_query_uses_dedicated_prompt_and_parses_entities():
+    client = _Client([_FakeResponse('[{"entity":"值班二号"}]')])
+    extractor = OpenAICompatGraphExtractor(
+        base_url="http://x/v1", model="m", client=client
+    )
+    assert extractor.extract_query("谁负责执行") == ("值班二号",)
+    system = client.messages[0][0]["content"]
+    user = client.messages[0][1]["content"]
+    assert "Based on the user's question" in system
+    assert '"entity": "Romeo and Juliet"' in system
+    assert "# Question" in user
+    assert "Q: 谁负责执行" in user
+
+
+def test_custom_prompts_are_rendered():
+    client = _Client(
+        [
+            _FakeResponse('{"entities": []}'),
+            _FakeResponse('[{"entity":"A"}]'),
+        ]
+    )
+    extractor = OpenAICompatGraphExtractor(
+        base_url="http://x/v1",
+        model="m",
+        client=client,
+        extraction_prompt="H=<<heading>> C=<<content>>",
+        query_entity_system_prompt="SYS",
+        query_entity_user_prompt="Q=<<query>>",
+    )
+    extractor.extract("h", "body")
+    assert client.messages[0][0]["content"] == "H=h C=body"
+    assert extractor.extract_query("q") == ("A",)
+    assert client.messages[1][0]["content"] == "SYS"
+    assert client.messages[1][1]["content"] == "Q=q"
+
+
+def test_thinking_defaults_to_disabled_and_can_be_auto():
+    client = _Client([_FakeResponse('{"entities": []}'), _FakeResponse('{"entities": []}')])
+    extractor = OpenAICompatGraphExtractor(
+        base_url="http://x/v1", model="m", client=client
+    )
+    extractor.extract("h", "x")
+    assert client.requests[0]["thinking"] == {"type": "disabled"}
+
+    auto = OpenAICompatGraphExtractor(
+        base_url="http://x/v1", model="m", client=client, thinking="auto"
+    )
+    auto.extract("h", "x")
+    assert "thinking" not in client.requests[1]
+
+
+def test_build_graph_extractor_passes_prompts():
+    from types import SimpleNamespace
+
+    from nanobot.knowledge.graph.extractor import build_graph_extractor
+
+    extractor = build_graph_extractor(
+        SimpleNamespace(enabled=True, model="m", base_url="http://x/v1"),
+        SimpleNamespace(
+            extraction="E <<content>>",
+            query_entities="S",
+            query_user="Q <<query>>",
+        ),
+    )
+    assert extractor is not None
+    assert extractor._extraction_prompt == "E <<content>>"
+    assert extractor._query_entity_system_prompt == "S"
+    assert extractor._query_entity_user_prompt == "Q <<query>>"

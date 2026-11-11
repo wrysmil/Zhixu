@@ -117,12 +117,12 @@ class RetrieverSettings:
     expansion_limit: int = 5
     #: 图谱第三路（默认关闭；关闭时既有两路实现与数值完全不变）。
     graph_enabled: bool = False
-    graph_weight: float = 0.25
     graph_hops: int = 1
     graph_seed_limit: int = 5
     graph_max_entities: int = 20
-    graph_max_chunks: int = 50
+    graph_max_chunks: int = 30
     graph_timeout_seconds: float = 0.8
+    graph_query_extraction_timeout_seconds: float = 5.0
 
 
 def _from_fts(hit: FtsHit) -> SearchHit:
@@ -513,7 +513,14 @@ class Retriever:
             return candidates, [], OUTCOME_NO_CANDIDATES, 0, 0
         settings = self._rerank_settings
         candidates_in = len(candidates)
-        pool = candidates[: max(1, settings.max_candidates)]
+        # 图命中没有检索分，按分截断必然先删它（WeKnora §7.2）；所有由图路
+        # 贡献的候选（含同时被文本路命中的）都豁免，其余仍按 max_candidates 截断。
+        graph_linked = [
+            hit for hit in candidates if hit.graph_evidence is not None
+        ]
+        graph_linked_ids = {id(hit) for hit in graph_linked}
+        others = [hit for hit in candidates if id(hit) not in graph_linked_ids]
+        pool = others[: max(1, settings.max_candidates)] + graph_linked
         titles = self._repo.list_document_titles({hit.doc_id for hit in pool})
         limit = passage_char_limit(
             query,
@@ -573,9 +580,16 @@ class Retriever:
         scored: list[SearchHit] = []
         for passage_index in kept:
             _position, hit = indexed[passage_index]
+            # 纯图命中没有检索分，复合分的 base 项由 model_score 顶替（WeKnora §7.5）；
+            # 图+文本命中保留文本路分数。
+            base_score = (
+                scores[passage_index]
+                if hit.graph_evidence is not None and hit.score <= 0.0
+                else hit.score
+            )
             composite = composite_score(
                 scores[passage_index],
-                hit.score,
+                base_score,
                 source_weight_value=1.0,
                 model_weight=settings.model_weight,
                 base_weight=settings.base_weight,
@@ -890,35 +904,43 @@ class Retriever:
         keyword_lists: list[list[tuple[str, float]]],
         graph_lists: list[list[tuple[str, float]]] | None = None,
     ) -> tuple[dict[str, float], tuple[str, ...], str]:
-        """§5.2 三条互斥归一化路径；图关闭时严格保留既有两路实现与数值。"""
+        """§5.2 三条互斥归一化路径；图关闭时严格保留既有两路实现与数值。
+
+        图路没有相似度分（WeKnora §4.3）：它不进 RRF，只以 `0.0` 补位，
+        避免给「有关系」伪造一个与向量/BM25 同量纲的分数。
+        """
         settings = self._settings
         if graph_lists:
-            specs: list[RouteSpec] = []
             modes: list[str] = []
-            if vector_lists:
-                specs.append(
-                    RouteSpec(
-                        settings.vector_weight,
-                        tuple(tuple(cid for cid, _ in ids) for ids in vector_lists),
-                    )
+            if vector_lists and keyword_lists:
+                scores = weighted_rrf_multi(
+                    (
+                        RouteSpec(
+                            settings.vector_weight,
+                            tuple(tuple(cid for cid, _ in ids) for ids in vector_lists),
+                        ),
+                        RouteSpec(
+                            settings.keyword_weight,
+                            tuple(tuple(cid for cid, _ in ids) for ids in keyword_lists),
+                        ),
+                    ),
+                    k=settings.rrf_k,
                 )
+                modes.extend(("vector", "keyword"))
+            elif vector_lists:
+                scores = single_vector_scores_multi(vector_lists)
                 modes.append("vector")
-            if keyword_lists:
-                specs.append(
-                    RouteSpec(
-                        settings.keyword_weight,
-                        tuple(tuple(cid for cid, _ in ids) for ids in keyword_lists),
-                    )
-                )
+            elif keyword_lists:
+                scores = single_keyword_scores_multi(keyword_lists)
                 modes.append("keyword")
-            specs.append(
-                RouteSpec(
-                    settings.graph_weight,
-                    (tuple(cid for cid, _ in graph_lists[0]),),
-                )
+            else:
+                scores = {}
+            for chunk_id, _score in graph_lists[0]:
+                scores.setdefault(chunk_id, 0.0)
+            scores = dict(
+                sorted(scores.items(), key=lambda item: (-item[1], item[0]))
             )
             modes.append("graph")
-            scores = weighted_rrf_multi(tuple(specs), k=settings.rrf_k)
             mode_used = "hybrid" if len(modes) > 1 else "graph"
             return scores, tuple(modes), mode_used
         if vector_lists and keyword_lists:

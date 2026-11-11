@@ -18,26 +18,27 @@ import json_repair
 from loguru import logger
 
 from nanobot.knowledge.graph.normalize import normalize_entity_name
+from nanobot.knowledge.graph.prompts import (
+    DEFAULT_GRAPH_EXTRACTION_PROMPT,
+    DEFAULT_QUERY_ENTITY_SYSTEM_PROMPT,
+    DEFAULT_QUERY_ENTITY_USER_PROMPT,
+)
 
 PROMPT_VERSION = "graph1"
 
-_PROMPT = (
-    "你是知识图谱抽取器。阅读片段，抽取其中的实体与实体间关系。\n"
-    "只输出一个 JSON 对象，不要解释、不要 Markdown 围栏：\n"
-    '{"entities":[{"name":"名称","type":"概念/服务/系统/人物/文档/其他",'
-    '"description":"一句话"}],"relations":[{"source":"实体名","target":"实体名",'
-    '"relation":"关系名","description":"一句话","strength":1-10}]}\n'
-    "规则：实体名不超过 40 字；不要代词；关系两端必须是 entities 中出现的名称；"
-    "没有实体就输出 {\"entities\": [], \"relations\": []}。\n"
-    "标题路径：<<heading>>\n片段：\n<<content>>"
-)
 
-
-def _build_prompt(heading_path: str, content: str) -> str:
+def _render_extraction_prompt(
+    template: str, heading_path: str, content: str
+) -> str:
     # 不用 str.format：Prompt 里含 JSON 花括号，format 会把它当占位符。
-    return _PROMPT.replace("<<heading>>", heading_path or "无").replace(
+    return template.replace("<<heading>>", heading_path or "无").replace(
         "<<content>>", content
     )
+
+
+def _render_query_user_prompt(template: str, query: str) -> str:
+    return template.replace("<<query>>", query.strip())
+
 
 _THINK_BLOCK = re.compile(r"<think\b[^>]*>.*?</think\s*>", re.DOTALL | re.IGNORECASE)
 _JSON_FENCE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
@@ -175,6 +176,57 @@ def parse_extraction(
     return ExtractionResult(tuple(entities), tuple(relations))
 
 
+def parse_query_entities(
+    text: str, *, max_entities: int = 8
+) -> tuple[str, ...]:
+    """查询侧实体名解析；兼容 WeKnora `[{"entity": ...}]` 与字符串/entities 列表。"""
+    try:
+        payload = json_repair.loads(text)
+    except Exception as exc:  # noqa: BLE001 - 模型输出不可信
+        raise GraphExtractionError("parse") from exc
+    if isinstance(payload, dict):
+        raw = payload.get("entities")
+        if raw is None and any(key in payload for key in ("entity", "name", "title")):
+            raw = [payload]
+    elif isinstance(payload, list):
+        raw = payload
+    else:
+        raise GraphExtractionError("parse")
+    if not isinstance(raw, list):
+        raise GraphExtractionError("parse")
+    names: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        if isinstance(item, str):
+            name = item
+        elif isinstance(item, dict):
+            entity = cast(dict[str, Any], item)
+            name = (
+                entity.get("entity")
+                or entity.get("name")
+                or entity.get("title")
+                or entity.get("text")
+                or ""
+            )
+        else:
+            continue
+        text_name = str(name).strip()
+        norm = normalize_entity_name(text_name)
+        if (
+            not text_name
+            or len(text_name) > 40
+            or not norm
+            or norm in _PRONOUNS
+            or norm in seen
+        ):
+            continue
+        seen.add(norm)
+        names.append(text_name)
+        if len(names) >= max(1, max_entities):
+            break
+    return tuple(names)
+
+
 def _build_client(timeout: float) -> httpx.Client:
     """默认信任环境代理；本机代理变量非法时退回直连，避免入库整体失败。"""
     try:
@@ -201,6 +253,10 @@ class OpenAICompatGraphExtractor:
         max_retries: int = 1,
         max_entities: int = 20,
         max_relations: int = 30,
+        thinking: str = "disabled",
+        extraction_prompt: str = DEFAULT_GRAPH_EXTRACTION_PROMPT,
+        query_entity_system_prompt: str = DEFAULT_QUERY_ENTITY_SYSTEM_PROMPT,
+        query_entity_user_prompt: str = DEFAULT_QUERY_ENTITY_USER_PROMPT,
         client: httpx.Client | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
@@ -214,6 +270,12 @@ class OpenAICompatGraphExtractor:
         self._retries = max(0, max_retries)
         self._max_entities = max(1, max_entities)
         self._max_relations = max(1, max_relations)
+        self._thinking = (
+            thinking if thinking in ("auto", "enabled", "disabled") else "disabled"
+        )
+        self._extraction_prompt = extraction_prompt
+        self._query_entity_system_prompt = query_entity_system_prompt
+        self._query_entity_user_prompt = query_entity_user_prompt
         self._client = client or _build_client(timeout_seconds)
         self._active_key: str | None = None
 
@@ -230,21 +292,28 @@ class OpenAICompatGraphExtractor:
             headers["Authorization"] = f"Bearer {key}"
         return headers
 
-    def extract(self, heading_path: str, content: str) -> ExtractionResult:
-        if not self._base_url or not self._model:
-            raise GraphExtractionError("not_configured")
-        context = content[: self._max_context]
-        request_text = _build_prompt(heading_path, context)
+    def _request(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        max_tokens: int | None = None,
+    ) -> tuple[str, str]:
+        """POST chat/completions（含 HTTP 重试），返回 `(content, finish_reason)`。"""
         for attempt in range(self._retries + 1):
+            payload: dict[str, Any] = {
+                "model": self._model,
+                "messages": messages,
+                "temperature": self._temperature,
+                "max_tokens": (
+                    self._max_tokens if max_tokens is None else max_tokens
+                ),
+            }
+            if self._thinking != "auto":
+                payload["thinking"] = {"type": self._thinking}
             try:
                 response = self._client.post(
                     f"{self._base_url}/chat/completions",
-                    json={
-                        "model": self._model,
-                        "messages": [{"role": "user", "content": request_text}],
-                        "temperature": self._temperature,
-                        "max_tokens": self._max_tokens,
-                    },
+                    json=payload,
                     headers=self._headers(),
                     timeout=self._timeout,
                 )
@@ -269,10 +338,28 @@ class OpenAICompatGraphExtractor:
                 raise GraphExtractionError("timeout") from exc
 
             choice = self._first_choice(response.json())
-            text = self._message_content(choice)
-            if choice.get("finish_reason") == "length" and attempt < self._retries:
+            return (
+                self._message_content(choice),
+                str(choice.get("finish_reason") or ""),
+            )
+        raise GraphExtractionError("retry_exhausted")
+
+    def extract(self, heading_path: str, content: str) -> ExtractionResult:
+        if not self._base_url or not self._model:
+            raise GraphExtractionError("not_configured")
+        context = content[: self._max_context]
+        request_text = _render_extraction_prompt(
+            self._extraction_prompt, heading_path, context
+        )
+        for attempt in range(self._retries + 1):
+            text, finish = self._request(
+                [{"role": "user", "content": request_text}]
+            )
+            if finish == "length" and attempt < self._retries:
                 context = context[: max(1, len(context) // 2)]
-                request_text = _build_prompt(heading_path, context)
+                request_text = _render_extraction_prompt(
+                    self._extraction_prompt, heading_path, context
+                )
                 logger.debug(
                     "knowledge graph extraction truncated; retry with {} chars",
                     len(context),
@@ -284,6 +371,31 @@ class OpenAICompatGraphExtractor:
                 max_relations=self._max_relations,
             )
         raise GraphExtractionError("retry_exhausted")
+
+    def extract_query(
+        self, query: str, *, max_entities: int = 8
+    ) -> tuple[str, ...]:
+        """查询侧实体抽取：WeKnora `extract_entity` 同款 system + few-shot。"""
+        if not self._base_url or not self._model:
+            raise GraphExtractionError("not_configured")
+        text, _finish = self._request(
+            [
+                {
+                    "role": "system",
+                    "content": self._query_entity_system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": _render_query_user_prompt(
+                        self._query_entity_user_prompt, query
+                    ),
+                },
+            ],
+            max_tokens=max(64, min(self._max_tokens, 512)),
+        )
+        return parse_query_entities(
+            clean_model_text(text), max_entities=max_entities
+        )
 
     @staticmethod
     def _first_choice(payload: Any) -> dict[str, Any]:
@@ -317,7 +429,9 @@ class OpenAICompatGraphExtractor:
         raise GraphExtractionError("empty_response")
 
 
-def build_graph_extractor(config: Any) -> OpenAICompatGraphExtractor | None:
+def build_graph_extractor(
+    config: Any, prompts: Any = None
+) -> OpenAICompatGraphExtractor | None:
     """按配置构造抽取器；未启用或缺 base_url/model 时返回 None。"""
     if not bool(getattr(config, "enabled", False)):
         return None
@@ -337,4 +451,16 @@ def build_graph_extractor(config: Any) -> OpenAICompatGraphExtractor | None:
         max_retries=int(getattr(config, "max_retries", 1)),
         max_entities=int(getattr(config, "max_entities_per_chunk", 20)),
         max_relations=int(getattr(config, "max_relations_per_chunk", 30)),
+        thinking=str(getattr(config, "thinking", "disabled") or "disabled"),
+        extraction_prompt=str(
+            getattr(prompts, "extraction", "") or DEFAULT_GRAPH_EXTRACTION_PROMPT
+        ),
+        query_entity_system_prompt=str(
+            getattr(prompts, "query_entities", "")
+            or DEFAULT_QUERY_ENTITY_SYSTEM_PROMPT
+        ),
+        query_entity_user_prompt=str(
+            getattr(prompts, "query_user", "")
+            or DEFAULT_QUERY_ENTITY_USER_PROMPT
+        ),
     )

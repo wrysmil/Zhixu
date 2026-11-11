@@ -302,6 +302,12 @@ class GraphRepository:
         if not matches:
             return []
         clauses.append("(" + " OR ".join(matches) + ")")
+        # WeKnora 口径：无边实体不做种子——它占掉名额却不贡献任何关系。
+        clauses.append(
+            "EXISTS (SELECT 1 FROM graph_relations gr"
+            " WHERE gr.source_entity_id = graph_entities.id"
+            " OR gr.target_entity_id = graph_entities.id)"
+        )
         with self._db.connect() as conn:
             rows = conn.execute(
                 f"""SELECT id,kb_id,name,name_norm,type,description,mention_count
@@ -391,6 +397,22 @@ class GraphRepository:
                 "SELECT entity_id FROM graph_mentions WHERE chunk_id=?", (chunk_id,)
             ).fetchall()
         return {row[0] for row in rows}
+
+    def entities_for_chunks(self, chunk_ids: Sequence[str]) -> set[str]:
+        """这些块关联的实体；用于校验关系两端都有仍存活的证据。"""
+        if not chunk_ids:
+            return set()
+        found: set[str] = set()
+        with self._db.connect() as conn:
+            for chunk in _batches(list(dict.fromkeys(chunk_ids))):
+                placeholders = ",".join("?" for _ in chunk)
+                rows = conn.execute(
+                    f"SELECT DISTINCT entity_id FROM graph_mentions"
+                    f" WHERE chunk_id IN ({placeholders})",
+                    tuple(chunk),
+                ).fetchall()
+                found.update(row[0] for row in rows)
+        return found
 
     def mention_chunks(self, entity_ids: Sequence[str]) -> list[str]:
         if not entity_ids:

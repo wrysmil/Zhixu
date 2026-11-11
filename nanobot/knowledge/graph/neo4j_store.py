@@ -182,8 +182,10 @@ class Neo4jGraphStore:
         if not uids:
             return GraphExpansion()
         # hops 已校验为 1/2 的整数，可安全进 Cypher；其余全部参数绑定。
+        # 无向扩展：种子既可能是边的起点，也可能是终点。WeKnora 的种子查询
+        # 同样用 `(n)-[r]-(m)`，否则「A 被 B 依赖」这类入边永远不会被召回。
         cypher = (
-            f"MATCH p=(s:Entity)-[:RELATED*1..{hops}]->(e:Entity) "
+            f"MATCH p=(s:Entity)-[:RELATED*1..{hops}]-(e:Entity) "
             "WHERE s.uid IN $uids AND s.kb_id = $kb_id AND e.kb_id = $kb_id "
             "RETURN p LIMIT $row_limit"
         )
@@ -203,11 +205,12 @@ class Neo4jGraphStore:
             raise GraphStoreError("neo4j_unavailable") from exc
 
         entities: list[str] = []
-        edges: list[GraphEdge] = []
+        edges_by_key: dict[tuple[str, str, str], GraphEdge] = {}
         chunk_ids: list[str] = []
         truncated = False
         for record in records:
             path = record["p"]
+            path_hop = len(path.relationships)
             for node in path.nodes:
                 entity_id = node.get("entity_id")
                 if entity_id and entity_id not in entities:
@@ -226,20 +229,21 @@ class Neo4jGraphStore:
                 target = relationship.end_node.get("entity_id")
                 if not source or not target:
                     continue
-                edges.append(
-                    GraphEdge(
-                        source_entity_id=source,
-                        target_entity_id=target,
-                        relation=str(relationship.get("relation") or ""),
-                        weight=float(relationship.get("weight") or 5.0),
-                        hop=hops,
-                    )
+                relation = str(relationship.get("relation") or "")
+                key = (source, target, relation)
+                existing = edges_by_key.get(key)
+                if existing is not None and existing.hop <= path_hop:
+                    continue
+                edges_by_key[key] = GraphEdge(
+                    source_entity_id=source,
+                    target_entity_id=target,
+                    relation=relation,
+                    weight=float(relationship.get("weight") or 5.0),
+                    hop=path_hop,
                 )
+        edges = list(edges_by_key.values())
         if include_inner_edges and entities:
-            seen = {
-                (edge.source_entity_id, edge.target_entity_id, edge.relation)
-                for edge in edges
-            }
+            seen = set(edges_by_key)
             limit = max(1, max_entities * 8)
             try:
                 rows = self._query(
@@ -269,7 +273,7 @@ class Neo4jGraphStore:
                         target_entity_id=row["target"],
                         relation=str(row["relation"] or ""),
                         weight=float(row["weight"] or 5.0),
-                        hop=hops,
+                        hop=1,
                     )
                 )
         return GraphExpansion(

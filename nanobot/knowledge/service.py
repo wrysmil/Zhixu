@@ -233,12 +233,14 @@ def _graph_settings(graph: Any) -> dict[str, Any]:
     expansion = graph.expansion
     return {
         "graph_enabled": bool(graph.enabled and expansion.enabled),
-        "graph_weight": float(expansion.weight),
         "graph_hops": max(1, min(2, int(expansion.hops))),
         "graph_seed_limit": max(1, int(expansion.seed_limit)),
         "graph_max_entities": max(1, int(expansion.max_entities)),
         "graph_max_chunks": max(1, int(expansion.max_chunks)),
         "graph_timeout_seconds": float(expansion.timeout_seconds),
+        "graph_query_extraction_timeout_seconds": float(
+            getattr(expansion, "query_extraction_timeout_seconds", 5.0)
+        ),
     }
 
 
@@ -410,6 +412,17 @@ class KnowledgeService:
                 knowledge_repo=repo,
                 store=graph.store,
                 settings=RetrieverSettings(**_graph_settings(graph.config)),
+                query_entities=(
+                    graph.extract_query_entities
+                    if bool(
+                        getattr(
+                            getattr(graph.config, "expansion", None),
+                            "query_entity_extraction",
+                            True,
+                        )
+                    )
+                    else None
+                ),
             )
             if graph is not None and graph.enabled
             else None
@@ -1121,7 +1134,9 @@ def get_knowledge_service(knowledge: KnowledgeConfig) -> KnowledgeService:
 def _build_graph(graph_config: Any, repo: KnowledgeRepository) -> GraphService | None:
     if not getattr(graph_config, "enabled", False):
         return None
-    extractor = build_graph_extractor(graph_config.extraction)
+    extractor = build_graph_extractor(
+        graph_config.extraction, getattr(graph_config, "prompts", None)
+    )
     if not extractor:
         logger.warning(
             "knowledge graph enabled but extraction model is not configured"

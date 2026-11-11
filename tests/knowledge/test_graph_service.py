@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from nanobot.knowledge.graph.extractor import ExtractionResult, GraphExtractionError
+from nanobot.knowledge.graph.models import GraphExpansion
 from nanobot.knowledge.graph.repo import GraphRepository
 from nanobot.knowledge.graph.service import GraphService
 from nanobot.knowledge.service import KnowledgeService
@@ -117,6 +118,55 @@ def test_process_document_writes_and_mirrors(graph_env):
     mirrored = graph_env.store.entities[graph_env.kb.id]
     assert {entity.name for entity in mirrored} == {"web-api", "值班二号"}
     assert mirrored[0].chunk_ids == ("chk-1",)
+
+
+def test_extract_query_entities_returns_names(graph_env):
+    graph_env.graph.enqueue_document(graph_env.doc.id)
+    graph_env.graph.process_document(graph_env.doc.id)
+    assert graph_env.graph.extract_query_entities("谁负责升级") == (
+        "web-api",
+        "值班二号",
+    )
+
+
+def test_extract_query_entities_uses_dedicated_query_prompt(graph_env):
+    class QueryExtractor:
+        model_id = "query#m"
+
+        def extract(self, heading_path: str, content: str):
+            raise AssertionError("不应使用入库 chunk prompt")
+
+        def extract_query(self, query: str) -> tuple[str, ...]:
+            assert query == "谁负责升级"
+            return ("值班二号",)
+
+    graph_env.graph._extractor = QueryExtractor()
+    assert graph_env.graph.extract_query_entities("谁负责升级") == ("值班二号",)
+
+
+def test_extract_query_entities_failure_is_empty(graph_env):
+    graph_env.graph._extractor = FailingExtractor()
+    assert graph_env.graph.extract_query_entities("谁负责升级") == ()
+
+
+def test_query_related_returns_relations_and_live_evidence(graph_env):
+    graph_env.graph.enqueue_document(graph_env.doc.id)
+    graph_env.graph.process_document(graph_env.doc.id)
+    entities = {
+        entity.name: entity for entity in graph_env.repo.list_entities(graph_env.kb.id)
+    }
+    graph_env.store.expansions = [
+        GraphExpansion(entity_ids=(entities["值班二号"].id,))
+    ]
+
+    result = graph_env.graph.query_related(graph_env.kb.id, "web-api")
+
+    assert {entity.name for entity in result.entities} == {"web-api", "值班二号"}
+    assert [relation.relation for relation in result.relations] == ["升级给"]
+    assert [chunk.id for chunk in result.chunks] == ["chk-1"]
+    assert result.relations_total == 1
+    assert result.chunks_total == 1
+    assert result.truncated is False
 
 
 def test_extractor_failure_does_not_fail_document(graph_env):
