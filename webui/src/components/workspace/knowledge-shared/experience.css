@@ -195,6 +195,16 @@
   animation-name: knowledge-dialog-centered-in;
 }
 
+.knowledge-experience-surface.knowledge-dialog.knowledge-dialog-compact {
+  width: min(34rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+}
+
+.knowledge-experience-surface.knowledge-dialog.knowledge-dialog-wide {
+  width: min(48rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+}
+
 .knowledge-experience-surface.knowledge-dialog[data-state="closed"] {
   animation: knowledge-fade-out 100ms var(--knowledge-motion-ease) both;
 }

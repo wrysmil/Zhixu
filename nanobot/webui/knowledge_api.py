@@ -7,7 +7,7 @@
 - **作用域**：工作区只取自已认证的 ``KnowledgeServices``；payload 里的
   ``workspaceId`` / ``workspaceIds`` 只能在该可见集合内选择，``kbId`` 先做
   存在性 + 归属校验，越权一律 403。
-- **上传**：后缀与 MIME 双校验、base64 安全解码、``max_file_mb`` / 6 MB
+- **上传**：后缀与 MIME 双校验、base64 安全解码、``max_file_mb`` / 20 MB
   取小者；客户端文件名只取 basename，交给服务层 ``safe_filename`` 再清洗。
 - **错误**：服务异常映射成稳定错误码 + 状态，错误信息不含文件系统路径或密钥。
 """
@@ -28,8 +28,9 @@ from nanobot.webui.attachment_ingress import extract_data_url_mime
 from nanobot.webui.knowledge_routes import KnowledgeRouteError
 from nanobot.webui.knowledge_services import KnowledgeServices, normalize_workspace_id
 
-#: WebUI 单文件上限（spec §13.1：沿用附件入口的 6 MB；配置更小时取配置）。
-_MAX_UPLOAD_BYTES = 6 * 1024 * 1024
+#: WebUI 单文件上限（配置更小时取配置）；20 MB 经 base64 后仍在默认 36 MB
+#: WS 帧上限内。
+_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 #: 后缀 → 可接受 MIME（storage spec §9.1；不含 csv）。
 _SUFFIX_MIMES: dict[str, frozenset[str]] = {

@@ -99,7 +99,7 @@ class KnowledgeServices:
     def upload_limit_bytes(self, default: int) -> int:
         """WebUI 单文件上限：``min(default, knowledge.chunking.max_file_mb)``。
 
-        WebUI 默认 6 MB（spec §13.1）；配置更小时以配置为准。未注入配置且已有
+        WebUI 默认 20 MB；配置更小时以配置为准。未注入配置且已有
         替身服务时不加载真实配置，直接用默认值。
         """
         config = self._config

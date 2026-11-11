@@ -13,6 +13,7 @@ import {
   RefreshCcw,
   Search,
   Trash2,
+  Upload,
   Wrench,
 } from "lucide-react";
 
@@ -52,7 +53,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useClient } from "@/providers/ClientProvider";
 
-/** WebUI 上传口径（spec §13.1）：后缀白名单与 6 MB 上限，不含 csv。 */
+/** WebUI 上传口径：后缀白名单与 20 MB 上限，不含 csv。 */
 const UPLOAD_MIME_BY_SUFFIX: Record<string, string> = {
   ".pdf": "application/pdf",
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -61,7 +62,7 @@ const UPLOAD_MIME_BY_SUFFIX: Record<string, string> = {
   ".md": "text/markdown",
   ".txt": "text/plain",
 };
-const MAX_UPLOAD_BYTES = 6 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
 const SEARCH_LIMITS = [5, 8, 12, 20];
 const SEARCH_MODES: KnowledgeSearchMode[] = ["hybrid", "semantic", "keyword"];
@@ -133,6 +134,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [importOpen, setImportOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadStage, setUploadStage] = useState("");
+  const [uploadRetryable, setUploadRetryable] = useState(false);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [kbs, setKbs] = useState<KnowledgeKb[]>([]);
   const [activeKbId, setActiveKbId] = useState<string | null>(null);
@@ -157,6 +159,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [serverPath, setServerPath] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
@@ -260,7 +263,11 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const activeKb = kbs.find((kb) => kb.id === activeKbId) ?? null;
 
   const runAction = useCallback(
-    async (action: () => Promise<unknown>, after?: () => Promise<void> | void) => {
+    async (
+      action: () => Promise<unknown>,
+      after?: () => Promise<void> | void,
+      onError?: (message: string) => void,
+    ) => {
       if (mutationLock.current) return;
       mutationLock.current = true;
       setBusy(true);
@@ -269,7 +276,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         await action();
         if (after) await after();
       } catch (reason: unknown) {
-        setActionError(reason instanceof Error ? reason.message : String(reason));
+        const message = reason instanceof Error ? reason.message : String(reason);
+        if (onError) onError(message);
+        else setActionError(message);
       } finally {
         mutationLock.current = false;
         setBusy(false);
@@ -378,16 +387,20 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     async (file: File) => {
       if (!activeKbId || mutationLock.current) return;
       setUploadFile(file);
+      setUploadError(null);
       const suffix = fileSuffix(file.name);
       const mime = UPLOAD_MIME_BY_SUFFIX[suffix];
       if (!mime) {
-        setActionError(t("knowledge.uploadBadType"));
+        setUploadRetryable(false);
+        setUploadError(t("knowledge.uploadBadType"));
         return;
       }
       if (file.size > MAX_UPLOAD_BYTES) {
-        setActionError(t("knowledge.uploadTooLarge"));
+        setUploadRetryable(false);
+        setUploadError(t("knowledge.uploadTooLarge"));
         return;
       }
+      setUploadRetryable(true);
       await runAction(async () => {
         setUploadStage(t("knowledge.experience.reading", { defaultValue: "正在读取文件" }));
         let base64: string;
@@ -401,13 +414,14 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
           workspaceId: defaultWorkspaceId,
         });
         setUploadFile(null);
+        setUploadError(null);
         setImportOpen(false);
       }, async () => {
         await loadDocs();
         await loadKbs();
         await loadStats();
         clearSearch();
-      });
+      }, setUploadError);
     },
     [activeKbId, clearSearch, client, defaultWorkspaceId, loadDocs, loadKbs, loadStats, runAction, t],
   );
@@ -743,7 +757,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </div>
       ) : null}
 
-      {actionError ? (
+      {actionError && !importOpen ? (
         <div role="alert" className="mt-4 flex items-start gap-2 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           <span className="min-w-0 flex-1 break-words">{t("knowledge.actionError")}: {actionError}</span>
           <button
@@ -877,7 +891,10 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             ) : (
               <>
                 <div className="knowledge-toolbar mb-4">
-                  <Button onClick={() => { setActionError(null); setImportOpen(true); }} disabled={busy}>{t("knowledge.experience.addMaterial", { defaultValue: "添加资料" })}</Button>
+                  <Button onClick={() => { setActionError(null); setImportOpen(true); }} disabled={busy} className="gap-1.5">
+                    <Upload className="h-3.5 w-3.5" aria-hidden />
+                    {t("knowledge.experience.addMaterial", { defaultValue: "添加资料" })}
+                  </Button>
                   {docsLoading && <KnowledgeStatus label={t("knowledge.loading")} tone="pending" busy />}
                 </div>
 
@@ -1035,8 +1052,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         ) : null}
       </div>
 
-      <KnowledgeImportSheet open={importOpen} onClose={() => setImportOpen(false)} busy={busy} error={actionError} stage={uploadStage}
-        file={uploadFile} path={serverPath} onPath={setServerPath} onUpload={file => void onUpload(file)} onAddPath={() => void onAddServerPath()} />
+      <KnowledgeImportSheet open={importOpen} onClose={() => setImportOpen(false)} busy={busy} error={uploadError ?? actionError} stage={uploadStage} retryable={uploadRetryable}
+        file={uploadFile} path={serverPath} onPath={setServerPath} onUpload={file => void onUpload(file)} onAddPath={() => void onAddServerPath()}
+        onClearFile={() => { setUploadFile(null); setUploadError(null); setUploadRetryable(false); }} />
       <KnowledgeDocumentSheet doc={chunkPreview} previewChunks={previewChunks} previewTotal={previewTotal} previewLoading={previewLoading}
         previewError={previewError} onClose={closeChunkPreview} onRetry={() => { if (chunkPreview) void onOpenChunkPreview(chunkPreview); }} />
 

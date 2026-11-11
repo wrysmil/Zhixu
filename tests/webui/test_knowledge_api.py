@@ -619,6 +619,22 @@ def test_upload_rejects_oversized_payload(monkeypatch: pytest.MonkeyPatch) -> No
     assert _call(fake, "add_upload_bytes") == []
 
 
+def test_webui_upload_limit_defaults_to_20mb() -> None:
+    import nanobot.webui.knowledge_api as module
+
+    services = KnowledgeServices(
+        service=FakeService(),
+        config=SimpleNamespace(enabled=True, chunking=SimpleNamespace(max_file_mb=50)),
+    )
+    assert services.upload_limit_bytes(module._MAX_UPLOAD_BYTES) == 20 * 1024 * 1024
+
+    smaller = KnowledgeServices(
+        service=FakeService(),
+        config=SimpleNamespace(enabled=True, chunking=SimpleNamespace(max_file_mb=8)),
+    )
+    assert smaller.upload_limit_bytes(module._MAX_UPLOAD_BYTES) == 8 * 1024 * 1024
+
+
 def test_upload_rejects_kb_outside_scope() -> None:
     service = FakeService(kbs=[_kb(workspace_id="ws2")])
     api, fake = _api(service)

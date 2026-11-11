@@ -113,8 +113,8 @@ nanobot knowledge rm 产品手册 --yes
 | 项 | 说明 |
 | --- | --- |
 | 格式 | `.pdf` `.docx` `.xlsx` `.pptx` `.md` `.txt`（后缀白名单 + WebUI MIME 双校验） |
-| CLI 文件上限 | 建议单文件 ≤ 50 MB：pdf/docx/xlsx/pptx 解析层有 50 MB 上限（`nanobot/utils/document.py`），md/txt 直接解码、无单独预检；大文件请走 CLI，不要走 WebUI |
-| WebUI 上传上限 | `min(6 MB, knowledge.chunking.maxFileMb)`，超限返回 `KNOWLEDGE_FILE_TOO_LARGE` |
+| CLI 文件上限 | 建议单文件 ≤ 50 MB：pdf/docx/xlsx/pptx 解析层有 50 MB 上限（`nanobot/utils/document.py`），md/txt 直接解码、无单独预检；超过 20 MB 的文件请走 CLI |
+| WebUI 上传上限 | `min(20 MB, knowledge.chunking.maxFileMb)`，超限返回 `KNOWLEDGE_FILE_TOO_LARGE` |
 | 单文档块数 | 20 000 块（超出报 `KNOWLEDGE_CHUNK_LIMIT`） |
 | 分块 | 默认 800 字符、重叠 120 字符；按空行分段（`paragraphMode=blank_line`），标题/代码块不做结构感知 |
 | 表格/代码块 | 按普通文本切分，不做结构保留 |
