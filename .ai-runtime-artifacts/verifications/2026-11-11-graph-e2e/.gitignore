@@ -1,0 +1,17 @@
+# 实机验证的运行时数据（可重建，不入库）
+chromadb/
+cli-apps/
+complex/
+eval-data/
+evaluation/
+llm_usage.sqlite3*
+logs/
+run/
+sessions/
+state.db
+uploads/
+webui/
+workspace/
+workspace-registry/
+gateway.log
+webui.log
