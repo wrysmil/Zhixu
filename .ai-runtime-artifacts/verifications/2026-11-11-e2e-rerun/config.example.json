@@ -1,0 +1,94 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "D:\\studyspace\\project\\Zhixu\\.ai-runtime-artifacts\\verifications\\2026-11-11-e2e-rerun\\workspace",
+      "provider": "minimax",
+      "model": "MiniMax-M3",
+      "maxTokens": 8192,
+      "contextWindowTokens": 65536,
+      "temperature": 0.1,
+      "maxToolIterations": 20,
+      "memoryEnabled": false,
+      "timezone": "UTC"
+    }
+  },
+  "providers": {
+    "minimax": {
+      "apiKey": "<set-in-local-config>",
+      "apiBase": "https://api.minimax.cn/v1",
+      "apiType": "auto"
+    }
+  },
+  "channels": {
+    "websocket": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 8781,
+      "tokenIssueSecret": "<set-in-local-config>"
+    }
+  },
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 18821
+  },
+  "evaluation": {
+    "passphrase": "<set-in-local-config>"
+  },
+  "knowledge": {
+    "enabled": true,
+    "databasePath": "D:\\studyspace\\project\\Zhixu\\.ai-runtime-artifacts\\verifications\\2026-11-11-e2e-rerun\\state.db",
+    "vectorPath": "D:\\studyspace\\project\\Zhixu\\.ai-runtime-artifacts\\verifications\\2026-11-11-e2e-rerun\\chromadb-vector",
+    "embedding": {
+      "backend": "local",
+      "model": "BAAI/bge-small-zh-v1.5",
+      "dimensions": 512,
+      "device": "cpu",
+      "batchSize": 8,
+      "downloadSource": "auto"
+    },
+    "rerank": {
+      "enabled": true,
+      "backend": "local",
+      "model": "BAAI/bge-reranker-base",
+      "device": "cpu",
+      "threshold": 0.3,
+      "maxCandidates": 200
+    },
+    "questionGeneration": {
+      "enabled": false
+    },
+    "retrieval": {
+      "enableRewrite": true
+    },
+    "graph": {
+      "enabled": true,
+      "backend": "neo4j",
+      "uri": "bolt://127.0.0.1:17689",
+      "username": "neo4j",
+      "password": "<set-in-local-config>",
+      "database": "neo4j",
+      "connectTimeoutSeconds": 10.0,
+      "extraction": {
+        "enabled": true,
+        "baseUrl": "https://api.minimax.cn/v1",
+        "apiKey": "<set-in-local-config>",
+        "model": "MiniMax-M3",
+        "maxTokens": 4096,
+        "maxContextChars": 1200,
+        "concurrency": 2,
+        "requireConfirmation": true,
+        "thinking": "disabled"
+      },
+      "expansion": {
+        "enabled": true,
+        "hops": 1,
+        "seedLimit": 5,
+        "maxEntities": 20,
+        "maxChunks": 30,
+        "timeoutSeconds": 0.8,
+        "queryEntityExtraction": true,
+        "queryExtractionTimeoutSeconds": 5.0
+      }
+    }
+  }
+}

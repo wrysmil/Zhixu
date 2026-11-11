@@ -13,6 +13,10 @@ source:
 
 # 知识图谱实现验证记录（2026-11-11）
 
+> **后续修订：** 同日按 WeKnora docs 对齐后，图命中改为 `Score=0`、不进 RRF；
+> 本文件描述的「三路加权 RRF」是当时实现，最新口径见
+> `.ai-runtime-artifacts/verifications/2026-11-11-graph-weknora-alignment-verification-lite.md`。
+
 ## 范围
 
 已完成计划中 Task 0–13 的代码实现：

@@ -459,6 +459,7 @@ rel(c) = fused(c)
 | `keyword_threshold` | 0.3 | 同上 | 相对**组内最高分**的比例下限（SQLite `-bm25()` 量纲不可比，绝对阈值等于不过滤）；0 = 不过滤 |
 | `expand_on_low_recall` | true | 同上 | 候选数少于 `pool_size` 时做本地查询扩展（只走关键词路） |
 | `expansion_limit` | 5 | 同上 | 查询变体上限 |
+| `enable_rewrite` | true | `knowledge.retrieval` | 查询改写/意图门控（WeKnora `conversation.enable_rewrite`）：`false` 时工具忽略 `rewrite_query`/`intent`，直接用原 query 检索；v1 不新增内部改写 LLM 调用 |
 
 配置节沿用父方案 §10 的 `KnowledgeRetrievalConfig`，本节字段为新增；池的硬上限 300 / 200 为常量，不进配置。
 

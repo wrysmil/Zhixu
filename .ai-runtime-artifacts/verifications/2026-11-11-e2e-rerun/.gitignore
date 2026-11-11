@@ -1,0 +1,15 @@
+# 实机验证运行时数据（可重建，不入库）
+config.json
+chromadb/
+chromadb-vector/
+cli-apps/
+evaluation/
+llm_usage.sqlite3*
+logs/
+run/
+sessions/
+state.db
+uploads/
+webui/
+workspace/
+workspace-registry/

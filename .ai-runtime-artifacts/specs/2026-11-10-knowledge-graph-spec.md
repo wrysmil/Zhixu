@@ -547,3 +547,33 @@ class KnowledgeGraphConfig(Base):
 - 确认方案无误 → 说「写计划」或「制定实施计划」
 - 变更范围小、无需计划 → 说「直接实现」或「直接做」
 - 需要调整方案（范围/默认值/接口） → 直接说修改意见
+
+## 21. 2026-11-11 WeKnora 对齐修订（覆盖 §7 / §8 / §11）
+
+用户要求按本地 WeKnora `docs/原理/03/04/05/08` 重新对齐后，以下口径取代原方案：
+
+| 主题 | 原方案 | 对齐后 |
+| --- | --- | --- |
+| 图在融合中的位置 | 第三路加权 RRF（`graph_weight=0.25`） | **`Score=0`，不进 RRF**；图只补位，精排再兑现 |
+| 精排候选截断 | 与文本候选一起按分截 | 带 `graph_evidence` 的候选**豁免** `max_candidates` |
+| 复合分 base | 图命中沿用 0 | 纯图命中用 `model_score` 顶替 base；图+文本命中保留文本分 |
+| 图扩展方向 | 有向 `(s)-[:RELATED*1..N]->(e)` | **无向** `(s)-[:RELATED*1..N]-(e)`；种子可为入边终点 |
+| 种子 | 所有名称命中实体 | **无边实体不做种子**（WeKnora `EXISTS { (n)--() }`） |
+| 图证据上限 | 50 chunk | 30 chunk（`expansion.max_chunks` 默认 30） |
+| 查询侧实体 | 本地归一化子串 + 分词 | **先用抽取模型从改写后的 query 抽实体名**，失败/空/名称无命中均回退本地链接（`expansion.query_entity_extraction` 默认 true） |
+| Prompt | 硬编码在 `extractor.py` | 统一到 `knowledge.graph.prompts`（`extraction` / `queryEntities` / `queryUser`），默认值在 `graph/prompts.py` |
+| Thinking | 未控制，MiniMax 会先长篇推理 | `extraction.thinking` 默认 `disabled`，请求体带 `thinking: {"type":"disabled"}`；不支持该参数的供应商设 `auto` |
+| Agent 工具 | 仅 `knowledge_search` 内含图路 | 新增独立 `knowledge_graph`（对齐 `query_knowledge_graph`） |
+| 评测覆写 | 含 `graph_weight` | **删除 `graph_weight`**；旧配置会被拒绝 |
+
+**刻意保留的差异（不是缺陷）：**
+
+- 图开关仍是全局 `knowledge.graph`（WeKnora 是 KB 级 `IndexingStrategy.GraphEnabled + ExtractConfig`）。
+- 检索侧已对齐 WeKnora 的「改写 query → LLM 抽实体」；本地归一化子串 + 分词保留为抽取失败/空结果的回退。
+- Agent 图谱工具仍由模型在 `query` 里给实体名，不额外做一次查询 LLM 抽取。
+- 实体为 KB 级合并（WeKnora 是文档级实例）；v1 不做实体消歧。
+- 扩展默认 1 跳、可配 2 跳；WeKnora 对话主链固定 1 跳。
+- 不引入 APOC；Neo4j 写入仍用原生 `MERGE`。
+
+详见 `.ai-runtime-artifacts/research/2026-11-11-weknora-agent-search-graph-alignment.md` 与修订后的
+`.ai-runtime-artifacts/contracts/2026-11-11-contract-knowledge-graph.md`。

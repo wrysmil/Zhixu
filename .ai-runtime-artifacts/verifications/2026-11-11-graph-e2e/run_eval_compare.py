@@ -107,7 +107,7 @@ async def main(config_path: str) -> int:
         return str(run["id"])
 
     off_id = await one("graph_off", {"graph_enabled": False})
-    on_id = await one("graph_on", {"graph_enabled": True, "graph_weight": 0.5})
+    on_id = await one("graph_on", {"graph_enabled": True})
     compare = service.knowledge_compare(off_id, on_id)
     print(json.dumps({"compare": compare}, ensure_ascii=False))
     return 0

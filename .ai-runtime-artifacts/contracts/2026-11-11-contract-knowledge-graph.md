@@ -153,16 +153,20 @@ normalize_entity_name(name) -> str   # NFKC → 去首尾空白 → 连续空白
 1. 整串精确：`normalize_entity_name(query) == name_norm`；
 2. 子串：`tokenize_query(query)` 的 token 对 `name_norm LIKE '%token%'`；
 3. 排序：整串精确 > 命中 token 数 > `mention_count`，同值按 `id` 升序；取前 `seed_limit`（默认 5）。
+4. **无边实体不做种子**（WeKnora `EXISTS { (n)--() }` 口径）：它占掉种子名额却不贡献任何关系。
 
 **v1 不建实体 FTS**（中文 unicode61 会把整段中文当单 token）；实体规模 ≤2k 时 LIKE 扫描为毫秒级。
 
 ## 6. 检索融合（`nanobot/knowledge/fusion.py` / `retriever.py`）
 
-- `RetrieverSettings` 新增（**全部带默认值**）：`graph_enabled: bool = False`、`graph_weight: float = 0.25`、`graph_hops: int = 1`、`graph_seed_limit: int = 5`、`graph_max_entities: int = 20`、`graph_max_chunks: int = 50`、`graph_timeout_seconds: float = 0.8`。
+- `RetrieverSettings` 新增（**全部带默认值**）：`graph_enabled: bool = False`、`graph_hops: int = 1`、`graph_seed_limit: int = 5`、`graph_max_entities: int = 20`、`graph_max_chunks: int = 30`、`graph_timeout_seconds: float = 0.8`。**无 `graph_weight`**。
 - `SearchHit` 新增可选字段 `graph_evidence: GraphEvidencePayload | None = None`（默认 `None`，既有构造点零改动）。
 - `SearchResult.routes` 扩展：启用图且图路**实际产出候选**时含 `"graph"`；关闭图时**逐字不变**（仍是 `("vector","keyword")`）。
-- 融合：图开启时传三个 `RouteSpec`（vector 0.7 / keyword 0.3 / graph `graph_weight`），`rrf_k=60` 不变。**图关闭时走现有两路实现，数值完全不变**（`maxRRF` 分母变化仅在开图时发生）。
+- 融合（WeKnora §4.3 / §7.2 / §7.5）：**图命中 `Score=0`，不进 RRF**；只在文本路分数之外补位，避免给「有关系」伪造相似度。`rrf_k=60` 与两路权重不变。
+- 精排：所有带 `graph_evidence` 的候选**豁免 `max_candidates` 截断**；纯图命中（`score<=0`）的复合分 `base` 用 `model_score` 顶替，图+文本命中保留文本分。
 - 候选块**必须回 SQLite 复核**「文档 ready + chunk is_enabled + KB enabled + 作用域命中」后才进融合。
+- 图扩展使用**无向** `(s)-[:RELATED*1..hops]-(e)`：种子既可为边起点也可为终点；证据路径展示仍保留关系真实方向。
+- **查询侧 LLM 抽实体**（对齐 WeKnora `extract_entity`）：`expansion.query_entity_extraction=true`（默认）时，`GraphRoute` 先用**专用 query prompt**（system 步骤说明 + few-shot，输出 `[{"entity": "..."}]`）从 effective query（改写句优先）抽 ≤8 个实体名；一次检索只调用一次，超时 `query_extraction_timeout_seconds`（默认 5s）。失败/空结果**或实体名在某 KB 无种子**时，按 KB 回退本地 `find_seed_entities`，避免图路静默缺席。解析器兼容 WeKnora 的 `[{"entity": ...}]`、`{"entities": [...]}` 与字符串列表。
 - 降级标签：`graph_unavailable`（后端连接/查询失败）、`graph_truncated`（节点/块数触顶）。无种子**不降级**（正常空）。
 - 证据结构（每命中只保留**最短一条**路径）：
 
@@ -205,7 +209,7 @@ graph?: { seeds: string[]; path: Array<{from: string; relation: string; to: stri
 
 ## 8. 评测联动（`nanobot/evaluation/knowledge/models.py`）
 
-`ALLOWED_RETRIEVAL_FIELDS` 新增 5 个键：`graph_enabled`(bool)、`graph_hops`(1..2)、`graph_seed_limit`(1..10)、`graph_weight`(0..1)、`graph_max_chunks`(10..200)；范围校验放在 `nanobot/evaluation/services.py:278-301` 的既有白名单校验**同处**。未知图字段仍返回 `KNOWLEDGE_CONFIG_UNSUPPORTED`。
+`ALLOWED_RETRIEVAL_FIELDS` 新增 4 个键：`graph_enabled`(bool)、`graph_hops`(1..2)、`graph_seed_limit`(1..10)、`graph_max_chunks`(10..200)；范围校验放在 `nanobot/evaluation/services.py:278-301` 的既有白名单校验**同处**。未知图字段（含已移除的 `graph_weight`）仍返回 `KNOWLEDGE_CONFIG_UNSUPPORTED`。
 
 覆写只在**本次评测运行内**生效（映射到 `RetrieverSettings`），不改全局配置；`routes` 出现 `graph` 即证明确实走了图路。
 
@@ -220,12 +224,39 @@ graph?: { seeds: string[]; path: Array<{from: string; relation: string; to: stri
 
 `render_search_result` 在 `<result>` 上追加可选属性 `graph_path="A —关系→ B"`；**不改** `doc://` / `chunk://` 句柄格式、**不改** 工具名 `knowledge_search`。图内容来自模型 → 以纯文本渲染、不注入 HTML。
 
+**独立图谱工具（WeKnora `query_knowledge_graph` 对齐）**：新增 `knowledge_graph`，参数 `query`(实体名/关系问题)、`kb`、`hops`(1..2)、`limit`(证据块 1..20)；仅 `knowledge.graph.enabled=true` 时注册。输出 `<knowledge_graph>` 包含：
+
+- `<relation source type target weight mentions>` 与 `<entity name type mentions seed>`；
+- `<result chunk="chunk://…" doc="doc://…">` 证据块正文（仍以 chunk 为答案来源）；
+- `truncated` 与 `<notice kind="truncated">`：关系/证据计数必须显式，否则模型会把截断当成完整邻域；
+- 后端不可用 → `ToolResult.error`；无匹配实体 → 普通空结果文案（不冒充失败）。
+
 ## 11. 配置契约（`nanobot/config/schema.py`）
 
 `Base`（`nanobot/config_base.py:12-15`）已提供 `alias_generator=to_camel` + `populate_by_name=True`，camelCase 兼容**无需额外代码**。新增三个配置块（字段见 spec §8）挂到 `KnowledgeConfig.graph: KnowledgeGraphConfig`。
 
 **图参数单一来源（实施修订）**：不在 `KnowledgeRetrievalConfig` 重复声明 `graph_*` 字段；唯一来源是
-`knowledge.graph.expansion`，装配时映射进 `RetrieverSettings`。评测覆写仍直接写
+`knowledge.graph.expansion`，装配时映射进 `RetrieverSettings`。**`expansion.weight` 已删除**（图不进 RRF），
+`expansion.max_chunks` 默认 30（WeKnora 单轮图证据上限）。新增
+`expansion.query_entity_extraction`（默认 true）与 `query_extraction_timeout_seconds`（默认 5.0）；
+查询侧抽实体复用 `graph.extraction` 的模型/连接配置，但使用 WeKnora `extract_entity` 同款专用 prompt，
+未配置模型时自动回退本地链接。
+
+**Prompt 统一配置**：新增 `knowledge.graph.prompts`：
+
+| 字段 | 占位符 | 用途 |
+| --- | --- | --- |
+| `extraction` | 必须含 `<<content>>`，可选 `<<heading>>` | 入库按 chunk 抽取实体/关系 |
+| `queryEntities` | 无 | 查询侧实体抽取 system prompt（WeKnora `extract_entity` 同款） |
+| `queryUser` | 必须含 `<<query>>` | 查询侧实体抽取 user prompt |
+
+默认值在 `nanobot/knowledge/graph/prompts.py`，配置层只保存字符串；构造 `build_graph_extractor(config, prompts)` 时注入。
+
+**Thinking 控制**：`extraction.thinking` 取 `auto|enabled|disabled`，默认 `disabled`。`disabled/enabled` 时请求体带
+`thinking: {"type": ...}`；不支持该参数的供应商设 `auto`。实测 MiniMax 默认 thinking 会先长篇推理并返回散文，
+关闭后查询侧实体抽取 1.4s 返回合法 JSON。
+
+评测覆写仍直接写
 `RetrieverSettings`（`nanobot/evaluation/knowledge/models.py` 的 `KnowledgeRetrievalConfig`
 只声明允许覆写的字段与范围），避免「配置改了两处、只有一处生效」的二义性。
 

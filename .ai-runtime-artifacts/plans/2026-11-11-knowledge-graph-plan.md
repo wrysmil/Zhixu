@@ -42,7 +42,10 @@ approval_note: 用户本会话原话「开始实现啊」
 
 **Goal:** 在知识中心补齐「入库异步抽取 → 1~2 跳图检索 → 图谱可视化」的完整闭环，且默认关闭时对现有行为零影响。
 
-**Architecture:** SQLite schema v3 保存实体/关系/证据与抽取状态，是唯一真相源；Neo4j 仅作可重建的派生索引。抽取挂在入库事务之后，由独立 worker 按「租约 + attempt」执行；检索时图作为第三路 `RouteSpec` 参与加权 RRF，失败显式降级为 `graph_unavailable`。WebUI 新增第三个 tab，`d3-force` 动态 import。
+**Architecture:** SQLite schema v3 保存实体/关系/证据与抽取状态，是唯一真相源；Neo4j 仅作可重建的派生索引。抽取挂在入库事务之后，由独立 worker 按「租约 + attempt」执行；检索时图作为第三路召回，失败显式降级为 `graph_unavailable`。WebUI 新增第三个 tab，`d3-force` 动态 import。
+
+> **2026-11-11 对齐修订：** 用户要求按 WeKnora `docs/原理/03/04/05/08` 对齐后，图命中改为 **`Score=0`、不进 RRF**，精排候选豁免且纯图命中用 `model_score` 顶替 base；同时新增独立 `knowledge_graph` Agent 工具。本文中「图作为第三路 `RouteSpec` 参与加权 RRF」的旧描述以
+> `.ai-runtime-artifacts/research/2026-11-11-weknora-agent-search-graph-alignment.md` 与 spec §21 为准。
 
 **Tech Stack:** Python 3.11+ / SQLite / httpx（抽取）/ neo4j 5.x 驱动（可选 extra）/ React 18 + TypeScript + Vite / d3-force ^3。
 
