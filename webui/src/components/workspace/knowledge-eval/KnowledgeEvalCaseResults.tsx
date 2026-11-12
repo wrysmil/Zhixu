@@ -1,12 +1,13 @@
 import { useTranslation } from "react-i18next";
 
-import type { KnowledgeEvalReport } from "@/lib/knowledge-eval-api";
+import type { KnowledgeEvalReport, KnowledgeEvalCaseResult } from "@/lib/knowledge-eval-api";
 import { cn } from "@/lib/utils";
 
 import { CASE_METRICS, formatMetricValue, metricValue, splitCaseId } from "./metrics";
 
 interface KnowledgeEvalCaseResultsProps {
   report: KnowledgeEvalReport | null;
+  onOpenCase?: (result: KnowledgeEvalCaseResult) => void;
   loading: boolean;
   /** 用例 id → 查询原文：逐题表要显示问的是什么，而不是一串 UUID。 */
   queries?: Record<string, string>;
@@ -22,29 +23,30 @@ export function KnowledgeEvalCaseResults({
   report,
   loading,
   queries = {},
+  onOpenCase,
 }: KnowledgeEvalCaseResultsProps) {
   const { t } = useTranslation();
 
   return (
     <section
       data-testid="knowledge-eval-case-results"
-      className="mt-4 rounded-panel border border-border/60 bg-background p-4"
+      className="knowledge-panel mt-5"
     >
-      <h2 className="text-[13px] font-semibold text-foreground">
+      <h2 className="text-base font-semibold text-foreground">
         {t("knowledge.eval.tab.caseResults")}
       </h2>
 
       {loading ? (
-        <p className="py-4 text-[12px] text-muted-foreground">{t("knowledge.eval.loading")}</p>
+        <p className="py-4 text-sm text-muted-foreground">{t("knowledge.eval.loading")}</p>
       ) : !report || report.results.length === 0 ? (
-        <p className="py-4 text-[12px] text-muted-foreground">
+        <p className="py-4 text-sm text-muted-foreground">
           {t("knowledge.eval.empty.caseResults")}
         </p>
       ) : (
-        <div className="mt-2 overflow-x-auto">
-          <table className="w-full border-collapse text-left text-[12px]">
+        <div className="knowledge-table-scroll mt-4">
+          <table className="knowledge-table min-w-[760px]">
             <thead>
-              <tr className="border-b border-border/60 text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+              <tr className="border-b border-border/60 text-sm uppercase tracking-[0.06em] text-muted-foreground">
                 <th className="py-2 pr-2 font-semibold">{t("knowledge.eval.result.query")}</th>
                 <th className="py-2 pr-2 font-semibold">{t("knowledge.eval.result.config")}</th>
                 {CASE_METRICS.map((metric) => (
@@ -66,16 +68,16 @@ export function KnowledgeEvalCaseResults({
                     className="border-t border-border/40 align-top transition-colors hover:bg-muted/30"
                   >
                     <td className="py-2 pr-2">
-                      <span className="block max-w-[260px] truncate font-medium text-foreground">
+                      <button type="button" onClick={()=>onOpenCase?.(result)} className="block max-w-[320px] whitespace-normal text-left text-sm font-medium text-foreground underline-offset-4 hover:underline">
                         {queries[caseId] ?? caseId}
-                      </span>
-                      <span className="mt-0.5 inline-block rounded-full border border-border/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      </button>
+                      <span className="mt-0.5 inline-block rounded-full border border-border/70 px-1.5 py-0.5 text-sm text-muted-foreground">
                         {result.labelSource === "expect"
                           ? t("knowledge.eval.badge.labelSource.expect")
                           : t("knowledge.eval.badge.labelSource.judge")}
                       </span>
                     </td>
-                    <td className="py-2 pr-2 font-mono text-[11px] text-muted-foreground">
+                    <td className="py-2 pr-2 font-mono text-sm text-muted-foreground">
                       {configId || "—"}
                     </td>
                     {scored ? (
@@ -84,7 +86,7 @@ export function KnowledgeEvalCaseResults({
                           key={metric.id}
                           className="py-2 pr-2 tabular-nums text-foreground"
                         >
-                          {formatMetricValue(metricValue(result.metrics, metric.id))}
+                          {metricValue(result.metrics, metric.id)===null?t("knowledge.eval.result.notScored"):formatMetricValue(metricValue(result.metrics, metric.id))}
                         </td>
                       ))
                     ) : (
@@ -95,7 +97,7 @@ export function KnowledgeEvalCaseResults({
                     <td className="py-2">
                       <span
                         className={cn(
-                          "inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-medium",
+                          "inline-flex items-center rounded-full border px-2 py-0.5 text-sm font-medium",
                           scored
                             ? "border-emerald-300/70 bg-emerald-50 text-emerald-900 dark:border-emerald-700/40 dark:bg-emerald-950/30 dark:text-emerald-200"
                             : result.status === "failed"
@@ -110,7 +112,7 @@ export function KnowledgeEvalCaseResults({
                             : t("knowledge.eval.badge.notAssessable")}
                       </span>
                       {result.error ? (
-                        <span className="mt-1 block max-w-[220px] break-words text-[10.5px] text-destructive">
+                        <span className="mt-1 block max-w-[220px] break-words text-sm text-destructive">
                           {result.error}
                         </span>
                       ) : null}

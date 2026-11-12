@@ -25,7 +25,7 @@ function readInitial(persist: boolean): { preferences: AppearancePreferences; wr
       try {
         const value: unknown = JSON.parse(stored);
         return { ...initial, preferences: normalizeAppearance(value),
-          writable: !(value && typeof value === "object" && "schemaVersion" in value && typeof value.schemaVersion === "number" && value.schemaVersion > 1) };
+          writable: !(value && typeof value === "object" && "schemaVersion" in value && typeof value.schemaVersion === "number" && value.schemaVersion > 2) };
       } catch { return initial; }
     }
     const legacy = localStorage.getItem(LEGACY_THEME_KEY) ?? localStorage.getItem("nanobot-webui.theme");
@@ -106,7 +106,7 @@ export function useTheme(options: { persist?: boolean } = {}): AppearanceControl
       pending.current = null;
       let value: unknown = null;
       try { value = event.newValue ? JSON.parse(event.newValue) : null; } catch { /* Corrupt remote values use safe defaults. */ }
-      writable.current = !(value && typeof value === "object" && "schemaVersion" in value && typeof value.schemaVersion === "number" && value.schemaVersion > 1);
+      writable.current = !(value && typeof value === "object" && "schemaVersion" in value && typeof value.schemaVersion === "number" && value.schemaVersion > 2);
       const next = normalizeAppearance(value);
       preferencesRef.current = next;
       setPreferences(next);

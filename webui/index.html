@@ -136,7 +136,7 @@
             } catch {}
           }
           function object(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
-          function preset(value) { return ["zhixu", "graphite", "ocean", "sand"].indexOf(value) !== -1; }
+          function preset(value) { return ["zhixu", "graphite", "ocean", "sand", "prism"].indexOf(value) !== -1; }
           function hex(value) {
             if (typeof value !== "string") return null;
             value = value.trim().replace(/^#/, "");
@@ -158,12 +158,16 @@
             return result;
           }
           var value = object(source), custom = object(value.custom);
-          var validVersion = value.schemaVersion === 1;
+          var storedVersion = value.schemaVersion;
+          var validVersion = storedVersion === 1 || storedVersion === 2;
           var normalizedCustom = validVersion && preset(custom.basePreset) ? { basePreset: custom.basePreset, light: overrides(custom.light), dark: overrides(custom.dark) } : null;
+          // v1 -> v2：旧默认档位（zhixu）迁移到白底科技感（prism）。
+          var storedPresetId = validVersion && preset(value.presetId) ? value.presetId : validVersion && value.presetId === "custom" && normalizedCustom ? "custom" : "prism";
+          var migratedPresetId = storedVersion === 1 && storedPresetId === "zhixu" && !normalizedCustom ? "prism" : storedPresetId;
           var preferences = {
-            schemaVersion: 1,
+            schemaVersion: 2,
             mode: validVersion && (value.mode === "light" || value.mode === "dark" || value.mode === "system") ? value.mode : legacy === "light" || legacy === "dark" ? legacy : "light",
-            presetId: validVersion && preset(value.presetId) ? value.presetId : validVersion && value.presetId === "custom" && normalizedCustom ? "custom" : "zhixu",
+            presetId: migratedPresetId,
             custom: normalizedCustom,
             uiFont: font(validVersion ? value.uiFont : null, "ui"),
             codeFont: font(validVersion ? value.codeFont : null, "code")
@@ -174,7 +178,7 @@
           root.style.colorScheme = dark ? "dark" : "light";
           var canonical = JSON.stringify(preferences), hash = 2166136261;
           for (var i = 0; i < canonical.length; i++) hash = Math.imul(hash ^ canonical.charCodeAt(i), 16777619);
-          var hslKeys = ["background", "foreground", "card", "popover", "primary", "primary-foreground", "secondary", "muted", "muted-foreground", "accent", "accent-foreground", "border", "surface-app", "surface-panel", "surface-raised", "sidebar", "sidebar-accent", "nav-active-bg", "nav-active-fg", "nav-active-ring", "card-foreground", "popover-foreground", "secondary-foreground", "input", "ring", "border-soft", "temporary-accent", "temporary-foreground", "temporary-border", "sidebar-foreground", "sidebar-selected", "sidebar-accent-foreground", "sidebar-border", "settings-canvas", "settings-surface"];
+          var hslKeys = ["background", "foreground", "card", "popover", "primary", "primary-foreground", "secondary", "muted", "muted-foreground", "accent", "accent-foreground", "border", "surface-app", "surface-panel", "surface-raised", "app-canvas", "sidebar", "sidebar-accent", "nav-active-bg", "nav-active-fg", "nav-active-ring", "card-foreground", "popover-foreground", "secondary-foreground", "input", "ring", "border-soft", "temporary-accent", "temporary-foreground", "temporary-border", "sidebar-foreground", "sidebar-selected", "sidebar-accent-foreground", "sidebar-border", "settings-canvas", "settings-surface"];
           var hexKeys = ["inline-token-highlight", "temporary-control-active", "appearance-safe-foreground"];
           var fontKeys = ["font-ui", "font-code", "font-display"];
           var allKeys = hslKeys.concat(hexKeys, fontKeys).map(function (key) { return "--" + key; });
@@ -197,10 +201,10 @@
             root.dataset.appearanceTheme = preferences.presetId;
             root.dataset.appearanceFont = preferences.uiFont.id;
           } else {
-            root.style.setProperty("--background", dark ? "240 5.882% 10%" : "0 0% 98.039%");
-            root.style.setProperty("--foreground", dark ? "240 5.882% 90%" : "225 5.882% 13.333%");
-            root.style.setProperty("--primary", dark ? "240 5.882% 90%" : "240 3.704% 15.882%");
-            root.dataset.appearanceTheme = "zhixu";
+            root.style.setProperty("--background", dark ? "220 49% 8%" : "216 45% 98%");
+            root.style.setProperty("--foreground", dark ? "215 50% 93%" : "220 49% 8%");
+            root.style.setProperty("--primary", dark ? "217 91% 76%" : "221 83% 53%");
+            root.dataset.appearanceTheme = "prism";
             root.dataset.appearanceFont = "system";
           }
           function hslHex(input) {

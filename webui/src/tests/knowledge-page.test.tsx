@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -176,6 +176,45 @@ describe("knowledge page", () => {
     vi.mocked(repairKnowledge).mockReset().mockResolvedValue({ ok: true });
   });
 
+  it("filters library names and restores search and focus when returning", async () => {
+    renderPage();
+    await screen.findByText("Product manual");
+    await userEvent.type(screen.getByRole("textbox", { name: i18n.t("knowledge.experience.searchLibraries") }), "Product");
+    expect(screen.queryByText("Team notes")).not.toBeInTheDocument();
+    await openKb();
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.backToLibraries") }));
+    expect(screen.getByRole("textbox", { name: i18n.t("knowledge.experience.searchLibraries") })).toHaveValue("Product");
+    expect(screen.getByRole("button", { name: "Product manual" })).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.clearSearch") }));
+    expect(screen.getByText("Team notes")).toBeInTheDocument();
+  });
+
+  it("ignores late document lists after switching libraries", async () => {
+    let resolveOld!: (value: { enabled: boolean; documents: KnowledgeDoc[]; total: number }) => void;
+    vi.mocked(fetchKnowledgeDocs).mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }));
+    renderPage();
+    await openKb();
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.backToLibraries") }));
+    vi.mocked(fetchKnowledgeDocs).mockResolvedValue({ enabled: true, documents: [{ ...DOCS[0], id: "new", kbId: "kb_2", title: "Team document" }], total: 1 });
+    await openKb("Team notes");
+    expect(await screen.findByText("Team document")).toBeInTheDocument();
+    await act(async () => resolveOld({ enabled: true, documents: DOCS, total: 2 }));
+    expect(screen.queryByText("Deploy guide")).not.toBeInTheDocument();
+  });
+
+  it("keeps a failed upload draft and retries without picking again", async () => {
+    vi.mocked(addKnowledgeDoc).mockRejectedValueOnce(new Error("upload offline"));
+    renderPage();
+    await openKb();
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") }));
+    await userEvent.upload(screen.getByLabelText("Upload"), new File(["draft"], "draft.md"));
+    const dialog = screen.getByRole("dialog");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("upload offline");
+    expect(within(dialog).getByText("draft.md")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: i18n.t("knowledge.experience.retryUpload") }));
+    await waitFor(() => expect(addKnowledgeDoc).toHaveBeenCalledTimes(2));
+  });
+
   it("registers the #/knowledge route and the rail entry", () => {
     expect(parseWorkspaceHash("#/knowledge")).toMatchObject({ view: "knowledge" });
     expect(workspaceRouteHash({ view: "knowledge" })).toBe("#/knowledge");
@@ -193,16 +232,87 @@ describe("knowledge page", () => {
     expect(item).toHaveAttribute("aria-current", "page");
   });
 
+  it("opens documents by title and keeps failure details readable", async () => {
+    renderPage();
+    await openKb();
+    await userEvent.click(await screen.findByRole("button", { name: "Deploy guide" }));
+    expect(await screen.findByTestId("knowledge-chunk-preview")).toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    vi.mocked(fetchKnowledgeDoc).mockResolvedValueOnce({ enabled: true, document: DOCS[1], chunks: [], chunkCount: 0 });
+    await userEvent.click(screen.getByRole("button", { name: "Rollback notes" }));
+    expect(await within(screen.getByRole("dialog")).findByText("parse failed")).toBeInTheDocument();
+  });
+
+  it("does not reload an old library when a mutation completes after navigation", async () => {
+    let finish!: (value: { ok: boolean; queued: boolean }) => void;
+    vi.mocked(reindexKnowledgeDoc).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    renderPage();
+    await openKb();
+    const row = (await screen.findByText("Deploy guide")).closest("tr")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Reindex" }));
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.backToLibraries") }));
+    vi.mocked(fetchKnowledgeDocs).mockResolvedValue({ enabled: true, documents: [{ ...DOCS[0], id: "new", kbId: "kb_2", title: "Team document" }], total: 1 });
+    await openKb("Team notes");
+    await screen.findByText("Team document");
+    vi.mocked(fetchKnowledgeDocs).mockResolvedValue({ enabled: true, documents: DOCS, total: 2 });
+    await act(async () => finish({ ok: true, queued: true }));
+    await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") })).toBeEnabled());
+    expect(screen.getByText("Team document")).toBeInTheDocument();
+    expect(screen.queryByText("Deploy guide")).not.toBeInTheDocument();
+  });
+
+  it("uses server pages of 20 documents", async () => {
+    vi.mocked(fetchKnowledgeDocs).mockResolvedValue({ enabled: true, documents: DOCS, total: 24 });
+    renderPage();
+    await openKb();
+    await screen.findByText("Deploy guide");
+    expect(fetchKnowledgeDocs).toHaveBeenLastCalledWith("tok", { kbId: "kb_1", workspaceIds: ["ws1"], limit: 20, offset: 0 });
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.next") }));
+    await waitFor(() => expect(fetchKnowledgeDocs).toHaveBeenLastCalledWith("tok", { kbId: "kb_1", workspaceIds: ["ws1"], limit: 20, offset: 20 }));
+  });
+
+  it("ignores old search responses after returning and switching libraries", async () => {
+    let resolveSearch!: (value: KnowledgeSearchResult) => void;
+    vi.mocked(searchKnowledge).mockImplementationOnce(() => new Promise(resolve => { resolveSearch = resolve; }));
+    renderPage();
+    await openKb();
+    await openSearchTab();
+    await userEvent.type(screen.getByLabelText("Query"), "rollback");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.backToLibraries") }));
+    await openKb("Team notes");
+    await openSearchTab();
+    await act(async () => resolveSearch(HIT_RESULT));
+    expect(screen.queryByText("Rollback checklist")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Search" })).toBeEnabled();
+  });
+
+  it("prevents duplicate uploads and returns to the list after acceptance", async () => {
+    let accept!: (value: { document: KnowledgeDoc }) => void;
+    vi.mocked(addKnowledgeDoc).mockImplementationOnce(() => new Promise(resolve => { accept = resolve; }));
+    renderPage();
+    await openKb();
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") }));
+    const file = new File(["draft"], "draft.md");
+    await userEvent.upload(screen.getByLabelText("Upload"), file);
+    await waitFor(() => expect(addKnowledgeDoc).toHaveBeenCalledTimes(1));
+    expect(screen.getByLabelText("Upload")).toBeDisabled();
+    await act(async () => accept({ document: { ...DOCS[0], status: "pending" } }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") })).toBeEnabled());
+    expect(addKnowledgeDoc).toHaveBeenCalledTimes(1);
+  });
+
   it("lists knowledge bases with visibility, doc count and enabled state", async () => {
     renderPage();
 
     const list = await screen.findByTestId("knowledge-kb-list");
-    const first = within(list).getByText("Product manual").closest("li")!;
+    const first = (await within(list).findByText("Product manual")).closest("li")!;
     expect(within(first).getByText("Workspace")).toBeInTheDocument();
     expect(within(first).getByText("2 docs")).toBeInTheDocument();
     expect(within(first).getByText("Enabled")).toBeInTheDocument();
 
-    const second = within(list).getByText("Team notes").closest("li")!;
+    const second = (await within(list).findByText("Team notes")).closest("li")!;
     expect(within(second).getByText("Global")).toBeInTheDocument();
     expect(within(second).getByText("0 docs")).toBeInTheDocument();
     expect(within(second).getByText("Disabled")).toBeInTheDocument();
@@ -233,7 +343,8 @@ describe("knowledge page", () => {
     renderPage();
     const row = (await screen.findByText("Team notes")).closest("li")!;
 
-    await userEvent.click(within(row).getByRole("button", { name: "Delete knowledge base" }));
+    await userEvent.click(within(row).getByRole("button", { name: i18n.t("knowledge.experience.more") }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete knowledge base" }));
     expect(deleteKnowledgeKb).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
@@ -257,6 +368,7 @@ describe("knowledge page", () => {
     expect(screen.getByText("Error: parse failed")).toBeInTheDocument();
 
     const file = new File(["# rollback"], "rollback.md", { type: "text/markdown" });
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") }));
     await userEvent.upload(screen.getByLabelText("Upload"), file);
 
     await waitFor(() => expect(addKnowledgeDoc).toHaveBeenCalledTimes(1));
@@ -271,6 +383,8 @@ describe("knowledge page", () => {
     await openKb();
     await screen.findByText("Deploy guide");
 
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") }));
+    await userEvent.click(screen.getByRole("tab", { name: i18n.t("knowledge.experience.serverPath") }));
     await userEvent.type(screen.getByLabelText("Add server path"), "/tmp/report.pdf");
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
 

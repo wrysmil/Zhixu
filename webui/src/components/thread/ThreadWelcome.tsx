@@ -1,9 +1,3 @@
-import {
-  Heart,
-  History,
-  NotebookPen,
-  MessageCircle,
-} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface ThreadWelcomeIntroProps {
@@ -15,14 +9,7 @@ interface ThreadWelcomeExtrasProps {
   onChoosePrompt: (text: string) => void;
 }
 
-const MASCOT_SRC = `${import.meta.env.BASE_URL}brand/zhixu-robot.webp`;
-
-/**
- * Top half of the landing: greeting and mascot. It sits above the composer, so it
- * carries only the copy — the shortcuts render *below* the composer to match the
- * assistant demo's reading order. Recent conversations stay in the sidebar only;
- * repeating them here competed with the sidebar for the same job.
- */
+/** Greeting above the composer; starter prompts appear below it. */
 export function ThreadWelcomeIntro(props: ThreadWelcomeIntroProps) {
   // Retain the greeting prop for existing callers; use one localized brand title.
   void props.greeting;
@@ -46,9 +33,6 @@ export function ThreadWelcomeIntro(props: ThreadWelcomeIntroProps) {
             {t("thread.welcome.description")}
           </p>
         </div>
-        <div className="thread-welcome-illustration" aria-hidden>
-          <img src={MASCOT_SRC} alt="" width={600} height={450} draggable={false} />
-        </div>
       </div>
     </div>
   );
@@ -57,12 +41,7 @@ export function ThreadWelcomeIntro(props: ThreadWelcomeIntroProps) {
 /** Bottom half of the landing: starter chips. */
 export function ThreadWelcomeExtras({ onChoosePrompt }: ThreadWelcomeExtrasProps) {
   const { t } = useTranslation();
-  const starters = [
-    { key: "preferences", icon: Heart },
-    { key: "experience", icon: NotebookPen },
-    { key: "continue", icon: MessageCircle },
-    { key: "reflect", icon: History },
-  ] as const;
+  const starters = ["preferences", "experience", "continue", "reflect"] as const;
 
   return (
     <div className="thread-welcome-extras-block">
@@ -71,15 +50,15 @@ export function ThreadWelcomeExtras({ onChoosePrompt }: ThreadWelcomeExtrasProps
           {t("thread.welcome.startersLabel")}
         </p>
         <div className="thread-welcome-chips">
-          {starters.map(({ key, icon: Icon }) => (
+          {starters.map((key) => (
             <button
               key={key}
               type="button"
               onClick={() => onChoosePrompt(t(`thread.welcome.starters.${key}.prompt`))}
               className="thread-welcome-chip"
             >
-              <Icon size={14} strokeWidth={1.7} aria-hidden />
-              {t(`thread.welcome.starters.${key}.label`)}
+              <span>{t(`thread.welcome.starters.${key}.label`)}</span>
+              <span className="thread-welcome-chip-arrow" aria-hidden>↗</span>
             </button>
           ))}
         </div>

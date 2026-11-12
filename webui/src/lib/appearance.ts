@@ -1,11 +1,12 @@
 export type Theme = "light" | "dark";
 export type ThemeMode = Theme | "system";
-export type PresetId = "zhixu" | "graphite" | "ocean" | "sand";
+export type PresetId = "zhixu" | "graphite" | "ocean" | "sand" | "prism";
 export type ColorField = "accent" | "background" | "foreground";
 export type Palette = Record<ColorField, string>;
 export type FontChoice = { id: string; family: string };
 export interface AppearancePreferences {
-  schemaVersion: 1;
+  /** 2 = 白底科技感默认档位（Prism）；1 为旧版默认（Zhixu）。 */
+  schemaVersion: 2;
   mode: ThemeMode;
   presetId: PresetId | "custom";
   custom: { basePreset: PresetId; light: Partial<Palette>; dark: Partial<Palette> } | null;
@@ -27,7 +28,7 @@ export interface AppearanceController {
 export const APPEARANCE_STORAGE_KEY = "zhixu-webui.appearance";
 export const APPEARANCE_APPLIED_EVENT = "zhixu-webui.appearance-applied";
 export const DEFAULT_APPEARANCE: AppearancePreferences = {
-  schemaVersion: 1, mode: "light", presetId: "zhixu", custom: null,
+  schemaVersion: 2, mode: "light", presetId: "prism", custom: null,
   uiFont: { id: "system", family: "" }, codeFont: { id: "default", family: "" },
 };
 
@@ -36,6 +37,8 @@ export const THEME_PRESETS: Array<{ id: PresetId; name: string; light: Palette; 
   { id: "graphite", name: "Graphite", light: { accent: "#52525B", background: "#FFFFFF", foreground: "#242426" }, dark: { accent: "#B3B3BC", background: "#18181B", foreground: "#E4E4E7" } },
   { id: "ocean", name: "Ocean", light: { accent: "#0169CC", background: "#F4F8FC", foreground: "#152A3E" }, dark: { accent: "#76B8F5", background: "#101C29", foreground: "#E1EBF5" } },
   { id: "sand", name: "Sand", light: { accent: "#976337", background: "#FAF5EB", foreground: "#3A3026" }, dark: { accent: "#D7AD79", background: "#241F19", foreground: "#EDE3D6" } },
+  // 白底 + 冷蓝强调：工作区纯白，画布冷灰，靠发丝描边而非阴影分层。
+  { id: "prism", name: "Prism", light: { accent: "#2563EB", background: "#F7F9FC", foreground: "#0B1220" }, dark: { accent: "#7AA2F7", background: "#0B1220", foreground: "#E6EDF7" } },
 ];
 
 const UI_SYSTEM = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"';
@@ -82,7 +85,8 @@ export function normalizeFontChoice(value: unknown, kind: "ui" | "code"): FontCh
 
 export function normalizeAppearance(value: unknown): AppearancePreferences {
   const source = record(value);
-  if (source.schemaVersion !== 1) return structuredClone(DEFAULT_APPEARANCE);
+  const version = source.schemaVersion;
+  if (version !== 1 && version !== 2) return structuredClone(DEFAULT_APPEARANCE);
   const custom = record(source.custom);
   const normalizeOverrides = (value: unknown): Partial<Palette> => {
     const source = record(value);
@@ -96,10 +100,20 @@ export function normalizeAppearance(value: unknown): AppearancePreferences {
   const normalizedCustom = isPreset(custom.basePreset) ? {
     basePreset: custom.basePreset, light: normalizeOverrides(custom.light), dark: normalizeOverrides(custom.dark),
   } : null;
+  // v1 → v2：旧默认档位（Zhixu，近黑强调色 + 米白底）迁移到白底科技感（Prism）。
+  // 只有「仍是旧默认且没有自定义覆盖」的偏好会被改写；显式选过的主题保留。
+  const storedPresetId = isPreset(source.presetId)
+    ? source.presetId
+    : source.presetId === "custom" && normalizedCustom
+      ? "custom"
+      : "prism";
+  const migratedPresetId = version === 1 && storedPresetId === "zhixu" && !normalizedCustom
+    ? "prism"
+    : storedPresetId;
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     mode: source.mode === "light" || source.mode === "dark" || source.mode === "system" ? source.mode : "light",
-    presetId: isPreset(source.presetId) ? source.presetId : source.presetId === "custom" && normalizedCustom ? "custom" : "zhixu",
+    presetId: migratedPresetId,
     custom: normalizedCustom,
     uiFont: normalizeFontChoice(source.uiFont, "ui"),
     codeFont: normalizeFontChoice(source.codeFont, "code"),
@@ -217,6 +231,62 @@ const ZHIXU_DARK = {
   "--inline-token-highlight": "#E4E4E7", "--temporary-control-active": "#E4E4E7",
 };
 
+// 白底科技感（Prism）：工作区纯白 + 冷灰画布 + 电光蓝强调。
+// 层级靠发丝描边与留白，不靠重阴影；这是 StyleKit sidebar-fixed 令牌的白底变体。
+const PRISM_LIGHT = {
+  "--background": "216 45% 98%",
+  "--foreground": "220 49% 8%",
+  "--card": "0 0% 100%",
+  "--popover": "0 0% 100%",
+  "--primary": "221 83% 53%",
+  "--primary-foreground": "0 0% 100%",
+  "--secondary": "210 40% 96%",
+  "--muted": "210 40% 96%",
+  "--muted-foreground": "215 16% 47%",
+  "--accent": "214 95% 93%",
+  "--accent-foreground": "224 76% 48%",
+  "--border": "214 32% 91%",
+  "--input": "215 20% 65%",
+  "--ring": "221 83% 53%",
+  "--surface-app": "216 45% 98%",
+  "--surface-panel": "0 0% 100%",
+  "--surface-raised": "0 0% 100%",
+  "--app-canvas": "210 40% 96%",
+  "--sidebar": "0 0% 100%",
+  "--sidebar-selected": "214 95% 93%",
+  "--sidebar-accent": "214 95% 93%",
+  "--nav-active-bg": "214 95% 93%",
+  "--nav-active-fg": "224 76% 48%",
+  "--nav-active-ring": "221 83% 53%",
+  "--inline-token-highlight": "#2563EB", "--temporary-control-active": "#2563EB",
+};
+const PRISM_DARK = {
+  "--background": "220 49% 8%",
+  "--foreground": "215 50% 93%",
+  "--card": "220 40% 12%",
+  "--popover": "220 40% 12%",
+  "--primary": "217 91% 76%",
+  "--primary-foreground": "220 49% 8%",
+  "--secondary": "220 33% 16%",
+  "--muted": "220 33% 16%",
+  "--muted-foreground": "215 20% 65%",
+  "--accent": "220 40% 18%",
+  "--accent-foreground": "217 91% 76%",
+  "--border": "220 26% 21%",
+  "--input": "215 20% 45%",
+  "--ring": "217 91% 76%",
+  "--surface-app": "220 49% 8%",
+  "--surface-panel": "220 40% 12%",
+  "--surface-raised": "220 40% 12%",
+  "--app-canvas": "220 45% 6%",
+  "--sidebar": "220 45% 10%",
+  "--sidebar-selected": "220 40% 18%",
+  "--sidebar-accent": "220 40% 18%",
+  "--nav-active-bg": "220 40% 18%",
+  "--nav-active-fg": "217 91% 76%",
+  "--nav-active-ring": "217 91% 60%",
+  "--inline-token-highlight": "#7AA2F7", "--temporary-control-active": "#7AA2F7",
+};
 export function resolveAppearance(preferences: AppearancePreferences, theme: Theme): Record<string, string> {
   const palette = getPalette(preferences, theme);
   const { accent, background, foreground } = palette;
@@ -248,7 +318,10 @@ export function resolveAppearance(preferences: AppearancePreferences, theme: The
   };
   const hasOverrides = preferences.presetId === "custom" && Object.keys(preferences.custom?.[theme] ?? {}).length > 0;
   const base = preferences.presetId === "custom" ? preferences.custom?.basePreset : preferences.presetId;
-  if (base === "zhixu" && !hasOverrides) Object.assign(tokens, theme === "dark" ? ZHIXU_DARK : ZHIXU_LIGHT);
+  if (!hasOverrides) {
+    if (base === "zhixu") Object.assign(tokens, theme === "dark" ? ZHIXU_DARK : ZHIXU_LIGHT);
+    else if (base === "prism") Object.assign(tokens, theme === "dark" ? PRISM_DARK : PRISM_LIGHT);
+  }
   const aliases = {
     "--card-foreground": "--foreground", "--popover-foreground": "--foreground", "--secondary-foreground": "--foreground",
     "--border-soft": "--border",
