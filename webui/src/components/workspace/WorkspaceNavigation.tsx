@@ -244,8 +244,8 @@ export function WorkspaceNavigation({
           <div className="flex shrink-0 flex-col gap-1">
             {[...PRIMARY_ITEMS, ...CAPABILITY_ITEMS].map(renderItem)}
           </div>
-          <div className="min-h-8 flex-1" />
-          <div className="flex shrink-0 flex-col items-center gap-2 pb-1">
+          <div className="min-h-0 flex-1" />
+          <div className="workspace-navigation-footer flex shrink-0 flex-col items-center gap-2 pb-1">
             {renderItem(SETTINGS_ITEM)}
             {footerAction}
             <RailToggleButton

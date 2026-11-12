@@ -1246,6 +1246,25 @@ html.native-host .workspace-navigation-rail::-webkit-scrollbar {
   display: none;
 }
 
+@media (max-height: 850px) {
+  .workspace-navigation-rail {
+    gap: 0;
+    padding-top: 0.5rem;
+    padding-bottom: 0.25rem;
+  }
+  .workspace-navigation-rail [data-testid="sidebar-rail-brand"] {
+    padding-bottom: 0.25rem;
+  }
+  .workspace-navigation-rail .workspace-nav-item {
+    height: 42px;
+    gap: 0;
+  }
+  .workspace-navigation-footer {
+    gap: 0;
+    padding-bottom: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .workspace-navigation button {
     transition: none;

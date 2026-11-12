@@ -2933,7 +2933,7 @@ function Shell({
     || view === "knowledge-eval";
   // Settings / knowledge and other surfaces own the full width: keep only the
   // icon rail, never the conversation list.
-  const hostChatColumnVisible = hostSidebarOpen && !isSettingsLikeView;
+  const hostChatColumnVisible = hostSidebarOpen && !isSettingsLikeView && view !== "identity";
   const hostSidebarFlowWidth = hostChatColumnVisible
     ? SIDEBAR_CHAT_WIDTH
     : SIDEBAR_RAIL_WIDTH;
