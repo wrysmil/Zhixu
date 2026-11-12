@@ -560,7 +560,7 @@ describe("App layout", () => {
       .not.toBeInTheDocument();
   });
 
-  it("restores the selected assistant session and collapse preference after Memory and Settings", async () => {
+  it.each(["Memory", "Identity"])("hides sessions on %s and restores the assistant session and collapse preference", async (destination) => {
     mockSessions = [{
       key: "websocket:chat-a", channel: "websocket", chatId: "chat-a",
       createdAt: "2026-04-16T10:00:00Z", updatedAt: "2026-04-16T10:00:00Z", preview: "Existing chat",
@@ -569,19 +569,22 @@ describe("App layout", () => {
     mockFetchRoutes({
       "/api/settings": baseSettingsPayload(),
       "/api/settings/memory/memories?order=created": { items: [] },
+      "/api/settings/identity/files": { files: [], charLimit: 1500 },
     });
     render(<App />);
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const navigation = screen.getByRole("navigation", { name: "Sidebar navigation" });
     const column = screen.getByTestId("sidebar-chat-column");
-    fireEvent.click(within(navigation).getByRole("button", { name: "Memory" }));
-    await waitFor(() => expect(window.location.hash).toBe("#/memory"));
-    // 切换菜单时会话列表保持可见、可交互，不被折叠或隐藏。
-    expect(screen.getByTestId("host-sidebar-flow")).toHaveStyle({ width: "264px" });
-    expect(column).not.toHaveAttribute("aria-hidden");
+    fireEvent.click(within(navigation).getByRole("button", { name: destination }));
+    await waitFor(() => expect(window.location.hash).toBe(`#/${destination.toLowerCase()}`));
+    // 功能页仅保留导航栏，会话列表保持挂载但不参与交互。
+    expect(screen.getByTestId("host-sidebar-flow")).toHaveStyle({ width: "54px" });
+    expect(column).toHaveAttribute("aria-hidden", "true");
+    expect(column).toHaveAttribute("inert");
     fireEvent.click(within(navigation).getByRole("button", { name: "Assistant" }));
     await waitFor(() => expect(window.location.hash).toBe("#/chat/websocket%3Achat-a"));
     expect(screen.getByTestId("sidebar-chat-column")).toBe(column);
+    expect(screen.getByTestId("host-sidebar-flow")).toHaveStyle({ width: "264px" });
     fireEvent.click(within(navigation).getByRole("button", { name: "Collapse sidebar" }));
     fireEvent.click(within(navigation).getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("navigation", { name: "Sidebar navigation" })).toBe(navigation);
@@ -629,7 +632,7 @@ describe("App layout", () => {
     navigateToRail("Identity");
 
     await waitFor(() => expect(window.location.hash).toBe("#/identity"));
-    expect(await screen.findByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Identity files" })).toBeInTheDocument();
   });
 
   it("opens the team page straight from the dock, without the settings sidebar", async () => {
@@ -3758,7 +3761,8 @@ describe("App layout", () => {
     fireEvent.click(within(sidebar).getByRole("button", { name: "Memory" }));
     await waitFor(() => expect(window.location.hash).toBe("#/memory"));
     expect(selected).toBeInTheDocument();
-    expect(within(column).getByRole("button", { name, exact: true })).toBe(selected);
+    expect(column).toHaveAttribute("aria-hidden", "true");
+    expect(within(column).getByRole("button", { name, exact: true, hidden: true })).toBe(selected);
     expect(Array.from(column.querySelectorAll("[data-chat-row], [data-sidebar-tab-group]"))).toEqual(rows);
     fireEvent.click(within(sidebar).getByRole("button", { name: "Assistant" }));
     expect(within(column).getByRole("button", { name, exact: true })).toBe(selected);

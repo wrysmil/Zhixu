@@ -2931,9 +2931,9 @@ function Shell({
     || view === "teams"
     || view === "knowledge"
     || view === "knowledge-eval";
-  // Settings / knowledge and other surfaces own the full width: keep only the
-  // icon rail, never the conversation list.
-  const hostChatColumnVisible = hostSidebarOpen && !isSettingsLikeView;
+  // Conversation navigation belongs to the assistant. Other destinations keep
+  // only the icon rail without changing the assistant's collapse preference.
+  const hostChatColumnVisible = hostSidebarOpen && view === "chat";
   const hostSidebarFlowWidth = hostChatColumnVisible
     ? SIDEBAR_CHAT_WIDTH
     : SIDEBAR_RAIL_WIDTH;
