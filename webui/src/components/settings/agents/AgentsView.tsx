@@ -230,9 +230,9 @@ export function AgentsView() {
   const filtersActive = categoryFilter !== ALL || query.trim().length > 0;
 
   return (
-    <section className="space-y-4">
-      <div className="assistant-toolbar">
-        <div className="assistant-toolbar-search">
+    <section className="min-w-0 space-y-5 pb-6">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <div className="relative min-w-0 basis-full sm:max-w-sm sm:flex-1 sm:basis-auto">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
             aria-hidden
@@ -242,13 +242,16 @@ export function AgentsView() {
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("settings.agents.search", "搜索名称、ID 或描述…")}
             aria-label={t("settings.agents.search", "搜索名称或描述")}
-            className="h-9 pl-9 text-[13px]"
+            className="h-10 rounded-xl border-border/70 bg-card pl-9 text-[13px] shadow-sm"
           />
         </div>
 
+        <div className="hidden flex-1 sm:block" />
         <SegmentedControl
           value={view}
           onChange={setView}
+          className="rounded-xl border border-border/50 bg-muted/50 p-1"
+          itemClassName="rounded-lg px-3 py-1.5 aria-pressed:shadow-sm"
           ariaLabel={t("settings.agents.viewMode", "视图模式")}
           options={[
             {
@@ -281,16 +284,17 @@ export function AgentsView() {
           ]}
         />
 
-        <Button type="button" size="sm" onClick={handleCreate} className="gap-1.5 text-[13px]">
+        <Button type="button" size="sm" onClick={handleCreate} className="ml-auto h-10 gap-1.5 rounded-xl px-4 text-[13px] sm:ml-0">
           <Plus className="h-3.5 w-3.5" aria-hidden />
           {t("settings.agents.create", "新建 Agent")}
         </Button>
       </div>
 
       {categoryTabs.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1 border-b border-border/60 pb-4">
           <FilterChip active={categoryFilter === ALL} onClick={() => setCategoryFilter(ALL)}>
-            {t("settings.agents.categoryAll", "全部")} {visibleAgents.length}
+            {t("settings.agents.categoryAll", "全部")}
+            <span className="rounded-md bg-foreground/5 px-1.5 text-[11px] tabular-nums">{visibleAgents.length}</span>
           </FilterChip>
           {categoryTabs.map((category) => (
             <FilterChip
@@ -299,7 +303,8 @@ export function AgentsView() {
               onClick={() => setCategoryFilter(category.id)}
               color={category.color}
             >
-              {t(AGENT_CATEGORY_LABEL_KEY[category.id], category.id)} {category.count}
+              {t(AGENT_CATEGORY_LABEL_KEY[category.id], category.id)}
+              <span className="rounded-md bg-foreground/5 px-1.5 text-[11px] tabular-nums">{category.count}</span>
             </FilterChip>
           ))}
         </div>
@@ -338,7 +343,7 @@ export function AgentsView() {
       {catalog && filtered.length > 0 ? (
         <>
           {view === "list" ? (
-            <div className="space-y-1.5">
+            <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
               {filtered.map((agent) => (
                 <AgentRow
                   key={agent.id}
@@ -353,7 +358,7 @@ export function AgentsView() {
           ) : null}
 
           {view === "card" ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3.5">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),1fr))] gap-4 [&>div]:rounded-2xl [&>div]:p-5">
               {filtered.map((agent) => (
                 <AgentCard
                   key={agent.id}
@@ -473,14 +478,14 @@ function FilterChip({
       onClick={onClick}
       className={
         active
-          ? "inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[12px] font-medium text-foreground"
-          : "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-transparent px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          ? "inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-2 text-[12px] font-medium text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          : "inline-flex cursor-pointer items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       }
     >
       {color ? (
         <span
           aria-hidden
-          className="h-2 w-2 shrink-0 rounded-full"
+          className="h-1.5 w-1.5 shrink-0 rounded-full"
           style={{ backgroundColor: color }}
         />
       ) : null}
