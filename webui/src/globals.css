@@ -1236,13 +1236,14 @@ textarea.no-resize {
   outline-offset: -2px;
 }
 
+.workspace-navigation-rail,
 html.native-host .workspace-navigation-rail {
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
 
+.workspace-navigation-rail::-webkit-scrollbar,
 html.native-host .workspace-navigation-rail::-webkit-scrollbar {
-  display: block;
-  width: 4px;
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1938,6 +1939,118 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
 .agent-thread-shell .thread-composer-surface:has(textarea:focus-visible) {
   outline: none;
   box-shadow: 0 0 0 2px hsl(var(--ring) / 0.65), 0 14px 40px -24px hsl(var(--primary) / 0.3);
+}
+
+/* The new-conversation workspace uses one shared, left-aligned reading axis. */
+.agent-thread-shell .thread-layout[data-layout="hero"] {
+  --hero-composer-max-w: min(43rem, 100%);
+  max-width: 51rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-intro {
+  min-height: 0;
+  justify-content: flex-start;
+  padding: 0 0 1.75rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-copy {
+  text-align: left;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-eyebrow {
+  margin-bottom: 0.85rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-title {
+  margin: 0 0 0.6rem;
+  font-size: clamp(1.75rem, 2.3vw, 2.25rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-description {
+  margin: 0;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] [data-testid="composer-context-tabs"] {
+  margin-bottom: 0.4rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-composer-surface.max-w-heroComposer {
+  border: 1px solid hsl(var(--border) / 0.8);
+  border-radius: 1.1rem;
+  background: hsl(var(--secondary) / 0.28);
+  box-shadow: 0 8px 24px -20px hsl(var(--foreground) / 0.16);
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-composer-surface:focus-within,
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-composer-surface:has(textarea:focus-visible) {
+  border-color: hsl(var(--ring) / 0.65);
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.1), 0 14px 35px -22px hsl(var(--foreground) / 0.22);
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-starters {
+  margin-top: 1.5rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-starters-label {
+  margin-bottom: 0.75rem;
+  text-align: left;
+  letter-spacing: 0.03em;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-chips {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-chip {
+  min-height: 2.25rem;
+  padding: 0.45rem 0.75rem;
+  border-color: hsl(var(--border) / 0.7);
+  border-radius: 0.55rem;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font-weight: 400;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-chip:hover {
+  border-color: hsl(var(--primary) / 0.35);
+  background: hsl(var(--primary) / 0.045);
+}
+
+/* A quiet new-chat canvas with the composer and its context as one unit. */
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-intro-block,
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-extras-block {
+  display: none;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] form:has(> .thread-composer-surface) {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-composer-surface.max-w-heroComposer {
+  z-index: 1;
+  order: 0;
+  background: hsl(var(--card));
+  border-color: hsl(var(--border) / 0.65);
+  border-radius: 1.4rem;
+  box-shadow: 0 18px 45px -24px hsl(var(--foreground) / 0.2), 0 2px 8px hsl(var(--foreground) / 0.04);
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] [data-testid="composer-context-tabs"] {
+  order: 1;
+  width: calc(100% - 1.5rem);
+  min-height: 3rem;
+  margin: -0.45rem auto 0;
+  padding: 0.5rem 0.75rem 0.1rem;
+  border-radius: 0 0 1.2rem 1.2rem;
+  background: hsl(var(--secondary) / 0.6);
 }
 /* Keep the send/stop distinction and all disabled semantics from the component. */
 .thread-composer-action[type="submit"] {

@@ -10,9 +10,7 @@ interface ThreadWelcomeExtrasProps {
 }
 
 /** Greeting above the composer; starter prompts appear below it. */
-export function ThreadWelcomeIntro(props: ThreadWelcomeIntroProps) {
-  // Retain the greeting prop for existing callers; use one localized brand title.
-  void props.greeting;
+export function ThreadWelcomeIntro(_props: ThreadWelcomeIntroProps) {
   const { t } = useTranslation();
 
   return (
@@ -23,12 +21,6 @@ export function ThreadWelcomeIntro(props: ThreadWelcomeIntroProps) {
             <span className="thread-welcome-eyebrow-dot" aria-hidden />
             {t("thread.welcome.eyebrow")}
           </p>
-          <h1
-            data-testid="hero-greeting"
-            className="thread-welcome-title select-none"
-          >
-            {t("thread.welcome.title")}
-          </h1>
           <p className="thread-welcome-description">
             {t("thread.welcome.description")}
           </p>
@@ -58,7 +50,6 @@ export function ThreadWelcomeExtras({ onChoosePrompt }: ThreadWelcomeExtrasProps
               className="thread-welcome-chip"
             >
               <span>{t(`thread.welcome.starters.${key}.label`)}</span>
-              <span className="thread-welcome-chip-arrow" aria-hidden>↗</span>
             </button>
           ))}
         </div>
