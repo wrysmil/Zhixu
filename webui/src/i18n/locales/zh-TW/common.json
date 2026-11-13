@@ -2874,9 +2874,19 @@
   },
   "thread": {
     "trajectory": {
-      "tabs": { "label": "會話視圖", "chat": "對話", "trajectory": "軌跡" },
-      "stats": { "duration": "總時長", "turns": "輪次", "calls": "工具呼叫" },
-      "coverage": { "partial": "部分採集" },
+      "tabs": {
+        "label": "會話視圖",
+        "chat": "對話",
+        "trajectory": "軌跡"
+      },
+      "stats": {
+        "duration": "總時長",
+        "turns": "輪次",
+        "calls": "工具呼叫"
+      },
+      "coverage": {
+        "partial": "部分採集"
+      },
       "toolbar": {
         "compactDuration": "緊湊時長",
         "evenDuration": "等寬排列",
@@ -2885,7 +2895,11 @@
         "search": "搜尋已載入記錄",
         "loaded": "已載入 {{count}} 筆"
       },
-      "lanes": { "input": "輸入", "model": "模型", "tool": "工具" },
+      "lanes": {
+        "input": "輸入",
+        "model": "模型",
+        "tool": "工具"
+      },
       "turnLabel": "第 {{index}} 輪",
       "backgroundLabel": "背景執行",
       "toolCount": "{{count}} 次呼叫",
@@ -2940,7 +2954,12 @@
         "loadMore": "載入更多",
         "redacted": "已去識別化",
         "truncated": "已截斷",
-        "tabs": { "content": "內容", "request": "輸入", "schema": "Schema", "json": "JSON" }
+        "tabs": {
+          "content": "內容",
+          "request": "輸入",
+          "schema": "Schema",
+          "json": "JSON"
+        }
       },
       "unavailable": {
         "not_recorded": "目前採集模式未記錄正文。",
@@ -3828,15 +3847,13 @@
       "history": "檢索歷史",
       "historyEmpty": "還沒有檢索記錄。",
       "historyClear": "清空歷史",
-      "historyMeta": "{{count}} 命中 · {{ms}}ms",
+      "historyMeta": "{{count}} 命中 · {{duration}}",
       "canvas": "檢索鏈路",
-      "canvasTotal": "共 {{ms}}ms",
+      "canvasTotal": "共 {{duration}}",
       "canvasRunning": "正在檢索…",
-      "canvasHint": "檢索後在這裡查看每個關鍵步驟。",
       "canvasCollapse": "收合鏈路",
       "canvasExpand": "展開鏈路",
       "results": "檢索結果",
-      "detailSubtitle": "{{status}} · {{ms}}ms",
       "detailTop": "候選明細",
       "detailRerank": "精排分數變化",
       "detailChunk": "分塊",
@@ -3890,7 +3907,32 @@
       "metricThreshold": "閾值",
       "metricLambda": "lambda",
       "metricVisibleKbs": "可見庫",
-      "metricEnabled": "啟用"
+      "metricEnabled": "啟用",
+      "subtitle": "在交給 Agent 之前，檢查每一步召回了什麼。",
+      "idleHint": "檢索後會顯示命中片段；上方鏈路可展開每個步驟的分詞、召回與精排。",
+      "canvasSlowest": "最慢：{{stage}} {{duration}}",
+      "chipGraphLabels": "圖譜標籤",
+      "chipRoutes": "召回路徑",
+      "detailMode": "實際模式",
+      "detailOutcome": "結果",
+      "detailModel": "模型",
+      "detailReason": "原因",
+      "routeVector": "向量",
+      "routeKeyword": "關鍵詞",
+      "routeGraph": "圖譜",
+      "routeFts": "全文",
+      "descScope": "確認本次檢索可見的知識庫與文件範圍。",
+      "descQuery": "把查詢切成檢索詞，並準備各條召回路徑的輸入。",
+      "descRewrite": "用小模型從查詢中抽取實體，交給圖譜召回找種子節點。",
+      "descVector": "依向量相似度召回分塊，每條結果帶相似度分數。",
+      "descKeyword": "依關鍵詞命中召回分塊，適合精確術語與編號。",
+      "descExpansion": "在不改變原查詢的前提下補充同義或上下位查詢詞。",
+      "descGraph": "從抽取的實體出發，在知識圖譜中擴展相鄰節點對應的分塊。",
+      "descDocFilter": "限定文件範圍後，丟棄其他文件的召回結果。",
+      "descFusion": "依權重融合多路召回結果，得到統一候選池。",
+      "descDedup": "合併內容重疊的分塊，避免同一段落重複佔位。",
+      "descRerank": "用精排模型重新給候選打分，並依門檻保留。",
+      "descMmr": "在保留相關性的同時降低結果之間的重複度。"
     },
     "stats": "索引統計",
     "statKbs": "知識庫",

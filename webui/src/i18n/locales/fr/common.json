@@ -2874,9 +2874,19 @@
   },
   "thread": {
     "trajectory": {
-      "tabs": { "label": "Vue du fil", "chat": "Discussion", "trajectory": "Trajectoire" },
-      "stats": { "duration": "Durée totale", "turns": "Tours", "calls": "Appels d'outils" },
-      "coverage": { "partial": "Capture partielle" },
+      "tabs": {
+        "label": "Vue du fil",
+        "chat": "Discussion",
+        "trajectory": "Trajectoire"
+      },
+      "stats": {
+        "duration": "Durée totale",
+        "turns": "Tours",
+        "calls": "Appels d'outils"
+      },
+      "coverage": {
+        "partial": "Capture partielle"
+      },
       "toolbar": {
         "compactDuration": "Durée compacte",
         "evenDuration": "Espacement régulier",
@@ -2885,7 +2895,11 @@
         "search": "Rechercher dans les enregistrements chargés",
         "loaded": "{{count}} chargés"
       },
-      "lanes": { "input": "Entrée", "model": "Modèle", "tool": "Outil" },
+      "lanes": {
+        "input": "Entrée",
+        "model": "Modèle",
+        "tool": "Outil"
+      },
       "turnLabel": "Tour {{index}}",
       "backgroundLabel": "Exécution en arrière-plan",
       "toolCount": "{{count}} appels",
@@ -2940,7 +2954,12 @@
         "loadMore": "Charger plus",
         "redacted": "Masqué",
         "truncated": "Tronqué",
-        "tabs": { "content": "Contenu", "request": "Entrée", "schema": "Schéma", "json": "JSON" }
+        "tabs": {
+          "content": "Contenu",
+          "request": "Entrée",
+          "schema": "Schéma",
+          "json": "JSON"
+        }
       },
       "unavailable": {
         "not_recorded": "Le contenu n'est pas enregistré dans ce mode de capture.",
@@ -3828,15 +3847,13 @@
       "history": "Search history",
       "historyEmpty": "No searches yet.",
       "historyClear": "Clear history",
-      "historyMeta": "{{count}} hits · {{ms}}ms",
+      "historyMeta": "{{count}} résultats · {{duration}}",
       "canvas": "Retrieval pipeline",
-      "canvasTotal": "{{ms}}ms total",
+      "canvasTotal": "{{duration}} total",
       "canvasRunning": "Running retrieval…",
-      "canvasHint": "Run a query to see each retrieval step here.",
       "canvasCollapse": "Collapse pipeline",
       "canvasExpand": "Expand pipeline",
       "results": "Retrieval results",
-      "detailSubtitle": "{{status}} · {{ms}}ms",
       "detailTop": "Top candidates",
       "detailRerank": "Rerank score changes",
       "detailChunk": "Chunk",
@@ -3890,7 +3907,32 @@
       "metricThreshold": "threshold",
       "metricLambda": "lambda",
       "metricVisibleKbs": "visible libraries",
-      "metricEnabled": "enabled"
+      "metricEnabled": "enabled",
+      "subtitle": "Vérifiez ce que récupère chaque étape avant de confier cette base de connaissances à l'agent.",
+      "idleHint": "Les passages correspondants s'affichent ici ; dépliez le pipeline ci-dessus pour voir la tokenisation, la récupération et le reranking.",
+      "canvasSlowest": "Plus lent : {{stage}} {{duration}}",
+      "chipGraphLabels": "Étiquettes du graphe",
+      "chipRoutes": "Voies de récupération",
+      "detailMode": "Mode",
+      "detailOutcome": "Résultat",
+      "detailModel": "Modèle",
+      "detailReason": "Raison",
+      "routeVector": "Vectorielle",
+      "routeKeyword": "Mots-clés",
+      "routeGraph": "Graphe",
+      "routeFts": "Texte intégral",
+      "descScope": "Confirme les bases et documents visibles pour cette recherche.",
+      "descQuery": "Découpe la requête en termes et prépare l'entrée de chaque voie.",
+      "descRewrite": "Un petit modèle extrait les entités de la requête pour amorcer le graphe.",
+      "descVector": "Récupère des passages par similarité vectorielle, avec leur score.",
+      "descKeyword": "Récupère des passages par correspondance de mots-clés.",
+      "descExpansion": "Ajoute des variantes synonymes ou plus larges sans changer la requête.",
+      "descGraph": "Étend les entités extraites aux passages des nœuds voisins.",
+      "descDocFilter": "Écarte les résultats hors du périmètre de documents choisi.",
+      "descFusion": "Fusionne les voies pondérées en un seul vivier de candidats.",
+      "descDedup": "Regroupe les passages qui se chevauchent pour éviter les doublons.",
+      "descRerank": "Rescore le vivier avec le modèle de reranking et garde ceux au-dessus du seuil.",
+      "descMmr": "Réduit la redondance entre résultats tout en gardant la pertinence."
     },
     "stats": "Index stats",
     "statKbs": "Bases",

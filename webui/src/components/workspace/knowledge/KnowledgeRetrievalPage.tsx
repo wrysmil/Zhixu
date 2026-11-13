@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, History, Loader2, Search, Trash2 } from "lucide-react";
+import type { TFunction } from "i18next";
+import { ArrowLeft, Loader2, Search, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,13 @@ import {
   KnowledgeDialogTitle,
 } from "../knowledge-shared/KnowledgeSurfaces";
 import { KnowledgeSearchResults } from "./KnowledgeSearchResults";
-import { RetrievalTraceCanvas, retrievalStageTitle } from "./RetrievalTraceCanvas";
+import { knowledgeModeLabel } from "./knowledge-labels";
+import {
+  RetrievalTraceCanvas,
+  retrievalStageStatus,
+  retrievalStageTitle,
+} from "./RetrievalTraceCanvas";
+import { formatCompactDuration, relativeTime } from "@/lib/format";
 import {
   clearKnowledgeQueryHistory,
   fetchKnowledgeDocs,
@@ -65,7 +72,9 @@ export function KnowledgeRetrievalPage({
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<KnowledgeQueryHistoryItem[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
-  const [canvasCollapsed, setCanvasCollapsed] = useState(false);
+  const [canvasCollapsed, setCanvasCollapsed] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 1024,
+  );
   const [activeStage, setActiveStage] = useState<KnowledgeTraceStage | null>(null);
   const seq = useRef(0);
   const busy = useRef(false);
@@ -205,33 +214,50 @@ export function KnowledgeRetrievalPage({
     setError(null);
   }, []);
 
+  const hitDocIds = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const hit of result?.hits ?? []) map.set(hit.chunkId, hit.docId);
+    return map;
+  }, [result]);
+
+  const resultMeta = result
+    ? [
+        t("knowledge.hitCount", { count: result.hits.length }),
+        result.durationMs ? formatCompactDuration(result.durationMs) : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
+
   return (
     <div className="flex min-w-0 flex-col gap-3" data-testid="knowledge-retrieval-page">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
+      <div className="flex min-w-0 flex-col gap-1">
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
           onClick={onBack}
           aria-label={t("knowledge.experience.backToLibraries", { defaultValue: "返回知识库" })}
-          className="h-8 gap-1.5 rounded-full px-2.5 text-[12px] text-muted-foreground hover:text-foreground"
+          className="inline-flex w-fit items-center gap-1 rounded-control text-[12px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
           {t("knowledge.experience.backToLibraries", { defaultValue: "返回知识库" })}
-        </Button>
-        <h1 className="text-base font-semibold text-foreground">{t("knowledge.searchTitle")}</h1>
+        </button>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-base font-semibold text-foreground">{t("knowledge.searchTitle")}</h1>
+          <p className="text-[12px] text-muted-foreground">{t("knowledge.retrieval.subtitle")}</p>
+        </div>
       </div>
 
-      <div className="grid items-start gap-3 lg:grid-cols-[340px_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-3">
+        <aside className="order-1 flex min-w-0 flex-col rounded-panel border border-border/70 bg-card lg:order-none">
           <form
-            className="flex flex-col gap-2 rounded-panel border border-border/60 bg-background p-4"
+            className="flex flex-col gap-3 border-b border-border/60 p-4"
             onSubmit={(event) => {
               event.preventDefault();
               void runSearch({ query, mode, limit });
             }}
           >
-            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            <label className="flex flex-col gap-1 text-[12px] text-muted-foreground">
               {t("knowledge.query")}
               <Input
                 aria-label={t("knowledge.query")}
@@ -242,13 +268,13 @@ export function KnowledgeRetrievalPage({
               />
             </label>
             <div className="flex items-end gap-2">
-              <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-muted-foreground">
+              <label className="flex min-w-0 flex-1 flex-col gap-1 text-[12px] text-muted-foreground">
                 {t("knowledge.mode")}
                 <select
                   aria-label={t("knowledge.mode")}
                   value={mode}
                   onChange={(event) => setMode(event.target.value as KnowledgeSearchMode)}
-                  className="h-9 rounded-control border border-input bg-background px-2 text-sm"
+                  className="h-9 min-w-0 rounded-control border border-input bg-background px-2 text-sm"
                 >
                   {SEARCH_MODES.map((value) => (
                     <option key={value} value={value}>
@@ -257,7 +283,7 @@ export function KnowledgeRetrievalPage({
                   ))}
                 </select>
               </label>
-              <label className="flex w-20 shrink-0 flex-col gap-1 text-xs font-medium text-muted-foreground">
+              <label className="flex w-[4.75rem] shrink-0 flex-col gap-1 text-[12px] text-muted-foreground">
                 {t("knowledge.limit")}
                 <select
                   aria-label={t("knowledge.limit")}
@@ -272,27 +298,27 @@ export function KnowledgeRetrievalPage({
                   ))}
                 </select>
               </label>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={searching || !query.trim()}
+                className="h-9 shrink-0 gap-1.5 px-3.5 text-sm font-medium disabled:bg-muted disabled:text-muted-foreground"
+              >
+                {searching ? (
+                  <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
+                ) : (
+                  <Search className="h-3.5 w-3.5" aria-hidden />
+                )}
+                {t("knowledge.search")}
+              </Button>
             </div>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={searching || !query.trim()}
-              className="h-9 gap-1.5 rounded-full px-4 text-sm font-semibold"
-            >
-              {searching ? (
-                <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
-              ) : (
-                <Search className="h-3.5 w-3.5" aria-hidden />
-              )}
-              {t("knowledge.search")}
-            </Button>
           </form>
 
-          <section className="flex flex-col gap-2 rounded-panel border border-border/60 bg-background p-4">
-            <h3 className="text-sm font-semibold text-foreground">
+          <section className="flex flex-col gap-2 border-b border-border/60 p-4">
+            <h2 className="text-[12px] font-medium text-foreground">
               {t("knowledge.retrieval.scope")}
-            </h3>
-            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            </h2>
+            <label className="flex flex-col gap-1 text-[12px] text-muted-foreground">
               {t("knowledge.retrieval.scopeKb")}
               <select
                 aria-label={t("knowledge.retrieval.scopeKb")}
@@ -311,7 +337,7 @@ export function KnowledgeRetrievalPage({
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            <label className="flex flex-col gap-1 text-[12px] text-muted-foreground">
               {t("knowledge.retrieval.scopeDoc")}
               <select
                 aria-label={t("knowledge.retrieval.scopeDoc")}
@@ -333,71 +359,72 @@ export function KnowledgeRetrievalPage({
             </label>
           </section>
 
-          <section className="flex min-h-0 flex-col rounded-panel border border-border/60 bg-background">
-            <header className="flex items-center gap-2 border-b border-border/60 px-4 py-2.5">
-              <History className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-              <h3 className="text-sm font-semibold text-foreground">
-                {t("knowledge.retrieval.history")}
-              </h3>
-              {history.length > 0 ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label={t("knowledge.retrieval.historyClear")}
-                  title={t("knowledge.retrieval.historyClear")}
-                  onClick={() => void clearHistory()}
-                  className="ml-auto h-7 w-7 rounded-full p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                </Button>
-              ) : null}
-            </header>
-            <div className="max-h-64 overflow-y-auto p-2">
-              {!selectedKbId ? (
-                <p className="px-2 py-3 text-[12px] text-muted-foreground">
-                  {t("knowledge.retrieval.historyKbHint")}
-                </p>
-              ) : historyError ? (
-                <p role="alert" className="px-2 py-3 text-[12px] text-destructive">
-                  {historyError}
-                </p>
-              ) : history.length === 0 ? (
-                <p className="px-2 py-3 text-[12px] text-muted-foreground">
-                  {t("knowledge.retrieval.historyEmpty")}
-                </p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {history.map((item) => (
-                    <li key={item.id}>
-                      <button
-                        type="button"
-                        onClick={() => runFromHistory(item)}
-                        className="w-full rounded-control px-2 py-1.5 text-left transition-colors hover:bg-muted/40"
-                      >
-                        <span className="block truncate text-[12.5px] text-foreground">
-                          {item.query}
+        </aside>
+
+        <section className="order-3 flex min-w-0 flex-col rounded-panel border border-border/70 bg-card p-4 lg:order-none">
+          <header className="flex items-center gap-2 pb-2">
+            <h2 className="text-[12px] font-medium text-foreground">
+              {t("knowledge.retrieval.history")}
+            </h2>
+            {history.length > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={t("knowledge.retrieval.historyClear")}
+                title={t("knowledge.retrieval.historyClear")}
+                onClick={() => void clearHistory()}
+                className="ml-auto h-6 w-6 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              </Button>
+            ) : null}
+          </header>
+          <div className="max-h-56 overflow-y-auto">
+            {!selectedKbId ? (
+              <p className="px-1 py-2 text-[12px] text-muted-foreground">
+                {t("knowledge.retrieval.historyKbHint")}
+              </p>
+            ) : historyError ? (
+              <p role="alert" className="px-1 py-2 text-[12px] text-destructive">
+                {historyError}
+              </p>
+            ) : history.length === 0 ? (
+              <p className="px-1 py-2 text-[12px] text-muted-foreground">
+                {t("knowledge.retrieval.historyEmpty")}
+              </p>
+            ) : (
+              <ul className="flex flex-col">
+                {history.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => runFromHistory(item)}
+                      className="w-full rounded-control px-1.5 py-1.5 text-left transition-colors hover:bg-muted/40"
+                    >
+                      <span className="block truncate text-[12.5px] text-foreground">
+                        {item.query}
+                      </span>
+                      <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10.5px] text-muted-foreground">
+                        <span>{knowledgeModeLabel(t, item.mode)}</span>
+                        <span className="tabular-nums">
+                          {t("knowledge.retrieval.historyMeta", {
+                            count: item.hitCount,
+                            duration: formatCompactDuration(item.durationMs),
+                          })}
                         </span>
-                        <span className="mt-0.5 flex flex-wrap gap-1 text-[10px] tabular-nums text-muted-foreground">
-                          <span>
-                            {t("knowledge.retrieval.historyMeta", {
-                              count: item.hitCount,
-                              ms: item.durationMs,
-                            })}
-                          </span>
-                          <span>{item.mode}</span>
-                          <span>{item.createdAt.slice(5, 16).replace("T", " ")}</span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
+                        <span>{relativeTime(item.createdAt)}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
         </div>
 
-        <div className="flex min-w-0 flex-col gap-3">
+        <div className="order-2 flex min-w-0 flex-col gap-3 lg:order-none">
           <RetrievalTraceCanvas
             trace={result?.trace ?? null}
             loading={searching}
@@ -406,10 +433,17 @@ export function KnowledgeRetrievalPage({
             onSelectStage={(stage) => setActiveStage(stage)}
           />
 
-          <section className="rounded-panel border border-border/60 bg-background p-4">
-            <h3 className="pb-2 text-sm font-semibold text-foreground">
-              {t("knowledge.retrieval.results")}
-            </h3>
+          <section className="flex min-h-[260px] flex-col rounded-panel border border-border/60 bg-card p-4">
+            <header className="flex flex-wrap items-baseline gap-x-2 gap-y-1 pb-3">
+              <h2 className="text-[13px] font-semibold text-foreground">
+                {t("knowledge.retrieval.results")}
+              </h2>
+              {resultMeta ? (
+                <span className="text-[11.5px] tabular-nums text-muted-foreground">
+                  {resultMeta}
+                </span>
+              ) : null}
+            </header>
             {error ? (
               <div
                 role="alert"
@@ -423,7 +457,12 @@ export function KnowledgeRetrievalPage({
                 {t("knowledge.searching")}
               </p>
             ) : !result ? (
-              <p className="text-sm text-muted-foreground">{t("knowledge.searchIdle")}</p>
+              <div className="flex flex-1 flex-col items-start justify-center gap-1 py-10">
+                <p className="text-sm text-foreground">{t("knowledge.searchIdle")}</p>
+                <p className="max-w-md text-[12px] leading-relaxed text-muted-foreground">
+                  {t("knowledge.retrieval.idleHint")}
+                </p>
+              </div>
             ) : (
               <KnowledgeSearchResults
                 result={result}
@@ -438,26 +477,45 @@ export function KnowledgeRetrievalPage({
             )}
           </section>
         </div>
+
       </div>
 
       <KnowledgeDialog open={!!activeStage} onOpenChange={(open) => { if (!open) setActiveStage(null); }}>
-        <KnowledgeDialogContent className="max-h-[80vh] overflow-y-auto">
+        <KnowledgeDialogContent className="knowledge-stage-dialog">
           {activeStage ? (
             <>
-              <KnowledgeDialogTitle>{retrievalStageTitle(t, activeStage.kind)}</KnowledgeDialogTitle>
-              <KnowledgeDialogDescription className="mt-1">
-                {t("knowledge.retrieval.detailSubtitle", {
-                  status: t(
-                    `knowledge.retrieval.status${activeStage.status.charAt(0).toUpperCase()}${activeStage.status.slice(1)}`,
-                    { defaultValue: activeStage.status },
-                  ),
-                  ms: activeStage.durationMs,
-                })}
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <KnowledgeDialogTitle className="text-[17px]">
+                  {retrievalStageTitle(t, activeStage.kind)}
+                </KnowledgeDialogTitle>
+                <span
+                  className={
+                    activeStage.status === "error"
+                      ? "text-[11.5px] text-destructive"
+                      : activeStage.status === "degraded"
+                        ? "text-[11.5px] text-amber-600 dark:text-amber-300"
+                        : "text-[11.5px] text-muted-foreground"
+                  }
+                >
+                  {retrievalStageStatus(t, activeStage.status)}
+                </span>
+                {activeStage.durationMs > 0 ? (
+                  <span className="text-[11.5px] tabular-nums text-muted-foreground">
+                    {formatCompactDuration(activeStage.durationMs)}
+                  </span>
+                ) : null}
+              </div>
+              <KnowledgeDialogDescription className="mt-1 text-[12px] leading-relaxed">
+                {stageDescription(t, activeStage.kind)}
               </KnowledgeDialogDescription>
-              <div className="mt-4 flex flex-col gap-3 text-sm">
+              <div className="mt-4 flex flex-col gap-4 pb-2">
                 <StageMetrics stage={activeStage} />
-                <StageChips stage={activeStage} />
-                <StageScoreTables stage={activeStage} />
+                <StageValues stage={activeStage} />
+                <StageScoreTables
+                  stage={activeStage}
+                  docsById={docsById}
+                  hitDocIds={hitDocIds}
+                />
                 <StageScalars stage={activeStage} />
               </div>
             </>
@@ -468,30 +526,104 @@ export function KnowledgeRetrievalPage({
   );
 }
 
-const CHIP_KEYS: Array<{ key: "tokens" | "variants" | "entities" | "labels" | "degraded" | "routes" }> = [
-  { key: "tokens" },
-  { key: "variants" },
-  { key: "entities" },
-  { key: "labels" },
-  { key: "degraded" },
-  { key: "routes" },
+const STAGE_DESCRIPTION_KEYS: Record<string, string> = {
+  scope: "knowledge.retrieval.descScope",
+  query: "knowledge.retrieval.descQuery",
+  rewrite: "knowledge.retrieval.descRewrite",
+  vector: "knowledge.retrieval.descVector",
+  keyword: "knowledge.retrieval.descKeyword",
+  expansion: "knowledge.retrieval.descExpansion",
+  graph: "knowledge.retrieval.descGraph",
+  docFilter: "knowledge.retrieval.descDocFilter",
+  fusion: "knowledge.retrieval.descFusion",
+  dedup: "knowledge.retrieval.descDedup",
+  rerank: "knowledge.retrieval.descRerank",
+  mmr: "knowledge.retrieval.descMmr",
+};
+
+const METRIC_LABEL_KEYS: Record<string, string> = {
+  tokens: "knowledge.retrieval.metricTokens",
+  variants: "knowledge.retrieval.metricVariants",
+  groups: "knowledge.retrieval.metricGroups",
+  candidates: "knowledge.retrieval.metricCandidates",
+  raw: "knowledge.retrieval.metricRaw",
+  entities: "knowledge.retrieval.metricEntities",
+  seeds: "knowledge.retrieval.metricSeeds",
+  kbs: "knowledge.retrieval.metricKbs",
+  merged: "knowledge.retrieval.metricMerged",
+  before: "knowledge.retrieval.metricBefore",
+  after: "knowledge.retrieval.metricAfter",
+  removed: "knowledge.retrieval.metricRemoved",
+  pool: "knowledge.retrieval.metricPool",
+  kept: "knowledge.retrieval.metricKept",
+  added: "knowledge.retrieval.metricAdded",
+  vectorWeight: "knowledge.retrieval.metricVectorWeight",
+  keywordWeight: "knowledge.retrieval.metricKeywordWeight",
+  rrfK: "knowledge.retrieval.metricRrfK",
+  vectorCandidates: "knowledge.retrieval.metricVectorCandidates",
+  keywordCandidates: "knowledge.retrieval.metricKeywordCandidates",
+  graphCandidates: "knowledge.retrieval.metricGraphCandidates",
+  candidatesIn: "knowledge.retrieval.metricCandidatesIn",
+  candidatesKept: "knowledge.retrieval.metricCandidatesKept",
+  threshold: "knowledge.retrieval.metricThreshold",
+  lambda: "knowledge.retrieval.metricLambda",
+  visibleKbs: "knowledge.retrieval.metricVisibleKbs",
+  enabled: "knowledge.retrieval.metricEnabled",
+};
+
+const CHIP_KEYS: Array<{ key: string; labelKey: string }> = [
+  { key: "tokens", labelKey: "knowledge.retrieval.metricTokens" },
+  { key: "variants", labelKey: "knowledge.retrieval.metricVariants" },
+  { key: "entities", labelKey: "knowledge.retrieval.metricEntities" },
+  { key: "labels", labelKey: "knowledge.retrieval.chipGraphLabels" },
+  { key: "degraded", labelKey: "knowledge.retrieval.statusDegraded" },
+  { key: "routes", labelKey: "knowledge.retrieval.chipRoutes" },
 ];
+
+function stageDescription(t: TFunction, kind: string): string {
+  const key = STAGE_DESCRIPTION_KEYS[kind];
+  return key ? t(key, { defaultValue: "" }) : "";
+}
+
+function formatMetric(
+  t: TFunction,
+  key: string,
+  value: number | string | boolean | null,
+): string {
+  if (value === null) return "—";
+  if (typeof value === "boolean") {
+    return value
+      ? t("knowledge.retrieval.fallbackYes")
+      : t("knowledge.retrieval.fallbackNo");
+  }
+  if (typeof value === "number") {
+    if (["vectorWeight", "keywordWeight", "threshold", "lambda"].includes(key)) {
+      return value.toFixed(2);
+    }
+    return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  }
+  return String(value);
+}
+
+function shortChunkId(chunkId: string): string {
+  return chunkId.length > 16 ? `…${chunkId.slice(-8)}` : chunkId;
+}
 
 function StageMetrics({ stage }: { stage: KnowledgeTraceStage }) {
   const { t } = useTranslation();
   const entries = Object.entries(stage.metrics);
   if (entries.length === 0) return null;
   return (
-    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-3">
       {entries.map(([key, value]) => (
-        <div key={key} className="rounded-control border border-border/60 bg-muted/10 px-3 py-2">
-          <dt className="text-[10px] text-muted-foreground">
-            {t(`knowledge.retrieval.metric${key.charAt(0).toUpperCase()}${key.slice(1)}`, {
-              defaultValue: key,
-            })}
+        <div key={key} className="min-w-0">
+          <dt className="text-[11px] text-muted-foreground">
+            {METRIC_LABEL_KEYS[key]
+              ? t(METRIC_LABEL_KEYS[key], { defaultValue: key })
+              : key}
           </dt>
-          <dd className="mt-0.5 text-sm tabular-nums text-foreground">
-            {value === null ? "—" : typeof value === "boolean" ? (value ? "on" : "off") : String(value)}
+          <dd className="mt-0.5 text-[14px] tabular-nums text-foreground">
+            {formatMetric(t, key, value)}
           </dd>
         </div>
       ))}
@@ -499,25 +631,25 @@ function StageMetrics({ stage }: { stage: KnowledgeTraceStage }) {
   );
 }
 
-function StageChips({ stage }: { stage: KnowledgeTraceStage }) {
+function StageValues({ stage }: { stage: KnowledgeTraceStage }) {
   const { t } = useTranslation();
   const detail = stage.detail ?? {};
-  const rows = CHIP_KEYS.flatMap(({ key }) => {
+  const rows = CHIP_KEYS.flatMap(({ key, labelKey }) => {
     const values = detail[key];
     if (!Array.isArray(values) || values.length === 0) return [];
-    return [{ key, values: values.map(String) }];
+    return [{ key, labelKey, values: values.map(String) }];
   });
-  if (rows.length === 0) return null;
+  if (rows.length === 0 && typeof detail.fallback !== "boolean") return null;
   return (
-    <div className="flex flex-col gap-2">
-      {rows.map(({ key, values }) => (
+    <div className="flex flex-col gap-2.5">
+      {rows.map(({ key, labelKey, values }) => (
         <div key={key}>
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">{key}</p>
+          <p className="mb-1 text-[11px] text-muted-foreground">{t(labelKey)}</p>
           <div className="flex flex-wrap gap-1">
             {values.map((value, index) => (
               <span
                 key={`${key}-${index}-${value}`}
-                className="rounded-full border border-border/60 px-2 py-0.5 text-[11px] text-foreground"
+                className="rounded bg-muted px-1.5 py-0.5 text-[11.5px] text-foreground"
               >
                 {value}
               </span>
@@ -526,7 +658,7 @@ function StageChips({ stage }: { stage: KnowledgeTraceStage }) {
         </div>
       ))}
       {typeof detail.fallback === "boolean" ? (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[11.5px] text-muted-foreground">
           {t("knowledge.retrieval.detailFallback", {
             value: detail.fallback ? t("knowledge.retrieval.fallbackYes") : t("knowledge.retrieval.fallbackNo"),
           })}
@@ -536,19 +668,30 @@ function StageChips({ stage }: { stage: KnowledgeTraceStage }) {
   );
 }
 
-function StageScoreTables({ stage }: { stage: KnowledgeTraceStage }) {
+function StageScoreTables({
+  stage,
+  docsById,
+  hitDocIds,
+}: {
+  stage: KnowledgeTraceStage;
+  docsById: Map<string, KnowledgeDoc>;
+  hitDocIds: Map<string, string>;
+}) {
   const { t } = useTranslation();
   const detail = stage.detail ?? {};
   const top = Array.isArray(detail.top) ? detail.top : [];
   const scores = Array.isArray(detail.scores) ? detail.scores : [];
+  const docTitle = (docId: string | undefined): string | null =>
+    docId ? docsById.get(docId)?.title ?? docId : null;
+
   return (
     <>
       {top.length > 0 ? (
         <div>
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+          <p className="mb-1.5 text-[11px] text-muted-foreground">
             {t("knowledge.retrieval.detailTop")}
           </p>
-          <table className="w-full border-collapse text-[11px]">
+          <table className="w-full border-collapse text-[11.5px]">
             <thead>
               <tr className="text-muted-foreground">
                 <th className="border-b border-border/60 py-1 text-left font-medium">
@@ -562,10 +705,20 @@ function StageScoreTables({ stage }: { stage: KnowledgeTraceStage }) {
             <tbody>
               {top.map((row, index) => (
                 <tr key={`${row.chunkId}-${index}`}>
-                  <td className="border-b border-border/30 py-1 font-mono text-[10.5px] text-foreground">
-                    {row.chunkId}
+                  <td className="border-b border-border/30 py-1.5">
+                    {docTitle(row.docId ?? hitDocIds.get(row.chunkId)) ? (
+                      <span className="block max-w-[20rem] truncate text-foreground">
+                        {docTitle(row.docId ?? hitDocIds.get(row.chunkId))}
+                      </span>
+                    ) : null}
+                    <span
+                      className="font-mono text-[10.5px] text-muted-foreground"
+                      title={row.chunkId}
+                    >
+                      {shortChunkId(row.chunkId)}
+                    </span>
                   </td>
-                  <td className="border-b border-border/30 py-1 text-right tabular-nums text-foreground">
+                  <td className="border-b border-border/30 py-1.5 text-right tabular-nums text-foreground">
                     {row.score}
                   </td>
                 </tr>
@@ -576,10 +729,10 @@ function StageScoreTables({ stage }: { stage: KnowledgeTraceStage }) {
       ) : null}
       {scores.length > 0 ? (
         <div>
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+          <p className="mb-1.5 text-[11px] text-muted-foreground">
             {t("knowledge.retrieval.detailRerank")}
           </p>
-          <table className="w-full border-collapse text-[11px]">
+          <table className="w-full border-collapse text-[11.5px]">
             <thead>
               <tr className="text-muted-foreground">
                 <th className="border-b border-border/60 py-1 text-left font-medium">
@@ -597,22 +750,35 @@ function StageScoreTables({ stage }: { stage: KnowledgeTraceStage }) {
               </tr>
             </thead>
             <tbody>
-              {scores.map((row, index) => (
-                <tr key={`${row.chunkId}-${index}`}>
-                  <td className="border-b border-border/30 py-1 font-mono text-[10.5px] text-foreground">
-                    {row.chunkId}
-                  </td>
-                  <td className="border-b border-border/30 py-1 text-right tabular-nums text-muted-foreground">
-                    {row.before ?? "—"}
-                  </td>
-                  <td className="border-b border-border/30 py-1 text-right tabular-nums text-foreground">
-                    {row.after}
-                  </td>
-                  <td className="border-b border-border/30 py-1 text-right tabular-nums text-muted-foreground">
-                    {row.delta ?? "—"}
-                  </td>
-                </tr>
-              ))}
+              {scores.map((row, index) => {
+                const title = docTitle(hitDocIds.get(row.chunkId));
+                return (
+                  <tr key={`${row.chunkId}-${index}`}>
+                    <td className="border-b border-border/30 py-1.5">
+                      {title ? (
+                        <span className="block max-w-[20rem] truncate text-foreground">
+                          {title}
+                        </span>
+                      ) : null}
+                      <span
+                        className="font-mono text-[10.5px] text-muted-foreground"
+                        title={row.chunkId}
+                      >
+                        {shortChunkId(row.chunkId)}
+                      </span>
+                    </td>
+                    <td className="border-b border-border/30 py-1.5 text-right tabular-nums text-muted-foreground">
+                      {row.before ?? "—"}
+                    </td>
+                    <td className="border-b border-border/30 py-1.5 text-right tabular-nums text-foreground">
+                      {row.after}
+                    </td>
+                    <td className="border-b border-border/30 py-1.5 text-right tabular-nums text-muted-foreground">
+                      {row.delta ?? "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -622,20 +788,21 @@ function StageScoreTables({ stage }: { stage: KnowledgeTraceStage }) {
 }
 
 function StageScalars({ stage }: { stage: KnowledgeTraceStage }) {
+  const { t } = useTranslation();
   const detail = stage.detail ?? {};
   const scalars = [
-    ["modeUsed", detail.modeUsed],
-    ["outcome", detail.outcome],
-    ["model", detail.model],
-    ["reason", detail.reason],
+    ["knowledge.retrieval.detailMode", detail.modeUsed],
+    ["knowledge.retrieval.detailOutcome", detail.outcome],
+    ["knowledge.retrieval.detailModel", detail.model],
+    ["knowledge.retrieval.detailReason", detail.reason],
   ].filter(([, value]) => typeof value === "string" && value);
   if (scalars.length === 0) return null;
   return (
-    <dl className="flex flex-col gap-1">
-      {scalars.map(([key, value]) => (
-        <div key={String(key)} className="flex items-baseline gap-2 text-[11.5px]">
-          <dt className="text-muted-foreground">{String(key)}</dt>
-          <dd className="font-mono text-foreground">{String(value)}</dd>
+    <dl className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
+      {scalars.map(([labelKey, value]) => (
+        <div key={String(labelKey)} className="flex items-baseline gap-2 text-[11.5px]">
+          <dt className="w-20 shrink-0 text-muted-foreground">{t(String(labelKey))}</dt>
+          <dd className="min-w-0 break-all font-mono text-foreground">{String(value)}</dd>
         </div>
       ))}
     </dl>

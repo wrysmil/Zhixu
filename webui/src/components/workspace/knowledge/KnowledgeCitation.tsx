@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, FileText, MapPin } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
@@ -56,52 +56,35 @@ export function KnowledgeCitation({
   return (
     <li
       className={cn(
-        "motion-fade-in-up group rounded-control border border-border/60 border-l-2 border-l-primary/50 bg-card px-3 py-2.5 shadow-sm transition-colors hover:border-primary/40",
+        "group -mx-2 grid grid-cols-[1.25rem_minmax(0,1fr)_3.25rem] items-start gap-x-3 rounded-control px-2 py-3 transition-colors hover:bg-muted/30",
         className,
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-        {typeof rank === "number" ? (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 font-semibold tabular-nums text-foreground">
-            {rank}
-          </span>
-        ) : null}
-        {typeof score === "number" ? (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold tabular-nums text-primary">
-            {score.toFixed(3)}
-          </span>
-        ) : null}
-        <span className="inline-flex min-w-0 items-center gap-1.5 font-medium text-foreground">
-          <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="truncate">{title}</span>
-        </span>
-        {heading ? (
-          <span className="min-w-0 truncate text-muted-foreground">{heading}</span>
-        ) : null}
-        {pageLabel ? (
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-            {pageLabel}
-          </span>
-        ) : null}
-        {locator && locator !== pageLabel ? (
-          <span className="font-mono text-[10px] text-muted-foreground">{locator}</span>
-        ) : null}
-        <span className="ml-auto flex items-center gap-1">
-          {onLocate ? (
-            <button
-              type="button"
-              onClick={onLocate}
-              className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {t("knowledge.experience.citationLocate", { defaultValue: "定位到文档" })}
-            </button>
+      <span className="pt-0.5 text-right text-[11px] tabular-nums text-muted-foreground">
+        {typeof rank === "number" ? rank : ""}
+      </span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]">
+          <span className="max-w-[22rem] truncate font-medium text-foreground">{title}</span>
+          {heading ? (
+            <span className="min-w-0 truncate text-muted-foreground">{heading}</span>
           ) : null}
+          {pageLabel ? <span className="text-muted-foreground">{pageLabel}</span> : null}
+        </div>
+        <p
+          className={cn(
+            "mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-foreground",
+            expanded ? "max-h-72 overflow-y-auto" : "line-clamp-3",
+          )}
+        >
+          {content}
+        </p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
           <button
             type="button"
             aria-expanded={expanded}
             onClick={() => setExpanded((value) => !value)}
-            className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex items-center gap-0.5 rounded-control transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {expanded
               ? t("knowledge.experience.citationCollapse", { defaultValue: "收起" })
@@ -111,25 +94,32 @@ export function KnowledgeCitation({
               aria-hidden
             />
           </button>
-        </span>
-      </div>
-      <p
-        className={cn(
-          "mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground",
-          expanded ? "max-h-72 overflow-y-auto" : "line-clamp-3",
-        )}
-      >
-        {content}
-      </p>
-      <details className="mt-1 text-[10px] text-muted-foreground">
-        <summary className="cursor-pointer list-none opacity-70 transition-opacity hover:opacity-100">
-          {t("knowledge.experience.citationIds", { defaultValue: "定位信息" })}
-        </summary>
-        <div className="mt-1 flex flex-wrap gap-1.5 font-mono">
-          {chunkId ? <span className="rounded bg-muted/60 px-1.5 py-0.5">{chunkId}</span> : null}
-          <span className="rounded bg-muted/60 px-1.5 py-0.5">{docId}</span>
+          {onLocate ? (
+            <button
+              type="button"
+              onClick={onLocate}
+              className="rounded-control transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {t("knowledge.experience.citationLocate", { defaultValue: "定位到文档" })}
+            </button>
+          ) : null}
+          {locator && locator !== pageLabel ? (
+            <span className="font-mono text-[10px] text-muted-foreground/80">{locator}</span>
+          ) : null}
+          <details className="ml-auto text-[10px]">
+            <summary className="cursor-pointer list-none text-muted-foreground/80 transition-colors hover:text-foreground">
+              {t("knowledge.experience.citationIds", { defaultValue: "定位信息" })}
+            </summary>
+            <div className="mt-1 flex flex-wrap gap-1.5 font-mono">
+              {chunkId ? <span className="rounded bg-muted/60 px-1.5 py-0.5">{chunkId}</span> : null}
+              <span className="rounded bg-muted/60 px-1.5 py-0.5">{docId}</span>
+            </div>
+          </details>
         </div>
-      </details>
+      </div>
+      <span className="pt-0.5 text-right text-[12px] tabular-nums text-muted-foreground">
+        {typeof score === "number" ? score.toFixed(3) : ""}
+      </span>
     </li>
   );
 }

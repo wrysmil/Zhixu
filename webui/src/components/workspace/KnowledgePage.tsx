@@ -748,7 +748,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </div>
       ) : null}
 
-      {!detailOpen ? (
+      {!detailOpen && !retrievalOpen ? (
       <section
         data-testid="knowledge-stats"
         aria-label={t("knowledge.stats")}
@@ -855,7 +855,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       ) : null}
 
       <div className="mt-4 flex flex-col gap-4">
-        {!detailOpen ? (
+        {!detailOpen && !retrievalOpen ? (
         <section className="knowledge-motion knowledge-motion-enter" data-testid="knowledge-kb-list" aria-label={t("knowledge.kbTitle")}>
           <div className="knowledge-toolbar mb-5">
             <Input className="h-10 w-full sm:max-w-xs" aria-label={t("knowledge.experience.searchLibraries", { defaultValue: "搜索知识库名称" })} placeholder={t("knowledge.experience.searchLibraries", { defaultValue: "搜索知识库名称" })} value={libraryQuery} onChange={e => setLibraryQuery(e.target.value)} />

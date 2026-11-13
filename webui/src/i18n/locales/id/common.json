@@ -2874,9 +2874,19 @@
   },
   "thread": {
     "trajectory": {
-      "tabs": { "label": "Tampilan percakapan", "chat": "Obrolan", "trajectory": "Trajektori" },
-      "stats": { "duration": "Total durasi", "turns": "Giliran", "calls": "Panggilan alat" },
-      "coverage": { "partial": "Tangkapan sebagian" },
+      "tabs": {
+        "label": "Tampilan percakapan",
+        "chat": "Obrolan",
+        "trajectory": "Trajektori"
+      },
+      "stats": {
+        "duration": "Total durasi",
+        "turns": "Giliran",
+        "calls": "Panggilan alat"
+      },
+      "coverage": {
+        "partial": "Tangkapan sebagian"
+      },
       "toolbar": {
         "compactDuration": "Durasi ringkas",
         "evenDuration": "Jarak merata",
@@ -2885,7 +2895,11 @@
         "search": "Cari catatan yang dimuat",
         "loaded": "{{count}} dimuat"
       },
-      "lanes": { "input": "Masukan", "model": "Model", "tool": "Alat" },
+      "lanes": {
+        "input": "Masukan",
+        "model": "Model",
+        "tool": "Alat"
+      },
       "turnLabel": "Giliran {{index}}",
       "backgroundLabel": "Proses latar belakang",
       "toolCount": "{{count}} panggilan",
@@ -2940,7 +2954,12 @@
         "loadMore": "Muat lebih banyak",
         "redacted": "Disunting",
         "truncated": "Terpotong",
-        "tabs": { "content": "Konten", "request": "Masukan", "schema": "Skema", "json": "JSON" }
+        "tabs": {
+          "content": "Konten",
+          "request": "Masukan",
+          "schema": "Skema",
+          "json": "JSON"
+        }
       },
       "unavailable": {
         "not_recorded": "Konten tidak direkam dalam mode tangkapan ini.",
@@ -3828,15 +3847,13 @@
       "history": "Search history",
       "historyEmpty": "No searches yet.",
       "historyClear": "Clear history",
-      "historyMeta": "{{count}} hits · {{ms}}ms",
+      "historyMeta": "{{count}} hasil · {{duration}}",
       "canvas": "Retrieval pipeline",
-      "canvasTotal": "{{ms}}ms total",
+      "canvasTotal": "{{duration}} total",
       "canvasRunning": "Running retrieval…",
-      "canvasHint": "Run a query to see each retrieval step here.",
       "canvasCollapse": "Collapse pipeline",
       "canvasExpand": "Expand pipeline",
       "results": "Retrieval results",
-      "detailSubtitle": "{{status}} · {{ms}}ms",
       "detailTop": "Top candidates",
       "detailRerank": "Rerank score changes",
       "detailChunk": "Chunk",
@@ -3890,7 +3907,32 @@
       "metricThreshold": "threshold",
       "metricLambda": "lambda",
       "metricVisibleKbs": "visible libraries",
-      "metricEnabled": "enabled"
+      "metricEnabled": "enabled",
+      "subtitle": "Periksa apa yang diambil setiap langkah sebelum basis pengetahuan ini diserahkan ke agent.",
+      "idleHint": "Potongan yang cocok muncul di sini; buka pipeline di atas untuk melihat tokenisasi, recall, dan rerank.",
+      "canvasSlowest": "Paling lambat: {{stage}} {{duration}}",
+      "chipGraphLabels": "Label graf",
+      "chipRoutes": "Jalur recall",
+      "detailMode": "Mode aktual",
+      "detailOutcome": "Hasil",
+      "detailModel": "Model",
+      "detailReason": "Alasan",
+      "routeVector": "Vektor",
+      "routeKeyword": "Kata kunci",
+      "routeGraph": "Graf",
+      "routeFts": "Teks lengkap",
+      "descScope": "Memastikan basis pengetahuan dan dokumen yang terlihat pada pencarian ini.",
+      "descQuery": "Memecah kueri menjadi istilah dan menyiapkan masukan tiap jalur.",
+      "descRewrite": "Model kecil mengekstrak entitas dari kueri sebagai benih pencarian graf.",
+      "descVector": "Mengambil potongan berdasarkan kemiripan vektor beserta skornya.",
+      "descKeyword": "Mengambil potongan berdasarkan kecocokan kata kunci untuk istilah dan kode.",
+      "descExpansion": "Menambah varian sinonim atau lebih luas tanpa mengubah kueri asli.",
+      "descGraph": "Memperluas dari entitas terekstrak ke potongan node tetangga.",
+      "descDocFilter": "Membuang hasil dari dokumen di luar cakupan yang dipilih.",
+      "descFusion": "Menggabungkan jalur recall berbobot menjadi satu kumpulan kandidat.",
+      "descDedup": "Menggabungkan potongan yang tumpang tindih agar paragraf sama tidak berulang.",
+      "descRerank": "Menilai ulang dengan model rerank dan menyimpan hasil di atas ambang.",
+      "descMmr": "Mengurangi redundansi antarhasil sambil menjaga relevansi."
     },
     "stats": "Index stats",
     "statKbs": "Bases",

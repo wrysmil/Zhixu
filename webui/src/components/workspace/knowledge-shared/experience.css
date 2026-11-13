@@ -221,6 +221,21 @@
   }
 }
 
+/* 检索步骤详情：窄弹窗装指标与明细，避免铺满整屏。 */
+.knowledge-experience-surface.knowledge-stage-dialog {
+  width: min(44rem, calc(100vw - 2rem));
+  max-width: min(44rem, calc(100vw - 2rem));
+  max-height: min(80dvh, 44rem);
+  overflow-y: auto;
+}
+
+@media (max-width: 640px) {
+  .knowledge-experience-surface.knowledge-stage-dialog {
+    width: calc(100vw - 0.75rem);
+    max-width: calc(100vw - 0.75rem);
+  }
+}
+
 .knowledge-experience-surface.knowledge-overlay {
   animation: knowledge-fade-in 140ms var(--knowledge-motion-ease) both;
 }
@@ -271,7 +286,8 @@
   .knowledge-experience.knowledge-motion,
   .knowledge-experience .knowledge-motion,
   .knowledge-experience-surface.knowledge-motion,
-  .knowledge-experience-surface .knowledge-motion {
+  .knowledge-experience-surface .knowledge-motion,
+  .knowledge-experience-surface .knowledge-trace-node {
     animation: none !important;
     transition: none !important;
   }

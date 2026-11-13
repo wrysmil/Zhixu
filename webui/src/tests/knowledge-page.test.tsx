@@ -694,8 +694,8 @@ describe("knowledge page", () => {
     });
 
     expect(await screen.findByText("Rollback checklist")).toBeInTheDocument();
-    expect(screen.getByText("Mode used: semantic")).toBeInTheDocument();
-    expect(screen.getByText("Routes: fts, vector")).toBeInTheDocument();
+    expect(screen.getByText("Mode used: Semantic")).toBeInTheDocument();
+    expect(screen.getByText("Routes: Full-text · Vector")).toBeInTheDocument();
     expect(screen.getByText("Degraded: vector_missing")).toBeInTheDocument();
     expect(screen.getByText("Deploy > Rollback")).toBeInTheDocument();
     expect(screen.getByText("Page 3")).toBeInTheDocument();

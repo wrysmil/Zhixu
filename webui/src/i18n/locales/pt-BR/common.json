@@ -2874,9 +2874,19 @@
   },
   "thread": {
     "trajectory": {
-      "tabs": { "label": "Visão da conversa", "chat": "Chat", "trajectory": "Trajetória" },
-      "stats": { "duration": "Duração total", "turns": "Turnos", "calls": "Chamadas de ferramentas" },
-      "coverage": { "partial": "Captura parcial" },
+      "tabs": {
+        "label": "Visão da conversa",
+        "chat": "Chat",
+        "trajectory": "Trajetória"
+      },
+      "stats": {
+        "duration": "Duração total",
+        "turns": "Turnos",
+        "calls": "Chamadas de ferramentas"
+      },
+      "coverage": {
+        "partial": "Captura parcial"
+      },
       "toolbar": {
         "compactDuration": "Duração compacta",
         "evenDuration": "Espaçamento uniforme",
@@ -2885,7 +2895,11 @@
         "search": "Pesquisar registros carregados",
         "loaded": "{{count}} carregados"
       },
-      "lanes": { "input": "Entrada", "model": "Modelo", "tool": "Ferramenta" },
+      "lanes": {
+        "input": "Entrada",
+        "model": "Modelo",
+        "tool": "Ferramenta"
+      },
       "turnLabel": "Turno {{index}}",
       "backgroundLabel": "Execução em segundo plano",
       "toolCount": "{{count}} chamadas",
@@ -2940,7 +2954,12 @@
         "loadMore": "Carregar mais",
         "redacted": "Redigido",
         "truncated": "Truncado",
-        "tabs": { "content": "Conteúdo", "request": "Entrada", "schema": "Esquema", "json": "JSON" }
+        "tabs": {
+          "content": "Conteúdo",
+          "request": "Entrada",
+          "schema": "Esquema",
+          "json": "JSON"
+        }
       },
       "unavailable": {
         "not_recorded": "O conteúdo não foi registrado neste modo de captura.",
@@ -3828,15 +3847,13 @@
       "history": "Search history",
       "historyEmpty": "No searches yet.",
       "historyClear": "Clear history",
-      "historyMeta": "{{count}} hits · {{ms}}ms",
+      "historyMeta": "{{count}} resultados · {{duration}}",
       "canvas": "Retrieval pipeline",
-      "canvasTotal": "{{ms}}ms total",
+      "canvasTotal": "{{duration}} total",
       "canvasRunning": "Running retrieval…",
-      "canvasHint": "Run a query to see each retrieval step here.",
       "canvasCollapse": "Collapse pipeline",
       "canvasExpand": "Expand pipeline",
       "results": "Retrieval results",
-      "detailSubtitle": "{{status}} · {{ms}}ms",
       "detailTop": "Top candidates",
       "detailRerank": "Rerank score changes",
       "detailChunk": "Chunk",
@@ -3890,7 +3907,32 @@
       "metricThreshold": "threshold",
       "metricLambda": "lambda",
       "metricVisibleKbs": "visible libraries",
-      "metricEnabled": "enabled"
+      "metricEnabled": "enabled",
+      "subtitle": "Confira o que cada etapa recupera antes de entregar esta base de conhecimento ao agente.",
+      "idleHint": "Os trechos correspondentes aparecem aqui; expanda o pipeline acima para ver tokenização, recall e reranking.",
+      "canvasSlowest": "Mais lento: {{stage}} {{duration}}",
+      "chipGraphLabels": "Rótulos do grafo",
+      "chipRoutes": "Rotas de recall",
+      "detailMode": "Modo",
+      "detailOutcome": "Resultado",
+      "detailModel": "Modelo",
+      "detailReason": "Motivo",
+      "routeVector": "Vetorial",
+      "routeKeyword": "Palavra-chave",
+      "routeGraph": "Grafo",
+      "routeFts": "Texto completo",
+      "descScope": "Confirma quais bases e documentos esta busca pode ver.",
+      "descQuery": "Divide a consulta em termos e prepara a entrada de cada rota.",
+      "descRewrite": "Um modelo pequeno extrai entidades da consulta para semear o grafo.",
+      "descVector": "Recupera trechos por similaridade vetorial, com a pontuação.",
+      "descKeyword": "Recupera trechos por correspondência de palavras-chave.",
+      "descExpansion": "Adiciona variantes sinônimas ou mais amplas sem mudar a consulta.",
+      "descGraph": "Expande das entidades extraídas para trechos de nós vizinhos.",
+      "descDocFilter": "Descarta resultados de documentos fora do escopo escolhido.",
+      "descFusion": "Funde as rotas por peso em um único conjunto de candidatos.",
+      "descDedup": "Agrupa trechos sobrepostos para o mesmo parágrafo não repetir.",
+      "descRerank": "Repontua com o modelo de reranking e mantém os acima do limite.",
+      "descMmr": "Reduz a redundância entre resultados mantendo a relevância."
     },
     "stats": "Index stats",
     "statKbs": "Bases",

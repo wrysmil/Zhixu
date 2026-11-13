@@ -2874,9 +2874,19 @@
   },
   "thread": {
     "trajectory": {
-      "tabs": { "label": "スレッド表示", "chat": "チャット", "trajectory": "軌跡" },
-      "stats": { "duration": "合計時間", "turns": "ターン", "calls": "ツール呼び出し" },
-      "coverage": { "partial": "部分取得" },
+      "tabs": {
+        "label": "スレッド表示",
+        "chat": "チャット",
+        "trajectory": "軌跡"
+      },
+      "stats": {
+        "duration": "合計時間",
+        "turns": "ターン",
+        "calls": "ツール呼び出し"
+      },
+      "coverage": {
+        "partial": "部分取得"
+      },
       "toolbar": {
         "compactDuration": "コンパクト表示",
         "evenDuration": "等間隔",
@@ -2885,7 +2895,11 @@
         "search": "読み込み済みを検索",
         "loaded": "{{count}} 件読み込み済み"
       },
-      "lanes": { "input": "入力", "model": "モデル", "tool": "ツール" },
+      "lanes": {
+        "input": "入力",
+        "model": "モデル",
+        "tool": "ツール"
+      },
       "turnLabel": "第 {{index}} ターン",
       "backgroundLabel": "バックグラウンド実行",
       "toolCount": "{{count}} 回の呼び出し",
@@ -2940,7 +2954,12 @@
         "loadMore": "さらに読み込む",
         "redacted": "マスク済み",
         "truncated": "切り詰め",
-        "tabs": { "content": "内容", "request": "入力", "schema": "スキーマ", "json": "JSON" }
+        "tabs": {
+          "content": "内容",
+          "request": "入力",
+          "schema": "スキーマ",
+          "json": "JSON"
+        }
       },
       "unavailable": {
         "not_recorded": "この取得モードでは本文を記録していません。",
@@ -3828,15 +3847,13 @@
       "history": "検索履歴",
       "historyEmpty": "検索履歴はまだありません。",
       "historyClear": "履歴を消去",
-      "historyMeta": "{{count}} 件 · {{ms}}ms",
+      "historyMeta": "{{count}} 件 · {{duration}}",
       "canvas": "検索パイプライン",
-      "canvasTotal": "合計 {{ms}}ms",
+      "canvasTotal": "合計 {{duration}}",
       "canvasRunning": "検索中…",
-      "canvasHint": "検索後に各ステップをここで確認できます。",
       "canvasCollapse": "パイプラインを折りたたむ",
       "canvasExpand": "パイプラインを展開",
       "results": "検索結果",
-      "detailSubtitle": "{{status}} · {{ms}}ms",
       "detailTop": "候補一覧",
       "detailRerank": "リランクスコア変化",
       "detailChunk": "チャンク",
@@ -3890,7 +3907,32 @@
       "metricThreshold": "しきい値",
       "metricLambda": "lambda",
       "metricVisibleKbs": "可視ライブラリ",
-      "metricEnabled": "有効"
+      "metricEnabled": "有効",
+      "subtitle": "このナレッジベースをエージェントに渡す前に、各ステップの取得内容を確認します。",
+      "idleHint": "一致したチャンクがここに表示されます。上のパイプラインを展開すると、分割・検索・再ランクを確認できます。",
+      "canvasSlowest": "最長：{{stage}} {{duration}}",
+      "chipGraphLabels": "グラフのラベル",
+      "chipRoutes": "検索経路",
+      "detailMode": "実際のモード",
+      "detailOutcome": "結果",
+      "detailModel": "モデル",
+      "detailReason": "理由",
+      "routeVector": "ベクトル",
+      "routeKeyword": "キーワード",
+      "routeGraph": "グラフ",
+      "routeFts": "全文",
+      "descScope": "この検索で参照できるナレッジベースと文書の範囲を確認します。",
+      "descQuery": "クエリを検索語に分割し、各検索経路の入力を用意します。",
+      "descRewrite": "小型モデルがクエリからエンティティを抽出し、グラフ検索の起点にします。",
+      "descVector": "ベクトルの類似度でチャンクを取得し、スコアを付けます。",
+      "descKeyword": "キーワードの一致でチャンクを取得します。固有名詞や番号に有効です。",
+      "descExpansion": "元のクエリを変えずに、同義語や上位語のバリエーションを追加します。",
+      "descGraph": "抽出したエンティティから隣接ノードのチャンクへ広げます。",
+      "descDocFilter": "選択した文書範囲外の取得結果を除外します。",
+      "descFusion": "複数の経路を重み付けで統合し、候補プールを作ります。",
+      "descDedup": "内容が重なるチャンクをまとめ、同じ段落の重複を防ぎます。",
+      "descRerank": "再ランクモデルで候補を再採点し、しきい値以上を残します。",
+      "descMmr": "関連性を保ちながら結果間の重複を減らします。"
     },
     "stats": "Index stats",
     "statKbs": "Bases",

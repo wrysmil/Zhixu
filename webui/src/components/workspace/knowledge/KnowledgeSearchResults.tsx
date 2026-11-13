@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import { KnowledgeCitation } from "./KnowledgeCitation";
+import { knowledgeModeLabel, knowledgeRouteLabel } from "./knowledge-labels";
 import type { KnowledgeDoc, KnowledgeSearchResult } from "@/lib/api";
 
 export function KnowledgeSearchResults({
@@ -17,28 +18,27 @@ export function KnowledgeSearchResults({
   const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="rounded-full border border-border/70 px-2 py-0.5 font-medium text-foreground">
-          {t("knowledge.modeUsed", { mode: result.modeUsed })}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-muted-foreground">
+        <span>
+          {t("knowledge.modeUsed", { mode: knowledgeModeLabel(t, result.modeUsed) })}
         </span>
         {result.routes.length > 0 ? (
-          <span className="rounded-full border border-border/70 px-2 py-0.5 text-muted-foreground">
-            {t("knowledge.routes", { routes: result.routes.join(", ") })}
+          <span>
+            {t("knowledge.routes", {
+              routes: result.routes.map((route) => knowledgeRouteLabel(t, route)).join(" · "),
+            })}
           </span>
         ) : null}
         {result.degraded.length > 0 ? (
-          <span className="rounded-full border border-amber-300/70 bg-amber-50 px-2 py-0.5 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100">
+          <span className="text-amber-700 dark:text-amber-300">
             {t("knowledge.degraded", { reasons: result.degraded.join(", ") })}
           </span>
         ) : null}
-        <span className="text-muted-foreground">
-          {t("knowledge.hitCount", { count: result.hits.length })}
-        </span>
       </div>
       {result.hits.length === 0 ? (
         <p className="text-sm text-muted-foreground">{emptyLabel}</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col divide-y divide-border/60">
           {result.hits.map((hit, index) => (
             <KnowledgeCitation
               key={hit.chunkId}

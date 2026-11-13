@@ -11,6 +11,14 @@ export function formatCompactTokenCount(value: number): string {
   return `${Number((value / 1_000_000).toFixed(digits))}M`;
 }
 
+/** Pipeline step duration: keep millisecond precision under one second. */
+export function formatCompactDuration(ms: number): string {
+  const clamped = Math.max(0, ms);
+  if (clamped < 1_000) return `${Math.round(clamped)}ms`;
+  const digits = clamped < 10_000 ? 1 : 0;
+  return `${Number((clamped / 1_000).toFixed(digits))}s`;
+}
+
 const LOW_INFORMATION_TITLE_PREVIEWS = new Set([
   "hi",
   "hello",

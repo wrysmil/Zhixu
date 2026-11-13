@@ -2874,9 +2874,19 @@
   },
   "thread": {
     "trajectory": {
-      "tabs": { "label": "Chế độ xem hội thoại", "chat": "Trò chuyện", "trajectory": "Quỹ đạo" },
-      "stats": { "duration": "Tổng thời gian", "turns": "Lượt", "calls": "Lệnh gọi công cụ" },
-      "coverage": { "partial": "Thu thập một phần" },
+      "tabs": {
+        "label": "Chế độ xem hội thoại",
+        "chat": "Trò chuyện",
+        "trajectory": "Quỹ đạo"
+      },
+      "stats": {
+        "duration": "Tổng thời gian",
+        "turns": "Lượt",
+        "calls": "Lệnh gọi công cụ"
+      },
+      "coverage": {
+        "partial": "Thu thập một phần"
+      },
       "toolbar": {
         "compactDuration": "Thời lượng gọn",
         "evenDuration": "Giãn đều",
@@ -2885,7 +2895,11 @@
         "search": "Tìm trong bản ghi đã tải",
         "loaded": "Đã tải {{count}}"
       },
-      "lanes": { "input": "Đầu vào", "model": "Mô hình", "tool": "Công cụ" },
+      "lanes": {
+        "input": "Đầu vào",
+        "model": "Mô hình",
+        "tool": "Công cụ"
+      },
       "turnLabel": "Lượt {{index}}",
       "backgroundLabel": "Chạy nền",
       "toolCount": "{{count}} lệnh gọi",
@@ -2940,7 +2954,12 @@
         "loadMore": "Tải thêm",
         "redacted": "Đã che",
         "truncated": "Đã cắt",
-        "tabs": { "content": "Nội dung", "request": "Đầu vào", "schema": "Lược đồ", "json": "JSON" }
+        "tabs": {
+          "content": "Nội dung",
+          "request": "Đầu vào",
+          "schema": "Lược đồ",
+          "json": "JSON"
+        }
       },
       "unavailable": {
         "not_recorded": "Nội dung không được ghi ở chế độ thu thập này.",
@@ -3828,15 +3847,13 @@
       "history": "Search history",
       "historyEmpty": "No searches yet.",
       "historyClear": "Clear history",
-      "historyMeta": "{{count}} hits · {{ms}}ms",
+      "historyMeta": "{{count}} kết quả · {{duration}}",
       "canvas": "Retrieval pipeline",
-      "canvasTotal": "{{ms}}ms total",
+      "canvasTotal": "{{duration}} total",
       "canvasRunning": "Running retrieval…",
-      "canvasHint": "Run a query to see each retrieval step here.",
       "canvasCollapse": "Collapse pipeline",
       "canvasExpand": "Expand pipeline",
       "results": "Retrieval results",
-      "detailSubtitle": "{{status}} · {{ms}}ms",
       "detailTop": "Top candidates",
       "detailRerank": "Rerank score changes",
       "detailChunk": "Chunk",
@@ -3890,7 +3907,32 @@
       "metricThreshold": "threshold",
       "metricLambda": "lambda",
       "metricVisibleKbs": "visible libraries",
-      "metricEnabled": "enabled"
+      "metricEnabled": "enabled",
+      "subtitle": "Kiểm tra từng bước truy xuất trước khi giao cơ sở tri thức này cho agent.",
+      "idleHint": "Các đoạn khớp sẽ hiện ở đây; mở rộng pipeline phía trên để xem tách từ, truy xuất và xếp hạng lại.",
+      "canvasSlowest": "Chậm nhất: {{stage}} {{duration}}",
+      "chipGraphLabels": "Nhãn đồ thị",
+      "chipRoutes": "Đường truy xuất",
+      "detailMode": "Chế độ",
+      "detailOutcome": "Kết quả",
+      "detailModel": "Mô hình",
+      "detailReason": "Lý do",
+      "routeVector": "Vector",
+      "routeKeyword": "Từ khóa",
+      "routeGraph": "Đồ thị",
+      "routeFts": "Toàn văn",
+      "descScope": "Xác nhận phạm vi cơ sở tri thức và tài liệu mà lần tìm này thấy được.",
+      "descQuery": "Tách truy vấn thành từ khóa và chuẩn bị đầu vào cho từng đường truy xuất.",
+      "descRewrite": "Mô hình nhỏ trích thực thể từ truy vấn để làm hạt giống cho đồ thị.",
+      "descVector": "Truy xuất đoạn theo độ tương đồng vector, kèm điểm số.",
+      "descKeyword": "Truy xuất đoạn theo khớp từ khóa, hợp với thuật ngữ và mã chính xác.",
+      "descExpansion": "Thêm biến thể đồng nghĩa hoặc rộng hơn mà không đổi truy vấn gốc.",
+      "descGraph": "Mở rộng từ thực thể đã trích sang các đoạn của nút lân cận.",
+      "descDocFilter": "Loại bỏ kết quả ngoài phạm vi tài liệu đã chọn.",
+      "descFusion": "Hợp nhất các đường truy xuất theo trọng số thành một nhóm ứng viên.",
+      "descDedup": "Gộp các đoạn chồng lấn để cùng một đoạn không lặp lại.",
+      "descRerank": "Chấm lại bằng mô hình xếp hạng và giữ các kết quả vượt ngưỡng.",
+      "descMmr": "Giảm trùng lặp giữa các kết quả mà vẫn giữ độ liên quan."
     },
     "stats": "Index stats",
     "statKbs": "Bases",
