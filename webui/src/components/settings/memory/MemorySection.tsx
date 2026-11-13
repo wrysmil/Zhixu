@@ -6,13 +6,15 @@ import { notifySaveFailed, notifySaved } from "@/lib/save-feedback";
 import { useClient } from "@/providers/ClientProvider";
 import { EpisodeListView } from "./EpisodeListView";
 import { MemoryListView } from "./MemoryListView";
+import { MemoryRelationView } from "./MemoryRelationView";
 import type { SettingsPayload } from "@/lib/types";
 
-type MemoryTab = "semantic" | "episode";
+type MemoryTab = "semantic" | "episode" | "relation";
 
 const MEMORY_TABS: Array<{ value: MemoryTab; labelKey: string; defaultLabel: string }> = [
   { value: "semantic", labelKey: "settings.memory.tabSemantic", defaultLabel: "Semantic memory" },
   { value: "episode", labelKey: "settings.memory.tabEpisode", defaultLabel: "Episode memory" },
+  { value: "relation", labelKey: "settings.memory.tabRelation", defaultLabel: "Relations" },
 ];
 
 export function MemorySection({
@@ -120,6 +122,7 @@ export function MemorySection({
       ) : null}
       {tab === "semantic" && <MemoryListView />}
       {tab === "episode" && <EpisodeListView />}
+      {tab === "relation" && <MemoryRelationView />}
     </div>
   );
 }

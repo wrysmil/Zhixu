@@ -2,7 +2,6 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   CircleSlash,
   FileText,
@@ -12,8 +11,8 @@ import {
   Plus,
   RefreshCcw,
   Search,
+  SlidersHorizontal,
   Trash2,
-  Upload,
   Wrench,
 } from "lucide-react";
 
@@ -24,13 +23,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/workspace/EmptyState";
 import { KnowledgeLibraryList } from "./knowledge/KnowledgeLibraryList";
 import { KnowledgeDocumentTable } from "./knowledge/KnowledgeDocumentTable";
-import { KnowledgeDocumentSheet } from "./knowledge/KnowledgeDocumentSheet";
-import { KnowledgeImportSheet } from "./knowledge/KnowledgeImportSheet";
+import { KnowledgeDocumentDialog } from "./knowledge/KnowledgeDocumentDialog";
+import { KnowledgeRetrievalPage } from "./knowledge/KnowledgeRetrievalPage";
+import { KnowledgeImportPage } from "./knowledge/KnowledgeImportPage";
+import { KnowledgeSettingsPanel } from "./knowledge/KnowledgeSettingsPanel";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { KnowledgeStatus } from "./knowledge-shared/KnowledgeStatus";
 import "./knowledge-shared/experience.css";
 import {
-  addKnowledgeDoc,
-  addKnowledgeDocFromPath,
   createKnowledgeKb,
   deleteKnowledgeDoc,
   deleteKnowledgeKb,
@@ -41,31 +42,17 @@ import {
   reindexKnowledgeDoc,
   reindexKnowledgeKb,
   repairKnowledge,
-  searchKnowledge,
   type KnowledgeChunk,
   type KnowledgeDoc,
   type KnowledgeKb,
-  type KnowledgeSearchMode,
-  type KnowledgeSearchResult,
   type KnowledgeStats,
   type KnowledgeVisibility,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useClient } from "@/providers/ClientProvider";
 
-/** WebUI 上传口径：后缀白名单与 20 MB 上限，不含 csv。 */
-const UPLOAD_MIME_BY_SUFFIX: Record<string, string> = {
-  ".pdf": "application/pdf",
-  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ".md": "text/markdown",
-  ".txt": "text/plain",
-};
-const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
-const SEARCH_LIMITS = [5, 8, 12, 20];
-const SEARCH_MODES: KnowledgeSearchMode[] = ["hybrid", "semantic", "keyword"];
+const CHUNK_PREVIEW_PAGE_SIZE = 10;
 
 // 图谱 tab 独立 chunk：图关闭时 d3-force 不进首屏包。
 const KnowledgeGraphPanel = lazy(() =>
@@ -73,24 +60,6 @@ const KnowledgeGraphPanel = lazy(() =>
     default: module.GraphPanel,
   })),
 );
-
-function fileSuffix(name: string): string {
-  const index = name.lastIndexOf(".");
-  return index >= 0 ? name.slice(index).toLowerCase() : "";
-}
-
-function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("read failed"));
-    reader.onload = () => {
-      const result = String(reader.result ?? "");
-      const comma = result.indexOf(",");
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.readAsDataURL(file);
-  });
-}
 
 function isDocActive(doc: KnowledgeDoc): boolean {
   return doc.status === "pending" || doc.status === "processing";
@@ -127,19 +96,15 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [docTotal, setDocTotal] = useState(0);
   const docsViewRef = useRef<object | null>(null);
   const docsSeq = useRef(0);
-  const searchSeq = useRef(0);
   const mutationLock = useRef(false);
   const createLock = useRef(false);
   const repairLock = useRef(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadStage, setUploadStage] = useState("");
-  const [uploadRetryable, setUploadRetryable] = useState(false);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [kbs, setKbs] = useState<KnowledgeKb[]>([]);
   const [activeKbId, setActiveKbId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState<"documents" | "search" | "graph">(
+  const [detailTab, setDetailTab] = useState<"documents" | "graph" | "settings">(
     "documents",
   );
   const [kbsLoading, setKbsLoading] = useState(true);
@@ -156,26 +121,36 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [newVisibility, setNewVisibility] = useState<KnowledgeVisibility>("workspace");
   const [creating, setCreating] = useState(false);
 
-  const [serverPath, setServerPath] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   const [chunkPreview, setChunkPreview] = useState<KnowledgeDoc | null>(null);
   const [previewChunks, setPreviewChunks] = useState<KnowledgeChunk[]>([]);
   const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewDocTotal, setPreviewDocTotal] = useState(0);
+  const [previewOffset, setPreviewOffset] = useState(0);
+  const [previewQuery, setPreviewQuery] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const previewSeq = useRef(0);
-
-  const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<KnowledgeSearchMode>("hybrid");
-  const [limit, setLimit] = useState(8);
-  const [searching, setSearching] = useState(false);
-  const [searchResult, setSearchResult] = useState<KnowledgeSearchResult | null>(null);
-  const [searchError, setSearchError] = useState<string | null>(null);
+  // 检索是知识库域的独立页；返回时回到进入前的层级。
+  const [retrievalOpen, setRetrievalOpen] = useState(false);
+  const [retrievalFromDetail, setRetrievalFromDetail] = useState(false);
+  const openRetrieval = useCallback((fromDetail: boolean) => {
+    setRetrievalFromDetail(fromDetail);
+    setRetrievalOpen(true);
+  }, []);
+  const closeRetrieval = useCallback(() => {
+    setRetrievalOpen(false);
+    if (!retrievalFromDetail) setDetailOpen(false);
+  }, [retrievalFromDetail]);
+  // 库级变更（删除/重建/修复）后退出检索页，避免展示旧作用域。
+  const clearSearch = useCallback(() => {
+    setRetrievalOpen(false);
+    setRetrievalFromDetail(false);
+  }, []);
 
   const [repairOpen, setRepairOpen] = useState(false);
   const [repairFts, setRepairFts] = useState(true);
@@ -263,11 +238,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const activeKb = kbs.find((kb) => kb.id === activeKbId) ?? null;
 
   const runAction = useCallback(
-    async (
-      action: () => Promise<unknown>,
-      after?: () => Promise<void> | void,
-      onError?: (message: string) => void,
-    ) => {
+    async (action: () => Promise<unknown>, after?: () => Promise<void> | void) => {
       if (mutationLock.current) return;
       mutationLock.current = true;
       setBusy(true);
@@ -276,9 +247,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         await action();
         if (after) await after();
       } catch (reason: unknown) {
-        const message = reason instanceof Error ? reason.message : String(reason);
-        if (onError) onError(message);
-        else setActionError(message);
+        setActionError(reason instanceof Error ? reason.message : String(reason));
       } finally {
         mutationLock.current = false;
         setBusy(false);
@@ -286,13 +255,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     },
     [],
   );
-
-  const clearSearch = useCallback(() => {
-    searchSeq.current += 1;
-    setSearching(false);
-    setSearchResult(null);
-    setSearchError(null);
-  }, []);
 
   const onCreateKb = useCallback(async () => {
     const name = newName.trim();
@@ -354,25 +316,35 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     setChunkPreview(null);
     setPreviewChunks([]);
     setPreviewTotal(0);
+    setPreviewDocTotal(0);
+    setPreviewOffset(0);
+    setPreviewQuery("");
     setPreviewError(null);
     setPreviewLoading(false);
   }, []);
 
-  const onOpenChunkPreview = useCallback(
-    async (doc: KnowledgeDoc) => {
+  const loadChunkPreview = useCallback(
+    async (doc: KnowledgeDoc, offset: number, query: string) => {
       const seq = previewSeq.current + 1;
       previewSeq.current = seq;
-      setChunkPreview(doc);
-      setPreviewChunks([]);
-      setPreviewTotal(doc.chunkCount);
+      setPreviewOffset(offset);
+      setPreviewQuery(query);
       setPreviewError(null);
       setPreviewLoading(true);
       try {
-        const payload = await fetchKnowledgeDoc(token, { id: doc.id, chunkLimit: 20 });
+        const payload = await fetchKnowledgeDoc(token, {
+          id: doc.id,
+          chunkLimit: CHUNK_PREVIEW_PAGE_SIZE,
+          chunkOffset: offset,
+          chunkQuery: query || undefined,
+        });
         if (seq !== previewSeq.current) return;
         setChunkPreview(payload.document ?? doc);
         setPreviewChunks(payload.chunks);
-        setPreviewTotal(payload.chunkCount);
+        setPreviewTotal(
+          typeof payload.chunkTotal === "number" ? payload.chunkTotal : payload.chunkCount,
+        );
+        setPreviewDocTotal(payload.chunkCount);
       } catch (reason: unknown) {
         if (seq !== previewSeq.current) return;
         setPreviewError(reason instanceof Error ? reason.message : String(reason));
@@ -383,102 +355,39 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     [token],
   );
 
-  const onUpload = useCallback(
-    async (file: File) => {
-      if (!activeKbId || mutationLock.current) return;
-      setUploadFile(file);
-      setUploadError(null);
-      const suffix = fileSuffix(file.name);
-      const mime = UPLOAD_MIME_BY_SUFFIX[suffix];
-      if (!mime) {
-        setUploadRetryable(false);
-        setUploadError(t("knowledge.uploadBadType"));
-        return;
-      }
-      if (file.size > MAX_UPLOAD_BYTES) {
-        setUploadRetryable(false);
-        setUploadError(t("knowledge.uploadTooLarge"));
-        return;
-      }
-      setUploadRetryable(true);
-      await runAction(async () => {
-        setUploadStage(t("knowledge.experience.reading", { defaultValue: "正在读取文件" }));
-        let base64: string;
-        try { base64 = await readFileAsBase64(file); }
-        catch { throw new Error(t("knowledge.experience.readFailed", { defaultValue: "无法读取文件，请重新选择后重试" })); }
-        setUploadStage(t("knowledge.experience.submitting", { defaultValue: "正在提交资料" }));
-        await addKnowledgeDoc(client, {
-          kbId: activeKbId,
-          name: file.name,
-          dataUrl: `data:${mime};base64,${base64}`,
-          workspaceId: defaultWorkspaceId,
-        });
-        setUploadFile(null);
-        setUploadError(null);
-        setImportOpen(false);
-      }, async () => {
-        await loadDocs();
-        await loadKbs();
-        await loadStats();
-        clearSearch();
-      }, setUploadError);
+  const onOpenChunkPreview = useCallback(
+    async (doc: KnowledgeDoc) => {
+      setChunkPreview(doc);
+      setPreviewChunks([]);
+      setPreviewTotal(doc.chunkCount);
+      setPreviewDocTotal(doc.chunkCount);
+      await loadChunkPreview(doc, 0, "");
     },
-    [activeKbId, clearSearch, client, defaultWorkspaceId, loadDocs, loadKbs, loadStats, runAction, t],
+    [loadChunkPreview],
   );
 
-  const onAddServerPath = useCallback(async () => {
-    const path = serverPath.trim();
-    if (!activeKbId || !path) return;
-    await runAction(async () => {
-      await addKnowledgeDocFromPath(client, {
-        kbId: activeKbId,
-        path,
-        workspaceId: defaultWorkspaceId,
-      });
-      setServerPath("");
-      setImportOpen(false);
-    }, async () => {
-      await loadDocs();
-      await loadKbs();
-      await loadStats();
-      clearSearch();
-    });
-  }, [
-    activeKbId,
-    clearSearch,
-    client,
-    defaultWorkspaceId,
-    loadDocs,
-    loadKbs,
-    loadStats,
-    runAction,
-    serverPath,
-  ]);
+  const onChunkPageChange = useCallback(
+    (offset: number, query: string) => {
+      if (chunkPreview) void loadChunkPreview(chunkPreview, offset, query);
+    },
+    [chunkPreview, loadChunkPreview],
+  );
 
-  const onSearch = useCallback(async () => {
-    const text = query.trim();
-    if (!text) return;
-    if (searching) return;
-    const seq = ++searchSeq.current;
-    setSearching(true);
-    setSearchError(null);
-    try {
-      const result = await searchKnowledge(token, {
-        query: text,
-        mode,
-        limit,
-        kbIds: activeKbId ? [activeKbId] : undefined,
-        workspaceIds: scope,
-      });
-      if (seq === searchSeq.current) setSearchResult(result);
-    } catch (reason: unknown) {
-      if (seq !== searchSeq.current) return;
-      setSearchResult(null);
-      setSearchError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      if (seq === searchSeq.current) setSearching(false);
-    }
-  }, [activeKbId, limit, mode, query, scope, token, searching]);
+  const openImport = useCallback(() => {
+    setActionError(null);
+    setImportOpen(true);
+  }, []);
+
+  const closeImport = useCallback(() => {
+    setImportOpen(false);
+  }, []);
+
+  const refreshAfterImport = useCallback(async () => {
+    await loadDocs();
+    await loadKbs();
+    await loadStats();
+    clearSearch();
+  }, [clearSearch, loadDocs, loadKbs, loadStats]);
 
   const onRepair = useCallback(async () => {
     if (repairLock.current) return;
@@ -552,25 +461,41 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     rootRef.current?.querySelector<HTMLButtonElement>(`[data-kb-id="${id}"]`)?.focus({ preventScroll: true });
     for (const [element, top] of positions) element.scrollTop = top;
   }, [detailOpen]);
-  useEffect(() => () => { searchSeq.current += 1; previewSeq.current += 1; }, []);
+  useEffect(() => () => { previewSeq.current += 1; }, []);
 
   return (
     <div ref={rootRef} className="knowledge-experience assistant-page flex h-full min-w-0 flex-col" data-testid="knowledge-page">
-      {detailOpen && activeKb ? (
+      {importOpen && activeKb ? (
+        <KnowledgeImportPage
+          transport={client}
+          kb={activeKb}
+          workspaceId={defaultWorkspaceId}
+          onBack={closeImport}
+          onImported={refreshAfterImport}
+        />
+      ) : retrievalOpen ? (
+        <KnowledgeRetrievalPage
+          token={token}
+          transport={client}
+          scope={scope}
+          kbs={kbs}
+          initialKbId={detailOpen && activeKb ? activeKb.id : undefined}
+          onBack={closeRetrieval}
+          onOpenDoc={(doc) => void onOpenChunkPreview(doc)}
+        />
+      ) : detailOpen && activeKb ? (
         <div className="flex flex-col gap-3">
-          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            <button
-              type="button"
-              aria-label={t("knowledge.experience.backToLibraries", { defaultValue: "返回知识库" })}
-              onClick={returnToLibraries}
-              className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-              {t("knowledge.title")}
-            </button>
-            <span aria-hidden>/</span>
-            <span className="truncate text-foreground">{activeKb.name}</span>
-          </div>
+          <Breadcrumb
+            ariaLabel={t("knowledge.title")}
+            items={[
+              {
+                label: t("knowledge.title"),
+                ariaLabel: t("knowledge.experience.backToLibraries", { defaultValue: "返回知识库" }),
+                onClick: returnToLibraries,
+              },
+              { label: activeKb.name, current: true },
+            ]}
+          />
           <div className="knowledge-panel knowledge-page-header p-5">
             <div className="flex flex-wrap items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -612,6 +537,16 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   type="button"
                   variant="outline"
                   size="sm"
+                  onClick={() => openRetrieval(true)}
+                  className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium"
+                >
+                  <Search className="h-3.5 w-3.5" aria-hidden />
+                  {t("knowledge.searchTitle")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   disabled={busy}
                   onClick={() => {
                     void runAction(
@@ -645,58 +580,58 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               </div>
             </div>
           </div>
-          <div role="tablist" className="flex gap-1 border-b border-border/60">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={detailTab === "documents"}
-              onClick={() => setDetailTab("documents")}
-              className={cn(
-                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                detailTab === "documents"
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <FileText className="h-3.5 w-3.5" aria-hidden />
-              {t("knowledge.documents")}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={detailTab === "search"}
-              onClick={() => setDetailTab("search")}
-              className={cn(
-                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                detailTab === "search"
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Search className="h-3.5 w-3.5" aria-hidden />
-              {t("knowledge.searchTitle")}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={detailTab === "graph"}
-              onClick={() => setDetailTab("graph")}
-              className={cn(
-                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                detailTab === "graph"
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Network className="h-3.5 w-3.5" aria-hidden />
-              {t("knowledge.graph.tab")}
-            </button>
-          </div>
+          <SegmentedControl
+            mode="tabs"
+            ariaLabel={t("knowledge.title")}
+            value={detailTab}
+            onChange={(value) => setDetailTab(value as typeof detailTab)}
+            className="self-start"
+            options={[
+              {
+                value: "documents",
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5" aria-hidden />
+                    {t("knowledge.documents")}
+                  </span>
+                ),
+              },
+              {
+                value: "graph",
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Network className="h-3.5 w-3.5" aria-hidden />
+                    {t("knowledge.graph.tab")}
+                  </span>
+                ),
+              },
+              {
+                value: "settings",
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
+                    <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+                    {t("knowledge.settings.tab", { defaultValue: "检索设置" })}
+                  </span>
+                ),
+              },
+            ]}
+          />
         </div>
       ) : (
         <header className="knowledge-page-header">
           <div className="space-y-2"><h1>{t("knowledge.title")}</h1><p className="text-sm text-muted-foreground">{t("knowledge.subtitle")}</p></div>
           <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => openRetrieval(false)}
+                disabled={!kbs.length}
+                className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium"
+              >
+                <Search className="h-3.5 w-3.5" aria-hidden />
+                {t("knowledge.searchTitle")}
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -733,7 +668,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </div>
       ) : null}
 
-      {!detailOpen ? (
+      {!detailOpen && !retrievalOpen && !importOpen ? (
       <section
         data-testid="knowledge-stats"
         aria-label={t("knowledge.stats")}
@@ -757,7 +692,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </div>
       ) : null}
 
-      {actionError && !importOpen ? (
+      {actionError ? (
         <div role="alert" className="mt-4 flex items-start gap-2 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           <span className="min-w-0 flex-1 break-words">{t("knowledge.actionError")}: {actionError}</span>
           <button
@@ -840,7 +775,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       ) : null}
 
       <div className="mt-4 flex flex-col gap-4">
-        {!detailOpen ? (
+        {!detailOpen && !retrievalOpen && !importOpen ? (
         <section className="knowledge-motion knowledge-motion-enter" data-testid="knowledge-kb-list" aria-label={t("knowledge.kbTitle")}>
           <div className="knowledge-toolbar mb-5">
             <Input className="h-10 w-full sm:max-w-xs" aria-label={t("knowledge.experience.searchLibraries", { defaultValue: "搜索知识库名称" })} placeholder={t("knowledge.experience.searchLibraries", { defaultValue: "搜索知识库名称" })} value={libraryQuery} onChange={e => setLibraryQuery(e.target.value)} />
@@ -863,7 +798,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </section>
         ) : null}
 
-        {detailOpen ? (
+        {detailOpen && !importOpen ? (
         <div className="grid gap-4">
           {detailTab === "documents" ? (
           <div className="h-fit min-w-0 rounded-panel border border-border/60 bg-background p-4">
@@ -891,10 +826,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             ) : (
               <>
                 <div className="knowledge-toolbar mb-4">
-                  <Button onClick={() => { setActionError(null); setImportOpen(true); }} disabled={busy} className="gap-1.5">
-                    <Upload className="h-3.5 w-3.5" aria-hidden />
-                    {t("knowledge.experience.addMaterial", { defaultValue: "添加资料" })}
-                  </Button>
+                  <Button onClick={openImport} disabled={busy}>{t("knowledge.experience.addMaterial", { defaultValue: "添加资料" })}</Button>
                   {docsLoading && <KnowledgeStatus label={t("knowledge.loading")} tone="pending" busy />}
                 </div>
 
@@ -931,100 +863,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             )}
           </div>
           ) : null}
-          {detailTab === "search" ? (
-          <div className="rounded-panel border border-border/60 bg-background p-4">
-            <h2 className="flex items-center gap-2 pb-3 text-sm font-semibold text-foreground">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Search className="h-3.5 w-3.5" aria-hidden />
-              </span>
-              {t("knowledge.searchTitle")}
-            </h2>
-            <form
-              className="flex flex-col gap-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void onSearch();
-              }}
-            >
-              <label className="flex w-full flex-col gap-1 text-xs font-medium text-muted-foreground">
-                {t("knowledge.query")}
-                <Input
-                  aria-label={t("knowledge.query")}
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t("knowledge.queryPlaceholder")}
-                  className="h-8 text-sm"
-                />
-              </label>
-              <div className="flex items-end gap-2">
-              <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-muted-foreground">
-                {t("knowledge.mode")}
-                <select
-                  aria-label={t("knowledge.mode")}
-                  value={mode}
-                  onChange={(event) => setMode(event.target.value as KnowledgeSearchMode)}
-                  className="h-8 rounded-control border border-input bg-background px-2 text-sm"
-                >
-                  {SEARCH_MODES.map((value) => (
-                    <option key={value} value={value}>
-                      {t(`knowledge.mode${value.charAt(0).toUpperCase()}${value.slice(1)}`)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex w-20 shrink-0 flex-col gap-1 text-xs font-medium text-muted-foreground">
-                {t("knowledge.limit")}
-                <select
-                  aria-label={t("knowledge.limit")}
-                  value={String(limit)}
-                  onChange={(event) => setLimit(Number(event.target.value))}
-                  className="h-8 rounded-control border border-input bg-background px-2 text-sm"
-                >
-                  {SEARCH_LIMITS.map((value) => (
-                    <option key={value} value={String(value)}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={searching || !query.trim()}
-                className="h-8 gap-1.5 rounded-full px-3.5 text-sm font-semibold"
-              >
-                {searching ? (
-                  <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
-                ) : (
-                  <Search className="h-3.5 w-3.5" aria-hidden />
-                )}
-                {t("knowledge.search")}
-              </Button>
-              </div>
-            </form>
-
-            {searchError ? (
-              <div role="alert" className="mt-3 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                {t("knowledge.searchError")}: {searchError}
-              </div>
-            ) : searching ? (
-              <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
-                {t("knowledge.searching")}
-              </p>
-            ) : !searchResult ? (
-              <p className="mt-3 text-sm text-muted-foreground">{t("knowledge.searchIdle")}</p>
-            ) : (
-              <SearchResults
-                result={searchResult}
-                emptyLabel={
-                  searchResult.reason
-                    ? t("knowledge.searchFiltered", { reason: searchResult.reason })
-                    : t("knowledge.searchEmpty")
-                }
-              />
-            )}
-          </div>
+                    {detailTab === "settings" ? (
+            <KnowledgeSettingsPanel token={token} transport={client} />
           ) : null}
           {detailTab === "graph" && activeKb ? (
             <Suspense
@@ -1052,11 +892,11 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         ) : null}
       </div>
 
-      <KnowledgeImportSheet open={importOpen} onClose={() => setImportOpen(false)} busy={busy} error={uploadError ?? actionError} stage={uploadStage} retryable={uploadRetryable}
-        file={uploadFile} path={serverPath} onPath={setServerPath} onUpload={file => void onUpload(file)} onAddPath={() => void onAddServerPath()}
-        onClearFile={() => { setUploadFile(null); setUploadError(null); setUploadRetryable(false); }} />
-      <KnowledgeDocumentSheet doc={chunkPreview} previewChunks={previewChunks} previewTotal={previewTotal} previewLoading={previewLoading}
-        previewError={previewError} onClose={closeChunkPreview} onRetry={() => { if (chunkPreview) void onOpenChunkPreview(chunkPreview); }} />
+      <KnowledgeDocumentDialog doc={chunkPreview} token={token} previewChunks={previewChunks} previewTotal={previewTotal}
+        previewDocTotal={previewDocTotal} previewOffset={previewOffset} previewQuery={previewQuery}
+        previewPageSize={CHUNK_PREVIEW_PAGE_SIZE} previewLoading={previewLoading}
+        previewError={previewError} onClose={closeChunkPreview} onPageChange={onChunkPageChange}
+        onRetry={() => { if (chunkPreview) void loadChunkPreview(chunkPreview, previewOffset, previewQuery); }} />
 
       {confirm ? (
         <div
@@ -1177,69 +1017,3 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   );
 }
 
-function SearchResults({
-  result,
-  emptyLabel,
-}: {
-  result: KnowledgeSearchResult;
-  emptyLabel: string;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="mt-3 flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="rounded-full border border-border/70 px-2 py-0.5 font-medium text-foreground">
-          {t("knowledge.modeUsed", { mode: result.modeUsed })}
-        </span>
-        {result.routes.length > 0 ? (
-          <span className="rounded-full border border-border/70 px-2 py-0.5 text-muted-foreground">
-            {t("knowledge.routes", { routes: result.routes.join(", ") })}
-          </span>
-        ) : null}
-        {result.degraded.length > 0 ? (
-          <span className="rounded-full border border-amber-300/70 bg-amber-50 px-2 py-0.5 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100">
-            {t("knowledge.degraded", { reasons: result.degraded.join(", ") })}
-          </span>
-        ) : null}
-        <span className="text-muted-foreground">
-          {t("knowledge.hitCount", { count: result.hits.length })}
-        </span>
-      </div>
-      {result.hits.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{emptyLabel}</p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {result.hits.map((hit, index) => (
-            <li
-              key={hit.chunkId}
-              className="rounded-control border border-border/60 border-l-2 border-l-primary/50 bg-background px-3 py-2.5 shadow-sm transition-colors hover:border-border"
-            >
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 font-semibold tabular-nums text-foreground">
-                  {index + 1}
-                </span>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold tabular-nums text-primary">
-                  {hit.score.toFixed(3)}
-                </span>
-                {hit.heading ? (
-                  <span className="max-w-[280px] truncate text-foreground">{hit.heading}</span>
-                ) : null}
-                {typeof hit.page === "number" ? (
-                  <span>{t("knowledge.pageLabel", { page: hit.page })}</span>
-                ) : null}
-                <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono">{hit.chunkId}</span>
-                <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono">{hit.docId}</span>
-              </div>
-              <p className="mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap break-words pr-1 text-sm leading-relaxed text-foreground">
-                {hit.content}
-              </p>
-              {hit.locator ? (
-                <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{hit.locator}</p>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}

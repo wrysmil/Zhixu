@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -17,6 +18,7 @@ from nanobot.knowledge.graph.models import GraphEvidencePayload, GraphExpansion
 from nanobot.knowledge.graph.repo import GraphRepository
 from nanobot.knowledge.graph.store import GraphStore
 from nanobot.knowledge.repository import KnowledgeRepository, StoredChunk
+from nanobot.knowledge.trace import hit_rows
 
 #: 共享执行器：检索路径的硬超时必须真正生效；用 with ThreadPoolExecutor 会在退出时
 #: wait 到后端查询结束，反而绕过 800ms 上限。
@@ -109,16 +111,30 @@ class GraphRoute:
         self._query_entities = query_entities
 
     def search(
-        self, query: str, visible_kbs: Sequence[Any]
+        self,
+        query: str,
+        visible_kbs: Sequence[Any],
+        *,
+        trace: Any | None = None,
     ) -> tuple[list[SearchHit], dict[str, GraphEvidencePayload], list[str], bool]:
         """返回 `(候选, 证据映射, 降级标签, 是否实际产出候选)`；失败只降级不抛。"""
         if self._store.health().status != "ready":
+            if trace is not None:
+                trace.add(
+                    "graph",
+                    status="degraded",
+                    detail={"reason": "store_unavailable"},
+                )
             return [], {}, ["graph_unavailable"], False
 
         # WeKnora 口径：图路开启时先用 LLM 从（改写后的）query 抽实体名；
         # 失败/空结果回退本地归一化子串 + 分词。
         extracted: tuple[str, ...] = ()
         if self._query_entities is not None:
+            extraction_started = (
+                time.perf_counter() if trace is not None else None
+            )
+            extraction_failed = False
             try:
                 future = _EXPAND_POOL.submit(self._query_entities, query)
                 extracted = tuple(
@@ -139,11 +155,33 @@ class GraphRoute:
                     exc,
                 )
                 extracted = ()
+                extraction_failed = True
+            if trace is not None:
+                trace.add(
+                    "rewrite",
+                    status=(
+                        "degraded"
+                        if extraction_failed
+                        else ("ok" if extracted else "skipped")
+                    ),
+                    metrics={"entities": len(extracted)},
+                    detail={
+                        "entities": list(extracted),
+                        "fallback": extraction_failed or not extracted,
+                    },
+                    duration_ms=(
+                        0
+                        if extraction_started is None
+                        else int((time.perf_counter() - extraction_started) * 1000)
+                    ),
+                )
 
         hits: list[SearchHit] = []
         evidence: dict[str, GraphEvidencePayload] = {}
         labels: list[str] = []
         produced = False
+        seed_count = 0
+        route_started = time.perf_counter() if trace is not None else None
         for kb in visible_kbs:
             try:
                 seeds = (
@@ -167,6 +205,7 @@ class GraphRoute:
                     )
                 if not seeds:
                     continue
+                seed_count += len(seeds)
                 future = _EXPAND_POOL.submit(
                     self._store.expand,
                     kb.id,
@@ -220,4 +259,28 @@ class GraphRoute:
                 hit.chunk_id,
             )
         )
+        if trace is not None:
+            trace.add(
+                "graph",
+                status=(
+                    "ok"
+                    if produced
+                    else ("degraded" if "graph_unavailable" in labels else "skipped")
+                ),
+                metrics={
+                    "kbs": len(visible_kbs),
+                    "entities": len(extracted),
+                    "seeds": seed_count,
+                    "candidates": len(hits),
+                },
+                detail={
+                    "labels": list(dict.fromkeys(labels)),
+                    "top": hit_rows(hits),
+                },
+                duration_ms=(
+                    0
+                    if route_started is None
+                    else int((time.perf_counter() - route_started) * 1000)
+                ),
+            )
         return hits, evidence, list(dict.fromkeys(labels)), produced

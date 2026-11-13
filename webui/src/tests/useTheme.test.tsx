@@ -17,11 +17,11 @@ describe("appearance controller", () => {
     meta.name = "theme-color";
     document.head.append(meta);
     const { result } = renderHook(() => useTheme({ persist: false }));
-    expect(meta.content).toBe("#FAFAFA");
+    expect(meta.content).toBe("#F7F9FC");
     act(() => result.current.setColor("background", "#123456"));
     expect(meta.content).toBe("#123456");
     act(() => result.current.setTheme("dark"));
-    expect(meta.content).toBe("#18181B");
+    expect(meta.content).toBe("#0B1220");
     meta.remove();
   });
 
@@ -118,7 +118,7 @@ describe("appearance controller", () => {
     expect(localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBe(future);
     act(() => result.current.setPreset("graphite"));
     await act(() => new Promise((resolve) => setTimeout(resolve, 180)));
-    expect(JSON.parse(localStorage.getItem(APPEARANCE_STORAGE_KEY)!).schemaVersion).toBe(1);
+    expect(JSON.parse(localStorage.getItem(APPEARANCE_STORAGE_KEY)!).schemaVersion).toBe(2);
   });
 
   it("syncs storage changes without a write loop or stale pending write", async () => {

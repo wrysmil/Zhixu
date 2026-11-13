@@ -107,6 +107,8 @@ export function GraphPanel({
   const [detailLoading, setDetailLoading] = useState(false);
   const [graphLoading, setGraphLoading] = useState(false);
   const [graphTarget, setGraphTarget] = useState({ entityId: "", hops: 1 });
+  const [showAllEntities, setShowAllEntities] = useState(false);
+  const autoSelected = useRef(false);
   const detailRequest = useRef(0);
   const graphRequest = useRef(0);
   const statsRequest = useRef(0);
@@ -115,6 +117,8 @@ export function GraphPanel({
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    autoSelected.current = false;
+    setShowAllEntities(false);
     setSelectedId("");
     setDetail(null);
     setSubgraph(null);
@@ -215,6 +219,12 @@ export function GraphPanel({
     },
     [graphApi, expandEntity],
   );
+
+  useEffect(() => {
+    if (autoSelected.current || !stats?.enabled || entities.length === 0 || query || type) return;
+    autoSelected.current = true;
+    void openEntity(entities[0].id);
+  }, [entities, stats?.enabled, query, type, openEntity]);
 
   const changeHops = useCallback(
     (next: number) => {
@@ -345,8 +355,22 @@ export function GraphPanel({
               </p>
             </div>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {entities.map((entity) => (
+            <div className="rounded-panel border border-border/60 bg-background px-4 py-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-[12px] font-medium text-muted-foreground">
+                  {t("knowledge.experience.graphExploreEntities", { defaultValue: "选择一个实体，探索它的关联" })}
+                </p>
+                {entities.length > 8 ? (
+                  <button type="button" className="shrink-0 text-[12px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-expanded={showAllEntities} onClick={() => setShowAllEntities((current) => !current)}>
+                    {showAllEntities
+                      ? t("knowledge.experience.graphShowLess", { defaultValue: "收起" })
+                      : t("knowledge.experience.graphShowAll", { count: entities.length, defaultValue: `查看全部 ${entities.length} 个` })}
+                  </button>
+                ) : null}
+              </div>
+              <div className={cn("flex flex-wrap gap-2", showAllEntities && "max-h-40 overflow-y-auto")}>
+              {(showAllEntities ? entities : entities.slice(0, 8)).map((entity) => (
                 <button
                   key={entity.id}
                   type="button"
@@ -358,27 +382,16 @@ export function GraphPanel({
                     void openEntity(entity.id);
                   }}
                   className={cn(
-                    "flex flex-col gap-1 rounded-control border border-border/60 bg-background px-3 py-2 text-left transition-colors duration-[120ms] motion-reduce:transition-none",
+                    "inline-flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-muted/25 px-3 py-1.5 text-left transition-colors duration-[120ms] motion-reduce:transition-none",
                     "hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     selectedId === entity.id && "border-foreground/40 bg-muted",
                   )}
                 >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[14px] font-medium text-foreground">
-                      {entity.name}
-                    </span>
-                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[12px] text-muted-foreground">
-                      {entity.type}
-                    </span>
-                  </span>
-                  <span className="truncate text-[12px] text-muted-foreground">
-                    {entity.description || t("knowledge.graph.otherType")}
-                  </span>
-                  <span className="text-[12px] text-muted-foreground">
-                    {t("knowledge.graph.mentions")}: {entity.mentionCount}
-                  </span>
+                  <span className="truncate text-[13px] font-medium text-foreground">{entity.name}</span>
+                  <span className="text-[11px] text-muted-foreground">{entity.mentionCount}</span>
                 </button>
               ))}
+              </div>
             </div>
           )}
 

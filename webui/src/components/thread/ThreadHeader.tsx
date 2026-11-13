@@ -18,6 +18,7 @@ interface ThreadHeaderProps {
   hideTitle?: boolean;
   actions?: ReactNode;
   workbenchAction?: ReactNode;
+  viewTabs?: ReactNode;
   minimal?: boolean;
   promptNavigatorAction?: ReactNode;
   sessionInfoAction?: ReactNode;
@@ -36,6 +37,7 @@ export function ThreadHeader({
   hideTitle = false,
   actions,
   workbenchAction,
+  viewTabs,
   minimal = false,
   promptNavigatorAction,
   sessionInfoAction,
@@ -97,6 +99,12 @@ export function ThreadHeader({
           </span>
         ) : null}
       </div>
+
+      {viewTabs ? (
+        <div className="pointer-events-auto absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+          {viewTabs}
+        </div>
+      ) : null}
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
         {sessionInfoAction}

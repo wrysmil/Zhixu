@@ -44,6 +44,8 @@ import {
   type RightSurface,
 } from "@/components/thread/SubagentExecutionPanel";
 import { ThreadViewport, type ThreadViewportHandle } from "@/components/thread/ThreadViewport";
+import { TrajectoryPanel } from "@/components/thread/trajectory/TrajectoryPanel";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { TeamSelector, teamPickerVisibility } from "@/components/thread/TeamSelector";
 import { TeamProgressPanel } from "@/components/thread/TeamProgressPanel";
 import { useZhixuStream, type SendAttachment, type SendOptions } from "@/hooks/useZhixuStream";
@@ -807,10 +809,16 @@ export function ThreadShell({
   const welcomeDraftTokenRef = useRef(0);
   const [submittedViewportTurnId, setSubmittedViewportTurnId] = useState<string | null>(null);
   const [rightSurfaces, setRightSurfaces] = useState<RightSurface[]>([WORKBENCH_SURFACE]);
+  const [threadView, setThreadView] = useState<"chat" | "trajectory">("chat");
+  useEffect(() => {
+    setThreadView("chat");
+  }, [historyKey]);
   const activeRightSurface = rightSurfaces[rightSurfaces.length - 1] ?? WORKBENCH_SURFACE;
   const filePreviewPath = activeRightSurface.kind === "file" ? activeRightSurface.path : null;
   const narrowViewport = useMediaQuery("(max-width: 767px)");
   const [mobileWorkbenchOpen, setMobileWorkbenchOpen] = useState(false);
+  // 桌面工作台默认常驻，但允许用户收起；悬停按钮恢复。移动端用 Dialog 状态。
+  const [workbenchOpen, setWorkbenchOpen] = useState(true);
   const executionSurface = activeRightSurface.kind === "execution" ? activeRightSurface : null;
   const [executionReturnFocus, setExecutionReturnFocus] = useState<HTMLElement | null>(null);
   const [shellWidth, setShellWidth] = useState(() =>
@@ -1935,15 +1943,32 @@ export function ThreadShell({
     });
   }, []);
 
-  // 工作台本体常驻、无收起入口：这个按钮只切右侧工具坞（文件/终端/浏览器）。
+  const collapseWorkbench = useCallback(() => {
+    setWorkbenchOpen(false);
+    closeToolsSurface();
+  }, [closeToolsSurface]);
+
+  // 桌面：工作台收起时，这个按钮先把它打开；展开时切右侧工具坞。
   const workbenchAction = session ? (
     <Button
       variant="ghost"
       size="icon"
       type="button"
-      aria-label={compactWorkbench ? t("workbench.title", { defaultValue: "Workbench" }) : t("workbench.tools", { defaultValue: "Tools sidebar" })}
-      aria-pressed={compactWorkbench ? mobileWorkbenchOpen : toolsOpen}
-      onClick={compactWorkbench ? () => setMobileWorkbenchOpen((open) => !open) : toggleToolsSurface}
+      aria-label={
+        compactWorkbench || !workbenchOpen
+          ? t("workbench.title", { defaultValue: "Workbench" })
+          : t("workbench.tools", { defaultValue: "Tools sidebar" })
+      }
+      aria-pressed={compactWorkbench ? mobileWorkbenchOpen : workbenchOpen}
+      onClick={compactWorkbench
+        ? () => setMobileWorkbenchOpen((open) => !open)
+        : () => {
+            if (!workbenchOpen) {
+              setWorkbenchOpen(true);
+              return;
+            }
+            toggleToolsSurface();
+          }}
       className={`host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground ${
         toolsOpen ? "bg-accent/40 text-foreground" : ""
       }`}
@@ -1965,6 +1990,22 @@ export function ThreadShell({
       hideTitle={hideHeaderTitle}
       actions={headerActions}
       workbenchAction={workbenchAction}
+      viewTabs={session ? (
+        <SegmentedControl
+          mode="tabs"
+          ariaLabel={t("thread.trajectory.tabs.label", { defaultValue: "Thread view" })}
+          value={threadView}
+          options={[
+            { value: "chat", label: t("thread.trajectory.tabs.chat", { defaultValue: "Chat" }) },
+            {
+              value: "trajectory",
+              label: t("thread.trajectory.tabs.trajectory", { defaultValue: "Trajectory" }),
+            },
+          ]}
+          onChange={setThreadView}
+          className="bg-muted/45"
+        />
+      ) : undefined}
       minimal={!session && !loading}
     />
   ) : null;
@@ -1987,6 +2028,7 @@ export function ThreadShell({
           </div>
         ) : null}
         {headerPortalTarget === undefined ? threadHeader : null}
+        <div className={threadView === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
         <SubagentExecutionEntryProvider value={subagentExecutionEntryValue}>
           <FilePreviewAvailabilityProvider
             resolve={historyKey ? resolveFilePreviewAvailability : undefined}
@@ -2000,7 +2042,11 @@ export function ThreadShell({
             retryStatus={retryStatus}
             emptyState={emptyState}
             emptyStateBelow={emptyStateBelow}
-            composer={showHeroComposer || composerPortalTarget === undefined ? composer : null}
+            composer={
+              threadView === "chat" && (showHeroComposer || composerPortalTarget === undefined)
+                ? composer
+                : null
+            }
             activeTurnId={viewportTurnId}
             activeTurnStartedHere={activeTurnStartedHere}
             conversationKey={historyKey}
@@ -2021,6 +2067,24 @@ export function ThreadShell({
             />
           </FilePreviewAvailabilityProvider>
         </SubagentExecutionEntryProvider>
+        </div>
+        {session ? (
+          <div className={threadView === "trajectory" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+            <TrajectoryPanel
+              sessionKey={session?.key ?? null}
+              active={threadView === "trajectory"}
+              getToken={getToken}
+              wsClient={client}
+              composer={
+                threadView === "trajectory"
+                && composerPortalTarget === undefined
+                && !showHeroComposer
+                  ? composer
+                  : undefined
+              }
+            />
+          </div>
+        ) : null}
       </div>
       {filePreviewPath && historyKey ? (
         <FilePreviewPanel
@@ -2064,18 +2128,20 @@ export function ThreadShell({
                 sessionKey={historyKey} getToken={getToken} onCollapse={closeToolsSurface}
                 onOpenFilePreview={historyKey ? (path) => { setMobileWorkbenchOpen(false); handleOpenFilePreview(path); } : undefined}
               /> : <SessionWorkbench model={workbenchModel} sessionKey={historyKey} token={token} client={client}
+                onCollapse={() => setMobileWorkbenchOpen(false)}
                 onOpenExecution={(id) => { setMobileWorkbenchOpen(false); handleOpenExecution(id, null); }}
                 onOpenFilePreview={historyKey ? (path) => { setMobileWorkbenchOpen(false); handleOpenFilePreview(path); } : undefined}
                 onOpenKnowledge={onOpenKnowledge}
               />}
             </DialogContent>
           </Dialog>
-        ) : <ResizableRail label={t("workbench.resizeRail", { defaultValue: "Resize workbench" })}>
+        ) : workbenchOpen ? <ResizableRail label={t("workbench.resizeRail", { defaultValue: "Resize workbench" })}>
           <SessionWorkbench
             model={workbenchModel}
             sessionKey={historyKey}
             token={token}
             client={client}
+            onCollapse={collapseWorkbench}
             onOpenExecution={(id) => handleOpenExecution(id, null)}
             onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
             onOpenKnowledge={onOpenKnowledge}
@@ -2093,7 +2159,7 @@ export function ThreadShell({
               />
             </div>
           ) : null}
-        </ResizableRail>
+        </ResizableRail> : null
       ) : null}
       {headerPortalTarget && headerActive
         ? createPortal(threadHeader, headerPortalTarget)

@@ -41,12 +41,12 @@ describe("appearance before React startup", () => {
     stored.snapshot.dark["--font-ui"] = 'serif; background: url(https://invalid)';
     localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(stored));
     boot();
-    expect(document.documentElement.style.getPropertyValue("--background")).toBe("0 0% 98.039%");
+    expect(document.documentElement.style.getPropertyValue("--background")).toBe("216 45% 98%");
     stored.snapshot.dark["--font-ui"] = stored.snapshot.light["--font-ui"];
     stored.mode = "dark";
     localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(stored));
     boot();
-    expect(document.documentElement.style.getPropertyValue("--background")).toBe("240 5.882% 10%");
+    expect(document.documentElement.style.getPropertyValue("--background")).toBe("220 49% 8%");
   });
 
   it("does not apply arbitrary properties from a snapshot", () => {
@@ -73,7 +73,7 @@ describe("appearance before React startup", () => {
     boot();
     expect(get).not.toHaveBeenCalled();
     expect(set).not.toHaveBeenCalled();
-    expect(document.documentElement.dataset.appearanceTheme).toBe("zhixu");
+    expect(document.documentElement.dataset.appearanceTheme).toBe("prism");
   });
 
   it("migrates the original brand theme key on a fresh page", () => {
@@ -82,7 +82,7 @@ describe("appearance before React startup", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(localStorage.getItem("zhixu-webui.theme")).toBe("dark");
     expect(localStorage.getItem("nanobot-webui.theme")).toBeNull();
-    expect(document.documentElement.style.getPropertyValue("--background")).toBe("240 5.882% 10%");
+    expect(document.documentElement.style.getPropertyValue("--background")).toBe("220 49% 8%");
   });
 
   it("uses defaults for unknown versions and malformed JSON without overwriting them", () => {

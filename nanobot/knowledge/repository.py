@@ -26,6 +26,9 @@ _DEFAULT_INDEX_VERSION = "norm1:tok1:chunk1"
 
 _VECTOR_STATUSES = frozenset({"pending", "ok", "partial", "failed", "skipped"})
 
+#: 检索预览历史每库保留条数（超出按 created_at 从旧到新裁剪）。
+_SEARCH_HISTORY_RETENTION = 50
+
 _INSERT_CHUNK_SQL = (
     "INSERT INTO document_chunks"
     " (id,doc_id,kb_id,workspace_id,chunk_index,content,heading_path,page,locator,"
@@ -243,6 +246,12 @@ LIMIT ?
 
 class _AttemptSupersededError(Exception):
     """commit_chunks 的 attempt/状态守卫失败，需要回滚整笔写入。"""
+
+
+def _like_pattern(query: str) -> str:
+    """块内容搜索：转义 LIKE 通配符，避免用户输入 `%`/`_` 扩大匹配面。"""
+    escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
 
 
 class KnowledgeRepository:
@@ -745,6 +754,40 @@ class KnowledgeRepository:
     def delete_document(self, doc_id: str) -> None:
         self._db.execute_write("DELETE FROM documents WHERE id=?", (doc_id,))
 
+    # ---------- 自定义分块（导入前编辑的分块，重索引复用） ----------
+    def replace_custom_chunks(
+        self, doc_id: str, chunks: Sequence[dict[str, object]]
+    ) -> None:
+        with self._db.connect(immediate=True) as conn:
+            conn.execute(
+                "DELETE FROM document_custom_chunks WHERE doc_id=?", (doc_id,)
+            )
+            conn.executemany(
+                "INSERT INTO document_custom_chunks"
+                " (doc_id, chunk_index, content, heading_path, page, locator)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                [
+                    (
+                        doc_id,
+                        index,
+                        str(chunk.get("content") or ""),
+                        str(chunk.get("heading_path") or ""),
+                        chunk.get("page"),
+                        str(chunk.get("locator") or ""),
+                    )
+                    for index, chunk in enumerate(chunks)
+                ],
+            )
+
+    def list_custom_chunks(self, doc_id: str) -> list[dict[str, object]]:
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT chunk_index, content, heading_path, page, locator"
+                " FROM document_custom_chunks WHERE doc_id=? ORDER BY chunk_index",
+                (doc_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     # ---------- 块 ----------
     def commit_chunks(
         self,
@@ -839,15 +882,120 @@ class KnowledgeRepository:
         return self._row_to_chunk(row) if row else None
 
     def list_chunks(
-        self, doc_id: str, *, offset: int = 0, limit: int = 20
+        self,
+        doc_id: str,
+        *,
+        offset: int = 0,
+        limit: int = 20,
+        query: str = "",
     ) -> list[StoredChunk]:
+        sql = f"SELECT {_CHUNK_FIELDS} FROM document_chunks WHERE doc_id=?"
+        params: list[object] = [doc_id]
+        if query:
+            sql += " AND content LIKE ? ESCAPE '\\'"
+            params.append(_like_pattern(query))
+        sql += " ORDER BY chunk_index LIMIT ? OFFSET ?"
+        params.extend((limit, offset))
+        with self._db.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [self._row_to_chunk(row) for row in rows]
+
+    def count_chunks(self, doc_id: str, *, query: str = "") -> int:
+        sql = "SELECT COUNT(*) FROM document_chunks WHERE doc_id=?"
+        params: list[object] = [doc_id]
+        if query:
+            sql += " AND content LIKE ? ESCAPE '\\'"
+            params.append(_like_pattern(query))
+        with self._db.connect() as conn:
+            row = conn.execute(sql, params).fetchone()
+        return int(row[0]) if row else 0
+
+    # ---------- 检索预览历史 ----------
+    def record_search_history(
+        self,
+        *,
+        kb_id: str,
+        workspace_id: str,
+        query: str,
+        mode: str,
+        limit: int,
+        hit_count: int,
+        duration_ms: int,
+    ) -> str:
+        history_id = new_id("qry")
+        now = utc_now()
+        with self._db.connect(immediate=True) as conn:
+            conn.execute(
+                "INSERT INTO knowledge_search_history"
+                " (id, kb_id, workspace_id, query, mode, limit_value,"
+                " hit_count, duration_ms, created_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    history_id,
+                    kb_id,
+                    workspace_id,
+                    query,
+                    mode,
+                    limit,
+                    hit_count,
+                    duration_ms,
+                    now,
+                ),
+            )
+            # 每库只留最近 _SEARCH_HISTORY_RETENTION 条，避免无限增长。
+            conn.execute(
+                "DELETE FROM knowledge_search_history WHERE kb_id=? AND id NOT IN ("
+                " SELECT id FROM knowledge_search_history WHERE kb_id=?"
+                " ORDER BY created_at DESC, rowid DESC LIMIT ?)",
+                (kb_id, kb_id, _SEARCH_HISTORY_RETENTION),
+            )
+        return history_id
+
+    def list_search_history(
+        self,
+        *,
+        kb_id: str,
+        workspace_ids: Sequence[str],
+        limit: int = 20,
+    ) -> list[dict[str, object]]:
+        if not workspace_ids:
+            return []
+        placeholders = ",".join("?" for _ in workspace_ids)
         with self._db.connect() as conn:
             rows = conn.execute(
-                f"SELECT {_CHUNK_FIELDS} FROM document_chunks WHERE doc_id=?"
-                " ORDER BY chunk_index LIMIT ? OFFSET ?",
-                (doc_id, limit, offset),
+                "SELECT id, kb_id, query, mode, limit_value, hit_count,"
+                " duration_ms, created_at FROM knowledge_search_history"
+                f" WHERE kb_id=? AND workspace_id IN ({placeholders})"
+                " ORDER BY created_at DESC, rowid DESC LIMIT ?",
+                (kb_id, *workspace_ids, limit),
             ).fetchall()
-        return [self._row_to_chunk(row) for row in rows]
+        return [
+            {
+                "id": str(row["id"]),
+                "kb_id": str(row["kb_id"]),
+                "query": str(row["query"]),
+                "mode": str(row["mode"]),
+                "limit": int(row["limit_value"]),
+                "hit_count": int(row["hit_count"]),
+                "duration_ms": int(row["duration_ms"]),
+                "created_at": str(row["created_at"]),
+            }
+            for row in rows
+        ]
+
+    def clear_search_history(
+        self, *, kb_id: str, workspace_ids: Sequence[str]
+    ) -> int:
+        if not workspace_ids:
+            return 0
+        placeholders = ",".join("?" for _ in workspace_ids)
+        with self._db.connect(immediate=True) as conn:
+            cursor = conn.execute(
+                "DELETE FROM knowledge_search_history"
+                f" WHERE kb_id=? AND workspace_id IN ({placeholders})",
+                (kb_id, *workspace_ids),
+            )
+        return int(cursor.rowcount or 0)
 
     def fetch_search_chunks(
         self, chunk_ids: Sequence[str], *, kb_ids: Sequence[str]

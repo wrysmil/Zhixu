@@ -257,6 +257,37 @@ class MemoryLoggingConfig(Base):
         )
 
 
+class TrajectoryConfig(Base):
+    """执行轨迹采集配置（spec 2026-11-13）。
+
+    关闭只停止新采集，已有轨迹仍按权限可读；正文模式逐事件边界生效。
+    """
+
+    enabled: bool = True
+    mode: Literal["off", "metadata", "standard", "raw-chunks"] = "standard"
+    retention_days: int = Field(
+        default=30,
+        ge=1,
+        le=365,
+        validation_alias=AliasChoices("retentionDays", "retention_days"),
+        serialization_alias="retentionDays",
+    )
+    max_body_mb: int = Field(
+        default=8,
+        ge=1,
+        le=64,
+        validation_alias=AliasChoices("maxBodyMb", "max_body_mb"),
+        serialization_alias="maxBodyMb",
+    )
+    max_run_body_mb: int = Field(
+        default=100,
+        ge=1,
+        le=4096,
+        validation_alias=AliasChoices("maxRunBodyMb", "max_run_body_mb"),
+        serialization_alias="maxRunBodyMb",
+    )
+
+
 class AgentDefaults(Base):
     """Default agent configuration."""
 
@@ -850,6 +881,7 @@ class Config(BaseSettings):
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
     knowledge: KnowledgeConfig = Field(default_factory=KnowledgeConfig)
+    trajectory: TrajectoryConfig = Field(default_factory=TrajectoryConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     model_presets: dict[str, ModelPresetConfig] = Field(
         default_factory=dict,

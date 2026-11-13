@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>选择字体 · 页面方案试排</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f3ef;color:#203028;font:14px/1.7 system-ui,"Microsoft YaHei",sans-serif;overflow-wrap:anywhere}header{padding:28px max(20px,calc((100vw - 1100px)/2));background:#203e30;color:white}header h1{font-size:28px;margin:5px 0 10px}header p{margin:0;max-width:850px;color:#d6e0d7}main{max-width:1140px;padding:28px 20px 60px;margin:auto}h2{font-size:20px;margin:0 0 16px}h3{margin:0 0 10px}p{margin:8px 0}button,input,textarea,select{font:inherit}button{cursor:pointer;border:1px solid #adbbb0;border-radius:5px;background:white;color:#203e30;padding:9px 14px}button.primary{background:#203e30;color:white}button:disabled{cursor:default;opacity:.5}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #b46830;outline-offset:3px}input[type=text],textarea,select{width:100%;padding:9px 10px;border:1px solid #adbbb0;border-radius:5px;background:white;color:#203028}textarea{min-height:88px;resize:vertical}.intro{padding:16px 20px;background:#e7ece2;border-left:3px solid #58715e;margin-bottom:24px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.formgrid label{display:block}.formgrid .wide{grid-column:1/-1}.subtle{font-size:12px;color:#59675f}.choices{border:0;margin:28px 0;padding:0}.choices legend{font-size:20px;font-weight:650;margin-bottom:14px}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{background:white;padding:20px;border:1px solid #cdd5cb;border-radius:6px;min-width:0}.card[data-selected=true]{border:2px solid #426c4b;padding:19px}.card label{display:flex;gap:8px;align-items:center;font-size:14px;font-weight:600}.card input{accent-color:#426c4b}.card .reason{font-size:12px;color:#59675f;min-height:40px}.specimen{padding-top:16px;border-top:1px solid #e0e5dc;font-synthesis:none}.specimen h3{font-family:var(--heading);font-size:25px;line-height:1.4;font-weight:600}.specimen p{font-family:var(--body);font-size:14px;line-height:1.85;font-weight:400}.specimen .number{font-family:var(--numeric);font-size:24px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1.4}.families{font-size:11px;line-height:1.8;color:#59675f;margin-top:14px}.toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:16px 0}.toolbar button[aria-pressed=true]{background:#203e30;color:white}section{margin-top:28px}.rolegrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}details{border:1px solid #cdd5cb;padding:14px 18px;background:white}summary{cursor:pointer;font-weight:600}.rolegrid{margin-top:18px}.shell{padding:12px;background:#dfdfd6;overflow:hidden}.stage{position:relative;margin:auto}.stage iframe{display:block;border:0;transform-origin:top left;background:white}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:white;padding:16px;border:1px solid #cdd5cb;font:12px/1.7 ui-monospace,monospace}.result{border-left:3px solid #426c4b;padding:14px 18px;background:#e7ece2}.hidden,[hidden]{display:none!important}a{color:#205c37;text-underline-offset:3px}@media(max-width:680px){header{padding:24px 16px}header h1{font-size:24px}main{padding:22px 16px 40px}.formgrid,.cards,.rolegrid{grid-template-columns:1fr}.formgrid .wide{grid-column:auto}.card .reason{min-height:0}.specimen h3{font-size:25px}.shell{padding:6px}}
+</style>
+</head>
+<body>
+<header><p>TYPE / REAL CONTENT / PAGE PROPOSAL</p><h1>先看真实文字，再选字体。</h1><p>切换只改变方案试排。点“确定这套字体”才记录选择；不会修改正式页面、安装系统字体或批准发布。</p></header>
+<main>
+<div class="intro"><strong id="projectLabel">通用试排模板</strong><p id="sourceNote">默认使用系统字体栈，未下载网络字体。当前基线即项目 --font-ui 系统栈，与页面实测 computed font 一致。</p><p class="subtle" id="loadStatus" role="status">字体资源：未请求文件；实际字形由当前系统按栈回退。</p></div>
+<section aria-labelledby="contentTitle"><h2 id="contentTitle">用你的页面文案试排</h2><div class="formgrid"><label>中文标题<input type="text" id="sampleTitle"></label><label>英文与编号<input type="text" id="sampleLatin"></label><label class="wide">正文与长文本<textarea id="sampleBody"></textarea></label><label>数字 / 价格 / 日期<input type="text" id="sampleNumber"></label><label>按钮文案<input type="text" id="sampleButton"></label></div></section>
+<fieldset class="choices"><legend>选择一套搭配</legend><div class="cards" id="cards"></div></fieldset>
+<details><summary>按角色微调（可选）</summary><p class="subtle">字体角色可分别选择。下面所有对照使用同一字号和字重，不通过放大字或加粗制造假差异。</p><div class="rolegrid"><label>标题字体<select id="headingRole"></select></label><label>正文与控件<select id="bodyRole"></select></label><label>数字 / 编号<select id="numericRole"></select></label></div></details>
+<section aria-labelledby="liveTitle"><h2 id="liveTitle">当前搭配 · 实际视口试排</h2><p id="draftLabel"></p><div class="toolbar" aria-label="试排视口"><button data-width="960" aria-pressed="true">960px</button><button data-width="390" aria-pressed="false">390px</button><button data-width="320" aria-pressed="false">320px</button></div><div class="shell" id="shell"><div class="stage" id="stage"><iframe title="当前字体试排：标题、正文、控件与数字" id="preview"></iframe></div></div><p class="subtle">iframe采用真实独立视口；显示空间不足时仅缩放展示。这里只是字体角色试样，正式方案需同时检查所选组件库控件。</p></section>
+<section aria-labelledby="selectionTitle"><h2 id="selectionTitle">记录选择</h2><div class="toolbar"><button class="primary" id="confirm">确定这套字体（仅方案）</button><button id="reset">恢复基线</button><button id="download" disabled>导出选择 JSON</button></div><div class="result" id="selectionStatus" role="status" aria-live="polite">当前仅为预览，尚未确定字体。</div><pre id="selectionJson" hidden></pre><p class="subtle">独立打开时可导出选择结果，或在对话中告诉AI选了哪套；嵌入方案时通过消息通知父页面。未读取到选择结果，不代表已确认。系统字体的网页调用不等于拥有字体文件分发权。</p></section>
+</main>
+<script>
+// Copy into the project proposal, then replace this configuration with the real baseline,
+// two or three appropriate candidates and page copy. No network request by default.
+const FONT_PICKER_CONFIG={
+  projectLabel:'知序 WebUI · 知识库检索预览 · 字体试排',
+  baselineId:'baseline',
+  targetOrigin:'*', // file: 下来源不透明；父页面按候选白名单校验。
+  families:{
+    system:{label:'项目基线：系统 UI 栈',stack:'-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", system-ui, Roboto, Arial, sans-serif'},
+    sans:{label:'通用中文无衬线栈',stack:'"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif'},
+    serif:{label:'中文衬线栈（仅标题候选）',stack:'"Songti SC", "STSong", "SimSun", serif'},
+    mono:{label:'等宽数字 / 编号栈',stack:'"Cascadia Code", "JetBrains Mono", Consolas, "SFMono-Regular", monospace'}
+  },
+  presets:[
+    {id:'baseline',label:'沿用现有（系统 UI 栈）',reason:'与知识库、记忆、聊天页一致；零字体加载成本，Windows/macOS 回退明确，数字使用 tabular-nums。',roles:{heading:'system',body:'system',numeric:'system'}},
+    {id:'product',label:'A · 统一中文无衬线',reason:'显式锁定雅黑 / PingFang，标题正文同族；与基线接近，差异主要出现在非 Windows 环境的回退。',roles:{heading:'sans',body:'sans',numeric:'sans'}},
+    {id:'editorial',label:'B · 标题衬线',reason:'衬线只用于页面标题，正文与控件保持无衬线；更偏编辑感，与本产品现有工具页气质不一致。',roles:{heading:'serif',body:'sans',numeric:'sans'}},
+    {id:'data',label:'C · 数字与编号等宽',reason:'正文无衬线，分数、耗时与 chunkId 用等宽；表格对齐更稳，但增加中西文字形混排。',roles:{heading:'system',body:'system',numeric:'mono'}}
+  ],
+  weights:{heading:600,body:400,numeric:500},
+  fontFaces:[],
+  sample:{title:'检索预览',body:'在交给 Agent 之前，检查每一步召回了什么。查询会经过分词、向量与关键词召回、融合、精排和去冗余，耗时长短决定用户等待多久。',latin:'hybrid · vector / keyword / graph · 定位信息',number:'0.699 · 6.2s · 8 条结果 · 2026-11-13 10:33',button:'检索'}
+};
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const config=FONT_PICKER_CONFIG;
+let base=config.presets.find(p=>p.id===config.baselineId)||config.presets[0];
+let roles={...base.roles},custom=false,confirmed=null,frameWidth=960,loads=[];
+const roleStacks=()=>Object.fromEntries(Object.entries(roles).map(([role,key])=>[role,config.families[key].stack]));
+const sample=()=>Object.fromEntries(['title','body','latin','number','button'].map(key=>[key,$('#sample'+key[0].toUpperCase()+key.slice(1)).value]));
+function selection(status){return {presetId:base.id,label:(custom?'自定义搭配，基于：':'')+base.label,custom,roles:roleStacks(),weights:{...config.weights},status,fontSource:config.fontFaces.length?'configured-files-with-fallback':'system-stack',fontFiles:loads.map(x=>({...x}))};}
+function notify(type,status){if(parent!==window)parent.postMessage({type,selection:selection(status)},config.targetOrigin);}
+function invalidate(){confirmed=null;$('#download').disabled=true;$('#selectionJson').hidden=true;$('#selectionStatus').textContent='当前仅为预览，尚未确定字体。';}
+function syncControls(){for(const role of ['heading','body','numeric'])$('#'+role+'Role').value=roles[role];}
+function renderCards(){
+  const text=sample();
+  for(const preset of config.presets){
+    let card=[...$('#cards').children].find(el=>el.dataset.preset===preset.id);
+    if(!card){
+      card=document.createElement('article');card.className='card';card.dataset.preset=preset.id;
+      card.innerHTML=`<label><input type="radio" name="preset" value="${esc(preset.id)}">${esc(preset.label)}</label><p class="reason">${esc(preset.reason)}</p><div class="specimen"></div><p class="families"></p>`;
+      $('#cards').append(card);
+    }
+    card.dataset.selected=String(preset.id===base.id);card.querySelector('input').checked=preset.id===base.id;
+    const specimen=card.querySelector('.specimen');
+    for(const role of ['heading','body','numeric'])specimen.style.setProperty('--'+role,config.families[preset.roles[role]].stack);
+    specimen.innerHTML=`<h3 style="font-weight:${config.weights.heading}">${esc(text.title)}</h3><p style="font-weight:${config.weights.body}">${esc(text.body)}</p><p class="number" style="font-weight:${config.weights.numeric}">${esc(text.number)}</p>`;
+    card.querySelector('.families').innerHTML=`标题：${esc(config.families[preset.roles.heading].label)}<br>正文/控件：${esc(config.families[preset.roles.body].label)}<br>数字：${esc(config.families[preset.roles.numeric].label)}`;
+  }
+}
+function resize(){const padding=parseFloat(getComputedStyle($('#shell')).paddingLeft)*2;const scale=Math.min(1,Math.max(1,$('#shell').clientWidth-padding)/frameWidth);const frame=$('#preview');frame.style.width=frameWidth+'px';frame.style.height='720px';frame.style.transform='scale('+scale+')';$('#stage').style.width=frameWidth*scale+'px';$('#stage').style.height=720*scale+'px';}
+function renderPreview(){const text=sample(),stack=roleStacks();const faces=config.fontFaces.map(face=>{const url=new URL(face.url,location.href).href;return `@font-face{font-family:${JSON.stringify(face.family)};src:url(${JSON.stringify(url)});font-weight:${face.weight||'400'};font-style:${face.style||'normal'};font-display:swap}`;}).join('');
+  $('#preview').srcdoc=`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${faces}*{box-sizing:border-box}body{margin:0;padding:36px;color:#203028;background:#fff;font-family:${stack.body};font-size:15px;line-height:1.85;font-synthesis:none;overflow-wrap:anywhere}h1{font-family:${stack.heading};font-size:38px;line-height:1.35;font-weight:${config.weights.heading};margin:12px 0 22px}p{font-weight:${config.weights.body}}.number{font-family:${stack.numeric};font-size:30px;font-weight:${config.weights.numeric};font-variant-numeric:tabular-nums;line-height:1.6}button,input{font-family:${stack.body};font-size:14px;line-height:1.5;border:1px solid #a9b5a7;border-radius:5px;padding:12px;background:#fff;color:#203028}button{background:#203e30;color:white;cursor:pointer;min-height:44px}label{display:block;margin:20px 0}input{display:block;width:100%;margin-top:5px}.label{font-size:12px;color:#59675f}.status{font-size:13px;color:#59675f}@media(max-width:500px){body{padding:22px 18px}h1{font-size:28px}.number{font-size:24px}}</style><p class="label">真实文案试排 / 标题 · 正文 · 控件 · 数字</p><h1>${esc(text.title)}</h1><p>${esc(text.body)}</p><p>${esc(text.latin)}</p><p class="number">${esc(text.number)}</p><label>表单文字样例<input value="${esc(text.latin)}" aria-label="表单文字样例"></label><button type="button" onclick="document.querySelector('.status').textContent='已触发字体样例反馈，未提交任何数据。'">${esc(text.button)}</button><p class="status" role="status">这是字体角色样例；所选库的真实控件需在项目方案中一起核对。</p></html>`;
+  $('#draftLabel').textContent=(custom?'自定义 · 基于':'预览 · ')+base.label+'；标题 / 正文 / 数字分别使用上述角色字体。';resize();
+}
+function change(){invalidate();renderCards();renderPreview();notify('frontend-review:font-preview','draft');}
+$('#projectLabel').textContent=config.projectLabel;
+if(config.fontFaces.length)$('#sourceNote').textContent='使用已配置字体文件与明确回退；请同时检查资源状态、语言覆盖及实际字形。';
+for(const [key,value]of Object.entries(config.sample))$('#sample'+key[0].toUpperCase()+key.slice(1)).value=value;
+for(const role of ['heading','body','numeric']){const select=$('#'+role+'Role');for(const [key,value]of Object.entries(config.families)){const option=document.createElement('option');option.value=key;option.textContent=value.label;select.append(option)}select.addEventListener('change',()=>{roles[role]=select.value;custom=true;change()});}
+document.querySelectorAll('input[type=text],textarea').forEach(el=>el.addEventListener('input',()=>{renderCards();renderPreview()}));
+$('#cards').addEventListener('change',e=>{if(e.target.name!=='preset')return;base=config.presets.find(p=>p.id===e.target.value);roles={...base.roles};custom=false;syncControls();change();});
+document.querySelectorAll('[data-width]').forEach(button=>button.addEventListener('click',()=>{frameWidth=Number(button.dataset.width);document.querySelectorAll('[data-width]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));resize();}));
+$('#confirm').addEventListener('click',()=>{confirmed=selection('confirmed');$('#download').disabled=false;$('#selectionJson').hidden=false;$('#selectionJson').textContent=JSON.stringify(confirmed,null,2);$('#selectionStatus').textContent='已确定：'+confirmed.label+'。仅记录本方案字体选择；不代表改版或发布授权。';notify('frontend-review:font-select','confirmed');});
+$('#reset').addEventListener('click',()=>{base=config.presets.find(p=>p.id===config.baselineId)||config.presets[0];roles={...base.roles};custom=false;syncControls();change();});
+$('#download').addEventListener('click',()=>{if(!confirmed)return;const url=URL.createObjectURL(new Blob([JSON.stringify(confirmed,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='font-selection.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+addEventListener('resize',resize);syncControls();renderCards();renderPreview();
+if(config.fontFaces.length){$('#loadStatus').textContent='字体资源加载中；完成前可能使用回退。';Promise.all(config.fontFaces.map(async face=>{try{const url=new URL(face.url,location.href).href;const loaded=await new FontFace(face.family,`url(${JSON.stringify(url)})`,{weight:face.weight||'400',style:face.style||'normal'}).load();document.fonts.add(loaded);return {family:face.family,status:'loaded',url,weight:face.weight||'400'};}catch(error){return {family:face.family,status:'failed',url:face.url,error:String(error.message)};}})).then(result=>{loads=result;$('#loadStatus').textContent=result.map(x=>x.family+'：'+(x.status==='loaded'?'文件加载成功（仍需核对具体字形覆盖）':'加载失败，当前为回退预览')).join('；');invalidate();renderCards();renderPreview();});}
+</script>
+</body>
+</html>

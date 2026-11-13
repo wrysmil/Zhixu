@@ -21,6 +21,7 @@ from nanobot.knowledge.retriever import (
     RetrieverSettings,
     _query_variants,
 )
+from nanobot.knowledge.trace import SearchTrace
 
 _UNSET = object()
 
@@ -344,6 +345,63 @@ def test_hybrid_merges_both_routes() -> None:
     assert result.reason is None
     scores = [hit.score for hit in result.hits]
     assert scores == sorted(scores, reverse=True)
+
+
+def test_doc_filter_narrows_hits_to_requested_documents() -> None:
+    keyword_text = _long_text("alpha beta", "a")
+    other_text = _long_text("alpha gamma", "b")
+    repo = FakeRepo(
+        kbs=[_kb()],
+        fts=[
+            _fts("chk_a", keyword_text, 9.0, doc_id="doc_a"),
+            _fts("chk_b", other_text, 8.0, doc_id="doc_b"),
+        ],
+        chunks={
+            "chk_a": _stored("chk_a", keyword_text, doc_id="doc_a"),
+            "chk_b": _stored("chk_b", other_text, doc_id="doc_b"),
+        },
+    )
+    retriever = _retriever(repo, vector=None)
+
+    both = retriever.search("alpha", workspace_ids=["ws1"], mode="keyword")
+    only_a = retriever.search(
+        "alpha", workspace_ids=["ws1"], mode="keyword", doc_ids=["doc_a"]
+    )
+    none = retriever.search(
+        "alpha", workspace_ids=["ws1"], mode="keyword", doc_ids=["doc_missing"]
+    )
+
+    assert {hit.doc_id for hit in both.hits} == {"doc_a", "doc_b"}
+    assert [hit.doc_id for hit in only_a.hits] == ["doc_a"]
+    assert none.hits == ()
+    assert none.reason == "filtered"
+
+
+def test_trace_records_pipeline_stages_without_changing_hits() -> None:
+    repo, embedder, vector = _hybrid_fixture()
+    retriever = _retriever(repo, embedder=embedder, vector=vector)
+
+    plain = retriever.search("alpha delta", workspace_ids=["ws1"])
+    traced = retriever.search(
+        "alpha delta",
+        workspace_ids=["ws1"],
+        trace=SearchTrace(query="alpha delta", mode="hybrid", limit=8),
+    )
+
+    assert [hit.chunk_id for hit in traced.hits] == [hit.chunk_id for hit in plain.hits]
+    assert [hit.score for hit in traced.hits] == [hit.score for hit in plain.hits]
+    assert plain.trace is None
+    assert traced.trace is not None
+    kinds = [stage["kind"] for stage in traced.trace["stages"]]
+    for required in ("query", "vector", "keyword", "fusion", "dedup", "rerank", "mmr"):
+        assert required in kinds
+    assert kinds[0] == "query"
+    assert kinds.index("vector") < kinds.index("fusion") < kinds.index("mmr")
+    vector_stage = next(
+        stage for stage in traced.trace["stages"] if stage["kind"] == "vector"
+    )
+    assert vector_stage["metrics"]["candidates"] >= 1
+    assert "top" in vector_stage["detail"]
 
 
 def test_vector_only_is_semantic_mode() -> None:

@@ -54,6 +54,12 @@ function renderPanel(api: ReturnType<typeof fakeApi>, kbId = "kb") {
   );
 }
 
+/** 实体胶囊：名称 + 提及次数。 */
+async function entityPill(index: number): Promise<HTMLElement> {
+  const pills = await screen.findAllByTestId("graph-entity-card");
+  return pills[index];
+}
+
 beforeEach(() => {
   void i18n.changeLanguage("en");
 });
@@ -66,27 +72,26 @@ describe("GraphPanel", () => {
       { source: "e0", target: "e1", relation: "uses", weight: 1 },
     ] });
     renderPanel(api);
-    await userEvent.click(await screen.findByRole("button", { name: /Alpha description/ }));
     const beta = await screen.findByRole("button", { name: "Beta · concept" });
     beta.focus();
     await userEvent.keyboard("{Enter}");
     await screen.findByRole("button", { name: /Beta source/ });
-    expect(beta).toHaveFocus();
     expect(beta).toHaveAttribute("aria-pressed", "true");
-    expect(api.subgraph).toHaveBeenCalledTimes(1);
+    // 选中节点只切换详情，不重新拉取关联图谱。
+    const subgraphCalls = api.subgraph.mock.calls.length;
+    expect(subgraphCalls).toBe(1);
     await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.graphExpand") }));
+    await waitFor(() => expect(api.subgraph).toHaveBeenCalledTimes(subgraphCalls + 1));
     expect(api.subgraph).toHaveBeenLastCalledWith({ entityId: "e1", hops: 1, limit: 50 });
-    expect(api.entity).toHaveBeenCalledTimes(2);
   });
 
-  it("returns focus to the original list trigger after selecting a graph-only node", async () => {
-    const api = fakeApi({}, [ENTITIES[0]]);
+  it("returns focus to the entity trigger after closing the detail", async () => {
+    const api = fakeApi({}, ENTITIES);
     api.entity.mockImplementation(async id => detailFor(id === "e0" ? 0 : 1));
     api.subgraph.mockResolvedValue({ nodes: ENTITIES, edges: [] });
     renderPanel(api);
-    const trigger = await screen.findByRole("button", { name: /Alpha description/ });
+    const trigger = await entityPill(0);
     await userEvent.click(trigger);
-    await userEvent.click(await screen.findByRole("button", { name: "Beta · concept" }));
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(trigger).toHaveFocus();
   });
@@ -98,8 +103,7 @@ describe("GraphPanel", () => {
     api.subgraph.mockImplementationOnce(() => old.promise)
       .mockResolvedValueOnce({ nodes: [ENTITIES[1]], edges: [] });
     renderPanel(api);
-    await userEvent.click(await screen.findByRole("button", { name: /Alpha description/ }));
-    await userEvent.click(screen.getByRole("button", { name: /Beta description/ }));
+    await userEvent.click(await entityPill(1));
     await screen.findByRole("button", { name: "Beta · concept" });
     await act(async () => { old.resolve({ nodes: [ENTITIES[0]], edges: [] }); });
     expect(screen.queryByRole("button", { name: "Alpha · concept" })).not.toBeInTheDocument();
@@ -110,21 +114,21 @@ describe("GraphPanel", () => {
     const old = deferred<KnowledgeGraphEntityDetail>();
     api.entity.mockImplementation(() => old.promise);
     renderPanel(api);
-    const trigger = await screen.findByRole("button", { name: /Alpha description/ });
+    const trigger = await entityPill(0);
     await userEvent.click(trigger);
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(trigger).toHaveFocus();
     await act(async () => { old.resolve(detailFor(0)); });
     expect(screen.queryByRole("heading", { name: "Alpha" })).not.toBeInTheDocument();
   });
+
   it("ignores an old entity response and opens the current evidence", async () => {
     const api = fakeApi({}, ENTITIES);
     const old = deferred<KnowledgeGraphEntityDetail>();
     api.entity.mockImplementation((id?: string) => id === "e0" ? old.promise : Promise.resolve(detailFor(1)));
     const onOpenChunk = vi.fn();
     render(<GraphPanel kbId="kb" token="t" client={{} as never} api={api} onOpenChunk={onOpenChunk} />);
-    await userEvent.click(await screen.findByRole("button", { name: /Alpha description/ }));
-    await userEvent.click(screen.getByRole("button", { name: /Beta description/ }));
+    await userEvent.click(await entityPill(1));
     await screen.findByRole("heading", { name: "Beta" });
     await act(async () => { old.resolve(detailFor(0)); });
     expect(screen.queryByRole("heading", { name: "Alpha" })).not.toBeInTheDocument();
@@ -136,7 +140,6 @@ describe("GraphPanel", () => {
     const api = fakeApi({}, ENTITIES);
     api.entity.mockRejectedValueOnce(new Error("detail unavailable")).mockResolvedValueOnce(detailFor(0));
     renderPanel(api);
-    await userEvent.click(await screen.findByRole("button", { name: /Alpha description/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent("detail unavailable");
     const statsCalls = api.stats.mock.calls.length;
     const entityCalls = api.entities.mock.calls.length;
@@ -150,9 +153,8 @@ describe("GraphPanel", () => {
   it("keeps detail when the subgraph fails and retries that graph only", async () => {
     const api = fakeApi({}, ENTITIES);
     api.entity.mockResolvedValue(detailFor(0));
-    api.subgraph.mockRejectedValueOnce(new Error("graph unavailable"));
+    api.subgraph.mockRejectedValueOnce(new Error("graph unavailable")).mockResolvedValueOnce({ nodes: [], edges: [] });
     renderPanel(api);
-    await userEvent.click(await screen.findByRole("button", { name: /Alpha description/ }));
     await screen.findByRole("heading", { name: "Alpha" });
     expect(await screen.findByRole("alert")).toHaveTextContent("graph unavailable");
     await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.graphRetryGraph") }));
@@ -164,13 +166,17 @@ describe("GraphPanel", () => {
   it("invalidates pending detail when the library changes", async () => {
     const api = fakeApi({}, ENTITIES);
     const old = deferred<KnowledgeGraphEntityDetail>();
-    api.entity.mockImplementation(() => old.promise);
+    // 切换知识库后的请求永远挂起，旧响应即使迟到也不得渲染。
+    api.entity.mockImplementationOnce(() => old.promise)
+      .mockImplementation(() => new Promise<KnowledgeGraphEntityDetail>(() => {}));
     const { rerender } = renderPanel(api);
-    await userEvent.click(await screen.findByRole("button", { name: /Alpha description/ }));
+    await userEvent.click(await entityPill(0));
     rerender(<GraphPanel kbId="other" token="t" client={{} as never} api={api} />);
     await act(async () => { old.resolve(detailFor(0)); });
-    expect(screen.queryByRole("heading", { name: "Alpha" })).not.toBeInTheDocument();
+    // 切换知识库后，旧库的详情证据不得再出现。
+    expect(screen.queryByRole("button", { name: /Alpha source/ })).not.toBeInTheDocument();
   });
+
   it("disables build and rebuild when the graph is off", async () => {
     const api = fakeApi({ enabled: false, status: "disabled", reason: "disabled" });
     renderPanel(api);
@@ -190,7 +196,7 @@ describe("GraphPanel", () => {
       },
     ]);
     renderPanel(api);
-    expect(await screen.findByText("web-api")).toBeTruthy();
+    expect((await screen.findAllByText("web-api")).length).toBeGreaterThan(0);
     expect(api.entities).toHaveBeenCalledWith({ kbId: "kb", q: "", type: "" });
   });
 

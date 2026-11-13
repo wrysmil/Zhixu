@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
 from contextvars import ContextVar
 from typing import Any, cast
+from uuid import uuid4
 
 from loguru import logger
 
@@ -70,32 +72,69 @@ async def execute_tool_calls(
     context: AgentHookContext,
 ) -> tuple[list[Any], list[dict[str, str]]]:
     """Execute one model response's tool calls in stable result order."""
+    from nanobot.trajectory import capture as trace_capture
+
+    get_tool = cast(Callable[[str], Any] | None, getattr(tools, "get", None))
+    trace_ids: list[str] = []
+    seen_ids: set[str] = set()
+    for tool_call in tool_calls:
+        trace_id = tool_call.id or f"tool-{uuid4().hex}"
+        if trace_id in seen_ids:
+            trace_id = f"{trace_id}#{len(seen_ids)}"
+        seen_ids.add(trace_id)
+        trace_ids.append(trace_id)
+    for index, tool_call in enumerate(tool_calls):
+        tool = get_tool(tool_call.name) if callable(get_tool) else None
+        trace_capture.tool_requested(
+            tool_call_id=trace_ids[index],
+            provider_call_id=tool_call.id or None,
+            name=tool_call.name,
+            arguments=tool_call.arguments,
+            schema=getattr(tool, "parameters", None) if tool is not None else None,
+            model_order=index + 1,
+        )
+    trace_by_object = {id(tool_call): trace_ids[index]
+                       for index, tool_call in enumerate(tool_calls)}
     tool_results: list[tuple[Any, dict[str, str]]] = []
-    for batch in _partition_tool_batches(tools, tool_calls, concurrent=concurrent):
-        if concurrent and len(batch) > 1:
-            batch_results = await asyncio.gather(*(
-                _execute_tool_call(
-                    tools,
-                    tool_call,
-                    external_lookup_counts,
-                    workspace_violation_counts,
-                    hook,
-                    context,
+    attempted: set[str] = set()
+    try:
+        for batch in _partition_tool_batches(tools, tool_calls, concurrent=concurrent):
+            attempted |= {trace_by_object[id(tool_call)] for tool_call in batch}
+            if concurrent and len(batch) > 1:
+                batch_results = await asyncio.gather(*(
+                    _execute_tool_call(
+                        tools,
+                        tool_call,
+                        external_lookup_counts,
+                        workspace_violation_counts,
+                        hook,
+                        context,
+                        trace_tool_id=trace_by_object[id(tool_call)],
+                    )
+                    for tool_call in batch
+                ))
+                tool_results.extend(batch_results)
+            else:
+                for tool_call in batch:
+                    result = await _execute_tool_call(
+                        tools,
+                        tool_call,
+                        external_lookup_counts,
+                        workspace_violation_counts,
+                        hook,
+                        context,
+                        trace_tool_id=trace_by_object[id(tool_call)],
+                    )
+                    tool_results.append(result)
+    except asyncio.CancelledError:
+        for index, tool_call in enumerate(tool_calls):
+            if trace_ids[index] not in attempted:
+                trace_capture.tool_finished(
+                    tool_call_id=trace_ids[index],
+                    status="skipped",
+                    skipped_reason="cancelled_before_start",
                 )
-                for tool_call in batch
-            ))
-            tool_results.extend(batch_results)
-        else:
-            for tool_call in batch:
-                result = await _execute_tool_call(
-                    tools,
-                    tool_call,
-                    external_lookup_counts,
-                    workspace_violation_counts,
-                    hook,
-                    context,
-                )
-                tool_results.append(result)
+        raise
 
     results = [result for result, _event in tool_results]
     events = [event for _result, event in tool_results]
@@ -109,11 +148,14 @@ async def _execute_tool_call(
     workspace_violation_counts: dict[str, int],
     hook: AgentHook,
     context: AgentHookContext,
+    *,
+    trace_tool_id: str | None = None,
 ) -> tuple[Any, dict[str, str]]:
     token = _CURRENT_TOOL_CALL_ID.set(tool_call.id)
     try:
         return await _execute_bound_tool_call(
             tools, tool_call, external_lookup_counts, workspace_violation_counts, hook, context,
+            trace_tool_id=trace_tool_id or tool_call.id,
         )
     finally:
         _CURRENT_TOOL_CALL_ID.reset(token)
@@ -126,7 +168,12 @@ async def _execute_bound_tool_call(
     workspace_violation_counts: dict[str, int],
     hook: AgentHook,
     context: AgentHookContext,
+    *,
+    trace_tool_id: str | None = None,
 ) -> tuple[Any, dict[str, str]]:
+    from nanobot.trajectory import capture as trace_capture
+
+    trace_id = trace_tool_id or tool_call.id
     lookup_error = repeated_external_lookup_error(
         tool_call.name,
         tool_call.arguments,
@@ -138,7 +185,13 @@ async def _execute_bound_tool_call(
             "status": "error",
             "detail": "repeated external lookup blocked",
         }
-        return _with_retry_hint(lookup_error), event
+        payload = _with_retry_hint(lookup_error)
+        trace_capture.tool_finished(
+            tool_call_id=trace_id, status="denied", error=lookup_error,
+            skipped_reason="repeated_external_lookup", model_observation=payload,
+            side_effect_outcome="none",
+        )
+        return payload, event
 
     prepare_call = cast(
         Callable[[str, Any], object] | None,
@@ -165,17 +218,29 @@ async def _execute_bound_tool_call(
             tool_call=tool_call,
             workspace_violation_counts=workspace_violation_counts,
         )
+        trace_capture.tool_finished(
+            tool_call_id=trace_id, status="denied", error=prep_error,
+            skipped_reason="prepare_call_rejected", model_observation=payload,
+            side_effect_outcome="none",
+        )
         if handled is not None:
             return handled
         return payload, event
 
     await hook.before_execute_tool(context, tool_call, tool, params)
+    started_monotonic = time.monotonic()
+    trace_capture.tool_started(tool_call_id=trace_id, effective_arguments=params)
     try:
         if tool is not None:
             result = await tool.execute(**params)
         else:
             result = await tools.execute(tool_call.name, params)
     except asyncio.CancelledError:
+        trace_capture.tool_finished(
+            tool_call_id=trace_id, status="cancelled",
+            duration_ms=max(0, int((time.monotonic() - started_monotonic) * 1000)),
+            skipped_reason="cancelled", side_effect_outcome="unknown",
+        )
         raise
     except Exception as exc:
         await hook.on_execute_tool_error(context, tool_call, tool, params, exc)
@@ -191,6 +256,12 @@ async def _execute_bound_tool_call(
             event=event,
             tool_call=tool_call,
             workspace_violation_counts=workspace_violation_counts,
+        )
+        trace_capture.tool_finished(
+            tool_call_id=trace_id, status="failed",
+            error=f"{type(exc).__name__}: {exc}",
+            duration_ms=max(0, int((time.monotonic() - started_monotonic) * 1000)),
+            model_observation=payload, side_effect_outcome="unknown",
         )
         if handled is not None:
             return handled
@@ -211,11 +282,20 @@ async def _execute_bound_tool_call(
             tool_call=tool_call,
             workspace_violation_counts=workspace_violation_counts,
         )
+        trace_capture.tool_finished(
+            tool_call_id=trace_id, status="failed", result=result,
+            duration_ms=max(0, int((time.monotonic() - started_monotonic) * 1000)),
+            model_observation=payload, side_effect_outcome="none",
+        )
         if handled is not None:
             return handled
         return payload, event
 
     await hook.after_execute_tool(context, tool_call, tool, params, result)
+    trace_capture.tool_finished(
+        tool_call_id=trace_id, status="succeeded", result=result,
+        duration_ms=max(0, int((time.monotonic() - started_monotonic) * 1000)),
+    )
 
     detail = "" if result is None else str(result)
     detail = detail.replace("\n", " ").strip()

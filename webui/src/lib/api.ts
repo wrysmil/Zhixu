@@ -1637,6 +1637,111 @@ export interface KnowledgeSearchResult {
   reason: string | null;
   routes: string[];
   hits: KnowledgeHit[];
+  durationMs?: number;
+  trace?: KnowledgeSearchTrace | null;
+}
+
+export interface KnowledgeTraceHitRow {
+  chunkId: string;
+  docId?: string;
+  score: number;
+}
+
+export interface KnowledgeTraceScoreRow {
+  chunkId: string;
+  before: number | null;
+  after: number;
+  delta: number | null;
+}
+
+export interface KnowledgeTraceStageDetail {
+  tokens?: string[];
+  variants?: string[];
+  entities?: string[];
+  fallback?: boolean;
+  degraded?: string[];
+  labels?: string[];
+  routes?: string[];
+  top?: KnowledgeTraceHitRow[];
+  scores?: KnowledgeTraceScoreRow[];
+  modeUsed?: string;
+  outcome?: string;
+  model?: string;
+  reason?: string;
+  [key: string]: unknown;
+}
+
+export interface KnowledgeTraceStage {
+  kind: string;
+  status: "ok" | "skipped" | "degraded" | "error" | string;
+  durationMs: number;
+  metrics: Record<string, number | string | boolean | null>;
+  detail?: KnowledgeTraceStageDetail;
+}
+
+export interface KnowledgeSearchTrace {
+  query: string;
+  mode: string;
+  limit: number;
+  totalMs: number;
+  stages: KnowledgeTraceStage[];
+}
+
+export interface KnowledgeQueryHistoryItem {
+  id: string;
+  kbId: string;
+  query: string;
+  mode: string;
+  limit: number;
+  hitCount: number;
+  durationMs: number;
+  createdAt: string;
+}
+
+export interface KnowledgeQueryHistoryPayload {
+  enabled: boolean;
+  items: KnowledgeQueryHistoryItem[];
+  total: number;
+}
+
+export interface KnowledgeRetrievalSettings {
+  vectorWeight: number;
+  keywordWeight: number;
+  rrfK: number;
+  defaultLimit: number;
+  maxLimit: number;
+  mmrLambda: number;
+  vectorThreshold: number;
+  keywordThreshold: number;
+  expandOnLowRecall: boolean;
+  expansionLimit: number;
+}
+
+export interface KnowledgeRerankSettings {
+  enabled: boolean;
+  backend: string;
+  model: string;
+  threshold: number;
+  maxCandidates: number;
+}
+
+export interface KnowledgeChunkingSettings {
+  chunkSize: number;
+  chunkOverlap: number;
+  tokenizerMode: string;
+  paragraphMode: string;
+}
+
+export interface KnowledgeRunSettings {
+  retrieval: KnowledgeRetrievalSettings;
+  rerank: KnowledgeRerankSettings;
+  chunking: KnowledgeChunkingSettings;
+  scope: { retrieval: string; rerank: string; chunking: string };
+}
+
+export interface KnowledgeSettingsPayload {
+  enabled: boolean;
+  settings: KnowledgeRunSettings;
 }
 
 export interface KnowledgeStats {
@@ -1669,11 +1774,44 @@ export interface KnowledgeDocGetPayload {
   document: KnowledgeDoc | null;
   chunks: KnowledgeChunk[];
   chunkCount: number;
+  chunkTotal: number;
+  chunkOffset: number;
+  chunkLimit: number;
 }
 
 export interface KnowledgeChunkGetPayload {
   enabled: boolean;
   chunk: KnowledgeChunk | null;
+}
+
+export type KnowledgeDocSourceKind = "markdown" | "text" | "pdf" | "docx" | "unsupported";
+
+export interface KnowledgeDocSourcePage {
+  page: number;
+  text: string;
+}
+
+export interface KnowledgeDocSourceBlock {
+  type: "heading" | "paragraph";
+  level?: number;
+  text: string;
+}
+
+export interface KnowledgeDocSourceTable {
+  type: "table";
+  rows: string[][];
+}
+
+export interface KnowledgeDocSourcePayload {
+  enabled: boolean;
+  kind: KnowledgeDocSourceKind;
+  name: string;
+  size: number;
+  truncated: boolean;
+  content: string;
+  pages: KnowledgeDocSourcePage[];
+  totalPages: number;
+  blocks: Array<KnowledgeDocSourceBlock | KnowledgeDocSourceTable>;
 }
 
 /** 读动作与写动作共用的作用域过滤；缺省时后端按已认证可见集合处理。 */
@@ -1749,16 +1887,56 @@ export async function fetchKnowledgeDocs(
 
 export async function fetchKnowledgeDoc(
   token: string,
-  params: { id: string; chunkLimit?: number },
+  params: { id: string; chunkLimit?: number; chunkOffset?: number; chunkQuery?: string },
   base: string = "",
 ): Promise<KnowledgeDocGetPayload> {
-  const query = knowledgeQuery({ id: params.id, chunkLimit: params.chunkLimit });
-  return request<KnowledgeDocGetPayload>(
+  const query = knowledgeQuery({
+    id: params.id,
+    chunkLimit: params.chunkLimit,
+    chunkOffset: params.chunkOffset,
+    chunkQuery: params.chunkQuery,
+  });
+  const payload = await request<KnowledgeDocGetPayload>(
     `${base}${KNOWLEDGE_BASE}/doc${query}`,
     token,
     undefined,
     API_READ_TIMEOUT_MS,
   );
+  const chunkCount = typeof payload.chunkCount === "number" ? payload.chunkCount : 0;
+  return {
+    enabled: payload.enabled !== false,
+    document: payload.document ?? null,
+    chunks: Array.isArray(payload.chunks) ? payload.chunks : [],
+    chunkCount,
+    chunkTotal: typeof payload.chunkTotal === "number" ? payload.chunkTotal : chunkCount,
+    chunkOffset: typeof payload.chunkOffset === "number" ? payload.chunkOffset : 0,
+    chunkLimit: typeof payload.chunkLimit === "number" ? payload.chunkLimit : 0,
+  };
+}
+
+export async function fetchKnowledgeDocContent(
+  token: string,
+  params: { id: string },
+  base: string = "",
+): Promise<KnowledgeDocSourcePayload> {
+  const query = knowledgeQuery({ id: params.id });
+  const payload = await request<KnowledgeDocSourcePayload>(
+    `${base}${KNOWLEDGE_BASE}/doc/content${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  return {
+    enabled: payload.enabled !== false,
+    kind: payload.kind ?? "unsupported",
+    name: payload.name ?? "",
+    size: typeof payload.size === "number" ? payload.size : 0,
+    truncated: payload.truncated === true,
+    content: typeof payload.content === "string" ? payload.content : "",
+    pages: Array.isArray(payload.pages) ? payload.pages : [],
+    totalPages: typeof payload.totalPages === "number" ? payload.totalPages : 0,
+    blocks: Array.isArray(payload.blocks) ? payload.blocks : [],
+  };
 }
 
 export async function fetchKnowledgeChunk(
@@ -1783,6 +1961,9 @@ export async function searchKnowledge(
     limit?: number;
     kbId?: string;
     kbIds?: string[];
+    docIds?: string[];
+    trace?: boolean;
+    record?: boolean;
   } & KnowledgeScope,
   base: string = "",
 ): Promise<KnowledgeSearchResult> {
@@ -1792,6 +1973,9 @@ export async function searchKnowledge(
     limit: params.limit,
     kbId: params.kbId,
     kbIds: params.kbIds,
+    docIds: params.docIds,
+    trace: params.trace ? "true" : undefined,
+    record: params.record ? "true" : undefined,
     workspaceIds: params.workspaceIds,
   });
   const payload = await request<KnowledgeSearchResult>(
@@ -1807,7 +1991,68 @@ export async function searchKnowledge(
     reason: payload.reason ?? null,
     routes: Array.isArray(payload.routes) ? payload.routes : [],
     hits: Array.isArray(payload.hits) ? payload.hits : [],
+    durationMs: typeof payload.durationMs === "number" ? payload.durationMs : undefined,
+    trace: payload.trace ?? null,
   };
+}
+
+export async function fetchKnowledgeQueryHistory(
+  token: string,
+  params: { kbId: string; limit?: number },
+  base: string = "",
+): Promise<KnowledgeQueryHistoryPayload> {
+  const query = knowledgeQuery({ kbId: params.kbId, limit: params.limit });
+  const payload = await request<KnowledgeQueryHistoryPayload>(
+    `${base}${KNOWLEDGE_BASE}/query-history${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  return {
+    enabled: payload.enabled !== false,
+    items: Array.isArray(payload.items) ? payload.items : [],
+    total: typeof payload.total === "number" ? payload.total : 0,
+  };
+}
+
+export async function fetchKnowledgeSettings(
+  token: string,
+  base: string = "",
+): Promise<KnowledgeSettingsPayload> {
+  const payload = await request<KnowledgeSettingsPayload>(
+    `${base}${KNOWLEDGE_BASE}/settings`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  return payload;
+}
+
+export interface UpdateKnowledgeSettingsInput {
+  retrieval?: Partial<KnowledgeRetrievalSettings>;
+  rerank?: Partial<KnowledgeRerankSettings>;
+}
+
+export interface KnowledgeSettingsUpdateResult {
+  enabled: boolean;
+  changed: string[];
+  applied: boolean;
+  requiresReindex: boolean;
+  settings: KnowledgeRunSettings;
+}
+
+export async function updateKnowledgeSettings(
+  transport: WebUIMutationTransport,
+  input: UpdateKnowledgeSettingsInput,
+): Promise<KnowledgeSettingsUpdateResult> {
+  return mutation<KnowledgeSettingsUpdateResult>(
+    transport,
+    "knowledge.settings.update",
+    {
+      ...(input.retrieval ? { retrieval: input.retrieval } : {}),
+      ...(input.rerank ? { rerank: input.rerank } : {}),
+    },
+  );
 }
 
 export async function fetchKnowledgeStats(
@@ -1913,6 +2158,68 @@ export interface AddKnowledgeDocInput {
   dataUrl: string;
   title?: string;
   workspaceId?: string;
+  /** 覆盖知识库默认分块；确认导入时一并保存为该库设置。 */
+  chunkSize?: number;
+  chunkOverlap?: number;
+  /** 导入页编辑后的分块；提供后后端按自定义分块入库。 */
+  chunks?: KnowledgeCustomChunk[];
+}
+
+export interface KnowledgeChunkPreviewItem {
+  index: number;
+  chars: number;
+  heading: string;
+  page: number | null;
+  locator: string;
+  /** 原文区间；编辑后仍指回原始位置，用于左栏高亮。 */
+  start: number;
+  end: number;
+  content: string;
+}
+
+export type KnowledgeChunkMode = "smart" | "separator";
+
+export interface KnowledgeChunkPreview {
+  chunkMode: KnowledgeChunkMode;
+  separators: string[];
+  chunkSize: number;
+  chunkOverlap: number;
+  source: { text: string; chars: number; truncated: boolean };
+  editable: boolean;
+  total: number;
+  avgChars: number;
+  chunks: KnowledgeChunkPreviewItem[];
+}
+
+export interface PreviewKnowledgeChunksInput {
+  kbId: string;
+  chunkMode?: KnowledgeChunkMode;
+  separators?: string[];
+  chunkSize?: number;
+  chunkOverlap?: number;
+  name?: string;
+  dataUrl?: string;
+  path?: string;
+}
+
+export interface KnowledgeCustomChunk {
+  content: string;
+  heading?: string;
+  page?: number | null;
+  locator?: string;
+}
+
+function chunkOverrides(input: { chunkSize?: number; chunkOverlap?: number }) {
+  return {
+    ...(typeof input.chunkSize === "number" ? { chunkSize: input.chunkSize } : {}),
+    ...(typeof input.chunkOverlap === "number"
+      ? { chunkOverlap: input.chunkOverlap }
+      : {}),
+  };
+}
+
+function chunkPayload(input: { chunks?: KnowledgeCustomChunk[] }) {
+  return input.chunks && input.chunks.length > 0 ? { chunks: input.chunks } : {};
 }
 
 export async function addKnowledgeDoc(
@@ -1923,8 +2230,25 @@ export async function addKnowledgeDoc(
     kbId: input.kbId,
     name: input.name,
     dataUrl: input.dataUrl,
+    ...chunkOverrides(input),
+    ...chunkPayload(input),
     ...(input.title ? { title: input.title } : {}),
     ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+  });
+}
+
+export async function previewKnowledgeChunks(
+  transport: WebUIMutationTransport,
+  input: PreviewKnowledgeChunksInput,
+): Promise<KnowledgeChunkPreview> {
+  return mutation<KnowledgeChunkPreview>(transport, "knowledge.doc.preview", {
+    kbId: input.kbId,
+    ...(input.chunkMode ? { chunkMode: input.chunkMode } : {}),
+    ...(input.separators ? { separators: input.separators } : {}),
+    ...chunkOverrides(input),
+    ...(input.name ? { name: input.name } : {}),
+    ...(input.dataUrl ? { dataUrl: input.dataUrl } : {}),
+    ...(input.path ? { path: input.path } : {}),
   });
 }
 
@@ -1934,6 +2258,9 @@ export interface AddKnowledgeDocFromPathInput {
   path: string;
   title?: string;
   workspaceId?: string;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  chunks?: KnowledgeCustomChunk[];
 }
 
 export async function addKnowledgeDocFromPath(
@@ -1943,6 +2270,8 @@ export async function addKnowledgeDocFromPath(
   return mutation<{ document: KnowledgeDoc }>(transport, "knowledge.doc.add_file", {
     kbId: input.kbId,
     path: input.path,
+    ...chunkOverrides(input),
+    ...chunkPayload(input),
     ...(input.title ? { title: input.title } : {}),
     ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
   });
@@ -1960,6 +2289,17 @@ export async function reindexKnowledgeDoc(
   id: string,
 ): Promise<{ ok: boolean; queued: boolean }> {
   return mutation<{ ok: boolean; queued: boolean }>(transport, "knowledge.doc.reindex", { id });
+}
+
+export async function clearKnowledgeQueryHistory(
+  transport: WebUIMutationTransport,
+  kbId: string,
+): Promise<{ ok: boolean; removed: number }> {
+  return mutation<{ ok: boolean; removed: number }>(
+    transport,
+    "knowledge.query_history.clear",
+    { kbId },
+  );
 }
 
 export interface RepairKnowledgeInput {

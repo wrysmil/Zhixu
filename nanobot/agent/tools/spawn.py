@@ -142,9 +142,10 @@ class SpawnTool(Tool):
         # 第三方替身 / 子类若还没跟上新签名也不会被这一个可选参数打爆。
         extra: dict[str, Any] = {} if agent is None else {"agent_id": agent}
         invocation_id = None
+        parent_tool_call_id = current_tool_call_id() or ""
         if hasattr(self._manager, "create_execution"):
             invocation_id = await self._manager.create_execution(
-                request_ctx, parent_tool_call_id=current_tool_call_id() or "",
+                request_ctx, parent_tool_call_id=parent_tool_call_id,
                 label=label, agent_id=agent, wait=wait,
             )
             if invocation_id is not None:
@@ -170,5 +171,6 @@ class SpawnTool(Tool):
             origin_message_id=request_ctx.message_id,
             temperature=temperature,
             workspace_scope=current_workspace_scope(),
+            parent_tool_call_id=parent_tool_call_id,
             **extra,
         )

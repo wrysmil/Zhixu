@@ -18,11 +18,19 @@ import base64
 import binascii
 import re
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any, cast
 
 from loguru import logger
 
+from nanobot.config.schema import (
+    KnowledgeChunkingConfig,
+    KnowledgeRerankConfig,
+    KnowledgeRetrievalConfig,
+)
+from nanobot.knowledge.preview import KnowledgePreviewError, build_document_preview
+from nanobot.knowledge.trace import SearchTrace
 from nanobot.webui import knowledge_routes as routes
 from nanobot.webui.attachment_ingress import extract_data_url_mime
 from nanobot.webui.knowledge_routes import KnowledgeRouteError
@@ -59,7 +67,7 @@ _VISIBILITIES = frozenset({"workspace", "global"})
 _DEFAULT_SEARCH_LIMIT = 8
 _MAX_SEARCH_LIMIT = 50
 _MAX_DOC_LIST_LIMIT = 200
-_MAX_CHUNK_PREVIEW = 20
+_MAX_CHUNK_PREVIEW = 50
 _DEFAULT_CHUNK_PREVIEW = 5
 _KB_DOC_COUNT_LIMIT = 5000
 
@@ -148,6 +156,116 @@ def _optional_int(
     return number
 
 
+
+_MAX_CUSTOM_CHUNKS = 2000
+_MAX_CUSTOM_CHUNK_CHARS = 8000
+_MAX_SEPARATORS = 12
+_MAX_SEPARATOR_CHARS = 16
+
+
+def _custom_chunks(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """导入前编辑过的分块：内容非空、条数与单块长度受限。"""
+    value = payload.get("chunks")
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise KnowledgeRouteError("chunks 必须是数组")
+    if len(value) > _MAX_CUSTOM_CHUNKS:
+        raise KnowledgeRouteError(f"分块数超过 {_MAX_CUSTOM_CHUNKS} 上限")
+    chunks: list[dict[str, Any]] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise KnowledgeRouteError(f"chunks[{index}] 必须是对象")
+        content = item.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise KnowledgeRouteError(f"chunks[{index}].content 不能为空")
+        content = content.strip()
+        if len(content) > _MAX_CUSTOM_CHUNK_CHARS:
+            raise KnowledgeRouteError(
+                f"chunks[{index}] 超过 {_MAX_CUSTOM_CHUNK_CHARS} 字符上限"
+            )
+        page = item.get("page")
+        if page is not None and (
+            isinstance(page, bool) or not isinstance(page, int) or page < 0
+        ):
+            raise KnowledgeRouteError(f"chunks[{index}].page 必须是正整数")
+        heading = item.get("heading") or item.get("headingPath") or ""
+        chunks.append(
+            {
+                "content": content,
+                "heading_path": str(heading),
+                "page": page,
+                "locator": str(item.get("locator") or ""),
+            }
+        )
+    return chunks or None
+
+
+def _chunk_mode(payload: dict[str, Any]) -> str:
+    value = payload.get("chunkMode")
+    if value is None:
+        return "smart"
+    if value not in {"smart", "separator"}:
+        raise KnowledgeRouteError("chunkMode 只能是 smart 或 separator")
+    return str(value)
+
+
+def _separators(payload: dict[str, Any]) -> list[str]:
+    value = payload.get("separators")
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise KnowledgeRouteError("separators 必须是数组")
+    if len(value) > _MAX_SEPARATORS:
+        raise KnowledgeRouteError(f"分隔符最多 {_MAX_SEPARATORS} 个")
+    out: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item:
+            raise KnowledgeRouteError("分隔符不能为空")
+        if len(item) > _MAX_SEPARATOR_CHARS:
+            raise KnowledgeRouteError(
+                f"单个分隔符不能超过 {_MAX_SEPARATOR_CHARS} 个字符"
+            )
+        out.append(item)
+    return out
+
+
+def _chunk_settings(
+    services: "KnowledgeServices", kb_id: str, payload: dict[str, Any]
+) -> tuple[int, int, dict[str, int]]:
+    """导入/预览共用的分块参数：缺省取知识库当前值，返回需落库的差异。"""
+    kb = services.service.get_kb(kb_id)
+    if kb is None:
+        raise KnowledgeRouteError(
+            "知识库不存在", code="KNOWLEDGE_KB_NOT_FOUND", status=404
+        )
+    size = _optional_int(
+        payload,
+        "chunkSize",
+        default=int(getattr(kb, "chunk_size", 800)),
+        minimum=200,
+        maximum=4000,
+    )
+    overlap = _optional_int(
+        payload,
+        "chunkOverlap",
+        default=int(getattr(kb, "chunk_overlap", 120)),
+        minimum=0,
+        maximum=4000,
+    )
+    if overlap >= size:
+        raise KnowledgeRouteError(
+            "分块重叠必须小于分块大小",
+            code="KNOWLEDGE_CHUNK_INVALID",
+        )
+    updates: dict[str, int] = {}
+    if size != int(getattr(kb, "chunk_size", 0)):
+        updates["chunk_size"] = size
+    if overlap != int(getattr(kb, "chunk_overlap", 0)):
+        updates["chunk_overlap"] = overlap
+    return size, overlap, updates
+
+
 def _optional_bool(payload: dict[str, Any], key: str, *, default: bool) -> bool:
     value = payload.get(key)
     if value is None:
@@ -172,6 +290,121 @@ def _forbidden() -> KnowledgeRouteError:
         code="KNOWLEDGE_WORKSPACE_FORBIDDEN",
         status=403,
     )
+
+
+# ---- 运行期参数（设置面板） --------------------------------------------------
+
+#: 可在 WebUI 调整的检索参数：payload 键、配置字段、类型、上下界。
+_RETRIEVAL_FIELDS: tuple[tuple[str, str, type, float, float], ...] = (
+    ("vectorWeight", "vector_weight", float, 0.0, 1.0),
+    ("keywordWeight", "keyword_weight", float, 0.0, 1.0),
+    ("rrfK", "rrf_k", int, 1, 1000),
+    ("defaultLimit", "default_limit", int, 1, 50),
+    ("maxLimit", "max_limit", int, 1, 100),
+    ("mmrLambda", "mmr_lambda", float, 0.0, 1.0),
+    ("vectorThreshold", "vector_threshold", float, 0.0, 1.0),
+    ("keywordThreshold", "keyword_threshold", float, 0.0, 1.0),
+    ("expansionLimit", "expansion_limit", int, 1, 20),
+)
+
+_RERANK_NUMERIC_FIELDS: tuple[tuple[str, str, type, float, float], ...] = (
+    ("threshold", "threshold", float, 0.0, 1.0),
+    ("maxCandidates", "max_candidates", int, 1, 1000),
+)
+
+
+def _bounded_value(
+    payload: dict[str, Any],
+    key: str,
+    cast: type,
+    minimum: float,
+    maximum: float,
+) -> Any:
+    if key not in payload:
+        return None
+    value = payload[key]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise KnowledgeRouteError(f"{key} 必须是数字")
+    if value < minimum or value > maximum:
+        raise KnowledgeRouteError(f"{key} 必须在 {minimum}–{maximum} 之间")
+    return cast(value)
+
+
+def _apply_nested(
+    payload: dict[str, Any],
+    section: str,
+    target: Any,
+    numeric: tuple[tuple[str, str, type, float, float], ...],
+    strings: tuple[tuple[str, str], ...] = (),
+    booleans: tuple[tuple[str, str], ...] = (),
+) -> list[str]:
+    raw = payload.get(section)
+    if raw is None:
+        return []
+    if not isinstance(raw, dict):
+        raise KnowledgeRouteError(f"{section} 必须是对象")
+    values = cast(dict[str, Any], raw)
+    changed: list[str] = []
+    for key, field, cast_type, minimum, maximum in numeric:
+        value = _bounded_value(values, key, cast_type, minimum, maximum)
+        if value is None:
+            continue
+        setattr(target, field, value)
+        changed.append(f"{section}.{field}")
+    for key, field in strings:
+        value = _optional_str(values, key)
+        if value is None:
+            continue
+        setattr(target, field, value)
+        changed.append(f"{section}.{field}")
+    for key, field in booleans:
+        if key not in values:
+            continue
+        if not isinstance(values[key], bool):
+            raise KnowledgeRouteError(f"{key} 必须是布尔值")
+        setattr(target, field, values[key])
+        changed.append(f"{section}.{field}")
+    return changed
+
+
+def _settings_payload(knowledge: Any) -> dict[str, Any]:
+    retrieval = getattr(knowledge, "retrieval", KnowledgeRetrievalConfig())
+    rerank = getattr(knowledge, "rerank", KnowledgeRerankConfig())
+    chunking = getattr(knowledge, "chunking", KnowledgeChunkingConfig())
+    return {
+        "retrieval": {
+            "vectorWeight": float(getattr(retrieval, "vector_weight", 0.7)),
+            "keywordWeight": float(getattr(retrieval, "keyword_weight", 0.3)),
+            "rrfK": int(getattr(retrieval, "rrf_k", 60)),
+            "defaultLimit": int(getattr(retrieval, "default_limit", 8)),
+            "maxLimit": int(getattr(retrieval, "max_limit", 20)),
+            "mmrLambda": float(getattr(retrieval, "mmr_lambda", 0.7)),
+            "vectorThreshold": float(getattr(retrieval, "vector_threshold", 0.15)),
+            "keywordThreshold": float(getattr(retrieval, "keyword_threshold", 0.3)),
+            "expandOnLowRecall": bool(
+                getattr(retrieval, "expand_on_low_recall", True)
+            ),
+            "expansionLimit": int(getattr(retrieval, "expansion_limit", 5)),
+        },
+        "rerank": {
+            "enabled": bool(getattr(rerank, "enabled", False)),
+            "backend": str(getattr(rerank, "backend", "remote")),
+            "model": str(getattr(rerank, "model", "")),
+            "threshold": float(getattr(rerank, "threshold", 0.3)),
+            "maxCandidates": int(getattr(rerank, "max_candidates", 200)),
+        },
+        "chunking": {
+            "chunkSize": int(getattr(chunking, "chunk_size", 800)),
+            "chunkOverlap": int(getattr(chunking, "chunk_overlap", 120)),
+            "tokenizerMode": str(getattr(chunking, "tokenizer_mode", "jieba")),
+            "paragraphMode": str(getattr(chunking, "paragraph_mode", "blank_line")),
+        },
+        "scope": {
+            "retrieval": "live",
+            "rerank": "live",
+            "chunking": "requires_reindex",
+        },
+    }
 
 
 def _requested_workspaces(
@@ -461,6 +694,7 @@ class KnowledgeApi:
             routes.DOC_LIST: self._doc_list,
             routes.DOC_GET: self._doc_get,
             routes.CHUNK_GET: self._chunk_get,
+            routes.DOC_CONTENT: self._doc_content,
             routes.SEARCH: self._search,
             routes.STATS: self._stats,
             routes.KB_CREATE: self._kb_create,
@@ -469,15 +703,20 @@ class KnowledgeApi:
             routes.KB_REINDEX: self._kb_reindex,
             routes.DOC_ADD: self._doc_add,
             routes.DOC_ADD_FILE: self._doc_add_file,
+            routes.DOC_PREVIEW: self._doc_preview,
             routes.DOC_DELETE: self._doc_delete,
             routes.DOC_REINDEX: self._doc_reindex,
             routes.REPAIR: self._repair,
+            routes.QUERY_HISTORY: self._query_history,
+            routes.QUERY_HISTORY_CLEAR: self._query_history_clear,
             routes.GRAPH_STATS: self._graph_stats,
             routes.GRAPH_ENTITIES: self._graph_entities,
             routes.GRAPH_ENTITY: self._graph_entity,
             routes.GRAPH_SUBGRAPH: self._graph_subgraph,
             routes.GRAPH_EXTRACT: self._graph_extract,
             routes.GRAPH_REBUILD: self._graph_rebuild,
+            routes.SETTINGS_GET: self._settings_get,
+            routes.SETTINGS_UPDATE: self._settings_update,
         }
 
     @property
@@ -562,13 +801,35 @@ class KnowledgeApi:
             minimum=1,
             maximum=_MAX_CHUNK_PREVIEW,
         )
-        chunks = services.service.list_chunks(doc_id, limit=limit)
+        offset = _optional_int(
+            payload, "chunkOffset", default=0, minimum=0, maximum=1_000_000
+        )
+        query = (_optional_str(payload, "chunkQuery") or "")[:200]
+        chunks = services.service.list_chunks(
+            doc_id, offset=offset, limit=limit, query=query
+        )
         return {
             "enabled": True,
             "document": _document_payload(document),
             "chunks": [_chunk_payload(chunk) for chunk in chunks],
             "chunkCount": int(getattr(document, "chunk_count", 0) or 0),
+            "chunkTotal": services.service.count_chunks(doc_id, query=query),
+            "chunkOffset": offset,
+            "chunkLimit": limit,
         }
+
+    def _doc_content(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        doc_id = _required_str(payload, "id", "id 不能为空")
+        document = _require_document(doc_id, services)
+        try:
+            preview = build_document_preview(document)
+        except KnowledgePreviewError as exc:
+            raise KnowledgeRouteError(
+                exc.message, code=exc.code, status=exc.status
+            ) from exc
+        return {"enabled": True, **preview}
 
     def _chunk_get(
         self, payload: dict[str, Any], services: KnowledgeServices
@@ -599,20 +860,46 @@ class KnowledgeApi:
             maximum=_MAX_SEARCH_LIMIT,
         )
         kb_ids = self._requested_kb_ids(payload, services)
+        doc_ids = self._requested_doc_ids(payload)
+        trace_enabled = _optional_bool(payload, "trace", default=False)
+        record = _optional_bool(payload, "record", default=False)
+        trace = (
+            SearchTrace(query=query, mode=mode, limit=limit)
+            if trace_enabled
+            else None
+        )
+        started = time.perf_counter()
         result = services.service.search(
             query,
             workspace_ids=_requested_workspaces(payload, services),
             kb_ids=kb_ids,
             mode=mode,
             limit=limit,
+            trace=trace,
+            doc_ids=doc_ids,
         )
+        duration_ms = int((time.perf_counter() - started) * 1000)
         hits = getattr(result, "hits", ())
-        return {
+        if record:
+            kb_id = _optional_str(payload, "kbId")
+            if kb_id is not None:
+                # kbId 已在 _requested_kb_ids 里做过可见性校验。
+                services.service.record_search_history(
+                    kb_id=kb_id,
+                    workspace_id=services.workspace_id,
+                    query=query,
+                    mode=mode,
+                    limit=limit,
+                    hit_count=len(hits),
+                    duration_ms=duration_ms,
+                )
+        response: dict[str, Any] = {
             "enabled": True,
             "modeUsed": str(getattr(result, "mode_used", mode)),
             "degraded": [str(reason) for reason in getattr(result, "degraded", ())],
             "reason": getattr(result, "reason", None),
             "routes": [str(route) for route in getattr(result, "routes", ())],
+            "durationMs": duration_ms,
             "hits": [
                 {
                     "chunkId": str(getattr(hit, "chunk_id", "")),
@@ -626,6 +913,103 @@ class KnowledgeApi:
                 }
                 for hit in hits
             ],
+        }
+        trace_payload = getattr(result, "trace", None)
+        if trace_payload is not None:
+            response["trace"] = trace_payload
+        return response
+
+    def _query_history(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        kb_id = _required_str(payload, "kbId", "kbId 不能为空")
+        _require_kb(kb_id, services)
+        limit = _optional_int(
+            payload, "limit", default=20, minimum=1, maximum=100
+        )
+        rows = services.service.list_search_history(
+            kb_id=kb_id,
+            workspace_ids=list(services.workspace_ids),
+            limit=limit,
+        )
+        return {
+            "enabled": True,
+            "items": [
+                {
+                    "id": str(row["id"]),
+                    "kbId": str(row["kb_id"]),
+                    "query": str(row["query"]),
+                    "mode": str(row["mode"]),
+                    "limit": int(row["limit"]),
+                    "hitCount": int(row["hit_count"]),
+                    "durationMs": int(row["duration_ms"]),
+                    "createdAt": str(row["created_at"]),
+                }
+                for row in rows
+            ],
+            "total": len(rows),
+        }
+
+    def _query_history_clear(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        kb_id = _required_str(payload, "kbId", "kbId 不能为空")
+        _require_kb(kb_id, services)
+        removed = services.service.clear_search_history(
+            kb_id=kb_id, workspace_ids=list(services.workspace_ids)
+        )
+        return {"ok": True, "removed": removed}
+
+    def _settings_get(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        return {"enabled": True, "settings": _settings_payload(services.config)}
+
+    def _settings_update(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        knowledge = services.config
+        retrieval = knowledge.retrieval.model_copy(deep=True)
+        rerank = knowledge.rerank.model_copy(deep=True)
+        changed = _apply_nested(
+            payload,
+            "retrieval",
+            retrieval,
+            _RETRIEVAL_FIELDS,
+            booleans=(("expandOnLowRecall", "expand_on_low_recall"),),
+        )
+        changed += _apply_nested(
+            payload,
+            "rerank",
+            rerank,
+            _RERANK_NUMERIC_FIELDS,
+            strings=(("backend", "backend"), ("model", "model"), ("baseUrl", "base_url")),
+            booleans=(("enabled", "enabled"),),
+        )
+        if not changed:
+            return {
+                "enabled": True,
+                "changed": [],
+                "applied": False,
+                "requiresReindex": False,
+                "settings": _settings_payload(knowledge),
+            }
+        if retrieval.default_limit > retrieval.max_limit:
+            raise KnowledgeRouteError("defaultLimit 不能大于 maxLimit")
+        knowledge.retrieval = retrieval
+        knowledge.rerank = rerank
+        services.save_config(knowledge)
+        applied = False
+        apply = getattr(services.live_service, "apply_retrieval_settings", None)
+        if callable(apply):
+            apply(retrieval, rerank)
+            applied = True
+        return {
+            "enabled": True,
+            "changed": changed,
+            "applied": applied,
+            "requiresReindex": False,
+            "settings": _settings_payload(knowledge),
         }
 
     def _stats(
@@ -706,6 +1090,9 @@ class KnowledgeApi:
                 status=413,
             )
         title = _optional_str(payload, "title")
+        size, overlap, updates = _chunk_settings(services, kb_id, payload)
+        if updates:
+            services.service.update_kb(kb_id, **updates)
         document = services.service.add_upload_bytes(
             name,
             data,
@@ -713,8 +1100,13 @@ class KnowledgeApi:
             workspace_id=workspace_id,
             mime=mime,
             title=title,
+            custom_chunks=_custom_chunks(payload),
         )
-        return {"document": _document_payload(document)}
+        return {
+            "document": _document_payload(document),
+            "chunkSize": size,
+            "chunkOverlap": overlap,
+        }
 
     def _doc_add_file(
         self, payload: dict[str, Any], services: KnowledgeServices
@@ -722,14 +1114,58 @@ class KnowledgeApi:
         kb_id = _kb_id_from(payload)
         _require_kb(kb_id, services)
         path = _required_str(payload, "path", "path 不能为空")
+        size, overlap, updates = _chunk_settings(services, kb_id, payload)
+        if updates:
+            services.service.update_kb(kb_id, **updates)
         outcome = services.service.add_file(
             path,
             kb_id=kb_id,
             workspace_id=_target_workspace(payload, services),
             title=_optional_str(payload, "title"),
+            custom_chunks=_custom_chunks(payload),
         )
         document = getattr(outcome, "document", outcome)
-        return {"document": _document_payload(document)}
+        return {
+            "document": _document_payload(document),
+            "chunkSize": size,
+            "chunkOverlap": overlap,
+        }
+
+    def _doc_preview(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        kb_id = _kb_id_from(payload)
+        _require_kb(kb_id, services)
+        size, overlap, _ = _chunk_settings(services, kb_id, payload)
+        mode = _chunk_mode(payload)
+        separators = _separators(payload)
+        path = _optional_str(payload, "path")
+        if path:
+            return services.service.preview_chunks(
+                kb_id=kb_id,
+                path=path,
+                chunk_mode=mode,
+                separators=separators,
+                chunk_size=size,
+                chunk_overlap=overlap,
+            )
+        name, _mime, data = _decode_upload(payload)
+        limit = services.upload_limit_bytes(_MAX_UPLOAD_BYTES)
+        if len(data) > limit:
+            raise KnowledgeRouteError(
+                f"文件超过 {_human_size(limit)} 上限，请改用 CLI 导入",
+                code="KNOWLEDGE_FILE_TOO_LARGE",
+                status=413,
+            )
+        return services.service.preview_chunks(
+            kb_id=kb_id,
+            name=name,
+            data=data,
+            chunk_mode=mode,
+            separators=separators,
+            chunk_size=size,
+            chunk_overlap=overlap,
+        )
 
     def _doc_delete(
         self, payload: dict[str, Any], services: KnowledgeServices
@@ -904,9 +1340,21 @@ class KnowledgeApi:
         if action == routes.DOC_LIST:
             return {"enabled": False, "documents": [], "total": 0}
         if action == routes.DOC_GET:
-            return {"enabled": False, "document": None, "chunks": [], "chunkCount": 0}
+            return {
+                "enabled": False,
+                "document": None,
+                "chunks": [],
+                "chunkCount": 0,
+                "chunkTotal": 0,
+                "chunkOffset": 0,
+                "chunkLimit": 0,
+            }
         if action == routes.CHUNK_GET:
             return {"enabled": False, "chunk": None}
+        if action == routes.DOC_CONTENT:
+            return {"enabled": False, "kind": "unsupported", "content": ""}
+        if action == routes.QUERY_HISTORY:
+            return {"enabled": False, "items": [], "total": 0}
         if action == routes.SEARCH:
             return {
                 "enabled": False,
@@ -920,6 +1368,20 @@ class KnowledgeApi:
             "enabled": False,
             "by_status": {},
         }
+
+    @staticmethod
+    def _requested_doc_ids(payload: dict[str, Any]) -> list[str] | None:
+        """可选的文档范围：只做收窄；可见性仍由 KB 作用域保证。"""
+        raw = payload.get("docIds")
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            values = [item.strip() for item in raw.split(",") if item.strip()]
+        elif isinstance(raw, (list, tuple, set)):
+            values = [str(item).strip() for item in raw if str(item).strip()]
+        else:
+            raise KnowledgeRouteError("docIds 必须是字符串或字符串数组")
+        return values[:50] or None
 
     def _requested_kb_ids(
         self, payload: dict[str, Any], services: KnowledgeServices

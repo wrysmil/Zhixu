@@ -29,6 +29,7 @@ from nanobot.webui import settings_models as model_domain
 from nanobot.webui import settings_system as system_domain
 from nanobot.webui import subagent_execution_routes as subagent_execution_domain
 from nanobot.webui import teams_routes as teams_domain
+from nanobot.webui import trajectory_routes as trajectory_domain
 from nanobot.webui import writing_collab_routes as writing_collab_domain
 from nanobot.webui import writing_routes as writing_domain
 from nanobot.webui.agents_routes import AgentSettingsOperations
@@ -583,6 +584,21 @@ class WebUISettingsRouter:
         self._knowledge = knowledge_operations
         if subagent_execution_operations is not None:
             self._runtime_capabilities["subagentExecutionEventsV1"] = True
+        self._trajectory: trajectory_domain.TrajectorySettingsHandler | None = None
+
+    def configure_trajectory_operations(
+        self,
+        operations: trajectory_domain.TrajectoryOperations | None,
+    ) -> None:
+        """Attach the trajectory read adapter after the gateway wires its service."""
+        self._trajectory = (
+            trajectory_domain.TrajectorySettingsHandler(operations)
+            if operations is not None
+            else None
+        )
+        if operations is not None:
+            self._runtime_capabilities["trajectoryViewV1"] = True
+            self._runtime_capabilities["trajectoryEventsV1"] = True
 
     def configure_subagent_execution_operations(
         self,
@@ -634,8 +650,10 @@ class WebUISettingsRouter:
             return await asyncio.to_thread(self._handle_settings_usage)
 
         domain, action = route
-        if domain == "subagent" and str(getattr(request, "method", "GET")).upper() != "GET":
-            return self._error_response(405, "subagent execution queries require GET")
+        if domain in {"subagent", "trajectory"} and str(
+            getattr(request, "method", "GET"),
+        ).upper() != "GET":
+            return self._error_response(405, "trajectory and execution queries require GET")
         domain_request = self._domain_request(
             connection,
             request,
@@ -720,6 +738,20 @@ class WebUISettingsRouter:
                     action, domain_request, invocation_id=invocation_id,
                 ),
             )
+        elif action in trajectory_domain.TRAJECTORY_ACTION_NAMES:
+            handler = self._trajectory
+            if handler is None:
+                result = contracts.SettingsRouteResult.failure(
+                    404, "TRAJECTORY_NOT_FOUND: trajectory is not enabled",
+                )
+            else:
+                matched = trajectory_domain.match_route(path)
+                params = matched[1] if matched is not None else None
+                result = await asyncio.to_thread(
+                    lambda: handler.handle(
+                        action, domain_request, params=params,
+                    ),
+                )
         else:
             channel_connect = _channel_connect_route(path)
             result = await self._system.handle(
@@ -749,6 +781,8 @@ class WebUISettingsRouter:
             return "system", action
         if matched := subagent_execution_domain.match_route(path):
             return "subagent", matched[0]
+        if matched := trajectory_domain.match_route(path):
+            return "trajectory", matched[0]
         if _channel_connect_route(path) is not None:
             return "system", "channel-connect"
         return None

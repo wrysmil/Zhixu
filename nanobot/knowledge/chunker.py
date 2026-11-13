@@ -389,8 +389,130 @@ class KnowledgeChunkError(ValueError):
         self.code = code
 
 
+#: 自定义分隔符模式的默认分隔符（按优先级尝试，参考 Dify 通用分段）。
+DEFAULT_SEPARATORS = ("\n\n", "\n", "。", "！", "？", "；", "，")
+MAX_SEPARATORS = 12
+MAX_SEPARATOR_CHARS = 16
+
+
+def _split_by_separators(
+    text: str,
+    start: int,
+    end: int,
+    separators: tuple[str, ...],
+    chunk_size: int,
+) -> list[tuple[int, int]]:
+    """按分隔符优先级递归切到 ≤ chunk_size 的片段；分隔符保留在前一段末尾。"""
+    if end - start <= chunk_size:
+        return [(start, end)]
+    for index, separator in enumerate(separators):
+        if not separator:
+            continue
+        parts: list[tuple[int, int]] = []
+        cursor = start
+        while cursor < end:
+            hit = text.find(separator, cursor, end)
+            if hit < 0:
+                parts.append((cursor, end))
+                break
+            cut = hit + len(separator)
+            parts.append((cursor, cut))
+            cursor = cut
+        if len(parts) > 1:
+            out: list[tuple[int, int]] = []
+            for part_start, part_end in parts:
+                out.extend(
+                    _split_by_separators(
+                        text,
+                        part_start,
+                        part_end,
+                        separators[index + 1 :],
+                        chunk_size,
+                    )
+                )
+            return out
+    return [
+        (pos, min(pos + chunk_size, end))
+        for pos in range(start, end, chunk_size)
+    ]
+
+
+def chunk_by_separators(
+    lines: list[Line],
+    *,
+    separators: tuple[str, ...],
+    chunk_size: int,
+    chunk_overlap: int,
+) -> list[ChunkDraft]:
+    """自定义分隔符分段：先按分隔符优先级切片，再按最大长度打包并回填重叠。
+
+    与智能分段不同，这里不保护代码块/标题结构，按用户显式选择的边界切分。
+    """
+    if chunk_size <= 0 or chunk_overlap < 0 or chunk_overlap >= chunk_size:
+        raise ValueError("require 0 <= chunk_overlap < chunk_size")
+    if not lines:
+        return []
+    cleaned = tuple(separator for separator in separators if separator)
+    if not cleaned:
+        raise ValueError("separators must not be empty")
+
+    text, starts = _build_text(lines)
+    if not text.strip():
+        return []
+
+    pieces = _split_by_separators(text, 0, len(text), cleaned, chunk_size)
+    spans: list[tuple[int, int]] = []
+    index = 0
+    while index < len(pieces):
+        start, end = pieces[index]
+        cursor = index + 1
+        while cursor < len(pieces) and pieces[cursor][1] - start <= chunk_size:
+            end = pieces[cursor][1]
+            cursor += 1
+        spans.append((start, end))
+        index = cursor
+
+    drafts: list[ChunkDraft] = []
+    previous_start = -1
+    previous_end = -1
+    for start, end in spans:
+        if chunk_overlap > 0 and previous_end >= 0:
+            start = max(start - chunk_overlap, previous_start + 1)
+
+        while start < end and text[start].isspace():
+            start += 1
+        while end > start and text[end - 1].isspace():
+            end -= 1
+        if start >= end:
+            continue
+        if drafts and start <= previous_start:
+            start = previous_start + 1
+        if start >= end:
+            continue
+
+        page, locator = _chunk_meta(lines, starts, start, end)
+        drafts.append(
+            ChunkDraft(
+                content=text[start:end],
+                start_offset=start,
+                end_offset=end,
+                heading_path="",
+                page=page,
+                locator=locator,
+            )
+        )
+        previous_start = start
+        previous_end = end
+    return drafts
+
+
 def validate_chunks(
-    drafts: list[ChunkDraft], *, chunk_size: int, chunk_overlap: int, text: str
+    drafts: list[ChunkDraft],
+    *,
+    chunk_size: int,
+    chunk_overlap: int,
+    text: str,
+    allow_small: bool = False,
 ) -> None:
     """校验切分结果，不合格即抛 `KnowledgeChunkError`（纯函数、无副作用）。
 
@@ -406,8 +528,8 @@ def validate_chunks(
         raise KnowledgeChunkError("KNOWLEDGE_CHUNK_LIMIT", "chunk count > 20000")
     if len(drafts) == 1 and drafts[0].char_count > _OVERSIZED_RATIO * chunk_size:
         raise KnowledgeChunkError("KNOWLEDGE_CHUNK_INVALID", "single oversized chunk")
-    if len(drafts) >= _SMALL_CHUNK_DIVISOR:
-        # 最后一块常被剩余文本截短，豁免。
+    if not allow_small and len(drafts) >= _SMALL_CHUNK_DIVISOR:
+        # 最后一块常被剩余文本截短，豁免。自定义分隔符模式由用户决定边界，跳过该启发式。
         small = sum(1 for draft in drafts[:-1] if draft.char_count < _SMALL_CHUNK_CHARS)
         if small > len(drafts) / _SMALL_CHUNK_DIVISOR:
             raise KnowledgeChunkError("KNOWLEDGE_CHUNK_INVALID", "too many small chunks")

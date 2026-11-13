@@ -32,11 +32,13 @@ from nanobot.webui.metadata import (
 )
 from nanobot.webui.outbound_wire import (
     SubagentExecutionWireEvent,
+    TrajectoryBatchWireEvent,
     WebUIWirePayload,
     WebUIWirePersistence,
     encode_subagent_execution_event,
     encode_subagent_execution_snapshot,
     encode_team_snapshot,
+    encode_trajectory_batch,
     encode_turn_end,
     project_notification,
 )
@@ -55,6 +57,14 @@ class WebUIOutboundTransport(Protocol):
     """Wire operations required by the outbound application projector."""
 
     def webui_subscribers(self, chat_id: str) -> tuple[ServerConnection, ...]: ...
+
+    def webui_trajectory_subscribers(self, chat_id: str) -> tuple[ServerConnection, ...]: ...
+
+    async def send_trajectory_payload(
+        self,
+        chat_id: str,
+        payload: WebUIWirePayload,
+    ) -> None: ...
 
     async def send_runtime_model_updated(
         self,
@@ -210,6 +220,10 @@ class WebUIOutboundProjector:
                     payload,
                     persistence="transient",
                 )
+            return
+        if isinstance(event, TrajectoryBatchWireEvent):
+            payload = encode_trajectory_batch(msg.chat_id, event.data)
+            await self._transport.send_trajectory_payload(msg.chat_id, payload)
             return
         conns = list(self._transport.webui_subscribers(msg.chat_id))
         if not conns:

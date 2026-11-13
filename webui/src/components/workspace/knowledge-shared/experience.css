@@ -55,7 +55,8 @@
 
 :where(.knowledge-experience, .knowledge-experience-surface) .knowledge-library-card:is(:hover, :focus-within) {
   border-color: hsl(var(--ring));
-  background: hsl(var(--muted) / .35);
+  background: radial-gradient(240px circle at var(--spotlight-x, 50%) var(--spotlight-y, 0%), hsl(var(--primary) / .08), transparent 75%), hsl(var(--card));
+  box-shadow: 0 8px 28px -16px hsl(var(--primary) / .3);
 }
 
 :where(.knowledge-experience, .knowledge-experience-surface) :is(button, a, input, select, textarea, [tabindex]):focus-visible {
@@ -195,18 +196,44 @@
   animation-name: knowledge-dialog-centered-in;
 }
 
-.knowledge-experience-surface.knowledge-dialog.knowledge-dialog-compact {
-  width: min(34rem, calc(100vw - 2rem));
-  max-width: calc(100vw - 2rem);
-}
-
-.knowledge-experience-surface.knowledge-dialog.knowledge-dialog-wide {
-  width: min(48rem, calc(100vw - 2rem));
-  max-width: calc(100vw - 2rem);
-}
-
 .knowledge-experience-surface.knowledge-dialog[data-state="closed"] {
   animation: knowledge-fade-out 100ms var(--knowledge-motion-ease) both;
+}
+
+/* 分块详情 / 原文预览：固定头尾、中间独立滚动的宽弹窗。 */
+.knowledge-experience-surface.knowledge-doc-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  width: min(68rem, calc(100vw - 2rem));
+  max-width: min(68rem, calc(100vw - 2rem));
+  height: min(86dvh, 56rem);
+  max-height: calc(100dvh - 2rem);
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .knowledge-experience-surface.knowledge-doc-dialog {
+    width: calc(100vw - 0.75rem);
+    max-width: calc(100vw - 0.75rem);
+    height: calc(100dvh - 0.75rem);
+  }
+}
+
+/* 检索步骤详情：窄弹窗装指标与明细，避免铺满整屏。 */
+.knowledge-experience-surface.knowledge-stage-dialog {
+  width: min(44rem, calc(100vw - 2rem));
+  max-width: min(44rem, calc(100vw - 2rem));
+  max-height: min(80dvh, 44rem);
+  overflow-y: auto;
+}
+
+@media (max-width: 640px) {
+  .knowledge-experience-surface.knowledge-stage-dialog {
+    width: calc(100vw - 0.75rem);
+    max-width: calc(100vw - 0.75rem);
+  }
 }
 
 .knowledge-experience-surface.knowledge-overlay {
@@ -239,6 +266,16 @@
   from { transform: translate(0, 0); }
   to { transform: translate(var(--knowledge-sheet-offset-x), var(--knowledge-sheet-offset-y)); }
 }
+
+/* 检索链路节点逐个入场（trace 一次返回，用动画模拟推进节奏）。 */
+.knowledge-trace-node {
+  animation: knowledge-trace-node-in 220ms var(--knowledge-motion-ease) both;
+}
+
+@keyframes knowledge-trace-node-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 @keyframes knowledge-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 640px) {
@@ -249,7 +286,8 @@
   .knowledge-experience.knowledge-motion,
   .knowledge-experience .knowledge-motion,
   .knowledge-experience-surface.knowledge-motion,
-  .knowledge-experience-surface .knowledge-motion {
+  .knowledge-experience-surface .knowledge-motion,
+  .knowledge-experience-surface .knowledge-trace-node {
     animation: none !important;
     transition: none !important;
   }

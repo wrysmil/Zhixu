@@ -11,7 +11,7 @@ beforeEach(() => {
 });
 
 describe("GraphView", () => {
-  it("separates keyboard selection from explicit expansion and highlights connected items", async () => {
+  it("separates keyboard selection from explicit expansion", async () => {
     const onSelect = vi.fn();
     const onExpand = vi.fn();
     render(<GraphView nodes={[
@@ -26,9 +26,8 @@ describe("GraphView", () => {
     expect(onSelect).toHaveBeenLastCalledWith("b");
     expect(onExpand).not.toHaveBeenCalled();
     expect(beta).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Alpha · concept" })).toHaveAttribute("data-related", "true");
-    expect(screen.getByRole("button", { name: "Gamma · concept" })).toHaveAttribute("data-related", "false");
-    expect(document.querySelector("line")).toHaveAttribute("data-related", "true");
+    expect(screen.getByRole("button", { name: "Alpha · concept" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Gamma · concept" })).toHaveAttribute("aria-pressed", "false");
     await userEvent.keyboard(" ");
     expect(onSelect).toHaveBeenCalledTimes(2);
     await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.graphExpand") }));
@@ -46,7 +45,8 @@ describe("GraphView", () => {
     await waitFor(() => expect(svg).toHaveAttribute("viewBox", zoom));
     expect(screen.getByRole("button", { name: "Alpha · concept" })).toBe(node);
   });
-  it("draws edges with real coordinates", async () => {
+
+  it("draws directed edges with real coordinates and a flow overlay", async () => {
     render(
       <GraphView
         nodes={[
@@ -58,15 +58,17 @@ describe("GraphView", () => {
       />,
     );
     await waitFor(() => {
-      expect(document.querySelectorAll("line").length).toBe(1);
+      expect(document.querySelectorAll("line.text-primary").length).toBe(1);
     });
-    const line = document.querySelector("line")!;
+    const line = document.querySelector("line.text-primary")!;
     expect(Number(line.getAttribute("x1"))).not.toBeNaN();
     expect(Number(line.getAttribute("x2"))).not.toBeNaN();
     expect(line.getAttribute("stroke")).toBe("currentColor");
+    // 有向关系额外绘制一条流向虚线，用于表达「A 指向 B」。
+    expect(document.querySelectorAll("line.graph-flow-line").length).toBe(1);
   });
 
-  it("caps nodes and shows a truncation notice", async () => {
+  it("caps nodes at the shared graph limit", async () => {
     const nodes: KnowledgeGraphNode[] = Array.from({ length: 80 }, (_, index) => ({
       id: `e${index}`,
       name: `node-${index}`,
@@ -74,9 +76,8 @@ describe("GraphView", () => {
       mentionCount: 1,
     }));
     render(<GraphView nodes={nodes} edges={[]} centerId="e0" />);
-    expect(await screen.findByText(/Truncated/)).toBeTruthy();
     await waitFor(() => {
-      expect(document.querySelectorAll("[data-graph-node]").length).toBe(50);
+      expect(document.querySelectorAll("[data-force-node]").length).toBe(60);
     });
   });
 });

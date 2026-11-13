@@ -157,6 +157,7 @@ class FakeService:
         self.kbs = {kb.id: kb for kb in (kbs if kbs is not None else [_kb()])}
         self.documents = documents if documents is not None else [_doc()]
         self.chunks = chunks if chunks is not None else []
+        self.history: list[dict[str, Any]] = []
         self.search_result = search_result
         self.failure = failure
 
@@ -216,8 +217,20 @@ class FakeService:
                 return doc
         return None
 
-    def add_file(self, path: str, *, kb_id: str, workspace_id: str, title: str | None = None):
-        self.calls.append(("add_file", {"path": path, "kb_id": kb_id, "workspace_id": workspace_id}))
+    def add_file(
+        self,
+        path: str,
+        *,
+        kb_id: str,
+        workspace_id: str,
+        title: str | None = None,
+        custom_chunks: list[dict[str, Any]] | None = None,
+    ):
+        self.calls.append((
+            "add_file",
+            {"path": path, "kb_id": kb_id, "workspace_id": workspace_id,
+             "custom_chunks": custom_chunks},
+        ))
         if self.failure is not None:
             raise self.failure
         return SimpleNamespace(document=_doc("doc_file", kb_id=kb_id, workspace_id=workspace_id))
@@ -231,13 +244,45 @@ class FakeService:
         workspace_id: str,
         mime: str = "",
         title: str | None = None,
+        custom_chunks: list[dict[str, Any]] | None = None,
     ):
         self.calls.append((
             "add_upload_bytes",
             {"name": name, "data": data, "kb_id": kb_id,
-             "workspace_id": workspace_id, "mime": mime, "title": title},
+             "workspace_id": workspace_id, "mime": mime, "title": title,
+             "custom_chunks": custom_chunks},
         ))
         return _doc("doc_1", kb_id=kb_id, workspace_id=workspace_id, title=title or name)
+
+    def preview_chunks(
+        self,
+        *,
+        kb_id: str,
+        name: str = "",
+        data: bytes | None = None,
+        path: str | None = None,
+        chunk_mode: str = "smart",
+        separators: list[str] | None = None,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+    ):
+        self.calls.append((
+            "preview_chunks",
+            {"kb_id": kb_id, "name": name, "data": data, "path": path,
+             "chunk_mode": chunk_mode, "separators": separators,
+             "chunk_size": chunk_size, "chunk_overlap": chunk_overlap},
+        ))
+        return {
+            "chunkSize": chunk_size,
+            "chunkOverlap": chunk_overlap,
+            "total": 3,
+            "avgChars": 42,
+            "truncated": False,
+            "chunks": [
+                {"index": 0, "chars": 42, "heading": "", "page": None,
+                 "locator": "", "content": "第一块"},
+            ],
+        }
 
     def delete_document(self, doc_id: str) -> None:
         self.calls.append(("delete_document", doc_id))
@@ -250,9 +295,35 @@ class FakeService:
         self.calls.append(("reindex_kb", kb_id))
         return ["doc_1", "doc_2"]
 
-    def list_chunks(self, doc_id: str, *, offset: int = 0, limit: int = 20):
-        self.calls.append(("list_chunks", {"doc_id": doc_id, "limit": limit}))
-        return [chunk for chunk in self.chunks if chunk.doc_id == doc_id][:limit]
+    def list_chunks(
+        self,
+        doc_id: str,
+        *,
+        offset: int = 0,
+        limit: int = 20,
+        query: str = "",
+    ):
+        self.calls.append(
+            (
+                "list_chunks",
+                {
+                    "doc_id": doc_id,
+                    "offset": offset,
+                    "limit": limit,
+                    "query": query,
+                },
+            )
+        )
+        rows = [chunk for chunk in self.chunks if chunk.doc_id == doc_id]
+        if query:
+            rows = [chunk for chunk in rows if query in chunk.content]
+        return rows[offset : offset + limit]
+
+    def count_chunks(self, doc_id: str, *, query: str = "") -> int:
+        rows = [chunk for chunk in self.chunks if chunk.doc_id == doc_id]
+        if query:
+            rows = [chunk for chunk in rows if query in chunk.content]
+        return len(rows)
 
     def get_chunk(self, chunk_id: str):
         self.calls.append(("get_chunk", chunk_id))
@@ -267,6 +338,38 @@ class FakeService:
         if self.search_result is not None:
             return self.search_result
         return SimpleNamespace(hits=(), mode_used="keyword", degraded=(), reason=None, routes=())
+
+    def record_search_history(self, **kwargs: Any) -> str:
+        self.calls.append(("record_search_history", kwargs))
+        row = {
+            "id": f"qry_{len(self.history) + 1}",
+            "kb_id": kwargs["kb_id"],
+            "query": kwargs["query"],
+            "mode": kwargs["mode"],
+            "limit": kwargs["limit"],
+            "hit_count": kwargs["hit_count"],
+            "duration_ms": kwargs["duration_ms"],
+            "created_at": "2026-11-13T00:00:00+00:00",
+        }
+        self.history.insert(0, row)
+        return str(row["id"])
+
+    def list_search_history(
+        self, *, kb_id: str, workspace_ids: list[str], limit: int = 20
+    ) -> list[dict[str, Any]]:
+        self.calls.append(
+            ("list_search_history", {"kb_id": kb_id, "limit": limit})
+        )
+        rows = [row for row in self.history if row["kb_id"] == kb_id]
+        return rows[:limit]
+
+    def clear_search_history(
+        self, *, kb_id: str, workspace_ids: list[str]
+    ) -> int:
+        self.calls.append(("clear_search_history", kb_id))
+        before = len(self.history)
+        self.history = [row for row in self.history if row["kb_id"] != kb_id]
+        return before - len(self.history)
 
     def stats(self, *, workspace_ids: list[str]):
         self.calls.append(("stats", {"workspace_ids": list(workspace_ids)}))
@@ -365,6 +468,109 @@ def test_doc_get_returns_chunk_preview() -> None:
     assert payload["chunks"][0]["content"] == "部署失败怎么回滚"
 
 
+def test_doc_get_paginates_and_searches_chunks() -> None:
+    service = FakeService(
+        chunks=[
+            _chunk("ck_1", content="alpha one"),
+            _chunk("ck_2", content="beta two"),
+            _chunk("ck_3", content="alpha three"),
+        ]
+    )
+    api, _ = _api(service)
+
+    payload = api.handle(
+        "knowledge-doc-get",
+        {
+            "id": "doc_1",
+            "chunkOffset": 1,
+            "chunkLimit": 1,
+            "chunkQuery": "alpha",
+        },
+    )
+
+    assert [chunk["id"] for chunk in payload["chunks"]] == ["ck_3"]
+    assert payload["chunkTotal"] == 2
+    assert payload["chunkOffset"] == 1
+    assert payload["chunkLimit"] == 1
+
+
+def test_doc_content_returns_markdown_source(tmp_path: Path) -> None:
+    source = tmp_path / "guide.md"
+    source.write_text("# 标题\n\n正文", encoding="utf-8")
+    service = FakeService(
+        documents=[
+            _doc(
+                source_path=str(source),
+                source_kind="external",
+                original_name="guide.md",
+            )
+        ]
+    )
+    api, _ = _api(service)
+
+    payload = api.handle("knowledge-doc-content", {"id": "doc_1"})
+
+    assert payload["kind"] == "markdown"
+    assert payload["name"] == "guide.md"
+    assert payload["content"] == "# 标题\n\n正文"
+    assert payload["truncated"] is False
+    assert "sourcePath" not in payload
+
+
+def test_doc_content_renders_docx_blocks(tmp_path: Path) -> None:
+    from docx import Document as DocxDocument
+
+    document = DocxDocument()
+    document.add_heading("第一章", level=1)
+    document.add_paragraph("正文段落")
+    table = document.add_table(rows=1, cols=2)
+    table.rows[0].cells[0].text = "A"
+    table.rows[0].cells[1].text = "B"
+    source = tmp_path / "spec.docx"
+    document.save(source)
+    api, _ = _api(FakeService(documents=[_doc(source_path=str(source))]))
+
+    payload = api.handle("knowledge-doc-content", {"id": "doc_1"})
+
+    assert payload["kind"] == "docx"
+    assert payload["blocks"][0] == {
+        "type": "heading",
+        "level": 1,
+        "text": "第一章",
+    }
+    assert {"type": "paragraph", "text": "正文段落"} in payload["blocks"]
+    assert {"type": "table", "rows": [["A", "B"]]} in payload["blocks"]
+
+
+def test_doc_content_returns_pdf_pages(tmp_path: Path) -> None:
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    source = tmp_path / "manual.pdf"
+    with source.open("wb") as handle:
+        writer.write(handle)
+    api, _ = _api(FakeService(documents=[_doc(source_path=str(source))]))
+
+    payload = api.handle("knowledge-doc-content", {"id": "doc_1"})
+
+    assert payload["kind"] == "pdf"
+    assert payload["totalPages"] == 1
+    assert payload["pages"] == [{"page": 1, "text": ""}]
+
+
+def test_doc_content_missing_source_is_stable_error(tmp_path: Path) -> None:
+    api, _ = _api(
+        FakeService(documents=[_doc(source_path=str(tmp_path / "gone.txt"))])
+    )
+
+    with pytest.raises(KnowledgeApiError) as excinfo:
+        api.handle("knowledge-doc-content", {"id": "doc_1"})
+
+    assert excinfo.value.code == "KNOWLEDGE_DOC_SOURCE_MISSING"
+    assert excinfo.value.status == 404
+
+
 def test_chunk_get_checks_document_scope() -> None:
     service = FakeService(
         kbs=[_kb(workspace_id="ws2")],
@@ -399,6 +605,90 @@ def test_search_maps_hits_and_degraded_reason() -> None:
     assert payload["hits"][0]["score"] == 0.87
     assert _call(fake, "search")[0]["workspace_ids"] == ["ws1"]
     assert _call(fake, "search")[0]["limit"] == 5
+
+
+def test_search_returns_trace_and_records_history() -> None:
+    hit = SimpleNamespace(
+        chunk_id="ck_1", doc_id="doc_1", kb_id="kb_1", chunk_index=0,
+        heading_path="", page=None, locator="", content="回滚步骤",
+        char_count=4, score=0.5,
+    )
+    service = FakeService(
+        search_result=SimpleNamespace(
+            hits=(hit,),
+            mode_used="hybrid",
+            degraded=(),
+            reason=None,
+            routes=("vector", "keyword"),
+            trace={
+                "query": "回滚",
+                "mode": "hybrid",
+                "limit": 8,
+                "totalMs": 12,
+                "stages": [{"kind": "query", "status": "ok"}],
+            },
+        )
+    )
+    api, fake = _api(service)
+
+    payload = api.handle(
+        "knowledge-search",
+        {"query": "回滚", "kbId": "kb_1", "trace": True, "record": True},
+    )
+
+    assert payload["trace"]["stages"][0]["kind"] == "query"
+    assert isinstance(payload["durationMs"], int)
+    recorded = _call(fake, "record_search_history")[0]
+    assert recorded["kb_id"] == "kb_1"
+    assert recorded["hit_count"] == 1
+    assert recorded["query"] == "回滚"
+    # trace 对象确实传到了服务层（未开启时传 None）。
+    assert _call(fake, "search")[0]["trace"] is not None
+
+
+def test_search_without_trace_passes_none() -> None:
+    api, fake = _api()
+
+    payload = api.handle("knowledge-search", {"query": "回滚"})
+
+    assert "trace" not in payload
+    assert _call(fake, "search")[0]["trace"] is None
+    assert _call(fake, "record_search_history") == []
+
+
+def test_search_passes_document_scope() -> None:
+    api, fake = _api()
+
+    api.handle(
+        "knowledge-search",
+        {"query": "回滚", "docIds": ["doc_1", "doc_2"]},
+    )
+
+    assert _call(fake, "search")[0]["doc_ids"] == ["doc_1", "doc_2"]
+
+
+def test_query_history_reads_and_clears_per_kb() -> None:
+    service = FakeService()
+    service.history = [
+        {
+            "id": "qry_1", "kb_id": "kb_1", "query": "回滚", "mode": "hybrid",
+            "limit": 8, "hit_count": 3, "duration_ms": 42,
+            "created_at": "2026-11-13T00:00:00+00:00",
+        }
+    ]
+    api, _ = _api(service)
+
+    payload = api.handle("knowledge-query-history", {"kbId": "kb_1"})
+
+    assert payload["items"][0]["query"] == "回滚"
+    assert payload["items"][0]["hitCount"] == 3
+    assert payload["total"] == 1
+
+    cleared = api.handle("knowledge.query_history.clear", {"kbId": "kb_1"})
+
+    assert cleared["ok"] is True
+    assert cleared["removed"] == 1
+    assert api.handle("knowledge-query-history", {"kbId": "kb_1"})["total"] == 0
 
 
 def test_search_requires_non_empty_query() -> None:
@@ -680,6 +970,176 @@ def test_add_file_missing_source_maps_to_stable_code(tmp_path: Path) -> None:
     assert str(tmp_path) not in excinfo.value.message
 
 
+# ---- 分块预览 ---------------------------------------------------------------
+
+
+def test_doc_preview_parses_upload_with_chunk_overrides() -> None:
+    api, fake = _api()
+
+    payload = api.handle(
+        "knowledge.doc.preview",
+        {
+            "kbId": "kb_1",
+            "name": "notes.md",
+            "dataUrl": _data_url("text/markdown", b"# t\n\nbody"),
+            "chunkSize": 400,
+            "chunkOverlap": 40,
+        },
+    )
+
+    recorded = _call(fake, "preview_chunks")[0]
+    assert recorded["kb_id"] == "kb_1"
+    assert recorded["name"] == "notes.md"
+    assert recorded["data"] == b"# t\n\nbody"
+    assert recorded["chunk_size"] == 400
+    assert recorded["chunk_overlap"] == 40
+    assert payload["total"] == 3
+    assert payload["chunks"][0]["content"] == "第一块"
+    assert _call(fake, "add_upload_bytes") == []
+
+
+def test_doc_preview_accepts_server_path_without_upload() -> None:
+    api, fake = _api()
+
+    api.handle(
+        "knowledge.doc.preview",
+        {"kbId": "kb_1", "path": "/srv/report.pdf"},
+    )
+
+    recorded = _call(fake, "preview_chunks")[0]
+    assert recorded["path"] == "/srv/report.pdf"
+    assert recorded["data"] is None
+    assert recorded["chunk_size"] == 800
+    assert recorded["chunk_overlap"] == 120
+
+
+def test_doc_preview_passes_mode_and_separators() -> None:
+    api, fake = _api()
+    paragraph = chr(10) * 2
+
+    payload = api.handle(
+        "knowledge.doc.preview",
+        {
+            "kbId": "kb_1",
+            "name": "notes.md",
+            "dataUrl": _data_url("text/markdown", ("a" + paragraph + "b").encode()),
+            "chunkMode": "separator",
+            "separators": [paragraph, "。"],
+        },
+    )
+
+    recorded = _call(fake, "preview_chunks")[0]
+    assert recorded["chunk_mode"] == "separator"
+    assert recorded["separators"] == [paragraph, "。"]
+    assert payload["total"] == 3
+
+
+def test_doc_preview_rejects_unknown_mode() -> None:
+    api, fake = _api()
+
+    with pytest.raises(KnowledgeApiError):
+        api.handle(
+            "knowledge.doc.preview",
+            {
+                "kbId": "kb_1",
+                "name": "notes.md",
+                "dataUrl": _data_url("text/markdown"),
+                "chunkMode": "semantic",
+            },
+        )
+    assert _call(fake, "preview_chunks") == []
+
+
+def test_upload_sends_custom_chunks() -> None:
+    api, fake = _api()
+
+    api.handle(
+        "knowledge.doc.add",
+        {
+            "kbId": "kb_1",
+            "name": "a.md",
+            "dataUrl": _data_url("text/markdown"),
+            "chunks": [
+                {"content": "第一段", "heading": "概览", "page": 2},
+                {"content": "第二段"},
+            ],
+        },
+    )
+
+    recorded = _call(fake, "add_upload_bytes")[0]
+    assert recorded["custom_chunks"] == [
+        {"content": "第一段", "heading_path": "概览", "page": 2, "locator": ""},
+        {"content": "第二段", "heading_path": "", "page": None, "locator": ""},
+    ]
+
+
+def test_upload_rejects_empty_custom_chunk() -> None:
+    api, fake = _api()
+
+    with pytest.raises(KnowledgeApiError):
+        api.handle(
+            "knowledge.doc.add",
+            {
+                "kbId": "kb_1",
+                "name": "a.md",
+                "dataUrl": _data_url("text/markdown"),
+                "chunks": [{"content": "   "}],
+            },
+        )
+    assert _call(fake, "add_upload_bytes") == []
+
+
+def test_doc_preview_rejects_overlap_not_smaller_than_size() -> None:
+    api, fake = _api()
+
+    with pytest.raises(KnowledgeApiError) as excinfo:
+        api.handle(
+            "knowledge.doc.preview",
+            {
+                "kbId": "kb_1",
+                "name": "a.txt",
+                "dataUrl": _data_url("text/plain"),
+                "chunkSize": 200,
+                "chunkOverlap": 200,
+            },
+        )
+
+    assert excinfo.value.code == "KNOWLEDGE_CHUNK_INVALID"
+    assert _call(fake, "preview_chunks") == []
+
+
+def test_upload_with_chunk_overrides_saves_kb_defaults_first() -> None:
+    api, fake = _api()
+
+    payload = api.handle(
+        "knowledge.doc.add",
+        {
+            "kbId": "kb_1",
+            "name": "a.txt",
+            "dataUrl": _data_url("text/plain"),
+            "chunkSize": 400,
+            "chunkOverlap": 40,
+        },
+    )
+
+    updates = _call(fake, "update_kb")[0]
+    assert updates["fields"] == {"chunk_size": 400, "chunk_overlap": 40}
+    assert payload["chunkSize"] == 400
+    assert payload["chunkOverlap"] == 40
+    assert _call(fake, "add_upload_bytes")[0]["kb_id"] == "kb_1"
+
+
+def test_upload_without_chunk_overrides_leaves_kb_untouched() -> None:
+    api, fake = _api()
+
+    api.handle(
+        "knowledge.doc.add",
+        {"kbId": "kb_1", "name": "a.txt", "dataUrl": _data_url("text/plain")},
+    )
+
+    assert _call(fake, "update_kb") == []
+
+
 # ---- 删除 / reindex / repair ------------------------------------------------
 
 
@@ -741,6 +1201,8 @@ def test_repair_defaults_to_non_destructive_flags() -> None:
         ("knowledge-kb-list", {}),
         ("knowledge-doc-list", {}),
         ("knowledge-doc-get", {"id": "doc_1"}),
+        ("knowledge-doc-content", {"id": "doc_1"}),
+        ("knowledge-query-history", {"kbId": "kb_1"}),
         ("knowledge-search", {"query": "回滚"}),
         ("knowledge-stats", {}),
     ],

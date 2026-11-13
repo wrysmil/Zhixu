@@ -1797,6 +1797,8 @@ export type Outbound =
   | { type: "fork_chat"; source_chat_id: string; before_user_index: number; title?: string }
   | { type: "bind_writing_session"; article_id: string }
   | { type: "attach"; chat_id: string }
+  | { type: "trajectory_subscribe"; chat_id: string; after_seq: number }
+  | { type: "trajectory_unsubscribe"; chat_id: string }
   | { type: "set_sidebar_state"; state: SidebarStatePayload }
   | { type: "discard_temporary_chat"; chat_id: string }
   | { type: "set_workspace_scope"; chat_id: string; workspace_scope: WorkspaceScopePayload }

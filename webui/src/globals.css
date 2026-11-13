@@ -96,29 +96,29 @@ html .team-progress-track > span {
     --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
     --font-code: "JetBrains Mono", "SFMono-Regular", "SF Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
     --font-display: var(--font-ui);
-    --background: 0 0% 98.039%;
-    --foreground: 225 5.882% 13.333%;
+    --background: 216 45% 98%;
+    --foreground: 220 49% 8%;
     --card: 0 0% 100%;
     --card-foreground: var(--foreground);
     --popover: 0 0% 100%;
     --popover-foreground: var(--foreground);
-    --primary: 240 3.704% 15.882%;
-    --primary-foreground: 0 0% 98.039%;
-    --secondary: 240 4.762% 95.882%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
     --secondary-foreground: var(--foreground);
-    --muted: 240 4.762% 95.882%;
-    --muted-foreground: 240 3.83% 42%;
-    --accent: 240 7.692% 92.353%;
-    --accent-foreground: 240 3.704% 15.882%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 214 95% 93%;
+    --accent-foreground: 224 76% 48%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 240 5.882% 90%;
-    --input: 240 3.67% 57.255%;
-    --ring: 240 3.704% 15.882%;
+    --border: 214 32% 91%;
+    --input: 215 20% 65%;
+    --ring: 221 83% 53%;
     /* Tier below --background: the window shell behind panels. */
-    --surface-app: 0 0% 98.039%;
+    --surface-app: 216 45% 98%;
     /* Window canvas behind the inset content card (wrapped shell). */
-    --app-canvas: var(--sidebar);
+    --app-canvas: 210 40% 96%;
     /* Tiered sidebar/inspector surface, separated by a hairline. */
     --surface-panel: 0 0% 100%;
     /* Right-hand rails stay pure white in light mode. */
@@ -140,9 +140,9 @@ html .team-progress-track > span {
     --text-soft: var(--muted-foreground);
     --text-display: var(--foreground);
     /* Selected navigation: tinted surface + readable ink, never "white on white". */
-    --nav-active-bg: 203 96% 94%;
-    --nav-active-fg: 201 96% 32%;
-    --nav-active-ring: 201 96% 42%;
+    --nav-active-bg: 214 95% 93%;
+    --nav-active-fg: 224 76% 48%;
+    --nav-active-ring: 221 83% 53%;
     --radius: 0.5rem;
     /* Shared shape scale: controls and repeated panels 8px, composer 16px. */
     --radius-mark: 0.25rem;
@@ -153,6 +153,10 @@ html .team-progress-track > span {
     --radius-modal: 0.75rem;
     --radius-prominent: 1rem;
     --radius-pill: 9999px;
+
+    /* 白底科技感：冷蓝网格底纹 + 一档冷光晕。只在浅色下作为背景暗示使用。 */
+    --tech-grid: 214 32% 91%;
+    --tech-glow: 221 83% 53%;
 
     /* 知序 UI 视觉优化 v1.1（spec 2026-10-11）：共用布局 token */
     --rail-w: 54px;
@@ -167,8 +171,8 @@ html .team-progress-track > span {
     --sidebar: 0 0% 100%;
     --sidebar-foreground: var(--foreground);
     /* Selected chat row: soft sky tint so the active conversation reads at a glance. */
-    --sidebar-selected: 203 96% 94%;
-    --sidebar-accent: 240 7.692% 92.353%;
+    --sidebar-selected: 214 95% 93%;
+    --sidebar-accent: 214 95% 93%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
     --settings-canvas: var(--background);
@@ -179,29 +183,29 @@ html .team-progress-track > span {
 
   .dark {
     color-scheme: dark;
-    --background: 240 5.882% 10%;
-    --foreground: 240 5.882% 90%;
-    --card: 240 4.478% 13.137%;
+    --background: 220 49% 8%;
+    --foreground: 215 50% 93%;
+    --card: 220 40% 12%;
     --card-foreground: var(--foreground);
-    --popover: 240 4.478% 13.137%;
+    --popover: 220 40% 12%;
     --popover-foreground: var(--foreground);
-    --primary: 240 5.882% 90%;
-    --primary-foreground: 240 5.882% 10%;
-    --secondary: 240 5.085% 11.569%;
+    --primary: 217 91% 76%;
+    --primary-foreground: 220 49% 8%;
+    --secondary: 220 33% 16%;
     --secondary-foreground: var(--foreground);
-    --muted: 240 5.085% 11.569%;
-    --muted-foreground: 240 5.028% 64.902%;
-    --accent: 240 5.618% 17.451%;
-    --accent-foreground: 240 5.882% 90%;
+    --muted: 220 33% 16%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 220 40% 18%;
+    --accent-foreground: 217 91% 76%;
     --destructive: 0 62% 55%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.704% 21.176%;
-    --input: 240 3.766% 46.863%;
-    --ring: 240 5.882% 90%;
-    --surface-app: 240 5.882% 10%;
+    --border: 220 26% 21%;
+    --input: 215 20% 45%;
+    --ring: 217 91% 76%;
+    --surface-app: 220 49% 8%;
     --app-canvas: var(--sidebar);
-    --surface-panel: 240 4.478% 13.137%;
-    --surface-raised: 240 4.478% 13.137%;
+    --surface-panel: 220 40% 12%;
+    --surface-raised: 220 40% 12%;
     --border-soft: var(--border);
     --inline-token-highlight: hsl(var(--primary));
     --session-handle-lightness: 0.75;
@@ -216,13 +220,13 @@ html .team-progress-track > span {
     --text-body: var(--foreground);
     --text-soft: var(--muted-foreground);
     --text-display: var(--foreground);
-    --nav-active-bg: 205 45% 18%;
-    --nav-active-fg: 199 89% 74%;
-    --nav-active-ring: 199 89% 50%;
-    --sidebar: 240 5.085% 11.569%;
+    --nav-active-bg: 220 40% 18%;
+    --nav-active-fg: 217 91% 76%;
+    --nav-active-ring: 217 91% 60%;
+    --sidebar: 220 45% 10%;
     --sidebar-foreground: var(--foreground);
-    --sidebar-selected: 205 45% 18%;
-    --sidebar-accent: 240 5.618% 17.451%;
+    --sidebar-selected: 220 40% 18%;
+    --sidebar-accent: 220 40% 18%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
     --settings-canvas: var(--background);
@@ -1232,13 +1236,33 @@ textarea.no-resize {
   outline-offset: -2px;
 }
 
+.workspace-navigation-rail,
 html.native-host .workspace-navigation-rail {
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
 
+.workspace-navigation-rail::-webkit-scrollbar,
 html.native-host .workspace-navigation-rail::-webkit-scrollbar {
-  display: block;
-  width: 4px;
+  display: none;
+}
+
+@media (max-height: 850px) {
+  .workspace-navigation-rail {
+    gap: 0;
+    padding-top: 0.5rem;
+    padding-bottom: 0.25rem;
+  }
+  .workspace-navigation-rail [data-testid="sidebar-rail-brand"] {
+    padding-bottom: 0.25rem;
+  }
+  .workspace-navigation-rail .workspace-nav-item {
+    height: 42px;
+    gap: 0;
+  }
+  .workspace-navigation-footer {
+    gap: 0;
+    padding-bottom: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1618,8 +1642,6 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
   text-align: center;
 }
 
-/* The assistant landing keeps a single small mascot; it sits beside the copy,
-   never behind it, so the first prompt stays the loudest element. */
 /* The landing is split across the composer: intro above it, shortcuts and resume
    rows below. Both halves share one column so the composer lands on the same axis. */
 .thread-welcome,
@@ -1640,15 +1662,14 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
   padding-top: clamp(0.5rem, 2.2vh, 1.75rem);
 }
 
-/* One calm welcome row: copy and a low, horizontal scene share a centre line. */
+/* A quiet, text-led opening keeps the composer as the primary action. */
 .thread-welcome-intro {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(8rem, 23%, 10rem);
-  min-height: 9rem;
-  align-items: center;
-  gap: 2rem;
-  padding-block: 0.375rem 0.75rem;
+  min-height: 10rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-block: 1.25rem 1.75rem;
 }
 
 .thread-welcome-copy {
@@ -1656,6 +1677,7 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
   padding: 0;
   position: relative;
   z-index: 2;
+  text-align: center;
 }
 
 .thread-welcome-eyebrow {
@@ -1680,12 +1702,12 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
 }
 
 .thread-welcome-title {
-  margin: 0 0 0.625rem;
+  margin: 0 auto 0.625rem;
   max-width: 40rem;
   text-wrap: balance;
   font-family: var(--font-ui);
   font-size: clamp(1.875rem, 1.5rem + 0.6vw, 2.25rem);
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1.25;
   letter-spacing: -0.025em;
   white-space: normal;
@@ -1709,8 +1731,8 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
 
 .thread-welcome-description {
   max-width: 32rem;
-  margin: 0;
-  color: hsl(var(--text-body));
+  margin: 0 auto;
+  color: hsl(var(--muted-foreground));
   font-size: 15px;
   line-height: 1.65;
 }
@@ -1766,7 +1788,7 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
 }
 
 .thread-welcome-starters {
-  margin-top: 1.75rem;
+  margin-top: 1.4rem;
 }
 
 .thread-welcome-starters-label {
@@ -1777,11 +1799,13 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  text-align: center;
 }
 
 .thread-welcome-chips {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.5rem;
 }
 
@@ -1789,13 +1813,13 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
   --starter-accent: var(--workbench-ink);
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 0.5rem;
   min-width: 0;
-  padding: 0.65rem 0.8rem;
-  border: 1px solid hsl(var(--input));
-  border-radius: var(--radius-panel);
-  background: hsl(var(--card));
+  padding: 0.55rem 0.85rem;
+  border: 1px solid hsl(var(--border) / 0.8);
+  border-radius: 999px;
+  background: hsl(var(--card) / 0.8);
   color: hsl(var(--text-body));
   font-size: 13px;
   line-height: 1.4;
@@ -1809,20 +1833,15 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
     box-shadow 140ms ease-out;
 }
 
-/* One hue per starter so the grid reads as a set, not a wall of grey. */
-.thread-welcome-chip:nth-child(1) { --starter-accent: hsl(199 89% 42%); }
-.thread-welcome-chip:nth-child(2) { --starter-accent: hsl(262 83% 58%); }
-.thread-welcome-chip:nth-child(3) { --starter-accent: hsl(160 84% 36%); }
-.thread-welcome-chip:nth-child(4) { --starter-accent: hsl(28 92% 46%); }
+.thread-welcome-chip-arrow {
+  color: hsl(var(--primary) / 0.55);
+  font-size: 14px;
+  transition: color 140ms ease-out, transform 140ms ease-out;
+}
 
-.dark .thread-welcome-chip:nth-child(1) { --starter-accent: hsl(199 89% 68%); }
-.dark .thread-welcome-chip:nth-child(2) { --starter-accent: hsl(262 83% 76%); }
-.dark .thread-welcome-chip:nth-child(3) { --starter-accent: hsl(160 70% 60%); }
-.dark .thread-welcome-chip:nth-child(4) { --starter-accent: hsl(28 92% 66%); }
-
-.thread-welcome-chip > svg {
-  flex-shrink: 0;
-  color: hsl(var(--starter-accent));
+.thread-welcome-chip:hover .thread-welcome-chip-arrow {
+  color: hsl(var(--primary));
+  transform: translate(2px, -2px);
 }
 
 .thread-welcome-chip:hover {
@@ -1864,7 +1883,7 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
    the trailing spacer collapses to zero and the grid distributes the remaining
    space above and below it instead of pinning the block to the top. */
 .agent-thread-shell .thread-layout[data-layout="hero"] {
-  max-width: 58rem;
+  max-width: 52rem;
   padding: clamp(1rem, 3vh, 2.25rem) clamp(1.25rem, 4vw, 3rem) 2rem;
   grid-template-rows: auto auto auto 0;
   align-content: center;
@@ -1911,16 +1930,139 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
 }
 
 /* Hero composer keeps a roomier writing area, closer to the demo's three-line box. */
+.thread-composer-surface.max-w-heroComposer {
+  border-color: hsl(var(--border) / 0.9);
+  border-radius: 1.25rem;
+  background: hsl(var(--card));
+  box-shadow: 0 14px 40px -24px hsl(var(--primary) / 0.26), 0 2px 12px hsl(var(--foreground) / 0.045);
+}
+
 .thread-composer-surface.max-w-heroComposer textarea {
-  min-height: 5.25rem;
+  min-height: 4.25rem;
 }
 
 .agent-thread-shell .thread-composer-surface:focus-within {
   border-color: hsl(var(--ring));
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.13), 0 14px 40px -24px hsl(var(--primary) / 0.3);
 }
 
+.agent-thread-shell .thread-composer-surface:has(textarea:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.65), 0 14px 40px -24px hsl(var(--primary) / 0.3);
+}
+
+/* The new-conversation workspace uses one shared, left-aligned reading axis. */
+.agent-thread-shell .thread-layout[data-layout="hero"] {
+  --hero-composer-max-w: min(43rem, 100%);
+  max-width: 51rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-intro {
+  min-height: 0;
+  justify-content: flex-start;
+  padding: 0 0 1.75rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-copy {
+  text-align: left;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-eyebrow {
+  margin-bottom: 0.85rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-title {
+  margin: 0 0 0.6rem;
+  font-size: clamp(1.75rem, 2.3vw, 2.25rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-description {
+  margin: 0;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] [data-testid="composer-context-tabs"] {
+  margin-bottom: 0.4rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-composer-surface.max-w-heroComposer {
+  border: 1px solid hsl(var(--border) / 0.8);
+  border-radius: 1.1rem;
+  background: hsl(var(--secondary) / 0.28);
+  box-shadow: 0 8px 24px -20px hsl(var(--foreground) / 0.16);
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-composer-surface:focus-within,
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-composer-surface:has(textarea:focus-visible) {
+  border-color: hsl(var(--ring) / 0.65);
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.1), 0 14px 35px -22px hsl(var(--foreground) / 0.22);
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-starters {
+  margin-top: 1.5rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-starters-label {
+  margin-bottom: 0.75rem;
+  text-align: left;
+  letter-spacing: 0.03em;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-chips {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-chip {
+  min-height: 2.25rem;
+  padding: 0.45rem 0.75rem;
+  border-color: hsl(var(--border) / 0.7);
+  border-radius: 0.55rem;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font-weight: 400;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-chip:hover {
+  border-color: hsl(var(--primary) / 0.35);
+  background: hsl(var(--primary) / 0.045);
+}
+
+/* A quiet new-chat canvas with the composer and its context as one unit. */
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-intro-block,
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-welcome-extras-block {
+  display: none;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] form:has(> .thread-composer-surface) {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] .thread-composer-surface.max-w-heroComposer {
+  z-index: 1;
+  order: 0;
+  background: hsl(var(--card));
+  border-color: hsl(var(--border) / 0.65);
+  border-radius: 1.4rem;
+  box-shadow: 0 18px 45px -24px hsl(var(--foreground) / 0.2), 0 2px 8px hsl(var(--foreground) / 0.04);
+}
+
+.agent-thread-shell .thread-layout[data-layout="hero"] [data-testid="composer-context-tabs"] {
+  order: 1;
+  width: calc(100% - 1.5rem);
+  min-height: 3rem;
+  margin: -0.45rem auto 0;
+  padding: 0.5rem 0.75rem 0.1rem;
+  border-radius: 0 0 1.2rem 1.2rem;
+  background: hsl(var(--secondary) / 0.6);
+}
 /* Keep the send/stop distinction and all disabled semantics from the component. */
 .thread-composer-action[type="submit"] {
   background-image: none;
@@ -1962,7 +2104,7 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
   .thread-welcome-illustration > img { width: 100%; }
   .thread-welcome-title { font-size: 1.75rem; max-width: 100%; white-space: normal; }
   .thread-welcome-description { font-size: 14px; }
-  .thread-welcome-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.375rem; }
+  .thread-welcome-chips { gap: 0.375rem; }
   .thread-welcome-chip { padding: 0.55rem 0.7rem; font-size: 13px; }
   .assistant-page { padding: 1.15rem 0.9375rem 2rem; }
   .assistant-page-header { gap: 0.75rem; padding-bottom: 0.875rem; }
@@ -1979,15 +2121,14 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
 @media (max-width: 560px) {
   .thread-welcome-intro { grid-template-columns: minmax(0, 1fr); min-height: 7rem; }
   .thread-welcome-illustration { display: none; }
-  .thread-welcome-chips {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .thread-welcome-chip { justify-content: flex-start; }
+  .thread-welcome-chip { justify-content: space-between; }
   .assistant-page-illustration { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .thread-welcome-chip { transition: none; }
+  .thread-welcome-chip-arrow { transition: none; }
+  .thread-welcome-chip:hover .thread-welcome-chip-arrow { transform: none; }
   .thread-welcome-title,
   .thread-welcome-eyebrow-dot,
   .thread-welcome-illustration::before,
@@ -1998,4 +2139,128 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
     animation: none;
   }
   .thread-welcome-title { background-position: 0% 50%; }
+}
+
+/* ---------------------------------------------------------------------------
+   动效基元（StyleKit animation 家族）
+   120–220ms、单一 easing、只用位移/透明度/阴影，不做花哨旋转与弹跳。
+   prefers-reduced-motion 下降级为纯透明度反馈。
+   --------------------------------------------------------------------------- */
+@keyframes motion-fade-in-up {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes motion-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes motion-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@keyframes motion-progress-sweep {
+  from { transform: translate3d(-120%, 0, 0); }
+  to { transform: translate3d(320%, 0, 0); }
+}
+
+@keyframes motion-shimmer-sweep {
+  from { background-position: -160% 0; }
+  to { background-position: 260% 0; }
+}
+
+.motion-fade-in-up {
+  animation: motion-fade-in-up 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.motion-scale-in {
+  animation: motion-scale-in 160ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.motion-pulse {
+  animation: motion-pulse 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.motion-progress-indeterminate {
+  animation: motion-progress-sweep 1.1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+.motion-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    hsl(var(--primary) / 0.12) 42%,
+    hsl(var(--primary) / 0.2) 50%,
+    hsl(var(--primary) / 0.12) 58%,
+    transparent 80%
+  );
+  background-size: 220% 100%;
+  animation: motion-shimmer-sweep 1.6s linear infinite;
+}
+
+.motion-hover-lift {
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1), box-shadow 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.motion-hover-lift:hover {
+  transform: translate3d(0, -2px, 0);
+  box-shadow: 0 6px 18px hsl(var(--foreground) / 0.06);
+}
+
+.motion-hover-glow {
+  transition: box-shadow 160ms cubic-bezier(0.2, 0, 0, 1), border-color 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.motion-hover-glow:hover {
+  border-color: hsl(var(--primary) / 0.55);
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12);
+}
+
+/* 列表入场错峰：给一组元素逐个淡入上滑。 */
+.motion-stagger > * {
+  animation: motion-fade-in-up 220ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.motion-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.motion-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.motion-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.motion-stagger > *:nth-child(4) { animation-delay: 120ms; }
+.motion-stagger > *:nth-child(5) { animation-delay: 160ms; }
+.motion-stagger > *:nth-child(n + 6) { animation-delay: 200ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-fade-in-up,
+  .motion-scale-in,
+  .motion-stagger > * {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .motion-pulse,
+  .motion-progress-indeterminate,
+  .motion-shimmer {
+    animation: none;
+  }
+
+  .motion-hover-lift:hover {
+    transform: none;
+  }
+}
+@keyframes graph-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -48; }
+}
+
+.graph-flow-line {
+  animation: graph-flow 2.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-flow-line {
+    animation: none;
+    display: none;
+  }
 }
