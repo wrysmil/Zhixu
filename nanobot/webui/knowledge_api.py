@@ -156,6 +156,116 @@ def _optional_int(
     return number
 
 
+
+_MAX_CUSTOM_CHUNKS = 2000
+_MAX_CUSTOM_CHUNK_CHARS = 8000
+_MAX_SEPARATORS = 12
+_MAX_SEPARATOR_CHARS = 16
+
+
+def _custom_chunks(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """导入前编辑过的分块：内容非空、条数与单块长度受限。"""
+    value = payload.get("chunks")
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise KnowledgeRouteError("chunks 必须是数组")
+    if len(value) > _MAX_CUSTOM_CHUNKS:
+        raise KnowledgeRouteError(f"分块数超过 {_MAX_CUSTOM_CHUNKS} 上限")
+    chunks: list[dict[str, Any]] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise KnowledgeRouteError(f"chunks[{index}] 必须是对象")
+        content = item.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise KnowledgeRouteError(f"chunks[{index}].content 不能为空")
+        content = content.strip()
+        if len(content) > _MAX_CUSTOM_CHUNK_CHARS:
+            raise KnowledgeRouteError(
+                f"chunks[{index}] 超过 {_MAX_CUSTOM_CHUNK_CHARS} 字符上限"
+            )
+        page = item.get("page")
+        if page is not None and (
+            isinstance(page, bool) or not isinstance(page, int) or page < 0
+        ):
+            raise KnowledgeRouteError(f"chunks[{index}].page 必须是正整数")
+        heading = item.get("heading") or item.get("headingPath") or ""
+        chunks.append(
+            {
+                "content": content,
+                "heading_path": str(heading),
+                "page": page,
+                "locator": str(item.get("locator") or ""),
+            }
+        )
+    return chunks or None
+
+
+def _chunk_mode(payload: dict[str, Any]) -> str:
+    value = payload.get("chunkMode")
+    if value is None:
+        return "smart"
+    if value not in {"smart", "separator"}:
+        raise KnowledgeRouteError("chunkMode 只能是 smart 或 separator")
+    return str(value)
+
+
+def _separators(payload: dict[str, Any]) -> list[str]:
+    value = payload.get("separators")
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise KnowledgeRouteError("separators 必须是数组")
+    if len(value) > _MAX_SEPARATORS:
+        raise KnowledgeRouteError(f"分隔符最多 {_MAX_SEPARATORS} 个")
+    out: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item:
+            raise KnowledgeRouteError("分隔符不能为空")
+        if len(item) > _MAX_SEPARATOR_CHARS:
+            raise KnowledgeRouteError(
+                f"单个分隔符不能超过 {_MAX_SEPARATOR_CHARS} 个字符"
+            )
+        out.append(item)
+    return out
+
+
+def _chunk_settings(
+    services: "KnowledgeServices", kb_id: str, payload: dict[str, Any]
+) -> tuple[int, int, dict[str, int]]:
+    """导入/预览共用的分块参数：缺省取知识库当前值，返回需落库的差异。"""
+    kb = services.service.get_kb(kb_id)
+    if kb is None:
+        raise KnowledgeRouteError(
+            "知识库不存在", code="KNOWLEDGE_KB_NOT_FOUND", status=404
+        )
+    size = _optional_int(
+        payload,
+        "chunkSize",
+        default=int(getattr(kb, "chunk_size", 800)),
+        minimum=200,
+        maximum=4000,
+    )
+    overlap = _optional_int(
+        payload,
+        "chunkOverlap",
+        default=int(getattr(kb, "chunk_overlap", 120)),
+        minimum=0,
+        maximum=4000,
+    )
+    if overlap >= size:
+        raise KnowledgeRouteError(
+            "分块重叠必须小于分块大小",
+            code="KNOWLEDGE_CHUNK_INVALID",
+        )
+    updates: dict[str, int] = {}
+    if size != int(getattr(kb, "chunk_size", 0)):
+        updates["chunk_size"] = size
+    if overlap != int(getattr(kb, "chunk_overlap", 0)):
+        updates["chunk_overlap"] = overlap
+    return size, overlap, updates
+
+
 def _optional_bool(payload: dict[str, Any], key: str, *, default: bool) -> bool:
     value = payload.get(key)
     if value is None:
@@ -593,6 +703,7 @@ class KnowledgeApi:
             routes.KB_REINDEX: self._kb_reindex,
             routes.DOC_ADD: self._doc_add,
             routes.DOC_ADD_FILE: self._doc_add_file,
+            routes.DOC_PREVIEW: self._doc_preview,
             routes.DOC_DELETE: self._doc_delete,
             routes.DOC_REINDEX: self._doc_reindex,
             routes.REPAIR: self._repair,
@@ -979,6 +1090,9 @@ class KnowledgeApi:
                 status=413,
             )
         title = _optional_str(payload, "title")
+        size, overlap, updates = _chunk_settings(services, kb_id, payload)
+        if updates:
+            services.service.update_kb(kb_id, **updates)
         document = services.service.add_upload_bytes(
             name,
             data,
@@ -986,8 +1100,13 @@ class KnowledgeApi:
             workspace_id=workspace_id,
             mime=mime,
             title=title,
+            custom_chunks=_custom_chunks(payload),
         )
-        return {"document": _document_payload(document)}
+        return {
+            "document": _document_payload(document),
+            "chunkSize": size,
+            "chunkOverlap": overlap,
+        }
 
     def _doc_add_file(
         self, payload: dict[str, Any], services: KnowledgeServices
@@ -995,14 +1114,58 @@ class KnowledgeApi:
         kb_id = _kb_id_from(payload)
         _require_kb(kb_id, services)
         path = _required_str(payload, "path", "path 不能为空")
+        size, overlap, updates = _chunk_settings(services, kb_id, payload)
+        if updates:
+            services.service.update_kb(kb_id, **updates)
         outcome = services.service.add_file(
             path,
             kb_id=kb_id,
             workspace_id=_target_workspace(payload, services),
             title=_optional_str(payload, "title"),
+            custom_chunks=_custom_chunks(payload),
         )
         document = getattr(outcome, "document", outcome)
-        return {"document": _document_payload(document)}
+        return {
+            "document": _document_payload(document),
+            "chunkSize": size,
+            "chunkOverlap": overlap,
+        }
+
+    def _doc_preview(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        kb_id = _kb_id_from(payload)
+        _require_kb(kb_id, services)
+        size, overlap, _ = _chunk_settings(services, kb_id, payload)
+        mode = _chunk_mode(payload)
+        separators = _separators(payload)
+        path = _optional_str(payload, "path")
+        if path:
+            return services.service.preview_chunks(
+                kb_id=kb_id,
+                path=path,
+                chunk_mode=mode,
+                separators=separators,
+                chunk_size=size,
+                chunk_overlap=overlap,
+            )
+        name, _mime, data = _decode_upload(payload)
+        limit = services.upload_limit_bytes(_MAX_UPLOAD_BYTES)
+        if len(data) > limit:
+            raise KnowledgeRouteError(
+                f"文件超过 {_human_size(limit)} 上限，请改用 CLI 导入",
+                code="KNOWLEDGE_FILE_TOO_LARGE",
+                status=413,
+            )
+        return services.service.preview_chunks(
+            kb_id=kb_id,
+            name=name,
+            data=data,
+            chunk_mode=mode,
+            separators=separators,
+            chunk_size=size,
+            chunk_overlap=overlap,
+        )
 
     def _doc_delete(
         self, payload: dict[str, Any], services: KnowledgeServices

@@ -217,8 +217,20 @@ class FakeService:
                 return doc
         return None
 
-    def add_file(self, path: str, *, kb_id: str, workspace_id: str, title: str | None = None):
-        self.calls.append(("add_file", {"path": path, "kb_id": kb_id, "workspace_id": workspace_id}))
+    def add_file(
+        self,
+        path: str,
+        *,
+        kb_id: str,
+        workspace_id: str,
+        title: str | None = None,
+        custom_chunks: list[dict[str, Any]] | None = None,
+    ):
+        self.calls.append((
+            "add_file",
+            {"path": path, "kb_id": kb_id, "workspace_id": workspace_id,
+             "custom_chunks": custom_chunks},
+        ))
         if self.failure is not None:
             raise self.failure
         return SimpleNamespace(document=_doc("doc_file", kb_id=kb_id, workspace_id=workspace_id))
@@ -232,13 +244,45 @@ class FakeService:
         workspace_id: str,
         mime: str = "",
         title: str | None = None,
+        custom_chunks: list[dict[str, Any]] | None = None,
     ):
         self.calls.append((
             "add_upload_bytes",
             {"name": name, "data": data, "kb_id": kb_id,
-             "workspace_id": workspace_id, "mime": mime, "title": title},
+             "workspace_id": workspace_id, "mime": mime, "title": title,
+             "custom_chunks": custom_chunks},
         ))
         return _doc("doc_1", kb_id=kb_id, workspace_id=workspace_id, title=title or name)
+
+    def preview_chunks(
+        self,
+        *,
+        kb_id: str,
+        name: str = "",
+        data: bytes | None = None,
+        path: str | None = None,
+        chunk_mode: str = "smart",
+        separators: list[str] | None = None,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+    ):
+        self.calls.append((
+            "preview_chunks",
+            {"kb_id": kb_id, "name": name, "data": data, "path": path,
+             "chunk_mode": chunk_mode, "separators": separators,
+             "chunk_size": chunk_size, "chunk_overlap": chunk_overlap},
+        ))
+        return {
+            "chunkSize": chunk_size,
+            "chunkOverlap": chunk_overlap,
+            "total": 3,
+            "avgChars": 42,
+            "truncated": False,
+            "chunks": [
+                {"index": 0, "chars": 42, "heading": "", "page": None,
+                 "locator": "", "content": "第一块"},
+            ],
+        }
 
     def delete_document(self, doc_id: str) -> None:
         self.calls.append(("delete_document", doc_id))
@@ -924,6 +968,176 @@ def test_add_file_missing_source_maps_to_stable_code(tmp_path: Path) -> None:
     assert excinfo.value.code == "KNOWLEDGE_SOURCE_MISSING"
     assert secret not in excinfo.value.message
     assert str(tmp_path) not in excinfo.value.message
+
+
+# ---- 分块预览 ---------------------------------------------------------------
+
+
+def test_doc_preview_parses_upload_with_chunk_overrides() -> None:
+    api, fake = _api()
+
+    payload = api.handle(
+        "knowledge.doc.preview",
+        {
+            "kbId": "kb_1",
+            "name": "notes.md",
+            "dataUrl": _data_url("text/markdown", b"# t\n\nbody"),
+            "chunkSize": 400,
+            "chunkOverlap": 40,
+        },
+    )
+
+    recorded = _call(fake, "preview_chunks")[0]
+    assert recorded["kb_id"] == "kb_1"
+    assert recorded["name"] == "notes.md"
+    assert recorded["data"] == b"# t\n\nbody"
+    assert recorded["chunk_size"] == 400
+    assert recorded["chunk_overlap"] == 40
+    assert payload["total"] == 3
+    assert payload["chunks"][0]["content"] == "第一块"
+    assert _call(fake, "add_upload_bytes") == []
+
+
+def test_doc_preview_accepts_server_path_without_upload() -> None:
+    api, fake = _api()
+
+    api.handle(
+        "knowledge.doc.preview",
+        {"kbId": "kb_1", "path": "/srv/report.pdf"},
+    )
+
+    recorded = _call(fake, "preview_chunks")[0]
+    assert recorded["path"] == "/srv/report.pdf"
+    assert recorded["data"] is None
+    assert recorded["chunk_size"] == 800
+    assert recorded["chunk_overlap"] == 120
+
+
+def test_doc_preview_passes_mode_and_separators() -> None:
+    api, fake = _api()
+    paragraph = chr(10) * 2
+
+    payload = api.handle(
+        "knowledge.doc.preview",
+        {
+            "kbId": "kb_1",
+            "name": "notes.md",
+            "dataUrl": _data_url("text/markdown", ("a" + paragraph + "b").encode()),
+            "chunkMode": "separator",
+            "separators": [paragraph, "。"],
+        },
+    )
+
+    recorded = _call(fake, "preview_chunks")[0]
+    assert recorded["chunk_mode"] == "separator"
+    assert recorded["separators"] == [paragraph, "。"]
+    assert payload["total"] == 3
+
+
+def test_doc_preview_rejects_unknown_mode() -> None:
+    api, fake = _api()
+
+    with pytest.raises(KnowledgeApiError):
+        api.handle(
+            "knowledge.doc.preview",
+            {
+                "kbId": "kb_1",
+                "name": "notes.md",
+                "dataUrl": _data_url("text/markdown"),
+                "chunkMode": "semantic",
+            },
+        )
+    assert _call(fake, "preview_chunks") == []
+
+
+def test_upload_sends_custom_chunks() -> None:
+    api, fake = _api()
+
+    api.handle(
+        "knowledge.doc.add",
+        {
+            "kbId": "kb_1",
+            "name": "a.md",
+            "dataUrl": _data_url("text/markdown"),
+            "chunks": [
+                {"content": "第一段", "heading": "概览", "page": 2},
+                {"content": "第二段"},
+            ],
+        },
+    )
+
+    recorded = _call(fake, "add_upload_bytes")[0]
+    assert recorded["custom_chunks"] == [
+        {"content": "第一段", "heading_path": "概览", "page": 2, "locator": ""},
+        {"content": "第二段", "heading_path": "", "page": None, "locator": ""},
+    ]
+
+
+def test_upload_rejects_empty_custom_chunk() -> None:
+    api, fake = _api()
+
+    with pytest.raises(KnowledgeApiError):
+        api.handle(
+            "knowledge.doc.add",
+            {
+                "kbId": "kb_1",
+                "name": "a.md",
+                "dataUrl": _data_url("text/markdown"),
+                "chunks": [{"content": "   "}],
+            },
+        )
+    assert _call(fake, "add_upload_bytes") == []
+
+
+def test_doc_preview_rejects_overlap_not_smaller_than_size() -> None:
+    api, fake = _api()
+
+    with pytest.raises(KnowledgeApiError) as excinfo:
+        api.handle(
+            "knowledge.doc.preview",
+            {
+                "kbId": "kb_1",
+                "name": "a.txt",
+                "dataUrl": _data_url("text/plain"),
+                "chunkSize": 200,
+                "chunkOverlap": 200,
+            },
+        )
+
+    assert excinfo.value.code == "KNOWLEDGE_CHUNK_INVALID"
+    assert _call(fake, "preview_chunks") == []
+
+
+def test_upload_with_chunk_overrides_saves_kb_defaults_first() -> None:
+    api, fake = _api()
+
+    payload = api.handle(
+        "knowledge.doc.add",
+        {
+            "kbId": "kb_1",
+            "name": "a.txt",
+            "dataUrl": _data_url("text/plain"),
+            "chunkSize": 400,
+            "chunkOverlap": 40,
+        },
+    )
+
+    updates = _call(fake, "update_kb")[0]
+    assert updates["fields"] == {"chunk_size": 400, "chunk_overlap": 40}
+    assert payload["chunkSize"] == 400
+    assert payload["chunkOverlap"] == 40
+    assert _call(fake, "add_upload_bytes")[0]["kb_id"] == "kb_1"
+
+
+def test_upload_without_chunk_overrides_leaves_kb_untouched() -> None:
+    api, fake = _api()
+
+    api.handle(
+        "knowledge.doc.add",
+        {"kbId": "kb_1", "name": "a.txt", "dataUrl": _data_url("text/plain")},
+    )
+
+    assert _call(fake, "update_kb") == []
 
 
 # ---- 删除 / reindex / repair ------------------------------------------------

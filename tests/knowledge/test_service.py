@@ -24,6 +24,7 @@ from nanobot.knowledge.repository import KnowledgeRepository
 from nanobot.knowledge.retriever import Retriever, RetrieverSettings
 from nanobot.knowledge.service import (
     KnowledgeService,
+    KnowledgeServiceError,
     get_knowledge_service,
     get_knowledge_service_for_test,
     reset_knowledge_service,
@@ -420,6 +421,130 @@ def test_upload_is_managed_under_uploads_dir(tmp_path):
     assert managed.read_text(encoding="utf-8") == TEXT
     assert stat.S_IMODE(managed.stat().st_mode) == 0o600
     assert service.get_document(document.id).parse_status == "pending"
+
+
+def test_preview_chunks_does_not_create_document_and_cleans_temp(tmp_path):
+    service = _service(tmp_path)
+    kb = service.create_kb(name="a", workspace_id="ws1")
+    body = ("第一段内容。" * 40 + "\n\n" + "第二段内容。" * 40).encode()
+
+    preview = service.preview_chunks(
+        kb_id=kb.id, name="notes.md", data=body, chunk_size=200, chunk_overlap=0
+    )
+
+    assert preview["chunkSize"] == 200
+    assert preview["chunkOverlap"] == 0
+    assert preview["total"] >= 2
+    assert preview["avgChars"] > 0
+    assert [chunk["index"] for chunk in preview["chunks"]] == list(
+        range(len(preview["chunks"]))
+    )
+    assert all(chunk["content"] for chunk in preview["chunks"])
+    assert service.list_documents(kb_id=kb.id) == []
+    assert not list((tmp_path / "uploads").glob(".preview-*"))
+
+
+def test_preview_chunks_reads_path_with_kb_defaults(tmp_path):
+    service = _service(tmp_path)
+    kb = service.create_kb(
+        name="a", workspace_id="ws1", chunk_size=200, chunk_overlap=20
+    )
+    source = tmp_path / "a.txt"
+    source.write_text(TEXT * 20, encoding="utf-8")
+
+    preview = service.preview_chunks(kb_id=kb.id, path=str(source))
+
+    assert preview["chunkSize"] == 200
+    assert preview["chunkOverlap"] == 20
+    assert preview["total"] >= 2
+    assert service.list_documents(kb_id=kb.id) == []
+
+
+def test_preview_chunks_rejects_invalid_settings(tmp_path):
+    service = _service(tmp_path)
+    kb = service.create_kb(name="a", workspace_id="ws1")
+
+    with pytest.raises(KnowledgeServiceError):
+        service.preview_chunks(
+            kb_id=kb.id, name="a.txt", data=b"x",
+            chunk_size=200, chunk_overlap=200,
+        )
+    with pytest.raises(KnowledgeServiceError):
+        service.preview_chunks(
+            kb_id=kb.id, name="a.txt", data=b"x", chunk_size=100,
+        )
+    with pytest.raises(KeyError):
+        service.preview_chunks(kb_id="kb_missing", name="a.txt", data=b"x")
+
+
+def test_preview_chunks_separator_mode_uses_custom_separator(tmp_path):
+    service = _service(tmp_path)
+    kb = service.create_kb(name="a", workspace_id="ws1")
+    body = (TEXT * 80).encode()
+
+    smart = service.preview_chunks(
+        kb_id=kb.id, name="a.txt", data=body, chunk_size=400, chunk_overlap=0
+    )
+    separator = service.preview_chunks(
+        kb_id=kb.id,
+        name="a.txt",
+        data=body,
+        chunk_mode="separator",
+        separators=["。"],
+        chunk_size=400,
+        chunk_overlap=0,
+    )
+
+    assert separator["chunkMode"] == "separator"
+    assert separator["separators"] == ["。"]
+    assert separator["total"] != smart["total"]
+    assert separator["source"]["text"].startswith("回滚步骤")
+    assert separator["editable"] is True
+    assert len(separator["chunks"]) == separator["total"]
+    assert all(chunk["content"].endswith("。") for chunk in separator["chunks"])
+    assert service.list_documents(kb_id=kb.id) == []
+
+
+def test_preview_reports_all_chunks_with_offsets(tmp_path):
+    service = _service(tmp_path)
+    kb = service.create_kb(name="a", workspace_id="ws1")
+
+    preview = service.preview_chunks(
+        kb_id=kb.id, name="a.txt", data=TEXT.encode(), chunk_size=200, chunk_overlap=0
+    )
+
+    text = preview["source"]["text"]
+    for chunk in preview["chunks"]:
+        assert text[chunk["start"] : chunk["end"]] == chunk["content"]
+
+
+def test_custom_chunks_are_stored_and_used_on_ingest(tmp_path):
+    service = _service(tmp_path)
+    kb = service.create_kb(name="a", workspace_id="ws1")
+    custom = [
+        {"content": "第一段：回滚前确认版本。", "heading_path": "回滚", "page": 1},
+        {"content": "第二段：执行回滚并验证。", "heading_path": "回滚", "page": 2},
+    ]
+
+    doc = service.add_upload_bytes(
+        "note.md",
+        TEXT.encode(),
+        kb_id=kb.id,
+        workspace_id="ws1",
+        mime="text/plain",
+        custom_chunks=custom,
+    )
+
+    assert service.ingest_now(doc.id) is True
+    chunks = service.list_chunks(doc.id)
+    assert [chunk.content for chunk in chunks] == [item["content"] for item in custom]
+    assert chunks[1].page == 2
+
+    # 重索引复用自定义分块，不被重新切分覆盖。
+    assert service.reindex_document(doc.id) is True
+    assert service.ingest_now(doc.id) is True
+    again = service.list_chunks(doc.id)
+    assert [chunk.content for chunk in again] == [item["content"] for item in custom]
 
 
 def test_upload_rejects_unsupported_suffix_and_mime(tmp_path):

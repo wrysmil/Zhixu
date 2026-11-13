@@ -18,6 +18,7 @@ import {
   fetchKnowledgeQueryHistory,
   clearKnowledgeQueryHistory,
   fetchKnowledgeStats,
+  previewKnowledgeChunks,
   reindexKnowledgeDoc,
   reindexKnowledgeKb,
   repairKnowledge,
@@ -48,6 +49,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     reindexKnowledgeKb: vi.fn(),
     addKnowledgeDoc: vi.fn(),
     addKnowledgeDocFromPath: vi.fn(),
+    previewKnowledgeChunks: vi.fn(),
     deleteKnowledgeDoc: vi.fn(),
     reindexKnowledgeDoc: vi.fn(),
     repairKnowledge: vi.fn(),
@@ -171,6 +173,28 @@ describe("knowledge page", () => {
       chunkCount: DOCS[0].chunkCount,
     });
     vi.mocked(fetchKnowledgeStats).mockReset().mockResolvedValue(STATS);
+    vi.mocked(previewKnowledgeChunks).mockReset().mockResolvedValue({
+      chunkMode: "smart",
+      separators: [],
+      chunkSize: 800,
+      chunkOverlap: 120,
+      source: { text: "draft", chars: 5, truncated: false },
+      editable: true,
+      total: 1,
+      avgChars: 5,
+      chunks: [
+        {
+          index: 0,
+          chars: 5,
+          heading: "",
+          page: null,
+          locator: "",
+          start: 0,
+          end: 5,
+          content: "draft",
+        },
+      ],
+    });
     vi.mocked(searchKnowledge).mockReset().mockResolvedValue({
       enabled: true,
       modeUsed: "hybrid",
@@ -221,11 +245,70 @@ describe("knowledge page", () => {
     await openKb();
     await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") }));
     await userEvent.upload(screen.getByLabelText("Upload"), new File(["draft"], "draft.md"));
-    const dialog = screen.getByRole("dialog");
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("upload offline");
-    expect(within(dialog).getByText("draft.md")).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: i18n.t("knowledge.experience.retryUpload") }));
+    const page = screen.getByTestId("knowledge-import-page");
+    const confirm = await within(page).findByRole("button", {
+      name: i18n.t("knowledge.import.confirm"),
+    });
+    await within(page).findByText("1 chunks · 5 chars avg");
+    await userEvent.click(confirm);
+    expect(await within(page).findByRole("alert")).toHaveTextContent("upload offline");
+    expect(within(page).getByText("draft.md")).toBeInTheDocument();
+    await userEvent.click(within(page).getByRole("button", { name: i18n.t("knowledge.import.confirm") }));
     await waitFor(() => expect(addKnowledgeDoc).toHaveBeenCalledTimes(2));
+  });
+
+  it("previews and edits chunks on a standalone page before upload", async () => {
+    let accept!: (value: { document: KnowledgeDoc }) => void;
+    vi.mocked(addKnowledgeDoc).mockImplementationOnce(
+      () => new Promise((resolve) => { accept = resolve; }),
+    );
+    renderPage();
+    await openKb();
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") }));
+    await userEvent.upload(screen.getByLabelText("Upload"), new File(["draft"], "draft.md"));
+    const page = screen.getByTestId("knowledge-import-page");
+
+    await within(page).findByText("1 chunks · 5 chars avg");
+    expect(previewKnowledgeChunks).toHaveBeenLastCalledWith(
+      transport,
+      expect.objectContaining({ kbId: "kb_1", chunkMode: "smart", chunkSize: 800, chunkOverlap: 120 }),
+    );
+    expect(addKnowledgeDoc).not.toHaveBeenCalled();
+    expect(within(page).queryByTestId("knowledge-dropzone")).not.toBeInTheDocument();
+
+    await userEvent.clear(within(page).getByLabelText(i18n.t("knowledge.import.chunkSize")));
+    await userEvent.type(within(page).getByLabelText(i18n.t("knowledge.import.chunkSize")), "400");
+    await userEvent.click(
+      within(page).getByRole("button", { name: i18n.t("knowledge.import.applySettings") }),
+    );
+    await waitFor(() =>
+      expect(previewKnowledgeChunks).toHaveBeenLastCalledWith(
+        transport,
+        expect.objectContaining({ chunkSize: 400 }),
+      ),
+    );
+
+    const editor = within(page).getByLabelText(i18n.t("knowledge.import.chunkContent"));
+    await userEvent.clear(editor);
+    await userEvent.type(editor, "edited draft");
+    await userEvent.click(within(page).getByRole("button", { name: i18n.t("knowledge.import.confirm") }));
+    await waitFor(() => expect(addKnowledgeDoc).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(addKnowledgeDoc).mock.calls[0][1]).toMatchObject({
+      kbId: "kb_1",
+      name: "draft.md",
+      chunkSize: 400,
+      chunkOverlap: 120,
+      chunks: [
+        expect.objectContaining({ content: "edited draft", heading: "", page: null }),
+      ],
+    });
+
+    await act(async () => accept({ document: { ...DOCS[0], status: "pending" } }));
+    expect(await within(page).findByTestId("knowledge-import-submitted")).toBeInTheDocument();
+    await userEvent.click(
+      within(page).getByRole("button", { name: i18n.t("knowledge.import.backToDocs") }),
+    );
+    await waitFor(() => expect(screen.queryByTestId("knowledge-import-page")).not.toBeInTheDocument());
   });
 
   it("registers the #/knowledge route and the rail entry", () => {
@@ -306,19 +389,28 @@ describe("knowledge page", () => {
     expect(screen.getByRole("button", { name: "Search" })).toBeDisabled();
   });
 
-  it("prevents duplicate uploads and returns to the list after acceptance", async () => {
+  it("prevents duplicate submits while an upload is pending", async () => {
     let accept!: (value: { document: KnowledgeDoc }) => void;
     vi.mocked(addKnowledgeDoc).mockImplementationOnce(() => new Promise(resolve => { accept = resolve; }));
     renderPage();
     await openKb();
     await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") }));
-    const file = new File(["draft"], "draft.md");
-    await userEvent.upload(screen.getByLabelText("Upload"), file);
+    await userEvent.upload(screen.getByLabelText("Upload"), new File(["draft"], "draft.md"));
+    const page = screen.getByTestId("knowledge-import-page");
+    await within(page).findByText("1 chunks · 5 chars avg");
+    await userEvent.click(
+      within(page).getByRole("button", { name: i18n.t("knowledge.import.confirm") }),
+    );
     await waitFor(() => expect(addKnowledgeDoc).toHaveBeenCalledTimes(1));
-    expect(screen.getByLabelText("Upload")).toBeDisabled();
+    expect(
+      within(page).getByRole("button", { name: i18n.t("knowledge.import.confirm") }),
+    ).toBeDisabled();
     await act(async () => accept({ document: { ...DOCS[0], status: "pending" } }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") })).toBeEnabled());
+    expect(await within(page).findByTestId("knowledge-import-submitted")).toBeInTheDocument();
+    await userEvent.click(
+      within(page).getByRole("button", { name: i18n.t("knowledge.import.backToDocs") }),
+    );
+    await waitFor(() => expect(screen.queryByTestId("knowledge-import-page")).not.toBeInTheDocument());
     expect(addKnowledgeDoc).toHaveBeenCalledTimes(1);
   });
 
@@ -389,6 +481,9 @@ describe("knowledge page", () => {
     const file = new File(["# rollback"], "rollback.md", { type: "text/markdown" });
     await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") }));
     await userEvent.upload(screen.getByLabelText("Upload"), file);
+    const page = screen.getByTestId("knowledge-import-page");
+    await within(page).findByText("1 chunks · 5 chars avg");
+    await userEvent.click(within(page).getByRole("button", { name: i18n.t("knowledge.import.confirm") }));
 
     await waitFor(() => expect(addKnowledgeDoc).toHaveBeenCalledTimes(1));
     const [, payload] = vi.mocked(addKnowledgeDoc).mock.calls[0];
@@ -405,13 +500,25 @@ describe("knowledge page", () => {
     await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") }));
     await userEvent.click(screen.getByRole("tab", { name: i18n.t("knowledge.experience.serverPath") }));
     await userEvent.type(screen.getByLabelText("Add server path"), "/tmp/report.pdf");
-    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    const page = screen.getByTestId("knowledge-import-page");
+    await userEvent.click(
+      within(page).getByRole("button", { name: i18n.t("knowledge.import.loadPreview") }),
+    );
+    await within(page).findByText("1 chunks · 5 chars avg");
+    await userEvent.click(
+      within(page).getByRole("button", { name: i18n.t("knowledge.import.confirm") }),
+    );
 
     await waitFor(() => {
       expect(addKnowledgeDocFromPath).toHaveBeenCalledWith(transport, {
         kbId: "kb_1",
         path: "/tmp/report.pdf",
         workspaceId: "ws1",
+        chunkSize: 800,
+        chunkOverlap: 120,
+        chunks: [
+          expect.objectContaining({ content: "draft", heading: "", page: null }),
+        ],
       });
     });
     await waitFor(() => expect(fetchKnowledgeDocs).toHaveBeenCalledTimes(2));

@@ -2158,6 +2158,68 @@ export interface AddKnowledgeDocInput {
   dataUrl: string;
   title?: string;
   workspaceId?: string;
+  /** 覆盖知识库默认分块；确认导入时一并保存为该库设置。 */
+  chunkSize?: number;
+  chunkOverlap?: number;
+  /** 导入页编辑后的分块；提供后后端按自定义分块入库。 */
+  chunks?: KnowledgeCustomChunk[];
+}
+
+export interface KnowledgeChunkPreviewItem {
+  index: number;
+  chars: number;
+  heading: string;
+  page: number | null;
+  locator: string;
+  /** 原文区间；编辑后仍指回原始位置，用于左栏高亮。 */
+  start: number;
+  end: number;
+  content: string;
+}
+
+export type KnowledgeChunkMode = "smart" | "separator";
+
+export interface KnowledgeChunkPreview {
+  chunkMode: KnowledgeChunkMode;
+  separators: string[];
+  chunkSize: number;
+  chunkOverlap: number;
+  source: { text: string; chars: number; truncated: boolean };
+  editable: boolean;
+  total: number;
+  avgChars: number;
+  chunks: KnowledgeChunkPreviewItem[];
+}
+
+export interface PreviewKnowledgeChunksInput {
+  kbId: string;
+  chunkMode?: KnowledgeChunkMode;
+  separators?: string[];
+  chunkSize?: number;
+  chunkOverlap?: number;
+  name?: string;
+  dataUrl?: string;
+  path?: string;
+}
+
+export interface KnowledgeCustomChunk {
+  content: string;
+  heading?: string;
+  page?: number | null;
+  locator?: string;
+}
+
+function chunkOverrides(input: { chunkSize?: number; chunkOverlap?: number }) {
+  return {
+    ...(typeof input.chunkSize === "number" ? { chunkSize: input.chunkSize } : {}),
+    ...(typeof input.chunkOverlap === "number"
+      ? { chunkOverlap: input.chunkOverlap }
+      : {}),
+  };
+}
+
+function chunkPayload(input: { chunks?: KnowledgeCustomChunk[] }) {
+  return input.chunks && input.chunks.length > 0 ? { chunks: input.chunks } : {};
 }
 
 export async function addKnowledgeDoc(
@@ -2168,8 +2230,25 @@ export async function addKnowledgeDoc(
     kbId: input.kbId,
     name: input.name,
     dataUrl: input.dataUrl,
+    ...chunkOverrides(input),
+    ...chunkPayload(input),
     ...(input.title ? { title: input.title } : {}),
     ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+  });
+}
+
+export async function previewKnowledgeChunks(
+  transport: WebUIMutationTransport,
+  input: PreviewKnowledgeChunksInput,
+): Promise<KnowledgeChunkPreview> {
+  return mutation<KnowledgeChunkPreview>(transport, "knowledge.doc.preview", {
+    kbId: input.kbId,
+    ...(input.chunkMode ? { chunkMode: input.chunkMode } : {}),
+    ...(input.separators ? { separators: input.separators } : {}),
+    ...chunkOverrides(input),
+    ...(input.name ? { name: input.name } : {}),
+    ...(input.dataUrl ? { dataUrl: input.dataUrl } : {}),
+    ...(input.path ? { path: input.path } : {}),
   });
 }
 
@@ -2179,6 +2258,9 @@ export interface AddKnowledgeDocFromPathInput {
   path: string;
   title?: string;
   workspaceId?: string;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  chunks?: KnowledgeCustomChunk[];
 }
 
 export async function addKnowledgeDocFromPath(
@@ -2188,6 +2270,8 @@ export async function addKnowledgeDocFromPath(
   return mutation<{ document: KnowledgeDoc }>(transport, "knowledge.doc.add_file", {
     kbId: input.kbId,
     path: input.path,
+    ...chunkOverrides(input),
+    ...chunkPayload(input),
     ...(input.title ? { title: input.title } : {}),
     ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
   });

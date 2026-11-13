@@ -754,6 +754,40 @@ class KnowledgeRepository:
     def delete_document(self, doc_id: str) -> None:
         self._db.execute_write("DELETE FROM documents WHERE id=?", (doc_id,))
 
+    # ---------- 自定义分块（导入前编辑的分块，重索引复用） ----------
+    def replace_custom_chunks(
+        self, doc_id: str, chunks: Sequence[dict[str, object]]
+    ) -> None:
+        with self._db.connect(immediate=True) as conn:
+            conn.execute(
+                "DELETE FROM document_custom_chunks WHERE doc_id=?", (doc_id,)
+            )
+            conn.executemany(
+                "INSERT INTO document_custom_chunks"
+                " (doc_id, chunk_index, content, heading_path, page, locator)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                [
+                    (
+                        doc_id,
+                        index,
+                        str(chunk.get("content") or ""),
+                        str(chunk.get("heading_path") or ""),
+                        chunk.get("page"),
+                        str(chunk.get("locator") or ""),
+                    )
+                    for index, chunk in enumerate(chunks)
+                ],
+            )
+
+    def list_custom_chunks(self, doc_id: str) -> list[dict[str, object]]:
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                "SELECT chunk_index, content, heading_path, page, locator"
+                " FROM document_custom_chunks WHERE doc_id=? ORDER BY chunk_index",
+                (doc_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     # ---------- 块 ----------
     def commit_chunks(
         self,

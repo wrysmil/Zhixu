@@ -18,8 +18,10 @@ from pathlib import Path
 from loguru import logger
 
 from nanobot.knowledge.chunker import (
+    DEFAULT_SEPARATORS,
     ChunkDraft,
     KnowledgeChunkError,
+    chunk_by_separators,
     chunk_lines,
     validate_chunks,
 )
@@ -84,6 +86,87 @@ def chunk_id_for(doc_id: str, chunk_index: int) -> str:
 
 def content_digest(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _drafts_from_custom(chunks: list[dict[str, object]]) -> list[ChunkDraft]:
+    """把导入前编辑过的分块转成草稿：内容即边界，偏移按内容自身计算。"""
+    drafts: list[ChunkDraft] = []
+    for chunk in chunks:
+        content = str(chunk.get("content") or "").strip()
+        if not content:
+            continue
+        page = chunk.get("page")
+        drafts.append(
+            ChunkDraft(
+                content=content,
+                start_offset=0,
+                end_offset=len(content),
+                heading_path=str(chunk.get("heading_path") or ""),
+                page=page if isinstance(page, int) else None,
+                locator=str(chunk.get("locator") or ""),
+            )
+        )
+    if not drafts:
+        raise KnowledgeChunkError("KNOWLEDGE_CHUNK_INVALID", "custom chunks are empty")
+    return drafts
+
+
+def extract_drafts(
+    source: Path,
+    *,
+    chunk_size: int,
+    chunk_overlap: int,
+    chunk_mode: str = "smart",
+    separators: tuple[str, ...] | None = None,
+) -> tuple[list[ChunkDraft], str]:
+    """抽取并按指定模式分块，返回 (草稿, 归一化全文)；预览与入库共用。"""
+    lines = extract_lines(source)
+    text = "\n".join(line.text for line in lines)
+    if chunk_mode == "separator":
+        drafts = chunk_by_separators(
+            lines,
+            separators=separators or DEFAULT_SEPARATORS,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
+        validate_chunks(
+            drafts,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            text=text,
+            allow_small=True,
+        )
+        return drafts, text
+    if chunk_mode != "smart":
+        raise ValueError(f"unknown chunk_mode: {chunk_mode}")
+    mode = (
+        "blank_line"
+        if source.suffix.lower() in _BLANK_LINE_SUFFIXES
+        else "line"
+    )
+    drafts = chunk_lines(
+        lines,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        paragraph_mode=mode,
+    )
+    validate_chunks(
+        drafts,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        text=text,
+    )
+    return drafts, text
+
+
+def extract_and_chunk(
+    source: Path, *, chunk_size: int, chunk_overlap: int
+) -> list[ChunkDraft]:
+    """按入库同一套规则抽取并分块；导入前预览复用，避免两处规则漂移。"""
+    drafts, _ = extract_drafts(
+        source, chunk_size=chunk_size, chunk_overlap=chunk_overlap
+    )
+    return drafts
 
 
 class Ingestor:
@@ -154,17 +237,22 @@ class Ingestor:
             self._fail(doc_id, attempt, SOURCE_MISSING, SOURCE_MISSING_MESSAGE)
             return
 
-        try:
-            drafts = self._extract_and_chunk(source, kb)
-        except KnowledgeUnsupportedType as exc:
-            self._fail(doc_id, attempt, UNSUPPORTED_TYPE, str(exc))
-            return
-        except KnowledgeExtractionError as exc:
-            self._fail(doc_id, attempt, EXTRACT_FAILED, str(exc))
-            return
-        except KnowledgeChunkError as exc:
-            self._fail(doc_id, attempt, exc.code, str(exc))
-            return
+        custom = self._repo.list_custom_chunks(doc_id)
+        if custom:
+            # 导入前编辑过的分块：原样重嵌入（重索引也复用），不再重新切分。
+            drafts = _drafts_from_custom(custom)
+        else:
+            try:
+                drafts = self._extract_and_chunk(source, kb)
+            except KnowledgeUnsupportedType as exc:
+                self._fail(doc_id, attempt, UNSUPPORTED_TYPE, str(exc))
+                return
+            except KnowledgeExtractionError as exc:
+                self._fail(doc_id, attempt, EXTRACT_FAILED, str(exc))
+                return
+            except KnowledgeChunkError as exc:
+                self._fail(doc_id, attempt, exc.code, str(exc))
+                return
 
         records = self._records(document, drafts)
         target = self._vector_target(kb)
@@ -208,26 +296,9 @@ class Ingestor:
 
     @staticmethod
     def _extract_and_chunk(source: Path, kb: KnowledgeBase) -> list[ChunkDraft]:
-        lines = extract_lines(source)
-        text = "\n".join(line.text for line in lines)
-        mode = (
-            "blank_line"
-            if source.suffix.lower() in _BLANK_LINE_SUFFIXES
-            else "line"
+        return extract_and_chunk(
+            source, chunk_size=kb.chunk_size, chunk_overlap=kb.chunk_overlap
         )
-        drafts = chunk_lines(
-            lines,
-            chunk_size=kb.chunk_size,
-            chunk_overlap=kb.chunk_overlap,
-            paragraph_mode=mode,
-        )
-        validate_chunks(
-            drafts,
-            chunk_size=kb.chunk_size,
-            chunk_overlap=kb.chunk_overlap,
-            text=text,
-        )
-        return drafts
 
     def _records(
         self, document: Document, drafts: list[ChunkDraft]

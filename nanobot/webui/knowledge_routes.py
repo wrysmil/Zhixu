@@ -38,6 +38,7 @@ KB_DELETE: Final = "knowledge.kb.delete"
 KB_REINDEX: Final = "knowledge.kb.reindex"
 DOC_ADD: Final = "knowledge.doc.add"
 DOC_ADD_FILE: Final = "knowledge.doc.add_file"
+DOC_PREVIEW: Final = "knowledge.doc.preview"
 DOC_DELETE: Final = "knowledge.doc.delete"
 DOC_REINDEX: Final = "knowledge.doc.reindex"
 QUERY_HISTORY_CLEAR: Final = "knowledge.query_history.clear"
@@ -69,6 +70,7 @@ WRITE_ACTIONS: Final = frozenset({
     KB_REINDEX,
     DOC_ADD,
     DOC_ADD_FILE,
+    DOC_PREVIEW,
     DOC_DELETE,
     DOC_REINDEX,
     QUERY_HISTORY_CLEAR,
@@ -105,6 +107,7 @@ WRITE_PATHS: Final[dict[str, str]] = {
     "/api/settings/knowledge/kbs/reindex": KB_REINDEX,
     "/api/settings/knowledge/docs/add": DOC_ADD,
     "/api/settings/knowledge/docs/add-file": DOC_ADD_FILE,
+    "/api/settings/knowledge/docs/preview": DOC_PREVIEW,
     "/api/settings/knowledge/docs/delete": DOC_DELETE,
     "/api/settings/knowledge/docs/reindex": DOC_REINDEX,
     "/api/settings/knowledge/query-history/clear": QUERY_HISTORY_CLEAR,

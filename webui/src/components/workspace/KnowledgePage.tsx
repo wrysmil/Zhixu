@@ -25,15 +25,13 @@ import { KnowledgeLibraryList } from "./knowledge/KnowledgeLibraryList";
 import { KnowledgeDocumentTable } from "./knowledge/KnowledgeDocumentTable";
 import { KnowledgeDocumentDialog } from "./knowledge/KnowledgeDocumentDialog";
 import { KnowledgeRetrievalPage } from "./knowledge/KnowledgeRetrievalPage";
-import { KnowledgeImportSheet} from "./knowledge/KnowledgeImportSheet";
+import { KnowledgeImportPage } from "./knowledge/KnowledgeImportPage";
 import { KnowledgeSettingsPanel } from "./knowledge/KnowledgeSettingsPanel";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { KnowledgeStatus } from "./knowledge-shared/KnowledgeStatus";
 import "./knowledge-shared/experience.css";
 import {
-  addKnowledgeDoc,
-  addKnowledgeDocFromPath,
   createKnowledgeKb,
   deleteKnowledgeDoc,
   deleteKnowledgeKb,
@@ -53,16 +51,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useClient } from "@/providers/ClientProvider";
 
-/** WebUI 上传口径（spec §13.1）：后缀白名单与 6 MB 上限，不含 csv。 */
-const UPLOAD_MIME_BY_SUFFIX: Record<string, string> = {
-  ".pdf": "application/pdf",
-  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ".md": "text/markdown",
-  ".txt": "text/plain",
-};
-const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
 const CHUNK_PREVIEW_PAGE_SIZE = 10;
 
@@ -72,24 +60,6 @@ const KnowledgeGraphPanel = lazy(() =>
     default: module.GraphPanel,
   })),
 );
-
-function fileSuffix(name: string): string {
-  const index = name.lastIndexOf(".");
-  return index >= 0 ? name.slice(index).toLowerCase() : "";
-}
-
-function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("read failed"));
-    reader.onload = () => {
-      const result = String(reader.result ?? "");
-      const comma = result.indexOf(",");
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.readAsDataURL(file);
-  });
-}
 
 function isDocActive(doc: KnowledgeDoc): boolean {
   return doc.status === "pending" || doc.status === "processing";
@@ -130,9 +100,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const createLock = useRef(false);
   const repairLock = useRef(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadStage, setUploadStage] = useState("");
-  const [uploadStageIndex, setUploadStageIndex] = useState(-1);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [kbs, setKbs] = useState<KnowledgeKb[]>([]);
   const [activeKbId, setActiveKbId] = useState<string | null>(null);
@@ -154,7 +121,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [newVisibility, setNewVisibility] = useState<KnowledgeVisibility>("workspace");
   const [creating, setCreating] = useState(false);
 
-  const [serverPath, setServerPath] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -407,75 +373,21 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     [chunkPreview, loadChunkPreview],
   );
 
-  const onUpload = useCallback(
-    async (file: File) => {
-      if (!activeKbId || mutationLock.current) return;
-      setUploadFile(file);
-      const suffix = fileSuffix(file.name);
-      const mime = UPLOAD_MIME_BY_SUFFIX[suffix];
-      if (!mime) {
-        setActionError(t("knowledge.uploadBadType"));
-        return;
-      }
-      if (file.size > MAX_UPLOAD_BYTES) {
-        setActionError(t("knowledge.uploadTooLarge"));
-        return;
-      }
-      await runAction(async () => {
-        setUploadStageIndex(0);
-        setUploadStage(t("knowledge.experience.reading", { defaultValue: "正在读取文件" }));
-        let base64: string;
-        try { base64 = await readFileAsBase64(file); }
-        catch { throw new Error(t("knowledge.experience.readFailed", { defaultValue: "无法读取文件，请重新选择后重试" })); }
-        setUploadStageIndex(1);
-        setUploadStage(t("knowledge.experience.submitting", { defaultValue: "正在提交资料" }));
-        await addKnowledgeDoc(client, {
-          kbId: activeKbId,
-          name: file.name,
-          dataUrl: `data:${mime};base64,${base64}`,
-          workspaceId: defaultWorkspaceId,
-        });
-        setUploadStageIndex(2);
-        setUploadFile(null);
-        setImportOpen(false);
-      }, async () => {
-        await loadDocs();
-        await loadKbs();
-        await loadStats();
-        clearSearch();
-      });
-    },
-    [activeKbId, clearSearch, client, defaultWorkspaceId, loadDocs, loadKbs, loadStats, runAction, t],
-  );
+  const openImport = useCallback(() => {
+    setActionError(null);
+    setImportOpen(true);
+  }, []);
 
-  const onAddServerPath = useCallback(async () => {
-    const path = serverPath.trim();
-    if (!activeKbId || !path) return;
-    await runAction(async () => {
-      await addKnowledgeDocFromPath(client, {
-        kbId: activeKbId,
-        path,
-        workspaceId: defaultWorkspaceId,
-      });
-      setServerPath("");
-      setImportOpen(false);
-    }, async () => {
-      await loadDocs();
-      await loadKbs();
-      await loadStats();
-      clearSearch();
-    });
-  }, [
-    activeKbId,
-    clearSearch,
-    client,
-    defaultWorkspaceId,
-    loadDocs,
-    loadKbs,
-    loadStats,
-    runAction,
-    serverPath,
-  ]);
+  const closeImport = useCallback(() => {
+    setImportOpen(false);
+  }, []);
+
+  const refreshAfterImport = useCallback(async () => {
+    await loadDocs();
+    await loadKbs();
+    await loadStats();
+    clearSearch();
+  }, [clearSearch, loadDocs, loadKbs, loadStats]);
 
   const onRepair = useCallback(async () => {
     if (repairLock.current) return;
@@ -553,7 +465,15 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
 
   return (
     <div ref={rootRef} className="knowledge-experience assistant-page flex h-full min-w-0 flex-col" data-testid="knowledge-page">
-      {retrievalOpen ? (
+      {importOpen && activeKb ? (
+        <KnowledgeImportPage
+          transport={client}
+          kb={activeKb}
+          workspaceId={defaultWorkspaceId}
+          onBack={closeImport}
+          onImported={refreshAfterImport}
+        />
+      ) : retrievalOpen ? (
         <KnowledgeRetrievalPage
           token={token}
           transport={client}
@@ -748,7 +668,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </div>
       ) : null}
 
-      {!detailOpen && !retrievalOpen ? (
+      {!detailOpen && !retrievalOpen && !importOpen ? (
       <section
         data-testid="knowledge-stats"
         aria-label={t("knowledge.stats")}
@@ -855,7 +775,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       ) : null}
 
       <div className="mt-4 flex flex-col gap-4">
-        {!detailOpen && !retrievalOpen ? (
+        {!detailOpen && !retrievalOpen && !importOpen ? (
         <section className="knowledge-motion knowledge-motion-enter" data-testid="knowledge-kb-list" aria-label={t("knowledge.kbTitle")}>
           <div className="knowledge-toolbar mb-5">
             <Input className="h-10 w-full sm:max-w-xs" aria-label={t("knowledge.experience.searchLibraries", { defaultValue: "搜索知识库名称" })} placeholder={t("knowledge.experience.searchLibraries", { defaultValue: "搜索知识库名称" })} value={libraryQuery} onChange={e => setLibraryQuery(e.target.value)} />
@@ -906,7 +826,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             ) : (
               <>
                 <div className="knowledge-toolbar mb-4">
-                  <Button onClick={() => { setActionError(null); setImportOpen(true); }} disabled={busy}>{t("knowledge.experience.addMaterial", { defaultValue: "添加资料" })}</Button>
+                  <Button onClick={openImport} disabled={busy}>{t("knowledge.experience.addMaterial", { defaultValue: "添加资料" })}</Button>
                   {docsLoading && <KnowledgeStatus label={t("knowledge.loading")} tone="pending" busy />}
                 </div>
 
@@ -972,8 +892,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         ) : null}
       </div>
 
-      <KnowledgeImportSheet open={importOpen} onClose={() => setImportOpen(false)} busy={busy} error={actionError} stage={uploadStage} stageIndex={uploadStageIndex}
-        file={uploadFile} path={serverPath} onPath={setServerPath} onUpload={file => void onUpload(file)} onAddPath={() => void onAddServerPath()} />
       <KnowledgeDocumentDialog doc={chunkPreview} token={token} previewChunks={previewChunks} previewTotal={previewTotal}
         previewDocTotal={previewDocTotal} previewOffset={previewOffset} previewQuery={previewQuery}
         previewPageSize={CHUNK_PREVIEW_PAGE_SIZE} previewLoading={previewLoading}

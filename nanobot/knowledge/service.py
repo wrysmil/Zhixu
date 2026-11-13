@@ -47,7 +47,7 @@ from nanobot.knowledge.graph.neo4j_store import Neo4jGraphStore
 from nanobot.knowledge.graph.repo import GraphRepository
 from nanobot.knowledge.graph.route import GraphRoute
 from nanobot.knowledge.graph.service import GraphService
-from nanobot.knowledge.ingestor import INDEX_VERSION, Ingestor
+from nanobot.knowledge.ingestor import INDEX_VERSION, Ingestor, extract_drafts
 from nanobot.knowledge.models import Document, KnowledgeBase, new_id
 from nanobot.knowledge.questions import (
     DEFAULT_QUESTION_COUNT,
@@ -83,6 +83,11 @@ _MAX_LIST_LIMIT = 1_000_000
 
 # 上传白名单：后缀与 MIME 双校验（storage spec §9.1，与 WebUI 上传同口径）。
 _UPLOAD_SUFFIXES = frozenset({".pdf", ".docx", ".xlsx", ".pptx", ".md", ".txt"})
+
+#: 导入页编辑上限：超过后只展示前若干块，仍可按自动分块导入。
+_PREVIEW_MAX_CHUNKS = 300
+_PREVIEW_MAX_TEXT = 200_000
+_PREVIEW_SAMPLE_CHUNKS = 50
 _UPLOAD_MIMES = frozenset(
     {
         "application/pdf",
@@ -551,6 +556,7 @@ class KnowledgeService:
         workspace_id: str,
         title: str | None = None,
         force: bool = False,
+        custom_chunks: Sequence[dict[str, Any]] | None = None,
     ) -> AddOutcome:
         """登记外部文件：同路径=新版本、同哈希=去重、failed 行复用。"""
         resolved = Path(path).expanduser().resolve()
@@ -601,6 +607,12 @@ class KnowledgeService:
             if again is None:
                 raise
             return self._reuse_row(again.id, digest=digest, size=size, mtime=mtime)
+        if custom_chunks:
+            try:
+                self._repo.replace_custom_chunks(document.id, custom_chunks)
+            except Exception:
+                self._repo.delete_document(document.id)
+                raise
         self.enqueue_document(document.id)
         return AddOutcome(document)
 
@@ -613,6 +625,7 @@ class KnowledgeService:
         workspace_id: str,
         mime: str = "",
         title: str | None = None,
+        custom_chunks: Sequence[dict[str, Any]] | None = None,
     ) -> Document:
         """WebUI 上传：服务端生成托管路径，客户端文件名只取安全 basename。"""
         safe = safe_filename(name)
@@ -646,8 +659,116 @@ class KnowledgeService:
         except Exception:
             self._discard_upload(dest)
             raise
+        if custom_chunks:
+            try:
+                self._repo.replace_custom_chunks(document.id, custom_chunks)
+            except Exception:
+                self._discard_upload(dest)
+                self._repo.delete_document(document.id)
+                raise
         self.enqueue_document(document.id)
         return document
+
+    def preview_chunks(
+        self,
+        *,
+        kb_id: str,
+        name: str = "",
+        data: bytes | None = None,
+        path: str | Path | None = None,
+        chunk_mode: str = "smart",
+        separators: Sequence[str] | None = None,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+    ) -> dict[str, Any]:
+        """只解析不落库：按分块模式预览全文与全部分块，供导入页编辑。
+
+        上传字节写入临时目录后立即删除；路径读取沿用 CLI 导入的权限语义。
+        超过编辑上限时仍返回前若干块，但 `editable=false`，前端不再开放编辑。
+        """
+        kb = self._repo.get_kb(kb_id)
+        if kb is None:
+            raise KeyError(kb_id)
+        size = int(chunk_size or kb.chunk_size)
+        overlap = int(kb.chunk_overlap if chunk_overlap is None else chunk_overlap)
+        if not 200 <= size <= 4000:
+            raise KnowledgeServiceError("分块大小必须在 200–4000 之间")
+        if overlap < 0 or overlap >= size:
+            raise KnowledgeServiceError("分块重叠必须满足 0 ≤ 重叠 < 分块大小")
+        if chunk_mode not in {"smart", "separator"}:
+            raise KnowledgeServiceError(f"未知的分块模式：{chunk_mode}")
+        clean_separators = tuple(
+            str(separator) for separator in (separators or ()) if str(separator)
+        )
+
+        if data is not None:
+            safe = safe_filename(name)
+            suffix = Path(safe).suffix.lower()
+            if suffix not in _UPLOAD_SUFFIXES:
+                raise KnowledgeUnsupportedType(
+                    f"不支持的上传类型：{suffix or safe}"
+                )
+            temp_root = self._uploads / f".preview-{new_id('preview')}"
+            dest = temp_root / safe
+            if not is_within(dest, self._uploads):
+                raise KnowledgeServiceError("上传路径越出知识目录")
+            write_bytes_atomic(dest, data)
+            try:
+                drafts, text = extract_drafts(
+                    dest,
+                    chunk_size=size,
+                    chunk_overlap=overlap,
+                    chunk_mode=chunk_mode,
+                    separators=clean_separators,
+                )
+            finally:
+                shutil.rmtree(temp_root, ignore_errors=True)
+        elif path:
+            resolved = Path(str(path)).expanduser().resolve()
+            if not resolved.is_file():
+                raise KnowledgeServiceError("不是普通文件，请检查路径")
+            drafts, text = extract_drafts(
+                resolved,
+                chunk_size=size,
+                chunk_overlap=overlap,
+                chunk_mode=chunk_mode,
+                separators=clean_separators,
+            )
+        else:
+            raise KnowledgeServiceError("缺少文件内容或服务器路径")
+
+        total = len(drafts)
+        total_chars = sum(draft.char_count for draft in drafts)
+        editable = total <= _PREVIEW_MAX_CHUNKS and len(text) <= _PREVIEW_MAX_TEXT
+        return {
+            "chunkMode": chunk_mode,
+            "separators": list(clean_separators),
+            "chunkSize": size,
+            "chunkOverlap": overlap,
+            "source": {
+                "text": text if editable else text[:_PREVIEW_MAX_TEXT],
+                "chars": len(text),
+                "truncated": len(text) > _PREVIEW_MAX_TEXT,
+            },
+            "editable": editable,
+            "total": total,
+            "avgChars": round(total_chars / total) if total else 0,
+            "chunks": [
+                {
+                    "index": index,
+                    "chars": draft.char_count,
+                    "heading": draft.heading_path,
+                    "page": draft.page,
+                    "locator": draft.locator,
+                    "start": draft.start_offset,
+                    "end": draft.end_offset,
+                    "content": draft.content,
+                }
+                for index, draft in enumerate(
+                    drafts if editable else drafts[:_PREVIEW_SAMPLE_CHUNKS]
+                )
+            ],
+        }
 
     def delete_document(self, doc_id: str) -> None:
         document = self._repo.get_document(doc_id)
