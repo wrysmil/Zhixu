@@ -349,11 +349,15 @@
     },
     "auth": {
       "label": "密碼",
+      "local": "本機工作空間",
+      "title": "連線到知序",
+      "subtitle": "這個知序實例執行在你自己的機器上，輸入 WebUI 密碼即可繼續。",
       "showPassword": "顯示密碼",
       "hidePassword": "隱藏密碼",
       "submit": "連線",
       "required": "請輸入密碼。",
-      "invalid": "密碼錯誤，請再試一次。"
+      "invalid": "密碼錯誤，請再試一次。",
+      "hint": "密碼位置：~/.nanobot/config.json → channels.websocket.tokenIssueSecret"
     },
     "account": {
       "section": "帳戶",

@@ -14,10 +14,11 @@ import {
   EyeOff,
   Minus,
   Moon,
+  PanelRight,
   ShieldCheck,
   Square,
-  SquareTerminal,
   Sun,
+  Terminal,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -28,6 +29,7 @@ import {
 } from "@/workspace/routes";
 import { channelUiPresentation } from "@/channel-plugins/registry";
 import { Sidebar } from "@/components/Sidebar";
+import { BrandMark } from "@/components/workspace/BrandMark";
 import { PROJECTS_SECTION_KEY, type SidebarDeleteItem } from "@/components/ChatList";
 import { HOME_DOCK_SCOPE, dockStore, requestDockTerminalPanel } from "@/lib/dock-store";
 import { resolveDockShortcut } from "@/lib/dock-shortcuts";
@@ -217,24 +219,6 @@ const RenameChatDialog = lazy(async () => {
   return { default: module.RenameChatDialog };
 });
 
-function DockPanelIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-      className={className}
-    >
-      <rect x="3" y="4" width="18" height="16" rx="2.5" />
-      <rect x="14" y="7" width="5" height="10" rx="1" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
 function SurfaceLoadingFallback() {
   const { t } = useTranslation();
   return (
@@ -381,15 +365,40 @@ function AuthForm({
   };
 
   return (
-    <div className="flex h-full w-full items-center justify-center px-6">
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-background px-6 py-10">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-70"
+        style={{
+          backgroundImage: "radial-gradient(hsl(var(--border)) 1px, transparent 1px)",
+          backgroundSize: "22px 22px",
+        }}
+      />
       <form
         onSubmit={handleSubmit}
-        className="flex w-full max-w-sm flex-col gap-4"
+        className="relative flex w-full max-w-sm flex-col gap-5 rounded-panel border border-border/70 bg-background/95 p-6 shadow-sm backdrop-blur-sm"
       >
-        <div className="space-y-2">
-          <h1 className="text-sm font-medium text-foreground">
-            <label htmlFor="webui-access-password">{t("app.auth.label")}</label>
+        <div className="flex items-center gap-2.5">
+          <BrandMark className="h-4 text-[15px]" />
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+            {t("app.auth.local")}
+          </span>
+        </div>
+        <div className="space-y-1.5">
+          <h1 className="text-[17px] font-semibold leading-tight text-foreground">
+            {t("app.auth.title")}
           </h1>
+          <p className="text-[13px] leading-relaxed text-muted-foreground">
+            {t("app.auth.subtitle")}
+          </p>
+        </div>
+        <div className="space-y-2">
+          <label
+            htmlFor="webui-access-password"
+            className="text-[12px] font-medium text-muted-foreground"
+          >
+            {t("app.auth.label")}
+          </label>
           <div className="relative">
             <Input
               ref={inputRef}
@@ -428,7 +437,7 @@ function AuthForm({
             </Button>
           </div>
           {errorMessage ? (
-            <p id="webui-auth-error" role="alert" className="text-sm text-destructive">
+            <p id="webui-auth-error" role="alert" className="text-[12px] text-destructive">
               {errorMessage}
             </p>
           ) : null}
@@ -440,6 +449,9 @@ function AuthForm({
         >
           {t("app.auth.submit")}
         </Button>
+        <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+          {t("app.auth.hint")}
+        </p>
       </form>
     </div>
   );
@@ -981,6 +993,9 @@ export default function App() {
   const { t } = useTranslation();
   const [state, setState] = useState<BootState>({ status: "loading" });
   const bootstrapSecretRef = useRef("");
+  // 登录页在 Shell 之前渲染：这里也要有一份外观控制器，
+  // 否则主题与强调色要等 Shell 挂载后才生效，登录页会停在默认蓝色。
+  const appearance = useTheme();
 
   const refreshReadyClient = useCallback(
     async (client: ZhixuClient, fallbackSurface: RuntimeSurface) => {
@@ -1097,6 +1112,7 @@ export default function App() {
 
   if (state.status === "loading") {
     return (
+      <ThemeProvider theme={appearance.theme} appearance={appearance}>
       <div className="flex h-full w-full items-center justify-center">
         <div className="flex flex-col items-center gap-3 animate-in fade-in-0 duration-300">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1108,18 +1124,22 @@ export default function App() {
           </div>
         </div>
       </div>
+      </ThemeProvider>
     );
   }
   if (state.status === "auth") {
     return (
-      <AuthForm
-        failed={!!state.failed}
-        onSecret={(s) => bootstrapWithSecret(s)}
-      />
+      <ThemeProvider theme={appearance.theme} appearance={appearance}>
+        <AuthForm
+          failed={!!state.failed}
+          onSecret={(s) => bootstrapWithSecret(s)}
+        />
+      </ThemeProvider>
     );
   }
   if (state.status === "error") {
     return (
+      <ThemeProvider theme={appearance.theme} appearance={appearance}>
       <div className="flex h-full w-full items-center justify-center px-4 text-center">
         <div className="flex max-w-md flex-col items-center gap-3">
           <p className="text-lg font-semibold">{t("app.error.title")}</p>
@@ -1129,6 +1149,7 @@ export default function App() {
           </p>
         </div>
       </div>
+      </ThemeProvider>
     );
   }
 
@@ -2688,7 +2709,7 @@ function Shell({
         onClick={openHomeDockTerminal}
         className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
       >
-        <SquareTerminal className="h-4 w-4" aria-hidden />
+        <Terminal className="h-4 w-4" aria-hidden />
       </Button>
       <Button
         type="button"
@@ -2700,9 +2721,9 @@ function Shell({
           : t("startPanel.expand", { defaultValue: "Expand the start panel" })}
         aria-pressed={homeDockOpen}
         onClick={() => setHomeDockOpen((open) => !open)}
-        className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
+        className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground aria-pressed:bg-primary/10 aria-pressed:text-primary"
       >
-        <DockPanelIcon className="h-4 w-4" />
+        <PanelRight className="h-4 w-4" aria-hidden />
       </Button>
     </div>
   );
@@ -2946,7 +2967,7 @@ function Shell({
   }, [showHostChrome]);
 
   return (
-    <ThemeProvider theme={theme} appearance={appearance}>
+    <ThemeProvider theme={appearance.theme} appearance={appearance}>
       <div
         className={cn(
           "app-shell-canvas relative h-full w-full overflow-hidden",

@@ -349,11 +349,15 @@
     },
     "auth": {
       "label": "비밀번호",
+      "local": "로컬 작업 공간",
+      "title": "知序에 연결",
+      "subtitle": "이 知序 인스턴스는 사용자의 컴퓨터에서 실행됩니다. 계속하려면 WebUI 비밀번호를 입력하세요.",
       "showPassword": "비밀번호 표시",
       "hidePassword": "비밀번호 숨기기",
       "submit": "연결",
       "required": "비밀번호를 입력하세요.",
-      "invalid": "비밀번호가 올바르지 않습니다. 다시 시도하세요."
+      "invalid": "비밀번호가 올바르지 않습니다. 다시 시도하세요.",
+      "hint": "비밀번호: ~/.nanobot/config.json → channels.websocket.tokenIssueSecret"
     },
     "account": {
       "section": "계정",

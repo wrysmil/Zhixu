@@ -58,3 +58,23 @@ tier: 1
 ## Next
 
 - 任务完成 → 如需继续调页面，可基于本轮截图直接给改造点；服务保持在 5180 端口供查看。
+
+## 追加：顶部入口图标与登录页改版（2026-11-13 晚）
+
+用户在实机上指出的两处问题，已在同一个 dev server（127.0.0.1:5180）复核：
+
+| 问题 | 处理 | 截图 |
+| --- | --- | --- |
+| 顶部两个入口图标难认：终端是「圆角方块+小尖括号」，右坞是「实心竖条」——后者会被读成滚动条（此前已反馈过一次） | 终端换成 lucide `Terminal`（尖括号+下划线），右坞换成 lucide `PanelRight`（带分隔线的侧栏），并给右坞补上 `aria-pressed` 的按压态样式 | `merge-2026-11-13/20-dock-icons.png` → `22-dock-icons-new.png` |
+| 登录页是裸表单：没有品牌、没有说明、不跟随应用外观 | 改成品牌卡片：点阵底纹 + 品牌字标 + 「本地工作空间」徽标 + 标题/副标题 + 密码位 + 密码来源提示；并让 App 在 Shell 之前也持有一份外观控制器，使登录页跟随主题与强调色 | `merge-2026-11-13/21-auth-new.png` |
+
+新增 i18n 键：`app.auth.local` / `app.auth.title` / `app.auth.subtitle` / `app.auth.hint`（10 个语种齐备）。
+
+验证：
+
+| 命令 | 结果 |
+| --- | --- |
+| `npx tsc -p tsconfig.build.json --noEmit` | 0 错误 |
+| `npx vitest run`（全量） | 170 files / 2133 tests passed，0 failed |
+
+> 注：`preview-thread.test.tsx > renders the seeded demo conversation` 在满载并发跑过一次偶发超时，重跑即通过，判定为既有的时序抖动，未因本次改动产生回归。

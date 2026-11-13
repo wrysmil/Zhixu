@@ -349,11 +349,15 @@
     },
     "auth": {
       "label": "Mot de passe",
+      "local": "Espace local",
+      "title": "Se connecter à 知序",
+      "subtitle": "Cette instance de 知序 tourne sur votre machine. Saisissez le mot de passe WebUI pour continuer.",
       "showPassword": "Afficher le mot de passe",
       "hidePassword": "Masquer le mot de passe",
       "submit": "Se connecter",
       "required": "Saisissez le mot de passe.",
-      "invalid": "Mot de passe incorrect. Réessayez."
+      "invalid": "Mot de passe incorrect. Réessayez.",
+      "hint": "Mot de passe : ~/.nanobot/config.json → channels.websocket.tokenIssueSecret"
     },
     "account": {
       "section": "Compte",

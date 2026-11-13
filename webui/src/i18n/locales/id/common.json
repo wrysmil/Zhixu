@@ -349,11 +349,15 @@
     },
     "auth": {
       "label": "Kata sandi",
+      "local": "Ruang kerja lokal",
+      "title": "Hubungkan ke 知序",
+      "subtitle": "Instance 知序 ini berjalan di mesin Anda sendiri. Masukkan kata sandi WebUI untuk melanjutkan.",
       "showPassword": "Tampilkan kata sandi",
       "hidePassword": "Sembunyikan kata sandi",
       "submit": "Hubungkan",
       "required": "Masukkan kata sandi.",
-      "invalid": "Kata sandi salah. Coba lagi."
+      "invalid": "Kata sandi salah. Coba lagi.",
+      "hint": "Kata sandi: ~/.nanobot/config.json → channels.websocket.tokenIssueSecret"
     },
     "account": {
       "section": "Akun",

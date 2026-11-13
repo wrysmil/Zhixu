@@ -349,11 +349,15 @@
     },
     "auth": {
       "label": "Mật khẩu",
+      "local": "Không gian làm việc cục bộ",
+      "title": "Kết nối với 知序",
+      "subtitle": "Phiên bản 知序 này chạy trên máy của bạn. Nhập mật khẩu WebUI để tiếp tục.",
       "showPassword": "Hiện mật khẩu",
       "hidePassword": "Ẩn mật khẩu",
       "submit": "Kết nối",
       "required": "Nhập mật khẩu.",
-      "invalid": "Mật khẩu không đúng. Hãy thử lại."
+      "invalid": "Mật khẩu không đúng. Hãy thử lại.",
+      "hint": "Mật khẩu: ~/.nanobot/config.json → channels.websocket.tokenIssueSecret"
     },
     "account": {
       "section": "Tài khoản",

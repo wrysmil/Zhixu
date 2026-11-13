@@ -349,11 +349,15 @@
     },
     "auth": {
       "label": "Senha",
+      "local": "Espaço de trabalho local",
+      "title": "Conectar ao 知序",
+      "subtitle": "Esta instância do 知序 roda na sua própria máquina. Digite a senha do WebUI para continuar.",
       "showPassword": "Mostrar senha",
       "hidePassword": "Ocultar senha",
       "submit": "Conectar",
       "required": "Digite a senha.",
-      "invalid": "Senha incorreta. Tente novamente."
+      "invalid": "Senha incorreta. Tente novamente.",
+      "hint": "Senha: ~/.nanobot/config.json → channels.websocket.tokenIssueSecret"
     },
     "account": {
       "section": "Conta",

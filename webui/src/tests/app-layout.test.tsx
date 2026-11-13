@@ -385,8 +385,10 @@ describe("App layout", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Password" }))
-      .toBeInTheDocument();
+    // 登录页现在是品牌卡片：h1 是「连接到知序」，密码是独立 label。
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Connect to 知序" }),
+    ).toBeInTheDocument();
     const password = screen.getByLabelText("Password");
     expect(password).toHaveAttribute(
       "autocomplete",
@@ -456,8 +458,10 @@ describe("App layout", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Password" }))
-      .toBeInTheDocument();
+    // 登录页现在是品牌卡片：h1 是「连接到知序」，密码是独立 label。
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Connect to 知序" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText("Incorrect password. Try again."),
     ).not.toBeInTheDocument();

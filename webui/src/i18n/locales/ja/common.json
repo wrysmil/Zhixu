@@ -349,11 +349,15 @@
     },
     "auth": {
       "label": "パスワード",
+      "local": "ローカルワークスペース",
+      "title": "知序に接続",
+      "subtitle": "この知序インスタンスはお使いのマシンで動作しています。続行するには WebUI のパスワードを入力してください。",
       "showPassword": "パスワードを表示",
       "hidePassword": "パスワードを隠す",
       "submit": "接続",
       "required": "パスワードを入力してください。",
-      "invalid": "パスワードが正しくありません。もう一度お試しください。"
+      "invalid": "パスワードが正しくありません。もう一度お試しください。",
+      "hint": "パスワード: ~/.nanobot/config.json → channels.websocket.tokenIssueSecret"
     },
     "account": {
       "section": "アカウント",

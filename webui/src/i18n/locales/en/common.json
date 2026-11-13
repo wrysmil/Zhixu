@@ -349,11 +349,15 @@
     },
     "auth": {
       "label": "Password",
+      "local": "Local workspace",
+      "title": "Connect to 知序",
+      "subtitle": "This Zhixu instance runs on your own machine. Enter the WebUI password to continue.",
       "showPassword": "Show password",
       "hidePassword": "Hide password",
       "submit": "Connect",
       "required": "Enter your password.",
-      "invalid": "Incorrect password. Try again."
+      "invalid": "Incorrect password. Try again.",
+      "hint": "Password: ~/.nanobot/config.json → channels.websocket.tokenIssueSecret"
     },
     "account": {
       "section": "Account",
