@@ -153,3 +153,55 @@ def test_handler_hides_other_sessions_and_rejects_bad_limit(tmp_path) -> None:
     )
     assert missing.status == 200  # same workspace store exists; empty session page
     assert missing.payload is not None and missing.payload["records"] == []
+
+
+def test_missing_database_serves_empty_pages(tmp_path) -> None:
+    service = TrajectoryService(TrajectorySettings(mode="standard"))
+    handler = _handler(service, str(tmp_path))
+    session_id = "websocket:chat-1"
+
+    summary = handler.handle(
+        "trajectory-session", _request(caller_chats=("chat-1",)),
+        params={"sessionId": session_id},
+    )
+    assert summary.status == 200 and summary.payload is not None
+    assert summary.payload["durableSeq"] == 0
+    assert summary.payload["available"] is True
+
+    records = handler.handle(
+        "trajectory-records", _request(caller_chats=("chat-1",)),
+        params={"sessionId": session_id},
+    )
+    assert records.status == 200 and records.payload is not None
+    assert records.payload["records"] == []
+    assert records.payload["snapshotSeq"] == 0
+
+    events = handler.handle(
+        "trajectory-events", _request(query={"afterSeq": 0}, caller_chats=("chat-1",)),
+        params={"sessionId": session_id},
+    )
+    assert events.status == 200 and events.payload is not None
+    assert events.payload["events"] == []
+    assert events.payload["durableSeq"] == 0
+
+    span = handler.handle(
+        "trajectory-span", _request(caller_chats=("chat-1",)),
+        params={"sessionId": session_id, "spanId": "req-1"},
+    )
+    assert span.status == 404
+
+
+def test_unwritable_workspace_reports_unavailable(tmp_path) -> None:
+    (tmp_path / "runtime").write_text("not a directory", encoding="utf-8")
+    service = TrajectoryService(TrajectorySettings(mode="standard"))
+    assert service.begin_run(
+        workspace=str(tmp_path), session_id="websocket:chat-1", turn_id="turn-1",
+    ) is None
+
+    handler = _handler(service, str(tmp_path))
+    summary = handler.handle(
+        "trajectory-session", _request(caller_chats=("chat-1",)),
+        params={"sessionId": "websocket:chat-1"},
+    )
+    assert summary.status == 200 and summary.payload is not None
+    assert summary.payload["available"] is False

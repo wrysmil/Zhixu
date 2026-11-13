@@ -11,12 +11,19 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from loguru import logger
 
-from nanobot.trajectory.models import CommitBatch, TraceContext
+from nanobot.trajectory.models import (
+    SCHEMA_VERSION,
+    CommitBatch,
+    Coverage,
+    EventPage,
+    RecordPage,
+    TraceContext,
+)
 from nanobot.trajectory.policy import (
     DEFAULT_BODY_LIMIT_BYTES,
     DEFAULT_RUN_BODY_BUDGET_BYTES,
@@ -152,12 +159,12 @@ class TrajectoryService:
             return store
 
     def _reader(self, workspace: str) -> TrajectoryStore | None:
-        key = str(Path(workspace).expanduser().resolve())
+        key = self._key(workspace)
         with self._lock:
             existing = self._stores.get(key)
             if existing is not None:
                 return existing
-        db_path = Path(key) / "runtime" / "trajectory.db"
+        db_path = self._db_path(key)
         if not db_path.is_file():
             return None
         try:
@@ -174,6 +181,67 @@ class TrajectoryService:
         if memory is not None:
             return memory
         return self._reader(workspace)
+
+    @staticmethod
+    def _key(workspace: str) -> str:
+        return str(Path(workspace).expanduser().resolve())
+
+    @staticmethod
+    def _db_path(workspace: str) -> Path:
+        return Path(workspace) / "runtime" / "trajectory.db"
+
+    def _has_db(self, workspace: str) -> bool:
+        return self._db_path(self._key(workspace)).is_file()
+
+    def _is_degraded(self, workspace: str) -> bool:
+        with self._lock:
+            return self._key(workspace) in self._degraded
+
+    # 库文件从未创建（尚无采集回合）时按契约返回空页；创建失败则 available=false，
+    # 让 UI 显示「轨迹不可用」而不是把它当成 404 报错。
+    def _empty_coverage(self) -> Coverage:
+        return Coverage(content_mode=cast(Any, self.mode))
+
+    def _empty_summary(self, workspace: str, session_id: str) -> dict[str, Any]:
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "sessionId": session_id,
+            "mode": self.mode,
+            "available": not self._is_degraded(workspace),
+            "persistence": "sqlite",
+            "retainedFromSeq": 1,
+            "durableSeq": 0,
+            "historyGeneration": 1,
+            "coverage": self._empty_coverage().to_dict(),
+            "runs": [],
+            "capabilities": {"events": True, "bodies": True, "memory": False},
+        }
+
+    def _empty_records(self) -> RecordPage:
+        return RecordPage(
+            records=[],
+            snapshot_seq=0,
+            history_generation=1,
+            retained_from_seq=1,
+            has_older=False,
+            next_before_cursor=None,
+            coverage=self._empty_coverage(),
+        )
+
+    def _empty_events(self) -> EventPage:
+        return EventPage(
+            events=[],
+            record_updates=[],
+            snapshot_seq=0,
+            retained_from_seq=1,
+            durable_seq=0,
+            history_generation=1,
+            has_older=False,
+            has_more=False,
+            next_before_seq=None,
+            next_after_seq=0,
+            coverage=self._empty_coverage(),
+        )
 
     # ------------------------------------------------------------------ run
 
@@ -230,7 +298,9 @@ class TrajectoryService:
     def summary(self, workspace: str, session_id: str) -> dict[str, Any] | None:
         store = self._session_store(workspace, session_id)
         if store is None:
-            return None
+            if self._has_db(workspace):
+                return None
+            return self._empty_summary(workspace, session_id)
         return store.summary(session_id)
 
     def records_page(
@@ -239,7 +309,9 @@ class TrajectoryService:
     ) -> Any:
         store = self._session_store(workspace, session_id)
         if store is None:
-            return None
+            if self._has_db(workspace):
+                return None
+            return self._empty_records()
         return store.records_page(session_id, before_cursor=before_cursor, limit=limit)
 
     def events_page(
@@ -248,7 +320,9 @@ class TrajectoryService:
     ) -> Any:
         store = self._session_store(workspace, session_id)
         if store is None:
-            return None
+            if self._has_db(workspace):
+                return None
+            return self._empty_events()
         return store.events_page(
             session_id, after_seq=after_seq, before_seq=before_seq, limit=limit,
         )
