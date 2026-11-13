@@ -301,7 +301,7 @@ export function StartDock({
                       closeTab(tab);
                     }}
                     className={cn(
-                      "flex max-w-[10rem] items-center gap-1 truncate rounded px-1.5 py-0.5 text-[11.5px] text-muted-foreground/80 hover:bg-muted/60 hover:text-foreground",
+                      "flex max-w-[10rem] items-center gap-1 truncate rounded px-1.5 py-0.5 text-[11.5px] text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                       isActive && "font-medium text-foreground",
                     )}
                   >
@@ -314,7 +314,7 @@ export function StartDock({
                   aria-label={t("dock.closeTab", { defaultValue: "Close tab" })}
                   data-testid={`dock-close-${tab.id}`}
                   onClick={() => closeTab(tab)}
-                  className="grid h-4 w-4 shrink-0 place-items-center rounded text-muted-foreground/60 hover:bg-muted/60 hover:text-foreground"
+                  className="grid h-4 w-4 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                 >
                   <X className="h-3 w-3" aria-hidden />
                 </button>
@@ -328,7 +328,7 @@ export function StartDock({
             aria-label={t("dock.plusAria", { defaultValue: "New tab" })}
             data-testid="dock-plus-button"
             onClick={() => setPlusOpen((value) => !value)}
-            className="grid h-6 w-6 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
+            className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden />
           </button>
@@ -397,7 +397,7 @@ export function StartDock({
             type="button"
             aria-label={t("startPanel.collapse", { defaultValue: "Collapse the start panel" })}
             onClick={onCollapse}
-            className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
+            className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground"
           >
             <PanelRightClose className="h-3.5 w-3.5" aria-hidden />
           </button>
@@ -418,7 +418,7 @@ export function StartDock({
                 {dockTerminalTitle(entry.shell)} —{" "}
                 {t("dock.takeoverAction", { defaultValue: "Take over" })}
               </button>
-              <p className="shrink-0 text-[10.5px] text-muted-foreground/70">
+              <p className="shrink-0 text-[10.5px] text-muted-foreground">
                 {t("dock.takeoverHint", { defaultValue: "Press Enter to redraw" })}
               </p>
             </div>
@@ -461,7 +461,7 @@ export function StartDock({
                       </span>
                     </span>
                     {card.shortcut ? (
-                      <kbd className="shrink-0 rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-[10.5px] tabular-nums text-muted-foreground/80">
+                      <kbd className="shrink-0 rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-[10.5px] tabular-nums text-muted-foreground">
                         {card.shortcut}
                       </kbd>
                     ) : null}

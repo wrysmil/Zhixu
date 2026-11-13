@@ -68,13 +68,13 @@ export function ThinkingReasoningShell({
           {active ? (
             <LoaderCircle
               data-testid="activity-running-indicator"
-              className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground/70 motion-reduce:animate-none"
+              className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none"
               strokeWidth={2}
               aria-hidden="true"
             />
           ) : (
             <Check
-              className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55"
+              className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
               strokeWidth={2.2}
               aria-hidden="true"
             />
@@ -132,7 +132,7 @@ export function ThinkingReasoningShell({
         >
           <ChevronDown
             className={cn(
-              "h-4 w-4 text-muted-foreground/70 transition-colors duration-200",
+              "h-4 w-4 text-muted-foreground transition-colors duration-200",
               "group-hover:text-foreground motion-reduce:transition-none",
             )}
             strokeWidth={1.8}

@@ -112,7 +112,7 @@ function FileEditRow({
             className={cn(
               "grid h-3.5 w-3.5 place-items-center rounded-full border bg-background transition-colors",
               failed && "border-destructive/30 text-destructive/78",
-              editing && "border-muted-foreground/24 text-muted-foreground/65",
+              editing && "border-muted-foreground/24 text-muted-foreground",
               !failed && !editing && "border-emerald-500/28 text-emerald-500/78",
             )}
           >
@@ -324,7 +324,7 @@ function FileUnifiedDiff({
           aria-hidden
         />
         <span className="min-w-0 flex-1">{viewDiffLabel}</span>
-        <span className="shrink-0 text-muted-foreground/65">{lineCountLabel}</span>
+        <span className="shrink-0 text-muted-foreground">{lineCountLabel}</span>
       </button>
       {open ? renderBody() : null}
     </div>
@@ -389,7 +389,7 @@ function DiffHunkGap({ lineCount }: { lineCount: number }) {
       data-testid="file-edit-diff-hunk-gap"
     >
       <span
-        className="select-none rounded border border-border/45 bg-background/70 px-1 font-mono text-muted-foreground/70"
+        className="select-none rounded border border-border/45 bg-background/70 px-1 font-mono text-muted-foreground"
         aria-hidden
       >
         ...

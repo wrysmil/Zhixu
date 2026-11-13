@@ -179,11 +179,11 @@ export function TokenUsageHeatmap({
     <div className="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="mx-auto w-full min-w-0 max-w-[1054px] px-0.5 sm:min-w-[760px]">
         <div className="mb-2 flex justify-end">
-          <span className="text-[11px] font-normal leading-none text-muted-foreground/64">
+          <span className="text-[11px] font-normal leading-none text-muted-foreground">
             {tx("settings.usage.shortTitle", "Token Usage")}
           </span>
         </div>
-        <div className="relative mb-2 h-4 text-[10px] font-normal leading-4 text-muted-foreground/62" aria-hidden>
+        <div className="relative mb-2 h-4 text-[10px] font-normal leading-4 text-muted-foreground" aria-hidden>
           {monthLabels.map((month) => (
             <span
               key={`${month.label}-${month.column}`}

@@ -916,7 +916,7 @@ function TraceIconMark({
         trace.kind === "done"
           ? "text-emerald-500/75"
           : active
-            ? "text-muted-foreground/75"
+            ? "text-muted-foreground"
             : "text-muted-foreground/45",
       )}
       aria-hidden

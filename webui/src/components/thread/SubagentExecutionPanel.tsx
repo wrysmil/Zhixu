@@ -77,7 +77,7 @@ function statusTone(status: ExecutionStatus): string {
   if (status === "cancelled") return "text-muted-foreground";
   if (status === "interrupted") return "text-amber-600/85";
   if (status === "queued") return "text-amber-600/80";
-  return "text-muted-foreground/75";
+  return "text-muted-foreground";
 }
 
 function formatUnit(value: number, unit: "hour" | "minute" | "second", locale: string): string {
@@ -202,11 +202,11 @@ function PanelContent({
               </strong>
               <span className={cn("shrink-0 text-[11px]", statusTone(snapshot.status))}>{status}</span>
             </span>
-            <span className="block truncate text-[12px] text-muted-foreground/80">
+            <span className="block truncate text-[12px] text-muted-foreground">
               {snapshot.title}
             </span>
           </span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/65" aria-hidden />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[min(24rem,var(--radix-dropdown-menu-content-available-width))]">
@@ -230,7 +230,7 @@ function PanelContent({
                       {itemStatus}
                     </span>
                   </span>
-                  <span className="block truncate text-[12px] text-muted-foreground/75">
+                  <span className="block truncate text-[12px] text-muted-foreground">
                     {item.title}
                   </span>
                 </span>
@@ -251,7 +251,7 @@ function PanelContent({
         </strong>
         <span className={cn("shrink-0 text-[11px]", statusTone(snapshot.status))}>{status}</span>
       </span>
-      <span className="block truncate text-[12px] text-muted-foreground/80">{snapshot.title}</span>
+      <span className="block truncate text-[12px] text-muted-foreground">{snapshot.title}</span>
     </div>
   );
 
@@ -259,7 +259,7 @@ function PanelContent({
     <div className="flex h-full min-h-0 flex-col bg-surface-raised">
       <header className="flex min-h-0 shrink-0 items-start gap-3 border-b border-border/60 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <span className="text-[11px] font-medium text-muted-foreground/70">
+          <span className="text-[11px] font-medium text-muted-foreground">
             {t("thread.subagentExecution.title", { defaultValue: "Sub-agent execution" })}
           </span>
           <h2
@@ -269,7 +269,7 @@ function PanelContent({
           >
             {snapshot.title}
           </h2>
-          <p className="mt-0.5 flex min-w-0 items-center gap-2 text-[12px] text-muted-foreground/80">
+          <p className="mt-0.5 flex min-w-0 items-center gap-2 text-[12px] text-muted-foreground">
             <span className={cn("font-medium", statusTone(snapshot.status))}>{status}</span>
             {terminal ? null : (
               <>
@@ -341,7 +341,7 @@ function PanelContent({
         ) : null}
 
         <section className="mt-4">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/65">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             {t("thread.subagentExecution.instruction", { defaultValue: "Task" })}
           </h3>
           <div className="mt-1.5 text-[13px] leading-5 text-foreground/80">
@@ -352,7 +352,7 @@ function PanelContent({
         </section>
 
         <section className="mt-5">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/65">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             {t("thread.subagentExecution.process", { defaultValue: "Execution" })}
           </h3>
           {sortedActivities.length > 0 ? (
@@ -362,7 +362,7 @@ function PanelContent({
               ))}
             </ol>
           ) : (
-            <p className="mt-1.5 text-[12px] text-muted-foreground/70">
+            <p className="mt-1.5 text-[12px] text-muted-foreground">
               {t("thread.subagentExecution.noActivities", { defaultValue: "No public activity yet." })}
             </p>
           )}
@@ -370,14 +370,14 @@ function PanelContent({
 
         {result ? (
           <section className="mt-5 border-t border-border/55 pt-4">
-            <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/65">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               {t("thread.subagentExecution.result", { defaultValue: "Sub-agent result" })}
             </h3>
             <div className="mt-1.5 text-[13px] leading-5 text-foreground/80">
               <MarkdownText onOpenFilePreview={onOpenFilePreview}>{result.summary}</MarkdownText>
             </div>
             {result.truncated ? (
-              <p className="mt-2 text-[12px] text-muted-foreground/75">
+              <p className="mt-2 text-[12px] text-muted-foreground">
                 {t("thread.subagentExecution.truncated", { defaultValue: "Content truncated" })}
               </p>
             ) : null}
@@ -387,7 +387,7 @@ function PanelContent({
           </section>
         ) : null}
 
-        <p className="mt-5 text-[11px] text-muted-foreground/55">
+        <p className="mt-5 text-[11px] text-muted-foreground">
           {t("thread.subagentExecution.call", {
             id: snapshot.invocationId,
             defaultValue: "Call {{id}}",

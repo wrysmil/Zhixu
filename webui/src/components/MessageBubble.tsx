@@ -117,7 +117,7 @@ function MessageTimestamp({
           dateTime={new Date(timestamp).toISOString()}
           tabIndex={0}
           className={cn(
-            "cursor-help text-[11px] leading-none text-muted-foreground/70 tabular-nums",
+            "cursor-help text-[11px] leading-none text-muted-foreground tabular-nums",
             "focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             className,
           )}
@@ -630,7 +630,7 @@ function AutomationTriggerMeta({ label, sourceLabel }: { label: string; sourceLa
           data-automation-trigger
           tabIndex={0}
           className={cn(
-            "shrink-0 cursor-help text-[11px] leading-none text-muted-foreground/70 tabular-nums",
+            "shrink-0 cursor-help text-[11px] leading-none text-muted-foreground tabular-nums",
             "focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           )}
         >
@@ -992,7 +992,7 @@ function TraceGroup({ message }: TraceGroupProps) {
           {lines.map((line, i) => (
             <li
               key={i}
-              className="whitespace-pre-wrap break-words font-mono text-[11.5px] leading-relaxed text-muted-foreground/90"
+              className="whitespace-pre-wrap break-words font-mono text-[11.5px] leading-relaxed text-muted-foreground"
             >
               {line}
             </li>

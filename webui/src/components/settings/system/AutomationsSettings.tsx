@@ -157,7 +157,7 @@ export function AutomationsSettings({
 
             <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <div className="relative min-w-0">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={query}
                   onChange={(event) => onQueryChange(event.target.value)}
@@ -215,7 +215,7 @@ export function AutomationsSettings({
               <h2 className="text-[13px] font-semibold tracking-[-0.01em] text-foreground/85">
                 {tx("settings.automations.queue", "Queue")}
               </h2>
-              <span className="rounded-full bg-orange-100/60 px-2 py-0.5 text-[11px] text-orange-800/70 tabular-nums dark:bg-orange-300/10 dark:text-orange-200/75">
+              <span className="rounded-full bg-orange-100/60 px-2 py-0.5 text-[11px] text-orange-800 tabular-nums dark:bg-orange-300/10 dark:text-orange-200/75">
                 {filtered.length}
               </span>
             </div>
@@ -351,7 +351,7 @@ function AutomationListItem({
           ) : null}
           <ChevronRight
             className={cn(
-              "h-3.5 w-3.5 text-muted-foreground/55 transition-opacity",
+              "h-3.5 w-3.5 text-muted-foreground transition-opacity",
               selected ? "opacity-100" : "opacity-0 group-hover:opacity-70",
             )}
             aria-hidden
@@ -435,7 +435,7 @@ function AutomationDetailPanel({
         <div className="min-h-0 min-w-0 space-y-3 overflow-y-auto overscroll-contain p-4 sm:p-5">
           <section className="rounded-floating bg-background/55 px-4 py-3.5">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[11px] font-medium leading-none text-muted-foreground/75">
+              <div className="text-[11px] font-medium leading-none text-muted-foreground">
                 {messageLabel}
               </div>
               {localTrigger && triggerCommand ? (
@@ -513,7 +513,7 @@ function AutomationDetailPanel({
 
           {job.last_consolidation ? (
             <section className="rounded-floating bg-background/55 px-4 py-3.5">
-              <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium leading-none text-muted-foreground/75">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium leading-none text-muted-foreground">
                 <span>{tx("settings.automations.consolidation.title", "Last daily consolidation")}</span>
                 {job.last_consolidation.dry_run ? (
                   <AutomationStatusBadge>
@@ -581,7 +581,7 @@ function AutomationDetailPanel({
               <div className="grid gap-3">
                 {created ? (
                   <div>
-                    <div className="text-[11px] leading-none text-muted-foreground/75">
+                    <div className="text-[11px] leading-none text-muted-foreground">
                       {tx("settings.automations.labels.created", "Created")}
                     </div>
                     <div className="mt-1.5 text-[12.5px] leading-5 text-foreground/80">{created}</div>
@@ -589,14 +589,14 @@ function AutomationDetailPanel({
                 ) : null}
                 {updated ? (
                   <div>
-                    <div className="text-[11px] leading-none text-muted-foreground/75">
+                    <div className="text-[11px] leading-none text-muted-foreground">
                       {tx("settings.automations.labels.updated", "Updated")}
                     </div>
                     <div className="mt-1.5 text-[12.5px] leading-5 text-foreground/80">{updated}</div>
                   </div>
                 ) : null}
                 <div>
-                  <div className="text-[11px] leading-none text-muted-foreground/75">ID</div>
+                  <div className="text-[11px] leading-none text-muted-foreground">ID</div>
                   <div className="mt-1.5 break-all font-mono text-[11.5px] leading-5 text-foreground/70">
                     {job.id}
                   </div>
@@ -730,7 +730,7 @@ function AutomationDetail({
 }) {
   return (
     <div className="min-w-0 rounded-floating bg-background/55 px-3 py-3">
-      <div className="text-[11px] font-medium leading-none text-muted-foreground/75">
+      <div className="text-[11px] font-medium leading-none text-muted-foreground">
         {label}
       </div>
       <div className="mt-1.5 min-w-0">
@@ -1364,17 +1364,17 @@ const AUTOMATION_FILTER_TONES: Partial<
     count: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   },
   paused: {
-    text: "text-amber-600 dark:text-amber-400",
+    text: "text-amber-700 dark:text-amber-400",
     selectedText: "text-amber-700 dark:text-amber-300",
     count: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
   },
   failed: {
-    text: "text-rose-600 dark:text-rose-400",
+    text: "text-rose-700 dark:text-rose-400",
     selectedText: "text-rose-700 dark:text-rose-300",
     count: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
   },
   system: {
-    text: "text-sky-600 dark:text-sky-400",
+    text: "text-sky-700 dark:text-sky-400",
     selectedText: "text-sky-700 dark:text-sky-300",
     count: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
   },

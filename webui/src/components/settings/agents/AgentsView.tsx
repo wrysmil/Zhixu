@@ -325,7 +325,7 @@ export function AgentsView() {
         </div>
       ) : !loadError && catalog && filtered.length === 0 ? (
         <div className="assistant-empty">
-          <UserPlus className="h-7 w-7 text-muted-foreground/60" aria-hidden />
+          <UserPlus className="h-7 w-7 text-muted-foreground" aria-hidden />
           <p className="text-[13px] text-muted-foreground">
             {filtersActive
               ? t("settings.agents.noMatch", "没有匹配的智能体，换个关键词或清掉筛选试试。")

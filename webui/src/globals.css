@@ -107,7 +107,7 @@ html .team-progress-track > span {
     --secondary: 240 4.762% 95.882%;
     --secondary-foreground: var(--foreground);
     --muted: 240 4.762% 95.882%;
-    --muted-foreground: 240 3.83% 46.078%;
+    --muted-foreground: 240 3.83% 42%;
     --accent: 240 7.692% 92.353%;
     --accent-foreground: 240 3.704% 15.882%;
     --destructive: 0 72% 51%;
@@ -1677,14 +1677,6 @@ html:is(:not([data-appearance-theme]), [data-appearance-theme="zhixu"]) .appeara
   height: 6px;
   border-radius: 999px;
   background: hsl(var(--nav-active-fg));
-  box-shadow: 0 0 0 0 hsl(var(--nav-active-fg) / 0.45);
-  animation: welcome-dot-pulse 2.6s ease-out infinite;
-}
-
-@keyframes welcome-dot-pulse {
-  0% { box-shadow: 0 0 0 0 hsl(var(--nav-active-fg) / 0.45); }
-  70% { box-shadow: 0 0 0 6px hsl(var(--nav-active-fg) / 0); }
-  100% { box-shadow: 0 0 0 0 hsl(var(--nav-active-fg) / 0); }
 }
 
 .thread-welcome-title {

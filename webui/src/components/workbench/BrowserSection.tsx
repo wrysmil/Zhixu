@@ -151,7 +151,7 @@ export function BrowserSection({ fullHeight = false, scope }: BrowserSectionProp
     : null;
 
   const buttonClass =
-    "grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground/70 transition-colors enabled:hover:bg-muted/70 enabled:hover:text-foreground disabled:opacity-35";
+    "grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors enabled:hover:bg-muted/70 enabled:hover:text-foreground disabled:opacity-35";
 
   return (
     <div
@@ -200,7 +200,7 @@ export function BrowserSection({ fullHeight = false, scope }: BrowserSectionProp
               : "border-border/70 focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10",
           )}
         >
-          <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55" aria-hidden />
+          <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
           <input
             id="browser-address"
             type="text"
@@ -211,12 +211,12 @@ export function BrowserSection({ fullHeight = false, scope }: BrowserSectionProp
             })}
             spellCheck={false}
             autoComplete="off"
-            className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground/50"
+            className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground"
           />
           <button
             type="submit"
             aria-label={t("startPanel.browserGo", { defaultValue: "Go" })}
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-muted-foreground/70 transition-colors hover:bg-muted/70 hover:text-foreground"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
           >
             <ArrowRight className="h-3.5 w-3.5" aria-hidden />
           </button>
@@ -276,7 +276,7 @@ export function BrowserSection({ fullHeight = false, scope }: BrowserSectionProp
             <p className="text-[13px] font-medium text-foreground/75">
               {t("startPanel.browserNewTab", { defaultValue: "New tab" })}
             </p>
-            <p className="max-w-[22rem] text-[12px] leading-5 text-muted-foreground/60">
+            <p className="max-w-[22rem] text-[12px] leading-5 text-muted-foreground">
               {t("startPanel.browserEmptyHint", {
                 defaultValue: "Enter an address to start browsing.",
               })}

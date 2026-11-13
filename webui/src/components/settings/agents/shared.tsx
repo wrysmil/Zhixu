@@ -18,7 +18,7 @@ export function SectionLabel({
   return (
     <div className="flex items-center gap-2">
       {index ? (
-        <span aria-hidden className="text-[12px] text-muted-foreground/60">
+        <span aria-hidden className="text-[12px] text-muted-foreground">
           {index}
         </span>
       ) : null}

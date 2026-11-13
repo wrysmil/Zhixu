@@ -90,14 +90,14 @@ export function DockFileSearch({
           type="button"
           aria-label={t("filePreview.close", { defaultValue: "Close file preview" })}
           onClick={onClose}
-          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/70 hover:bg-muted/60 hover:text-foreground"
+          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" aria-hidden />
         </button>
       </div>
 
       {state.status === "loading" ? (
-        <p className="px-1 text-[11.5px] text-muted-foreground/70">
+        <p className="px-1 text-[11.5px] text-muted-foreground">
           {t("dock.searching", { defaultValue: "Searching…" })}
         </p>
       ) : null}
@@ -109,7 +109,7 @@ export function DockFileSearch({
       ) : null}
 
       {state.status === "ready" && results.length === 0 ? (
-        <p className="px-1 text-[11.5px] text-muted-foreground/70">
+        <p className="px-1 text-[11.5px] text-muted-foreground">
           {t("dock.noMatches", { defaultValue: "No matches" })}
         </p>
       ) : null}
@@ -129,7 +129,7 @@ export function DockFileSearch({
                     {hit.name}
                   </span>
                   {hit.line > 0 ? (
-                    <span className="shrink-0 text-[10.5px] tabular-nums text-muted-foreground/70">
+                    <span className="shrink-0 text-[10.5px] tabular-nums text-muted-foreground">
                       {hit.line}:{hit.column}
                     </span>
                   ) : null}

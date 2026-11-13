@@ -132,7 +132,7 @@ export function TeamSelector({
             }
             className={cn(
               "inline-flex h-7 max-w-[15rem] items-center gap-1.5 rounded-lg px-2",
-              "text-[12px] font-medium text-muted-foreground/90 transition-colors",
+              "text-[12px] font-medium text-muted-foreground transition-colors",
               "hover:bg-muted/55 hover:text-foreground disabled:pointer-events-none disabled:opacity-55",
               selectedName && "text-primary",
             )}

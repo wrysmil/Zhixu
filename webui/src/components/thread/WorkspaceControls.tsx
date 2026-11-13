@@ -165,7 +165,7 @@ export function WorkspaceProjectPicker({
               : isTab
                 ? "inline-flex h-7 max-w-[15rem] items-center gap-1.5 rounded-lg px-2"
                 : "inline-flex h-7 max-w-full items-center gap-2 rounded-full px-2.5 sm:max-w-[18rem]",
-            "text-[12px] font-medium text-muted-foreground/90 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-55",
+            "text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-55",
             compact ? "hover:bg-muted/65" : isTab ? "text-[12.5px] hover:bg-muted/55" : "hover:bg-background/70",
             (connected || currentProjectScope) && "text-primary",
           )}
@@ -201,7 +201,7 @@ export function WorkspaceProjectPicker({
                 : isTab
                   ? "inline-flex h-7 max-w-[15rem] items-center gap-1.5 rounded-lg px-2"
                   : "inline-flex h-7 max-w-full items-center gap-2 rounded-full px-2.5 sm:max-w-[18rem]",
-              "text-[12px] font-medium text-muted-foreground/90 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-55",
+              "text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-55",
               compact ? "hover:bg-muted/65" : isTab ? "text-[12.5px] hover:bg-muted/55" : "hover:bg-background/70",
               (connected || currentProjectScope) && "text-primary",
             )}
@@ -417,7 +417,7 @@ export function RuntimeEnvChip({
           title={scope?.sandbox_status?.summary || undefined}
           className={cn(
             "inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-[12.5px] font-medium",
-            "text-muted-foreground/90 transition-colors hover:bg-muted/55 hover:text-foreground",
+            "text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground",
             "disabled:pointer-events-none disabled:opacity-55",
           )}
         >
@@ -442,7 +442,7 @@ export function RuntimeEnvChip({
           ))}
         </dl>
         {sandbox?.summary ? (
-          <p className="px-1 pb-1 text-[11.5px] leading-relaxed text-muted-foreground/85">
+          <p className="px-1 pb-1 text-[11.5px] leading-relaxed text-muted-foreground">
             {sandbox.summary}
           </p>
         ) : null}

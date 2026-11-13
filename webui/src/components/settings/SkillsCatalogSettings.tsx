@@ -152,7 +152,7 @@ export function SkillsCatalogSettings({ skills }: { skills: SkillSummary[] }) {
                     <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       {group.label}
                     </h2>
-                    <span className="text-[11px] tabular-nums text-muted-foreground/60">
+                    <span className="text-[11px] tabular-nums text-muted-foreground">
                       {group.skills.length}
                     </span>
                   </div>
@@ -238,7 +238,7 @@ function SkillCatalogRow({
         <h3 className="truncate text-[14px] font-semibold leading-5 text-foreground">
           {skill.name}
         </h3>
-        <p className="mt-0.5 line-clamp-1 text-[12px] leading-5 text-muted-foreground transition-colors duration-150 group-hover:text-foreground/65">
+        <p className="mt-0.5 line-clamp-1 max-w-[64ch] text-[12px] leading-5 text-muted-foreground transition-colors duration-150 group-hover:text-foreground/65">
           {skill.description}
         </p>
       </div>

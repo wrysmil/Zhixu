@@ -336,7 +336,6 @@ export function KnowledgeEvalPage() {
       {detailOpen ? null : (
         <PageHeading
           className="knowledge-page-header"
-          kicker={t("knowledge.eval.kicker")}
           title={t("knowledge.eval.title")}
           description={t("knowledge.eval.subtitle")}
           actions={

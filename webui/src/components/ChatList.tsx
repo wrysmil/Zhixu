@@ -557,7 +557,7 @@ export const ChatList = memo(function ChatList({
 
   if (sessions.length === 0 && temporarySessions.length === 0) {
     return (
-      <div className="px-3 py-6 text-[12px] leading-5 text-muted-foreground/80">
+      <div className="px-3 py-6 text-[12px] leading-5 text-muted-foreground">
         {emptyLabel ?? t("chat.noSessions")}
       </div>
     );
@@ -706,7 +706,7 @@ export const ChatList = memo(function ChatList({
             onClose={onCloseTemporaryChat}
           />
         ) : null}
-        <div className="sidebar-group-label group/projects flex items-center gap-1 px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
+        <div className="sidebar-group-label group/projects flex items-center gap-1 px-2 pb-1 text-[12px] font-medium text-muted-foreground">
           <button
             type="button"
             aria-expanded={!projectsSectionCollapsed}
@@ -728,7 +728,7 @@ export const ChatList = memo(function ChatList({
               )}
             />
             {projectsSectionCollapsed && projectGroupCount > 0 ? (
-              <span className="text-[11px] text-muted-foreground/55">{projectGroupCount}</span>
+              <span className="text-[11px] text-muted-foreground">{projectGroupCount}</span>
             ) : null}
           </button>
           {onNewChatInProject && actionsEnabled ? (
@@ -1053,18 +1053,18 @@ export const ChatList = memo(function ChatList({
                                       <TeamChatIndicator teamName={s.teamBinding.teamName} />
                                     ) : null}
                                     {timestamp ? (
-                                      <span className="shrink-0 text-[11.5px] font-medium text-muted-foreground/58">
+                                      <span className="shrink-0 text-[11.5px] font-medium text-muted-foreground">
                                         {timestamp}
                                       </span>
                                     ) : null}
                                   </span>
                                 {showPreview ? (
-                                  <span className="block w-full truncate text-[11.5px] leading-4 text-muted-foreground/72">
+                                  <span className="block w-full truncate text-[11.5px] leading-4 text-muted-foreground">
                                     {preview}
                                   </span>
                                 ) : null}
                                 {timestamp && !projectMode ? (
-                                  <span className="block w-full truncate text-[11px] leading-4 text-muted-foreground/58">
+                                  <span className="block w-full truncate text-[11px] leading-4 text-muted-foreground">
                                     {timestamp}
                                   </span>
                                 ) : null}
@@ -1081,7 +1081,7 @@ export const ChatList = memo(function ChatList({
                             >
                             <DropdownMenuTrigger
                               className={cn(
-                                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/75 opacity-0 transition-opacity",
+                                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity",
                                 "hover:bg-sidebar-accent hover:text-sidebar-foreground group-hover:opacity-100",
                                 "focus-visible:opacity-100 data-[state=open]:opacity-100",
                               )}
@@ -1154,7 +1154,7 @@ export const ChatList = memo(function ChatList({
                     );
                   })}
                   {group.kind === "project" && group.sessions.length === 0 ? (
-                    <li className="px-1.5 py-1 text-[12px] text-muted-foreground/55">
+                    <li className="px-1.5 py-1 text-[12px] text-muted-foreground">
                       {t("chat.groups.emptyProject", { defaultValue: "No chats yet" })}
                     </li>
                   ) : null}
@@ -1180,7 +1180,7 @@ export const ChatList = memo(function ChatList({
                   Math.min(totalSessionCount, limit + VISIBLE_SESSIONS_INCREMENT),
                 )
               }
-              className="h-8 w-full rounded-full text-[12px] font-medium text-muted-foreground/65 transition-colors hover:bg-sidebar-accent/65 hover:text-muted-foreground"
+              className="h-8 w-full rounded-full text-[12px] font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent/65 hover:text-muted-foreground"
             >
               {t("chat.showMore", { count: hiddenSessionCount })}
             </button>
@@ -1292,7 +1292,7 @@ function WorkbenchTabHeader({
             <SelectionIndicator checked={selected} partial={partiallySelected} />
           ) : null}
           <FolderTree
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70"
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
             strokeWidth={1.75}
             aria-hidden
           />
@@ -1309,7 +1309,7 @@ function WorkbenchTabHeader({
             <DropdownMenuTrigger
               className={cn(
                 "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-                "text-muted-foreground/75 opacity-0 transition-opacity",
+                "text-muted-foreground opacity-0 transition-opacity",
                 "hover:bg-sidebar-accent hover:text-sidebar-foreground group-hover/tab:opacity-100",
                 "focus-visible:opacity-100 data-[state=open]:opacity-100",
               )}
@@ -1354,7 +1354,7 @@ function WorkbenchTabHeader({
               onClick={onToggle}
               className={cn(
                 "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-                "text-muted-foreground/70 transition-[background-color,color,transform] duration-150 ease-out",
+                "text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out",
                 "hover:bg-sidebar-accent hover:text-sidebar-foreground active:scale-[0.96]",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
                 "motion-reduce:transition-none motion-reduce:active:scale-100",
@@ -1525,7 +1525,7 @@ function ActivePaneRows({
               >
                 <DropdownMenuTrigger
                   className={cn(
-                    "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-opacity",
+                    "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity",
                     "hover:bg-sidebar-accent hover:text-sidebar-foreground group-hover/pane:opacity-100",
                     "focus-visible:opacity-100 data-[state=open]:opacity-100",
                   )}
@@ -1620,7 +1620,7 @@ function SelectionIndicator({
       aria-hidden
       className={cn(
         "h-4 w-4 shrink-0",
-        checked || partial ? "text-primary" : "text-muted-foreground/55",
+        checked || partial ? "text-primary" : "text-muted-foreground",
       )}
     />
   );
@@ -1649,7 +1649,7 @@ function MoveToGroupSubmenu({
             onSelect={() => onMove(target.key)}
           >
             <span className="min-w-0 max-w-56 flex-1 truncate">{target.title}</span>
-            <span className="shrink-0 tabular-nums text-muted-foreground/70">
+            <span className="shrink-0 tabular-nums text-muted-foreground">
               · {target.paneCount}/{MAX_WORKBENCH_PANES}
             </span>
           </DropdownMenuItem>
@@ -1713,7 +1713,7 @@ function TemporaryChatSection({
                     type="button"
                     aria-label={t("temporaryChat.closeAction", { title })}
                     onClick={() => onClose(session.key)}
-                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
                   >
                     <X className="h-3.5 w-3.5" aria-hidden />
                   </button>
@@ -1749,7 +1749,7 @@ function AddProjectButton({
         }}
         className={cn(
           "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
-          "cursor-pointer text-muted-foreground/70 opacity-75 transition-opacity",
+          "cursor-pointer text-muted-foreground opacity-75 transition-opacity",
           "hover:bg-sidebar-accent hover:text-sidebar-foreground",
           "focus-visible:opacity-100 group-hover/projects:opacity-100 data-[state=open]:opacity-100",
         )}
@@ -1813,7 +1813,7 @@ function ProjectGroupHeader({
       <Folder className="h-4 w-4 shrink-0" aria-hidden />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {pinned ? (
-        <Pin className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-hidden />
+        <Pin className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
       ) : null}
     </button>
   );
@@ -1834,7 +1834,7 @@ function ProjectGroupHeader({
           </Tooltip>
         ) : projectButton}
         {updatedAt ? (
-          <span className="shrink-0 text-[11px] text-muted-foreground/55">
+          <span className="shrink-0 text-[11px] text-muted-foreground">
             {relativeTime(updatedAt)}
           </span>
         ) : null}
@@ -1848,7 +1848,7 @@ function ProjectGroupHeader({
               onNewChat();
             }}
             className={cn(
-              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-opacity",
+              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity",
               "hover:bg-sidebar-accent hover:text-sidebar-foreground group-hover:opacity-100 focus-visible:opacity-100",
             )}
           >
@@ -1863,7 +1863,7 @@ function ProjectGroupHeader({
           >
             <DropdownMenuTrigger
               className={cn(
-                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-opacity",
+                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity",
                 "hover:bg-sidebar-accent hover:text-sidebar-foreground group-hover:opacity-100 focus-visible:opacity-100",
                 "data-[state=open]:opacity-100",
               )}
@@ -1927,7 +1927,7 @@ function ProjectGroupHeader({
 
 function ChatsGroupHeader({ label }: { label: string }) {
   return (
-    <div className="sidebar-group-label px-2 pb-1 text-[12px] font-medium text-muted-foreground/65">
+    <div className="sidebar-group-label px-2 pb-1 text-[12px] font-medium text-muted-foreground">
       {label}
     </div>
   );
@@ -1938,7 +1938,7 @@ function PinnedChatIndicator() {
     <span
       data-sidebar-pinned-indicator
       aria-hidden="true"
-      className="inline-flex shrink-0 items-center text-muted-foreground/65"
+      className="inline-flex shrink-0 items-center text-muted-foreground"
     >
       <Pin className="h-3.5 w-3.5" aria-hidden="true" />
     </span>
@@ -1952,7 +1952,7 @@ function TeamChatIndicator({ teamName }: { teamName: string }) {
     <span
       data-sidebar-team-indicator
       title={t("thread.composer.team.chip", { name: teamName })}
-      className="inline-flex shrink-0 items-center text-muted-foreground/65"
+      className="inline-flex shrink-0 items-center text-muted-foreground"
     >
       <Users className="h-3.5 w-3.5" aria-hidden="true" />
     </span>
@@ -1973,7 +1973,7 @@ function ChatsFoldFooter({
       <button
         type="button"
         onClick={onToggle}
-        className="h-7 w-full rounded-xl text-left text-[12px] font-medium text-muted-foreground/65 transition-colors hover:bg-sidebar-accent/50 hover:text-muted-foreground"
+        className="h-7 w-full rounded-xl text-left text-[12px] font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-muted-foreground"
       >
         <span className="px-2">
           {folded ? t("chat.expandGroup") : t("chat.showLess")}
@@ -1999,7 +1999,7 @@ function SessionActivityIndicator({
         <span
           role="img"
           aria-label={label}
-          className="grid h-4 w-4 shrink-0 place-items-center text-muted-foreground/60 group-hover:text-[#ff8a3d]"
+          className="grid h-4 w-4 shrink-0 place-items-center text-muted-foreground group-hover:text-[#ff8a3d]"
         >
           <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
         </span>

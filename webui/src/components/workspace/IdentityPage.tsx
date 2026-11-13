@@ -365,14 +365,14 @@ export function IdentityPage() {
               </div>
 
               {warningKey ? (
-                <div className="mb-2 flex items-start gap-2 rounded-control border border-amber-300/70 bg-amber-50/80 px-3 py-2 text-[11.5px] leading-relaxed text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100">
+                <div className="mb-2 flex items-start gap-2 rounded-control bg-amber-50/80 px-3 py-2 text-[12px] leading-relaxed text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden />
                   <span>{t(`settings.identity.files.${warningKey}`)}</span>
                 </div>
               ) : null}
 
               {error ? (
-                <div className="mb-2 flex items-start gap-2 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12px] text-destructive">
+                <div className="mb-2 flex items-start gap-2 rounded-control bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
                   <button
                     type="button"
                     aria-label={t("settings.identity.files.dismissError")}
@@ -493,7 +493,7 @@ function FileItem({
       <ChevronRight className="h-2.5 w-2.5 shrink-0" aria-hidden />
       <span className="min-w-0 flex-1 truncate">{display}</span>
       {active ? (
-        <span className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+        <span className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-medium text-primary">
           {t("settings.identity.files.activePersona")}
         </span>
       ) : null}

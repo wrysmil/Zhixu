@@ -623,7 +623,7 @@ function HostChrome({
                   >
                     <span>{item.label}</span>
                     {item.shortcut ? (
-                      <span className="text-[11px] tabular-nums text-muted-foreground/70">
+                      <span className="text-[11px] tabular-nums text-muted-foreground">
                         {item.shortcut}
                       </span>
                     ) : null}
@@ -2686,7 +2686,7 @@ function Shell({
         aria-label={t("dock.openTerminal", { defaultValue: "Open terminal panel" })}
         title={`${t("dock.openTerminal", { defaultValue: "Open terminal panel" })} (Ctrl+J)`}
         onClick={openHomeDockTerminal}
-        className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
+        className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground"
       >
         <SquareTerminal className="h-4 w-4" aria-hidden />
       </Button>
@@ -2700,7 +2700,7 @@ function Shell({
           : t("startPanel.expand", { defaultValue: "Expand the start panel" })}
         aria-pressed={homeDockOpen}
         onClick={() => setHomeDockOpen((open) => !open)}
-        className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
+        className="host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground"
       >
         <DockPanelIcon className="h-4 w-4" />
       </Button>
@@ -2922,6 +2922,8 @@ function Shell({
     archivedCount: sidebarArchivedTabKeys.length,
     defaultWorkspacePath: workspaces?.default_scope.project_path ?? null,
   };
+  // Settings, knowledge and the capability pages own the full width: keep only
+  // the icon rail, never the conversation list.
   const isSettingsLikeView =
     view === "settings"
     || view === "apps"
@@ -2931,8 +2933,16 @@ function Shell({
     || view === "teams"
     || view === "knowledge"
     || view === "knowledge-eval";
-  // Settings / knowledge and other surfaces own the full width: keep only the
-  // icon rail, never the conversation list.
+  // Only these views are actually drawn by SettingsView; knowledge surfaces have
+  // their own layer below, so mounting SettingsView for them would stack two
+  // full pages (one of them invisible but still focusable).
+  const rendersSettingsSurface =
+    view === "settings"
+    || view === "apps"
+    || view === "automations"
+    || view === "skills"
+    || view === "agents"
+    || view === "teams";
   const hostChatColumnVisible = hostSidebarOpen && !isSettingsLikeView;
   const hostSidebarFlowWidth = hostChatColumnVisible
     ? SIDEBAR_CHAT_WIDTH
@@ -2963,7 +2973,7 @@ function Shell({
                   size="icon"
                   aria-label={t("thread.header.toggleTheme")}
                   onClick={toggle}
-                  className="h-8 w-8 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground"
+                  className="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground"
                 >
                   {theme === "dark" ? (
                     <Sun className="h-4 w-4" />
@@ -3242,7 +3252,7 @@ function Shell({
                 </Suspense>
               </div>
             ) : null}
-            {isSettingsLikeView ? (
+            {rendersSettingsSurface ? (
               <div className="absolute inset-0 flex flex-col">
                 <Suspense fallback={<SurfaceLoadingFallback />}>
                   <SettingsView

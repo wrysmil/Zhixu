@@ -194,7 +194,7 @@ export function SubagentExecutionActivity({
           activity.status === "failed" && "text-destructive",
           activity.status === "cancelled" && "text-muted-foreground",
           activity.status === "interrupted" && "text-amber-600/85",
-          active && "text-muted-foreground/75",
+          active && "text-muted-foreground",
         )}
         aria-hidden
       >
@@ -204,14 +204,14 @@ export function SubagentExecutionActivity({
         <span className="block truncate font-medium text-foreground/85">
           {activity.toolName || activity.label}
         </span>
-        <span className="block text-[11px] text-muted-foreground/70">
+        <span className="block text-[11px] text-muted-foreground">
           {activityStatusLabel(activity.status, t)}
         </span>
       </span>
       {duration || hasSummary ? (
         <span className="flex items-center gap-1">
           {duration ? (
-            <span className="text-[11px] tabular-nums text-muted-foreground/65" aria-hidden>
+            <span className="text-[11px] tabular-nums text-muted-foreground" aria-hidden>
               {duration}
             </span>
           ) : null}
@@ -223,7 +223,7 @@ export function SubagentExecutionActivity({
                 defaultValue: "Show parameters and output",
               })}
               onClick={() => setExpanded((current) => !current)}
-              className="grid h-5 w-5 place-items-center rounded-control text-muted-foreground/55 transition-colors hover:bg-accent/40 hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
+              className="grid h-5 w-5 place-items-center rounded-control text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
             >
               <ChevronRight
                 className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-90")}
@@ -244,7 +244,7 @@ export function SubagentExecutionActivity({
             value={activity.output}
           />
           {truncated ? (
-            <p className="text-[10px] text-muted-foreground/60">
+            <p className="text-[10px] text-muted-foreground">
               {t("thread.subagentExecution.truncated", { defaultValue: "Content truncated" })}
             </p>
           ) : null}
@@ -258,7 +258,7 @@ function ActivitySummary({ label, value }: { label: string; value: string | null
   if (!value) return null;
   return (
     <div className="min-w-0">
-      <span className="block text-[10px] text-muted-foreground/60">{label}</span>
+      <span className="block text-[10px] text-muted-foreground">{label}</span>
       <p className="break-words font-mono text-[11px] leading-4 text-foreground/75">{value}</p>
     </div>
   );
@@ -291,7 +291,7 @@ export function SubagentExecutionEntry({ item }: { item: GenericToolRunItem }) {
     return (
       <div data-testid="subagent-execution-unavailable">
         <GenericToolRun items={[item]} />
-        <p className="pl-[1.625rem] text-[11px] text-muted-foreground/65">
+        <p className="pl-[1.625rem] text-[11px] text-muted-foreground">
           {t("thread.subagentExecution.unavailable", { defaultValue: "No execution details" })}
         </p>
       </div>
@@ -341,7 +341,7 @@ export function SubagentExecutionEntry({ item }: { item: GenericToolRunItem }) {
       </span>
       <span className="min-w-0 flex-1 truncate">
         <span className="font-medium text-foreground/90">{agentLabel}</span>
-        <span className="text-muted-foreground/60"> · </span>
+        <span className="text-muted-foreground"> · </span>
         <span className="text-foreground/80">{snapshot.title}</span>
         <span
           className={cn(
@@ -353,7 +353,7 @@ export function SubagentExecutionEntry({ item }: { item: GenericToolRunItem }) {
           {action}
         </span>
         {elapsed ? (
-          <span className="ml-1 tabular-nums text-muted-foreground/55" aria-hidden>· {elapsed}</span>
+          <span className="ml-1 tabular-nums text-muted-foreground" aria-hidden>· {elapsed}</span>
         ) : null}
       </span>
       <ChevronRight

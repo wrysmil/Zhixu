@@ -59,7 +59,7 @@ export function MemoryListView() {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]"><SourceBadge record={memory} /><WorkspaceLabels workspaces={memory.workspaces} />{memory.session_id && <SessionBadge record={memory} />}<span className="text-muted-foreground">{t(`settings.memory.type.${memory.type}`, { defaultValue: memory.type })}</span><span className="text-muted-foreground">{t(`settings.memory.priority.${memory.priority}`, { defaultValue: memory.priority })}</span>{memory.superseded_by && <span className="text-amber-700 dark:text-amber-400">{text("已被替代", "Superseded")}</span>}{memory.expires_at && new Date(memory.expires_at).getTime() < Date.now() && <span className="text-amber-700 dark:text-amber-400">{text("已过期", "Expired")}</span>}</div>
-          <p className="line-clamp-3 whitespace-pre-wrap break-words text-[13px] font-normal leading-6 text-foreground [overflow-wrap:anywhere]">{memory.content}</p>
+          <p className="line-clamp-3 max-w-[68ch] whitespace-pre-wrap break-words text-[13px] font-normal leading-6 text-foreground [overflow-wrap:anywhere]">{memory.content}</p>
         </div>
         <MemoryActions onDetails={() => void details.open(memory)} onEdit={() => setEditing(memory)} onDelete={() => { setMutationError(null); setDeleteCandidate(memory); }} busy={deleting} />
       </div>

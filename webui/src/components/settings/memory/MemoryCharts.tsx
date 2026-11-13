@@ -116,7 +116,7 @@ export function MemoryCharts({ items }: { items: MemoryPayload[] }) {
       className="rounded-panel border border-border/60 bg-settings-surface px-3 py-2"
     >
       <header className="flex flex-wrap items-center gap-2">
-        <h4 className="text-[12px] font-medium text-foreground">{text("记忆概览", "Memory overview")}</h4>
+        <h2 className="text-[12px] font-medium text-foreground">{text("记忆概览", "Memory overview")}</h2>
         <span className="text-[11px] text-muted-foreground">
           {text(`共 ${items.length} 条`, `${items.length} in total`)}
         </span>
@@ -227,7 +227,7 @@ export function MemoryCharts({ items }: { items: MemoryPayload[] }) {
 function Chart({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0 space-y-1">
-      <h5 className="text-[11px] font-medium text-muted-foreground">{title}</h5>
+      <h3 className="text-[11px] font-medium text-muted-foreground">{title}</h3>
       {children}
     </div>
   );

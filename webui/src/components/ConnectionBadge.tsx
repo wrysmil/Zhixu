@@ -41,7 +41,7 @@ export function ConnectionBadge() {
     <span
       className={cn(
         "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
-        "text-muted-foreground/70 hover:bg-sidebar-accent/65",
+        "text-muted-foreground hover:bg-sidebar-accent/65",
         meta.color,
       )}
       aria-live="polite"

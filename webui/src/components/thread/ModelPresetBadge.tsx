@@ -550,7 +550,7 @@ function PresetOption({
           <span className="truncate text-[12px] text-muted-foreground">{detail}</span>
         ) : null}
         {effort ? (
-          <span className="shrink-0 text-[12px] text-muted-foreground/85">{effort}</span>
+          <span className="shrink-0 text-[12px] text-muted-foreground">{effort}</span>
         ) : null}
       </span>
       {selected ? <Check className="h-4 w-4 shrink-0 text-foreground/80" aria-hidden /> : null}
@@ -647,7 +647,7 @@ function PresetPill({
         {needsSetup ? <SetupPromptLabel label={label} /> : label}
       </span>
       {effort ? (
-        <span data-testid="composer-model-effort" className="shrink-0 text-muted-foreground/80">
+        <span data-testid="composer-model-effort" className="shrink-0 text-muted-foreground">
           {effort}
         </span>
       ) : null}
@@ -663,7 +663,7 @@ function SetupPromptLabel({ label }: { label: string }) {
 
   return (
     <span data-testid="composer-model-setup-label">
-      <span className="text-muted-foreground/90 transition-colors duration-150 group-hover:text-muted-foreground motion-reduce:transition-none">
+      <span className="text-muted-foreground transition-colors duration-150 group-hover:text-muted-foreground motion-reduce:transition-none">
         {label.slice(0, separator)}
       </span>
       {" "}
@@ -721,7 +721,7 @@ function PresetProviderIcon({
           {brand.initials.slice(0, 2)}
         </span>
       ) : (
-        <Sparkles className="h-3 w-3 text-muted-foreground/65" />
+        <Sparkles className="h-3 w-3 text-muted-foreground" />
       )}
     </span>
   );

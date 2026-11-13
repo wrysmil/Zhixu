@@ -248,7 +248,7 @@ function TerminalInput({ disabled, theme, onSubmit }: TerminalInputProps) {
           "h-9 min-w-0 flex-1 border-0 bg-transparent p-0 font-mono text-[12px] outline-none disabled:opacity-50",
           dark
             ? "text-[#e6e9ef] placeholder:text-[#7c8798]"
-            : "text-foreground placeholder:text-muted-foreground/65",
+            : "text-foreground placeholder:text-muted-foreground",
         )}
       />
       <button
@@ -481,7 +481,7 @@ export function TerminalSurface({
             />
           </div>
           {record?.cwd ? (
-            <p title={record.cwd} className="mt-0.5 truncate font-mono text-[10px] leading-4 text-muted-foreground/75">{record.cwd}</p>
+            <p title={record.cwd} className="mt-0.5 truncate font-mono text-[10px] leading-4 text-muted-foreground">{record.cwd}</p>
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/40 bg-background/70 p-0.5">
@@ -542,7 +542,7 @@ export function TerminalSurface({
         </p>
       ) : null}
       {!record || record.status === "starting" ? (
-        <p role="status" className="px-3 pt-3 text-[12px] text-muted-foreground/70">
+        <p role="status" className="px-3 pt-3 text-[12px] text-muted-foreground">
           {t("startPanel.terminalStarting", { defaultValue: "Starting terminal…" })}
         </p>
       ) : null}

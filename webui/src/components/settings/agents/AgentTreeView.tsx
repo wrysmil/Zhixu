@@ -48,7 +48,7 @@ function TreeNode({
         style={{ paddingLeft: `${depth * 1.5 + 0.5}rem` }}
       >
         {depth > 0 ? (
-          <span aria-hidden className="text-muted-foreground/60">
+          <span aria-hidden className="text-muted-foreground">
             ↳
           </span>
         ) : null}

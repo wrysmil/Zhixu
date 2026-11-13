@@ -147,7 +147,7 @@ function CodeTextBlock({
         {showLineNumbers ? (
           lines.map((line, index) => (
             <span key={index} className="flex min-w-max">
-              <span className="w-10 shrink-0 select-none pr-4 text-right text-muted-foreground/60">
+              <span className="w-10 shrink-0 select-none pr-4 text-right text-muted-foreground">
                 {index + 1}
               </span>
               <span className="whitespace-pre">{renderText(line || " ")}</span>
@@ -241,7 +241,7 @@ export function CodeBlock({
           onClick={onCopy}
           className={cn(
             "absolute right-2.5 top-2.5 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full",
-            "text-muted-foreground/75 transition-colors hover:bg-background/70 hover:text-foreground",
+            "text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
           )}
           aria-label={copyLabel}

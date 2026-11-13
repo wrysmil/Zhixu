@@ -424,7 +424,7 @@ function unitIndexAfterMessageCount(
 
 function ForkBoundaryDivider({ label }: { label: string }) {
   return (
-    <div className="my-6 flex items-center gap-3 text-[11px] text-muted-foreground/80">
+    <div className="my-6 flex items-center gap-3 text-[11px] text-muted-foreground">
       <span aria-hidden className="h-px flex-1 bg-border/70" />
       <span className="shrink-0">{label}</span>
       <span aria-hidden className="h-px flex-1 bg-border/70" />

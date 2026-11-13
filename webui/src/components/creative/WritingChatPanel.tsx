@@ -367,7 +367,7 @@ export function WritingChatPanel({
               defaultValue: "这篇文章的创作会话暂时不可用。",
             })}
           </p>
-          <p className="text-[10.5px] text-muted-foreground/80">{bindError}</p>
+          <p className="text-[10.5px] text-muted-foreground">{bindError}</p>
           <button
             type="button"
             className="rounded-control border border-border px-2.5 py-1 text-[11.5px] hover:bg-accent"

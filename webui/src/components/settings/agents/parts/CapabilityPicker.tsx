@@ -288,7 +288,7 @@ export function CapabilityPicker({
                               <span className="mt-1 block break-words text-[12px] leading-5 text-muted-foreground">
                                 {item.description}
                               </span>
-                              <code className="mt-1 block break-all text-[10px] text-muted-foreground/70">{item.id}</code>
+                              <code className="mt-1 block break-all text-[10px] text-muted-foreground">{item.id}</code>
                             </span>
                           </button>
                         </li>

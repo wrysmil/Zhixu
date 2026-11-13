@@ -97,10 +97,10 @@ export function ActivityStep({
           <span
             className={cn(
               "grid h-4 w-4 place-items-center rounded-full border bg-background transition-colors",
-              tone === "active" && "border-muted-foreground/28 text-muted-foreground/72",
+              tone === "active" && "border-muted-foreground/28 text-muted-foreground",
               tone === "success" && "border-emerald-500/28 text-emerald-500/78",
               tone === "error" && "border-transparent bg-transparent text-destructive",
-              tone === "neutral" && "border-muted-foreground/18 text-muted-foreground/50",
+              tone === "neutral" && "border-muted-foreground/18 text-muted-foreground",
               markerClassName,
             )}
           >

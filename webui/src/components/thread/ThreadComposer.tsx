@@ -2597,7 +2597,7 @@ export function ThreadComposer({
             aria-label={inputAriaLabel ?? t("thread.composer.inputAria")}
             className={cn(
               inputTextClasses,
-              "relative z-10 caret-foreground placeholder:text-muted-foreground/70",
+              "relative z-10 caret-foreground placeholder:text-muted-foreground",
               "focus:outline-none focus-visible:outline-none",
               "disabled:cursor-not-allowed",
               hasMentionDecorations && "text-transparent selection:bg-primary/20",
@@ -3111,7 +3111,7 @@ function CliAppMentionPalette({
       <div ref={listRef} className="overflow-y-auto" style={{ maxHeight: listMaxHeight }}>
         {groupedCandidates.map((group) => (
           <div key={group.kind} role="group" aria-label={group.label} className="mt-1.5 first:mt-0">
-            <div className="px-2 pb-1 pt-1 text-[12px] font-medium text-muted-foreground/72">
+            <div className="px-2 pb-1 pt-1 text-[12px] font-medium text-muted-foreground">
               {group.label}
             </div>
             {group.items.map(({ candidate, index }) => {
@@ -3168,7 +3168,7 @@ function CliAppMentionPalette({
                     <span className="min-w-0 truncate text-[15px] font-medium tracking-normal text-foreground">
                       {candidate.displayName}
                     </span>
-                    <span className="truncate text-[15px] font-normal tracking-normal text-muted-foreground/72">
+                    <span className="truncate text-[15px] font-normal tracking-normal text-muted-foreground">
                       @{name}
                     </span>
                   </span>
@@ -3359,7 +3359,7 @@ function SlashCommandPalette({
                     </span>
                   ) : null}
                   {!isSkill ? (
-                    <span className="font-mono text-[12px] text-muted-foreground/60">
+                    <span className="font-mono text-[12px] text-muted-foreground">
                       {command.argHint ? `${command.command} ${command.argHint}` : command.command}
                     </span>
                   ) : null}
@@ -3458,7 +3458,7 @@ function AttachmentChip({
         aria-label={labelRemove}
         className={cn(
           "ml-1 grid h-5 w-5 flex-none place-items-center rounded-full",
-          "text-muted-foreground/80 hover:bg-foreground/8 hover:text-foreground",
+          "text-muted-foreground hover:bg-foreground/8 hover:text-foreground",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30",
         )}
       >

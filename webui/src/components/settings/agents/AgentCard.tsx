@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { Brain, FolderTree, Sparkles } from "lucide-react";
+import { Brain, FolderTree, Sparkles, Star } from "lucide-react";
 
-import { Badge, DefaultMainAgentBadge } from "@/components/settings/agents/shared";
 import { RowMenu } from "@/components/settings/agents/AgentRow";
 import { AgentGlyph } from "@/components/ui/agent-glyph";
 import {
@@ -18,7 +17,7 @@ import { cn } from "@/lib/utils";
 function Stat({ icon, value }: { icon: React.ReactNode; value: string }) {
   return (
     <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-      <span aria-hidden className="text-muted-foreground/70">
+      <span aria-hidden className="text-muted-foreground">
         {icon}
       </span>
       <span className="truncate">{value}</span>
@@ -112,16 +111,23 @@ export function AgentCard({
         </div>
       </div>
 
-      <div className="mt-2.5 flex flex-wrap items-center gap-1">
-        {isDefault ? <DefaultMainAgentBadge /> : null}
-        {agent.type === "system" ? (
-          <Badge tone="info">{t("settings.agents.basics.systemPreset", "系统预设")}</Badge>
-        ) : null}
-        {categoryKey ? (
-          <span className="text-[11px] text-muted-foreground">
-            {t(categoryKey, agent.categoryId ?? "")}
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-medium text-muted-foreground">
+        {isDefault ? (
+          <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300">
+            <Star className="h-3 w-3 fill-current" aria-hidden />
+            {t("settings.agents.basics.defaultMainAgent", "Default agent")}
           </span>
         ) : null}
+        {isDefault && (agent.type === "system" || categoryKey) ? (
+          <span aria-hidden className="text-border">·</span>
+        ) : null}
+        {agent.type === "system" ? (
+          <span>{t("settings.agents.basics.systemPreset", "系统预设")}</span>
+        ) : null}
+        {agent.type === "system" && categoryKey ? (
+          <span aria-hidden className="text-border">·</span>
+        ) : null}
+        {categoryKey ? <span>{t(categoryKey, agent.categoryId ?? "")}</span> : null}
       </div>
 
       <p className="mt-2 line-clamp-2 min-h-[2.25rem] text-[12px] leading-relaxed text-muted-foreground">
@@ -134,7 +140,7 @@ export function AgentCard({
         <Stat icon={<FolderTree className="h-3 w-3" />} value={subAgentText} />
       </div>
 
-      <p className="mt-1.5 truncate text-[11px] text-muted-foreground/85">
+      <p className="mt-1.5 truncate text-[11px] text-muted-foreground">
         {modelLabel ?? t("settings.agents.card.modelAuto", "跟随全局模型")}
       </p>
     </div>

@@ -70,7 +70,7 @@ export function SessionInfoPopover({ sessionKey, token, title }: SessionInfoPopo
           size="icon"
           aria-label={t("thread.header.sessionInfo")}
           className={cn(
-            "host-no-drag h-8 w-8 rounded-full text-muted-foreground/85",
+            "host-no-drag h-8 w-8 rounded-full text-muted-foreground",
             "hover:bg-accent/40 hover:text-foreground",
           )}
         >
@@ -84,7 +84,7 @@ export function SessionInfoPopover({ sessionKey, token, title }: SessionInfoPopo
       >
         <div className="space-y-3 px-4 py-3.5">
           <div className="min-w-0">
-            <div className="text-[12px] font-normal text-muted-foreground/75">
+            <div className="text-[12px] font-normal text-muted-foreground">
               {t("thread.sessionInfo.title")}
             </div>
             <div className="mt-0.5 truncate text-[14px] font-medium text-foreground">
@@ -96,7 +96,7 @@ export function SessionInfoPopover({ sessionKey, token, title }: SessionInfoPopo
 
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
-              <CalendarClock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+              <CalendarClock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               <span className="truncate text-[13px] font-medium text-foreground">
                 {t("thread.sessionInfo.automations")}
               </span>
@@ -139,7 +139,7 @@ function AutomationRow({ job, now }: { job: SessionAutomationJob; now: number })
           <div className="mt-1 line-clamp-2 text-[12px] leading-snug text-muted-foreground">
             {job.payload.message}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-muted-foreground/80">
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-muted-foreground">
             <span>{schedule}</span>
             <span aria-hidden>·</span>
             <span title={nextRun.title}>{nextRun.label}</span>

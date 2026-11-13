@@ -13,9 +13,9 @@ export function MemoryGuide(props: { preview?: boolean }) {
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
           {t("settings.memory.guide.eyebrow")}
         </p>
-        <h3 className="text-[18px] font-semibold leading-snug tracking-[-0.01em] text-foreground">
+        <h2 className="text-[18px] font-semibold leading-snug tracking-[-0.01em] text-foreground">
           {t("settings.memory.pageEyebrow")}
-        </h3>
+        </h2>
         <p className="mt-2 max-w-[50ch] text-[13px] leading-6 text-muted-foreground">
           {t("settings.memory.pageSubtitle")}
         </p>

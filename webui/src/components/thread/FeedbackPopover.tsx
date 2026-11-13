@@ -65,7 +65,7 @@ export function FeedbackPopover({ open, onOpenChange, onSubmit }: FeedbackPopove
             placeholder={t("plusMenu.feedbackPlaceholder")}
             className={cn(
               "mt-2 w-full resize-none rounded-lg border border-border/70 bg-background px-2.5 py-2",
-              "text-[13px] text-foreground placeholder:text-muted-foreground/70",
+              "text-[13px] text-foreground placeholder:text-muted-foreground",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
             )}
           />

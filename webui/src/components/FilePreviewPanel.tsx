@@ -170,7 +170,7 @@ export function FilePreviewPanel({
             >
               {hasCompactPrefix ? (
                 <>
-                  <span className="shrink-0 text-muted-foreground/55">...</span>
+                  <span className="shrink-0 text-muted-foreground">...</span>
                   <ChevronRight
                     className="mx-1 h-3.5 w-3.5 shrink-0 text-muted-foreground/35"
                     aria-hidden
@@ -178,7 +178,7 @@ export function FilePreviewPanel({
                 </>
               ) : hasRootPrefix ? (
                 <>
-                  <span className="shrink-0 text-muted-foreground/55">/</span>
+                  <span className="shrink-0 text-muted-foreground">/</span>
                   <ChevronRight
                     className="mx-1 h-3.5 w-3.5 shrink-0 text-muted-foreground/35"
                     aria-hidden
@@ -203,7 +203,7 @@ export function FilePreviewPanel({
                         "min-w-0 truncate rounded-mark px-1 py-0.5",
                         isLast
                           ? "font-medium text-foreground"
-                          : "max-w-[26vw] shrink text-muted-foreground/78",
+                          : "max-w-[26vw] shrink text-muted-foreground",
                       )}
                       data-testid={isLast ? "file-preview-title" : undefined}
                     >
@@ -288,7 +288,7 @@ export function FilePreviewPanel({
               <div className="flex flex-1 items-center justify-center px-8 text-center text-sm text-muted-foreground">
                 <div className="max-w-sm">
                   <AlertCircle
-                    className="mx-auto mb-3 h-5 w-5 text-muted-foreground/70"
+                    className="mx-auto mb-3 h-5 w-5 text-muted-foreground"
                     aria-hidden
                   />
                   <p>{errorMessage}</p>

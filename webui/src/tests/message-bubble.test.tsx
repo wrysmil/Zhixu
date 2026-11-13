@@ -508,7 +508,7 @@ describe("MessageBubble", () => {
       "cursor-help",
       "text-[11px]",
       "leading-none",
-      "text-muted-foreground/70",
+      "text-muted-foreground",
       "tabular-nums",
     );
 
@@ -624,7 +624,7 @@ describe("MessageBubble", () => {
     expect(trigger).toHaveClass(
       "text-[11px]",
       "leading-none",
-      "text-muted-foreground/70",
+      "text-muted-foreground",
       "tabular-nums",
     );
     expect(trigger.className).not.toMatch(/(?:^|\s)(?:border|bg-)/);

@@ -501,7 +501,7 @@ function MarketplaceSkillRow({
   return (
     <div className="group flex min-w-0 items-center gap-2 px-1 py-3.5 sm:gap-3 sm:px-2">
       {skill.rank ? (
-        <span className="w-6 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground/65 sm:w-7 sm:text-[12px]">
+        <span className="w-6 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground sm:w-7 sm:text-[12px]">
           #{skill.rank}
         </span>
       ) : null}
@@ -626,7 +626,7 @@ function TrendSparkline({ values }: { values?: number[] }) {
   }
   if (values.length < 2) {
     return (
-      <span className="hidden w-24 shrink-0 text-center text-[11px] text-muted-foreground/60 sm:block">
+      <span className="hidden w-24 shrink-0 text-center text-[11px] text-muted-foreground sm:block">
         {t("settings.skills.marketplaceNoTrend", { defaultValue: "No trend yet" })}
       </span>
     );

@@ -475,11 +475,11 @@ function MenuSection({
 }) {
   return (
     <div className="pb-1 last:pb-0">
-      <div className="px-2 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/70">
+      <div className="px-2 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </div>
       {empty ? (
-        <div className="px-2 py-1 text-[12px] text-muted-foreground/65">
+        <div className="px-2 py-1 text-[12px] text-muted-foreground">
           {emptyLabel}
         </div>
       ) : (

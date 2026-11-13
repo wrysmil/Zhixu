@@ -37,7 +37,7 @@ export function MemoryPage({
 
   return (
     <div className="assistant-page">
-      <h1 className="assistant-page-kicker mb-2">
+      <h1 className="assistant-page-heading mb-2">
         {t("settings.memory.pageEyebrow", { defaultValue: "Memory center" })}
       </h1>
       <p className="mb-4 text-sm text-muted-foreground">{t("settings.memory.pageSubtitle")}</p>

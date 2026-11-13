@@ -94,11 +94,11 @@ export function WorkspaceHome({
               })}
               className={cn(
                 "w-full resize-none rounded-control border-0 bg-transparent text-[15px] text-foreground",
-                "placeholder:text-muted-foreground/70 focus:outline-none",
+                "placeholder:text-muted-foreground focus:outline-none",
               )}
             />
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground/80">
+              <span className="text-xs text-muted-foreground">
                 {preview
                   ? t("workspace.home.previewHint", {
                       defaultValue: "界面预览：不会真正发送",
@@ -146,7 +146,7 @@ export function WorkspaceHome({
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                     {t(link.labelKey, { defaultValue: link.defaultLabel })}
                   </span>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
+                  <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 </button>
               );
             })}

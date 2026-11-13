@@ -117,7 +117,7 @@ export function PreviewMemory() {
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] leading-4 text-muted-foreground">
                     <span className="rounded bg-primary/[0.07] px-1.5 py-0.5 font-medium text-primary">{CATEGORY_LABELS[memory.category]}</span>
                     {memory.tags.map((tag) => <span key={tag}>{tag}</span>)}
-                    <span className="ml-auto text-muted-foreground/75">示例</span>
+                    <span className="ml-auto text-muted-foreground">示例</span>
                   </div>
                 </div>
               </li>
@@ -127,7 +127,7 @@ export function PreviewMemory() {
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium leading-6 text-foreground">{episode.content}</p>
                   <p className="mt-1 text-[12px] leading-5 text-muted-foreground">{episode.detail}</p>
-                  <p className="mt-2 text-[10px] text-muted-foreground/75">{episode.date}</p>
+                  <p className="mt-2 text-[10px] text-muted-foreground">{episode.date}</p>
                 </div>
               </li>
             ))}

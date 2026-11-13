@@ -109,7 +109,7 @@ export function WorkspaceFileTree({
     const state = nodes[nodeKey];
     if (!state || state.status === "loading") {
       return (
-        <p className="py-1 text-[12px] text-muted-foreground/60">
+        <p className="py-1 text-[12px] text-muted-foreground">
           {t("workbench.treeLoading", { defaultValue: "Loading…" })}
         </p>
       );
@@ -129,13 +129,13 @@ export function WorkspaceFileTree({
     if (!state.entries.length) {
       if (nodeKey === ROOT_KEY) {
         return (
-          <p className="py-1 text-[12px] text-muted-foreground/60">
+          <p className="py-1 text-[12px] text-muted-foreground">
             {t("workbench.treeEmpty", { defaultValue: "This workspace is empty" })}
           </p>
         );
       }
       return (
-        <p className="py-0.5 text-[11.5px] text-muted-foreground/50">
+        <p className="py-0.5 text-[11.5px] text-muted-foreground">
           {t("workbench.treeEmptyFolder", { defaultValue: "Empty" })}
         </p>
       );
@@ -197,7 +197,7 @@ export function WorkspaceFileTree({
           </li>
         ))}
         {state.truncated ? (
-          <li className="px-1 py-1 text-[11.5px] text-muted-foreground/60">
+          <li className="px-1 py-1 text-[11.5px] text-muted-foreground">
             {t("workbench.treeTruncated", { defaultValue: "Showing the first items only" })}
           </li>
         ) : null}

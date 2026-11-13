@@ -40,7 +40,7 @@ export function WebActivityRow({
         >
           <span className="min-w-0 truncate font-medium">{title}</span>
           <span
-            className="max-w-[9rem] shrink truncate rounded-full bg-muted/65 px-2 py-0.5 font-mono text-[10px] leading-4 text-muted-foreground/72 sm:max-w-[18rem]"
+            className="max-w-[9rem] shrink truncate rounded-full bg-muted/65 px-2 py-0.5 font-mono text-[10px] leading-4 text-muted-foreground sm:max-w-[18rem]"
             data-testid="activity-web-url"
           >
             {displayUrl}
@@ -57,7 +57,7 @@ function WebFavicon({ host, active }: { host: string; active: boolean }) {
   const { logoUrl, onLogoError, onLogoLoad } = useLogoFallback(candidates);
 
   if (!logoUrl) {
-    return <Globe2 className="h-4 w-4 shrink-0 text-muted-foreground/52" aria-hidden />;
+    return <Globe2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />;
   }
 
   return (

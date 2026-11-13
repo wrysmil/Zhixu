@@ -124,7 +124,7 @@ export function SettingsSidebar({
 
       <div className="relative mb-4 hidden px-1 lg:block">
         <Search
-          className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70"
+          className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
           aria-hidden
         />
         <input
@@ -133,7 +133,7 @@ export function SettingsSidebar({
           onChange={(event) => setQuery(event.target.value)}
           placeholder={zh ? "搜索设置" : "Search settings"}
           aria-label={zh ? "搜索设置" : "Search settings"}
-          className="h-9 w-full rounded-control border border-border/60 bg-muted/30 pl-9 pr-3 text-[12.5px] text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-ring/50 focus:bg-background"
+          className="h-9 w-full rounded-control border border-border/60 bg-muted/30 pl-9 pr-3 text-[12.5px] text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring/50 focus:bg-background"
         />
       </div>
 
@@ -189,7 +189,7 @@ export function SettingsSidebar({
         >
           {navGroups.map((group) => (
             <div key={group.id} className="mb-3 last:mb-0">
-              <p className="px-2.5 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground/70">
+              <p className="px-2.5 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground">
                 {zh ? group.zh : group.en}
               </p>
               <div className="space-y-0.5">
@@ -207,7 +207,7 @@ export function SettingsSidebar({
                         SIDEBAR_SELECTION_ITEM_CLASS,
                         active
                           ? "text-sidebar-accent-foreground"
-                          : "text-muted-foreground/78 hover:bg-muted/45 hover:text-foreground",
+                          : "text-muted-foreground hover:bg-muted/45 hover:text-foreground",
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />

@@ -113,7 +113,7 @@ export function ArticleList({
             <span className="h-1.5 w-1.5 rounded-full bg-accent-foreground" aria-hidden />
             {t("creative.title")}
             {preview ? (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                 {t("creative.sample_label")}
               </span>
             ) : null}
@@ -154,7 +154,7 @@ export function ArticleList({
               aria-invalid={!!createError}
               aria-describedby={cn("new-article-title-hint", createError && "create-article-error")}
               placeholder={t("creative.new_placeholder")}
-              className="h-11 min-w-0 flex-1 bg-background/50 px-3.5 text-[13px] placeholder:text-muted-foreground/75" />
+              className="h-11 min-w-0 flex-1 bg-background/50 px-3.5 text-[13px] placeholder:text-muted-foreground" />
             <Button type="submit" disabled={submitting}
               className="h-11 shrink-0 cursor-pointer gap-3 rounded-control px-5 text-xs">
               {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> : null}
@@ -186,22 +186,22 @@ export function ArticleList({
                   aria-pressed={selected} disabled={submitting}
                   onClick={() => { setSelectedTemplate(selected ? undefined : template.id); titleRef.current?.focus(); }}
                   className={cn(
-                    "group flex min-w-0 cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-left transition-colors duration-150 motion-reduce:transition-none disabled:cursor-wait disabled:opacity-60",
+                    "group flex min-w-0 cursor-pointer items-start gap-2.5 rounded-lg p-3 text-left transition-colors duration-150 motion-reduce:transition-none disabled:cursor-wait disabled:opacity-60",
                     FOCUS_STYLE,
-                    selected ? "border-accent-foreground/45 bg-accent/65" : "border-border/75 bg-card/70 hover:border-accent-foreground/35 hover:bg-card",
+                    selected ? "bg-accent/70" : "bg-card/60 hover:bg-card",
                   )}>
                   <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md", selected ? "bg-card/75" : "bg-accent/55")}>
                     {selected ? <Check className="h-3.5 w-3.5 text-accent-foreground" aria-hidden /> : <Icon className="h-4 w-4 text-accent-foreground" strokeWidth={1.6} aria-hidden />}
                   </span>
                   <span className="min-w-0 pt-0.5">
                     <span className="block text-[11px] font-semibold leading-5 text-foreground sm:text-xs">{t(template.nameKey)}</span>
-                    <span className="mt-0.5 block text-[10px] leading-[1.6] text-muted-foreground">{t(template.descKey)}</span>
+                    <span className="mt-0.5 block text-[11px] leading-[1.6] text-muted-foreground">{t(template.descKey)}</span>
                   </span>
                 </button>
               );
             })}
           </div>
-          <p className="mt-2.5 text-[10px] leading-5 text-muted-foreground">{t("creative.template_hint")}</p>
+          <p className="mt-2.5 text-[11px] leading-5 text-muted-foreground">{t("creative.template_hint")}</p>
         </section>
       </form>
 
@@ -212,7 +212,7 @@ export function ArticleList({
               <h2 id="creative-library-heading" className="text-[15px] font-semibold">
                 {t("creative.library_heading")}
               </h2>
-              <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{totalCount}</span>
+              <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">{totalCount}</span>
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">{t("creative.library_hint")}</p>
           </div>
@@ -307,7 +307,7 @@ export function ArticleList({
                     {statusTag(article.status)}
                     <time dateTime={article.updatedAt}
                       title={fmtDateTime(article.updatedAt, i18n.resolvedLanguage) || article.updatedAt}
-                      className="min-w-0 truncate text-[10px] text-muted-foreground">
+                      className="min-w-0 truncate text-[11px] text-muted-foreground">
                       {relativeTime(article.updatedAt, i18n.resolvedLanguage) || article.updatedAt}
                     </time>
                   </div>
@@ -334,10 +334,10 @@ export function ArticleList({
                       className={cn("flex h-8 w-8 cursor-pointer items-center justify-center rounded-control text-muted-foreground hover:bg-destructive/10 hover:text-destructive", FOCUS_STYLE)}>
                       <Trash2 className="h-3.5 w-3.5" aria-hidden />
                     </button>
-                    <span className="ml-1 text-[10px] text-muted-foreground">
+                    <span className="ml-1 text-[11px] text-muted-foreground">
                       {t("creative.revision_label", { revision: article.revision })}
                     </span>
-                    {preview ? <span className="ml-1 text-[10px] text-muted-foreground">{t("creative.sample_label")}</span> : null}
+                    {preview ? <span className="ml-1 text-[11px] text-muted-foreground">{t("creative.sample_label")}</span> : null}
                   </div>
                   <button type="button" aria-label={t("creative.edit_article")}
                     onClick={() => onOpen(article.id)}

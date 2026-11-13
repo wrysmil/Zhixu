@@ -94,7 +94,7 @@ export function FileReferenceChip({
               >
                 {display === "path" && directory ? (
                   <>
-                    <span className="text-muted-foreground/65">{directory}</span>
+                    <span className="text-muted-foreground">{directory}</span>
                     <span className="font-semibold text-sky-700 dark:text-sky-200">{name}</span>
                   </>
                 ) : (

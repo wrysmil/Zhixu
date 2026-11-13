@@ -109,7 +109,7 @@ function DockFilePreview({
                 onClick={saver.revert}
                 aria-label={t("filePreview.cancel", { defaultValue: "Cancel editing" })}
                 title={t("filePreview.cancel", { defaultValue: "Cancel editing" })}
-                className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
+                className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground"
               >
                 <Undo2 className="h-3.5 w-3.5" aria-hidden />
               </button>
@@ -121,7 +121,7 @@ function DockFilePreview({
               disabled={saver.saving || !saver.dirty}
               aria-label={t("filePreview.save", { defaultValue: "Save file" })}
               title={`${t("filePreview.save", { defaultValue: "Save file" })} (Ctrl+S)`}
-              className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground disabled:opacity-35"
+              className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-35"
             >
               {saver.saving ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -135,7 +135,7 @@ function DockFilePreview({
           type="button"
           onClick={onClose}
           aria-label={t("filePreview.close", { defaultValue: "Close file preview" })}
-          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground"
+          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" aria-hidden />
         </button>
@@ -151,7 +151,7 @@ function DockFilePreview({
       ) : null}
       <div className="flex min-h-0 flex-1 flex-col">
         {state.status === "loading" ? (
-          <p className="py-1 text-[12px] text-muted-foreground/60">
+          <p className="py-1 text-[12px] text-muted-foreground">
             {t("filePreview.loading", { defaultValue: "Loading preview..." })}
           </p>
         ) : state.status === "error" ? (
@@ -255,7 +255,7 @@ export function DockFileTab({
 
   const toolButton = (active = false) =>
     cn(
-      "grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground/75 hover:bg-muted/60 hover:text-foreground",
+      "grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground",
       active && "bg-muted/70 text-foreground",
     );
 
@@ -335,7 +335,7 @@ export function DockFileTab({
           ) : (
             <p
               data-testid="dock-file-preview-empty"
-              className="px-1 py-1 text-[12px] text-muted-foreground/60"
+              className="px-1 py-1 text-[12px] text-muted-foreground"
             >
               {t("filePreview.pickFile", {
                 defaultValue: "Pick a file to preview it here.",
@@ -389,7 +389,7 @@ export function DockFileTab({
     if (!homeAnchored) return renderTree();
     if (filesState === "loading" || filesState === "idle") {
       return (
-        <p className="py-1 text-[12px] text-muted-foreground/60">
+        <p className="py-1 text-[12px] text-muted-foreground">
           {t("workbench.treeLoading", { defaultValue: "Loading…" })}
         </p>
       );

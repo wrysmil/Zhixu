@@ -137,7 +137,7 @@ function ThemeButton({
       aria-label={label}
       onClick={onToggleTheme}
       className={cn(
-        "host-no-drag h-8 w-8 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground",
+        "host-no-drag h-8 w-8 rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground",
         className,
       )}
     >

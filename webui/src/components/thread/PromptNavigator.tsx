@@ -53,7 +53,7 @@ export function PromptNavigator({
         variant="ghost"
         size="icon"
         className={cn(
-          "host-no-drag h-8 w-8 rounded-full text-muted-foreground/80",
+          "host-no-drag h-8 w-8 rounded-full text-muted-foreground",
           "hover:bg-accent/40 hover:text-foreground",
         )}
         aria-label={t("thread.promptNavigator.open")}
@@ -142,7 +142,7 @@ function PromptNavigatorRow({
         {prompt.preview}
       </div>
       {timestamp ? (
-        <div className="mt-1 text-[10px] leading-4 text-muted-foreground/75">
+        <div className="mt-1 text-[10px] leading-4 text-muted-foreground">
           {timestamp}
         </div>
       ) : null}

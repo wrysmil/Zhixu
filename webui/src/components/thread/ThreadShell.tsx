@@ -1944,7 +1944,7 @@ export function ThreadShell({
       aria-label={compactWorkbench ? t("workbench.title", { defaultValue: "Workbench" }) : t("workbench.tools", { defaultValue: "Tools sidebar" })}
       aria-pressed={compactWorkbench ? mobileWorkbenchOpen : toolsOpen}
       onClick={compactWorkbench ? () => setMobileWorkbenchOpen((open) => !open) : toggleToolsSurface}
-      className={`host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground/85 hover:bg-accent/40 hover:text-foreground ${
+      className={`host-no-drag h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground ${
         toolsOpen ? "bg-accent/40 text-foreground" : ""
       }`}
     >
