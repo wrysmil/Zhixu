@@ -10,7 +10,6 @@ import {
   Network,
   Plus,
   RefreshCcw,
-  Search,
   SlidersHorizontal,
   Trash2,
   Wrench,
@@ -24,8 +23,8 @@ import { EmptyState } from "@/components/workspace/EmptyState";
 import { KnowledgeLibraryList } from "./knowledge/KnowledgeLibraryList";
 import { KnowledgeDocumentTable } from "./knowledge/KnowledgeDocumentTable";
 import { KnowledgeDocumentDialog } from "./knowledge/KnowledgeDocumentDialog";
+import { KnowledgeRetrievalBar } from "./knowledge/KnowledgeRetrievalBar";
 import { KnowledgeImportSheet} from "./knowledge/KnowledgeImportSheet";
-import { KnowledgeCitation } from "./knowledge/KnowledgeCitation";
 import { KnowledgeSettingsPanel } from "./knowledge/KnowledgeSettingsPanel";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -44,12 +43,9 @@ import {
   reindexKnowledgeDoc,
   reindexKnowledgeKb,
   repairKnowledge,
-  searchKnowledge,
   type KnowledgeChunk,
   type KnowledgeDoc,
   type KnowledgeKb,
-  type KnowledgeSearchMode,
-  type KnowledgeSearchResult,
   type KnowledgeStats,
   type KnowledgeVisibility,
 } from "@/lib/api";
@@ -68,8 +64,6 @@ const UPLOAD_MIME_BY_SUFFIX: Record<string, string> = {
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
 const CHUNK_PREVIEW_PAGE_SIZE = 10;
-const SEARCH_LIMITS = [5, 8, 12, 20];
-const SEARCH_MODES: KnowledgeSearchMode[] = ["hybrid", "semantic", "keyword"];
 
 // 图谱 tab 独立 chunk：图关闭时 d3-force 不进首屏包。
 const KnowledgeGraphPanel = lazy(() =>
@@ -131,7 +125,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [docTotal, setDocTotal] = useState(0);
   const docsViewRef = useRef<object | null>(null);
   const docsSeq = useRef(0);
-  const searchSeq = useRef(0);
   const mutationLock = useRef(false);
   const createLock = useRef(false);
   const repairLock = useRef(false);
@@ -143,7 +136,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [kbs, setKbs] = useState<KnowledgeKb[]>([]);
   const [activeKbId, setActiveKbId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState<"documents" | "search" | "graph" | "settings">(
+  const [detailTab, setDetailTab] = useState<"documents" | "graph" | "settings">(
     "documents",
   );
   const [kbsLoading, setKbsLoading] = useState(true);
@@ -175,13 +168,11 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const previewSeq = useRef(0);
-
-  const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<KnowledgeSearchMode>("hybrid");
-  const [limit, setLimit] = useState(8);
-  const [searching, setSearching] = useState(false);
-  const [searchResult, setSearchResult] = useState<KnowledgeSearchResult | null>(null);
-  const [searchError, setSearchError] = useState<string | null>(null);
+  // 切换库/删除/重建后让检索页重新挂载，丢掉旧的查询、画布与历史游标。
+  const [searchEpoch, setSearchEpoch] = useState(0);
+  const clearSearch = useCallback(() => {
+    setSearchEpoch((value) => value + 1);
+  }, []);
 
   const [repairOpen, setRepairOpen] = useState(false);
   const [repairFts, setRepairFts] = useState(true);
@@ -224,12 +215,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     void loadStats();
   }, [loadKbs, loadStats]);
 
-  /** 命中结果要把 docId 翻译成文档标题，引用卡才读得出「引用了哪篇」。 */
-  const docsById = useMemo(() => {
-    const map = new Map<string, KnowledgeDoc>();
-    for (const doc of docs) map.set(doc.id, doc);
-    return map;
-  }, [docs]);
   const docsView = useMemo(() => ({}), [activeKbId, detailOpen, docOffset, scope, token]);
   const loadDocs = useCallback(async () => {
     if (docsViewRef.current !== docsView) return;
@@ -292,13 +277,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     },
     [],
   );
-
-  const clearSearch = useCallback(() => {
-    searchSeq.current += 1;
-    setSearching(false);
-    setSearchResult(null);
-    setSearchError(null);
-  }, []);
 
   const onCreateKb = useCallback(async () => {
     const name = newName.trim();
@@ -487,31 +465,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     serverPath,
   ]);
 
-  const onSearch = useCallback(async () => {
-    const text = query.trim();
-    if (!text) return;
-    if (searching) return;
-    const seq = ++searchSeq.current;
-    setSearching(true);
-    setSearchError(null);
-    try {
-      const result = await searchKnowledge(token, {
-        query: text,
-        mode,
-        limit,
-        kbIds: activeKbId ? [activeKbId] : undefined,
-        workspaceIds: scope,
-      });
-      if (seq === searchSeq.current) setSearchResult(result);
-    } catch (reason: unknown) {
-      if (seq !== searchSeq.current) return;
-      setSearchResult(null);
-      setSearchError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      if (seq === searchSeq.current) setSearching(false);
-    }
-  }, [activeKbId, limit, mode, query, scope, token, searching]);
-
   const onRepair = useCallback(async () => {
     if (repairLock.current) return;
     repairLock.current = true;
@@ -584,7 +537,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     rootRef.current?.querySelector<HTMLButtonElement>(`[data-kb-id="${id}"]`)?.focus({ preventScroll: true });
     for (const [element, top] of positions) element.scrollTop = top;
   }, [detailOpen]);
-  useEffect(() => () => { searchSeq.current += 1; previewSeq.current += 1; }, []);
+  useEffect(() => () => { previewSeq.current += 1; }, []);
 
   return (
     <div ref={rootRef} className="knowledge-experience assistant-page flex h-full min-w-0 flex-col" data-testid="knowledge-page">
@@ -675,6 +628,20 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               </div>
             </div>
           </div>
+          {activeKb ? (
+            <KnowledgeRetrievalBar
+              key={`${activeKb.id}-${searchEpoch}`}
+              kb={activeKb}
+              token={token}
+              transport={client}
+              scope={scope}
+              docs={docs}
+              onLocateDoc={(docId) => {
+                const doc = docs.find((item) => item.id === docId);
+                if (doc) void onOpenChunkPreview(doc);
+              }}
+            />
+          ) : null}
           <SegmentedControl
             mode="tabs"
             ariaLabel={t("knowledge.title")}
@@ -688,15 +655,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   <span className="inline-flex items-center gap-1.5">
                     <FileText className="h-3.5 w-3.5" aria-hidden />
                     {t("knowledge.documents")}
-                  </span>
-                ),
-              },
-              {
-                value: "search",
-                label: (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Search className="h-3.5 w-3.5" aria-hidden />
-                    {t("knowledge.searchTitle")}
                   </span>
                 ),
               },
@@ -956,107 +914,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             )}
           </div>
           ) : null}
-          {detailTab === "search" ? (
-          <div className="rounded-panel border border-border/60 bg-background p-4">
-            <h2 className="flex items-center gap-2 pb-3 text-sm font-semibold text-foreground">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Search className="h-3.5 w-3.5" aria-hidden />
-              </span>
-              {t("knowledge.searchTitle")}
-            </h2>
-            <form
-              className="flex flex-col gap-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void onSearch();
-              }}
-            >
-              <label className="flex w-full flex-col gap-1 text-xs font-medium text-muted-foreground">
-                {t("knowledge.query")}
-                <Input
-                  aria-label={t("knowledge.query")}
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t("knowledge.queryPlaceholder")}
-                  className="h-8 text-sm"
-                />
-              </label>
-              <div className="flex items-end gap-2">
-              <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-muted-foreground">
-                {t("knowledge.mode")}
-                <select
-                  aria-label={t("knowledge.mode")}
-                  value={mode}
-                  onChange={(event) => setMode(event.target.value as KnowledgeSearchMode)}
-                  className="h-8 rounded-control border border-input bg-background px-2 text-sm"
-                >
-                  {SEARCH_MODES.map((value) => (
-                    <option key={value} value={value}>
-                      {t(`knowledge.mode${value.charAt(0).toUpperCase()}${value.slice(1)}`)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex w-20 shrink-0 flex-col gap-1 text-xs font-medium text-muted-foreground">
-                {t("knowledge.limit")}
-                <select
-                  aria-label={t("knowledge.limit")}
-                  value={String(limit)}
-                  onChange={(event) => setLimit(Number(event.target.value))}
-                  className="h-8 rounded-control border border-input bg-background px-2 text-sm"
-                >
-                  {SEARCH_LIMITS.map((value) => (
-                    <option key={value} value={String(value)}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={searching || !query.trim()}
-                className="h-8 gap-1.5 rounded-full px-3.5 text-sm font-semibold"
-              >
-                {searching ? (
-                  <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
-                ) : (
-                  <Search className="h-3.5 w-3.5" aria-hidden />
-                )}
-                {t("knowledge.search")}
-              </Button>
-              </div>
-            </form>
-
-            {searchError ? (
-              <div role="alert" className="mt-3 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                {t("knowledge.searchError")}: {searchError}
-              </div>
-            ) : searching ? (
-              <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
-                {t("knowledge.searching")}
-              </p>
-            ) : !searchResult ? (
-              <p className="mt-3 text-sm text-muted-foreground">{t("knowledge.searchIdle")}</p>
-            ) : (
-              <SearchResults
-                result={searchResult}
-                docsById={docsById}
-                onLocate={(docId) => {
-                  const doc = docs.find((item) => item.id === docId);
-                  if (doc) void onOpenChunkPreview(doc);
-                }}
-                emptyLabel={
-                  searchResult.reason
-                    ? t("knowledge.searchFiltered", { reason: searchResult.reason })
-                    : t("knowledge.searchEmpty")
-                }
-              />
-            )}
-          </div>
-          ) : null}
-          {detailTab === "settings" ? (
+                    {detailTab === "settings" ? (
             <KnowledgeSettingsPanel token={token} transport={client} />
           ) : null}
           {detailTab === "graph" && activeKb ? (
@@ -1212,59 +1070,3 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   );
 }
 
-function SearchResults({
-  result,
-  emptyLabel,
-  docsById,
-  onLocate,
-}: {
-  result: KnowledgeSearchResult;
-  emptyLabel: string;
-  docsById?: Map<string, KnowledgeDoc>;
-  onLocate?: (docId: string) => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="mt-3 flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="rounded-full border border-border/70 px-2 py-0.5 font-medium text-foreground">
-          {t("knowledge.modeUsed", { mode: result.modeUsed })}
-        </span>
-        {result.routes.length > 0 ? (
-          <span className="rounded-full border border-border/70 px-2 py-0.5 text-muted-foreground">
-            {t("knowledge.routes", { routes: result.routes.join(", ") })}
-          </span>
-        ) : null}
-        {result.degraded.length > 0 ? (
-          <span className="rounded-full border border-amber-300/70 bg-amber-50 px-2 py-0.5 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100">
-            {t("knowledge.degraded", { reasons: result.degraded.join(", ") })}
-          </span>
-        ) : null}
-        <span className="text-muted-foreground">
-          {t("knowledge.hitCount", { count: result.hits.length })}
-        </span>
-      </div>
-      {result.hits.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{emptyLabel}</p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {result.hits.map((hit, index) => (
-            <KnowledgeCitation
-              key={hit.chunkId}
-              rank={index + 1}
-              docId={hit.docId}
-              chunkId={hit.chunkId}
-              docTitle={docsById?.get(hit.docId)?.title}
-              heading={hit.heading}
-              page={hit.page}
-              locator={hit.locator}
-              content={hit.content}
-              score={hit.score}
-              onLocate={onLocate ? () => onLocate(hit.docId) : undefined}
-            />
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}

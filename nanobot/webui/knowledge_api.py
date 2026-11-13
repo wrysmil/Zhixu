@@ -18,6 +18,7 @@ import base64
 import binascii
 import re
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -29,6 +30,7 @@ from nanobot.config.schema import (
     KnowledgeRetrievalConfig,
 )
 from nanobot.knowledge.preview import KnowledgePreviewError, build_document_preview
+from nanobot.knowledge.trace import SearchTrace
 from nanobot.webui import knowledge_routes as routes
 from nanobot.webui.attachment_ingress import extract_data_url_mime
 from nanobot.webui.knowledge_routes import KnowledgeRouteError
@@ -594,6 +596,8 @@ class KnowledgeApi:
             routes.DOC_DELETE: self._doc_delete,
             routes.DOC_REINDEX: self._doc_reindex,
             routes.REPAIR: self._repair,
+            routes.QUERY_HISTORY: self._query_history,
+            routes.QUERY_HISTORY_CLEAR: self._query_history_clear,
             routes.GRAPH_STATS: self._graph_stats,
             routes.GRAPH_ENTITIES: self._graph_entities,
             routes.GRAPH_ENTITY: self._graph_entity,
@@ -745,20 +749,44 @@ class KnowledgeApi:
             maximum=_MAX_SEARCH_LIMIT,
         )
         kb_ids = self._requested_kb_ids(payload, services)
+        trace_enabled = _optional_bool(payload, "trace", default=False)
+        record = _optional_bool(payload, "record", default=False)
+        trace = (
+            SearchTrace(query=query, mode=mode, limit=limit)
+            if trace_enabled
+            else None
+        )
+        started = time.perf_counter()
         result = services.service.search(
             query,
             workspace_ids=_requested_workspaces(payload, services),
             kb_ids=kb_ids,
             mode=mode,
             limit=limit,
+            trace=trace,
         )
+        duration_ms = int((time.perf_counter() - started) * 1000)
         hits = getattr(result, "hits", ())
-        return {
+        if record:
+            kb_id = _optional_str(payload, "kbId")
+            if kb_id is not None:
+                # kbId 已在 _requested_kb_ids 里做过可见性校验。
+                services.service.record_search_history(
+                    kb_id=kb_id,
+                    workspace_id=services.workspace_id,
+                    query=query,
+                    mode=mode,
+                    limit=limit,
+                    hit_count=len(hits),
+                    duration_ms=duration_ms,
+                )
+        response: dict[str, Any] = {
             "enabled": True,
             "modeUsed": str(getattr(result, "mode_used", mode)),
             "degraded": [str(reason) for reason in getattr(result, "degraded", ())],
             "reason": getattr(result, "reason", None),
             "routes": [str(route) for route in getattr(result, "routes", ())],
+            "durationMs": duration_ms,
             "hits": [
                 {
                     "chunkId": str(getattr(hit, "chunk_id", "")),
@@ -773,6 +801,51 @@ class KnowledgeApi:
                 for hit in hits
             ],
         }
+        trace_payload = getattr(result, "trace", None)
+        if trace_payload is not None:
+            response["trace"] = trace_payload
+        return response
+
+    def _query_history(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        kb_id = _required_str(payload, "kbId", "kbId 不能为空")
+        _require_kb(kb_id, services)
+        limit = _optional_int(
+            payload, "limit", default=20, minimum=1, maximum=100
+        )
+        rows = services.service.list_search_history(
+            kb_id=kb_id,
+            workspace_ids=list(services.workspace_ids),
+            limit=limit,
+        )
+        return {
+            "enabled": True,
+            "items": [
+                {
+                    "id": str(row["id"]),
+                    "kbId": str(row["kb_id"]),
+                    "query": str(row["query"]),
+                    "mode": str(row["mode"]),
+                    "limit": int(row["limit"]),
+                    "hitCount": int(row["hit_count"]),
+                    "durationMs": int(row["duration_ms"]),
+                    "createdAt": str(row["created_at"]),
+                }
+                for row in rows
+            ],
+            "total": len(rows),
+        }
+
+    def _query_history_clear(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        kb_id = _required_str(payload, "kbId", "kbId 不能为空")
+        _require_kb(kb_id, services)
+        removed = services.service.clear_search_history(
+            kb_id=kb_id, workspace_ids=list(services.workspace_ids)
+        )
+        return {"ok": True, "removed": removed}
 
     def _settings_get(
         self, payload: dict[str, Any], services: KnowledgeServices
@@ -1115,6 +1188,8 @@ class KnowledgeApi:
             return {"enabled": False, "chunk": None}
         if action == routes.DOC_CONTENT:
             return {"enabled": False, "kind": "unsupported", "content": ""}
+        if action == routes.QUERY_HISTORY:
+            return {"enabled": False, "items": [], "total": 0}
         if action == routes.SEARCH:
             return {
                 "enabled": False,

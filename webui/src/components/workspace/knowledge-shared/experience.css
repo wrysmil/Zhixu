@@ -251,6 +251,16 @@
   from { transform: translate(0, 0); }
   to { transform: translate(var(--knowledge-sheet-offset-x), var(--knowledge-sheet-offset-y)); }
 }
+
+/* 检索链路节点逐个入场（trace 一次返回，用动画模拟推进节奏）。 */
+.knowledge-trace-node {
+  animation: knowledge-trace-node-in 220ms var(--knowledge-motion-ease) both;
+}
+
+@keyframes knowledge-trace-node-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 @keyframes knowledge-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 640px) {

@@ -715,6 +715,46 @@ class KnowledgeService:
     def count_chunks(self, doc_id: str, *, query: str = "") -> int:
         return self._repo.count_chunks(doc_id, query=query)
 
+    # ---------- 检索预览历史 ----------
+    def record_search_history(
+        self,
+        *,
+        kb_id: str,
+        workspace_id: str,
+        query: str,
+        mode: str,
+        limit: int,
+        hit_count: int,
+        duration_ms: int,
+    ) -> str:
+        return self._repo.record_search_history(
+            kb_id=kb_id,
+            workspace_id=workspace_id,
+            query=query,
+            mode=mode,
+            limit=limit,
+            hit_count=hit_count,
+            duration_ms=duration_ms,
+        )
+
+    def list_search_history(
+        self,
+        *,
+        kb_id: str,
+        workspace_ids: Sequence[str],
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        return self._repo.list_search_history(
+            kb_id=kb_id, workspace_ids=workspace_ids, limit=limit
+        )
+
+    def clear_search_history(
+        self, *, kb_id: str, workspace_ids: Sequence[str]
+    ) -> int:
+        return self._repo.clear_search_history(
+            kb_id=kb_id, workspace_ids=workspace_ids
+        )
+
     # ---------- 入库执行 ----------
     def process_document(self, doc_id: str, attempt: int | None = None) -> None:
         """同步入口（CLI/worker）：`attempt` 已认领时直接处理，否则自行认领。"""
@@ -874,6 +914,7 @@ class KnowledgeService:
         mode: str = "hybrid",
         limit: int | None = None,
         extra_context: Sequence[SearchHit] = (),
+        trace: Any | None = None,
     ) -> SearchResult:
         """检索；`extra_context` 是调用方注入的补充上下文（§9.1 ③ 历史引用）。"""
         return self._retriever.search(
@@ -883,6 +924,7 @@ class KnowledgeService:
             mode=mode,
             limit=limit,
             extra_context=extra_context,
+            trace=trace,
         )
 
     # ---------- 统计 ----------

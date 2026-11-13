@@ -1637,6 +1637,71 @@ export interface KnowledgeSearchResult {
   reason: string | null;
   routes: string[];
   hits: KnowledgeHit[];
+  durationMs?: number;
+  trace?: KnowledgeSearchTrace | null;
+}
+
+export interface KnowledgeTraceHitRow {
+  chunkId: string;
+  docId?: string;
+  score: number;
+}
+
+export interface KnowledgeTraceScoreRow {
+  chunkId: string;
+  before: number | null;
+  after: number;
+  delta: number | null;
+}
+
+export interface KnowledgeTraceStageDetail {
+  tokens?: string[];
+  variants?: string[];
+  entities?: string[];
+  fallback?: boolean;
+  degraded?: string[];
+  labels?: string[];
+  routes?: string[];
+  top?: KnowledgeTraceHitRow[];
+  scores?: KnowledgeTraceScoreRow[];
+  modeUsed?: string;
+  outcome?: string;
+  model?: string;
+  reason?: string;
+  [key: string]: unknown;
+}
+
+export interface KnowledgeTraceStage {
+  kind: string;
+  status: "ok" | "skipped" | "degraded" | "error" | string;
+  durationMs: number;
+  metrics: Record<string, number | string | boolean | null>;
+  detail?: KnowledgeTraceStageDetail;
+}
+
+export interface KnowledgeSearchTrace {
+  query: string;
+  mode: string;
+  limit: number;
+  totalMs: number;
+  stages: KnowledgeTraceStage[];
+}
+
+export interface KnowledgeQueryHistoryItem {
+  id: string;
+  kbId: string;
+  query: string;
+  mode: string;
+  limit: number;
+  hitCount: number;
+  durationMs: number;
+  createdAt: string;
+}
+
+export interface KnowledgeQueryHistoryPayload {
+  enabled: boolean;
+  items: KnowledgeQueryHistoryItem[];
+  total: number;
 }
 
 export interface KnowledgeRetrievalSettings {
@@ -1896,6 +1961,8 @@ export async function searchKnowledge(
     limit?: number;
     kbId?: string;
     kbIds?: string[];
+    trace?: boolean;
+    record?: boolean;
   } & KnowledgeScope,
   base: string = "",
 ): Promise<KnowledgeSearchResult> {
@@ -1905,6 +1972,8 @@ export async function searchKnowledge(
     limit: params.limit,
     kbId: params.kbId,
     kbIds: params.kbIds,
+    trace: params.trace ? "true" : undefined,
+    record: params.record ? "true" : undefined,
     workspaceIds: params.workspaceIds,
   });
   const payload = await request<KnowledgeSearchResult>(
@@ -1920,6 +1989,27 @@ export async function searchKnowledge(
     reason: payload.reason ?? null,
     routes: Array.isArray(payload.routes) ? payload.routes : [],
     hits: Array.isArray(payload.hits) ? payload.hits : [],
+    durationMs: typeof payload.durationMs === "number" ? payload.durationMs : undefined,
+    trace: payload.trace ?? null,
+  };
+}
+
+export async function fetchKnowledgeQueryHistory(
+  token: string,
+  params: { kbId: string; limit?: number },
+  base: string = "",
+): Promise<KnowledgeQueryHistoryPayload> {
+  const query = knowledgeQuery({ kbId: params.kbId, limit: params.limit });
+  const payload = await request<KnowledgeQueryHistoryPayload>(
+    `${base}${KNOWLEDGE_BASE}/query-history${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  return {
+    enabled: payload.enabled !== false,
+    items: Array.isArray(payload.items) ? payload.items : [],
+    total: typeof payload.total === "number" ? payload.total : 0,
   };
 }
 
@@ -2113,6 +2203,17 @@ export async function reindexKnowledgeDoc(
   id: string,
 ): Promise<{ ok: boolean; queued: boolean }> {
   return mutation<{ ok: boolean; queued: boolean }>(transport, "knowledge.doc.reindex", { id });
+}
+
+export async function clearKnowledgeQueryHistory(
+  transport: WebUIMutationTransport,
+  kbId: string,
+): Promise<{ ok: boolean; removed: number }> {
+  return mutation<{ ok: boolean; removed: number }>(
+    transport,
+    "knowledge.query_history.clear",
+    { kbId },
+  );
 }
 
 export interface RepairKnowledgeInput {

@@ -23,6 +23,7 @@ DOC_LIST: Final = "knowledge-doc-list"
 DOC_GET: Final = "knowledge-doc-get"
 CHUNK_GET: Final = "knowledge-chunk-get"
 DOC_CONTENT: Final = "knowledge-doc-content"
+QUERY_HISTORY: Final = "knowledge-query-history"
 SEARCH: Final = "knowledge-search"
 STATS: Final = "knowledge-stats"
 GRAPH_STATS: Final = "knowledge-graph-stats"
@@ -39,6 +40,7 @@ DOC_ADD: Final = "knowledge.doc.add"
 DOC_ADD_FILE: Final = "knowledge.doc.add_file"
 DOC_DELETE: Final = "knowledge.doc.delete"
 DOC_REINDEX: Final = "knowledge.doc.reindex"
+QUERY_HISTORY_CLEAR: Final = "knowledge.query_history.clear"
 REPAIR: Final = "knowledge.repair"
 GRAPH_EXTRACT: Final = "knowledge.graph.extract"
 GRAPH_REBUILD: Final = "knowledge.graph.rebuild"
@@ -50,6 +52,7 @@ READ_ACTIONS: Final = frozenset({
     DOC_GET,
     CHUNK_GET,
     DOC_CONTENT,
+    QUERY_HISTORY,
     SEARCH,
     STATS,
     GRAPH_STATS,
@@ -68,6 +71,7 @@ WRITE_ACTIONS: Final = frozenset({
     DOC_ADD_FILE,
     DOC_DELETE,
     DOC_REINDEX,
+    QUERY_HISTORY_CLEAR,
     REPAIR,
     GRAPH_EXTRACT,
     GRAPH_REBUILD,
@@ -84,6 +88,7 @@ READ_PATHS: Final[dict[str, str]] = {
     "/api/settings/knowledge/doc": DOC_GET,
     "/api/settings/knowledge/chunk": CHUNK_GET,
     "/api/settings/knowledge/doc/content": DOC_CONTENT,
+    "/api/settings/knowledge/query-history": QUERY_HISTORY,
     "/api/settings/knowledge/search": SEARCH,
     "/api/settings/knowledge/stats": STATS,
     "/api/settings/knowledge/graph/stats": GRAPH_STATS,
@@ -102,6 +107,7 @@ WRITE_PATHS: Final[dict[str, str]] = {
     "/api/settings/knowledge/docs/add-file": DOC_ADD_FILE,
     "/api/settings/knowledge/docs/delete": DOC_DELETE,
     "/api/settings/knowledge/docs/reindex": DOC_REINDEX,
+    "/api/settings/knowledge/query-history/clear": QUERY_HISTORY_CLEAR,
     "/api/settings/knowledge/repair": REPAIR,
     "/api/settings/knowledge/graph/extract": GRAPH_EXTRACT,
     "/api/settings/knowledge/graph/rebuild": GRAPH_REBUILD,

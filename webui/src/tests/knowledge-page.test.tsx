@@ -15,6 +15,8 @@ import {
   fetchKnowledgeDocContent,
   fetchKnowledgeDocs,
   fetchKnowledgeKbs,
+  fetchKnowledgeQueryHistory,
+  clearKnowledgeQueryHistory,
   fetchKnowledgeStats,
   reindexKnowledgeDoc,
   reindexKnowledgeKb,
@@ -36,6 +38,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
     fetchKnowledgeDocs: vi.fn(),
     fetchKnowledgeDoc: vi.fn(),
     fetchKnowledgeDocContent: vi.fn(),
+    fetchKnowledgeQueryHistory: vi.fn(),
+    clearKnowledgeQueryHistory: vi.fn(),
     fetchKnowledgeStats: vi.fn(),
     searchKnowledge: vi.fn(),
     createKnowledgeKb: vi.fn(),
@@ -139,8 +143,8 @@ async function openKb(name = "Product manual") {
   await screen.findByRole("tab", { name: "Documents" });
 }
 
-async function openSearchTab() {
-  await userEvent.click(screen.getByRole("tab", { name: "Search preview" }));
+async function openRetrievalBar() {
+  await screen.findByTestId("knowledge-retrieval-bar");
 }
 
 describe("knowledge page", () => {
@@ -148,6 +152,12 @@ describe("knowledge page", () => {
     await i18n.changeLanguage("en");
     requestMutation.mockReset().mockResolvedValue({});
     vi.mocked(fetchKnowledgeKbs).mockReset().mockResolvedValue({ enabled: true, kbs: KBS });
+    vi.mocked(fetchKnowledgeQueryHistory).mockReset().mockResolvedValue({
+      enabled: true,
+      items: [],
+      total: 0,
+    });
+    vi.mocked(clearKnowledgeQueryHistory).mockReset().mockResolvedValue({ ok: true, removed: 0 });
     vi.mocked(fetchKnowledgeDocs).mockReset().mockResolvedValue({
       enabled: true,
       documents: DOCS,
@@ -278,15 +288,16 @@ describe("knowledge page", () => {
     vi.mocked(searchKnowledge).mockImplementationOnce(() => new Promise(resolve => { resolveSearch = resolve; }));
     renderPage();
     await openKb();
-    await openSearchTab();
+    await openRetrievalBar();
     await userEvent.type(screen.getByLabelText("Query"), "rollback");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.backToLibraries") }));
     await openKb("Team notes");
-    await openSearchTab();
+    await openRetrievalBar();
     await act(async () => resolveSearch(HIT_RESULT));
     expect(screen.queryByText("Rollback checklist")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Search" })).toBeEnabled();
+    expect(screen.getByLabelText("Query")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Search" })).toBeDisabled();
   });
 
   it("prevents duplicate uploads and returns to the list after acceptance", async () => {
@@ -551,28 +562,111 @@ describe("knowledge page", () => {
     renderPage();
     await openKb();
     await screen.findByText("Deploy guide");
-    await openSearchTab();
+    await openRetrievalBar();
 
     await userEvent.type(screen.getByLabelText("Query"), "rollback");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByText("Rollback checklist")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "Documents" }));
-    const row = screen.getByText("Deploy guide").closest("tr")!;
+    const row = within(screen.getByRole("table")).getByText("Deploy guide").closest("tr")!;
     await userEvent.click(within(row).getByRole("button", { name: "Delete document" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     await waitFor(() => expect(deleteKnowledgeDoc).toHaveBeenCalledWith(transport, "doc_1"));
     await waitFor(() => expect(fetchKnowledgeKbs).toHaveBeenCalledTimes(2));
-    await openSearchTab();
+    await openRetrievalBar();
     expect(screen.queryByText("Rollback checklist")).not.toBeInTheDocument();
+  });
+
+  it("renders the trace canvas, stage details and history", async () => {
+    const traced: KnowledgeSearchResult = {
+      ...HIT_RESULT,
+      durationMs: 42,
+      trace: {
+        query: "rollback",
+        mode: "semantic",
+        limit: 12,
+        totalMs: 42,
+        stages: [
+          {
+            kind: "query",
+            status: "ok",
+            durationMs: 1,
+            metrics: { tokens: 2, variants: 1 },
+            detail: { tokens: ["rollback"] },
+          },
+          {
+            kind: "rerank",
+            status: "degraded",
+            durationMs: 30,
+            metrics: { candidatesIn: 5, candidatesKept: 1 },
+            detail: {
+              outcome: "model_unavailable",
+              scores: [
+                { chunkId: "chk_1", before: 0.5, after: 0.9, delta: 0.4 },
+              ],
+            },
+          },
+        ],
+      },
+    };
+    vi.mocked(searchKnowledge).mockResolvedValue(traced);
+    vi.mocked(fetchKnowledgeQueryHistory).mockResolvedValue({
+      enabled: true,
+      items: [
+        {
+          id: "qry_1",
+          kbId: "kb_1",
+          query: "旧查询",
+          mode: "hybrid",
+          limit: 8,
+          hitCount: 2,
+          durationMs: 20,
+          createdAt: "2026-11-13T00:00:00+00:00",
+        },
+      ],
+      total: 1,
+    });
+    renderPage();
+    await openKb();
+    await openRetrievalBar();
+    await userEvent.click(screen.getByRole("button", { name: "Search history" }));
+    await screen.findByText("旧查询");
+
+    await userEvent.type(screen.getByLabelText("Query"), "rollback");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    const canvas = await screen.findByTestId("retrieval-trace-canvas");
+    expect(within(canvas).getByText("Query preparation")).toBeInTheDocument();
+    expect(within(canvas).getByText("42ms total")).toBeInTheDocument();
+
+    await userEvent.click(within(canvas).getByRole("button", { name: /Rerank/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Rerank score changes")).toBeInTheDocument();
+    expect(within(dialog).getByText("0.9")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+
+    await userEvent.click(
+      within(canvas).getByRole("button", { name: "Collapse pipeline" }),
+    );
+    expect(within(canvas).queryByText("Query preparation")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Search history" }));
+    await userEvent.click(screen.getByText("旧查询"));
+    await waitFor(() =>
+      expect(searchKnowledge).toHaveBeenLastCalledWith(
+        "tok",
+        expect.objectContaining({ query: "旧查询", mode: "hybrid", limit: 8 }),
+      ),
+    );
   });
 
   it("searches with mode and limit and shows mode, routes, degraded and handles", async () => {
     vi.mocked(searchKnowledge).mockResolvedValue(HIT_RESULT);
     renderPage();
     await openKb();
-    await openSearchTab();
+    await openRetrievalBar();
 
     await userEvent.type(screen.getByLabelText("Query"), "rollback");
     await userEvent.selectOptions(screen.getByLabelText("Mode"), "semantic");
@@ -584,8 +678,10 @@ describe("knowledge page", () => {
         query: "rollback",
         mode: "semantic",
         limit: 12,
-        kbIds: ["kb_1"],
+        kbId: "kb_1",
         workspaceIds: ["ws1"],
+        trace: true,
+        record: true,
       });
     });
 
@@ -603,7 +699,7 @@ describe("knowledge page", () => {
   it("distinguishes empty results from filtered results", async () => {
     renderPage();
     await openKb();
-    await openSearchTab();
+    await openRetrievalBar();
 
     await userEvent.type(screen.getByLabelText("Query"), "nothing");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
@@ -626,7 +722,7 @@ describe("knowledge page", () => {
   it("shows a search failure instead of an empty state", async () => {
     renderPage();
     await openKb();
-    await openSearchTab();
+    await openRetrievalBar();
 
     vi.mocked(searchKnowledge).mockRejectedValueOnce(new Error("gateway down"));
     await userEvent.type(screen.getByLabelText("Query"), "rollback");

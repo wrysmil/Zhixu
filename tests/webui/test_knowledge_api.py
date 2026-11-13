@@ -157,6 +157,7 @@ class FakeService:
         self.kbs = {kb.id: kb for kb in (kbs if kbs is not None else [_kb()])}
         self.documents = documents if documents is not None else [_doc()]
         self.chunks = chunks if chunks is not None else []
+        self.history: list[dict[str, Any]] = []
         self.search_result = search_result
         self.failure = failure
 
@@ -293,6 +294,38 @@ class FakeService:
         if self.search_result is not None:
             return self.search_result
         return SimpleNamespace(hits=(), mode_used="keyword", degraded=(), reason=None, routes=())
+
+    def record_search_history(self, **kwargs: Any) -> str:
+        self.calls.append(("record_search_history", kwargs))
+        row = {
+            "id": f"qry_{len(self.history) + 1}",
+            "kb_id": kwargs["kb_id"],
+            "query": kwargs["query"],
+            "mode": kwargs["mode"],
+            "limit": kwargs["limit"],
+            "hit_count": kwargs["hit_count"],
+            "duration_ms": kwargs["duration_ms"],
+            "created_at": "2026-11-13T00:00:00+00:00",
+        }
+        self.history.insert(0, row)
+        return str(row["id"])
+
+    def list_search_history(
+        self, *, kb_id: str, workspace_ids: list[str], limit: int = 20
+    ) -> list[dict[str, Any]]:
+        self.calls.append(
+            ("list_search_history", {"kb_id": kb_id, "limit": limit})
+        )
+        rows = [row for row in self.history if row["kb_id"] == kb_id]
+        return rows[:limit]
+
+    def clear_search_history(
+        self, *, kb_id: str, workspace_ids: list[str]
+    ) -> int:
+        self.calls.append(("clear_search_history", kb_id))
+        before = len(self.history)
+        self.history = [row for row in self.history if row["kb_id"] != kb_id]
+        return before - len(self.history)
 
     def stats(self, *, workspace_ids: list[str]):
         self.calls.append(("stats", {"workspace_ids": list(workspace_ids)}))
@@ -528,6 +561,79 @@ def test_search_maps_hits_and_degraded_reason() -> None:
     assert payload["hits"][0]["score"] == 0.87
     assert _call(fake, "search")[0]["workspace_ids"] == ["ws1"]
     assert _call(fake, "search")[0]["limit"] == 5
+
+
+def test_search_returns_trace_and_records_history() -> None:
+    hit = SimpleNamespace(
+        chunk_id="ck_1", doc_id="doc_1", kb_id="kb_1", chunk_index=0,
+        heading_path="", page=None, locator="", content="回滚步骤",
+        char_count=4, score=0.5,
+    )
+    service = FakeService(
+        search_result=SimpleNamespace(
+            hits=(hit,),
+            mode_used="hybrid",
+            degraded=(),
+            reason=None,
+            routes=("vector", "keyword"),
+            trace={
+                "query": "回滚",
+                "mode": "hybrid",
+                "limit": 8,
+                "totalMs": 12,
+                "stages": [{"kind": "query", "status": "ok"}],
+            },
+        )
+    )
+    api, fake = _api(service)
+
+    payload = api.handle(
+        "knowledge-search",
+        {"query": "回滚", "kbId": "kb_1", "trace": True, "record": True},
+    )
+
+    assert payload["trace"]["stages"][0]["kind"] == "query"
+    assert isinstance(payload["durationMs"], int)
+    recorded = _call(fake, "record_search_history")[0]
+    assert recorded["kb_id"] == "kb_1"
+    assert recorded["hit_count"] == 1
+    assert recorded["query"] == "回滚"
+    # trace 对象确实传到了服务层（未开启时传 None）。
+    assert _call(fake, "search")[0]["trace"] is not None
+
+
+def test_search_without_trace_passes_none() -> None:
+    api, fake = _api()
+
+    payload = api.handle("knowledge-search", {"query": "回滚"})
+
+    assert "trace" not in payload
+    assert _call(fake, "search")[0]["trace"] is None
+    assert _call(fake, "record_search_history") == []
+
+
+def test_query_history_reads_and_clears_per_kb() -> None:
+    service = FakeService()
+    service.history = [
+        {
+            "id": "qry_1", "kb_id": "kb_1", "query": "回滚", "mode": "hybrid",
+            "limit": 8, "hit_count": 3, "duration_ms": 42,
+            "created_at": "2026-11-13T00:00:00+00:00",
+        }
+    ]
+    api, _ = _api(service)
+
+    payload = api.handle("knowledge-query-history", {"kbId": "kb_1"})
+
+    assert payload["items"][0]["query"] == "回滚"
+    assert payload["items"][0]["hitCount"] == 3
+    assert payload["total"] == 1
+
+    cleared = api.handle("knowledge.query_history.clear", {"kbId": "kb_1"})
+
+    assert cleared["ok"] is True
+    assert cleared["removed"] == 1
+    assert api.handle("knowledge-query-history", {"kbId": "kb_1"})["total"] == 0
 
 
 def test_search_requires_non_empty_query() -> None:
@@ -871,6 +977,7 @@ def test_repair_defaults_to_non_destructive_flags() -> None:
         ("knowledge-doc-list", {}),
         ("knowledge-doc-get", {"id": "doc_1"}),
         ("knowledge-doc-content", {"id": "doc_1"}),
+        ("knowledge-query-history", {"kbId": "kb_1"}),
         ("knowledge-search", {"query": "回滚"}),
         ("knowledge-stats", {}),
     ],

@@ -538,6 +538,30 @@ def test_list_chunks_filters_by_content_and_escapes_like(repo):
     assert repo.count_chunks(doc.id) == 3
 
 
+def test_search_history_is_trimmed_and_scoped(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    for index in range(55):
+        repo.record_search_history(
+            kb_id=kb.id,
+            workspace_id="ws1",
+            query=f"q{index}",
+            mode="hybrid",
+            limit=8,
+            hit_count=index,
+            duration_ms=index,
+        )
+
+    rows = repo.list_search_history(
+        kb_id=kb.id, workspace_ids=["ws1"], limit=100
+    )
+
+    assert len(rows) == 50
+    assert rows[0]["query"] == "q54"
+    assert repo.list_search_history(kb_id=kb.id, workspace_ids=["ws2"]) == []
+    assert repo.clear_search_history(kb_id=kb.id, workspace_ids=["ws1"]) == 50
+    assert repo.list_search_history(kb_id=kb.id, workspace_ids=["ws1"]) == []
+
+
 # ---------- Task 6: FTS 查询 ----------
 _SEED_COUNTER = itertools.count()
 

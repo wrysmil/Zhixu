@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from nanobot.knowledge.tokenizer import tokenize_index
 
@@ -79,6 +79,8 @@ class SearchResult:
     rerank: str | None = None
     candidates_in: int = 0
     candidates_kept: int = 0
+    #: 链路 trace（仅 WebUI 检索预览开启时存在）；默认 None，既有调用零改动。
+    trace: dict[str, Any] | None = None
 
 
 def hit_sort_key(hit: SearchHit) -> tuple[float, str, int, str]:

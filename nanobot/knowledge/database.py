@@ -12,7 +12,7 @@ from typing import Any
 
 from loguru import logger
 
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 
 #: Windows 上杀毒/索引器会瞬时占用 state.db 的临时文件，SQLite 报 CANTOPEN。
 #: 事务失败即回滚，重试是安全的；只对这类瞬时错误重试，其余照常抛出。
@@ -311,10 +311,30 @@ _V3_STATEMENTS: tuple[str, ...] = (
     " ON graph_extraction_state(status)",
 )
 
+# v4：检索预览历史（按知识库隔离；随库级联删除）。
+_V4_STATEMENTS: tuple[str, ...] = (
+    """
+    CREATE TABLE IF NOT EXISTS knowledge_search_history (
+      id           TEXT    PRIMARY KEY,
+      kb_id        TEXT    NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+      workspace_id TEXT    NOT NULL DEFAULT 'default',
+      query        TEXT    NOT NULL,
+      mode         TEXT    NOT NULL DEFAULT 'hybrid',
+      limit_value  INTEGER NOT NULL DEFAULT 8,
+      hit_count    INTEGER NOT NULL DEFAULT 0,
+      duration_ms  INTEGER NOT NULL DEFAULT 0,
+      created_at   TEXT    NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_search_history_kb"
+    " ON knowledge_search_history(kb_id, created_at)",
+)
+
 _MIGRATIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("1", _V1_STATEMENTS),
     ("2", _V2_STATEMENTS),
     ("3", _V3_STATEMENTS),
+    ("4", _V4_STATEMENTS),
 )
 
 

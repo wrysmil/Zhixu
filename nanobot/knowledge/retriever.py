@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import re
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 
@@ -60,6 +61,7 @@ from nanobot.knowledge.rerank import (
 )
 from nanobot.knowledge.text import build_passage, passage_char_limit
 from nanobot.knowledge.tokenizer import tokenize_index, tokenize_query
+from nanobot.knowledge.trace import SearchTrace, hit_rows, score_delta_rows
 from nanobot.knowledge.vector import VectorStore
 
 _MODES = frozenset({"hybrid", "semantic", "keyword"})
@@ -161,6 +163,11 @@ def _from_chunk(chunk: StoredChunk, score: float) -> SearchHit:
 def _dedup_labels(labels: list[str]) -> tuple[str, ...]:
     """`degraded` 去重且保持首次出现顺序。"""
     return tuple(dict.fromkeys(labels))
+
+
+def _trace_ms(started: float | None) -> int:
+    """埋点计时：未开启 trace（started=None）时恒为 0。"""
+    return 0 if started is None else int((time.perf_counter() - started) * 1000)
 
 
 # ---------- 召回阈值与本地查询扩展（WeKnora 对齐） ----------
@@ -273,6 +280,7 @@ class Retriever:
         mode: str = "hybrid",
         limit: int | None = None,
         extra_context: Sequence[SearchHit] = (),
+        trace: SearchTrace | None = None,
     ) -> SearchResult:
         """执行一次检索。
 
@@ -289,6 +297,17 @@ class Retriever:
         visible = self._visible_kbs(workspace_ids, kb_ids)
         if not visible:
             # 作用域为空：没有任何可见库，谈不上「搜不到」（spec §3 四态）。
+            if trace is not None:
+                trace.add(
+                    "scope",
+                    status="skipped",
+                    metrics={"visibleKbs": 0},
+                    detail={"reason": "no_scope"},
+                )
+                return replace(
+                    SearchResult(hits=(), mode_used="keyword", reason="no_scope"),
+                    trace=trace.to_payload(),
+                )
             return SearchResult(hits=(), mode_used="keyword", reason="no_scope")
         # §3.2 超取池按**组内**可见库数量放大：`max(topK*5,50)*len(KBs)`，上限 500。
 
@@ -296,6 +315,22 @@ class Retriever:
         match_expr = tokenize_query(query, mode=self._tokenizer_mode)
         if not match_expr:
             degraded.append("empty_query_tokens")
+        if trace is not None:
+            variants = _query_variants(
+                query, mode=normalized_mode, limit=effective_limit
+            )
+            trace.add(
+                "query",
+                metrics={
+                    "tokens": len(match_expr.split()) if match_expr else 0,
+                    "variants": len(variants),
+                },
+                detail={
+                    "mode": normalized_mode,
+                    "tokens": match_expr.split()[:12] if match_expr else [],
+                    "variants": variants,
+                },
+            )
 
         vector_error: Exception | None = None
         vector_hits: list[SearchHit] = []
@@ -305,6 +340,7 @@ class Retriever:
         groups: list[VectorGroup] = []
         if normalized_mode in ("hybrid", "semantic"):
             groups = self._vector_groups(visible, degraded)
+        vector_trace_start = time.perf_counter() if trace is not None else None
         if groups:
             try:
                 vector_hits, vector_lists, vector_raw_count = self._run_vector_route(
@@ -324,6 +360,29 @@ class Retriever:
                 logger.warning("knowledge vector route failed: {}", exc)
             else:
                 vector_ok = True
+        if trace is not None:
+            trace.add(
+                "vector",
+                status=(
+                    "skipped" if not groups else ("ok" if vector_ok else "degraded")
+                ),
+                metrics={
+                    "groups": len(groups),
+                    "candidates": len(vector_hits),
+                    "raw": vector_raw_count,
+                },
+                detail={
+                    "degraded": [
+                        label
+                        for label in degraded
+                        if label.startswith("vector")
+                        or label.startswith("embedding")
+                        or label == "mode_downgraded"
+                    ],
+                    "top": hit_rows(vector_hits),
+                },
+                duration_ms=_trace_ms(vector_trace_start),
+            )
 
         # 语义模式在向量路不可用时退回关键词单路（§6）。
         want_keyword = normalized_mode != "semantic" or not vector_ok
@@ -332,6 +391,7 @@ class Retriever:
         keyword_groups: list[tuple[str, ...]] = []
         keyword_error: Exception | None = None
         keyword_ok = False
+        keyword_trace_start = time.perf_counter() if trace is not None else None
         if want_keyword and match_expr:
             # §3.1：按 embedding 空间分组做检索；向量不可用的库与无向量的库各自成组。
             # 每个可见库必须恰好落进一个关键词组——否则「向量索引过期」的库会
@@ -381,6 +441,28 @@ class Retriever:
                 )
             else:
                 keyword_ok = True
+        if trace is not None:
+            trace.add(
+                "keyword",
+                status=(
+                    "skipped"
+                    if not (want_keyword and match_expr)
+                    else (
+                        "ok"
+                        if keyword_ok
+                        else ("degraded" if keyword_error is not None else "skipped")
+                    )
+                ),
+                metrics={
+                    "groups": len(keyword_groups),
+                    "candidates": len(keyword_hits),
+                },
+                detail={
+                    "threshold": settings.keyword_threshold,
+                    "top": hit_rows(keyword_hits),
+                },
+                duration_ms=_trace_ms(keyword_trace_start),
+            )
 
         # 召回不足时用本地变体补关键词路（WeKnora query_expansion）：不重建 embedding。
         if (
@@ -392,12 +474,29 @@ class Retriever:
             known = {hit.chunk_id for hit in keyword_hits}
             known.update(hit.chunk_id for hit in vector_hits)
             if len(known) < max(1, settings.pool_size):
+                expansion_trace_start = (
+                    time.perf_counter() if trace is not None else None
+                )
                 expanded = self._expansion_hits(
                     query,
                     keyword_groups,
                     workspace_ids=list(workspace_ids),
                     limit=effective_limit,
                 )
+                if trace is not None:
+                    trace.add(
+                        "expansion",
+                        status="ok" if expanded else "skipped",
+                        metrics={
+                            "variants": len(
+                                _query_variants(
+                                    query, mode=normalized_mode, limit=effective_limit
+                                )
+                            ),
+                            "added": len(expanded),
+                        },
+                        duration_ms=_trace_ms(expansion_trace_start),
+                    )
                 if expanded:
                     keyword_hits.extend(expanded)
                     keyword_lists.append(
@@ -419,7 +518,7 @@ class Retriever:
                     graph_evidence,
                     graph_labels,
                     graph_used,
-                ) = self._graph_route.search(query, visible)
+                ) = self._graph_route.search(query, visible, trace=trace)
                 degraded.extend(graph_labels)
                 if graph_used:
                     graph_lists.append([(hit.chunk_id, 0.0) for hit in graph_hits])
@@ -437,16 +536,31 @@ class Retriever:
 
         if not keyword_hits and not vector_hits and not graph_hits:
             reason = self._empty_reason(match_expr, vector_raw_count)
-            return SearchResult(
+            empty = SearchResult(
                 hits=(),
                 mode_used="keyword",
                 degraded=_dedup_labels(degraded),
                 reason=reason,
             )
+            return replace(empty, trace=trace.to_payload()) if trace is not None else empty
 
         scores, routes, mode_used = self._fuse(
             vector_lists, keyword_lists, graph_lists
         )
+        if trace is not None:
+            trace.add(
+                "fusion",
+                metrics={
+                    "vectorWeight": settings.vector_weight,
+                    "keywordWeight": settings.keyword_weight,
+                    "rrfK": settings.rrf_k,
+                    "vectorCandidates": len(vector_hits),
+                    "keywordCandidates": len(keyword_hits),
+                    "graphCandidates": len(graph_hits),
+                    "merged": len(scores),
+                },
+                detail={"modeUsed": mode_used, "routes": list(routes)},
+            )
         candidates = self._assemble(
             scores,
             vector_hits,
@@ -461,6 +575,16 @@ class Retriever:
             containment=settings.dedup_containment,
             unique_ratio=settings.dedup_unique_ratio,
         )
+        if trace is not None:
+            trace.add(
+                "dedup",
+                metrics={"before": len(candidates), "after": len(deduped)},
+                detail={
+                    "removed": max(0, len(candidates) - len(deduped)),
+                    "containment": settings.dedup_containment,
+                },
+            )
+        rerank_trace_start = time.perf_counter() if trace is not None else None
         (
             reranked,
             rerank_labels,
@@ -468,21 +592,51 @@ class Retriever:
             candidates_in,
             candidates_kept,
         ) = self._apply_rerank(query, deduped, explicit_scope=kb_ids is not None)
+        if trace is not None:
+            trace.add(
+                "rerank",
+                status="degraded" if rerank_labels else "ok",
+                metrics={
+                    "enabled": bool(getattr(self._rerank_settings, "enabled", False)),
+                    "candidatesIn": candidates_in,
+                    "candidatesKept": candidates_kept,
+                    "threshold": getattr(self._rerank_settings, "threshold", 0.0),
+                },
+                detail={
+                    "outcome": rerank_outcome,
+                    "model": getattr(self._rerank_settings, "model", ""),
+                    "degraded": list(rerank_labels),
+                    "scores": score_delta_rows(deduped, reranked),
+                },
+                duration_ms=_trace_ms(rerank_trace_start),
+            )
         degraded.extend(rerank_labels)
         # §9.2 FILTER_TOP_K：先进 MMR 的池截到 rerank_top_k，再由 MMR 去冗余。
         top_pool = reranked[: max(1, settings.rerank_top_k)]
+        mmr_trace_start = time.perf_counter() if trace is not None else None
         ranked = mmr_rerank(
             top_pool,
             limit=min(effective_limit, max(1, settings.rerank_top_k)),
             lambda_=settings.mmr_lambda,
         )
+        if trace is not None:
+            trace.add(
+                "mmr",
+                metrics={
+                    "lambda": settings.mmr_lambda,
+                    "pool": len(top_pool),
+                    "kept": len(ranked),
+                },
+                detail={"top": hit_rows(ranked)},
+                duration_ms=_trace_ms(mmr_trace_start),
+            )
         # §9.1 CHUNK_MERGE：把「一条 chunk」变成「一段读得通的上下文」。
         assembled = self._assemble_context(ranked, extra_context=list(extra_context))
         if rerank_outcome != OUTCOME_NO_MODEL:
             # §7 RecordRetrievalCut：M 必须是最终返回条数（top_k / MMR / 装配之后），
             # 否则阈值全部通过时模型永远看不到「结果只是候选子集」。
             candidates_kept = len(assembled)
-        return SearchResult(
+        result = SearchResult(
             hits=tuple(assembled),
             mode_used=mode_used,
             degraded=_dedup_labels(degraded),
@@ -492,6 +646,7 @@ class Retriever:
             candidates_in=candidates_in,
             candidates_kept=candidates_kept,
         )
+        return replace(result, trace=trace.to_payload()) if trace is not None else result
 
     # ---------- 精排（WeKnora §7） ----------
     def _apply_rerank(
