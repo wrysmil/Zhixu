@@ -10,6 +10,7 @@ import {
   Network,
   Plus,
   RefreshCcw,
+  Search,
   SlidersHorizontal,
   Trash2,
   Wrench,
@@ -23,7 +24,7 @@ import { EmptyState } from "@/components/workspace/EmptyState";
 import { KnowledgeLibraryList } from "./knowledge/KnowledgeLibraryList";
 import { KnowledgeDocumentTable } from "./knowledge/KnowledgeDocumentTable";
 import { KnowledgeDocumentDialog } from "./knowledge/KnowledgeDocumentDialog";
-import { KnowledgeRetrievalBar } from "./knowledge/KnowledgeRetrievalBar";
+import { KnowledgeRetrievalPage } from "./knowledge/KnowledgeRetrievalPage";
 import { KnowledgeImportSheet} from "./knowledge/KnowledgeImportSheet";
 import { KnowledgeSettingsPanel } from "./knowledge/KnowledgeSettingsPanel";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
@@ -168,10 +169,21 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const previewSeq = useRef(0);
-  // 切换库/删除/重建后让检索页重新挂载，丢掉旧的查询、画布与历史游标。
-  const [searchEpoch, setSearchEpoch] = useState(0);
+  // 检索是知识库域的独立页；返回时回到进入前的层级。
+  const [retrievalOpen, setRetrievalOpen] = useState(false);
+  const [retrievalFromDetail, setRetrievalFromDetail] = useState(false);
+  const openRetrieval = useCallback((fromDetail: boolean) => {
+    setRetrievalFromDetail(fromDetail);
+    setRetrievalOpen(true);
+  }, []);
+  const closeRetrieval = useCallback(() => {
+    setRetrievalOpen(false);
+    if (!retrievalFromDetail) setDetailOpen(false);
+  }, [retrievalFromDetail]);
+  // 库级变更（删除/重建/修复）后退出检索页，避免展示旧作用域。
   const clearSearch = useCallback(() => {
-    setSearchEpoch((value) => value + 1);
+    setRetrievalOpen(false);
+    setRetrievalFromDetail(false);
   }, []);
 
   const [repairOpen, setRepairOpen] = useState(false);
@@ -541,7 +553,17 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
 
   return (
     <div ref={rootRef} className="knowledge-experience assistant-page flex h-full min-w-0 flex-col" data-testid="knowledge-page">
-      {detailOpen && activeKb ? (
+      {retrievalOpen ? (
+        <KnowledgeRetrievalPage
+          token={token}
+          transport={client}
+          scope={scope}
+          kbs={kbs}
+          initialKbId={detailOpen && activeKb ? activeKb.id : undefined}
+          onBack={closeRetrieval}
+          onOpenDoc={(doc) => void onOpenChunkPreview(doc)}
+        />
+      ) : detailOpen && activeKb ? (
         <div className="flex flex-col gap-3">
           <Breadcrumb
             ariaLabel={t("knowledge.title")}
@@ -595,6 +617,16 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   type="button"
                   variant="outline"
                   size="sm"
+                  onClick={() => openRetrieval(true)}
+                  className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium"
+                >
+                  <Search className="h-3.5 w-3.5" aria-hidden />
+                  {t("knowledge.searchTitle")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   disabled={busy}
                   onClick={() => {
                     void runAction(
@@ -628,20 +660,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               </div>
             </div>
           </div>
-          {activeKb ? (
-            <KnowledgeRetrievalBar
-              key={`${activeKb.id}-${searchEpoch}`}
-              kb={activeKb}
-              token={token}
-              transport={client}
-              scope={scope}
-              docs={docs}
-              onLocateDoc={(docId) => {
-                const doc = docs.find((item) => item.id === docId);
-                if (doc) void onOpenChunkPreview(doc);
-              }}
-            />
-          ) : null}
           <SegmentedControl
             mode="tabs"
             ariaLabel={t("knowledge.title")}
@@ -683,6 +701,17 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         <header className="knowledge-page-header">
           <div className="space-y-2"><h1>{t("knowledge.title")}</h1><p className="text-sm text-muted-foreground">{t("knowledge.subtitle")}</p></div>
           <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => openRetrieval(false)}
+                disabled={!kbs.length}
+                className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium"
+              >
+                <Search className="h-3.5 w-3.5" aria-hidden />
+                {t("knowledge.searchTitle")}
+              </Button>
               <Button
                 type="button"
                 variant="outline"

@@ -749,6 +749,7 @@ class KnowledgeApi:
             maximum=_MAX_SEARCH_LIMIT,
         )
         kb_ids = self._requested_kb_ids(payload, services)
+        doc_ids = self._requested_doc_ids(payload)
         trace_enabled = _optional_bool(payload, "trace", default=False)
         record = _optional_bool(payload, "record", default=False)
         trace = (
@@ -764,6 +765,7 @@ class KnowledgeApi:
             mode=mode,
             limit=limit,
             trace=trace,
+            doc_ids=doc_ids,
         )
         duration_ms = int((time.perf_counter() - started) * 1000)
         hits = getattr(result, "hits", ())
@@ -1203,6 +1205,20 @@ class KnowledgeApi:
             "enabled": False,
             "by_status": {},
         }
+
+    @staticmethod
+    def _requested_doc_ids(payload: dict[str, Any]) -> list[str] | None:
+        """可选的文档范围：只做收窄；可见性仍由 KB 作用域保证。"""
+        raw = payload.get("docIds")
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            values = [item.strip() for item in raw.split(",") if item.strip()]
+        elif isinstance(raw, (list, tuple, set)):
+            values = [str(item).strip() for item in raw if str(item).strip()]
+        else:
+            raise KnowledgeRouteError("docIds 必须是字符串或字符串数组")
+        return values[:50] or None
 
     def _requested_kb_ids(
         self, payload: dict[str, Any], services: KnowledgeServices

@@ -281,6 +281,7 @@ class Retriever:
         limit: int | None = None,
         extra_context: Sequence[SearchHit] = (),
         trace: SearchTrace | None = None,
+        doc_ids: Sequence[str] | None = None,
     ) -> SearchResult:
         """执行一次检索。
 
@@ -528,6 +529,54 @@ class Retriever:
             raise KnowledgeSearchError("all attempted knowledge routes failed") from keyword_error
         if vector_error is not None and not keyword_ok:
             raise KnowledgeSearchError("all attempted knowledge routes failed") from vector_error
+
+        if doc_ids:
+            allowed_docs = set(doc_ids)
+            vector_hits = [hit for hit in vector_hits if hit.doc_id in allowed_docs]
+            keyword_hits = [hit for hit in keyword_hits if hit.doc_id in allowed_docs]
+            graph_hits = [hit for hit in graph_hits if hit.doc_id in allowed_docs]
+            vector_ids = {hit.chunk_id for hit in vector_hits}
+            keyword_ids = {hit.chunk_id for hit in keyword_hits}
+            graph_ids = {hit.chunk_id for hit in graph_hits}
+            vector_lists = [
+                [(chunk_id, score) for chunk_id, score in hits if chunk_id in vector_ids]
+                for hits in vector_lists
+            ]
+            keyword_lists = [
+                [(chunk_id, score) for chunk_id, score in hits if chunk_id in keyword_ids]
+                for hits in keyword_lists
+            ]
+            graph_lists = [
+                [(chunk_id, score) for chunk_id, score in hits if chunk_id in graph_ids]
+                for hits in graph_lists
+            ]
+            graph_evidence = {
+                chunk_id: payload
+                for chunk_id, payload in graph_evidence.items()
+                if chunk_id in graph_ids
+            }
+            if trace is not None:
+                trace.add(
+                    "docFilter",
+                    metrics={
+                        "docIds": len(allowed_docs),
+                        "vector": len(vector_hits),
+                        "keyword": len(keyword_hits),
+                        "graph": len(graph_hits),
+                    },
+                )
+            if not vector_hits and not keyword_hits and not graph_hits:
+                filtered = SearchResult(
+                    hits=(),
+                    mode_used="keyword",
+                    degraded=_dedup_labels(degraded),
+                    reason="filtered",
+                )
+                return (
+                    replace(filtered, trace=trace.to_payload())
+                    if trace is not None
+                    else filtered
+                )
 
         if keyword_error is not None:
             degraded.append("keyword_error")

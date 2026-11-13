@@ -143,8 +143,9 @@ async function openKb(name = "Product manual") {
   await screen.findByRole("tab", { name: "Documents" });
 }
 
-async function openRetrievalBar() {
-  await screen.findByTestId("knowledge-retrieval-bar");
+async function openRetrievalPage() {
+  await userEvent.click(await screen.findByRole("button", { name: "Search preview" }));
+  await screen.findByTestId("knowledge-retrieval-page");
 }
 
 describe("knowledge page", () => {
@@ -288,12 +289,17 @@ describe("knowledge page", () => {
     vi.mocked(searchKnowledge).mockImplementationOnce(() => new Promise(resolve => { resolveSearch = resolve; }));
     renderPage();
     await openKb();
-    await openRetrievalBar();
+    await openRetrievalPage();
     await userEvent.type(screen.getByLabelText("Query"), "rollback");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
-    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.backToLibraries") }));
+    await userEvent.click(
+      screen.getByRole("button", { name: i18n.t("knowledge.experience.backToLibraries") }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: i18n.t("knowledge.experience.backToLibraries") }),
+    );
     await openKb("Team notes");
-    await openRetrievalBar();
+    await openRetrievalPage();
     await act(async () => resolveSearch(HIT_RESULT));
     expect(screen.queryByText("Rollback checklist")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Query")).toHaveValue("");
@@ -562,12 +568,15 @@ describe("knowledge page", () => {
     renderPage();
     await openKb();
     await screen.findByText("Deploy guide");
-    await openRetrievalBar();
+    await openRetrievalPage();
 
     await userEvent.type(screen.getByLabelText("Query"), "rollback");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByText("Rollback checklist")).toBeInTheDocument();
 
+    await userEvent.click(
+      screen.getByRole("button", { name: i18n.t("knowledge.experience.backToLibraries") }),
+    );
     await userEvent.click(screen.getByRole("tab", { name: "Documents" }));
     const row = within(screen.getByRole("table")).getByText("Deploy guide").closest("tr")!;
     await userEvent.click(within(row).getByRole("button", { name: "Delete document" }));
@@ -575,7 +584,7 @@ describe("knowledge page", () => {
 
     await waitFor(() => expect(deleteKnowledgeDoc).toHaveBeenCalledWith(transport, "doc_1"));
     await waitFor(() => expect(fetchKnowledgeKbs).toHaveBeenCalledTimes(2));
-    await openRetrievalBar();
+    await openRetrievalPage();
     expect(screen.queryByText("Rollback checklist")).not.toBeInTheDocument();
   });
 
@@ -630,8 +639,7 @@ describe("knowledge page", () => {
     });
     renderPage();
     await openKb();
-    await openRetrievalBar();
-    await userEvent.click(screen.getByRole("button", { name: "Search history" }));
+    await openRetrievalPage();
     await screen.findByText("旧查询");
 
     await userEvent.type(screen.getByLabelText("Query"), "rollback");
@@ -652,7 +660,6 @@ describe("knowledge page", () => {
     );
     expect(within(canvas).queryByText("Query preparation")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Search history" }));
     await userEvent.click(screen.getByText("旧查询"));
     await waitFor(() =>
       expect(searchKnowledge).toHaveBeenLastCalledWith(
@@ -666,7 +673,7 @@ describe("knowledge page", () => {
     vi.mocked(searchKnowledge).mockResolvedValue(HIT_RESULT);
     renderPage();
     await openKb();
-    await openRetrievalBar();
+    await openRetrievalPage();
 
     await userEvent.type(screen.getByLabelText("Query"), "rollback");
     await userEvent.selectOptions(screen.getByLabelText("Mode"), "semantic");
@@ -679,6 +686,7 @@ describe("knowledge page", () => {
         mode: "semantic",
         limit: 12,
         kbId: "kb_1",
+        docIds: undefined,
         workspaceIds: ["ws1"],
         trace: true,
         record: true,
@@ -699,7 +707,7 @@ describe("knowledge page", () => {
   it("distinguishes empty results from filtered results", async () => {
     renderPage();
     await openKb();
-    await openRetrievalBar();
+    await openRetrievalPage();
 
     await userEvent.type(screen.getByLabelText("Query"), "nothing");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
@@ -722,7 +730,7 @@ describe("knowledge page", () => {
   it("shows a search failure instead of an empty state", async () => {
     renderPage();
     await openKb();
-    await openRetrievalBar();
+    await openRetrievalPage();
 
     vi.mocked(searchKnowledge).mockRejectedValueOnce(new Error("gateway down"));
     await userEvent.type(screen.getByLabelText("Query"), "rollback");

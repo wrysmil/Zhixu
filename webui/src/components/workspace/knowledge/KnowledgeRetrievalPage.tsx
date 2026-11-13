@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { History, Loader2, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, History, Loader2, Search, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { KnowledgeSearchResults } from "./KnowledgeSearchResults";
 import { RetrievalTraceCanvas, retrievalStageTitle } from "./RetrievalTraceCanvas";
 import {
   clearKnowledgeQueryHistory,
+  fetchKnowledgeDocs,
   fetchKnowledgeQueryHistory,
   searchKnowledge,
   type KnowledgeDoc,
@@ -34,29 +35,34 @@ function normalizeMode(value: string): KnowledgeSearchMode {
     : "hybrid";
 }
 
-export function KnowledgeRetrievalBar({
-  kb,
+export function KnowledgeRetrievalPage({
   token,
   transport,
   scope,
-  docs,
-  onLocateDoc,
+  kbs,
+  initialKbId,
+  onBack,
+  onOpenDoc,
 }: {
-  kb: KnowledgeKb;
   token: string;
   transport: WebUIMutationTransport;
   scope?: string[];
-  docs: KnowledgeDoc[];
-  onLocateDoc: (docId: string) => void;
+  kbs: KnowledgeKb[];
+  initialKbId?: string;
+  onBack: () => void;
+  onOpenDoc: (doc: KnowledgeDoc) => void;
 }) {
   const { t } = useTranslation();
+  const [selectedKbId, setSelectedKbId] = useState(initialKbId ?? kbs[0]?.id ?? "");
+  const [docs, setDocs] = useState<KnowledgeDoc[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [selectedDocId, setSelectedDocId] = useState("");
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<KnowledgeSearchMode>("hybrid");
   const [limit, setLimit] = useState(8);
   const [searching, setSearching] = useState(false);
   const [result, setResult] = useState<KnowledgeSearchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<KnowledgeQueryHistoryItem[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [canvasCollapsed, setCanvasCollapsed] = useState(false);
@@ -71,14 +77,43 @@ export function KnowledgeRetrievalBar({
   }, [docs]);
 
   const loadHistory = useCallback(async () => {
+    if (!selectedKbId) {
+      setHistory([]);
+      return;
+    }
     try {
-      const payload = await fetchKnowledgeQueryHistory(token, { kbId: kb.id, limit: 20 });
+      const payload = await fetchKnowledgeQueryHistory(token, { kbId: selectedKbId, limit: 20 });
       setHistory(payload.items);
       setHistoryError(null);
     } catch (reason: unknown) {
       setHistoryError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, [kb.id, token]);
+  }, [selectedKbId, token]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedKbId) {
+      setDocs([]);
+      setSelectedDocId("");
+      return;
+    }
+    setDocsLoading(true);
+    fetchKnowledgeDocs(token, { kbId: selectedKbId, workspaceIds: scope, limit: 200 })
+      .then((payload) => {
+        if (cancelled) return;
+        setDocs(payload.documents);
+        setSelectedDocId("");
+      })
+      .catch(() => {
+        if (!cancelled) setDocs([]);
+      })
+      .finally(() => {
+        if (!cancelled) setDocsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [scope, selectedKbId, token]);
 
   useEffect(() => {
     void loadHistory();
@@ -97,14 +132,14 @@ export function KnowledgeRetrievalBar({
           query: text,
           mode: next.mode,
           limit: next.limit,
-          kbId: kb.id,
+          kbId: selectedKbId || undefined,
+          docIds: selectedDocId ? [selectedDocId] : undefined,
           workspaceIds: scope,
           trace: true,
-          record: true,
+          record: Boolean(selectedKbId),
         });
         if (current !== seq.current) return;
         setResult(payload);
-        setHistoryOpen(false);
         void loadHistory();
       } catch (reason: unknown) {
         if (current !== seq.current) return;
@@ -117,7 +152,7 @@ export function KnowledgeRetrievalBar({
         }
       }
     },
-    [kb.id, loadHistory, scope, token],
+    [loadHistory, scope, selectedDocId, selectedKbId, token],
   );
 
   const runFromHistory = useCallback(
@@ -132,157 +167,237 @@ export function KnowledgeRetrievalBar({
   );
 
   const clearHistory = useCallback(async () => {
+    if (!selectedKbId) return;
     setHistoryError(null);
     try {
-      await clearKnowledgeQueryHistory(transport, kb.id);
+      await clearKnowledgeQueryHistory(transport, selectedKbId);
       setHistory([]);
     } catch (reason: unknown) {
       setHistoryError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, [kb.id, transport]);
+  }, [selectedKbId, transport]);
 
-  const panelOpen = searching || !!result || !!error;
+  const locateDoc = useCallback(
+    (docId: string) => {
+      const doc = docsById.get(docId);
+      if (doc) {
+        onOpenDoc(doc);
+        return;
+      }
+      const hit = result?.hits.find((item) => item.docId === docId);
+      onOpenDoc({
+        id: docId,
+        kbId: hit?.kbId ?? selectedKbId,
+        title: docId,
+        originalName: "",
+        status: "ready",
+        chunkCount: 0,
+        charCount: 0,
+      });
+    },
+    [docsById, onOpenDoc, result, selectedKbId],
+  );
+
+  const scopeChanged = useCallback(() => {
+    seq.current += 1;
+    busy.current = false;
+    setResult(null);
+    setError(null);
+  }, []);
 
   return (
-    <section
-      className="sticky top-0 z-20 rounded-panel border border-border/60 bg-background/95 p-3 shadow-sm backdrop-blur"
-      data-testid="knowledge-retrieval-bar"
-    >
-      <form
-        className="flex flex-wrap items-end gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void runSearch({ query, mode, limit });
-        }}
-      >
-        <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
-          {t("knowledge.query")}
-          <Input
-            aria-label={t("knowledge.query")}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t("knowledge.queryPlaceholder")}
-            className="h-9 text-sm"
-          />
-        </label>
-        <label className="flex w-28 shrink-0 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
-          {t("knowledge.mode")}
-          <select
-            aria-label={t("knowledge.mode")}
-            value={mode}
-            onChange={(event) => setMode(event.target.value as KnowledgeSearchMode)}
-            className="h-9 rounded-control border border-input bg-background px-2 text-sm"
-          >
-            {SEARCH_MODES.map((value) => (
-              <option key={value} value={value}>
-                {t(`knowledge.mode${value.charAt(0).toUpperCase()}${value.slice(1)}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex w-20 shrink-0 flex-col gap-1 text-[11px] font-medium text-muted-foreground">
-          {t("knowledge.limit")}
-          <select
-            aria-label={t("knowledge.limit")}
-            value={String(limit)}
-            onChange={(event) => setLimit(Number(event.target.value))}
-            className="h-9 rounded-control border border-input bg-background px-2 text-sm"
-          >
-            {SEARCH_LIMITS.map((value) => (
-              <option key={value} value={String(value)}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Button
-          type="submit"
-          size="sm"
-          disabled={searching || !query.trim()}
-          className="h-9 gap-1.5 rounded-full px-4 text-sm font-semibold"
-        >
-          {searching ? (
-            <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
-          ) : (
-            <Search className="h-3.5 w-3.5" aria-hidden />
-          )}
-          {t("knowledge.search")}
-        </Button>
+    <div className="flex min-w-0 flex-col gap-3" data-testid="knowledge-retrieval-page">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
-          aria-label={t("knowledge.retrieval.history")}
-          aria-expanded={historyOpen}
-          onClick={() => setHistoryOpen((value) => !value)}
-          className="h-9 gap-1.5 rounded-full px-3 text-sm"
+          onClick={onBack}
+          aria-label={t("knowledge.experience.backToLibraries", { defaultValue: "返回知识库" })}
+          className="h-8 gap-1.5 rounded-full px-2.5 text-[12px] text-muted-foreground hover:text-foreground"
         >
-          <History className="h-3.5 w-3.5" aria-hidden />
-          {history.length > 0 ? (
-            <span className="tabular-nums">{history.length}</span>
-          ) : null}
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+          {t("knowledge.experience.backToLibraries", { defaultValue: "返回知识库" })}
         </Button>
-      </form>
+        <h1 className="text-base font-semibold text-foreground">{t("knowledge.searchTitle")}</h1>
+      </div>
 
-      {historyOpen ? (
-        <div className="mt-2 rounded-control border border-border/60 bg-muted/10 p-2">
-          <div className="flex items-center gap-2 px-1 pb-1">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              {t("knowledge.retrieval.history")}
-            </span>
-            {history.length > 0 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-label={t("knowledge.retrieval.historyClear")}
-                onClick={() => void clearHistory()}
-                className="ml-auto h-6 rounded-full px-2 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+      <div className="grid items-start gap-3 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-3">
+          <form
+            className="flex flex-col gap-2 rounded-panel border border-border/60 bg-background p-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void runSearch({ query, mode, limit });
+            }}
+          >
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+              {t("knowledge.query")}
+              <Input
+                aria-label={t("knowledge.query")}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t("knowledge.queryPlaceholder")}
+                className="h-9 text-sm"
+              />
+            </label>
+            <div className="flex items-end gap-2">
+              <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-muted-foreground">
+                {t("knowledge.mode")}
+                <select
+                  aria-label={t("knowledge.mode")}
+                  value={mode}
+                  onChange={(event) => setMode(event.target.value as KnowledgeSearchMode)}
+                  className="h-9 rounded-control border border-input bg-background px-2 text-sm"
+                >
+                  {SEARCH_MODES.map((value) => (
+                    <option key={value} value={value}>
+                      {t(`knowledge.mode${value.charAt(0).toUpperCase()}${value.slice(1)}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex w-20 shrink-0 flex-col gap-1 text-xs font-medium text-muted-foreground">
+                {t("knowledge.limit")}
+                <select
+                  aria-label={t("knowledge.limit")}
+                  value={String(limit)}
+                  onChange={(event) => setLimit(Number(event.target.value))}
+                  className="h-9 rounded-control border border-input bg-background px-2 text-sm"
+                >
+                  {SEARCH_LIMITS.map((value) => (
+                    <option key={value} value={String(value)}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={searching || !query.trim()}
+              className="h-9 gap-1.5 rounded-full px-4 text-sm font-semibold"
+            >
+              {searching ? (
+                <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
+              ) : (
+                <Search className="h-3.5 w-3.5" aria-hidden />
+              )}
+              {t("knowledge.search")}
+            </Button>
+          </form>
+
+          <section className="flex flex-col gap-2 rounded-panel border border-border/60 bg-background p-4">
+            <h3 className="text-sm font-semibold text-foreground">
+              {t("knowledge.retrieval.scope")}
+            </h3>
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+              {t("knowledge.retrieval.scopeKb")}
+              <select
+                aria-label={t("knowledge.retrieval.scopeKb")}
+                value={selectedKbId}
+                onChange={(event) => {
+                  setSelectedKbId(event.target.value);
+                  scopeChanged();
+                }}
+                className="h-9 rounded-control border border-input bg-background px-2 text-sm"
               >
-                <Trash2 className="h-3 w-3" aria-hidden />
-              </Button>
-            ) : null}
-          </div>
-          {historyError ? (
-            <p role="alert" className="px-1 py-2 text-[12px] text-destructive">
-              {historyError}
-            </p>
-          ) : history.length === 0 ? (
-            <p className="px-1 py-2 text-[12px] text-muted-foreground">
-              {t("knowledge.retrieval.historyEmpty")}
-            </p>
-          ) : (
-            <ul className="flex max-h-44 flex-col gap-0.5 overflow-y-auto">
-              {history.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    onClick={() => runFromHistory(item)}
-                    className="w-full rounded-control px-2 py-1.5 text-left transition-colors hover:bg-muted/50"
-                  >
-                    <span className="block truncate text-[12.5px] text-foreground">
-                      {item.query}
-                    </span>
-                    <span className="mt-0.5 flex flex-wrap gap-1 text-[10px] tabular-nums text-muted-foreground">
-                      <span>
-                        {t("knowledge.retrieval.historyMeta", {
-                          count: item.hitCount,
-                          ms: item.durationMs,
-                        })}
-                      </span>
-                      <span>{item.mode}</span>
-                      <span>{item.createdAt.slice(5, 16).replace("T", " ")}</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ) : null}
+                <option value="">{t("knowledge.retrieval.allKbs")}</option>
+                {kbs.map((kb) => (
+                  <option key={kb.id} value={kb.id}>
+                    {kb.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+              {t("knowledge.retrieval.scopeDoc")}
+              <select
+                aria-label={t("knowledge.retrieval.scopeDoc")}
+                value={selectedDocId}
+                onChange={(event) => {
+                  setSelectedDocId(event.target.value);
+                  scopeChanged();
+                }}
+                disabled={!selectedKbId || docsLoading}
+                className="h-9 rounded-control border border-input bg-background px-2 text-sm disabled:opacity-60"
+              >
+                <option value="">{t("knowledge.retrieval.allDocs")}</option>
+                {docs.map((doc) => (
+                  <option key={doc.id} value={doc.id}>
+                    {doc.title || doc.originalName || doc.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
 
-      {panelOpen ? (
-        <div className="mt-3 flex flex-col gap-3">
+          <section className="flex min-h-0 flex-col rounded-panel border border-border/60 bg-background">
+            <header className="flex items-center gap-2 border-b border-border/60 px-4 py-2.5">
+              <History className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              <h3 className="text-sm font-semibold text-foreground">
+                {t("knowledge.retrieval.history")}
+              </h3>
+              {history.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t("knowledge.retrieval.historyClear")}
+                  title={t("knowledge.retrieval.historyClear")}
+                  onClick={() => void clearHistory()}
+                  className="ml-auto h-7 w-7 rounded-full p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                </Button>
+              ) : null}
+            </header>
+            <div className="max-h-64 overflow-y-auto p-2">
+              {!selectedKbId ? (
+                <p className="px-2 py-3 text-[12px] text-muted-foreground">
+                  {t("knowledge.retrieval.historyKbHint")}
+                </p>
+              ) : historyError ? (
+                <p role="alert" className="px-2 py-3 text-[12px] text-destructive">
+                  {historyError}
+                </p>
+              ) : history.length === 0 ? (
+                <p className="px-2 py-3 text-[12px] text-muted-foreground">
+                  {t("knowledge.retrieval.historyEmpty")}
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {history.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => runFromHistory(item)}
+                        className="w-full rounded-control px-2 py-1.5 text-left transition-colors hover:bg-muted/40"
+                      >
+                        <span className="block truncate text-[12.5px] text-foreground">
+                          {item.query}
+                        </span>
+                        <span className="mt-0.5 flex flex-wrap gap-1 text-[10px] tabular-nums text-muted-foreground">
+                          <span>
+                            {t("knowledge.retrieval.historyMeta", {
+                              count: item.hitCount,
+                              ms: item.durationMs,
+                            })}
+                          </span>
+                          <span>{item.mode}</span>
+                          <span>{item.createdAt.slice(5, 16).replace("T", " ")}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-3">
           <RetrievalTraceCanvas
             trace={result?.trace ?? null}
             loading={searching}
@@ -290,7 +405,8 @@ export function KnowledgeRetrievalBar({
             onToggleCollapsed={() => setCanvasCollapsed((value) => !value)}
             onSelectStage={(stage) => setActiveStage(stage)}
           />
-          <div className="rounded-panel border border-border/60 bg-background p-4">
+
+          <section className="rounded-panel border border-border/60 bg-background p-4">
             <h3 className="pb-2 text-sm font-semibold text-foreground">
               {t("knowledge.retrieval.results")}
             </h3>
@@ -306,21 +422,23 @@ export function KnowledgeRetrievalBar({
                 <Loader2 className="h-3.5 w-3.5 knowledge-motion animate-spin" aria-hidden />
                 {t("knowledge.searching")}
               </p>
-            ) : result ? (
+            ) : !result ? (
+              <p className="text-sm text-muted-foreground">{t("knowledge.searchIdle")}</p>
+            ) : (
               <KnowledgeSearchResults
                 result={result}
                 docsById={docsById}
-                onLocate={onLocateDoc}
+                onLocate={locateDoc}
                 emptyLabel={
                   result.reason
                     ? t("knowledge.searchFiltered", { reason: result.reason })
                     : t("knowledge.searchEmpty")
                 }
               />
-            ) : null}
-          </div>
+            )}
+          </section>
         </div>
-      ) : null}
+      </div>
 
       <KnowledgeDialog open={!!activeStage} onOpenChange={(open) => { if (!open) setActiveStage(null); }}>
         <KnowledgeDialogContent className="max-h-[80vh] overflow-y-auto">
@@ -346,7 +464,7 @@ export function KnowledgeRetrievalBar({
           ) : null}
         </KnowledgeDialogContent>
       </KnowledgeDialog>
-    </section>
+    </div>
   );
 }
 

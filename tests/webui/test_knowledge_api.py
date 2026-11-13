@@ -612,6 +612,17 @@ def test_search_without_trace_passes_none() -> None:
     assert _call(fake, "record_search_history") == []
 
 
+def test_search_passes_document_scope() -> None:
+    api, fake = _api()
+
+    api.handle(
+        "knowledge-search",
+        {"query": "回滚", "docIds": ["doc_1", "doc_2"]},
+    )
+
+    assert _call(fake, "search")[0]["doc_ids"] == ["doc_1", "doc_2"]
+
+
 def test_query_history_reads_and_clears_per_kb() -> None:
     service = FakeService()
     service.history = [

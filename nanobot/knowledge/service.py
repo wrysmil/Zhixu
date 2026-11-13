@@ -915,6 +915,7 @@ class KnowledgeService:
         limit: int | None = None,
         extra_context: Sequence[SearchHit] = (),
         trace: Any | None = None,
+        doc_ids: Sequence[str] | None = None,
     ) -> SearchResult:
         """检索；`extra_context` 是调用方注入的补充上下文（§9.1 ③ 历史引用）。"""
         return self._retriever.search(
@@ -925,6 +926,7 @@ class KnowledgeService:
             limit=limit,
             extra_context=extra_context,
             trace=trace,
+            doc_ids=doc_ids,
         )
 
     # ---------- 统计 ----------

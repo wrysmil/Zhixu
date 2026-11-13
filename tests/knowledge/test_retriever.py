@@ -347,6 +347,36 @@ def test_hybrid_merges_both_routes() -> None:
     assert scores == sorted(scores, reverse=True)
 
 
+def test_doc_filter_narrows_hits_to_requested_documents() -> None:
+    keyword_text = _long_text("alpha beta", "a")
+    other_text = _long_text("alpha gamma", "b")
+    repo = FakeRepo(
+        kbs=[_kb()],
+        fts=[
+            _fts("chk_a", keyword_text, 9.0, doc_id="doc_a"),
+            _fts("chk_b", other_text, 8.0, doc_id="doc_b"),
+        ],
+        chunks={
+            "chk_a": _stored("chk_a", keyword_text, doc_id="doc_a"),
+            "chk_b": _stored("chk_b", other_text, doc_id="doc_b"),
+        },
+    )
+    retriever = _retriever(repo, vector=None)
+
+    both = retriever.search("alpha", workspace_ids=["ws1"], mode="keyword")
+    only_a = retriever.search(
+        "alpha", workspace_ids=["ws1"], mode="keyword", doc_ids=["doc_a"]
+    )
+    none = retriever.search(
+        "alpha", workspace_ids=["ws1"], mode="keyword", doc_ids=["doc_missing"]
+    )
+
+    assert {hit.doc_id for hit in both.hits} == {"doc_a", "doc_b"}
+    assert [hit.doc_id for hit in only_a.hits] == ["doc_a"]
+    assert none.hits == ()
+    assert none.reason == "filtered"
+
+
 def test_trace_records_pipeline_stages_without_changing_hits() -> None:
     repo, embedder, vector = _hybrid_fixture()
     retriever = _retriever(repo, embedder=embedder, vector=vector)

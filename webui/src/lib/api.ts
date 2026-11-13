@@ -1961,6 +1961,7 @@ export async function searchKnowledge(
     limit?: number;
     kbId?: string;
     kbIds?: string[];
+    docIds?: string[];
     trace?: boolean;
     record?: boolean;
   } & KnowledgeScope,
@@ -1972,6 +1973,7 @@ export async function searchKnowledge(
     limit: params.limit,
     kbId: params.kbId,
     kbIds: params.kbIds,
+    docIds: params.docIds,
     trace: params.trace ? "true" : undefined,
     record: params.record ? "true" : undefined,
     workspaceIds: params.workspaceIds,
