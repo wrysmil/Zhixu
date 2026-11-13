@@ -554,6 +554,15 @@ class FallbackProvider(LLMProvider):
                     "Failed to create provider for fallback '{}': {}", fallback_model, exc
                 )
                 continue
+            from nanobot.trajectory import capture as trace_capture
+
+            trace_capture.route_changed(
+                previous=(
+                    primary_model if idx == 0 else self._fallback_presets[idx - 1].model
+                ),
+                current=fallback_model,
+                reason="provider_fallback",
+            )
 
             fallback_kwargs = {
                 **kwargs,

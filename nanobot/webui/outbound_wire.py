@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, NotRequired, TypeAlias, TypedDict
+from typing import Any, Literal, NotRequired, TypeAlias, TypedDict, cast
 
 from nanobot.bus.outbound_events import (
     ContextCompactionEvent,
@@ -69,6 +69,13 @@ class SubagentExecutionWireEvent(AgentEvent):
     data: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class TrajectoryBatchWireEvent(AgentEvent):
+    """One committed trajectory batch ready for WebUI fan-out."""
+
+    data: dict[str, Any]
+
+
 class TeamEventWirePayload(TypedDict):
     # 契约 §6 的运行更新帧：``data`` 是白名单投影后的 TeamEvent，``turn_id`` 用它自己的
     # turnId（一条运行的事件属于开始它的那一轮，不跟当前轮走）。
@@ -101,6 +108,19 @@ class SubagentExecutionSnapshotWirePayload(TypedDict):
     type: Literal["subagent_execution_snapshot"]
     chat_id: str
     data: dict[str, Any]
+
+
+class TrajectoryBatchWirePayload(TypedDict):
+    event: Literal["trajectory_batch"]
+    type: Literal["trajectory_batch"]
+    chat_id: str
+    session_id: str
+    from_seq: int
+    to_seq: int
+    durable_seq: int
+    history_generation: int
+    events: list[dict[str, Any]]
+    record_updates: list[dict[str, Any]]
 
 
 TerminalWireStatus: TypeAlias = Literal["ok", "already_running", "limit_reached", "error"]
@@ -162,6 +182,7 @@ WebUIWirePayload: TypeAlias = (
     RetryStatusWirePayload | ContextCompactionWirePayload | RecoveryStateWirePayload
     | TurnEndWirePayload | TeamEventWirePayload | TeamSnapshotWirePayload
     | SubagentExecutionEventWirePayload | SubagentExecutionSnapshotWirePayload
+    | TrajectoryBatchWirePayload
 )
 WebUIWirePersistence: TypeAlias = Literal[
     "transient",
@@ -255,6 +276,34 @@ def encode_subagent_execution_snapshot(
         "type": "subagent_execution_snapshot",
         "chat_id": chat_id,
         "data": dict(snapshot),
+    }
+
+
+def encode_trajectory_batch(
+    chat_id: str,
+    data: Mapping[str, Any],
+) -> TrajectoryBatchWirePayload:
+    """Project one committed trajectory batch onto its incremental frame."""
+    def _dict_list(value: object) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        return [
+            dict(cast(dict[str, Any], item))
+            for item in cast(list[object], value)
+            if isinstance(item, dict)
+        ]
+
+    return {
+        "event": "trajectory_batch",
+        "type": "trajectory_batch",
+        "chat_id": chat_id,
+        "session_id": str(data.get("sessionId") or ""),
+        "from_seq": int(data.get("fromSeq") or 0),
+        "to_seq": int(data.get("toSeq") or 0),
+        "durable_seq": int(data.get("durableSeq") or 0),
+        "history_generation": int(data.get("historyGeneration") or 1),
+        "events": _dict_list(data.get("events")),
+        "record_updates": _dict_list(data.get("recordUpdates")),
     }
 
 

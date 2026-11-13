@@ -976,6 +976,12 @@ class AgentLoop:
         def _on_session_deleted(session: Session) -> None:
             """T2 observer: non-blocking, only schedules a task on the running loop."""
             try:
+                from nanobot.trajectory import trajectory_service
+
+                trajectory_service().delete_session(session.key)
+            except Exception:
+                logger.exception("trajectory purge failed for session {}", session.key)
+            try:
                 running = asyncio.get_running_loop()
             except RuntimeError:
                 logger.debug(
@@ -1023,6 +1029,15 @@ class AgentLoop:
         parameters (e.g. ``cron_service``, ``session_manager``).
         """
         from nanobot.providers.factory import make_provider
+        from nanobot.trajectory import TrajectorySettings, configure_trajectory
+
+        configure_trajectory(TrajectorySettings(
+            enabled=config.trajectory.enabled,
+            mode=config.trajectory.mode,
+            retention_days=config.trajectory.retention_days,
+            max_body_mb=config.trajectory.max_body_mb,
+            max_run_body_mb=config.trajectory.max_run_body_mb,
+        ))
 
         if bus is None:
             bus = MessageBus()
@@ -1865,6 +1880,19 @@ class AgentLoop:
         file_state_token = bind_file_states(self._file_state_store.for_session(active_session_key))
         request_token = bind_request_context(request_ctx)
         workspace_token = bind_workspace_scope(effective_scope)
+        try:
+            from nanobot.trajectory import capture as _trajectory_capture
+
+            if retrieved_memory_section:
+                _trajectory_capture.context_injected(
+                    "retrieved_memory", retrieved_memory_section, source="memory",
+                )
+            if working_memory_section:
+                _trajectory_capture.context_injected(
+                    "working_memory", working_memory_section, source="working_memory",
+                )
+        except Exception:
+            logger.exception("trajectory context capture failed")
         turn_scope_stack = ExitStack()
         # Compute lazily because create_goal may create goal metadata during this run.
         def _goal_continue() -> str | None:
@@ -2912,43 +2940,123 @@ class AgentLoop:
             ctx.visible_run_started_at = time.time()
         await ctx.delivery.running(started_at=ctx.visible_run_started_at)
         assert ctx.transcript_input is not None
-        with capture_message_deliveries() as message_sends:
-            result = await self._run_agent_loop(
-                ctx.transcript_input,
-                runtime=runtime,
-                streaming=ctx.streaming,
-                session=ctx.session,
-                pending_queue=ctx.pending_queue,
-                ephemeral=ctx.ephemeral,
-                run_extra_hooks_for_ephemeral=ctx.run_extra_hooks_for_ephemeral,
-                hooks=ctx.hooks,
-                hook_factories=ctx.hook_factories,
-                turn_scopes=ctx.turn_scopes,
-                tools=ctx.tools,
-                team=ctx.team,
-                agent=ctx.agent,
-                request_context=ctx.request_context,
-                provider_state=ctx.provider_state,
-                retrieved_memory_section=ctx.pending_retrieved_memory_section,
-                working_memory_section=ctx.pending_working_memory_section,
-                events=ctx.events,
-            )
-        ctx.final_content = result.final_content
-        ctx.all_messages = result.messages
-        ctx.summary_checkpoint = result.summary_checkpoint
-        ctx.provider_compaction_applied = result.provider_compaction_applied
-        ctx.stop_reason = result.stop_reason
-        ctx.failure_error_kind = result.failure_error_kind
-        if (
-            ctx.kind is TurnKind.USER
-            and (ctx.delivery.route.channel, ctx.delivery.route.chat_id) in message_sends
-            and (not result.had_injections or result.stop_reason == "empty_final_response")
-        ):
-            ctx.suppress_response = True
-        ctx.usage = result.usage
-        ctx.delivery.record_usage(result.round_usages)
+        from nanobot.trajectory.context import bind_trace_recorder, reset_trace_recorder
+
+        trace_recorder = self._start_turn_trace(ctx)
+        trace_token = bind_trace_recorder(trace_recorder) if trace_recorder is not None else None
+        trace_status = "succeeded"
+        trace_stop_reason: str | None = None
+        try:
+            with capture_message_deliveries() as message_sends:
+                result = await self._run_agent_loop(
+                    ctx.transcript_input,
+                    runtime=runtime,
+                    streaming=ctx.streaming,
+                    session=ctx.session,
+                    pending_queue=ctx.pending_queue,
+                    ephemeral=ctx.ephemeral,
+                    run_extra_hooks_for_ephemeral=ctx.run_extra_hooks_for_ephemeral,
+                    hooks=ctx.hooks,
+                    hook_factories=ctx.hook_factories,
+                    turn_scopes=ctx.turn_scopes,
+                    tools=ctx.tools,
+                    team=ctx.team,
+                    agent=ctx.agent,
+                    request_context=ctx.request_context,
+                    provider_state=ctx.provider_state,
+                    retrieved_memory_section=ctx.pending_retrieved_memory_section,
+                    working_memory_section=ctx.pending_working_memory_section,
+                    events=ctx.events,
+                )
+            ctx.final_content = result.final_content
+            ctx.all_messages = result.messages
+            ctx.summary_checkpoint = result.summary_checkpoint
+            ctx.provider_compaction_applied = result.provider_compaction_applied
+            ctx.stop_reason = result.stop_reason
+            ctx.failure_error_kind = result.failure_error_kind
+            trace_stop_reason = result.stop_reason
+            if result.error is not None or result.stop_reason in {"error", "cancelled"}:
+                trace_status = "failed"
+            if (
+                ctx.kind is TurnKind.USER
+                and (ctx.delivery.route.channel, ctx.delivery.route.chat_id) in message_sends
+                and (not result.had_injections or result.stop_reason == "empty_final_response")
+            ):
+                ctx.suppress_response = True
+            ctx.usage = result.usage
+            ctx.delivery.record_usage(result.round_usages)
+        except asyncio.CancelledError:
+            trace_status = "cancelled"
+            raise
+        except BaseException:
+            trace_status = "failed"
+            raise
+        finally:
+            if trace_recorder is not None:
+                try:
+                    trace_recorder.finish(status=trace_status, stop_reason=trace_stop_reason)
+                except Exception:
+                    logger.exception("trajectory run finish failed")
+            if trace_token is not None:
+                reset_trace_recorder(trace_token)
         if ctx.kind is TurnKind.USER:
             await turn_continuation.maybe_continue_turn(ctx)
+
+    def _start_turn_trace(self, ctx: TurnContext) -> Any:
+        """Create and bind this turn's trace recorder (fail-open)."""
+        try:
+            from nanobot.trajectory import trajectory_service
+
+            service = trajectory_service()
+            if service.mode == "off":
+                return None
+            request_ctx = ctx.request_context
+            metadata = request_ctx.metadata if request_ctx is not None else {}
+            channel = request_ctx.channel if request_ctx is not None else "cli"
+            scope = self.workspace_scopes.for_turn(
+                channel=channel,
+                message_metadata=metadata,
+                session_metadata=ctx.session.metadata if ctx.session is not None else None,
+            )
+            source = self._trajectory_source(channel, ctx.kind, metadata)
+            recorder = service.begin_run(
+                workspace=str(scope.project_path),
+                session_id=ctx.session_key,
+                turn_id=ctx.turn_id or None,
+                source=source,
+                ephemeral=ctx.ephemeral,
+                purpose="chat" if ctx.kind is TurnKind.USER else "system",
+                visible=False,
+                agent_id=getattr(ctx.agent, "id", None) if ctx.agent is not None else None,
+                agent_name=getattr(ctx.agent, "name", None) if ctx.agent is not None else None,
+            )
+            if recorder is None:
+                return None
+            content: object = (
+                ctx.original_user_text
+                if ctx.original_user_text is not None
+                else ctx.msg.content
+            )
+            if isinstance(content, list):
+                content = {"blocks": content}
+            recorder.input_recorded(content, source=source)
+            return recorder
+        except Exception:
+            logger.exception("trajectory turn start failed")
+            return None
+
+    @staticmethod
+    def _trajectory_source(channel: str, kind: TurnKind, metadata: Any) -> str:
+        if channel in {"cron", "local_trigger"}:
+            return "cron"
+        if channel in {"dream", "memory"}:
+            return "dream"
+        if channel in {"api", "openai", "http"}:
+            return "api"
+        if kind is TurnKind.SYSTEM:
+            return "system"
+        declared = metadata.get("source") if hasattr(metadata, "get") else None
+        return declared if declared in {"user", "api", "cron", "dream", "system"} else "user"
 
     async def _persist_turn(self, ctx: TurnContext) -> None:
         session = ctx.require_session()

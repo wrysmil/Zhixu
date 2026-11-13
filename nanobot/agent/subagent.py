@@ -54,6 +54,7 @@ class SubagentOrigin(TypedDict):
     chat_id: str
     session_key: str | None
     llm_usage_source: NotRequired[LLMUsageSource]
+    parent_tool_call_id: NotRequired[str]
 
 
 #: 宿主（写作协作批次）在派发期间提供的**已冻结 Skill 正文**：(name, body) 对。
@@ -642,6 +643,7 @@ class SubagentManager:
         *,
         runtime: LLMRuntime | None = None,
         invocation_id: str | None = None,
+        parent_tool_call_id: str | None = None,
     ) -> str:
         """Spawn a subagent to execute a task in the background."""
         if runtime is None:
@@ -655,6 +657,7 @@ class SubagentManager:
             "chat_id": origin_chat_id,
             "session_key": session_key,
             "llm_usage_source": current_llm_usage_source(),
+            "parent_tool_call_id": parent_tool_call_id or "",
         }
 
         status = SubagentStatus(
@@ -715,6 +718,7 @@ class SubagentManager:
         *,
         runtime: LLMRuntime | None = None,
         invocation_id: str | None = None,
+        parent_tool_call_id: str | None = None,
     ) -> str:
         """Run a subagent synchronously and return its result to the caller."""
         if runtime is None:
@@ -728,6 +732,7 @@ class SubagentManager:
             "chat_id": origin_chat_id,
             "session_key": session_key,
             "llm_usage_source": current_llm_usage_source(),
+            "parent_tool_call_id": parent_tool_call_id or "",
         }
         status = SubagentStatus(
             task_id=task_id,
@@ -1017,6 +1022,45 @@ class SubagentManager:
                 runtime=runtime,
             ))
             token = bind_workspace_scope(workspace_scope) if workspace_scope is not None else None
+            from nanobot.trajectory import capture as trace_capture
+            from nanobot.trajectory import trajectory_service
+            from nanobot.trajectory.context import (
+                bind_trace_recorder,
+                current_trace_recorder,
+                reset_trace_recorder,
+            )
+
+            parent_recorder = current_trace_recorder()
+            child_recorder = None
+            child_token = None
+            child_status = "succeeded"
+            child_stop_reason: str | None = None
+            if parent_recorder is not None:
+                child_recorder = trajectory_service().begin_run(
+                    workspace=str(root),
+                    session_id=sess_key or parent_recorder.context.session_id,
+                    turn_id=None,
+                    source=parent_recorder.context.source,
+                    ephemeral=parent_recorder.context.ephemeral,
+                    purpose="subagent",
+                    visible=False,
+                    execution_id=task_id,
+                    parent_recorder=parent_recorder,
+                    parent_span_id=parent_recorder.context.parent_span_id,
+                    agent_id=agent_id,
+                    agent_name=agent.name if agent is not None else None,
+                )
+            if child_recorder is not None:
+                parent_tool_call_id = str(origin.get("parent_tool_call_id") or "")
+                if parent_tool_call_id:
+                    trace_capture.execution_linked(
+                        tool_call_id=parent_tool_call_id,
+                        invocation_id=task_id,
+                        child_run_id=child_recorder.context.run_id,
+                        child_session_id=None,
+                    )
+                child_token = bind_trace_recorder(child_recorder)
+                trace_capture.context_injected("subagent_task", task, source="subagent")
             try:
                 result = await self.runner.run(AgentRunSpec(
                     initial_messages=messages,
@@ -1039,7 +1083,25 @@ class SubagentManager:
                         current_llm_usage_source(),
                     ),
                 ))
+                child_stop_reason = result.stop_reason
+                if result.error is not None or result.stop_reason in {"error", "cancelled"}:
+                    child_status = "failed"
+            except asyncio.CancelledError:
+                child_status = "cancelled"
+                raise
+            except BaseException:
+                child_status = "failed"
+                raise
             finally:
+                if child_token is not None:
+                    reset_trace_recorder(child_token)
+                if child_recorder is not None:
+                    try:
+                        child_recorder.finish(
+                            status=child_status, stop_reason=child_stop_reason,
+                        )
+                    except Exception:
+                        logger.exception("subagent trajectory finish failed")
                 if token is not None:
                     reset_workspace_scope(token)
                 reset_request_context(request_token)

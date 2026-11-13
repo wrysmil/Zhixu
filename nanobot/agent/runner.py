@@ -309,6 +309,9 @@ class AgentRunner:
 
     async def run(self, spec: AgentRunSpec) -> AgentRunResult:
         hook = spec.hook or AgentHook()
+        from nanobot.trajectory import capture as trace_capture
+
+        spec.events = trace_capture.wrap_trajectory_events(spec.events)
         messages, compaction = self._initial_transcript_and_compaction(spec)
         context = AgentRunHookContext(messages=deepcopy(messages))
         llm_usage_source_token = bind_llm_usage_source(
@@ -434,7 +437,10 @@ class AgentRunner:
             events=spec.events,
         )
 
+        from nanobot.trajectory import capture as trace_capture
+
         for iteration in range(spec.max_iterations):
+            trace_capture.step_started(iteration)
             context = AgentHookContext(
                 iteration=iteration,
                 messages=messages,
@@ -887,9 +893,38 @@ class AgentRunner:
             messages,
             tools=tool_definitions,
         )
+        from nanobot.trajectory import capture as trace_capture
+
+        logical_request_id = trace_capture.new_logical_request_id()
+        trace_capture.model_requested(
+            logical_request_id,
+            request_snapshot={
+                "system": (
+                    messages[0]
+                    if messages and messages[0].get("role") == "system"
+                    else None
+                ),
+                "messages": [
+                    message for message in messages
+                    if message.get("role") != "system"
+                ],
+                "tools": tool_definitions,
+                "generation": {
+                    key: kwargs.get(key)
+                    for key in ("model", "max_tokens", "temperature",
+                                "reasoning_effort", "tool_choice")
+                },
+                "continuationKind": (
+                    type(provider_context).__name__ if provider_context is not None else None
+                ),
+                "completeness": "normalized",
+            },
+            purpose="malformed_retry" if malformed_retry else "main",
+        )
         wants_streaming = hook.wants_streaming()
 
         active_hosted_tools: dict[str, dict[str, Any]] = {}
+        hosted_tool_order = 0
         native_reasoning_open = False
         native_reasoning_close_task: asyncio.Task[None] | None = None
         request_started_at = 0.0
@@ -940,6 +975,7 @@ class AgentRunner:
                 raise cancellation
 
         async def _provider_tool_event(event: dict[str, Any]) -> None:
+            nonlocal hosted_tool_order
             await _close_native_reasoning()
             await hook.on_provider_tool_event(context, event)
             if event.get("kind") != "hosted_tool":
@@ -948,9 +984,30 @@ class AgentRunner:
             if not call_id:
                 return
             call_id = str(call_id)
-            if event.get("phase") == "start":
+            phase = event.get("phase")
+            if phase == "start":
+                trace_capture.tool_requested(
+                    tool_call_id=call_id,
+                    provider_call_id=call_id,
+                    name=str(event.get("name") or "hosted_tool"),
+                    arguments=event.get("arguments"),
+                    schema=None,
+                    model_order=100 + hosted_tool_order,
+                    origin="provider",
+                )
+                hosted_tool_order += 1
+                trace_capture.tool_started(
+                    tool_call_id=call_id, effective_arguments=event.get("arguments"),
+                )
                 active_hosted_tools[call_id] = dict(event)
-            elif event.get("phase") in {"end", "error"}:
+            elif phase in {"end", "error"}:
+                trace_capture.tool_finished(
+                    tool_call_id=call_id,
+                    status="succeeded" if phase == "end" else "failed",
+                    result=event.get("result") if phase == "end" else None,
+                    error=event.get("error") if phase == "error" else None,
+                    side_effect_outcome="unknown",
+                )
                 active_hosted_tools.pop(call_id, None)
 
         if wants_streaming:
@@ -1007,6 +1064,7 @@ class AgentRunner:
             else timeout_s
         )
         request_started_at = time.perf_counter()
+        logical_token = trace_capture.bind_request(logical_request_id)
         try:
             response = (
                 await coro if outer_timeout_s is None
@@ -1029,6 +1087,8 @@ class AgentRunner:
                     finish_reason="error",
                     error_kind="timeout",
                 )
+        finally:
+            trace_capture.reset_request(logical_token)
         _pause_generation()
         await _close_native_reasoning()
         if first_output_at is not None:

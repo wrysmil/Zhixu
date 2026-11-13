@@ -475,6 +475,15 @@ def _run_gateway(
     from nanobot.triggers.local_store import LocalTriggerStore
 
     port = port if port is not None else config.gateway.port
+    from nanobot.trajectory import TrajectorySettings, configure_trajectory
+
+    configure_trajectory(TrajectorySettings(
+        enabled=config.trajectory.enabled,
+        mode=config.trajectory.mode,
+        retention_days=config.trajectory.retention_days,
+        max_body_mb=config.trajectory.max_body_mb,
+        max_run_body_mb=config.trajectory.max_run_body_mb,
+    ))
     webui_url = _webui_browser_url(config)
     gateway_host_for_browser = _host_for_local_browser(config.gateway.host)
     if health_server_enabled and _tcp_endpoint_reachable(gateway_host_for_browser, port):
