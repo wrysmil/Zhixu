@@ -2,7 +2,6 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   CircleSlash,
   FileText,
@@ -13,7 +12,6 @@ import {
   RefreshCcw,
   Search,
   Trash2,
-  Upload,
   Wrench,
 } from "lucide-react";
 
@@ -25,7 +23,10 @@ import { EmptyState } from "@/components/workspace/EmptyState";
 import { KnowledgeLibraryList } from "./knowledge/KnowledgeLibraryList";
 import { KnowledgeDocumentTable } from "./knowledge/KnowledgeDocumentTable";
 import { KnowledgeDocumentSheet } from "./knowledge/KnowledgeDocumentSheet";
-import { KnowledgeImportSheet } from "./knowledge/KnowledgeImportSheet";
+import { KnowledgeImportSheet} from "./knowledge/KnowledgeImportSheet";
+import { KnowledgeCitation } from "./knowledge/KnowledgeCitation";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { KnowledgeStatus } from "./knowledge-shared/KnowledgeStatus";
 import "./knowledge-shared/experience.css";
 import {
@@ -53,7 +54,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useClient } from "@/providers/ClientProvider";
 
-/** WebUI 上传口径：后缀白名单与 20 MB 上限，不含 csv。 */
+/** WebUI 上传口径（spec §13.1）：后缀白名单与 6 MB 上限，不含 csv。 */
 const UPLOAD_MIME_BY_SUFFIX: Record<string, string> = {
   ".pdf": "application/pdf",
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -134,7 +135,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [importOpen, setImportOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadStage, setUploadStage] = useState("");
-  const [uploadRetryable, setUploadRetryable] = useState(false);
+  const [uploadStageIndex, setUploadStageIndex] = useState(-1);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [kbs, setKbs] = useState<KnowledgeKb[]>([]);
   const [activeKbId, setActiveKbId] = useState<string | null>(null);
@@ -159,7 +160,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [serverPath, setServerPath] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
@@ -218,6 +218,12 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     void loadStats();
   }, [loadKbs, loadStats]);
 
+  /** 命中结果要把 docId 翻译成文档标题，引用卡才读得出「引用了哪篇」。 */
+  const docsById = useMemo(() => {
+    const map = new Map<string, KnowledgeDoc>();
+    for (const doc of docs) map.set(doc.id, doc);
+    return map;
+  }, [docs]);
   const docsView = useMemo(() => ({}), [activeKbId, detailOpen, docOffset, scope, token]);
   const loadDocs = useCallback(async () => {
     if (docsViewRef.current !== docsView) return;
@@ -263,11 +269,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const activeKb = kbs.find((kb) => kb.id === activeKbId) ?? null;
 
   const runAction = useCallback(
-    async (
-      action: () => Promise<unknown>,
-      after?: () => Promise<void> | void,
-      onError?: (message: string) => void,
-    ) => {
+    async (action: () => Promise<unknown>, after?: () => Promise<void> | void) => {
       if (mutationLock.current) return;
       mutationLock.current = true;
       setBusy(true);
@@ -276,9 +278,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         await action();
         if (after) await after();
       } catch (reason: unknown) {
-        const message = reason instanceof Error ? reason.message : String(reason);
-        if (onError) onError(message);
-        else setActionError(message);
+        setActionError(reason instanceof Error ? reason.message : String(reason));
       } finally {
         mutationLock.current = false;
         setBusy(false);
@@ -387,25 +387,23 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     async (file: File) => {
       if (!activeKbId || mutationLock.current) return;
       setUploadFile(file);
-      setUploadError(null);
       const suffix = fileSuffix(file.name);
       const mime = UPLOAD_MIME_BY_SUFFIX[suffix];
       if (!mime) {
-        setUploadRetryable(false);
-        setUploadError(t("knowledge.uploadBadType"));
+        setActionError(t("knowledge.uploadBadType"));
         return;
       }
       if (file.size > MAX_UPLOAD_BYTES) {
-        setUploadRetryable(false);
-        setUploadError(t("knowledge.uploadTooLarge"));
+        setActionError(t("knowledge.uploadTooLarge"));
         return;
       }
-      setUploadRetryable(true);
       await runAction(async () => {
+        setUploadStageIndex(0);
         setUploadStage(t("knowledge.experience.reading", { defaultValue: "正在读取文件" }));
         let base64: string;
         try { base64 = await readFileAsBase64(file); }
         catch { throw new Error(t("knowledge.experience.readFailed", { defaultValue: "无法读取文件，请重新选择后重试" })); }
+        setUploadStageIndex(1);
         setUploadStage(t("knowledge.experience.submitting", { defaultValue: "正在提交资料" }));
         await addKnowledgeDoc(client, {
           kbId: activeKbId,
@@ -413,15 +411,15 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
           dataUrl: `data:${mime};base64,${base64}`,
           workspaceId: defaultWorkspaceId,
         });
+        setUploadStageIndex(2);
         setUploadFile(null);
-        setUploadError(null);
         setImportOpen(false);
       }, async () => {
         await loadDocs();
         await loadKbs();
         await loadStats();
         clearSearch();
-      }, setUploadError);
+      });
     },
     [activeKbId, clearSearch, client, defaultWorkspaceId, loadDocs, loadKbs, loadStats, runAction, t],
   );
@@ -558,19 +556,17 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     <div ref={rootRef} className="knowledge-experience assistant-page flex h-full min-w-0 flex-col" data-testid="knowledge-page">
       {detailOpen && activeKb ? (
         <div className="flex flex-col gap-3">
-          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            <button
-              type="button"
-              aria-label={t("knowledge.experience.backToLibraries", { defaultValue: "返回知识库" })}
-              onClick={returnToLibraries}
-              className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-              {t("knowledge.title")}
-            </button>
-            <span aria-hidden>/</span>
-            <span className="truncate text-foreground">{activeKb.name}</span>
-          </div>
+          <Breadcrumb
+            ariaLabel={t("knowledge.title")}
+            items={[
+              {
+                label: t("knowledge.title"),
+                ariaLabel: t("knowledge.experience.backToLibraries", { defaultValue: "返回知识库" }),
+                onClick: returnToLibraries,
+              },
+              { label: activeKb.name, current: true },
+            ]}
+          />
           <div className="knowledge-panel knowledge-page-header p-5">
             <div className="flex flex-wrap items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -645,53 +641,42 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               </div>
             </div>
           </div>
-          <div role="tablist" className="flex gap-1 border-b border-border/60">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={detailTab === "documents"}
-              onClick={() => setDetailTab("documents")}
-              className={cn(
-                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                detailTab === "documents"
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <FileText className="h-3.5 w-3.5" aria-hidden />
-              {t("knowledge.documents")}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={detailTab === "search"}
-              onClick={() => setDetailTab("search")}
-              className={cn(
-                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                detailTab === "search"
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Search className="h-3.5 w-3.5" aria-hidden />
-              {t("knowledge.searchTitle")}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={detailTab === "graph"}
-              onClick={() => setDetailTab("graph")}
-              className={cn(
-                "-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                detailTab === "graph"
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Network className="h-3.5 w-3.5" aria-hidden />
-              {t("knowledge.graph.tab")}
-            </button>
-          </div>
+          <SegmentedControl
+            mode="tabs"
+            ariaLabel={t("knowledge.title")}
+            value={detailTab}
+            onChange={(value) => setDetailTab(value as typeof detailTab)}
+            className="self-start"
+            options={[
+              {
+                value: "documents",
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5" aria-hidden />
+                    {t("knowledge.documents")}
+                  </span>
+                ),
+              },
+              {
+                value: "search",
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Search className="h-3.5 w-3.5" aria-hidden />
+                    {t("knowledge.searchTitle")}
+                  </span>
+                ),
+              },
+              {
+                value: "graph",
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Network className="h-3.5 w-3.5" aria-hidden />
+                    {t("knowledge.graph.tab")}
+                  </span>
+                ),
+              },
+            ]}
+          />
         </div>
       ) : (
         <header className="knowledge-page-header">
@@ -757,7 +742,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </div>
       ) : null}
 
-      {actionError && !importOpen ? (
+      {actionError ? (
         <div role="alert" className="mt-4 flex items-start gap-2 rounded-control border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           <span className="min-w-0 flex-1 break-words">{t("knowledge.actionError")}: {actionError}</span>
           <button
@@ -891,10 +876,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             ) : (
               <>
                 <div className="knowledge-toolbar mb-4">
-                  <Button onClick={() => { setActionError(null); setImportOpen(true); }} disabled={busy} className="gap-1.5">
-                    <Upload className="h-3.5 w-3.5" aria-hidden />
-                    {t("knowledge.experience.addMaterial", { defaultValue: "添加资料" })}
-                  </Button>
+                  <Button onClick={() => { setActionError(null); setImportOpen(true); }} disabled={busy}>{t("knowledge.experience.addMaterial", { defaultValue: "添加资料" })}</Button>
                   {docsLoading && <KnowledgeStatus label={t("knowledge.loading")} tone="pending" busy />}
                 </div>
 
@@ -1017,6 +999,11 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             ) : (
               <SearchResults
                 result={searchResult}
+                docsById={docsById}
+                onLocate={(docId) => {
+                  const doc = docs.find((item) => item.id === docId);
+                  if (doc) void onOpenChunkPreview(doc);
+                }}
                 emptyLabel={
                   searchResult.reason
                     ? t("knowledge.searchFiltered", { reason: searchResult.reason })
@@ -1052,9 +1039,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         ) : null}
       </div>
 
-      <KnowledgeImportSheet open={importOpen} onClose={() => setImportOpen(false)} busy={busy} error={uploadError ?? actionError} stage={uploadStage} retryable={uploadRetryable}
-        file={uploadFile} path={serverPath} onPath={setServerPath} onUpload={file => void onUpload(file)} onAddPath={() => void onAddServerPath()}
-        onClearFile={() => { setUploadFile(null); setUploadError(null); setUploadRetryable(false); }} />
+      <KnowledgeImportSheet open={importOpen} onClose={() => setImportOpen(false)} busy={busy} error={actionError} stage={uploadStage} stageIndex={uploadStageIndex}
+        file={uploadFile} path={serverPath} onPath={setServerPath} onUpload={file => void onUpload(file)} onAddPath={() => void onAddServerPath()} />
       <KnowledgeDocumentSheet doc={chunkPreview} previewChunks={previewChunks} previewTotal={previewTotal} previewLoading={previewLoading}
         previewError={previewError} onClose={closeChunkPreview} onRetry={() => { if (chunkPreview) void onOpenChunkPreview(chunkPreview); }} />
 
@@ -1180,9 +1166,13 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
 function SearchResults({
   result,
   emptyLabel,
+  docsById,
+  onLocate,
 }: {
   result: KnowledgeSearchResult;
   emptyLabel: string;
+  docsById?: Map<string, KnowledgeDoc>;
+  onLocate?: (docId: string) => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -1210,33 +1200,19 @@ function SearchResults({
       ) : (
         <ul className="flex flex-col gap-2">
           {result.hits.map((hit, index) => (
-            <li
+            <KnowledgeCitation
               key={hit.chunkId}
-              className="rounded-control border border-border/60 border-l-2 border-l-primary/50 bg-background px-3 py-2.5 shadow-sm transition-colors hover:border-border"
-            >
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 font-semibold tabular-nums text-foreground">
-                  {index + 1}
-                </span>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold tabular-nums text-primary">
-                  {hit.score.toFixed(3)}
-                </span>
-                {hit.heading ? (
-                  <span className="max-w-[280px] truncate text-foreground">{hit.heading}</span>
-                ) : null}
-                {typeof hit.page === "number" ? (
-                  <span>{t("knowledge.pageLabel", { page: hit.page })}</span>
-                ) : null}
-                <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono">{hit.chunkId}</span>
-                <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono">{hit.docId}</span>
-              </div>
-              <p className="mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap break-words pr-1 text-sm leading-relaxed text-foreground">
-                {hit.content}
-              </p>
-              {hit.locator ? (
-                <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{hit.locator}</p>
-              ) : null}
-            </li>
+              rank={index + 1}
+              docId={hit.docId}
+              chunkId={hit.chunkId}
+              docTitle={docsById?.get(hit.docId)?.title}
+              heading={hit.heading}
+              page={hit.page}
+              locator={hit.locator}
+              content={hit.content}
+              score={hit.score}
+              onLocate={onLocate ? () => onLocate(hit.docId) : undefined}
+            />
           ))}
         </ul>
       )}

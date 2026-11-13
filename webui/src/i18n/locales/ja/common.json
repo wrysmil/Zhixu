@@ -42,7 +42,8 @@
     "sampleInput": "A new idea…",
     "sampleInputLabel": "Example input",
     "instant": "Changes apply immediately and save on this device.",
-    "reset": "Restore default appearance"
+    "reset": "Restore default appearance",
+    "prism": "Prism"
   },
   "creative": {
     "title": "創作スペース",
@@ -2127,7 +2128,7 @@
       "saving": "保存中…",
       "saved": "保存しました",
       "saveFailed": "保存に失敗しました",
-      "retry": "再試行",
+      "retry": "Retry",
       "superseded": "置き換え済み",
       "errorContentRequired": "内容は必須です",
       "metaLine": "{{type}} · {{priority}} · {{importance}}",
@@ -2162,7 +2163,17 @@
         "eyebrow": "About you, under your control",
         "semanticDescription": "Preferences, facts and instructions for future chats.",
         "episodeDescription": "Excerpts of what you discussed and how it went, available to revisit."
-      }
+      },
+      "tabRelation": "Relations",
+      "relationLoading": "Organizing memory relations…",
+      "relationTitle": "Memory relations",
+      "relationEmpty": "Start a conversation to build your memory graph",
+      "relationSummary": "Showing {{nodes}} nodes from {{count}} recent memories",
+      "relationRefresh": "Refresh",
+      "relationLegendHub": "You",
+      "relationLegendTag": "Frequent tags",
+      "relationLegendEdge": "Tags appearing together",
+      "relationHint": "Drag nodes to rearrange; hover to highlight connections"
     },
     "identity": {
       "page": {
@@ -3916,9 +3927,6 @@
       "localFile": "ローカルファイル",
       "serverPath": "サーバーパス",
       "retryUpload": "アップロードを再試行",
-      "chooseFile": "ファイルを選択",
-      "dropHint": "ここにファイルをドラッグするか、クリックして選択",
-      "removeFile": "ファイルを削除",
       "importStages": "ファイルを読み込み → 送信 → 処理キューに登録。処理結果は文書一覧に反映されます。",
       "updated": "更新日時",
       "retry": "再試行",
@@ -3958,7 +3966,26 @@
       "graphRetryDetail": "エンティティの詳細を再読み込み",
       "graphLoading": "関連グラフを読み込み中…",
       "graphRetryGraph": "関連グラフを再読み込み",
-      "graphNoRelations": "関連ノードはまだありません。下にある文書の根拠はそのまま確認できます。"
+      "graphNoRelations": "関連ノードはまだありません。下にある文書の根拠はそのまま確認できます。",
+      "eyebrow": "ナレッジ取り込み",
+      "source": "取り込み元",
+      "dropTitle": "ここにファイルをドロップ",
+      "dropHint": "ここにファイルをドラッグするか、クリックして選択",
+      "supported": "対応形式",
+      "removeFile": "ファイルを削除",
+      "working": "処理中",
+      "stageRead": "ファイル読み取り",
+      "stageSubmit": "送信",
+      "stageQueue": "解析待ち",
+      "pathHint": "パスはゲートウェイホスト上で解決され、ゲートウェイと同じ読み取り権限が必要です。",
+      "citationLocate": "文書内で特定",
+      "citationCollapse": "折りたたむ",
+      "citationExpand": "展開",
+      "citationIds": "位置情報",
+      "graphExploreEntities": "Choose an entity to explore its connections",
+      "graphShowLess": "Show less",
+      "graphShowAll": "Show {{count}} entities",
+      "chooseFile": "ファイルを選択"
     }
   }
 }

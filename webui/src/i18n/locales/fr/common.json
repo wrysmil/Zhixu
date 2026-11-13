@@ -42,7 +42,8 @@
     "sampleInput": "A new idea…",
     "sampleInputLabel": "Example input",
     "instant": "Changes apply immediately and save on this device.",
-    "reset": "Restore default appearance"
+    "reset": "Restore default appearance",
+    "prism": "Prism"
   },
   "creative": {
     "title": "Espace de création",
@@ -2127,7 +2128,7 @@
       "saving": "Enregistrement...",
       "saved": "Enregistré",
       "saveFailed": "Échec de l'enregistrement",
-      "retry": "Réessayer",
+      "retry": "Retry",
       "superseded": "remplacée",
       "errorContentRequired": "Le contenu est obligatoire",
       "metaLine": "{{type}} · {{priority}} · {{importance}}",
@@ -2162,7 +2163,17 @@
         "eyebrow": "About you, under your control",
         "semanticDescription": "Preferences, facts and instructions for future chats.",
         "episodeDescription": "Excerpts of what you discussed and how it went, available to revisit."
-      }
+      },
+      "tabRelation": "Relations",
+      "relationLoading": "Organizing memory relations…",
+      "relationTitle": "Memory relations",
+      "relationEmpty": "Start a conversation to build your memory graph",
+      "relationSummary": "Showing {{nodes}} nodes from {{count}} recent memories",
+      "relationRefresh": "Refresh",
+      "relationLegendHub": "You",
+      "relationLegendTag": "Frequent tags",
+      "relationLegendEdge": "Tags appearing together",
+      "relationHint": "Drag nodes to rearrange; hover to highlight connections"
     },
     "identity": {
       "page": {
@@ -3916,9 +3927,6 @@
       "localFile": "Fichier local",
       "serverPath": "Chemin sur le serveur",
       "retryUpload": "Relancer l’envoi",
-      "chooseFile": "Choisir un fichier",
-      "dropHint": "Glissez un fichier ici ou cliquez pour choisir",
-      "removeFile": "Retirer le fichier",
       "importStages": "Lecture du fichier → Envoi → Mise en file d’attente. Les résultats mettront à jour la liste des documents.",
       "updated": "Date de mise à jour",
       "retry": "Réessayer",
@@ -3958,7 +3966,26 @@
       "graphRetryDetail": "Réessayer le chargement des détails de l’entité",
       "graphLoading": "Chargement du graphe associé…",
       "graphRetryGraph": "Réessayer le chargement du graphe associé",
-      "graphNoRelations": "Aucun nœud associé pour l’instant ; les éléments de preuve des documents ci-dessous restent disponibles."
+      "graphNoRelations": "Aucun nœud associé pour l’instant ; les éléments de preuve des documents ci-dessous restent disponibles.",
+      "eyebrow": "Knowledge intake",
+      "source": "Source",
+      "dropTitle": "Drop a file here",
+      "dropHint": "Glissez un fichier ici ou cliquez pour choisir",
+      "supported": "Supported",
+      "removeFile": "Remove file",
+      "working": "Working",
+      "stageRead": "Read file",
+      "stageSubmit": "Submit",
+      "stageQueue": "Queue for parsing",
+      "pathHint": "The path resolves on the gateway host and needs the same read permissions as the gateway process.",
+      "citationLocate": "Locate in document",
+      "citationCollapse": "Collapse",
+      "citationExpand": "Expand",
+      "citationIds": "Locator",
+      "graphExploreEntities": "Choose an entity to explore its connections",
+      "graphShowLess": "Show less",
+      "graphShowAll": "Show {{count}} entities",
+      "chooseFile": "Choisir un fichier"
     }
   }
 }

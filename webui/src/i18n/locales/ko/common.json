@@ -42,7 +42,8 @@
     "sampleInput": "A new idea…",
     "sampleInputLabel": "Example input",
     "instant": "Changes apply immediately and save on this device.",
-    "reset": "Restore default appearance"
+    "reset": "Restore default appearance",
+    "prism": "Prism"
   },
   "creative": {
     "title": "창작 공간",
@@ -2127,7 +2128,7 @@
       "saving": "저장 중…",
       "saved": "저장됨",
       "saveFailed": "저장 실패",
-      "retry": "재시도",
+      "retry": "Retry",
       "superseded": "대체됨",
       "errorContentRequired": "내용은 필수입니다",
       "metaLine": "{{type}} · {{priority}} · {{importance}}",
@@ -2162,7 +2163,17 @@
         "eyebrow": "About you, under your control",
         "semanticDescription": "Preferences, facts and instructions for future chats.",
         "episodeDescription": "Excerpts of what you discussed and how it went, available to revisit."
-      }
+      },
+      "tabRelation": "Relations",
+      "relationLoading": "Organizing memory relations…",
+      "relationTitle": "Memory relations",
+      "relationEmpty": "Start a conversation to build your memory graph",
+      "relationSummary": "Showing {{nodes}} nodes from {{count}} recent memories",
+      "relationRefresh": "Refresh",
+      "relationLegendHub": "You",
+      "relationLegendTag": "Frequent tags",
+      "relationLegendEdge": "Tags appearing together",
+      "relationHint": "Drag nodes to rearrange; hover to highlight connections"
     },
     "identity": {
       "page": {
@@ -3916,9 +3927,6 @@
       "localFile": "로컬 파일",
       "serverPath": "서버 경로",
       "retryUpload": "업로드 다시 시도",
-      "chooseFile": "파일 선택",
-      "dropHint": "파일을 여기로 끌어다 놓거나 클릭하여 선택하세요",
-      "removeFile": "파일 제거",
       "importStages": "파일 읽기 → 제출 → 처리 대기열 등록. 처리 결과는 문서 목록에 반영됩니다.",
       "updated": "업데이트일",
       "retry": "다시 시도",
@@ -3958,7 +3966,26 @@
       "graphRetryDetail": "개체 세부 정보 다시 불러오기",
       "graphLoading": "관련 그래프 불러오는 중…",
       "graphRetryGraph": "관련 그래프 다시 불러오기",
-      "graphNoRelations": "관련 노드가 아직 없습니다. 아래 문서 근거는 계속 확인할 수 있습니다."
+      "graphNoRelations": "관련 노드가 아직 없습니다. 아래 문서 근거는 계속 확인할 수 있습니다.",
+      "eyebrow": "지식 인제스트",
+      "source": "출처",
+      "dropTitle": "여기에 파일을 놓으세요",
+      "dropHint": "파일을 여기로 끌어다 놓거나 클릭하여 선택하세요",
+      "supported": "지원 형식",
+      "removeFile": "파일 제거",
+      "working": "처리 중",
+      "stageRead": "파일 읽기",
+      "stageSubmit": "제출",
+      "stageQueue": "분석 대기",
+      "pathHint": "경로는 게이트웨이 호스트에서 해석되며 게이트웨이 프로세스와 동일한 읽기 권한이 필요합니다.",
+      "citationLocate": "문서에서 찾기",
+      "citationCollapse": "접기",
+      "citationExpand": "펼치기",
+      "citationIds": "위치 정보",
+      "graphExploreEntities": "Choose an entity to explore its connections",
+      "graphShowLess": "Show less",
+      "graphShowAll": "Show {{count}} entities",
+      "chooseFile": "파일 선택"
     }
   }
 }

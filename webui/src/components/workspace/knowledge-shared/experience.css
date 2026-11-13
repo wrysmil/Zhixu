@@ -55,7 +55,8 @@
 
 :where(.knowledge-experience, .knowledge-experience-surface) .knowledge-library-card:is(:hover, :focus-within) {
   border-color: hsl(var(--ring));
-  background: hsl(var(--muted) / .35);
+  background: radial-gradient(240px circle at var(--spotlight-x, 50%) var(--spotlight-y, 0%), hsl(var(--primary) / .08), transparent 75%), hsl(var(--card));
+  box-shadow: 0 8px 28px -16px hsl(var(--primary) / .3);
 }
 
 :where(.knowledge-experience, .knowledge-experience-surface) :is(button, a, input, select, textarea, [tabindex]):focus-visible {
@@ -193,16 +194,6 @@
   left: 50%;
   transform: translate(-50%, -50%);
   animation-name: knowledge-dialog-centered-in;
-}
-
-.knowledge-experience-surface.knowledge-dialog.knowledge-dialog-compact {
-  width: min(34rem, calc(100vw - 2rem));
-  max-width: calc(100vw - 2rem);
-}
-
-.knowledge-experience-surface.knowledge-dialog.knowledge-dialog-wide {
-  width: min(48rem, calc(100vw - 2rem));
-  max-width: calc(100vw - 2rem);
 }
 
 .knowledge-experience-surface.knowledge-dialog[data-state="closed"] {

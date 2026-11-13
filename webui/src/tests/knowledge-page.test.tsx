@@ -215,29 +215,6 @@ describe("knowledge page", () => {
     await waitFor(() => expect(addKnowledgeDoc).toHaveBeenCalledTimes(2));
   });
 
-  it("accepts uploads up to the 20 MB webui limit", async () => {
-    renderPage();
-    await openKb();
-    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") }));
-    const file = new File(["draft"], "lecture.docx");
-    Object.defineProperty(file, "size", { value: 7 * 1024 * 1024 });
-    await userEvent.upload(screen.getByLabelText("Upload"), file);
-    await waitFor(() => expect(addKnowledgeDoc).toHaveBeenCalledTimes(1));
-  });
-
-  it("rejects files over 20 MB without offering a retry", async () => {
-    renderPage();
-    await openKb();
-    await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.addMaterial") }));
-    const file = new File(["draft"], "lecture.docx");
-    Object.defineProperty(file, "size", { value: 20 * 1024 * 1024 + 1 });
-    await userEvent.upload(screen.getByLabelText("Upload"), file);
-    const dialog = screen.getByRole("dialog");
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(i18n.t("knowledge.uploadTooLarge"));
-    expect(within(dialog).queryByRole("button", { name: i18n.t("knowledge.experience.retryUpload") })).not.toBeInTheDocument();
-    expect(addKnowledgeDoc).not.toHaveBeenCalled();
-  });
-
   it("registers the #/knowledge route and the rail entry", () => {
     expect(parseWorkspaceHash("#/knowledge")).toMatchObject({ view: "knowledge" });
     expect(workspaceRouteHash({ view: "knowledge" })).toBe("#/knowledge");

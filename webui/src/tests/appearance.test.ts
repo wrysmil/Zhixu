@@ -22,12 +22,16 @@ describe("appearance model", () => {
     }
   });
 
-  it("preserves default Zhixu tokens exactly and supplies complete preset palettes", () => {
-    expect(resolveAppearance(DEFAULT_APPEARANCE, "light")["--background"]).toBe("0 0% 98.039%");
-    expect(resolveAppearance(DEFAULT_APPEARANCE, "light")["--primary"]).toBe("240 3.704% 15.882%");
-    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--background"]).toBe("240 5.882% 10%");
-    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--primary"]).toBe("240 5.882% 90%");
-    expect(THEME_PRESETS).toHaveLength(4);
+  it("preserves default Prism tokens exactly and supplies complete preset palettes", () => {
+    expect(resolveAppearance(DEFAULT_APPEARANCE, "light")["--background"]).toBe("216 45% 98%");
+    expect(resolveAppearance(DEFAULT_APPEARANCE, "light")["--primary"]).toBe("221 83% 53%");
+    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--background"]).toBe("220 49% 8%");
+    expect(resolveAppearance(DEFAULT_APPEARANCE, "dark")["--primary"]).toBe("217 91% 76%");
+    expect(THEME_PRESETS).toHaveLength(5);
+    // 白底是默认档位，但旧档位必须仍然可选且保持原样。
+    const zhixu = normalizeAppearance({ ...DEFAULT_APPEARANCE, presetId: "zhixu" });
+    expect(resolveAppearance(zhixu, "light")["--background"]).toBe("0 0% 98.039%");
+    expect(resolveAppearance(zhixu, "dark")["--background"]).toBe("240 5.882% 10%");
     for (const preset of THEME_PRESETS) {
       for (const theme of ["light", "dark"] as const) {
         for (const color of Object.values(preset[theme])) expect(normalizeHex(color)).toBe(color);
@@ -79,7 +83,7 @@ describe("appearance model", () => {
       uiFont: { id: "custom", family: "Valid Font" }, codeFont: { id: "custom", family: "x; color:red" },
     });
     expect(preferences.mode).toBe("dark");
-    expect(preferences.presetId).toBe("zhixu");
+    expect(preferences.presetId).toBe("prism");
     expect(preferences.custom?.light).toEqual({ background: "#112233" });
     expect(preferences.custom?.dark).toEqual({});
     expect(preferences.uiFont).toEqual({ id: "custom", family: "Valid Font" });

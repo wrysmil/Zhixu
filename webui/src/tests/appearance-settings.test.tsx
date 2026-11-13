@@ -48,7 +48,7 @@ describe("appearance editor", () => {
     expect(screen.getByRole("textbox", { name: "Accent HEX" })).toHaveValue("#0169CC");
     fireEvent.click(screen.getByRole("button", { name: "Restore default appearance" }));
     expect(screen.getByRole("radio", { name: "Light" })).toBeChecked();
-    expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("zhixu");
+    expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("prism");
     expect(screen.getByRole("combobox", { name: "Code font" })).toHaveValue("default");
   });
 
@@ -91,7 +91,7 @@ describe("appearance editor", () => {
 
   it("exposes a storage failure while allowing appearance changes", () => {
     const controller = {
-      preferences: { schemaVersion: 1 as const, mode: "light" as const, presetId: "zhixu" as const, custom: null,
+      preferences: { schemaVersion: 2 as const, mode: "light" as const, presetId: "prism" as const, custom: null,
         uiFont: { id: "system", family: "" }, codeFont: { id: "default", family: "" } },
       theme: "light" as const, storageError: true, setMode: vi.fn(), setPreset: vi.fn(), setColor: vi.fn(),
       resetColor: vi.fn(), setFont: vi.fn(), resetAppearance: vi.fn(),

@@ -91,7 +91,7 @@ describe("PreviewApp isolation", () => {
     window.history.replaceState(null, "", "/?preview=1#/settings?section=appearance");
     try {
       render(<PreviewApp />);
-      expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("zhixu");
+      expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("prism");
       expect(screen.getByText("Preview only. Appearance changes stay in this session and do not change your saved preferences.")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "保存" })).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("radio", { name: "Dark" }));

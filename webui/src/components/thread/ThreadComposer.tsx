@@ -2397,6 +2397,34 @@ export function ThreadComposer({
       : "min-h-[50px] px-3.5 pb-1.5 pt-3 text-[15px] leading-5 sm:px-4",
   );
 
+  const contextTabs = showContextTabs ? (
+        <div
+          data-testid="composer-context-tabs"
+          className={cn(
+            "mx-auto mb-1.5 flex min-w-0 items-center gap-1 px-1",
+            isHero ? "max-w-heroComposer" : "max-w-[49.5rem]",
+          )}
+        >
+          {showProjectPicker ? (
+            <WorkspaceProjectPicker
+              isHero={isHero}
+              variant="tab"
+              disabled={interactionDisabled || workspaceScopeDisabled}
+              scope={workspaceScope}
+              defaultScope={workspaceDefaultScope}
+              controls={workspaceControls}
+              error={workspaceError}
+              onPickFolder={onPickWorkspaceFolder}
+              onChange={onWorkspaceScopeChange}
+            />
+          ) : null}
+          {teamPickerSlot}
+          {runtimeHostname ? (
+            <RuntimeEnvChip hostname={runtimeHostname} scope={workspaceScope} />
+          ) : null}
+        </div>
+  ) : null;
+
   return (
     <form
       ref={formRef}
@@ -2445,33 +2473,7 @@ export function ThreadComposer({
           onChoose={chooseMentionCandidate}
         />
       ) : null}
-      {showContextTabs ? (
-        <div
-          data-testid="composer-context-tabs"
-          className={cn(
-            "mx-auto mb-1.5 flex min-w-0 items-center gap-1 px-1",
-            isHero ? "max-w-heroComposer" : "max-w-[49.5rem]",
-          )}
-        >
-          {showProjectPicker ? (
-            <WorkspaceProjectPicker
-              isHero={isHero}
-              variant="tab"
-              disabled={interactionDisabled || workspaceScopeDisabled}
-              scope={workspaceScope}
-              defaultScope={workspaceDefaultScope}
-              controls={workspaceControls}
-              error={workspaceError}
-              onPickFolder={onPickWorkspaceFolder}
-              onChange={onWorkspaceScopeChange}
-            />
-          ) : null}
-          {teamPickerSlot}
-          {runtimeHostname ? (
-            <RuntimeEnvChip hostname={runtimeHostname} scope={workspaceScope} />
-          ) : null}
-        </div>
-      ) : null}
+      {!isHero && contextTabs}
       <div
         ref={surfaceRef}
         className={cn(
@@ -2802,6 +2804,7 @@ export function ThreadComposer({
           </div>
         </div>
       </div>
+      {isHero && contextTabs}
     </form>
   );
 }

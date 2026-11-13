@@ -250,7 +250,6 @@ export function IdentityPage() {
         kicker={t("settings.identity.files.kicker")}
         title={t("settings.identity.files.title")}
         description={t("settings.identity.files.subtitle")}
-        illustration={{ src: "/illustrations/zhixu-mascot.webp", size: "compact" }}
       />
 
       {!bannerDismissed ? (

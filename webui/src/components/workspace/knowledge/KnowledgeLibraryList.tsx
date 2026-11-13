@@ -12,7 +12,12 @@ export function KnowledgeLibraryList({ kbs, busy, onOpen, onDelete }: {
 }) {
   const { t } = useTranslation();
   return <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-    {kbs.map(kb => <li key={kb.id} className="knowledge-library-card relative flex flex-col gap-4">
+    {kbs.map(kb => <li key={kb.id} className="knowledge-library-card relative flex flex-col gap-4"
+      onPointerMove={(event) => {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.style.setProperty("--spotlight-x", `${event.clientX - bounds.left}px`);
+        event.currentTarget.style.setProperty("--spotlight-y", `${event.clientY - bounds.top}px`);
+      }}>
       <div className="flex items-start gap-3">
         <Library className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
         <KnowledgePreview title={kb.name} summary={kb.description}>

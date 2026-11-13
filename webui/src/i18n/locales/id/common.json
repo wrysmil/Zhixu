@@ -42,7 +42,8 @@
     "sampleInput": "A new idea…",
     "sampleInputLabel": "Example input",
     "instant": "Changes apply immediately and save on this device.",
-    "reset": "Restore default appearance"
+    "reset": "Restore default appearance",
+    "prism": "Prism"
   },
   "creative": {
     "title": "Ruang kreatif",
@@ -2127,7 +2128,7 @@
       "saving": "Menyimpan...",
       "saved": "Tersimpan",
       "saveFailed": "Gagal menyimpan",
-      "retry": "Coba lagi",
+      "retry": "Retry",
       "superseded": "digantikan",
       "errorContentRequired": "Konten wajib diisi",
       "metaLine": "{{type}} · {{priority}} · {{importance}}",
@@ -2162,7 +2163,17 @@
         "eyebrow": "About you, under your control",
         "semanticDescription": "Preferences, facts and instructions for future chats.",
         "episodeDescription": "Excerpts of what you discussed and how it went, available to revisit."
-      }
+      },
+      "tabRelation": "Relations",
+      "relationLoading": "Organizing memory relations…",
+      "relationTitle": "Memory relations",
+      "relationEmpty": "Start a conversation to build your memory graph",
+      "relationSummary": "Showing {{nodes}} nodes from {{count}} recent memories",
+      "relationRefresh": "Refresh",
+      "relationLegendHub": "You",
+      "relationLegendTag": "Frequent tags",
+      "relationLegendEdge": "Tags appearing together",
+      "relationHint": "Drag nodes to rearrange; hover to highlight connections"
     },
     "identity": {
       "page": {
@@ -3916,9 +3927,6 @@
       "localFile": "Berkas lokal",
       "serverPath": "Jalur server",
       "retryUpload": "Unggah ulang",
-      "chooseFile": "Pilih berkas",
-      "dropHint": "Seret berkas ke sini, atau klik untuk memilih",
-      "removeFile": "Hapus berkas",
       "importStages": "Baca berkas → Kirim → Masukkan ke antrean proses. Hasilnya akan memperbarui daftar dokumen.",
       "updated": "Tanggal pembaruan",
       "retry": "Coba lagi",
@@ -3958,7 +3966,26 @@
       "graphRetryDetail": "Muat ulang detail entitas",
       "graphLoading": "Memuat graf terkait…",
       "graphRetryGraph": "Muat ulang graf terkait",
-      "graphNoRelations": "Belum ada simpul terkait; bukti dokumen di bawah ini tetap bisa dilihat."
+      "graphNoRelations": "Belum ada simpul terkait; bukti dokumen di bawah ini tetap bisa dilihat.",
+      "eyebrow": "Knowledge intake",
+      "source": "Source",
+      "dropTitle": "Drop a file here",
+      "dropHint": "Seret berkas ke sini, atau klik untuk memilih",
+      "supported": "Supported",
+      "removeFile": "Remove file",
+      "working": "Working",
+      "stageRead": "Read file",
+      "stageSubmit": "Submit",
+      "stageQueue": "Queue for parsing",
+      "pathHint": "The path resolves on the gateway host and needs the same read permissions as the gateway process.",
+      "citationLocate": "Locate in document",
+      "citationCollapse": "Collapse",
+      "citationExpand": "Expand",
+      "citationIds": "Locator",
+      "graphExploreEntities": "Choose an entity to explore its connections",
+      "graphShowLess": "Show less",
+      "graphShowAll": "Show {{count}} entities",
+      "chooseFile": "Pilih berkas"
     }
   }
 }

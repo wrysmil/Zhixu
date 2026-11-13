@@ -42,7 +42,8 @@
     "sampleInput": "A new idea…",
     "sampleInputLabel": "Example input",
     "instant": "Changes apply immediately and save on this device.",
-    "reset": "Restore default appearance"
+    "reset": "Restore default appearance",
+    "prism": "Prism"
   },
   "creative": {
     "title": "Espacio creativo",
@@ -2127,7 +2128,7 @@
       "saving": "Guardando...",
       "saved": "Guardado",
       "saveFailed": "Error al guardar",
-      "retry": "Reintentar",
+      "retry": "Retry",
       "superseded": "sustituida",
       "errorContentRequired": "El contenido es obligatorio",
       "metaLine": "{{type}} · {{priority}} · {{importance}}",
@@ -2162,7 +2163,17 @@
         "eyebrow": "About you, under your control",
         "semanticDescription": "Preferences, facts and instructions for future chats.",
         "episodeDescription": "Excerpts of what you discussed and how it went, available to revisit."
-      }
+      },
+      "tabRelation": "Relations",
+      "relationLoading": "Organizing memory relations…",
+      "relationTitle": "Memory relations",
+      "relationEmpty": "Start a conversation to build your memory graph",
+      "relationSummary": "Showing {{nodes}} nodes from {{count}} recent memories",
+      "relationRefresh": "Refresh",
+      "relationLegendHub": "You",
+      "relationLegendTag": "Frequent tags",
+      "relationLegendEdge": "Tags appearing together",
+      "relationHint": "Drag nodes to rearrange; hover to highlight connections"
     },
     "identity": {
       "page": {
@@ -3916,9 +3927,6 @@
       "localFile": "Archivo local",
       "serverPath": "Ruta del servidor",
       "retryUpload": "Reintentar el envío",
-      "chooseFile": "Elegir archivo",
-      "dropHint": "Arrastra un archivo aquí o haz clic para elegir",
-      "removeFile": "Quitar archivo",
       "importStages": "Leer archivo → Enviar → Poner en cola. Los resultados se actualizarán en la lista de documentos.",
       "updated": "Fecha de actualización",
       "retry": "Reintentar",
@@ -3958,7 +3966,26 @@
       "graphRetryDetail": "Reintentar los detalles de la entidad",
       "graphLoading": "Cargando el grafo relacionado…",
       "graphRetryGraph": "Reintentar el grafo relacionado",
-      "graphNoRelations": "Aún no hay nodos relacionados; puedes consultar las evidencias de los documentos de abajo."
+      "graphNoRelations": "Aún no hay nodos relacionados; puedes consultar las evidencias de los documentos de abajo.",
+      "eyebrow": "Knowledge intake",
+      "source": "Source",
+      "dropTitle": "Drop a file here",
+      "dropHint": "Arrastra un archivo aquí o haz clic para elegir",
+      "supported": "Supported",
+      "removeFile": "Remove file",
+      "working": "Working",
+      "stageRead": "Read file",
+      "stageSubmit": "Submit",
+      "stageQueue": "Queue for parsing",
+      "pathHint": "The path resolves on the gateway host and needs the same read permissions as the gateway process.",
+      "citationLocate": "Locate in document",
+      "citationCollapse": "Collapse",
+      "citationExpand": "Expand",
+      "citationIds": "Locator",
+      "graphExploreEntities": "Choose an entity to explore its connections",
+      "graphShowLess": "Show less",
+      "graphShowAll": "Show {{count}} entities",
+      "chooseFile": "Elegir archivo"
     }
   }
 }

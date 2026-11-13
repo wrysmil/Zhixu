@@ -42,7 +42,8 @@
     "sampleInput": "记录一个新想法…",
     "sampleInputLabel": "示例输入框",
     "instant": "修改即时生效，并自动保存在此设备。",
-    "reset": "恢复默认外观"
+    "reset": "恢复默认外观",
+    "prism": "电光白"
   },
   "creative": {
     "title": "创作空间",
@@ -2677,7 +2678,17 @@
         "eyebrow": "与你有关，始终由你掌握",
         "semanticDescription": "你的偏好、事实与约定，用于之后的对话。",
         "episodeDescription": "聊过的事情与结果的片段，需要时可以回看。"
-      }
+      },
+      "tabRelation": "关系视图",
+      "relationLoading": "正在整理记忆关系…",
+      "relationTitle": "记忆关系视图",
+      "relationEmpty": "还没有记忆，开始对话后即可在这里查看关系",
+      "relationSummary": "基于最近 {{count}} 条记忆，展示 {{nodes}} 个节点",
+      "relationRefresh": "重新计算",
+      "relationLegendHub": "主体",
+      "relationLegendTag": "高频标签",
+      "relationLegendEdge": "标签共同出现",
+      "relationHint": "拖拽节点调整位置，悬停查看关联"
     }
   },
   "chat": {
@@ -3916,9 +3927,6 @@
       "localFile": "本地文件",
       "serverPath": "服务器路径",
       "retryUpload": "重试上传",
-      "chooseFile": "选择文件",
-      "dropHint": "拖拽文件到此处，或点击选择",
-      "removeFile": "移除文件",
       "importStages": "读取文件 → 提交 → 排队处理。处理结果将在文档列表中更新。",
       "updated": "更新日期",
       "retry": "重试",
@@ -3958,7 +3966,26 @@
       "graphRetryDetail": "重试实体详情",
       "graphLoading": "正在加载关联图谱…",
       "graphRetryGraph": "重试关联图谱",
-      "graphNoRelations": "暂无关联节点，仍可查看下方文档证据"
+      "graphNoRelations": "暂无关联节点，仍可查看下方文档证据",
+      "eyebrow": "资料接入",
+      "source": "资料来源",
+      "dropTitle": "拖拽文件到此处",
+      "dropHint": "拖拽文件到此处，或点击选择",
+      "supported": "支持格式",
+      "removeFile": "移除文件",
+      "working": "处理中",
+      "stageRead": "读取文件",
+      "stageSubmit": "提交资料",
+      "stageQueue": "排队解析",
+      "pathHint": "路径在网关所在机器上解析，读取权限与网关进程一致。",
+      "citationLocate": "定位到文档",
+      "citationCollapse": "收起",
+      "citationExpand": "展开",
+      "citationIds": "定位信息",
+      "graphExploreEntities": "选择一个实体，探索它的关联",
+      "graphShowLess": "收起",
+      "graphShowAll": "展开 {{count}} 个",
+      "chooseFile": "选择文件"
     }
   }
 }
