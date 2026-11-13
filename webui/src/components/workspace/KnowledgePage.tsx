@@ -798,7 +798,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </section>
         ) : null}
 
-        {detailOpen ? (
+        {detailOpen && !importOpen ? (
         <div className="grid gap-4">
           {detailTab === "documents" ? (
           <div className="h-fit min-w-0 rounded-panel border border-border/60 bg-background p-4">
