@@ -52,6 +52,7 @@ class KnowledgeServices:
         config: Any = None,
         workspace_id: str = DEFAULT_WORKSPACE_ID,
         service_factory: Callable[[Any], Any] | None = None,
+        config_writer: Callable[[Any], None] | None = None,
     ) -> None:
         self._service = service
         self._config = config
@@ -59,6 +60,7 @@ class KnowledgeServices:
         self._service_factory: Callable[[Any], Any] = (
             service_factory if service_factory is not None else _default_service_factory
         )
+        self._config_writer = config_writer
 
     @property
     def workspace_id(self) -> str:
@@ -72,6 +74,25 @@ class KnowledgeServices:
 
     def is_visible(self, workspace_id: Any) -> bool:
         return normalize_workspace_id(workspace_id) == self._workspace_id
+
+    def save_config(self, knowledge: Any) -> None:
+        """写回 ``knowledge`` 段；未注入 writer 时写进程级配置文件。
+
+        注入替身服务且无配置时没有可写的落点（测试缝），直接返回。
+        """
+        if self._config_writer is not None:
+            self._config = knowledge
+            self._config_writer(knowledge)
+            return
+        if self._config is None and self._service is not None:
+            self._config = knowledge
+            return
+        from nanobot.config.loader import load_config, save_config
+
+        config = load_config()
+        config.knowledge = knowledge
+        save_config(config)
+        self._config = knowledge
 
     @property
     def config(self) -> Any:
@@ -94,6 +115,11 @@ class KnowledgeServices:
         """知识服务实例；首次访问时才按配置装配（懒，无 import 期副作用）。"""
         if self._service is None:
             self._service = self._service_factory(self.config)
+        return self._service
+
+    @property
+    def live_service(self) -> Any | None:
+        """已装配的知识服务；未装配返回 ``None``，不触发建库。"""
         return self._service
 
     def upload_limit_bytes(self, default: int) -> int:

@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>知序 · 知识库参数面板 Demo</title>
+<style>
+  :root{
+    --bg: hsl(216 45% 98%);
+    --canvas: hsl(210 40% 96%);
+    --paper: #fff;
+    --ink: hsl(220 49% 8%);
+    --muted: hsl(215 16% 47%);
+    --line: hsl(214 32% 91%);
+    --primary: hsl(221 83% 53%);
+    --primary-soft: hsl(214 95% 93%);
+    --primary-ink: hsl(224 76% 48%);
+    --ok: hsl(152 60% 33%);
+    --ok-soft: hsl(152 55% 94%);
+    --warn: hsl(32 90% 42%);
+    --warn-soft: hsl(38 96% 94%);
+    --danger: hsl(0 72% 51%);
+    --radius: 8px;
+    --radius-panel: 12px;
+    --shadow: 0 1px 2px hsl(220 40% 20% / .04), 0 8px 24px hsl(220 40% 20% / .06);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--canvas);color:var(--ink);font:14px/1.6 var(--font);-webkit-font-smoothing:antialiased}
+  button,input,select{font:inherit;color:inherit}
+  button{cursor:pointer;background:none;border:0}
+  h1,h2,h3,p{margin:0}
+  :focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .mono{font-family:var(--mono);font-size:12px}
+  .muted{color:var(--muted)}
+
+  /* ---------- 外框 ---------- */
+  .app{min-height:100%;padding:18px;display:flex;flex-direction:column;gap:14px}
+  .topbar{display:flex;align-items:center;gap:12px;padding:0 6px}
+  .topbar .crumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .topbar .crumb b{color:var(--ink);font-weight:600}
+  .topbar .spacer{flex:1}
+  .iconbtn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--radius);color:var(--muted);border:1px solid transparent}
+  .iconbtn:hover{background:hsl(210 40% 94%);color:var(--ink)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:34px;padding:0 14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);white-space:nowrap;font-size:13px;transition:background .12s,border-color .12s}
+  .btn:hover{background:hsl(210 40% 97%)}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.primary:hover{background:hsl(221 83% 47%)}
+  .btn.ghost{border-color:transparent;color:var(--muted)}
+  .btn.ghost:hover{background:hsl(210 40% 94%);color:var(--ink)}
+  .btn.sm{height:30px;padding:0 10px;font-size:12px}
+
+  .shell{flex:1;display:grid;grid-template-columns:208px minmax(0,1fr) 296px;gap:0;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-panel);box-shadow:var(--shadow);overflow:hidden;min-height:720px}
+
+  /* ---------- 左导航 ---------- */
+  .sidenav{padding:18px 12px;border-right:1px solid var(--line);background:hsl(210 40% 99%)}
+  .sidenav .kb-title{padding:0 10px 14px;border-bottom:1px solid var(--line);margin-bottom:12px}
+  .sidenav .kb-title strong{display:block;font-size:15px;font-weight:600}
+  .sidenav .kb-title span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+  .nav-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:var(--radius);font-size:13.5px;color:hsl(220 20% 26%);text-align:left;margin-bottom:2px}
+  .nav-item:hover{background:hsl(210 40% 95%)}
+  .nav-item.active{background:var(--primary-soft);color:var(--primary-ink);font-weight:600}
+  .nav-item .dot{margin-left:auto;font-size:11px;color:var(--muted);font-weight:400}
+  .nav-sep{height:1px;background:var(--line);margin:12px 10px}
+  .nav-label{padding:0 10px 6px;font-size:11px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+
+  /* ---------- 主内容 ---------- */
+  .content{padding:26px 32px 40px;overflow:auto}
+  .content-head{display:flex;align-items:flex-start;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  .content-head h1{font-size:20px;font-weight:600;letter-spacing:-.2px}
+  .content-head p{font-size:13px;color:var(--muted);margin-top:4px;max-width:56ch}
+  .content-head .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:12px;background:hsl(210 40% 95%);color:hsl(220 20% 30%)}
+  .badge.ok{background:var(--ok-soft);color:var(--ok)}
+  .badge.warn{background:var(--warn-soft);color:var(--warn)}
+  .badge.blue{background:var(--primary-soft);color:var(--primary-ink)}
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+  .section{padding:20px 0;border-bottom:1px solid var(--line)}
+  .section:last-child{border-bottom:0}
+  .section h2{font-size:14px;font-weight:600;margin-bottom:4px}
+  .section .desc{font-size:12.5px;color:var(--muted);margin-bottom:16px;max-width:62ch}
+  .field{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;padding:12px 0}
+  .field + .field{border-top:1px dashed hsl(214 32% 94%)}
+  .field .label{font-size:13.5px}
+  .field .label small{display:block;font-size:12px;color:var(--muted);margin-top:3px;max-width:46ch}
+  .field .control{display:flex;align-items:center;gap:10px;min-width:220px;justify-content:flex-end}
+  .field.block{grid-template-columns:1fr;gap:10px}
+  .field.block .control{justify-content:flex-start;min-width:0}
+
+  /* 分段控件 */
+  .seg{display:inline-flex;width:max-content;max-width:100%;background:hsl(210 40% 96%);border:1px solid var(--line);border-radius:var(--radius);padding:3px;gap:2px;flex-wrap:wrap}
+  .seg button{padding:6px 14px;border-radius:6px;font-size:13px;color:hsl(220 15% 35%);transition:background .12s}
+  .seg button:hover{background:hsl(0 0% 100% / .7)}
+  .seg button.on{background:var(--paper);color:var(--ink);font-weight:600;box-shadow:0 1px 2px hsl(220 40% 20% / .12)}
+  .seg.sm button{padding:5px 10px;font-size:12px}
+
+  /* 滑杆 */
+  input[type=range]{-webkit-appearance:none;appearance:none;width:180px;height:4px;border-radius:2px;background:linear-gradient(to right,var(--primary) var(--fill,50%),hsl(214 32% 91%) var(--fill,50%));outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;border:2px solid var(--primary);box-shadow:0 1px 3px hsl(220 40% 20% / .2);cursor:pointer}
+  input[type=range]:disabled{opacity:.45;cursor:not-allowed}
+  input[type=number],input[type=text],select{height:34px;padding:0 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);min-width:0}
+  input[type=number]{width:92px}
+  input[type=text]{width:100%}
+  input[type=number]:focus,input[type=text]:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px hsl(221 83% 53% / .12);outline:none}
+  .value{min-width:52px;text-align:right;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+  .unit{font-size:12px;color:var(--muted)}
+
+  /* 开关 */
+  .switch{position:relative;width:38px;height:22px;border-radius:999px;background:hsl(214 20% 82%);transition:background .15s;flex:none}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px hsl(220 40% 20% / .25);transition:transform .15s}
+  .switch.on{background:var(--primary)}
+  .switch.on::after{transform:translateX(16px)}
+
+  /* 提示条 */
+  .note{display:flex;gap:10px;padding:10px 12px;border-radius:var(--radius);background:hsl(210 40% 97%);border:1px solid var(--line);font-size:12.5px;color:hsl(220 15% 32%);line-height:1.55}
+  .note.warn{background:var(--warn-soft);border-color:hsl(38 80% 88%);color:hsl(32 70% 30%)}
+  .note.info{background:hsl(214 95% 97%);border-color:hsl(214 95% 90%);color:hsl(224 60% 38%)}
+  .note b{font-weight:600}
+  .note .ico{flex:none;width:16px;height:16px;margin-top:1px}
+
+  /* 预览块 */
+  .chunks{display:grid;gap:10px;margin-top:12px}
+  .chunk{border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;background:hsl(210 40% 99%)}
+  .chunk .chead{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+  .chunk .chead .idx{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .chunk .chead .path{font-size:12.5px;font-weight:600}
+  .chunk .chead .meta{margin-left:auto;font-size:11.5px;color:var(--muted)}
+  .chunk p{font-size:12.5px;color:hsl(220 15% 30%);line-height:1.65}
+  .chunk .protected{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--warn);background:var(--warn-soft);border-radius:4px;padding:1px 6px}
+
+  /* 召回测试 */
+  .testbox{display:flex;gap:10px;align-items:center;margin-bottom:14px}
+  .testbox input{flex:1}
+  .sample{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+  .sample button{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--paper)}
+  .sample button:hover{border-color:hsl(221 60% 80%);color:var(--primary-ink);background:hsl(214 95% 97%)}
+  .diag{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-radius:var(--radius);background:hsl(210 40% 97%);border:1px solid var(--line);margin-bottom:14px;font-size:12px;align-items:center}
+  .diag .k{color:var(--muted)}
+  .diag .v{font-family:var(--mono);font-size:11.5px;color:hsl(220 20% 22%)}
+  .diag .pill{padding:2px 8px;border-radius:999px;background:var(--paper);border:1px solid var(--line)}
+  .diag .pill.ok{background:var(--ok-soft);border-color:hsl(152 40% 85%);color:var(--ok)}
+  .hits{display:grid;gap:10px}
+  .hit{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;background:var(--paper);transition:border-color .12s,box-shadow .12s}
+  .hit:hover{border-color:hsl(221 60% 82%);box-shadow:0 2px 10px hsl(220 40% 20% / .05)}
+  .hit .hrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .hit .rank{font-family:var(--mono);font-size:12px;color:var(--muted);width:24px}
+  .hit .title{font-size:13.5px;font-weight:600}
+  .hit .path{font-size:12px;color:var(--muted)}
+  .hit .score{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .hit .bar{width:72px;height:4px;border-radius:2px;background:hsl(214 32% 92%);overflow:hidden}
+  .hit .bar i{display:block;height:100%;background:var(--primary);border-radius:2px}
+  .hit .score b{font-family:var(--mono);font-size:12px;font-weight:600;min-width:38px;text-align:right}
+  .hit .tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .tag{font-size:11px;padding:1px 7px;border-radius:4px;background:hsl(210 40% 95%);color:hsl(220 15% 34%)}
+  .tag.vector{background:hsl(221 90% 95%);color:hsl(224 70% 42%)}
+  .tag.keyword{background:hsl(152 50% 94%);color:hsl(152 55% 28%)}
+  .hit p{font-size:12.5px;line-height:1.7;color:hsl(220 15% 30%)}
+  .hit .actions{display:flex;gap:8px;margin-top:10px;opacity:0;transition:opacity .12s}
+  .hit:hover .actions,.hit.picked .actions{opacity:1}
+  .empty{padding:64px 20px;text-align:center;color:var(--muted)}
+  .empty .big{font-size:15px;color:hsl(220 20% 28%);margin-bottom:6px}
+  .skeleton{height:96px;border-radius:var(--radius);border:1px solid var(--line);background:linear-gradient(90deg,hsl(210 40% 98%) 25%,hsl(210 40% 96%) 37%,hsl(210 40% 98%) 63%);background-size:400% 100%;animation:sk 1.2s infinite}
+  @keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
+
+  /* 右侧检查器 */
+  .inspector{border-left:1px solid var(--line);background:hsl(210 40% 99%);padding:20px 18px;display:flex;flex-direction:column;gap:14px;overflow:auto}
+  .inspector h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  .kv{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:5px 0;font-size:12.5px}
+  .kv span{color:var(--muted)}
+  .kv b{font-family:var(--mono);font-size:12px;font-weight:600;text-align:right}
+  .divider{height:1px;background:var(--line);margin:8px 0}
+  .impact{display:flex;gap:8px;font-size:12px;padding:8px 0;color:hsl(220 15% 32%)}
+  .impact .ico{flex:none;width:14px;height:14px;margin-top:2px}
+
+  /* 高级表 */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;font-weight:600;color:var(--muted);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;padding:8px 10px;border-bottom:1px solid var(--line)}
+  td{padding:9px 10px;border-bottom:1px solid hsl(214 32% 95%);vertical-align:top}
+  td.mono{font-size:11.5px}
+  .locked{opacity:.55;pointer-events:none}
+
+  /* toast */
+  .toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,12px);background:hsl(220 40% 12%);color:#fff;font-size:13px;padding:10px 16px;border-radius:999px;box-shadow:0 8px 24px hsl(220 40% 10% / .3);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <button class="iconbtn" aria-label="返回">←</button>
+    <div class="crumb">知识库 <span>/</span> <b>产品手册</b></div>
+    <span class="badge ok"><i class="dot"></i>已就绪 · 128 文档 · 3,412 块</span>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="resetBtn">重置</button>
+    <button class="btn primary" id="saveBtn">保存更改</button>
+  </div>
+
+  <div class="shell">
+    <nav class="sidenav">
+      <div class="kb-title">
+        <strong>产品手册</strong>
+        <span>工作区共享 · 32.4 MB</span>
+      </div>
+      <button class="nav-item active" data-tab="retrieval">检索设置</button>
+      <button class="nav-item" data-tab="chunking">分段与入库</button>
+      <button class="nav-item" data-tab="test">召回测试<span class="dot">实时</span></button>
+      <div class="nav-sep"></div>
+      <div class="nav-label">高级</div>
+      <button class="nav-item" data-tab="advanced">系统参数</button>
+      <button class="nav-item" data-tab="eval">评测联动<span class="dot">12 条</span></button>
+    </nav>
+
+    <main class="content">
+      <!-- ============ 检索设置 ============ -->
+      <section id="tab-retrieval">
+        <div class="content-head">
+          <div>
+            <h1>检索设置</h1>
+            <p>控制这个知识库被问答引用时的召回方式。修改只影响之后的检索，不会重建索引。</p>
+          </div>
+          <div class="right"><span class="badge blue">即时生效</span></div>
+        </div>
+
+        <div class="section">
+          <h2>召回方式</h2>
+          <p class="desc">混合检索同时走向量与关键词两路，按名次融合。编号、专名、报错码多的知识库建议提高关键词侧权重。</p>
+          <div class="field block">
+            <div class="seg" id="modeSeg">
+              <button data-mode="hybrid" class="on">混合检索</button>
+              <button data-mode="semantic">语义检索</button>
+              <button data-mode="keyword">关键词检索</button>
+            </div>
+            <div class="note info" id="modeNote">
+              <span class="ico">ⓘ</span>
+              <span id="modeNoteText">两路都命中时分数最高：只有向量路命中时上限 0.7，只有关键词路命中时上限 0.3。</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section" id="weightSection">
+          <h2>排名融合权重</h2>
+          <p class="desc">按两路名次做加权 RRF 后归一化到 0–1，不是对原始分数加权，因此不受 BM25 与余弦量纲差异影响。</p>
+          <div class="field">
+            <div class="label">语义权重<small>向量路在融合分里的占比</small></div>
+            <div class="control">
+              <input type="range" id="vw" min="0" max="1" step="0.05" value="0.7" aria-label="语义权重" />
+              <span class="value" id="vwVal">0.70</span>
+            </div>
+          </div>
+          <div class="field">
+            <div class="label">关键词权重<small>关键词路在融合分里的占比，随语义权重联动</small></div>
+            <div class="control">
+              <input type="range" id="kw" min="0" max="1" step="0.05" value="0.3" aria-label="关键词权重" />
+              <span class="value" id="kwVal">0.30</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>返回与阈值</h2>
+          <p class="desc">返回条数进入上下文预算；阈值低于此分的块直接丢弃，避免噪声占满上下文。</p>
+          <div class="field">
+            <div class="label">返回条数 limit<small>默认 8，上限 20</small></div>
+            <div class="control">
+              <input type="range" id="limit" min="1" max="20" step="1" value="8" aria-label="返回条数" />
+              <span class="value" id="limitVal">8</span>
+            </div>
+          </div>
+          <div class="field">
+            <div class="label">向量阈值<small>余弦相似度下限，0 表示不过滤</small></div>
+            <div class="control"><input type="number" id="vth" min="0" max="1" step="0.01" value="0.15" aria-label="向量阈值" /></div>
+          </div>
+          <div class="field">
+            <div class="label">关键词阈值<small>按本组最高分相对计算；BM25 无上界，绝对阈值等于不过滤</small></div>
+            <div class="control"><input type="number" id="kth" min="0" max="1" step="0.01" value="0.3" aria-label="关键词阈值" /></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>去冗余</h2>
+          <p class="desc">MMR 在保留相关性的同时压制重复内容。调低更不重复，调高更看重分数。</p>
+          <div class="field">
+            <div class="label">MMR λ<small>0.7 为默认；1.0 等价于关闭去冗余</small></div>
+            <div class="control">
+              <input type="range" id="mmr" min="0" max="1" step="0.05" value="0.7" aria-label="MMR lambda" />
+              <span class="value" id="mmrVal">0.70</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>精排</h2>
+          <p class="desc">cross-encoder 对候选重新打分。模型不可用时按召回顺序降级，不会让检索失败。</p>
+          <div class="field">
+            <div class="label">启用精排</div>
+            <div class="control"><button class="switch" id="rerankSw" aria-label="启用精排"></button></div>
+          </div>
+          <div class="field" id="rerankModelField">
+            <div class="label">精排模型</div>
+            <div class="control">
+              <select id="rerankModel" aria-label="精排模型">
+                <option>BAAI/bge-reranker-v2-m3（本地）</option>
+                <option>cohere rerank-multilingual-v3.0</option>
+                <option>jina reranker-v2</option>
+              </select>
+            </div>
+          </div>
+          <div class="field" id="rerankThField">
+            <div class="label">准入阈值<small>低于阈值先降档，仍全拒时保留最高分 1 条</small></div>
+            <div class="control"><input type="number" id="rth" min="0" max="1" step="0.01" value="0.3" aria-label="精排准入阈值" /></div>
+          </div>
+          <div class="field" id="rerankDegradeField">
+            <div class="label">降级策略</div>
+            <div class="control"><span class="badge">阈值降档 → 兜底 Top1 → 返回空</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 分段与入库 ============ -->
+      <section id="tab-chunking" class="hidden">
+        <div class="content-head">
+          <div>
+            <h1>分段与入库</h1>
+            <p>决定文档如何切块与向量化。这些参数与已入库数据绑定，修改后需要重新入库。</p>
+          </div>
+          <div class="right"><span class="badge warn">需重建索引</span></div>
+        </div>
+
+        <div class="section">
+          <h2>分段模式</h2>
+          <div class="field block">
+            <div class="seg" id="chunkModeSeg">
+              <button data-cmode="general" class="on">通用分区</button>
+              <button data-cmode="parent">父子分区</button>
+            </div>
+            <p class="desc" style="margin:4px 0 0">通用：检索块与召回块相同。父子：子块用于检索，父块作为上下文返回，适合长文档与技术手册。</p>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>预设</h2>
+          <div class="field block">
+            <div class="seg sm" id="presetSeg">
+              <button data-size="400" data-overlap="60">FAQ 短块</button>
+              <button data-size="800" data-overlap="120" class="on">默认</button>
+              <button data-size="1200" data-overlap="200">技术手册</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>分段参数</h2>
+          <div class="field">
+            <div class="label">分段最大长度<small>字符数；块越大上下文越完整，但语义越稀</small></div>
+            <div class="control">
+              <input type="range" id="csize" min="200" max="2000" step="50" value="800" aria-label="分段最大长度" />
+              <span class="value" id="csizeVal">800</span>
+            </div>
+          </div>
+          <div class="field">
+            <div class="label">分段重叠<small id="overlapHint">建议为最大长度的 10%–25%</small></div>
+            <div class="control">
+              <input type="range" id="cover" min="0" max="400" step="10" value="120" aria-label="分段重叠" />
+              <span class="value" id="coverVal">120</span>
+            </div>
+          </div>
+          <div class="field hidden" id="parentFields">
+            <div class="label">父块最大长度<small>命中子块后向上回填，父块不超过此长度</small></div>
+            <div class="control"><input type="number" id="psize" min="400" max="4000" step="100" value="2400" aria-label="父块最大长度" /></div>
+          </div>
+          <div class="field">
+            <div class="label">段落切分方式<small>空行分段优先，找不到切点退到列表项与句末</small></div>
+            <div class="control">
+              <select id="pmode" aria-label="段落切分方式"><option value="blank_line">按空行分段</option><option value="line">按行分段</option></select>
+            </div>
+          </div>
+          <div class="field">
+            <div class="label">分词模式<small>影响关键词路与预览块统计</small></div>
+            <div class="control">
+              <select id="tmode" aria-label="分词模式"><option>jieba</option><option>unigram_bigram</option><option>bigram</option></select>
+            </div>
+          </div>
+          <div class="field">
+            <div class="label">预处理规则</div>
+            <div class="control" style="flex-direction:column;align-items:flex-end;gap:8px">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px"><input type="checkbox" checked /> 合并连续空格、换行与制表符</label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px"><input type="checkbox" /> 删除 URL 与邮箱地址</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>保护与合并</h2>
+          <div class="note">
+            <span class="ico">ⓘ</span>
+            <span>代码围栏、Markdown 表格与 LaTeX 块是保护区间，切点不会落在区间内部；小于 80 字的碎片会与同标题邻块合并。</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>预览</h2>
+          <div class="field block" style="padding-top:4px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <button class="btn" id="previewBtn">预览前 3 块</button>
+              <span class="muted" style="font-size:12.5px">按当前参数预估 <b id="chunkEstimate">3,412</b> 块 · 128 个文档</span>
+            </div>
+            <div class="chunks" id="chunkPreview"></div>
+          </div>
+          <div class="note warn" style="margin-top:16px">
+            <span class="ico">!</span>
+            <span><b>修改分段参数后需要重新入库。</b>当前 128 个文档将重新切块并生成向量，预计 3–6 分钟；更换 Embedding 模型会消耗 Token。</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 召回测试 ============ -->
+      <section id="tab-test" class="hidden">
+        <div class="content-head">
+          <div>
+            <h1>召回测试</h1>
+            <p>用真实问题验证当前参数下的召回效果。结果满意时可存为参考问题或问题案例，回流到评测集。</p>
+          </div>
+          <div class="right"><span class="badge blue">不改配置</span></div>
+        </div>
+
+        <div class="section" style="padding-top:8px">
+          <div class="testbox">
+            <input type="text" id="testQuery" placeholder="输入真实问题，例如：如何重置 API 密钥？" />
+            <button class="btn primary" id="runBtn">开始测试</button>
+          </div>
+          <div class="sample">
+            <button data-q="如何重置 API 密钥？">如何重置 API 密钥？</button>
+            <button data-q="429 Too Many Requests 怎么处理？">429 Too Many Requests 怎么处理？</button>
+            <button data-q="max_tokens 字段的作用是什么？">max_tokens 字段的作用？</button>
+          </div>
+          <div id="diagWrap"></div>
+          <div id="hitsWrap"><div class="empty"><div class="big">还没有测试记录</div>输入一个真实问题，查看当前参数下命中的分段。</div></div>
+        </div>
+      </section>
+
+      <!-- ============ 高级参数 ============ -->
+      <section id="tab-advanced" class="hidden">
+        <div class="content-head">
+          <div>
+            <h1>系统参数</h1>
+            <p>属于研发调参范围，默认只读展示。解锁后可直接编辑，改动写回配置文件并在下次请求生效。</p>
+          </div>
+          <div class="right">
+            <button class="btn" id="unlockBtn">解锁高级编辑</button>
+          </div>
+        </div>
+        <div class="section">
+          <table id="advTable">
+            <thead><tr><th>参数</th><th>配置键</th><th>当前值</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>RRF 常数 k</td><td class="mono">retrieval.rrf_k</td><td class="mono">60</td><td>越大名次差异越平缓</td></tr>
+              <tr><td>向量召回池</td><td class="mono">retrieval.pool_size</td><td class="mono">50</td><td>向量路召回下限，最多 500</td></tr>
+              <tr><td>关键词召回池</td><td class="mono">retrieval.keyword_pool_size</td><td class="mono">100</td><td>关键词路召回下限</td></tr>
+              <tr><td>精排候选上限</td><td class="mono">rerank.max_candidates</td><td class="mono">200</td><td>进入模型前截断</td></tr>
+              <tr><td>精排请求字符</td><td class="mono">rerank.max_request_chars</td><td class="mono">8000</td><td>单批字符总量，超出切批并发</td></tr>
+              <tr><td>复合分权重</td><td class="mono">rerank.model/base/source</td><td class="mono">0.6 / 0.3 / 0.1</td><td>模型分、召回分、来源可信度</td></tr>
+              <tr><td>父块回填阈值</td><td class="mono">retrieval.parent_min_chars</td><td class="mono">600</td><td>命中块短于此值才回填父块</td></tr>
+              <tr><td>去重覆盖率</td><td class="mono">retrieval.dedup_containment</td><td class="mono">0.85</td><td>短文本 token 覆盖率下限</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ 评测联动 ============ -->
+      <section id="tab-eval" class="hidden">
+        <div class="content-head">
+          <div>
+            <h1>评测联动</h1>
+            <p>从召回测试存下的问题会进入评测集。每次调参都可以带参数快照跑一次对比，避免凭感觉调。</p>
+          </div>
+          <div class="right"><span class="badge">12 条用例</span></div>
+        </div>
+        <div class="section">
+          <div class="card" style="margin-bottom:14px">
+            <div class="kv"><span>最近一次运行</span><b>2026-11-13 15:20</b></div>
+            <div class="divider"></div>
+            <div class="kv"><span>Recall@8</span><b>0.86</b></div>
+            <div class="kv"><span>MRR</span><b>0.72</b></div>
+            <div class="kv"><span>NDCG@8</span><b>0.78</b></div>
+            <div class="divider"></div>
+            <div class="kv"><span>参数快照</span><b>hybrid · 0.7/0.3 · rerank on</b></div>
+          </div>
+          <div class="note info">
+            <span class="ico">ⓘ</span>
+            <span>调整参数后点「保存更改」，评测运行会记录当前参数快照；对比页可直接看到指标变化与回归用例。</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="inspector">
+      <h3>生效摘要</h3>
+      <div class="card">
+        <div class="kv"><span>召回方式</span><b id="sumMode">hybrid</b></div>
+        <div class="kv"><span>融合权重</span><b id="sumWeight">0.70 / 0.30</b></div>
+        <div class="kv"><span>返回条数</span><b id="sumLimit">8</b></div>
+        <div class="kv"><span>阈值</span><b id="sumTh">0.15 / 0.30</b></div>
+        <div class="kv"><span>MMR λ</span><b id="sumMmr">0.70</b></div>
+        <div class="kv"><span>精排</span><b id="sumRerank">开启 · 0.30</b></div>
+      </div>
+
+      <h3>变更影响</h3>
+      <div class="card">
+        <div class="impact"><span class="ico">✓</span><span>检索参数：即时生效，<b>不需要重建索引</b></span></div>
+        <div class="impact"><span class="ico">!</span><span>分段 / Embedding：需对 128 个文档重新入库</span></div>
+        <div class="impact"><span class="ico">ⓘ</span><span>系统参数：写回配置文件，下次请求生效</span></div>
+      </div>
+
+      <h3>诊断字段</h3>
+      <div class="card muted" style="font-size:12px;line-height:1.7">
+        检索结果会带 <span class="mono">mode_used</span>、<span class="mono">routes</span>、<span class="mono">candidates_in/kept</span>、<span class="mono">degraded</span>、<span class="mono">rerank outcome</span>，召回测试页会原样展示。
+      </div>
+
+      <div style="margin-top:auto">
+        <button class="btn" style="width:100%" id="goTest">去召回测试 →</button>
+      </div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = {
+  mode: 'hybrid', vw: 0.7, kw: 0.3, limit: 8, vth: 0.15, kth: 0.3,
+  mmr: 0.7, rerank: true, rth: 0.3,
+  cmode: 'general', csize: 800, cover: 120, psize: 2400,
+  pmode: 'blank_line', tmode: 'jieba', tested: false, unlocked: false
+};
+
+const MOCK = [
+  { title: 'API 参考 · 认证', path: '第 3 章 > 3.2 密钥管理 > 重置密钥', page: 42, chars: 612, route: ['vector','keyword'],
+    score: 0.91, text: '要重置 API 密钥，进入控制台「设置 → API 密钥」，点击「轮换」。旧密钥立即失效，请在 24 小时内更新所有调用方。轮换不会中断已建立的连接，但新的请求必须携带新密钥。' },
+  { title: '常见问题 · 错误码', path: '第 7 章 > 错误码 > 429 Too Many Requests', page: 118, chars: 548, route: ['keyword'],
+    score: 0.78, text: '429 表示请求频率超过配额。响应头 Retry-After 会给出建议等待秒数。指数退避重试时，请从 1 秒开始，最多重试 5 次；批量任务建议改为队列消费。' },
+  { title: 'API 参考 · 请求参数', path: '第 4 章 > 4.1 通用参数 > max_tokens', page: 57, chars: 486, route: ['vector','keyword'],
+    score: 0.73, text: 'max_tokens 限制本次生成的最大 token 数，不包含输入 token。取值受模型上下文窗口约束；设置为空时使用服务端默认值 1024。过长输出会被截断而不是报错。' },
+  { title: '运维指南 · 限流', path: '第 9 章 > 9.3 配额与限流', page: 203, chars: 726, route: ['vector'],
+    score: 0.68, text: '默认配额按组织维度计算，每分钟 600 次请求、每分钟 200k token。可以在配额页申请提升。突发流量建议使用预置吞吐或排队，避免触达 429。' },
+  { title: '快速开始 · 接入步骤', path: '第 1 章 > 1.4 第一次调用', page: 9, chars: 402, route: ['vector'],
+    score: 0.61, text: '首次接入需要创建密钥、选择模型、构造请求。示例使用 curl 演示，返回结果包含 usage 统计，便于核对 token 消耗。' },
+  { title: '安全白皮书 · 密钥管理', path: '第 2 章 > 2.1 密钥存储', page: 21, chars: 655, route: ['vector'],
+    score: 0.55, text: '密钥应存放在环境变量或密钥管理服务中，禁止写入代码仓库。建议按环境拆分密钥，并定期轮换；泄露的密钥应立即吊销。' },
+  { title: 'SDK 指南 · 重试策略', path: '第 5 章 > 5.3 错误处理', page: 88, chars: 512, route: ['vector'],
+    score: 0.49, text: 'SDK 内置退避重试，默认对 429 与 5xx 生效。关闭自动重试时需自行处理幂等键，避免重复提交产生重复扣费。' },
+  { title: '变更日志 · 2026-09', path: '附录 > 变更日志', page: 240, chars: 318, route: ['vector'],
+    score: 0.42, text: '2026-09 起，密钥轮换接口支持设置过渡期，旧密钥可保留最长 7 天，便于灰度切换。' }
+];
+
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('on'), 2200); }
+
+/* 模板：原生实现进度填充（浏览器兼容） */
+function paintRange(el){
+  const min = +el.min, max = +el.max, v = +el.value;
+  el.style.setProperty('--fill', ((v-min)/(max-min)*100) + '%');
+}
+
+/* ---------- 导航 ---------- */
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    ['retrieval','chunking','test','advanced','eval'].forEach(t => $('tab-'+t).classList.add('hidden'));
+    $('tab-'+btn.dataset.tab).classList.remove('hidden');
+  });
+});
+$('goTest').addEventListener('click', () => document.querySelector('.nav-item[data-tab="test"]').click());
+
+/* ---------- 检索设置 ---------- */
+document.querySelectorAll('#modeSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#modeSeg button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    state.mode = btn.dataset.mode;
+    const isHybrid = state.mode === 'hybrid';
+    $('weightSection').style.opacity = isHybrid ? 1 : .5;
+    $('weightSection').style.pointerEvents = isHybrid ? 'auto' : 'none';
+    $('kw').disabled = !isHybrid; $('vw').disabled = !isHybrid;
+    const note = {
+      hybrid: '两路都命中时分数最高：只有向量路命中时上限 0.7，只有关键词路命中时上限 0.3。',
+      semantic: '只走向量路，融合分等于原始余弦相似度；关键词路不参与，权重设置被忽略。',
+      keyword: '只走关键词路，融合分为组内相对分；语义路不参与，权重设置被忽略。'
+    }[state.mode];
+    $('modeNoteText').textContent = note;
+    syncSummary();
+  });
+});
+
+function bindWeight(vEl, kEl){
+  vEl.addEventListener('input', () => {
+    const v = +vEl.value;
+    state.vw = v; state.kw = +(1 - v).toFixed(2);
+    kEl.value = state.kw;
+    $('vwVal').textContent = state.vw.toFixed(2);
+    $('kwVal').textContent = state.kw.toFixed(2);
+    paintRange(vEl); paintRange(kEl);
+    syncSummary();
+  });
+  kEl.addEventListener('input', () => {
+    const k = +kEl.value;
+    state.kw = k; state.vw = +(1 - k).toFixed(2);
+    vEl.value = state.vw;
+    $('vwVal').textContent = state.vw.toFixed(2);
+    $('kwVal').textContent = state.kw.toFixed(2);
+    paintRange(vEl); paintRange(kEl);
+    syncSummary();
+  });
+}
+bindWeight($('vw'), $('kw'));
+
+$('limit').addEventListener('input', e => {
+  state.limit = +e.target.value;
+  $('limitVal').textContent = state.limit;
+  paintRange(e.target);
+  syncSummary();
+  if (state.tested) renderHits();
+});
+$('vth').addEventListener('input', e => { state.vth = +e.target.value; syncSummary(); });
+$('kth').addEventListener('input', e => { state.kth = +e.target.value; syncSummary(); });
+$('mmr').addEventListener('input', e => {
+  state.mmr = +e.target.value;
+  $('mmrVal').textContent = state.mmr.toFixed(2);
+  paintRange(e.target);
+  syncSummary();
+});
+$('rth').addEventListener('input', e => { state.rth = +e.target.value; syncSummary(); });
+
+$('rerankSw').addEventListener('click', () => {
+  state.rerank = !state.rerank;
+  $('rerankSw').classList.toggle('on', state.rerank);
+  ['rerankModelField','rerankThField','rerankDegradeField'].forEach(id => $(id).classList.toggle('hidden', !state.rerank));
+  syncSummary();
+});
+
+function syncSummary(){
+  $('sumMode').textContent = state.mode;
+  $('sumWeight').textContent = state.mode === 'hybrid' ? `${state.vw.toFixed(2)} / ${state.kw.toFixed(2)}` : '不参与';
+  $('sumLimit').textContent = state.limit;
+  $('sumTh').textContent = `${(+state.vth).toFixed(2)} / ${(+state.kth).toFixed(2)}`;
+  $('sumMmr').textContent = state.mmr.toFixed(2);
+  $('sumRerank').textContent = state.rerank ? `开启 · ${(+state.rth).toFixed(2)}` : '关闭';
+}
+
+/* ---------- 分段与入库 ---------- */
+document.querySelectorAll('#chunkModeSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#chunkModeSeg button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    state.cmode = btn.dataset.cmode;
+    $('parentFields').classList.toggle('hidden', state.cmode !== 'parent');
+    renderPreview();
+  });
+});
+document.querySelectorAll('#presetSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#presetSeg button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    state.csize = +btn.dataset.size; state.cover = +btn.dataset.overlap;
+    $('csize').value = state.csize; $('cover').value = state.cover;
+    $('csizeVal').textContent = state.csize; $('coverVal').textContent = state.cover;
+    paintRange($('csize')); paintRange($('cover'));
+    updateOverlapHint(); updateEstimate(); renderPreview();
+  });
+});
+$('csize').addEventListener('input', e => {
+  state.csize = +e.target.value;
+  $('csizeVal').textContent = state.csize;
+  paintRange(e.target); updateOverlapHint(); updateEstimate(); renderPreview();
+});
+$('cover').addEventListener('input', e => {
+  state.cover = +e.target.value;
+  $('coverVal').textContent = state.cover;
+  paintRange(e.target); updateOverlapHint();
+});
+$('previewBtn').addEventListener('click', renderPreview);
+
+function updateOverlapHint(){
+  const ratio = state.csize ? Math.round(state.cover / state.csize * 100) : 0;
+  const ok = ratio >= 10 && ratio <= 25;
+  $('overlapHint').textContent = `当前为最大长度的 ${ratio}%` + (ok ? '，在建议区间内' : '，建议 10%–25%');
+  $('overlapHint').style.color = ok ? '' : 'hsl(32 90% 42%)';
+}
+function updateEstimate(){
+  const perDoc = Math.max(4, Math.round(28 - state.csize / 120));
+  $('chunkEstimate').textContent = (perDoc * 128).toLocaleString('zh-CN');
+}
+
+const SAMPLE_CHUNKS = [
+  { path: '第 3 章 > 3.2 密钥管理', meta: '第 42 页 · 代码保护', protected: true,
+    text: '要重置 API 密钥，进入控制台「设置 → API 密钥」，点击「轮换」。旧密钥立即失效…\nPOST /v1/api-keys/{id}/rotate\nAuthorization: Bearer <OLD_KEY>' },
+  { path: '第 7 章 > 错误码', meta: '第 118 页', protected: false,
+    text: '429 表示请求频率超过配额。响应头 Retry-After 会给出建议等待秒数。指数退避重试时，请从 1 秒开始，最多重试 5 次…' },
+  { path: '第 4 章 > 4.1 通用参数', meta: '第 57 页 · 表格保护', protected: true,
+    text: 'max_tokens 限制本次生成的最大 token 数，不包含输入 token。\n| 参数 | 默认值 | 上限 |\n| --- | --- | --- |\n| max_tokens | 1024 | 按模型上下文 |' }
+];
+function renderPreview(){
+  const box = $('chunkPreview');
+  const count = state.cmode === 'parent' ? 2 : 3;
+  $('previewBtn').textContent = `预览前 ${count} 块`;
+  box.innerHTML = SAMPLE_CHUNKS.slice(0, count).map((c, i) => {
+    const chars = Math.min(state.csize, 380 + i * 60);
+    return `<div class="chunk">
+      <div class="chead">
+        <span class="idx">#${String(i+1).padStart(3,'0')}</span>
+        <span class="path">${c.path}</span>
+        ${c.protected ? '<span class="protected">保护区间</span>' : ''}
+        <span class="meta">${c.meta} · ${chars} 字</span>
+      </div>
+      <p>${c.text.replace(/\n/g,'<br>')}</p>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- 召回测试 ---------- */
+document.querySelectorAll('.sample button').forEach(btn => {
+  btn.addEventListener('click', () => { $('testQuery').value = btn.dataset.q; runTest(); });
+});
+$('runBtn').addEventListener('click', runTest);
+
+function runTest(){
+  const q = $('testQuery').value.trim();
+  if (!q) { toast('先输入一个问题'); return; }
+  state.tested = true;
+  $('diagWrap').innerHTML = '';
+  $('hitsWrap').innerHTML = '<div class="hits"><div class="skeleton"></div><div class="skeleton"></div></div>';
+  setTimeout(() => {
+    renderDiag();
+    renderHits();
+  }, 420);
+}
+
+function renderDiag(){
+  const rerankOutcome = state.rerank ? 'ok' : 'no_model';
+  $('diagWrap').innerHTML = `<div class="diag">
+    <span class="k">mode_used</span><span class="v">${state.mode}</span>
+    <span class="k">routes</span><span class="v">${state.mode === 'semantic' ? 'vector' : state.mode === 'keyword' ? 'keyword' : 'vector + keyword'}</span>
+    <span class="k">candidates</span><span class="v">50 → ${state.limit}</span>
+    <span class="k">rerank</span><span class="pill ${state.rerank ? 'ok' : ''}">${rerankOutcome}</span>
+    <span class="k">degraded</span><span class="v">[]</span>
+    <span class="k" style="margin-left:auto">耗时</span><span class="v">186 ms</span>
+  </div>`;
+}
+
+function renderHits(){
+  const list = MOCK.slice(0, state.limit);
+  if (!list.length) { $('hitsWrap').innerHTML = '<div class="empty"><div class="big">未召回分段</div>当前阈值下没有命中，可尝试降低阈值或换一种问法。</div>'; return; }
+  $('hitsWrap').innerHTML = '<div class="hits">' + list.map((h, i) => `
+    <div class="hit" data-i="${i}">
+      <div class="hrow">
+        <span class="rank">${String(i+1).padStart(2,'0')}</span>
+        <span class="title">${h.title}</span>
+        <span class="path">${h.path}</span>
+        <span class="score"><span class="bar"><i style="width:${Math.round(h.score*100)}%"></i></span><b>${h.score.toFixed(2)}</b></span>
+      </div>
+      <div class="tags">
+        ${h.route.map(r => `<span class="tag ${r}">${r === 'vector' ? '向量路' : '关键词路'}</span>`).join('')}
+        <span class="tag">第 ${h.page} 页</span><span class="tag">${h.chars} 字</span>
+      </div>
+      <p>${h.text}</p>
+      <div class="actions">
+        <button class="btn sm" data-act="golden">存为参考问题</button>
+        <button class="btn sm primary" data-act="bad">存为问题案例</button>
+      </div>
+    </div>`).join('') + '</div>';
+
+  document.querySelectorAll('.hit .actions button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const hit = btn.closest('.hit');
+      hit.classList.add('picked');
+      btn.textContent = btn.dataset.act === 'golden' ? '已存为参考问题' : '已存为问题案例';
+      btn.disabled = true;
+      toast(btn.dataset.act === 'golden' ? '已加入评测集：参考问题' : '已加入评测集：问题案例，可在评测联动里查看');
+    });
+  });
+}
+
+/* ---------- 高级 ---------- */
+$('unlockBtn').addEventListener('click', () => {
+  state.unlocked = !state.unlocked;
+  $('unlockBtn').textContent = state.unlocked ? '锁定高级编辑' : '解锁高级编辑';
+  $('advTable').classList.toggle('locked', !state.unlocked);
+  toast(state.unlocked ? '已解锁：改动将写回配置文件' : '已锁定为只读');
+});
+
+/* ---------- 顶部动作 ---------- */
+$('saveBtn').addEventListener('click', () => toast('已保存：参数快照会写入下一次评测运行'));
+$('resetBtn').addEventListener('click', resetAll);
+
+function resetAll(){
+  Object.assign(state, {
+    mode: 'hybrid', vw: 0.7, kw: 0.3, limit: 8, vth: 0.15, kth: 0.3,
+    mmr: 0.7, rerank: true, rth: 0.3,
+    cmode: 'general', csize: 800, cover: 120, psize: 2400,
+    pmode: 'blank_line', tmode: 'jieba', tested: false
+  });
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === 'hybrid'));
+  $('weightSection').style.opacity = 1; $('weightSection').style.pointerEvents = 'auto';
+  $('kw').disabled = false; $('vw').disabled = false;
+  $('modeNoteText').textContent = '两路都命中时分数最高：只有向量路命中时上限 0.7，只有关键词路命中时上限 0.3。';
+  $('vw').value = 0.7; $('kw').value = 0.3; $('limit').value = 8; $('mmr').value = 0.7;
+  $('vwVal').textContent = '0.70'; $('kwVal').textContent = '0.30';
+  $('limitVal').textContent = '8'; $('mmrVal').textContent = '0.70';
+  $('vth').value = 0.15; $('kth').value = 0.3; $('rth').value = 0.3;
+  $('rerankSw').classList.add('on');
+  ['rerankModelField','rerankThField','rerankDegradeField'].forEach(id => $(id).classList.remove('hidden'));
+  document.querySelectorAll('#chunkModeSeg button').forEach(b => b.classList.toggle('on', b.dataset.cmode === 'general'));
+  $('parentFields').classList.add('hidden');
+  document.querySelectorAll('#presetSeg button').forEach(b => b.classList.toggle('on', b.dataset.size === '800'));
+  $('csize').value = 800; $('cover').value = 120;
+  $('csizeVal').textContent = '800'; $('coverVal').textContent = '120';
+  $('psize').value = 2400; $('pmode').value = 'blank_line'; $('tmode').value = 'jieba';
+  $('testQuery').value = '';
+  $('diagWrap').innerHTML = '';
+  $('hitsWrap').innerHTML = '<div class="empty"><div class="big">还没有测试记录</div>输入一个真实问题，查看当前参数下命中的分段。</div>';
+  ['vw','kw','limit','mmr','csize','cover'].forEach(id => paintRange($(id)));
+  updateOverlapHint(); updateEstimate(); renderPreview(); syncSummary();
+  toast('已恢复默认参数');
+}
+
+/* ---------- 初始化 ---------- */
+['vw','kw','limit','mmr','csize','cover'].forEach(id => paintRange($(id)));
+updateOverlapHint(); updateEstimate(); renderPreview(); syncSummary();
+$('rerankSw').classList.add('on');
+</script>
+</body>
+</html>

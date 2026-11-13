@@ -200,6 +200,27 @@
   animation: knowledge-fade-out 100ms var(--knowledge-motion-ease) both;
 }
 
+/* 分块详情 / 原文预览：固定头尾、中间独立滚动的宽弹窗。 */
+.knowledge-experience-surface.knowledge-doc-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  width: min(68rem, calc(100vw - 2rem));
+  max-width: min(68rem, calc(100vw - 2rem));
+  height: min(86dvh, 56rem);
+  max-height: calc(100dvh - 2rem);
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .knowledge-experience-surface.knowledge-doc-dialog {
+    width: calc(100vw - 0.75rem);
+    max-width: calc(100vw - 0.75rem);
+    height: calc(100dvh - 0.75rem);
+  }
+}
+
 .knowledge-experience-surface.knowledge-overlay {
   animation: knowledge-fade-in 140ms var(--knowledge-motion-ease) both;
 }

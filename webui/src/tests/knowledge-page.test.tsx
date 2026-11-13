@@ -12,6 +12,7 @@ import {
   deleteKnowledgeDoc,
   deleteKnowledgeKb,
   fetchKnowledgeDoc,
+  fetchKnowledgeDocContent,
   fetchKnowledgeDocs,
   fetchKnowledgeKbs,
   fetchKnowledgeStats,
@@ -34,6 +35,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     fetchKnowledgeKbs: vi.fn(),
     fetchKnowledgeDocs: vi.fn(),
     fetchKnowledgeDoc: vi.fn(),
+    fetchKnowledgeDocContent: vi.fn(),
     fetchKnowledgeStats: vi.fn(),
     searchKnowledge: vi.fn(),
     createKnowledgeKb: vi.fn(),
@@ -438,14 +440,98 @@ describe("knowledge page", () => {
     await screen.findByText("Deploy guide");
     await userEvent.click(screen.getAllByRole("button", { name: "View chunks" })[0]);
 
-    expect(fetchKnowledgeDoc).toHaveBeenCalledWith("tok", { id: "doc_1", chunkLimit: 20 });
+    expect(fetchKnowledgeDoc).toHaveBeenCalledWith("tok", {
+      id: "doc_1",
+      chunkLimit: 10,
+      chunkOffset: 0,
+      chunkQuery: undefined,
+    });
     const dialog = await screen.findByTestId("knowledge-chunk-preview");
     expect(within(dialog).getByText("Rollback checklist")).toBeInTheDocument();
     expect(within(dialog).getByText("Deploy > Rollback")).toBeInTheDocument();
-    expect(within(dialog).getByText("12 chunks total · showing first 2")).toBeInTheDocument();
+    expect(within(dialog).getByText("1–2 / 12")).toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByTestId("knowledge-chunk-preview")).not.toBeInTheDocument();
+  });
+
+  it("shows the original source inside the same dialog", async () => {
+    vi.mocked(fetchKnowledgeDocContent).mockResolvedValue({
+      enabled: true,
+      kind: "text",
+      name: "deploy.pdf",
+      size: 2048,
+      truncated: false,
+      content: "Original rollback paragraph",
+      pages: [],
+      totalPages: 0,
+      blocks: [],
+    });
+    renderPage();
+    await openKb();
+    await screen.findByText("Deploy guide");
+    await userEvent.click(screen.getAllByRole("button", { name: "View chunks" })[0]);
+
+    const dialog = await screen.findByTestId("knowledge-chunk-preview");
+    expect(dialog).toHaveAttribute("role", "dialog");
+    await userEvent.click(within(dialog).getByRole("tab", { name: "Source" }));
+
+    expect(fetchKnowledgeDocContent).toHaveBeenCalledWith("tok", { id: "doc_1" });
+    expect(await within(dialog).findByText("Original rollback paragraph")).toBeInTheDocument();
+  });
+
+  it("pages, searches and collapses chunks in the dialog", async () => {
+    const chunk = {
+      id: "chk_1", docId: "doc_1", kbId: "kb_1", index: 0,
+      heading: "", page: null, locator: "",
+      content: "Rollback checklist", charCount: 18,
+    };
+    vi.mocked(fetchKnowledgeDoc).mockResolvedValue({
+      enabled: true,
+      document: DOCS[0],
+      chunks: [chunk],
+      chunkCount: 30,
+      chunkTotal: 30,
+      chunkOffset: 0,
+      chunkLimit: 10,
+    });
+    renderPage();
+    await openKb();
+    await screen.findByText("Deploy guide");
+    await userEvent.click(screen.getAllByRole("button", { name: "View chunks" })[0]);
+    const dialog = await screen.findByTestId("knowledge-chunk-preview");
+
+    expect(within(dialog).getByText("1–1 / 30")).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Next" }));
+    await waitFor(() =>
+      expect(fetchKnowledgeDoc).toHaveBeenLastCalledWith("tok", {
+        id: "doc_1",
+        chunkLimit: 10,
+        chunkOffset: 10,
+        chunkQuery: undefined,
+      }),
+    );
+
+    await userEvent.type(
+      within(dialog).getByRole("textbox", { name: "Search chunks" }),
+      "rollback",
+    );
+    await waitFor(
+      () =>
+        expect(fetchKnowledgeDoc).toHaveBeenLastCalledWith("tok", {
+          id: "doc_1",
+          chunkLimit: 10,
+          chunkOffset: 0,
+          chunkQuery: "rollback",
+        }),
+      { timeout: 2000 },
+    );
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Collapse chunks" }));
+    expect(within(dialog).queryByText("Rollback checklist")).not.toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Expand chunks" }));
+    expect(within(dialog).getByText("Rollback checklist")).toBeInTheDocument();
   });
 
   it("keeps the chunk preview open and shows load failures", async () => {

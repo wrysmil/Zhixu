@@ -23,6 +23,12 @@ from typing import Any, cast
 
 from loguru import logger
 
+from nanobot.config.schema import (
+    KnowledgeChunkingConfig,
+    KnowledgeRerankConfig,
+    KnowledgeRetrievalConfig,
+)
+from nanobot.knowledge.preview import KnowledgePreviewError, build_document_preview
 from nanobot.webui import knowledge_routes as routes
 from nanobot.webui.attachment_ingress import extract_data_url_mime
 from nanobot.webui.knowledge_routes import KnowledgeRouteError
@@ -59,7 +65,7 @@ _VISIBILITIES = frozenset({"workspace", "global"})
 _DEFAULT_SEARCH_LIMIT = 8
 _MAX_SEARCH_LIMIT = 50
 _MAX_DOC_LIST_LIMIT = 200
-_MAX_CHUNK_PREVIEW = 20
+_MAX_CHUNK_PREVIEW = 50
 _DEFAULT_CHUNK_PREVIEW = 5
 _KB_DOC_COUNT_LIMIT = 5000
 
@@ -172,6 +178,121 @@ def _forbidden() -> KnowledgeRouteError:
         code="KNOWLEDGE_WORKSPACE_FORBIDDEN",
         status=403,
     )
+
+
+# ---- 运行期参数（设置面板） --------------------------------------------------
+
+#: 可在 WebUI 调整的检索参数：payload 键、配置字段、类型、上下界。
+_RETRIEVAL_FIELDS: tuple[tuple[str, str, type, float, float], ...] = (
+    ("vectorWeight", "vector_weight", float, 0.0, 1.0),
+    ("keywordWeight", "keyword_weight", float, 0.0, 1.0),
+    ("rrfK", "rrf_k", int, 1, 1000),
+    ("defaultLimit", "default_limit", int, 1, 50),
+    ("maxLimit", "max_limit", int, 1, 100),
+    ("mmrLambda", "mmr_lambda", float, 0.0, 1.0),
+    ("vectorThreshold", "vector_threshold", float, 0.0, 1.0),
+    ("keywordThreshold", "keyword_threshold", float, 0.0, 1.0),
+    ("expansionLimit", "expansion_limit", int, 1, 20),
+)
+
+_RERANK_NUMERIC_FIELDS: tuple[tuple[str, str, type, float, float], ...] = (
+    ("threshold", "threshold", float, 0.0, 1.0),
+    ("maxCandidates", "max_candidates", int, 1, 1000),
+)
+
+
+def _bounded_value(
+    payload: dict[str, Any],
+    key: str,
+    cast: type,
+    minimum: float,
+    maximum: float,
+) -> Any:
+    if key not in payload:
+        return None
+    value = payload[key]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise KnowledgeRouteError(f"{key} 必须是数字")
+    if value < minimum or value > maximum:
+        raise KnowledgeRouteError(f"{key} 必须在 {minimum}–{maximum} 之间")
+    return cast(value)
+
+
+def _apply_nested(
+    payload: dict[str, Any],
+    section: str,
+    target: Any,
+    numeric: tuple[tuple[str, str, type, float, float], ...],
+    strings: tuple[tuple[str, str], ...] = (),
+    booleans: tuple[tuple[str, str], ...] = (),
+) -> list[str]:
+    raw = payload.get(section)
+    if raw is None:
+        return []
+    if not isinstance(raw, dict):
+        raise KnowledgeRouteError(f"{section} 必须是对象")
+    values = cast(dict[str, Any], raw)
+    changed: list[str] = []
+    for key, field, cast_type, minimum, maximum in numeric:
+        value = _bounded_value(values, key, cast_type, minimum, maximum)
+        if value is None:
+            continue
+        setattr(target, field, value)
+        changed.append(f"{section}.{field}")
+    for key, field in strings:
+        value = _optional_str(values, key)
+        if value is None:
+            continue
+        setattr(target, field, value)
+        changed.append(f"{section}.{field}")
+    for key, field in booleans:
+        if key not in values:
+            continue
+        if not isinstance(values[key], bool):
+            raise KnowledgeRouteError(f"{key} 必须是布尔值")
+        setattr(target, field, values[key])
+        changed.append(f"{section}.{field}")
+    return changed
+
+
+def _settings_payload(knowledge: Any) -> dict[str, Any]:
+    retrieval = getattr(knowledge, "retrieval", KnowledgeRetrievalConfig())
+    rerank = getattr(knowledge, "rerank", KnowledgeRerankConfig())
+    chunking = getattr(knowledge, "chunking", KnowledgeChunkingConfig())
+    return {
+        "retrieval": {
+            "vectorWeight": float(getattr(retrieval, "vector_weight", 0.7)),
+            "keywordWeight": float(getattr(retrieval, "keyword_weight", 0.3)),
+            "rrfK": int(getattr(retrieval, "rrf_k", 60)),
+            "defaultLimit": int(getattr(retrieval, "default_limit", 8)),
+            "maxLimit": int(getattr(retrieval, "max_limit", 20)),
+            "mmrLambda": float(getattr(retrieval, "mmr_lambda", 0.7)),
+            "vectorThreshold": float(getattr(retrieval, "vector_threshold", 0.15)),
+            "keywordThreshold": float(getattr(retrieval, "keyword_threshold", 0.3)),
+            "expandOnLowRecall": bool(
+                getattr(retrieval, "expand_on_low_recall", True)
+            ),
+            "expansionLimit": int(getattr(retrieval, "expansion_limit", 5)),
+        },
+        "rerank": {
+            "enabled": bool(getattr(rerank, "enabled", False)),
+            "backend": str(getattr(rerank, "backend", "remote")),
+            "model": str(getattr(rerank, "model", "")),
+            "threshold": float(getattr(rerank, "threshold", 0.3)),
+            "maxCandidates": int(getattr(rerank, "max_candidates", 200)),
+        },
+        "chunking": {
+            "chunkSize": int(getattr(chunking, "chunk_size", 800)),
+            "chunkOverlap": int(getattr(chunking, "chunk_overlap", 120)),
+            "tokenizerMode": str(getattr(chunking, "tokenizer_mode", "jieba")),
+            "paragraphMode": str(getattr(chunking, "paragraph_mode", "blank_line")),
+        },
+        "scope": {
+            "retrieval": "live",
+            "rerank": "live",
+            "chunking": "requires_reindex",
+        },
+    }
 
 
 def _requested_workspaces(
@@ -461,6 +582,7 @@ class KnowledgeApi:
             routes.DOC_LIST: self._doc_list,
             routes.DOC_GET: self._doc_get,
             routes.CHUNK_GET: self._chunk_get,
+            routes.DOC_CONTENT: self._doc_content,
             routes.SEARCH: self._search,
             routes.STATS: self._stats,
             routes.KB_CREATE: self._kb_create,
@@ -478,6 +600,8 @@ class KnowledgeApi:
             routes.GRAPH_SUBGRAPH: self._graph_subgraph,
             routes.GRAPH_EXTRACT: self._graph_extract,
             routes.GRAPH_REBUILD: self._graph_rebuild,
+            routes.SETTINGS_GET: self._settings_get,
+            routes.SETTINGS_UPDATE: self._settings_update,
         }
 
     @property
@@ -562,13 +686,35 @@ class KnowledgeApi:
             minimum=1,
             maximum=_MAX_CHUNK_PREVIEW,
         )
-        chunks = services.service.list_chunks(doc_id, limit=limit)
+        offset = _optional_int(
+            payload, "chunkOffset", default=0, minimum=0, maximum=1_000_000
+        )
+        query = (_optional_str(payload, "chunkQuery") or "")[:200]
+        chunks = services.service.list_chunks(
+            doc_id, offset=offset, limit=limit, query=query
+        )
         return {
             "enabled": True,
             "document": _document_payload(document),
             "chunks": [_chunk_payload(chunk) for chunk in chunks],
             "chunkCount": int(getattr(document, "chunk_count", 0) or 0),
+            "chunkTotal": services.service.count_chunks(doc_id, query=query),
+            "chunkOffset": offset,
+            "chunkLimit": limit,
         }
+
+    def _doc_content(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        doc_id = _required_str(payload, "id", "id 不能为空")
+        document = _require_document(doc_id, services)
+        try:
+            preview = build_document_preview(document)
+        except KnowledgePreviewError as exc:
+            raise KnowledgeRouteError(
+                exc.message, code=exc.code, status=exc.status
+            ) from exc
+        return {"enabled": True, **preview}
 
     def _chunk_get(
         self, payload: dict[str, Any], services: KnowledgeServices
@@ -626,6 +772,58 @@ class KnowledgeApi:
                 }
                 for hit in hits
             ],
+        }
+
+    def _settings_get(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        return {"enabled": True, "settings": _settings_payload(services.config)}
+
+    def _settings_update(
+        self, payload: dict[str, Any], services: KnowledgeServices
+    ) -> dict[str, Any]:
+        knowledge = services.config
+        retrieval = knowledge.retrieval.model_copy(deep=True)
+        rerank = knowledge.rerank.model_copy(deep=True)
+        changed = _apply_nested(
+            payload,
+            "retrieval",
+            retrieval,
+            _RETRIEVAL_FIELDS,
+            booleans=(("expandOnLowRecall", "expand_on_low_recall"),),
+        )
+        changed += _apply_nested(
+            payload,
+            "rerank",
+            rerank,
+            _RERANK_NUMERIC_FIELDS,
+            strings=(("backend", "backend"), ("model", "model"), ("baseUrl", "base_url")),
+            booleans=(("enabled", "enabled"),),
+        )
+        if not changed:
+            return {
+                "enabled": True,
+                "changed": [],
+                "applied": False,
+                "requiresReindex": False,
+                "settings": _settings_payload(knowledge),
+            }
+        if retrieval.default_limit > retrieval.max_limit:
+            raise KnowledgeRouteError("defaultLimit 不能大于 maxLimit")
+        knowledge.retrieval = retrieval
+        knowledge.rerank = rerank
+        services.save_config(knowledge)
+        applied = False
+        apply = getattr(services.live_service, "apply_retrieval_settings", None)
+        if callable(apply):
+            apply(retrieval, rerank)
+            applied = True
+        return {
+            "enabled": True,
+            "changed": changed,
+            "applied": applied,
+            "requiresReindex": False,
+            "settings": _settings_payload(knowledge),
         }
 
     def _stats(
@@ -904,9 +1102,19 @@ class KnowledgeApi:
         if action == routes.DOC_LIST:
             return {"enabled": False, "documents": [], "total": 0}
         if action == routes.DOC_GET:
-            return {"enabled": False, "document": None, "chunks": [], "chunkCount": 0}
+            return {
+                "enabled": False,
+                "document": None,
+                "chunks": [],
+                "chunkCount": 0,
+                "chunkTotal": 0,
+                "chunkOffset": 0,
+                "chunkLimit": 0,
+            }
         if action == routes.CHUNK_GET:
             return {"enabled": False, "chunk": None}
+        if action == routes.DOC_CONTENT:
+            return {"enabled": False, "kind": "unsupported", "content": ""}
         if action == routes.SEARCH:
             return {
                 "enabled": False,

@@ -22,12 +22,14 @@ KB_LIST: Final = "knowledge-kb-list"
 DOC_LIST: Final = "knowledge-doc-list"
 DOC_GET: Final = "knowledge-doc-get"
 CHUNK_GET: Final = "knowledge-chunk-get"
+DOC_CONTENT: Final = "knowledge-doc-content"
 SEARCH: Final = "knowledge-search"
 STATS: Final = "knowledge-stats"
 GRAPH_STATS: Final = "knowledge-graph-stats"
 GRAPH_ENTITIES: Final = "knowledge-graph-entities"
 GRAPH_ENTITY: Final = "knowledge-graph-entity"
 GRAPH_SUBGRAPH: Final = "knowledge-graph-subgraph"
+SETTINGS_GET: Final = "knowledge-settings-get"
 
 KB_CREATE: Final = "knowledge.kb.create"
 KB_UPDATE: Final = "knowledge.kb.update"
@@ -40,18 +42,21 @@ DOC_REINDEX: Final = "knowledge.doc.reindex"
 REPAIR: Final = "knowledge.repair"
 GRAPH_EXTRACT: Final = "knowledge.graph.extract"
 GRAPH_REBUILD: Final = "knowledge.graph.rebuild"
+SETTINGS_UPDATE: Final = "knowledge.settings.update"
 
 READ_ACTIONS: Final = frozenset({
     KB_LIST,
     DOC_LIST,
     DOC_GET,
     CHUNK_GET,
+    DOC_CONTENT,
     SEARCH,
     STATS,
     GRAPH_STATS,
     GRAPH_ENTITIES,
     GRAPH_ENTITY,
     GRAPH_SUBGRAPH,
+    SETTINGS_GET,
 })
 
 WRITE_ACTIONS: Final = frozenset({
@@ -66,6 +71,7 @@ WRITE_ACTIONS: Final = frozenset({
     REPAIR,
     GRAPH_EXTRACT,
     GRAPH_REBUILD,
+    SETTINGS_UPDATE,
 })
 
 ACTION_NAMES: Final = READ_ACTIONS | WRITE_ACTIONS
@@ -77,12 +83,14 @@ READ_PATHS: Final[dict[str, str]] = {
     "/api/settings/knowledge/docs": DOC_LIST,
     "/api/settings/knowledge/doc": DOC_GET,
     "/api/settings/knowledge/chunk": CHUNK_GET,
+    "/api/settings/knowledge/doc/content": DOC_CONTENT,
     "/api/settings/knowledge/search": SEARCH,
     "/api/settings/knowledge/stats": STATS,
     "/api/settings/knowledge/graph/stats": GRAPH_STATS,
     "/api/settings/knowledge/graph/entities": GRAPH_ENTITIES,
     "/api/settings/knowledge/graph/entity": GRAPH_ENTITY,
     "/api/settings/knowledge/graph/subgraph": GRAPH_SUBGRAPH,
+    "/api/settings/knowledge/settings": SETTINGS_GET,
 }
 
 WRITE_PATHS: Final[dict[str, str]] = {
@@ -97,6 +105,7 @@ WRITE_PATHS: Final[dict[str, str]] = {
     "/api/settings/knowledge/repair": REPAIR,
     "/api/settings/knowledge/graph/extract": GRAPH_EXTRACT,
     "/api/settings/knowledge/graph/rebuild": GRAPH_REBUILD,
+    "/api/settings/knowledge/settings/update": SETTINGS_UPDATE,
 }
 
 

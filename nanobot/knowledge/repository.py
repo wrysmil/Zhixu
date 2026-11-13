@@ -245,6 +245,12 @@ class _AttemptSupersededError(Exception):
     """commit_chunks 的 attempt/状态守卫失败，需要回滚整笔写入。"""
 
 
+def _like_pattern(query: str) -> str:
+    """块内容搜索：转义 LIKE 通配符，避免用户输入 `%`/`_` 扩大匹配面。"""
+    escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
 class KnowledgeRepository:
     # 单 workspace 作用域的完整查询；执行计划测试直接 EXPLAIN 它。
     FTS_SQL = _FTS_SQL_TEMPLATE.replace("{kb_filter}", "").replace(
@@ -839,15 +845,33 @@ class KnowledgeRepository:
         return self._row_to_chunk(row) if row else None
 
     def list_chunks(
-        self, doc_id: str, *, offset: int = 0, limit: int = 20
+        self,
+        doc_id: str,
+        *,
+        offset: int = 0,
+        limit: int = 20,
+        query: str = "",
     ) -> list[StoredChunk]:
+        sql = f"SELECT {_CHUNK_FIELDS} FROM document_chunks WHERE doc_id=?"
+        params: list[object] = [doc_id]
+        if query:
+            sql += " AND content LIKE ? ESCAPE '\\'"
+            params.append(_like_pattern(query))
+        sql += " ORDER BY chunk_index LIMIT ? OFFSET ?"
+        params.extend((limit, offset))
         with self._db.connect() as conn:
-            rows = conn.execute(
-                f"SELECT {_CHUNK_FIELDS} FROM document_chunks WHERE doc_id=?"
-                " ORDER BY chunk_index LIMIT ? OFFSET ?",
-                (doc_id, limit, offset),
-            ).fetchall()
+            rows = conn.execute(sql, params).fetchall()
         return [self._row_to_chunk(row) for row in rows]
+
+    def count_chunks(self, doc_id: str, *, query: str = "") -> int:
+        sql = "SELECT COUNT(*) FROM document_chunks WHERE doc_id=?"
+        params: list[object] = [doc_id]
+        if query:
+            sql += " AND content LIKE ? ESCAPE '\\'"
+            params.append(_like_pattern(query))
+        with self._db.connect() as conn:
+            row = conn.execute(sql, params).fetchone()
+        return int(row[0]) if row else 0
 
     def fetch_search_chunks(
         self, chunk_ids: Sequence[str], *, kb_ids: Sequence[str]

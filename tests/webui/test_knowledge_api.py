@@ -250,9 +250,35 @@ class FakeService:
         self.calls.append(("reindex_kb", kb_id))
         return ["doc_1", "doc_2"]
 
-    def list_chunks(self, doc_id: str, *, offset: int = 0, limit: int = 20):
-        self.calls.append(("list_chunks", {"doc_id": doc_id, "limit": limit}))
-        return [chunk for chunk in self.chunks if chunk.doc_id == doc_id][:limit]
+    def list_chunks(
+        self,
+        doc_id: str,
+        *,
+        offset: int = 0,
+        limit: int = 20,
+        query: str = "",
+    ):
+        self.calls.append(
+            (
+                "list_chunks",
+                {
+                    "doc_id": doc_id,
+                    "offset": offset,
+                    "limit": limit,
+                    "query": query,
+                },
+            )
+        )
+        rows = [chunk for chunk in self.chunks if chunk.doc_id == doc_id]
+        if query:
+            rows = [chunk for chunk in rows if query in chunk.content]
+        return rows[offset : offset + limit]
+
+    def count_chunks(self, doc_id: str, *, query: str = "") -> int:
+        rows = [chunk for chunk in self.chunks if chunk.doc_id == doc_id]
+        if query:
+            rows = [chunk for chunk in rows if query in chunk.content]
+        return len(rows)
 
     def get_chunk(self, chunk_id: str):
         self.calls.append(("get_chunk", chunk_id))
@@ -363,6 +389,109 @@ def test_doc_get_returns_chunk_preview() -> None:
 
     assert payload["document"]["id"] == "doc_1"
     assert payload["chunks"][0]["content"] == "部署失败怎么回滚"
+
+
+def test_doc_get_paginates_and_searches_chunks() -> None:
+    service = FakeService(
+        chunks=[
+            _chunk("ck_1", content="alpha one"),
+            _chunk("ck_2", content="beta two"),
+            _chunk("ck_3", content="alpha three"),
+        ]
+    )
+    api, _ = _api(service)
+
+    payload = api.handle(
+        "knowledge-doc-get",
+        {
+            "id": "doc_1",
+            "chunkOffset": 1,
+            "chunkLimit": 1,
+            "chunkQuery": "alpha",
+        },
+    )
+
+    assert [chunk["id"] for chunk in payload["chunks"]] == ["ck_3"]
+    assert payload["chunkTotal"] == 2
+    assert payload["chunkOffset"] == 1
+    assert payload["chunkLimit"] == 1
+
+
+def test_doc_content_returns_markdown_source(tmp_path: Path) -> None:
+    source = tmp_path / "guide.md"
+    source.write_text("# 标题\n\n正文", encoding="utf-8")
+    service = FakeService(
+        documents=[
+            _doc(
+                source_path=str(source),
+                source_kind="external",
+                original_name="guide.md",
+            )
+        ]
+    )
+    api, _ = _api(service)
+
+    payload = api.handle("knowledge-doc-content", {"id": "doc_1"})
+
+    assert payload["kind"] == "markdown"
+    assert payload["name"] == "guide.md"
+    assert payload["content"] == "# 标题\n\n正文"
+    assert payload["truncated"] is False
+    assert "sourcePath" not in payload
+
+
+def test_doc_content_renders_docx_blocks(tmp_path: Path) -> None:
+    from docx import Document as DocxDocument
+
+    document = DocxDocument()
+    document.add_heading("第一章", level=1)
+    document.add_paragraph("正文段落")
+    table = document.add_table(rows=1, cols=2)
+    table.rows[0].cells[0].text = "A"
+    table.rows[0].cells[1].text = "B"
+    source = tmp_path / "spec.docx"
+    document.save(source)
+    api, _ = _api(FakeService(documents=[_doc(source_path=str(source))]))
+
+    payload = api.handle("knowledge-doc-content", {"id": "doc_1"})
+
+    assert payload["kind"] == "docx"
+    assert payload["blocks"][0] == {
+        "type": "heading",
+        "level": 1,
+        "text": "第一章",
+    }
+    assert {"type": "paragraph", "text": "正文段落"} in payload["blocks"]
+    assert {"type": "table", "rows": [["A", "B"]]} in payload["blocks"]
+
+
+def test_doc_content_returns_pdf_pages(tmp_path: Path) -> None:
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    source = tmp_path / "manual.pdf"
+    with source.open("wb") as handle:
+        writer.write(handle)
+    api, _ = _api(FakeService(documents=[_doc(source_path=str(source))]))
+
+    payload = api.handle("knowledge-doc-content", {"id": "doc_1"})
+
+    assert payload["kind"] == "pdf"
+    assert payload["totalPages"] == 1
+    assert payload["pages"] == [{"page": 1, "text": ""}]
+
+
+def test_doc_content_missing_source_is_stable_error(tmp_path: Path) -> None:
+    api, _ = _api(
+        FakeService(documents=[_doc(source_path=str(tmp_path / "gone.txt"))])
+    )
+
+    with pytest.raises(KnowledgeApiError) as excinfo:
+        api.handle("knowledge-doc-content", {"id": "doc_1"})
+
+    assert excinfo.value.code == "KNOWLEDGE_DOC_SOURCE_MISSING"
+    assert excinfo.value.status == 404
 
 
 def test_chunk_get_checks_document_scope() -> None:
@@ -741,6 +870,7 @@ def test_repair_defaults_to_non_destructive_flags() -> None:
         ("knowledge-kb-list", {}),
         ("knowledge-doc-list", {}),
         ("knowledge-doc-get", {"id": "doc_1"}),
+        ("knowledge-doc-content", {"id": "doc_1"}),
         ("knowledge-search", {"query": "回滚"}),
         ("knowledge-stats", {}),
     ],

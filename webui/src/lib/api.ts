@@ -1639,6 +1639,46 @@ export interface KnowledgeSearchResult {
   hits: KnowledgeHit[];
 }
 
+export interface KnowledgeRetrievalSettings {
+  vectorWeight: number;
+  keywordWeight: number;
+  rrfK: number;
+  defaultLimit: number;
+  maxLimit: number;
+  mmrLambda: number;
+  vectorThreshold: number;
+  keywordThreshold: number;
+  expandOnLowRecall: boolean;
+  expansionLimit: number;
+}
+
+export interface KnowledgeRerankSettings {
+  enabled: boolean;
+  backend: string;
+  model: string;
+  threshold: number;
+  maxCandidates: number;
+}
+
+export interface KnowledgeChunkingSettings {
+  chunkSize: number;
+  chunkOverlap: number;
+  tokenizerMode: string;
+  paragraphMode: string;
+}
+
+export interface KnowledgeRunSettings {
+  retrieval: KnowledgeRetrievalSettings;
+  rerank: KnowledgeRerankSettings;
+  chunking: KnowledgeChunkingSettings;
+  scope: { retrieval: string; rerank: string; chunking: string };
+}
+
+export interface KnowledgeSettingsPayload {
+  enabled: boolean;
+  settings: KnowledgeRunSettings;
+}
+
 export interface KnowledgeStats {
   enabled: boolean;
   kbs: number;
@@ -1669,11 +1709,44 @@ export interface KnowledgeDocGetPayload {
   document: KnowledgeDoc | null;
   chunks: KnowledgeChunk[];
   chunkCount: number;
+  chunkTotal: number;
+  chunkOffset: number;
+  chunkLimit: number;
 }
 
 export interface KnowledgeChunkGetPayload {
   enabled: boolean;
   chunk: KnowledgeChunk | null;
+}
+
+export type KnowledgeDocSourceKind = "markdown" | "text" | "pdf" | "docx" | "unsupported";
+
+export interface KnowledgeDocSourcePage {
+  page: number;
+  text: string;
+}
+
+export interface KnowledgeDocSourceBlock {
+  type: "heading" | "paragraph";
+  level?: number;
+  text: string;
+}
+
+export interface KnowledgeDocSourceTable {
+  type: "table";
+  rows: string[][];
+}
+
+export interface KnowledgeDocSourcePayload {
+  enabled: boolean;
+  kind: KnowledgeDocSourceKind;
+  name: string;
+  size: number;
+  truncated: boolean;
+  content: string;
+  pages: KnowledgeDocSourcePage[];
+  totalPages: number;
+  blocks: Array<KnowledgeDocSourceBlock | KnowledgeDocSourceTable>;
 }
 
 /** 读动作与写动作共用的作用域过滤；缺省时后端按已认证可见集合处理。 */
@@ -1749,16 +1822,56 @@ export async function fetchKnowledgeDocs(
 
 export async function fetchKnowledgeDoc(
   token: string,
-  params: { id: string; chunkLimit?: number },
+  params: { id: string; chunkLimit?: number; chunkOffset?: number; chunkQuery?: string },
   base: string = "",
 ): Promise<KnowledgeDocGetPayload> {
-  const query = knowledgeQuery({ id: params.id, chunkLimit: params.chunkLimit });
-  return request<KnowledgeDocGetPayload>(
+  const query = knowledgeQuery({
+    id: params.id,
+    chunkLimit: params.chunkLimit,
+    chunkOffset: params.chunkOffset,
+    chunkQuery: params.chunkQuery,
+  });
+  const payload = await request<KnowledgeDocGetPayload>(
     `${base}${KNOWLEDGE_BASE}/doc${query}`,
     token,
     undefined,
     API_READ_TIMEOUT_MS,
   );
+  const chunkCount = typeof payload.chunkCount === "number" ? payload.chunkCount : 0;
+  return {
+    enabled: payload.enabled !== false,
+    document: payload.document ?? null,
+    chunks: Array.isArray(payload.chunks) ? payload.chunks : [],
+    chunkCount,
+    chunkTotal: typeof payload.chunkTotal === "number" ? payload.chunkTotal : chunkCount,
+    chunkOffset: typeof payload.chunkOffset === "number" ? payload.chunkOffset : 0,
+    chunkLimit: typeof payload.chunkLimit === "number" ? payload.chunkLimit : 0,
+  };
+}
+
+export async function fetchKnowledgeDocContent(
+  token: string,
+  params: { id: string },
+  base: string = "",
+): Promise<KnowledgeDocSourcePayload> {
+  const query = knowledgeQuery({ id: params.id });
+  const payload = await request<KnowledgeDocSourcePayload>(
+    `${base}${KNOWLEDGE_BASE}/doc/content${query}`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  return {
+    enabled: payload.enabled !== false,
+    kind: payload.kind ?? "unsupported",
+    name: payload.name ?? "",
+    size: typeof payload.size === "number" ? payload.size : 0,
+    truncated: payload.truncated === true,
+    content: typeof payload.content === "string" ? payload.content : "",
+    pages: Array.isArray(payload.pages) ? payload.pages : [],
+    totalPages: typeof payload.totalPages === "number" ? payload.totalPages : 0,
+    blocks: Array.isArray(payload.blocks) ? payload.blocks : [],
+  };
 }
 
 export async function fetchKnowledgeChunk(
@@ -1808,6 +1921,46 @@ export async function searchKnowledge(
     routes: Array.isArray(payload.routes) ? payload.routes : [],
     hits: Array.isArray(payload.hits) ? payload.hits : [],
   };
+}
+
+export async function fetchKnowledgeSettings(
+  token: string,
+  base: string = "",
+): Promise<KnowledgeSettingsPayload> {
+  const payload = await request<KnowledgeSettingsPayload>(
+    `${base}${KNOWLEDGE_BASE}/settings`,
+    token,
+    undefined,
+    API_READ_TIMEOUT_MS,
+  );
+  return payload;
+}
+
+export interface UpdateKnowledgeSettingsInput {
+  retrieval?: Partial<KnowledgeRetrievalSettings>;
+  rerank?: Partial<KnowledgeRerankSettings>;
+}
+
+export interface KnowledgeSettingsUpdateResult {
+  enabled: boolean;
+  changed: string[];
+  applied: boolean;
+  requiresReindex: boolean;
+  settings: KnowledgeRunSettings;
+}
+
+export async function updateKnowledgeSettings(
+  transport: WebUIMutationTransport,
+  input: UpdateKnowledgeSettingsInput,
+): Promise<KnowledgeSettingsUpdateResult> {
+  return mutation<KnowledgeSettingsUpdateResult>(
+    transport,
+    "knowledge.settings.update",
+    {
+      ...(input.retrieval ? { retrieval: input.retrieval } : {}),
+      ...(input.rerank ? { rerank: input.rerank } : {}),
+    },
+  );
 }
 
 export async function fetchKnowledgeStats(

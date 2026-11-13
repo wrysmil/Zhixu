@@ -11,6 +11,7 @@ import {
   Plus,
   RefreshCcw,
   Search,
+  SlidersHorizontal,
   Trash2,
   Wrench,
 } from "lucide-react";
@@ -22,9 +23,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/workspace/EmptyState";
 import { KnowledgeLibraryList } from "./knowledge/KnowledgeLibraryList";
 import { KnowledgeDocumentTable } from "./knowledge/KnowledgeDocumentTable";
-import { KnowledgeDocumentSheet } from "./knowledge/KnowledgeDocumentSheet";
+import { KnowledgeDocumentDialog } from "./knowledge/KnowledgeDocumentDialog";
 import { KnowledgeImportSheet} from "./knowledge/KnowledgeImportSheet";
 import { KnowledgeCitation } from "./knowledge/KnowledgeCitation";
+import { KnowledgeSettingsPanel } from "./knowledge/KnowledgeSettingsPanel";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { KnowledgeStatus } from "./knowledge-shared/KnowledgeStatus";
@@ -65,6 +67,7 @@ const UPLOAD_MIME_BY_SUFFIX: Record<string, string> = {
 };
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
+const CHUNK_PREVIEW_PAGE_SIZE = 10;
 const SEARCH_LIMITS = [5, 8, 12, 20];
 const SEARCH_MODES: KnowledgeSearchMode[] = ["hybrid", "semantic", "keyword"];
 
@@ -140,7 +143,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [kbs, setKbs] = useState<KnowledgeKb[]>([]);
   const [activeKbId, setActiveKbId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState<"documents" | "search" | "graph">(
+  const [detailTab, setDetailTab] = useState<"documents" | "search" | "graph" | "settings">(
     "documents",
   );
   const [kbsLoading, setKbsLoading] = useState(true);
@@ -166,6 +169,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [chunkPreview, setChunkPreview] = useState<KnowledgeDoc | null>(null);
   const [previewChunks, setPreviewChunks] = useState<KnowledgeChunk[]>([]);
   const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewDocTotal, setPreviewDocTotal] = useState(0);
+  const [previewOffset, setPreviewOffset] = useState(0);
+  const [previewQuery, setPreviewQuery] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const previewSeq = useRef(0);
@@ -354,25 +360,35 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
     setChunkPreview(null);
     setPreviewChunks([]);
     setPreviewTotal(0);
+    setPreviewDocTotal(0);
+    setPreviewOffset(0);
+    setPreviewQuery("");
     setPreviewError(null);
     setPreviewLoading(false);
   }, []);
 
-  const onOpenChunkPreview = useCallback(
-    async (doc: KnowledgeDoc) => {
+  const loadChunkPreview = useCallback(
+    async (doc: KnowledgeDoc, offset: number, query: string) => {
       const seq = previewSeq.current + 1;
       previewSeq.current = seq;
-      setChunkPreview(doc);
-      setPreviewChunks([]);
-      setPreviewTotal(doc.chunkCount);
+      setPreviewOffset(offset);
+      setPreviewQuery(query);
       setPreviewError(null);
       setPreviewLoading(true);
       try {
-        const payload = await fetchKnowledgeDoc(token, { id: doc.id, chunkLimit: 20 });
+        const payload = await fetchKnowledgeDoc(token, {
+          id: doc.id,
+          chunkLimit: CHUNK_PREVIEW_PAGE_SIZE,
+          chunkOffset: offset,
+          chunkQuery: query || undefined,
+        });
         if (seq !== previewSeq.current) return;
         setChunkPreview(payload.document ?? doc);
         setPreviewChunks(payload.chunks);
-        setPreviewTotal(payload.chunkCount);
+        setPreviewTotal(
+          typeof payload.chunkTotal === "number" ? payload.chunkTotal : payload.chunkCount,
+        );
+        setPreviewDocTotal(payload.chunkCount);
       } catch (reason: unknown) {
         if (seq !== previewSeq.current) return;
         setPreviewError(reason instanceof Error ? reason.message : String(reason));
@@ -381,6 +397,24 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       }
     },
     [token],
+  );
+
+  const onOpenChunkPreview = useCallback(
+    async (doc: KnowledgeDoc) => {
+      setChunkPreview(doc);
+      setPreviewChunks([]);
+      setPreviewTotal(doc.chunkCount);
+      setPreviewDocTotal(doc.chunkCount);
+      await loadChunkPreview(doc, 0, "");
+    },
+    [loadChunkPreview],
+  );
+
+  const onChunkPageChange = useCallback(
+    (offset: number, query: string) => {
+      if (chunkPreview) void loadChunkPreview(chunkPreview, offset, query);
+    },
+    [chunkPreview, loadChunkPreview],
   );
 
   const onUpload = useCallback(
@@ -672,6 +706,15 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   <span className="inline-flex items-center gap-1.5">
                     <Network className="h-3.5 w-3.5" aria-hidden />
                     {t("knowledge.graph.tab")}
+                  </span>
+                ),
+              },
+              {
+                value: "settings",
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
+                    <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+                    {t("knowledge.settings.tab", { defaultValue: "检索设置" })}
                   </span>
                 ),
               },
@@ -1013,6 +1056,9 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
             )}
           </div>
           ) : null}
+          {detailTab === "settings" ? (
+            <KnowledgeSettingsPanel token={token} transport={client} />
+          ) : null}
           {detailTab === "graph" && activeKb ? (
             <Suspense
               fallback={
@@ -1041,8 +1087,11 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
 
       <KnowledgeImportSheet open={importOpen} onClose={() => setImportOpen(false)} busy={busy} error={actionError} stage={uploadStage} stageIndex={uploadStageIndex}
         file={uploadFile} path={serverPath} onPath={setServerPath} onUpload={file => void onUpload(file)} onAddPath={() => void onAddServerPath()} />
-      <KnowledgeDocumentSheet doc={chunkPreview} previewChunks={previewChunks} previewTotal={previewTotal} previewLoading={previewLoading}
-        previewError={previewError} onClose={closeChunkPreview} onRetry={() => { if (chunkPreview) void onOpenChunkPreview(chunkPreview); }} />
+      <KnowledgeDocumentDialog doc={chunkPreview} token={token} previewChunks={previewChunks} previewTotal={previewTotal}
+        previewDocTotal={previewDocTotal} previewOffset={previewOffset} previewQuery={previewQuery}
+        previewPageSize={CHUNK_PREVIEW_PAGE_SIZE} previewLoading={previewLoading}
+        previewError={previewError} onClose={closeChunkPreview} onPageChange={onChunkPageChange}
+        onRetry={() => { if (chunkPreview) void loadChunkPreview(chunkPreview, previewOffset, previewQuery); }} />
 
       {confirm ? (
         <div

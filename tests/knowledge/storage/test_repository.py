@@ -518,6 +518,26 @@ def test_list_chunks_paginates_in_index_order(repo):
     assert [c.chunk_index for c in page] == [1]
 
 
+def test_list_chunks_filters_by_content_and_escapes_like(repo):
+    kb = repo.create_kb(name="a", workspace_id="ws1")
+    doc = _insert_doc(repo, kb)
+    repo.claim_document(doc.id, lease_owner="w1")
+    repo.commit_chunks(
+        doc.id,
+        attempt=1,
+        chunks=[
+            _chunk(0, "进度 100% 完成"),
+            _chunk(1, "部署失败怎么回滚"),
+            _chunk(2, "进度 50%"),
+        ],
+    )
+
+    assert [c.chunk_index for c in repo.list_chunks(doc.id, query="100%")] == [0]
+    assert [c.chunk_index for c in repo.list_chunks(doc.id, query="%")] == [0, 2]
+    assert repo.count_chunks(doc.id, query="进度") == 2
+    assert repo.count_chunks(doc.id) == 3
+
+
 # ---------- Task 6: FTS 查询 ----------
 _SEED_COUNTER = itertools.count()
 

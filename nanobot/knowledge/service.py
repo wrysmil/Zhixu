@@ -462,6 +462,30 @@ class KnowledgeService:
             ingestor.set_graph_hook(service.enqueue_graph_document)
         return service
 
+    # ---------- 运行期参数 ----------
+    def apply_retrieval_settings(self, retrieval: Any, rerank: Any) -> None:
+        """热应用检索/精排参数，只重建检索器。
+
+        已入库的块、向量与 FTS 不受影响；分块与 embedding 参数不在本方法范围内，
+        改动它们仍需要重新入库才能生效。图谱路由保持原实例。
+        """
+        reranker = build_reranker(rerank)
+        rerank_settings = rerank_settings_for(rerank)
+        graph_config = self._graph.config if self._graph is not None else None
+        self._retriever = Retriever(
+            self._repo,
+            embedder=self._embedder,
+            vector_store=self._vector,
+            settings=_retriever_settings(retrieval, graph_config),
+            reranker=reranker,
+            rerank_settings=rerank_settings,
+            tokenizer_mode=self._tokenizer_mode,
+            identity_resolver=self._identity_resolver,
+            graph_route=self._graph_route,
+        )
+        self._reranker = reranker
+        self._rerank_settings = rerank_settings
+
     # ---------- KB ----------
     def create_kb(
         self,
@@ -676,8 +700,20 @@ class KnowledgeService:
     def get_chunk(self, chunk_id: str):
         return self._repo.fetch_chunk(chunk_id)
 
-    def list_chunks(self, doc_id: str, *, offset: int = 0, limit: int = 20):
-        return self._repo.list_chunks(doc_id, offset=offset, limit=limit)
+    def list_chunks(
+        self,
+        doc_id: str,
+        *,
+        offset: int = 0,
+        limit: int = 20,
+        query: str = "",
+    ):
+        return self._repo.list_chunks(
+            doc_id, offset=offset, limit=limit, query=query
+        )
+
+    def count_chunks(self, doc_id: str, *, query: str = "") -> int:
+        return self._repo.count_chunks(doc_id, query=query)
 
     # ---------- 入库执行 ----------
     def process_document(self, doc_id: str, attempt: int | None = None) -> None:
