@@ -45,10 +45,11 @@ describe("PreviewApp isolation", () => {
   });
 
   it("opens the assistant with transports disabled and no home entry", () => {
-    expect(() => render(<PreviewApp />)).not.toThrow();
+    let preview: HTMLElement | null = null;
+    expect(() => { preview = render(<PreviewApp />).container; }).not.toThrow();
     expect(screen.getByRole("navigation")).toBeInTheDocument();
-    // 品牌文案随欢迎页改版按语言切换，这里用语言无关的 hero 节点验证首页已渲染。
-    expect(screen.getByTestId("hero-greeting")).toBeInTheDocument();
+    // 品牌文案随欢迎页改版按语言切换，这里用语言无关的欢迎态节点验证首页已渲染。
+    expect(preview?.querySelector(".thread-welcome-intro")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Message input" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Choose project" })).toBeInTheDocument();

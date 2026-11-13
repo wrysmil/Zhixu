@@ -33,8 +33,9 @@ const sessionUpdateHandlers = new Set<(
 ) => void>();
 const sidebarStateUpdateHandlers = new Set<(state: SidebarStatePayload) => void>();
 let mockSessions: ChatSummary[] = [];
+// 空白聊天首页不再渲染大标题，改用「起步提示」作为首页已渲染的标志。
 const HERO_GREETING_PATTERN =
-  /Remember everything about you/;
+  /Start with something about you/;
 
 function setNavigatorPlatform(platform: string): void {
   Object.defineProperty(window.navigator, "platform", {

@@ -21,8 +21,9 @@ function messages() {
   return region ? within(region) : screen;
 }
 
+// 空白聊天首页不再渲染大标题，改用「起步提示」作为欢迎态已渲染的标志。
 const HERO_GREETING_PATTERN =
-  /Remember everything about you/;
+  /Start with something about you/;
 
 function makeClient() {
   const errorHandlers = new Set<(err: StreamError) => void>();
@@ -1690,9 +1691,8 @@ describe("ThreadShell", () => {
     );
     await act(async () => {});
 
-    const greeting = screen.getByRole("heading", { level: 1, name: HERO_GREETING_PATTERN });
-    expect(greeting).toHaveAttribute("data-testid", "hero-greeting");
-    expect(greeting).toHaveClass("select-none");
+    expect(screen.getByText(HERO_GREETING_PATTERN)).toBeInTheDocument();
+    expect(screen.getByText("Zhixu \u00b7 Your memory companion")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Share an update, or tell me something you'd like to remember…")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Write code" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Create a project plan" })).not.toBeInTheDocument();
