@@ -4435,7 +4435,7 @@ describe("ThreadShell", () => {
     expect(screen.getByRole("button", { name: "Stop response" })).toBeInTheDocument();
   });
 
-  it("keeps the workbench pinned and opens the tools sidebar over it from the header", async () => {
+  it("collapses the workbench from its header and restores it from the toolbar", async () => {
     window.localStorage.removeItem("mira.dock-tools.open");
     const client = makeClient();
     render(wrap(
@@ -4450,22 +4450,24 @@ describe("ThreadShell", () => {
     await screen.findByLabelText("Message input");
     const toggle = screen.getByRole("button", { name: "Tools sidebar" });
     expect(screen.getByTestId("session-workbench")).toBeInTheDocument();
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
-    expect(screen.queryByTestId("start-dock")).toBeNull();
-    // 工作台不允许收缩：面板自身没有任何收起入口。
-    expect(screen.queryByRole("button", { name: /collapse workbench/i })).toBeNull();
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
 
-    fireEvent.click(toggle);
-    // 工具侧边栏盖在工作台那一列上，工作台本体不受影响。
+    fireEvent.click(screen.getByRole("button", { name: /collapse workbench/i }));
+    expect(screen.queryByTestId("session-workbench")).toBeNull();
+    const reopen = screen.getByRole("button", { name: "Workbench" });
+    expect(reopen).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(reopen);
+    expect(screen.getByTestId("session-workbench")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tools sidebar" })).toHaveAttribute("aria-pressed", "true");
+
+    // 工具侧边栏仍覆盖在工作台那一列上，收起后工作台原样露出。
+    fireEvent.click(screen.getByRole("button", { name: "Tools sidebar" }));
     expect(screen.getByTestId("start-dock")).toBeInTheDocument();
     expect(screen.getByTestId("session-workbench")).toBeInTheDocument();
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
-    expect(window.localStorage.getItem("mira.dock-tools.open")).toBe("1");
-
     fireEvent.click(screen.getByRole("button", { name: /Collapse the start panel/i }));
     expect(screen.queryByTestId("start-dock")).toBeNull();
     expect(screen.getByTestId("session-workbench")).toBeInTheDocument();
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
     window.localStorage.removeItem("mira.dock-tools.open");
   });
 

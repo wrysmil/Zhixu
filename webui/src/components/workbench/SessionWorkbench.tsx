@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshCw, Search } from "lucide-react";
+import { PanelRightClose, RefreshCw, Search } from "lucide-react";
 import type { SessionWorkbenchModel } from "./session-workbench-model";
 import { useSessionWorkbench, type WorkbenchEventClient } from "./use-session-workbench";
 import { WorkbenchProgress } from "./workbench-progress";
@@ -18,10 +18,11 @@ interface SessionWorkbenchProps {
   onOpenFilePreview?: (path: string) => void;
   onOpenExecution?: (invocationId: string) => void;
   onOpenKnowledge?: () => void;
+  onCollapse?: () => void;
 }
 type Tab = "progress" | "memory" | "capabilities";
 
-export function SessionWorkbench({ model, sessionKey, token, client, onOpenFilePreview, onOpenExecution, onOpenKnowledge }: SessionWorkbenchProps) {
+export function SessionWorkbench({ model, sessionKey, token, client, onOpenFilePreview, onOpenExecution, onOpenKnowledge, onCollapse }: SessionWorkbenchProps) {
   const { t, i18n } = useTranslation();
   const text = useWorkbenchText();
   const id = useId();
@@ -40,11 +41,18 @@ export function SessionWorkbench({ model, sessionKey, token, client, onOpenFileP
     className="relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-border/60 bg-surface-raised text-foreground">
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border/50 px-4">
       <span className="text-xs font-semibold">{t("workbench.title", { defaultValue: "工作台" })}</span>
-      {updated && <span className="ml-auto text-[10px] text-muted-foreground">{text("更新于", "Updated")} {updated}</span>}
-      {sessionKey && token && <button type="button" onClick={refresh} disabled={loading}
-        aria-label={text("刷新工作台", "Refresh workbench")} className="ml-auto rounded p-1.5 text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
-        <RefreshCw aria-hidden className="h-3.5 w-3.5" />
-      </button>}
+      <div className="ml-auto flex items-center gap-1">
+        {updated && <span className="text-[10px] text-muted-foreground">{text("更新于", "Updated")} {updated}</span>}
+        {sessionKey && token && <button type="button" onClick={refresh} disabled={loading}
+          aria-label={text("刷新工作台", "Refresh workbench")} className="rounded p-1.5 text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+          <RefreshCw aria-hidden className="h-3.5 w-3.5" />
+        </button>}
+        {onCollapse && <button type="button" onClick={onCollapse}
+          aria-label={text("收起工作台", "Collapse workbench")} title={text("收起工作台", "Collapse workbench")}
+          className="rounded p-1.5 text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+          <PanelRightClose aria-hidden className="h-3.5 w-3.5" />
+        </button>}
+      </div>
     </header>
     <div role="tablist" aria-label={text("工作台视图", "Workbench views")} className="flex shrink-0 border-b border-border/50 px-3">
       {tabs.map((item) => <button key={item.key} id={`${id}-${item.key}`} type="button" role="tab"
