@@ -2873,6 +2873,83 @@
     "back": "返回"
   },
   "thread": {
+    "trajectory": {
+      "tabs": { "label": "會話視圖", "chat": "對話", "trajectory": "軌跡" },
+      "stats": { "duration": "總時長", "turns": "輪次", "calls": "工具呼叫" },
+      "coverage": { "partial": "部分採集" },
+      "toolbar": {
+        "compactDuration": "緊湊時長",
+        "evenDuration": "等寬排列",
+        "turns": "輪次",
+        "calls": "呼叫",
+        "search": "搜尋已載入記錄",
+        "loaded": "已載入 {{count}} 筆"
+      },
+      "lanes": { "input": "輸入", "model": "模型", "tool": "工具" },
+      "turnLabel": "第 {{index}} 輪",
+      "backgroundLabel": "背景執行",
+      "toolCount": "{{count}} 次呼叫",
+      "kind": {
+        "system": "系統",
+        "user": "使用者",
+        "context": "上下文",
+        "assistant": "助理",
+        "tool": "工具",
+        "subtool": "子工具",
+        "compaction": "壓縮"
+      },
+      "status": {
+        "requested": "已請求",
+        "running": "進行中",
+        "succeeded": "成功",
+        "failed": "失敗",
+        "denied": "已拒絕",
+        "cancelled": "已取消",
+        "interrupted": "已中斷",
+        "skipped": "已略過"
+      },
+      "onlyToolCalls": "僅工具呼叫",
+      "loading": "正在載入軌跡…",
+      "searchEmpty": "已載入記錄中沒有符合項目。",
+      "loadEarlier": "載入更早",
+      "empty": {
+        "title": "尚無軌跡",
+        "description": "發起一輪對話後會記錄模型請求、工具呼叫與耗時。啟用採集之前的歷史不會被補造。",
+        "unavailable": "軌跡不可用",
+        "unavailableDescription": "採集已關閉或儲存無法開啟；原任務不受影響。",
+        "noSession": "選擇一個會話後檢視其執行軌跡。",
+        "captureMode": "採集模式：{{mode}}"
+      },
+      "notice": {
+        "cursorExpired": "更早的歷史已過期，視圖已重新載入。",
+        "reload": "重新載入",
+        "retry": "重試",
+        "range": "{{count}} 筆記錄與所選區間相交",
+        "clearRange": "清除區間"
+      },
+      "inspector": {
+        "title": "記錄詳情",
+        "close": "關閉詳情",
+        "copy": "複製內容",
+        "resize": "調整詳情寬度",
+        "provider": "提供者",
+        "model": "模型",
+        "recordId": "記錄",
+        "turn": "輪次",
+        "noContent": "沒有採集到內容",
+        "loadMore": "載入更多",
+        "redacted": "已去識別化",
+        "truncated": "已截斷",
+        "tabs": { "content": "內容", "request": "輸入", "schema": "Schema", "json": "JSON" }
+      },
+      "unavailable": {
+        "not_recorded": "目前採集模式未記錄正文。",
+        "provider_managed": "由提供者託管，無法完整展開。",
+        "expired": "該內容已過期。",
+        "budget_exceeded": "本次執行的正文預算已用盡。",
+        "capture_failed": "正文採集失敗。"
+      }
+    },
     "subagentExecution": {
       "title": "子 Agent 執行詳情",
       "genericAgent": "通用 Agent",

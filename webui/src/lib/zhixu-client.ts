@@ -72,6 +72,19 @@ function summarizeInboundWsPayload(ev: InboundEvent): unknown {
 
 type Unsubscribe = () => void;
 type EventHandler = (ev: InboundEvent) => void;
+
+export interface TrajectoryBatchFrame {
+  event: "trajectory_batch";
+  type: "trajectory_batch";
+  chat_id: string;
+  session_id: string;
+  from_seq: number;
+  to_seq: number;
+  durable_seq: number;
+  history_generation: number;
+  events: unknown[];
+  record_updates: unknown[];
+}
 type StatusHandler = (status: ConnectionStatus) => void;
 type RuntimeModelHandler = (modelName: string | null, modelPreset?: string | null) => void;
 type SessionUpdateScope = "metadata" | "thread" | string;
@@ -228,6 +241,8 @@ export class ZhixuClient {
   private terminalEventHandlers = new Set<(event: TerminalEvent) => void>();
   // chat_id -> handlers listening on it
   private chatHandlers = new Map<string, Set<EventHandler>>();
+  private trajectoryHandlers = new Map<string, Set<(batch: TrajectoryBatchFrame) => void>>();
+  private trajectorySubscriptions = new Map<string, number>();
   /** Inbound frames received while no subscriber is registered (e.g. user switched away). */
   private pendingInboundByChat = new Map<string, InboundEvent[]>();
   private static readonly PENDING_INBOUND_MAX = 2000;
@@ -1085,6 +1100,46 @@ export class ZhixuClient {
     }
   }
 
+  /** Subscribe this connection to committed trajectory batches for one chat. */
+  subscribeTrajectory(chatId: string, afterSeq: number): void {
+    this.trajectorySubscriptions.set(chatId, Math.max(0, afterSeq));
+    this.queueSend({
+      type: "trajectory_subscribe",
+      chat_id: chatId,
+      after_seq: Math.max(0, afterSeq),
+    });
+  }
+
+  unsubscribeTrajectory(chatId: string): void {
+    if (!this.trajectorySubscriptions.delete(chatId)) return;
+    this.queueSend({ type: "trajectory_unsubscribe", chat_id: chatId });
+  }
+
+  /** Advance the reconnect cursor only after the client actually applied a batch. */
+  updateTrajectoryCursor(chatId: string, seq: number): void {
+    const current = this.trajectorySubscriptions.get(chatId);
+    if (current === undefined || seq <= current) return;
+    this.trajectorySubscriptions.set(chatId, seq);
+  }
+
+  onTrajectoryBatch(
+    chatId: string,
+    handler: (batch: TrajectoryBatchFrame) => void,
+  ): Unsubscribe {
+    let handlers = this.trajectoryHandlers.get(chatId);
+    if (!handlers) {
+      handlers = new Set();
+      this.trajectoryHandlers.set(chatId, handlers);
+    }
+    handlers.add(handler);
+    return () => {
+      const current = this.trajectoryHandlers.get(chatId);
+      if (!current) return;
+      current.delete(handler);
+      if (current.size === 0) this.trajectoryHandlers.delete(chatId);
+    };
+  }
+
   sendMessage(
     chatId: string,
     content: string,
@@ -1261,6 +1316,13 @@ export class ZhixuClient {
     for (const chatId of this.knownChats) {
       this.rawSend({ type: "attach", chat_id: chatId });
     }
+    for (const [chatId, afterSeq] of this.trajectorySubscriptions) {
+      this.rawSend({
+        type: "trajectory_subscribe",
+        chat_id: chatId,
+        after_seq: afterSeq,
+      });
+    }
     // The article binding is connection-scoped on the server; restore it before
     // any queued message with writing metadata is flushed.
     for (const articleId of this.writingArticles) {
@@ -1374,6 +1436,14 @@ export class ZhixuClient {
     const turnId = "turn_id" in parsed && typeof parsed.turn_id === "string"
       ? parsed.turn_id
       : null;
+    if ((parsed as { event?: string }).event === "trajectory_batch") {
+      const batch = parsed as unknown as TrajectoryBatchFrame;
+      const handlers = this.trajectoryHandlers.get(batch.chat_id);
+      if (handlers) {
+        for (const handler of [...handlers]) handler(batch);
+      }
+      return;
+    }
     if (parsed.event === "message_accepted" || parsed.event === "user_message") {
       this.recordCanonicalTurnOwnership(parsed);
     }

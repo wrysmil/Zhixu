@@ -376,6 +376,8 @@ class WebSocketChannel(BaseChannel):
         self.config: WebSocketConfig = config
         # chat_id -> connections subscribed to it (fan-out target).
         self._subs: dict[str, set[ServerConnection]] = {}
+        # chat_id -> connections that explicitly subscribed to trajectory batches.
+        self._trajectory_subs: dict[str, set[ServerConnection]] = {}
         # connection -> chat_ids it is subscribed to (O(1) cleanup on disconnect).
         self._conn_chats: dict[ServerConnection, set[str]] = {}
         # connection -> default chat_id for legacy frames that omit routing.
@@ -413,6 +415,34 @@ class WebSocketChannel(BaseChannel):
     def webui_subscribers(self, chat_id: str) -> tuple[ServerConnection, ...]:
         """Return a stable snapshot of one chat's transport subscribers."""
         return tuple(self._subs.get(chat_id, ()))
+
+    def webui_trajectory_subscribers(self, chat_id: str) -> tuple[ServerConnection, ...]:
+        return tuple(self._trajectory_subs.get(chat_id, ()))
+
+    def webui_trajectory_subscribe(self, connection: ServerConnection, chat_id: str) -> None:
+        if not self._register_connection_outbound(connection):
+            return
+        self._trajectory_subs.setdefault(chat_id, set()).add(connection)
+
+    def webui_trajectory_unsubscribe(self, connection: ServerConnection, chat_id: str) -> None:
+        subscribers = self._trajectory_subs.get(chat_id)
+        if subscribers is None:
+            return
+        subscribers.discard(connection)
+        if not subscribers:
+            self._trajectory_subs.pop(chat_id, None)
+
+    async def send_trajectory_payload(
+        self,
+        chat_id: str,
+        payload: WebUIWirePayload,
+    ) -> None:
+        conns = tuple(self._trajectory_subs.get(chat_id, ()))
+        if not conns:
+            return
+        raw = json.dumps(dict(payload), ensure_ascii=False)
+        for connection in conns:
+            await self._safe_send_to(connection, raw, label=" trajectory ")
 
     def webui_connection_chats(self, connection: ServerConnection) -> tuple[str, ...]:
         return tuple(self._conn_chats.get(connection, ()))
@@ -535,6 +565,7 @@ class WebSocketChannel(BaseChannel):
         return True
 
     def _detach(self, connection: ServerConnection, chat_id: str) -> None:
+        self.webui_trajectory_unsubscribe(connection, chat_id)
         chats = self._conn_chats.get(connection)
         if chats is not None:
             chats.discard(chat_id)
@@ -566,6 +597,8 @@ class WebSocketChannel(BaseChannel):
         finally:
             for chat_id in tuple(self._conn_chats.get(connection, ())):
                 self._detach(connection, chat_id)
+            for chat_id in tuple(self._trajectory_subs):
+                self.webui_trajectory_unsubscribe(connection, chat_id)
             self._conn_default.pop(connection, None)
             self.gateway.endpoint.discard_connection(connection)
             if self._connection_outbound.get(connection) is state:

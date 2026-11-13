@@ -2873,6 +2873,83 @@
     "back": "戻る"
   },
   "thread": {
+    "trajectory": {
+      "tabs": { "label": "スレッド表示", "chat": "チャット", "trajectory": "軌跡" },
+      "stats": { "duration": "合計時間", "turns": "ターン", "calls": "ツール呼び出し" },
+      "coverage": { "partial": "部分取得" },
+      "toolbar": {
+        "compactDuration": "コンパクト表示",
+        "evenDuration": "等間隔",
+        "turns": "ターン",
+        "calls": "呼び出し",
+        "search": "読み込み済みを検索",
+        "loaded": "{{count}} 件読み込み済み"
+      },
+      "lanes": { "input": "入力", "model": "モデル", "tool": "ツール" },
+      "turnLabel": "第 {{index}} ターン",
+      "backgroundLabel": "バックグラウンド実行",
+      "toolCount": "{{count}} 回の呼び出し",
+      "kind": {
+        "system": "システム",
+        "user": "ユーザー",
+        "context": "コンテキスト",
+        "assistant": "アシスタント",
+        "tool": "ツール",
+        "subtool": "サブツール",
+        "compaction": "圧縮"
+      },
+      "status": {
+        "requested": "要求済み",
+        "running": "実行中",
+        "succeeded": "成功",
+        "failed": "失敗",
+        "denied": "拒否",
+        "cancelled": "キャンセル",
+        "interrupted": "中断",
+        "skipped": "スキップ"
+      },
+      "onlyToolCalls": "ツール呼び出しのみ",
+      "loading": "軌跡を読み込み中…",
+      "searchEmpty": "読み込み済みの記録に一致する項目はありません。",
+      "loadEarlier": "以前を読み込む",
+      "empty": {
+        "title": "軌跡はまだありません",
+        "description": "ターンを実行するとモデル要求、ツール呼び出し、所要時間が記録されます。取得を有効にする前の履歴は再構成されません。",
+        "unavailable": "軌跡を利用できません",
+        "unavailableDescription": "取得が無効か、ストアを開けません。既存のタスクには影響しません。",
+        "noSession": "会話を選択すると実行軌跡を確認できます。",
+        "captureMode": "取得モード: {{mode}}"
+      },
+      "notice": {
+        "cursorExpired": "以前の履歴が期限切れのため、再読み込みしました。",
+        "reload": "再読み込み",
+        "retry": "再試行",
+        "range": "{{count}} 件が選択範囲と重なっています",
+        "clearRange": "範囲を解除"
+      },
+      "inspector": {
+        "title": "記録の詳細",
+        "close": "詳細を閉じる",
+        "copy": "内容をコピー",
+        "resize": "詳細の幅を調整",
+        "provider": "プロバイダー",
+        "model": "モデル",
+        "recordId": "記録",
+        "turn": "ターン",
+        "noContent": "取得された内容はありません",
+        "loadMore": "さらに読み込む",
+        "redacted": "マスク済み",
+        "truncated": "切り詰め",
+        "tabs": { "content": "内容", "request": "入力", "schema": "スキーマ", "json": "JSON" }
+      },
+      "unavailable": {
+        "not_recorded": "この取得モードでは本文を記録していません。",
+        "provider_managed": "プロバイダー管理のため展開できません。",
+        "expired": "この内容は期限切れです。",
+        "budget_exceeded": "この実行の本文予算を使い切りました。",
+        "capture_failed": "本文の取得に失敗しました。"
+      }
+    },
     "subagentExecution": {
       "title": "サブエージェント実行",
       "genericAgent": "汎用エージェント",

@@ -1750,6 +1750,7 @@ class LLMProvider(ABC):
         last_response: LLMResponse | None = None
         last_error_key: str | None = None
         identical_error_count = 0
+        from nanobot.trajectory import capture as trace_capture
 
         async def _finish_retry_status(
             state: Literal["recovered", "cleared"],
@@ -1767,7 +1768,25 @@ class LLMProvider(ABC):
 
         while True:
             attempt += 1
-            response = await call(**kw)
+            trace_scope = trace_capture.begin_attempt(
+                provider=self.provider_name,
+                model=str(kw.get("model") or self.get_default_model()),
+                attempt=attempt,
+            )
+            call_kw = trace_scope.wrap_kwargs(kw) if trace_scope is not None else kw
+            try:
+                response = await call(**call_kw)
+            except asyncio.CancelledError:
+                if trace_scope is not None:
+                    trace_scope.cancelled()
+                raise
+            except Exception as exc:
+                if trace_scope is not None:
+                    trace_scope.fail(exc)
+                raise
+            else:
+                if trace_scope is not None:
+                    trace_scope.finish(response)
             if response.finish_reason != "error":
                 await _finish_retry_status("recovered", response)
                 return response
@@ -1833,7 +1852,26 @@ class LLMProvider(ABC):
                         retry_kw["messages"] = stripped
                     if stripped_context is not None:
                         retry_kw["provider_context"] = stripped_context
-                    result = await call(**retry_kw)
+                    image_scope = trace_capture.begin_attempt(
+                        provider=self.provider_name,
+                        model=str(kw.get("model") or self.get_default_model()),
+                        attempt=attempt,
+                    )
+                    if image_scope is not None:
+                        retry_kw = image_scope.wrap_kwargs(retry_kw)
+                    try:
+                        result = await call(**retry_kw)
+                    except asyncio.CancelledError:
+                        if image_scope is not None:
+                            image_scope.cancelled()
+                        raise
+                    except Exception as exc:
+                        if image_scope is not None:
+                            image_scope.fail(exc)
+                        raise
+                    else:
+                        if image_scope is not None:
+                            image_scope.finish(result)
                     # Permanently strip images from the original messages so
                     # subsequent iterations do not repeat the error-retry cycle.
                     if result.finish_reason != "error":
@@ -1901,6 +1939,13 @@ class LLMProvider(ABC):
                 int(round(delay)),
                 (response.content or "")[:120].lower(),
             )
+            if trace_scope is not None:
+                trace_capture.retry_scheduled(
+                    previous_call_id=trace_scope.model_call_id,
+                    attempt=attempt + 1,
+                    delay_ms=int(delay * 1000),
+                    error_kind=self.public_error_kind(response),
+                )
             await self._sleep_with_heartbeat(
                 delay,
                 attempt=attempt,

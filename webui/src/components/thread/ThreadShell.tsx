@@ -44,6 +44,8 @@ import {
   type RightSurface,
 } from "@/components/thread/SubagentExecutionPanel";
 import { ThreadViewport, type ThreadViewportHandle } from "@/components/thread/ThreadViewport";
+import { TrajectoryPanel } from "@/components/thread/trajectory/TrajectoryPanel";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { TeamSelector, teamPickerVisibility } from "@/components/thread/TeamSelector";
 import { TeamProgressPanel } from "@/components/thread/TeamProgressPanel";
 import { useZhixuStream, type SendAttachment, type SendOptions } from "@/hooks/useZhixuStream";
@@ -807,6 +809,10 @@ export function ThreadShell({
   const welcomeDraftTokenRef = useRef(0);
   const [submittedViewportTurnId, setSubmittedViewportTurnId] = useState<string | null>(null);
   const [rightSurfaces, setRightSurfaces] = useState<RightSurface[]>([WORKBENCH_SURFACE]);
+  const [threadView, setThreadView] = useState<"chat" | "trajectory">("chat");
+  useEffect(() => {
+    setThreadView("chat");
+  }, [historyKey]);
   const activeRightSurface = rightSurfaces[rightSurfaces.length - 1] ?? WORKBENCH_SURFACE;
   const filePreviewPath = activeRightSurface.kind === "file" ? activeRightSurface.path : null;
   const narrowViewport = useMediaQuery("(max-width: 767px)");
@@ -1965,6 +1971,22 @@ export function ThreadShell({
       hideTitle={hideHeaderTitle}
       actions={headerActions}
       workbenchAction={workbenchAction}
+      viewTabs={session ? (
+        <SegmentedControl
+          mode="tabs"
+          ariaLabel={t("thread.trajectory.tabs.label", { defaultValue: "Thread view" })}
+          value={threadView}
+          options={[
+            { value: "chat", label: t("thread.trajectory.tabs.chat", { defaultValue: "Chat" }) },
+            {
+              value: "trajectory",
+              label: t("thread.trajectory.tabs.trajectory", { defaultValue: "Trajectory" }),
+            },
+          ]}
+          onChange={setThreadView}
+          className="bg-muted/45"
+        />
+      ) : undefined}
       minimal={!session && !loading}
     />
   ) : null;
@@ -1987,6 +2009,7 @@ export function ThreadShell({
           </div>
         ) : null}
         {headerPortalTarget === undefined ? threadHeader : null}
+        <div className={threadView === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
         <SubagentExecutionEntryProvider value={subagentExecutionEntryValue}>
           <FilePreviewAvailabilityProvider
             resolve={historyKey ? resolveFilePreviewAvailability : undefined}
@@ -2000,7 +2023,11 @@ export function ThreadShell({
             retryStatus={retryStatus}
             emptyState={emptyState}
             emptyStateBelow={emptyStateBelow}
-            composer={showHeroComposer || composerPortalTarget === undefined ? composer : null}
+            composer={
+              threadView === "chat" && (showHeroComposer || composerPortalTarget === undefined)
+                ? composer
+                : null
+            }
             activeTurnId={viewportTurnId}
             activeTurnStartedHere={activeTurnStartedHere}
             conversationKey={historyKey}
@@ -2021,6 +2048,24 @@ export function ThreadShell({
             />
           </FilePreviewAvailabilityProvider>
         </SubagentExecutionEntryProvider>
+        </div>
+        {session ? (
+          <div className={threadView === "trajectory" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+            <TrajectoryPanel
+              sessionKey={session?.key ?? null}
+              active={threadView === "trajectory"}
+              getToken={getToken}
+              wsClient={client}
+              composer={
+                threadView === "trajectory"
+                && composerPortalTarget === undefined
+                && !showHeroComposer
+                  ? composer
+                  : undefined
+              }
+            />
+          </div>
+        ) : null}
       </div>
       {filePreviewPath && historyKey ? (
         <FilePreviewPanel

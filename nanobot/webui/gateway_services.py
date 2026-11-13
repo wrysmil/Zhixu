@@ -67,6 +67,59 @@ if TYPE_CHECKING:
     from nanobot.webui.knowledge_api import KnowledgeApi
 
 
+_TRAJECTORY_WS_CONTEXT: dict[str, Any] = {}
+_TRAJECTORY_WS_INSTALLED = False
+
+
+def _install_trajectory_ws(bus: "MessageBus") -> None:
+    """Publish committed trajectory batches as WebSocket frames (installed once)."""
+    global _TRAJECTORY_WS_INSTALLED
+    try:
+        loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    _TRAJECTORY_WS_CONTEXT["bus"] = bus
+    _TRAJECTORY_WS_CONTEXT["loop"] = loop
+    if _TRAJECTORY_WS_INSTALLED:
+        return
+    from nanobot.trajectory import trajectory_service
+    from nanobot.webui.outbound_wire import TrajectoryBatchWireEvent
+
+    def _publish(batch: Any) -> None:
+        context = _TRAJECTORY_WS_CONTEXT
+        bus_ref = context.get("bus")
+        loop_ref = context.get("loop")
+        if bus_ref is None or loop_ref is None or loop_ref.is_closed():
+            return
+        session_id = str(getattr(batch, "session_id", ""))
+        if not session_id.startswith("websocket:"):
+            return
+        chat_id = session_id.split(":", 1)[1]
+        data = {
+            "sessionId": session_id,
+            "fromSeq": batch.from_seq,
+            "toSeq": batch.to_seq,
+            "durableSeq": batch.durable_seq,
+            "historyGeneration": batch.history_generation,
+            "events": [event.to_dict() for event in batch.events],
+            "recordUpdates": [record.to_dict() for record in batch.record_updates],
+        }
+        try:
+            asyncio.run_coroutine_threadsafe(
+                bus_ref.publish_event(
+                    TrajectoryBatchWireEvent(data=data),
+                    channel="websocket",
+                    chat_id=chat_id,
+                ),
+                loop_ref,
+            )
+        except Exception:
+            default_logger.exception("trajectory websocket publish failed")
+
+    trajectory_service().add_commit_listener(_publish)
+    _TRAJECTORY_WS_INSTALLED = True
+
+
 @dataclass(frozen=True)
 class GatewayServices:
     """Explicit dependencies shared by WebSocket transport and HTTP routes."""
@@ -775,6 +828,19 @@ def build_gateway_services(
     subagent_execution_operations = build_subagent_execution_operations(
         subagent_execution_repository,
     )
+    from nanobot.trajectory import trajectory_service
+    from nanobot.webui.trajectory_routes import build_trajectory_operations
+
+    def _trajectory_workspace(session_id: str) -> str | None:
+        try:
+            return str(workspaces.scope_for_session_key(session_id).project_path)
+        except Exception:
+            return str(workspace_path)
+
+    trajectory_operations = build_trajectory_operations(
+        trajectory_service(), _trajectory_workspace,
+    )
+    _install_trajectory_ws(bus)
 
     http = GatewayHTTPHandler(
         config=config,
@@ -843,6 +909,7 @@ def build_gateway_services(
     http.settings_routes.configure_subagent_execution_operations(
         subagent_execution_operations,
     )
+    http.settings_routes.configure_trajectory_operations(trajectory_operations)
     endpoint = WebUIGatewayEndpoint(config=config, http=http, tokens=tokens)
     return GatewayServices(
         http=http,

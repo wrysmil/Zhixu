@@ -2929,6 +2929,102 @@
     "back": "Back"
   },
   "thread": {
+    "trajectory": {
+      "tabs": {
+        "label": "Thread view",
+        "chat": "Chat",
+        "trajectory": "Trajectory"
+      },
+      "stats": {
+        "duration": "Total duration",
+        "turns": "Turns",
+        "calls": "Tool calls"
+      },
+      "coverage": {
+        "partial": "Partial capture"
+      },
+      "toolbar": {
+        "compactDuration": "Compact duration",
+        "evenDuration": "Even spacing",
+        "turns": "Turns",
+        "calls": "Calls",
+        "search": "Search loaded records",
+        "loaded": "Loaded {{count}}"
+      },
+      "lanes": {
+        "input": "In",
+        "model": "Model",
+        "tool": "Tool"
+      },
+      "turnLabel": "Turn {{index}}",
+      "backgroundLabel": "Background run",
+      "toolCount": "{{count}} calls",
+      "kind": {
+        "system": "System",
+        "user": "User",
+        "context": "Context",
+        "assistant": "Assistant",
+        "tool": "Tool",
+        "subtool": "Sub-tool",
+        "compaction": "Compaction"
+      },
+      "status": {
+        "requested": "Requested",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "denied": "Denied",
+        "cancelled": "Cancelled",
+        "interrupted": "Interrupted",
+        "skipped": "Skipped"
+      },
+      "onlyToolCalls": "Tool calls only",
+      "loading": "Loading trajectory…",
+      "searchEmpty": "No loaded record matches this search.",
+      "loadEarlier": "Load earlier",
+      "empty": {
+        "title": "No trajectory yet",
+        "description": "Run a turn to capture model requests, tool calls and timings. History from before capture was enabled is not reconstructed.",
+        "unavailable": "Trajectory unavailable",
+        "unavailableDescription": "Capture is disabled or the store cannot be opened. Existing tasks are unaffected.",
+        "noSession": "Select a conversation to inspect its trajectory.",
+        "captureMode": "Capture mode: {{mode}}"
+      },
+      "notice": {
+        "cursorExpired": "Earlier history has expired; the view was reloaded.",
+        "reload": "Reload",
+        "retry": "Retry",
+        "range": "{{count}} records intersect the selected range",
+        "clearRange": "Clear range"
+      },
+      "inspector": {
+        "title": "Record details",
+        "close": "Close details",
+        "copy": "Copy content",
+        "resize": "Resize details",
+        "provider": "Provider",
+        "model": "Model",
+        "recordId": "Record",
+        "turn": "Turn",
+        "noContent": "No captured content",
+        "loadMore": "Load more",
+        "redacted": "Redacted",
+        "truncated": "Truncated",
+        "tabs": {
+          "content": "Content",
+          "request": "Input",
+          "schema": "Schema",
+          "json": "JSON"
+        }
+      },
+      "unavailable": {
+        "not_recorded": "Content was not recorded in this capture mode.",
+        "provider_managed": "Managed by the provider and cannot be expanded.",
+        "expired": "This content has expired.",
+        "budget_exceeded": "Capture budget was exhausted for this run.",
+        "capture_failed": "Content capture failed."
+      }
+    },
     "subagentExecution": {
       "title": "Sub-agent execution",
       "genericAgent": "General Agent",

@@ -2873,6 +2873,83 @@
     "back": "Voltar"
   },
   "thread": {
+    "trajectory": {
+      "tabs": { "label": "Visão da conversa", "chat": "Chat", "trajectory": "Trajetória" },
+      "stats": { "duration": "Duração total", "turns": "Turnos", "calls": "Chamadas de ferramentas" },
+      "coverage": { "partial": "Captura parcial" },
+      "toolbar": {
+        "compactDuration": "Duração compacta",
+        "evenDuration": "Espaçamento uniforme",
+        "turns": "Turnos",
+        "calls": "Chamadas",
+        "search": "Pesquisar registros carregados",
+        "loaded": "{{count}} carregados"
+      },
+      "lanes": { "input": "Entrada", "model": "Modelo", "tool": "Ferramenta" },
+      "turnLabel": "Turno {{index}}",
+      "backgroundLabel": "Execução em segundo plano",
+      "toolCount": "{{count}} chamadas",
+      "kind": {
+        "system": "Sistema",
+        "user": "Usuário",
+        "context": "Contexto",
+        "assistant": "Assistente",
+        "tool": "Ferramenta",
+        "subtool": "Subferramenta",
+        "compaction": "Compactação"
+      },
+      "status": {
+        "requested": "Solicitado",
+        "running": "Em execução",
+        "succeeded": "Concluído",
+        "failed": "Falhou",
+        "denied": "Negado",
+        "cancelled": "Cancelado",
+        "interrupted": "Interrompido",
+        "skipped": "Ignorado"
+      },
+      "onlyToolCalls": "Somente chamadas de ferramentas",
+      "loading": "Carregando trajetória…",
+      "searchEmpty": "Nenhum registro carregado corresponde à pesquisa.",
+      "loadEarlier": "Carregar anteriores",
+      "empty": {
+        "title": "Ainda sem trajetória",
+        "description": "Execute um turno para capturar solicitações do modelo, chamadas de ferramentas e tempos. O histórico anterior à captura não é reconstruído.",
+        "unavailable": "Trajetória indisponível",
+        "unavailableDescription": "A captura está desativada ou o armazenamento não pode ser aberto. As tarefas existentes não são afetadas.",
+        "noSession": "Selecione uma conversa para inspecionar sua trajetória.",
+        "captureMode": "Modo de captura: {{mode}}"
+      },
+      "notice": {
+        "cursorExpired": "O histórico anterior expirou; a visão foi recarregada.",
+        "reload": "Recarregar",
+        "retry": "Tentar novamente",
+        "range": "{{count}} registros cruzam o intervalo selecionado",
+        "clearRange": "Limpar intervalo"
+      },
+      "inspector": {
+        "title": "Detalhes do registro",
+        "close": "Fechar detalhes",
+        "copy": "Copiar conteúdo",
+        "resize": "Redimensionar detalhes",
+        "provider": "Provedor",
+        "model": "Modelo",
+        "recordId": "Registro",
+        "turn": "Turno",
+        "noContent": "Nenhum conteúdo capturado",
+        "loadMore": "Carregar mais",
+        "redacted": "Redigido",
+        "truncated": "Truncado",
+        "tabs": { "content": "Conteúdo", "request": "Entrada", "schema": "Esquema", "json": "JSON" }
+      },
+      "unavailable": {
+        "not_recorded": "O conteúdo não foi registrado neste modo de captura.",
+        "provider_managed": "Gerenciado pelo provedor; não pode ser expandido.",
+        "expired": "Este conteúdo expirou.",
+        "budget_exceeded": "O orçamento de captura desta execução foi esgotado.",
+        "capture_failed": "Falha na captura do conteúdo."
+      }
+    },
     "subagentExecution": {
       "title": "Execução do subagente",
       "genericAgent": "Agente geral",

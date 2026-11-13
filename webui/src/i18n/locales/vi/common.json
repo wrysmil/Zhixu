@@ -2873,6 +2873,83 @@
     "back": "Quay lại"
   },
   "thread": {
+    "trajectory": {
+      "tabs": { "label": "Chế độ xem hội thoại", "chat": "Trò chuyện", "trajectory": "Quỹ đạo" },
+      "stats": { "duration": "Tổng thời gian", "turns": "Lượt", "calls": "Lệnh gọi công cụ" },
+      "coverage": { "partial": "Thu thập một phần" },
+      "toolbar": {
+        "compactDuration": "Thời lượng gọn",
+        "evenDuration": "Giãn đều",
+        "turns": "Lượt",
+        "calls": "Lệnh gọi",
+        "search": "Tìm trong bản ghi đã tải",
+        "loaded": "Đã tải {{count}}"
+      },
+      "lanes": { "input": "Đầu vào", "model": "Mô hình", "tool": "Công cụ" },
+      "turnLabel": "Lượt {{index}}",
+      "backgroundLabel": "Chạy nền",
+      "toolCount": "{{count}} lệnh gọi",
+      "kind": {
+        "system": "Hệ thống",
+        "user": "Người dùng",
+        "context": "Ngữ cảnh",
+        "assistant": "Trợ lý",
+        "tool": "Công cụ",
+        "subtool": "Công cụ con",
+        "compaction": "Nén"
+      },
+      "status": {
+        "requested": "Đã yêu cầu",
+        "running": "Đang chạy",
+        "succeeded": "Thành công",
+        "failed": "Thất bại",
+        "denied": "Bị từ chối",
+        "cancelled": "Đã hủy",
+        "interrupted": "Bị ngắt",
+        "skipped": "Bỏ qua"
+      },
+      "onlyToolCalls": "Chỉ có lệnh gọi công cụ",
+      "loading": "Đang tải quỹ đạo…",
+      "searchEmpty": "Không có bản ghi đã tải nào khớp.",
+      "loadEarlier": "Tải trước đó",
+      "empty": {
+        "title": "Chưa có quỹ đạo",
+        "description": "Hãy chạy một lượt để ghi yêu cầu mô hình, lệnh gọi công cụ và thời gian. Lịch sử trước khi bật thu thập sẽ không được dựng lại.",
+        "unavailable": "Quỹ đạo không khả dụng",
+        "unavailableDescription": "Thu thập đang tắt hoặc không mở được kho lưu. Tác vụ hiện có không bị ảnh hưởng.",
+        "noSession": "Chọn một cuộc trò chuyện để xem quỹ đạo.",
+        "captureMode": "Chế độ thu thập: {{mode}}"
+      },
+      "notice": {
+        "cursorExpired": "Lịch sử cũ đã hết hạn; chế độ xem đã được tải lại.",
+        "reload": "Tải lại",
+        "retry": "Thử lại",
+        "range": "{{count}} bản ghi giao với khoảng đã chọn",
+        "clearRange": "Xóa khoảng"
+      },
+      "inspector": {
+        "title": "Chi tiết bản ghi",
+        "close": "Đóng chi tiết",
+        "copy": "Sao chép nội dung",
+        "resize": "Đổi kích thước chi tiết",
+        "provider": "Nhà cung cấp",
+        "model": "Mô hình",
+        "recordId": "Bản ghi",
+        "turn": "Lượt",
+        "noContent": "Không có nội dung được thu thập",
+        "loadMore": "Tải thêm",
+        "redacted": "Đã che",
+        "truncated": "Đã cắt",
+        "tabs": { "content": "Nội dung", "request": "Đầu vào", "schema": "Lược đồ", "json": "JSON" }
+      },
+      "unavailable": {
+        "not_recorded": "Nội dung không được ghi ở chế độ thu thập này.",
+        "provider_managed": "Do nhà cung cấp quản lý, không thể mở rộng.",
+        "expired": "Nội dung này đã hết hạn.",
+        "budget_exceeded": "Đã hết ngân sách thu thập của lần chạy này.",
+        "capture_failed": "Thu thập nội dung thất bại."
+      }
+    },
     "subagentExecution": {
       "title": "Thực thi tác nhân con",
       "genericAgent": "Tác nhân tổng quát",

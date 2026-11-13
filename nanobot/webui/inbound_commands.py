@@ -166,6 +166,14 @@ class WebUICommandTransport(Protocol):
 
     def webui_attach(self, connection: ServerConnection, chat_id: str) -> None: ...
 
+    def webui_trajectory_subscribe(
+        self, connection: ServerConnection, chat_id: str,
+    ) -> None: ...
+
+    def webui_trajectory_unsubscribe(
+        self, connection: ServerConnection, chat_id: str,
+    ) -> None: ...
+
     def webui_detach(self, connection: ServerConnection, chat_id: str) -> None: ...
 
     def webui_clear_connection_default(self, connection: ServerConnection) -> None: ...
@@ -534,6 +542,31 @@ class WebUICommandRouter:
                     detail=exc.detail,
                     chat_id=chat_id,
                 )
+            return
+        if command_type in {"trajectory_subscribe", "trajectory_unsubscribe"}:
+            chat_id = envelope.get("chat_id")
+            if (
+                not is_valid_webui_chat_id(chat_id)
+                or chat_id not in self._transport.webui_connection_chats(connection)
+            ):
+                await self._transport.webui_send_event(
+                    connection, "error", detail="invalid trajectory subscription",
+                )
+                return
+            if command_type == "trajectory_subscribe":
+                after_seq = envelope.get("after_seq", 0)
+                if (
+                    not isinstance(after_seq, int)
+                    or isinstance(after_seq, bool)
+                    or after_seq < 0
+                ):
+                    await self._transport.webui_send_event(
+                        connection, "error", detail="invalid trajectory after_seq",
+                    )
+                    return
+                self._transport.webui_trajectory_subscribe(connection, chat_id)
+            else:
+                self._transport.webui_trajectory_unsubscribe(connection, chat_id)
             return
         if command_type == "attach":
             chat_id = envelope.get("chat_id")

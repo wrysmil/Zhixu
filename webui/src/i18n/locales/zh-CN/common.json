@@ -2929,6 +2929,102 @@
     "back": "返回"
   },
   "thread": {
+    "trajectory": {
+      "tabs": {
+        "label": "会话视图",
+        "chat": "对话",
+        "trajectory": "轨迹"
+      },
+      "stats": {
+        "duration": "总时长",
+        "turns": "轮次",
+        "calls": "工具调用"
+      },
+      "coverage": {
+        "partial": "部分采集"
+      },
+      "toolbar": {
+        "compactDuration": "紧凑时长",
+        "evenDuration": "等宽排列",
+        "turns": "轮次",
+        "calls": "调用",
+        "search": "搜索已加载记录",
+        "loaded": "已加载 {{count}} 条"
+      },
+      "lanes": {
+        "input": "输入",
+        "model": "模型",
+        "tool": "工具"
+      },
+      "turnLabel": "第 {{index}} 轮",
+      "backgroundLabel": "后台运行",
+      "toolCount": "{{count}} 次调用",
+      "kind": {
+        "system": "系统",
+        "user": "用户",
+        "context": "上下文",
+        "assistant": "助手",
+        "tool": "工具",
+        "subtool": "子工具",
+        "compaction": "压缩"
+      },
+      "status": {
+        "requested": "已请求",
+        "running": "进行中",
+        "succeeded": "成功",
+        "failed": "失败",
+        "denied": "已拒绝",
+        "cancelled": "已取消",
+        "interrupted": "已中断",
+        "skipped": "已跳过"
+      },
+      "onlyToolCalls": "仅工具调用",
+      "loading": "正在加载轨迹…",
+      "searchEmpty": "已加载记录中没有匹配项。",
+      "loadEarlier": "加载更早",
+      "empty": {
+        "title": "暂无轨迹",
+        "description": "发起一轮对话后会记录模型请求、工具调用与耗时。开启采集之前的历史不会被补造。",
+        "unavailable": "轨迹不可用",
+        "unavailableDescription": "采集已关闭或存储无法打开；原任务不受影响。",
+        "noSession": "选择一个会话后查看其执行轨迹。",
+        "captureMode": "采集模式：{{mode}}"
+      },
+      "notice": {
+        "cursorExpired": "更早的历史已过期，视图已重新加载。",
+        "reload": "重新加载",
+        "retry": "重试",
+        "range": "{{count}} 条记录与所选区间相交",
+        "clearRange": "清除区间"
+      },
+      "inspector": {
+        "title": "记录详情",
+        "close": "关闭详情",
+        "copy": "复制内容",
+        "resize": "调整详情宽度",
+        "provider": "提供方",
+        "model": "模型",
+        "recordId": "记录",
+        "turn": "轮次",
+        "noContent": "没有采集到内容",
+        "loadMore": "加载更多",
+        "redacted": "已脱敏",
+        "truncated": "已截断",
+        "tabs": {
+          "content": "内容",
+          "request": "输入",
+          "schema": "Schema",
+          "json": "JSON"
+        }
+      },
+      "unavailable": {
+        "not_recorded": "当前采集模式未记录正文。",
+        "provider_managed": "由提供方托管，无法完整展开。",
+        "expired": "该内容已过期。",
+        "budget_exceeded": "本次运行的正文预算已用尽。",
+        "capture_failed": "正文采集失败。"
+      }
+    },
     "subagentExecution": {
       "title": "子 Agent 执行详情",
       "genericAgent": "通用 Agent",

@@ -2873,6 +2873,83 @@
     "back": "Kembali"
   },
   "thread": {
+    "trajectory": {
+      "tabs": { "label": "Tampilan percakapan", "chat": "Obrolan", "trajectory": "Trajektori" },
+      "stats": { "duration": "Total durasi", "turns": "Giliran", "calls": "Panggilan alat" },
+      "coverage": { "partial": "Tangkapan sebagian" },
+      "toolbar": {
+        "compactDuration": "Durasi ringkas",
+        "evenDuration": "Jarak merata",
+        "turns": "Giliran",
+        "calls": "Panggilan",
+        "search": "Cari catatan yang dimuat",
+        "loaded": "{{count}} dimuat"
+      },
+      "lanes": { "input": "Masukan", "model": "Model", "tool": "Alat" },
+      "turnLabel": "Giliran {{index}}",
+      "backgroundLabel": "Proses latar belakang",
+      "toolCount": "{{count}} panggilan",
+      "kind": {
+        "system": "Sistem",
+        "user": "Pengguna",
+        "context": "Konteks",
+        "assistant": "Asisten",
+        "tool": "Alat",
+        "subtool": "Sub-alat",
+        "compaction": "Pemadatan"
+      },
+      "status": {
+        "requested": "Diminta",
+        "running": "Berjalan",
+        "succeeded": "Berhasil",
+        "failed": "Gagal",
+        "denied": "Ditolak",
+        "cancelled": "Dibatalkan",
+        "interrupted": "Terputus",
+        "skipped": "Dilewati"
+      },
+      "onlyToolCalls": "Hanya panggilan alat",
+      "loading": "Memuat trajektori…",
+      "searchEmpty": "Tidak ada catatan yang dimuat cocok dengan pencarian.",
+      "loadEarlier": "Muat lebih awal",
+      "empty": {
+        "title": "Belum ada trajektori",
+        "description": "Jalankan satu giliran untuk menangkap permintaan model, panggilan alat, dan durasi. Riwayat sebelum tangkapan aktif tidak direkonstruksi.",
+        "unavailable": "Trajektori tidak tersedia",
+        "unavailableDescription": "Tangkapan dimatikan atau penyimpanan tidak dapat dibuka. Tugas yang ada tidak terpengaruh.",
+        "noSession": "Pilih percakapan untuk memeriksa trajektorinya.",
+        "captureMode": "Mode tangkapan: {{mode}}"
+      },
+      "notice": {
+        "cursorExpired": "Riwayat sebelumnya kedaluwarsa; tampilan dimuat ulang.",
+        "reload": "Muat ulang",
+        "retry": "Coba lagi",
+        "range": "{{count}} catatan beririsan dengan rentang terpilih",
+        "clearRange": "Hapus rentang"
+      },
+      "inspector": {
+        "title": "Detail catatan",
+        "close": "Tutup detail",
+        "copy": "Salin konten",
+        "resize": "Ubah lebar detail",
+        "provider": "Penyedia",
+        "model": "Model",
+        "recordId": "Catatan",
+        "turn": "Giliran",
+        "noContent": "Tidak ada konten yang ditangkap",
+        "loadMore": "Muat lebih banyak",
+        "redacted": "Disunting",
+        "truncated": "Terpotong",
+        "tabs": { "content": "Konten", "request": "Masukan", "schema": "Skema", "json": "JSON" }
+      },
+      "unavailable": {
+        "not_recorded": "Konten tidak direkam dalam mode tangkapan ini.",
+        "provider_managed": "Dikelola penyedia; tidak dapat diperluas.",
+        "expired": "Konten ini telah kedaluwarsa.",
+        "budget_exceeded": "Anggaran tangkapan untuk proses ini habis.",
+        "capture_failed": "Tangkapan konten gagal."
+      }
+    },
     "subagentExecution": {
       "title": "Eksekusi sub-agen",
       "genericAgent": "Agen umum",
