@@ -1,0 +1,57 @@
+[
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/automations",
+    "line": 0,
+    "snippet": "3.7:1 (need 4.5:1) — text #0284c7 on #f4f4f5",
+    "selector": "button.inline-flex.h-8:nth-of-type(5) > span:nth-of-type(1)"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/automations",
+    "line": 0,
+    "snippet": "3.6:1 (need 4.5:1) — text #b86e52 on #fff4e6",
+    "selector": "span.rounded-full.bg-orange-100\\/60"
+  },
+  {
+    "antipattern": "low-contrast",
+    "name": "Low contrast text",
+    "description": "Text does not meet WCAG AA contrast requirements (4.5:1 for body, 3:1 for large text). Increase the contrast between text and background.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/automations",
+    "line": 0,
+    "snippet": "2.9:1 (need 4.5:1) — text #94949b on #fcfcfc (and 6 more)",
+    "selector": "div.min-w-0.rounded-floating:nth-of-type(2) > div.text-\\[11px\\].font-medium"
+  },
+  {
+    "antipattern": "repeated-container-text",
+    "name": "Same text repeated inside one container",
+    "description": "The same literal text rendered three or more times in structurally different spots inside a single card or panel is redundant messaging — usually a status or label wired into every slot of a template. Say it once, in the slot where it matters most.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/automations",
+    "line": 0,
+    "snippet": "\"heartbeat\" rendered 3× in distinct spots inside section.assistant-panel.grid.min-h-0.overflow-hidden.xl:grid-cols-[minmax(16rem,18rem)_minmax(0,1fr)].xl:items-stretch",
+    "selector": "body"
+  },
+  {
+    "antipattern": "nested-cards",
+    "name": "Nested cards",
+    "description": "Cards inside cards create visual noise and excessive depth. Flatten the hierarchy — use spacing, typography, and dividers instead of nesting containers.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "http://127.0.0.1:8765/#/automations",
+    "line": 0,
+    "snippet": "Card inside card",
+    "selector": "section.assistant-panel.grid"
+  }
+]

@@ -1,0 +1,24 @@
+[
+  {
+    "antipattern": "repeated-container-text",
+    "name": "Same text repeated inside one container",
+    "description": "The same literal text rendered three or more times in structurally different spots inside a single card or panel is redundant messaging — usually a status or label wired into every slot of a template. Say it once, in the slot where it matters most.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/automations",
+    "line": 0,
+    "snippet": "\"heartbeat\" rendered 3× in distinct spots inside section.assistant-panel.grid.min-h-0.overflow-hidden.xl:grid-cols-[minmax(16rem,18rem)_minmax(0,1fr)].xl:items-stretch",
+    "selector": "body"
+  },
+  {
+    "antipattern": "nested-cards",
+    "name": "Nested cards",
+    "description": "Cards inside cards create visual noise and excessive depth. Flatten the hierarchy — use spacing, typography, and dividers instead of nesting containers.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "http://127.0.0.1:8765/#/automations",
+    "line": 0,
+    "snippet": "Card inside card",
+    "selector": "section.assistant-panel.grid"
+  }
+]

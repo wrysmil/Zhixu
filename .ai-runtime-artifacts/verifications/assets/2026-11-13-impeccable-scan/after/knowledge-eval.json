@@ -1,0 +1,24 @@
+[
+  {
+    "antipattern": "kicker-above-heading",
+    "name": "Kicker / eyebrow label above heading",
+    "description": "A tiny tracked uppercase or small-caps label sitting as its own block directly above a heading is banned outright, repeated or not. Generated kickers never earn their place: the heading carries its own weight. Delete the label and let the heading speak; if the words matter, work them into the heading or the body.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "kicker \"知识中心\" above h1 \"检索评测台\"",
+    "selector": "p.assistant-page-kicker"
+  },
+  {
+    "antipattern": "nested-cards",
+    "name": "Nested cards",
+    "description": "Cards inside cards create visual noise and excessive depth. Flatten the hierarchy — use spacing, typography, and dividers instead of nesting containers.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "Card inside card",
+    "selector": "div:nth-of-type(3) > section.knowledge-panel.mt-5"
+  }
+]

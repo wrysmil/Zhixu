@@ -1,0 +1,167 @@
+[
+  {
+    "antipattern": "nested-cards",
+    "name": "Nested cards",
+    "description": "Cards inside cards create visual noise and excessive depth. Flatten the hierarchy — use spacing, typography, and dividers instead of nesting containers.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "Card inside card (and 3 more)",
+    "selector": "section:nth-of-type(2) > div.overflow-hidden.rounded-panel"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "h1.assistant-page-heading \"概览\" is 100% covered by overlapping text (h1) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "h1.assistant-page-heading"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.text-[11px].font-normal.leading-none.text-muted-foreground/64 \"Token 用量\" is 100% covered by a bordered element (section.mt-5.flex.flex-wrap.gap-x-6.gap-y-2.border-y.py-4) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.text-\\[11px\\].font-normal"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"12月\" is 67% covered by a bordered element (section.mt-5.flex.flex-wrap.gap-x-6.gap-y-2.border-y.py-4) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(1)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"1月\" is 50% covered by overlapping text (span.font-semibold.tabular-nums.text-foreground) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(2)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"2月\" is 100% covered by overlapping text (span) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(3)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"3月\" is 100% covered by overlapping text (span) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(4)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"4月\" is 100% covered by a bordered element (section.mt-5.flex.flex-wrap.gap-x-6.gap-y-2.border-y.py-4) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(5)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"5月\" is 100% covered by a bordered element (section.mt-5.flex.flex-wrap.gap-x-6.gap-y-2.border-y.py-4) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(6)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"6月\" is 100% covered by a bordered element (section.mt-5.flex.flex-wrap.gap-x-6.gap-y-2.border-y.py-4) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(7)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"7月\" is 100% covered by a bordered element (section.mt-5.flex.flex-wrap.gap-x-6.gap-y-2.border-y.py-4) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(8)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"8月\" is 100% covered by a bordered element (section.mt-5.flex.flex-wrap.gap-x-6.gap-y-2.border-y.py-4) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(9)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"9月\" is 100% covered by a bordered element (section.mt-5.flex.flex-wrap.gap-x-6.gap-y-2.border-y.py-4) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(10)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"10月\" is 100% covered by a bordered element (section.mt-5.flex.flex-wrap.gap-x-6.gap-y-2.border-y.py-4) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(11)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"11月\" is 100% covered by a bordered element (section.mt-5.flex.flex-wrap.gap-x-6.gap-y-2.border-y.py-4) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "span.absolute.top-0:nth-of-type(12)"
+  }
+]

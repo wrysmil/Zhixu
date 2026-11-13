@@ -1,0 +1,189 @@
+[
+  {
+    "antipattern": "kicker-above-heading",
+    "name": "Kicker / eyebrow label above heading",
+    "description": "A tiny tracked uppercase or small-caps label sitting as its own block directly above a heading is banned outright, repeated or not. Generated kickers never earn their place: the heading carries its own weight. Delete the label and let the heading speak; if the words matter, work them into the heading or the body.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "kicker \"知识中心\" above h1 \"检索评测台\"",
+    "selector": "p.assistant-page-kicker"
+  },
+  {
+    "antipattern": "nested-cards",
+    "name": "Nested cards",
+    "description": "Cards inside cards create visual noise and excessive depth. Flatten the hierarchy — use spacing, typography, and dividers instead of nesting containers.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "Card inside card (and 4 more)",
+    "selector": "section:nth-of-type(2) > div.overflow-hidden.rounded-panel"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "h1.assistant-page-heading \"概览\" is 50% covered by overlapping text (p.assistant-page-kicker) on an opaque layer (div.absolute.inset-0.flex.flex-col.overflow-y-auto.bg-surface-raised)",
+    "selector": "div.mb-5 > header.assistant-page-header > div.assistant-page-heading-group > h1.assistant-page-heading"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"12月\" is 100% covered by an opaque element (button.inline-flex.items-center.justify-center.whitespace-nowrap.rounded-control.ring-offset-background.transition-colors.focus-visible:outline-none.focus-visible:ring-2.focus-visible:ring-ring.focus-visible:ring-offset-2.disabled:pointer-events-none.disabled:opacity-50.border.border-input.bg-background.hover:bg-accent.hover:text-accent-foreground.h-8.gap-1.5.rounded-full.px-3.text-sm.font-medium)",
+    "selector": "span.absolute.top-0:nth-of-type(1)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.absolute.top-0.whitespace-nowrap \"1月\" is 100% covered by an opaque element (button.inline-flex.items-center.justify-center.whitespace-nowrap.rounded-control.ring-offset-background.transition-colors.focus-visible:outline-none.focus-visible:ring-2.focus-visible:ring-ring.focus-visible:ring-offset-2.disabled:pointer-events-none.disabled:opacity-50.border.border-input.bg-background.hover:bg-accent.hover:text-accent-foreground.h-8.gap-1.5.rounded-full.px-3.text-sm.font-medium)",
+    "selector": "span.absolute.top-0:nth-of-type(2)"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "h2.mb-2.px-1.text-[13px].font-semibold.tracking-[-0.01em].text-foreground/85 \"AI\" is 100% covered by an opaque element (section.knowledge-panel.mt-5)",
+    "selector": "section:nth-of-type(2) > h2.mb-2.px-1"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.block.text-[14px].font-medium.leading-5.text-foreground \"当前模型\" is 100% covered by overlapping text (span.block.truncate.text-sm.font-medium.text-foreground) on an opaque layer (li.flex.flex-wrap.items-center.gap-2.rounded-control.border.border-border/60.bg-background.px-3.py-2.transition-colors.hover:bg-muted/30)",
+    "selector": "section:nth-of-type(2) > div.overflow-hidden.rounded-panel > div.divide-y.divide-border\\/45 > button.group.flex > span.min-w-0.flex-1 > span.block.text-\\[14px\\]"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.truncate.text-right.text-[13px].leading-5.text-muted-foreground \"MiniMax-M3.1-Flash\" is 50% covered by an opaque element (li.flex.flex-wrap.items-center.gap-2.rounded-control.border.border-border/60.bg-background.px-3.py-2.transition-colors.hover:bg-muted/30)",
+    "selector": "section:nth-of-type(2) > div.overflow-hidden.rounded-panel > div.divide-y.divide-border\\/45 > button.group.flex > span.ml-auto.flex > span.truncate.text-right"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.block.text-[14px].font-medium.leading-5.text-foreground \"网络搜索\" is 100% covered by overlapping text (span.text-sm.text-muted-foreground) on an opaque layer (li.flex.flex-wrap.items-center.gap-2.rounded-control.border.border-border/60.bg-background.px-3.py-2.transition-colors.hover:bg-muted/30)",
+    "selector": "section:nth-of-type(3) > div.overflow-hidden.rounded-panel > div.divide-y.divide-border\\/45 > button.group.flex:nth-of-type(1) > span.min-w-0.flex-1 > span.block.text-\\[14px\\]"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.mt-0.5.block.truncate.text-[12px].leading-5.text-muted-foreground \"DuckDuckGo · 无需密钥\" is 60% covered by an opaque element (span.rounded-full.px-1.5.py-0.5.bg-emerald-100.text-emerald-900.dark:bg-emerald-950/40.dark:text-emerald-200)",
+    "selector": "section:nth-of-type(3) > div.overflow-hidden.rounded-panel > div.divide-y.divide-border\\/45 > button.group.flex:nth-of-type(1) > span.min-w-0.flex-1 > span.mt-0\\.5.block"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.truncate.text-right.text-[13px].leading-5.text-muted-foreground \"已启用\" is 100% covered by an opaque element (button.inline-flex.items-center.justify-center.whitespace-nowrap.rounded-control.font-medium.ring-offset-background.transition-colors.focus-visible:outline-none.focus-visible:ring-2.focus-visible:ring-ring.focus-visible:ring-offset-2.disabled:pointer-events-none.disabled:opacity-50.border.border-input.bg-background.hover:bg-accent.hover:text-accent-foreground.h-7.shrink-0.rounded-full.px-3.text-sm)",
+    "selector": "section:nth-of-type(3) > div.overflow-hidden.rounded-panel > div.divide-y.divide-border\\/45 > button.group.flex:nth-of-type(1) > span.ml-auto.flex > span.truncate.text-right"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.block.text-[14px].font-medium.leading-5.text-foreground \"图片生成\" is 100% covered by overlapping text (span.block.truncate.text-sm.font-medium.text-foreground) on an opaque layer (li.flex.flex-wrap.items-center.gap-2.rounded-control.border.border-border/60.bg-background.px-3.py-2.transition-colors.hover:bg-muted/30)",
+    "selector": "section:nth-of-type(3) > div.overflow-hidden.rounded-panel > div.divide-y.divide-border\\/45 > button.group.flex:nth-of-type(2) > span.min-w-0.flex-1 > span.block.text-\\[14px\\]"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.mt-0.5.block.truncate.text-[12px].leading-5.text-muted-foreground \"OpenRouter · 未配置\" is 100% covered by overlapping text (span.text-sm.text-muted-foreground) on an opaque layer (li.flex.flex-wrap.items-center.gap-2.rounded-control.border.border-border/60.bg-background.px-3.py-2.transition-colors.hover:bg-muted/30)",
+    "selector": "section:nth-of-type(3) > div.overflow-hidden.rounded-panel > div.divide-y.divide-border\\/45 > button.group.flex:nth-of-type(2) > span.min-w-0.flex-1 > span.mt-0\\.5.block"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.truncate.text-right.text-[13px].leading-5.text-muted-foreground \"已禁用\" is 100% covered by an opaque element (li.flex.flex-wrap.items-center.gap-2.rounded-control.border.border-border/60.bg-background.px-3.py-2.transition-colors.hover:bg-muted/30)",
+    "selector": "section:nth-of-type(3) > div.overflow-hidden.rounded-panel > div.divide-y.divide-border\\/45 > button.group.flex:nth-of-type(2) > span.ml-auto.flex > span.truncate.text-right"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.block.text-[14px].font-medium.leading-5.text-foreground \"语音识别\" is 100% covered by an opaque element (li.flex.flex-wrap.items-center.gap-2.rounded-control.border.border-border/60.bg-background.px-3.py-2.transition-colors.hover:bg-muted/30)",
+    "selector": "button.group.flex:nth-of-type(3) > span.min-w-0.flex-1 > span.block.text-\\[14px\\]"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.mt-0.5.block.truncate.text-[12px].leading-5.text-muted-foreground \"Groq · 未配置\" is 100% covered by overlapping text (span.block.truncate.text-sm.font-medium.text-foreground) on an opaque layer (li.flex.flex-wrap.items-center.gap-2.rounded-control.border.border-border/60.bg-background.px-3.py-2.transition-colors.hover:bg-muted/30)",
+    "selector": "button.group.flex:nth-of-type(3) > span.min-w-0.flex-1 > span.mt-0\\.5.block"
+  },
+  {
+    "antipattern": "text-occlusion",
+    "name": "Text occluded by an overlapping element",
+    "description": "Text is painted under an opaque element or a second text run, so part of it cannot be read. A decorative box, a stacked layer, or an inline element with leaked padding lands on the words instead of beside them. Give overlapping layers room, or move the text out from under the layer above it.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "http://127.0.0.1:8765/#/knowledge-eval",
+    "line": 0,
+    "snippet": "span.truncate.text-right.text-[13px].leading-5.text-muted-foreground \"已启用\" is 100% covered by an opaque element (li.flex.flex-wrap.items-center.gap-2.rounded-control.border.border-border/60.bg-background.px-3.py-2.transition-colors.hover:bg-muted/30)",
+    "selector": "button.group.flex:nth-of-type(3) > span.ml-auto.flex > span.truncate.text-right"
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "antipattern": "nested-cards",
+    "name": "Nested cards",
+    "description": "Cards inside cards create visual noise and excessive depth. Flatten the hierarchy — use spacing, typography, and dividers instead of nesting containers.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "http://127.0.0.1:8765/#/creative",
+    "line": 0,
+    "snippet": "Card inside card (and 4 more)",
+    "selector": "form.rounded-xl.border"
+  }
+]

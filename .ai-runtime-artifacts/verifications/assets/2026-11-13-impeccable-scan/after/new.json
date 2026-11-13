@@ -1,0 +1,13 @@
+[
+  {
+    "antipattern": "pulsing-dot",
+    "name": "Pulsing status dot",
+    "description": "Small pulsing status dots simulate liveness decoratively. Reserve pulse animation for indicators tied to genuinely live, changing data; a static indicator with clear labeling is honest and calmer.",
+    "severity": "error",
+    "category": "slop",
+    "file": "http://127.0.0.1:8765/#/new",
+    "line": 0,
+    "snippet": ".thread-welcome-eyebrow-dot — 6x6px dot with infinite \"welcome-dot-pulse\" animation",
+    "selector": "body"
+  }
+]
