@@ -5,6 +5,7 @@ import pytest
 from nanobot.knowledge.chunker import (
     ChunkDraft,
     KnowledgeChunkError,
+    _close_gaps,
     chunk_by_separators,
     chunk_lines,
     validate_chunks,
@@ -485,3 +486,45 @@ def test_separator_mode_fixture_splits_on_custom_separator():
     assert all(draft.content.rstrip().endswith("%%SECTION%%") for draft in drafts[:-1])
     assert not drafts[-1].content.rstrip().endswith("%%SECTION%%")
     assert drafts[-1].end_offset == len(text)
+
+
+def test_scanned_pdf_reports_actionable_empty_text_error():
+    """没有文字层的 PDF（扫描件）要给出可执行提示，而不是裸的 no chunks produced。"""
+    from nanobot.knowledge.ingestor import extract_drafts
+
+    with pytest.raises(KnowledgeChunkError) as excinfo:
+        extract_drafts(
+            _CHUNK_FIXTURES / "scanned.pdf",
+            chunk_size=666,
+            chunk_overlap=250,
+            chunk_mode="smart",
+        )
+    assert excinfo.value.code == "KNOWLEDGE_TEXT_EMPTY"
+    assert "OCR" in str(excinfo.value)
+
+
+def test_smart_mode_keeps_offsets_contiguous_across_sections():
+    """章节之间只隔空行时，上一块要把这段空白收进去，否则相邻块之间出现空洞。"""
+    text, fixture_lines = _fixture_lines("section-gap.md")
+    drafts = chunk_lines(
+        fixture_lines,
+        chunk_size=200,
+        chunk_overlap=0,
+        paragraph_mode="blank_line",
+    )
+    validate_chunks(drafts, chunk_size=200, chunk_overlap=0, text=text)
+    for previous, current in zip(drafts, drafts[1:]):
+        assert current.start_offset <= previous.end_offset
+
+
+def test_close_gaps_absorbs_whitespace_between_sections():
+    """空行落在两个章节之间时，`_close_gaps` 把它归给前一块并接上偏移。"""
+    text = "a\n\nc"
+    drafts = [
+        ChunkDraft("a", 0, 1, "", None, ""),
+        ChunkDraft("c", 3, 4, "", None, ""),
+    ]
+    closed = _close_gaps(text, drafts)
+    assert closed[0].end_offset == 3
+    assert closed[0].content == "a\n\n"
+    assert closed[1].start_offset == 3

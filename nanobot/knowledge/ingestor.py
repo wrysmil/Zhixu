@@ -122,6 +122,18 @@ def extract_drafts(
     """抽取并按指定模式分块，返回 (草稿, 归一化全文)；预览与入库共用。"""
     lines = extract_lines(source)
     text = "\n".join(line.text for line in lines)
+    if not text.strip():
+        # 扫描件/图片版 PDF 没有文字层，给出可执行的提示，而不是裸的 no chunks produced。
+        if source.suffix.lower() == ".pdf":
+            raise KnowledgeChunkError(
+                "KNOWLEDGE_TEXT_EMPTY",
+                "PDF 中没有可提取的文字（多为扫描件或图片版），请先做 OCR，"
+                "或改用可复制文字的 PDF",
+            )
+        raise KnowledgeChunkError(
+            "KNOWLEDGE_TEXT_EMPTY",
+            "文档中没有可提取的文字内容，请检查文件是否为空或只有图片",
+        )
     if chunk_mode == "separator":
         drafts = chunk_by_separators(
             lines,

@@ -329,7 +329,28 @@ def chunk_lines(
                 # 重叠不要把人带进代码/表格中间：直接跳到区间之后。
                 pos = span[1]
 
-    return _merge_fragments(text, drafts, chunk_size)
+    return _close_gaps(text, _merge_fragments(text, drafts, chunk_size))
+
+
+def _close_gaps(text: str, drafts: list[ChunkDraft]) -> list[ChunkDraft]:
+    """把相邻块之间的空白归给前一块，保证 `end_offset` 与下一块 `start_offset` 相接。
+
+    章节边界最容易留洞：上一节的最后一块停在代码块/段落末尾，下一节从标题行起算，
+    中间的换行没人接管。`validate_chunks` 要求 `下一块.start <= 上一块.end`，
+    这些洞会被判成 non-monotonic start，导入页直接报错。
+    """
+    closed: list[ChunkDraft] = []
+    for index, draft in enumerate(drafts):
+        next_draft = drafts[index + 1] if index + 1 < len(drafts) else None
+        if next_draft is not None and draft.end_offset < next_draft.start_offset:
+            end = next_draft.start_offset
+            draft = replace(
+                draft,
+                content=text[draft.start_offset : end],
+                end_offset=end,
+            )
+        closed.append(draft)
+    return closed
 
 
 def _merge_fragments(
