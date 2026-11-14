@@ -3008,13 +3008,17 @@ function Shell({
         <div
           className={cn(
             "workspace-surface relative flex h-full min-h-0 w-full overflow-hidden",
+            // 单栏页面没有会话列，主区自己承担左侧圆角（见 globals.css）。
+            !hostChatColumnVisible && "workspace-surface--single",
           )}
         >
           {/* Host sidebar: in normal flow, so the thread area width stays honest. */}
             <aside
               data-testid="host-sidebar-flow"
               className={cn(
-                "relative z-20 hidden shrink-0 overflow-hidden lg:block lg:border-r lg:border-border/60",
+                "relative z-20 hidden shrink-0 overflow-hidden lg:block",
+                // 单栏页面主区自带左圆角，图标栏与内容之间不再画分隔线。
+                hostChatColumnVisible && "lg:border-r lg:border-border/60",
                 "workspace-sidebar-flow host-sidebar-aside",
               )}
               style={{
@@ -3076,6 +3080,7 @@ function Shell({
           <main
             className={cn(
               "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-raised",
+              !hostChatColumnVisible && "workspace-main--single",
             )}
           >
             <div

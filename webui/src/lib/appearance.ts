@@ -195,7 +195,7 @@ const ZHIXU_LIGHT = {
   "--surface-raised": "0 0% 100%",
   // 画布与导航栏保持浅灰：白色工作区靠这层灰才看得见右侧圆角。
   "--app-canvas": "240 4.762% 95.882%",
-  "--sidebar": "0 0% 100%",
+  "--sidebar": "240 5% 96%",
   "--sidebar-selected": "203 96% 94%",
   "--sidebar-accent": "240 7.692% 92.353%",
   "--nav-active-bg": "203 96% 94%",
@@ -252,7 +252,7 @@ const PRISM_LIGHT = {
   "--surface-panel": "0 0% 100%",
   "--surface-raised": "0 0% 100%",
   "--app-canvas": "210 40% 96%",
-  "--sidebar": "0 0% 100%",
+  "--sidebar": "210 40% 96%",
   "--sidebar-selected": "214 95% 93%",
   "--sidebar-accent": "214 95% 93%",
   "--nav-active-bg": "214 95% 93%",
@@ -307,7 +307,9 @@ export function resolveAppearance(preferences: AppearancePreferences, theme: The
     "--primary": hsl(primary), "--primary-foreground": hsl(readableOn(primary)), "--secondary": hsl(secondary), "--muted": hsl(secondary),
     "--muted-foreground": hsl(mix(background, foreground, 0.68)), "--accent": hsl(accentSurface),
     "--accent-foreground": hsl(accentInk), "--border": hsl(mix(background, safeForeground, 0.18)),
-    "--surface-app": hsl(secondary), "--surface-panel": hsl(surface), "--sidebar": hsl(mix(background, safeForeground, 0.045)),
+    "--surface-app": hsl(secondary), "--surface-panel": hsl(surface),
+    // 图标栏保留一层极浅的底色（参考 ChatGPT 桌面端的三层色阶）。
+    "--sidebar": hsl(mix(background, safeForeground, 0.045)),
     "--app-canvas": hsl(mix(background, safeForeground, 0.045)),
     // Right-hand rails stay pure white in light mode, whatever the palette.
     "--surface-raised": theme === "dark" ? hsl(surface) : "0 0% 100%",
@@ -330,6 +332,8 @@ export function resolveAppearance(preferences: AppearancePreferences, theme: The
     "--sidebar-border": "--border", "--settings-canvas": "--background", "--settings-surface": "--surface-panel",
   };
   for (const [key, source] of Object.entries(aliases)) tokens[key] = tokens[source];
+  // 页面画布统一白底（暗色仍跟随背景色）；保留该键是因为启动脚本按固定键集校验快照。
+  if (theme !== "dark") tokens["--settings-canvas"] = "0 0% 100%";
   // Input boundaries need stronger contrast than decorative dividers, including
   // when a custom palette places the card close to the canvas colour.
   tokens["--input"] ??= hsl(ensureReadable(

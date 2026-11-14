@@ -175,7 +175,8 @@ html .team-progress-track > span {
     --sidebar-accent: 214 95% 93%;
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--border);
-    --settings-canvas: var(--background);
+    /* 页面画布统一为白色，卡片靠描边而不是底色区分。 */
+    --settings-canvas: 0 0% 100%;
     --settings-surface: var(--surface-panel);
     --scrollbar-thumb: hsl(var(--muted-foreground) / 0.26);
     --scrollbar-thumb-hover: hsl(var(--muted-foreground) / 0.42);
@@ -407,9 +408,26 @@ html .team-progress-track > span {
         0 20px 44px -30px hsl(0 0% 0% / 0.65);
     }
 
-    /* 会话栏是白色卡片的左缘：只收左上/左下，图标菜单保持灰底直角。 */
+    /* 会话栏是白色卡片的左缘：只收左上/左下。整站白底，所以卡片靠 1px 描边
+       显形，否则圆角会白背包白、看不见。 */
     .workspace-chat-column {
       border-radius: var(--radius-prominent) 0 0 var(--radius-prominent);
+      border-left: 1px solid hsl(var(--border) / 0.7);
+    }
+
+    /* 没有会话列的单栏页面（知识库/记忆/设置等）：主区自己就是那张白卡。 */
+    .workspace-surface--single {
+      background-color: transparent;
+    }
+
+    .workspace-main--single {
+      border-radius: var(--radius-prominent) 0 0 var(--radius-prominent);
+      border-left: 1px solid hsl(var(--border) / 0.7);
+    }
+
+    .dark .workspace-chat-column,
+    .dark .workspace-main--single {
+      border-left-color: hsl(var(--border) / 0.8);
     }
   }
 
