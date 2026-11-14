@@ -1716,8 +1716,59 @@ describe("ThreadMessages", () => {
     ]);
   });
 
-  it("keeps compaction notices out of assistant fork selection", () => {
-    const units = buildDisplayUnits([
+  it("renders knowledge sources under the answer and opens the clicked hit", async () => {
+    const onOpen = vi.fn();
+    const result = `<knowledge_results mode="hybrid" routes="vector">
+<result rank="1" score="1.000" chunk="chunk://chk_a" doc="doc://doc_1" kb="规范库" title="门诊高血压随访管理规范" heading="第三节 随访频次" page="2" chars="10"><content>每 2 个月随访一次。</content></result>
+</knowledge_results>`;
+    render(
+      <ThreadMessages
+        messages={[
+          {
+            id: "u1",
+            role: "user",
+            content: "2 级高血压的随访频次？",
+            turnId: "turn-1",
+            createdAt: 1,
+          },
+          {
+            id: "t1",
+            role: "tool",
+            kind: "trace",
+            content: "knowledge_search()",
+            turnId: "turn-1",
+            toolEvents: [{
+              version: 1,
+              phase: "end",
+              call_id: "call-1",
+              name: "knowledge_search",
+              result,
+            }],
+            createdAt: 2,
+          },
+          {
+            id: "a1",
+            role: "assistant",
+            content: "每 2 个月一次。",
+            turnId: "turn-1",
+            createdAt: 3,
+          },
+        ]}
+        onOpenKnowledgeSource={onOpen}
+      />,
+    );
+
+    expect(screen.getAllByTestId("knowledge-sources")).toHaveLength(1);
+    expect(screen.getByTestId("knowledge-sources")).toHaveTextContent("门诊高血压随访管理规范");
+    fireEvent.click(screen.getByTestId("knowledge-source-item"));
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({
+      chunkId: "chk_a",
+      docId: "doc_1",
+      title: "门诊高血压随访管理规范",
+    }));
+  });
+
+  it("keeps compaction notices out of assistant fork selection", () => {    const units = buildDisplayUnits([
       { id: "u1", role: "user", content: "one", createdAt: 1 },
       { id: "a1", role: "assistant", content: "answer", createdAt: 2 },
       {

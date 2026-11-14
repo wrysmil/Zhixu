@@ -45,6 +45,8 @@ import {
 } from "@/components/thread/SubagentExecutionPanel";
 import { ThreadViewport, type ThreadViewportHandle } from "@/components/thread/ThreadViewport";
 import { TrajectoryPanel } from "@/components/thread/trajectory/TrajectoryPanel";
+import { KnowledgeSourcePanel } from "@/components/thread/KnowledgeSourcePanel";
+import type { KnowledgeSourceHit } from "@/lib/knowledge-sources";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { TeamSelector, teamPickerVisibility } from "@/components/thread/TeamSelector";
 import { TeamProgressPanel } from "@/components/thread/TeamProgressPanel";
@@ -821,6 +823,7 @@ export function ThreadShell({
   }, [historyKey]);
   const activeRightSurface = rightSurfaces[rightSurfaces.length - 1] ?? WORKBENCH_SURFACE;
   const filePreviewPath = activeRightSurface.kind === "file" ? activeRightSurface.path : null;
+  const knowledgeSource = activeRightSurface.kind === "knowledge" ? activeRightSurface.source : null;
   const narrowViewport = useMediaQuery("(max-width: 767px)");
   const [mobileWorkbenchOpen, setMobileWorkbenchOpen] = useState(false);
   // 桌面工作台默认常驻，但允许用户收起；悬停按钮恢复。移动端用 Dialog 状态。
@@ -1634,6 +1637,16 @@ export function ThreadShell({
     setRightSurfaces((stack) => pushRightSurface(stack, { kind: "file", path }));
   }, []);
 
+  const handleOpenKnowledgeSource = useCallback((source: KnowledgeSourceHit) => {
+    setRightSurfaces((stack) => pushRightSurface(stack, { kind: "knowledge", source }));
+  }, []);
+
+  const handleCloseKnowledgeSource = useCallback(() => {
+    setRightSurfaces((stack) => (
+      stack[stack.length - 1]?.kind === "knowledge" ? popRightSurface(stack) : stack
+    ));
+  }, []);
+
   const handleCloseFilePreview = useCallback(() => {
     if (!filePreviewPath || filePreviewClosing) return;
     setFilePreviewClosing(true);
@@ -1955,8 +1968,9 @@ export function ThreadShell({
   }, [closeToolsSurface]);
 
   // 桌面：工作台收起时，这个按钮先把它打开；展开时切右侧工具坞。
-  // 轨迹视图占满整列，右侧栏不参与渲染，按钮一并藏起来。
-  const workbenchAction = session && threadView === "chat" ? (
+  // 轨迹视图占满整列，右侧栏不参与渲染，按钮一并藏起来；来源原文面板打开时
+  // 工作台被整列覆盖，也只能从面板自带的关闭按钮回到工作台。
+  const workbenchAction = session && threadView === "chat" && !knowledgeSource ? (
     <Button
       variant="ghost"
       size="icon"
@@ -2071,6 +2085,7 @@ export function ThreadShell({
             onOpenFilePreview={historyKey ? handleOpenFilePreview : undefined}
             onForkFromMessage={onForkChat ? handleForkFromMessage : undefined}
             onQuoteSelection={session ? handleQuoteSelection : undefined}
+            onOpenKnowledgeSource={session ? handleOpenKnowledgeSource : undefined}
             />
           </FilePreviewAvailabilityProvider>
         </SubagentExecutionEntryProvider>
@@ -2171,6 +2186,40 @@ export function ThreadShell({
           ) : null}
           </Suspense>
         </ResizableRail> : null
+      ) : null}
+      {session && threadView === "chat" && knowledgeSource ? (
+        compactWorkbench ? (
+          <Dialog
+            open
+            onOpenChange={(open) => {
+              if (!open) handleCloseKnowledgeSource();
+            }}
+          >
+            <DialogContent
+              aria-describedby={undefined}
+              className="fixed inset-y-0 left-auto right-0 flex h-full w-[min(100vw,420px)] max-w-full translate-x-0 translate-y-0 flex-col gap-0 rounded-none p-0"
+            >
+              <DialogTitle className="sr-only">
+                {t("message.knowledgeSources.title", { defaultValue: "来源文档" })}
+              </DialogTitle>
+              <KnowledgeSourcePanel
+                source={knowledgeSource}
+                token={token}
+                onClose={handleCloseKnowledgeSource}
+              />
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <ResizableRail
+            label={t("message.knowledgeSources.resize", { defaultValue: "调整来源文档宽度" })}
+          >
+            <KnowledgeSourcePanel
+              source={knowledgeSource}
+              token={token}
+              onClose={handleCloseKnowledgeSource}
+            />
+          </ResizableRail>
+        )
       ) : null}
       {headerPortalTarget && headerActive
         ? createPortal(threadHeader, headerPortalTarget)

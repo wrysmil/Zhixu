@@ -3530,6 +3530,16 @@
     "reasoningActive": "思考中",
     "reasoningDone": "已思考",
     "reasoningSummary": "推理",
+    "knowledgeSources": {
+      "title": "来源文档",
+      "excerpt": "本次引用",
+      "source": "原文",
+      "close": "关闭来源文档",
+      "loadError": "原文加载失败",
+      "resize": "调整来源文档宽度",
+      "more": "展开全部 {{count}} 个来源",
+      "less": "收起"
+    },
     "agentActivitySummary": "{{reasoning}} 步 · {{tools}} 次工具调用",
     "agentActivityToolsOnly": "{{tools}} 次工具调用",
     "agentActivityLiveSummary": "进行中… · {{reasoning}} 步 · {{tools}} 次工具调用",

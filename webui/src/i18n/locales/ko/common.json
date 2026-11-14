@@ -3474,6 +3474,16 @@
     "reasoningActive": "생각 중",
     "reasoningDone": "생각 완료",
     "reasoningSummary": "추론",
+    "knowledgeSources": {
+      "title": "출처",
+      "excerpt": "이번 인용",
+      "source": "원문",
+      "close": "출처 닫기",
+      "loadError": "원문을 불러오지 못했습니다",
+      "resize": "출처 패널 너비 조정",
+      "more": "{{count}}개 출처 모두 보기",
+      "less": "접기"
+    },
     "agentActivitySummary": "{{reasoning}}단계 · 도구 호출 {{tools}}회",
     "agentActivityToolsOnly": "도구 호출 {{tools}}회",
     "agentActivityLiveSummary": "진행 중… · {{reasoning}}단계 · 도구 호출 {{tools}}회",

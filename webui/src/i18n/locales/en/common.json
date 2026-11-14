@@ -3530,6 +3530,16 @@
     "reasoningActive": "Reasoning",
     "reasoningDone": "Thought",
     "reasoningSummary": "Reasoning",
+    "knowledgeSources": {
+      "title": "Sources",
+      "excerpt": "Cited in this answer",
+      "source": "Original text",
+      "close": "Close source document",
+      "loadError": "Could not load the original text",
+      "resize": "Resize source panel",
+      "more": "Show all {{count}} sources",
+      "less": "Show less"
+    },
     "agentActivitySummary": "{{reasoning}} steps · {{tools}} tool calls",
     "agentActivityToolsOnly": "{{tools}} tool calls",
     "agentActivityLiveSummary": "Working… · {{reasoning}} steps · {{tools}} tool calls",

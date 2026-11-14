@@ -21,6 +21,7 @@ import type {
   SubagentExecutionState,
 } from "@/features/subagent-execution/types";
 import { isTerminalExecutionStatus } from "@/features/subagent-execution/reducer";
+import type { KnowledgeSourceHit } from "@/lib/knowledge-sources";
 import { cn } from "@/lib/utils";
 
 export {
@@ -34,7 +35,8 @@ export type RightSurface =
   | { kind: "workbench" }
   | { kind: "tools" }
   | { kind: "file"; path: string }
-  | { kind: "execution"; invocationId: string };
+  | { kind: "execution"; invocationId: string }
+  | { kind: "knowledge"; source: KnowledgeSourceHit };
 
 export const WORKBENCH_SURFACE: RightSurface = { kind: "workbench" };
 
@@ -43,6 +45,10 @@ function sameRightSurface(left: RightSurface, right: RightSurface): boolean {
   if (left.kind === "file" && right.kind === "file") return left.path === right.path;
   if (left.kind === "execution" && right.kind === "execution") {
     return left.invocationId === right.invocationId;
+  }
+  if (left.kind === "knowledge" && right.kind === "knowledge") {
+    return left.source.docId === right.source.docId
+      && left.source.chunkId === right.source.chunkId;
   }
   return true;
 }

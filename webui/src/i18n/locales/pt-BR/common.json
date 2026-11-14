@@ -3474,6 +3474,16 @@
     "reasoningActive": "Pensando",
     "reasoningDone": "Pensado",
     "reasoningSummary": "Raciocínio",
+    "knowledgeSources": {
+      "title": "Fontes",
+      "excerpt": "Citado nesta resposta",
+      "source": "Texto original",
+      "close": "Fechar documento de origem",
+      "loadError": "Não foi possível carregar o texto original",
+      "resize": "Redimensionar painel de fontes",
+      "more": "Mostrar todas as {{count}} fontes",
+      "less": "Mostrar menos"
+    },
     "agentActivitySummary": "{{reasoning}} etapas · {{tools}} chamadas de ferramenta",
     "agentActivityToolsOnly": "{{tools}} chamadas de ferramenta",
     "agentActivityLiveSummary": "Trabalhando… · {{reasoning}} etapas · {{tools}} chamadas de ferramenta",

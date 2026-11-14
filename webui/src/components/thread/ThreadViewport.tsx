@@ -26,6 +26,7 @@ import {
   promptTop,
 } from "@/components/thread/promptNavigation";
 import { cn } from "@/lib/utils";
+import type { KnowledgeSourceHit } from "@/lib/knowledge-sources";
 import type { CliAppInfo, McpPresetInfo, RetryStatus, SlashCommand, UIMessage } from "@/lib/types";
 import type { AgentProfile } from "@/lib/agents/types";
 
@@ -64,6 +65,7 @@ interface ThreadViewportProps {
   onOpenFilePreview?: (path: string) => void;
   onForkFromMessage?: (beforeUserIndex: number) => void;
   onQuoteSelection?: (text: string) => void;
+  onOpenKnowledgeSource?: (hit: KnowledgeSourceHit) => void;
 }
 
 const NEAR_BOTTOM_PX = 48;
@@ -250,6 +252,7 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
   onOpenFilePreview,
   onForkFromMessage,
   onQuoteSelection,
+  onOpenKnowledgeSource,
 }, ref) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -950,6 +953,7 @@ export const ThreadViewport = forwardRef<ThreadViewportHandle, ThreadViewportPro
                   onOpenFilePreview={onOpenFilePreview}
                   onForkFromMessage={onForkFromMessage}
                   onQuoteSelection={onQuoteSelection}
+                  onOpenKnowledgeSource={onOpenKnowledgeSource}
                 />
               </div>
               <div ref={messageEndGapRef} aria-hidden className="thread-message-end-gap shrink-0" />

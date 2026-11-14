@@ -3474,6 +3474,16 @@
     "reasoningActive": "Đang nghĩ",
     "reasoningDone": "Đã nghĩ",
     "reasoningSummary": "Suy luận",
+    "knowledgeSources": {
+      "title": "Nguồn",
+      "excerpt": "Được trích dẫn trong câu trả lời này",
+      "source": "Văn bản gốc",
+      "close": "Đóng tài liệu nguồn",
+      "loadError": "Không thể tải văn bản gốc",
+      "resize": "Điều chỉnh độ rộng bảng nguồn",
+      "more": "Hiển thị tất cả {{count}} nguồn",
+      "less": "Thu gọn"
+    },
     "agentActivitySummary": "{{reasoning}} bước · {{tools}} lần gọi công cụ",
     "agentActivityToolsOnly": "{{tools}} lần gọi công cụ",
     "agentActivityLiveSummary": "Đang chạy… · {{reasoning}} bước · {{tools}} lần gọi công cụ",

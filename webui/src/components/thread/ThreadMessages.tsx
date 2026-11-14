@@ -4,8 +4,13 @@ import { MessageBubble } from "@/components/MessageBubble";
 import { AgentActivityCluster } from "@/components/thread/AgentActivityCluster";
 import { AssistantSelectionAction } from "@/components/thread/AssistantSelectionAction";
 import { projectActivityTimeline, type TurnUnit } from "@/lib/activity-timeline";
+import {
+  collectKnowledgeSourcesByTurn,
+  type KnowledgeSourceHit,
+} from "@/lib/knowledge-sources";
 import type { CliAppInfo, McpPresetInfo, RetryStatus, SlashCommand, UIMessage } from "@/lib/types";
 import type { AgentProfile } from "@/lib/agents/types";
+import { KnowledgeSources } from "@/components/thread/KnowledgeSources";
 
 interface ThreadMessagesProps {
   messages: UIMessage[];
@@ -25,6 +30,7 @@ interface ThreadMessagesProps {
   onOpenFilePreview?: (path: string) => void;
   onForkFromMessage?: (beforeUserIndex: number) => void;
   onQuoteSelection?: (text: string) => void;
+  onOpenKnowledgeSource?: (hit: KnowledgeSourceHit) => void;
 }
 
 export type DisplayUnit = TurnUnit;
@@ -76,6 +82,7 @@ export function ThreadMessages({
   onOpenFilePreview,
   onForkFromMessage,
   onQuoteSelection,
+  onOpenKnowledgeSource,
 }: ThreadMessagesProps) {
   const { t } = useTranslation();
   const messageListRef = useRef<HTMLDivElement>(null);
@@ -88,6 +95,10 @@ export function ThreadMessages({
     [forkBoundaryMessageCount, units],
   );
   const forkFlags = useMemo(() => assistantForkFlags(units), [units]);
+  const knowledgeSourcesByTurn = useMemo(
+    () => collectKnowledgeSourcesByTurn(messages),
+    [messages],
+  );
   const liveActivityClusterIndices = useMemo(
     () => isStreaming
       ? currentActivityClusterIndices(units, activeTurnId)
@@ -181,6 +192,12 @@ export function ThreadMessages({
             slashCommands={slashCommands}
             onOpenFilePreview={onOpenFilePreview}
             onForkFromMessage={onForkFromMessage}
+            knowledgeSources={
+              unit.type === "message" && unit.message.turnId
+                ? knowledgeSourcesByTurn.get(unit.message.turnId)
+                : undefined
+            }
+            onOpenKnowledgeSource={onOpenKnowledgeSource}
           />
         );
       })}
@@ -265,6 +282,8 @@ interface ThreadDisplayUnitProps {
   slashCommands: SlashCommand[];
   onOpenFilePreview?: (path: string) => void;
   onForkFromMessage?: (beforeUserIndex: number) => void;
+  knowledgeSources?: KnowledgeSourceHit[];
+  onOpenKnowledgeSource?: (hit: KnowledgeSourceHit) => void;
 }
 
 const ThreadDisplayUnit = memo(function ThreadDisplayUnit({
@@ -286,6 +305,8 @@ const ThreadDisplayUnit = memo(function ThreadDisplayUnit({
   slashCommands,
   onOpenFilePreview,
   onForkFromMessage,
+  knowledgeSources,
+  onOpenKnowledgeSource,
 }: ThreadDisplayUnitProps) {
   // Introducing content-visibility after a unit has painted can move the
   // browser's scroll anchor. Only units deferred on their first render may
@@ -317,17 +338,27 @@ const ThreadDisplayUnit = memo(function ThreadDisplayUnit({
             onOpenFilePreview={onOpenFilePreview}
           />
         ) : (
-          <MessageBubble
-            message={unit.message}
-            isTurnStreaming={isTurnStreaming}
-            temporary={temporary}
-            cliApps={cliApps}
-            mcpPresets={mcpPresets}
-            agents={agents}
-            slashCommands={slashCommands}
-            onOpenFilePreview={onOpenFilePreview}
-            onForkFromHere={forkIndex !== undefined ? onForkFromHere : undefined}
-          />
+          <>
+            <MessageBubble
+              message={unit.message}
+              isTurnStreaming={isTurnStreaming}
+              temporary={temporary}
+              cliApps={cliApps}
+              mcpPresets={mcpPresets}
+              agents={agents}
+              slashCommands={slashCommands}
+              onOpenFilePreview={onOpenFilePreview}
+              onForkFromHere={forkIndex !== undefined ? onForkFromHere : undefined}
+            />
+            {unit.message.role === "assistant"
+            && unit.message.kind !== "trace"
+            && unit.message.kind !== "compaction"
+            && unit.message.content.trim().length > 0
+            && knowledgeSources?.length
+            && onOpenKnowledgeSource ? (
+              <KnowledgeSources sources={knowledgeSources} onOpen={onOpenKnowledgeSource} />
+            ) : null}
+          </>
         )}
       </div>
       {showForkBoundary ? <ForkBoundaryDivider label={forkBoundaryLabel} /> : null}
@@ -357,7 +388,19 @@ function threadDisplayUnitPropsEqual(
     && previous.slashCommands === next.slashCommands
     && previous.onOpenFilePreview === next.onOpenFilePreview
     && previous.onForkFromMessage === next.onForkFromMessage
+    && sameKnowledgeSources(previous.knowledgeSources, next.knowledgeSources)
+    && previous.onOpenKnowledgeSource === next.onOpenKnowledgeSource
   );
+}
+
+function sameKnowledgeSources(
+  previous?: KnowledgeSourceHit[],
+  next?: KnowledgeSourceHit[],
+): boolean {
+  if (previous === next) return true;
+  if (!previous || !next) return false;
+  return previous.length === next.length
+    && previous.every((hit, index) => hit.chunkId === next[index].chunkId);
 }
 
 function activeTurnStartIndex(units: DisplayUnit[], activeTurnId: string | null): number {

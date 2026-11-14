@@ -3474,6 +3474,16 @@
     "reasoningActive": "思考中",
     "reasoningDone": "已思考",
     "reasoningSummary": "推理",
+    "knowledgeSources": {
+      "title": "來源文件",
+      "excerpt": "本次引用",
+      "source": "原文",
+      "close": "關閉來源文件",
+      "loadError": "原文載入失敗",
+      "resize": "調整來源文件寬度",
+      "more": "展開全部 {{count}} 個來源",
+      "less": "收合"
+    },
     "agentActivitySummary": "{{reasoning}} 步 · {{tools}} 次工具呼叫",
     "agentActivityToolsOnly": "{{tools}} 次工具呼叫",
     "agentActivityLiveSummary": "進行中… · {{reasoning}} 步 · {{tools}} 次工具呼叫",

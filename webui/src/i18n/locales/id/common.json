@@ -3474,6 +3474,16 @@
     "reasoningActive": "Berpikir",
     "reasoningDone": "Selesai berpikir",
     "reasoningSummary": "Penalaran",
+    "knowledgeSources": {
+      "title": "Sumber",
+      "excerpt": "Dikutip di jawaban ini",
+      "source": "Teks asli",
+      "close": "Tutup dokumen sumber",
+      "loadError": "Gagal memuat teks asli",
+      "resize": "Ubah lebar panel sumber",
+      "more": "Tampilkan semua {{count}} sumber",
+      "less": "Tampilkan lebih sedikit"
+    },
     "agentActivitySummary": "{{reasoning}} langkah · {{tools}} panggilan alat",
     "agentActivityToolsOnly": "{{tools}} panggilan alat",
     "agentActivityLiveSummary": "Berjalan… · {{reasoning}} langkah · {{tools}} panggilan alat",

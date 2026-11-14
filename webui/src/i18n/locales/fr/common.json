@@ -3474,6 +3474,16 @@
     "reasoningActive": "Réflexion",
     "reasoningDone": "Réflexion terminée",
     "reasoningSummary": "Raisonnement",
+    "knowledgeSources": {
+      "title": "Sources",
+      "excerpt": "Cité dans cette réponse",
+      "source": "Texte original",
+      "close": "Fermer le document source",
+      "loadError": "Impossible de charger le texte original",
+      "resize": "Redimensionner le panneau des sources",
+      "more": "Afficher les {{count}} sources",
+      "less": "Afficher moins"
+    },
     "agentActivitySummary": "{{reasoning}} étapes · {{tools}} appels d’outils",
     "agentActivityToolsOnly": "{{tools}} appels d’outils",
     "agentActivityLiveSummary": "En cours… · {{reasoning}} étapes · {{tools}} appels d’outils",
