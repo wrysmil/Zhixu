@@ -726,11 +726,17 @@ class AgentLoop:
         )
 
     def _knowledge_graph_tools_enabled(self) -> bool:
-        """图谱工具门控：知识工具可用且 `knowledge.graph.enabled` 为真。"""
+        """图谱工具门控：知识工具可用、`knowledge.graph.enabled` 为真且已配 uri。
+
+        默认开启只表示允许图路；没填 uri 时图路并未接通，此时注册一个必然失败的
+        工具只会污染工具列表。
+        """
         config = getattr(self, "knowledge_config", None)
         graph = getattr(config, "graph", None)
-        return self._knowledge_tools_enabled and bool(
-            getattr(graph, "enabled", False)
+        return (
+            self._knowledge_tools_enabled
+            and bool(getattr(graph, "enabled", False))
+            and bool(str(getattr(graph, "uri", "") or "").strip())
         )
 
     def _knowledge_rewrite_tools_enabled(self) -> bool:

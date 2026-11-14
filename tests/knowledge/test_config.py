@@ -230,7 +230,7 @@ def test_knowledge_defaults_nest_subconfigs() -> None:
     from nanobot.config.schema import KnowledgeGraphConfig
 
     assert isinstance(config.graph, KnowledgeGraphConfig)
-    assert config.graph.enabled is False
+    assert config.graph.enabled is True
     assert config.chunking.chunk_size == 800
     assert config.embedding.backend == "auto"
     assert config.retrieval.dedup_length_ratio == 3.0

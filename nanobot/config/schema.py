@@ -826,9 +826,13 @@ class KnowledgeGraphPromptsConfig(Base):
 
 
 class KnowledgeGraphConfig(Base):
-    """可选 Neo4j 派生索引；默认关闭，桌面/Lite 零外部依赖。"""
+    """可选 Neo4j 派生索引；默认开启，未配置 uri/抽取模型时图路不生效。
 
-    enabled: bool = False
+    开启只是让图路进入候选：后端不可用或抽取器缺失时检索仍走向量/关键词两路，
+    所以桌面/Lite 不配 Neo4j 也不会多出外部依赖。
+    """
+
+    enabled: bool = True
     backend: Literal["neo4j"] = "neo4j"
     uri: str = ""
     username: str = "neo4j"

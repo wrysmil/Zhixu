@@ -11,10 +11,10 @@ from nanobot.config.schema import (
 )
 
 
-def test_graph_defaults_are_disabled():
+def test_graph_defaults_are_enabled():
     config = KnowledgeConfig()
     assert isinstance(config.graph, KnowledgeGraphConfig)
-    assert config.graph.enabled is False
+    assert config.graph.enabled is True
     assert config.graph.backend == "neo4j"
     assert isinstance(config.graph.extraction, KnowledgeGraphExtractionConfig)
     assert isinstance(config.graph.prompts, KnowledgeGraphPromptsConfig)

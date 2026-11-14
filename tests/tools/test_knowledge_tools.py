@@ -877,6 +877,7 @@ def test_loop_injects_knowledge_attributes(tmp_path: Path, monkeypatch: pytest.M
         assert resolver.__func__ is loop._memory_workspace_ids_for_key.__func__
         assert attrs["knowledge_enabled"] is True
         assert callable(attrs["knowledge_graph_enabled"])
+        # 默认开启但没配 uri：图路未接通，图谱工具仍不注册
         assert attrs["knowledge_graph_enabled"]() is False
         assert callable(attrs["knowledge_rewrite_enabled"])
         assert attrs["knowledge_rewrite_enabled"]() is True
@@ -893,7 +894,7 @@ def test_loop_injects_knowledge_attributes(tmp_path: Path, monkeypatch: pytest.M
         asyncio.run(loop.aclose())
 
 
-def test_loop_registers_graph_tool_when_graph_enabled(
+def test_loop_registers_graph_tool_when_graph_configured(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from nanobot.config.schema import (
@@ -906,7 +907,8 @@ def test_loop_registers_graph_tool_when_graph_enabled(
     config = KnowledgeConfig(
         database_path=str(tmp_path / "knowledge" / "state.db"),
         embedding=KnowledgeEmbeddingConfig(backend="none"),
-        graph=KnowledgeGraphConfig(enabled=True),
+        # 配了 uri 才算接通图路，工具才注册
+        graph=KnowledgeGraphConfig(enabled=True, uri="bolt://127.0.0.1:7687"),
     )
     loop = _make_loop(tmp_path, knowledge_config=config)
     try:

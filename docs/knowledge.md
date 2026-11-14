@@ -224,7 +224,9 @@ nanobot knowledge repair --purge --yes   # 清理孤儿
 
 以下能力 v1 明确不做，别在文档/工单里当成已实现：
 
-- 知识图谱、实体关系抽取。
+- ~~知识图谱、实体关系抽取~~：已实现为**可选 Neo4j 派生索引**，`knowledge.graph.enabled`
+  默认开启，但只有配置了 `knowledge.graph.uri` 才装配图路；未配置时检索仍只走向量 +
+  关键词两路，图检索失败也只降级不报错。
 - 重排模型（reranker）与 cross-encoder 精排。
 - OCR：扫描版 PDF 需先自行转成文本。
 - 入库期问题生成（doc2query）与查询改写。

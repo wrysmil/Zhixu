@@ -236,8 +236,10 @@ class _EmbedderRegistry:
 def _graph_settings(graph: Any) -> dict[str, Any]:
     """`KnowledgeGraphConfig` → `RetrieverSettings` 的图字段（唯一配置来源）。"""
     expansion = graph.expansion
+    # 默认开启只表示"允许图路"；没填 uri 就不装配，避免每次检索都去连一个不存在的库。
+    configured = bool(str(getattr(graph, "uri", "") or "").strip())
     return {
-        "graph_enabled": bool(graph.enabled and expansion.enabled),
+        "graph_enabled": bool(graph.enabled and expansion.enabled and configured),
         "graph_hops": max(1, min(2, int(expansion.hops))),
         "graph_seed_limit": max(1, int(expansion.seed_limit)),
         "graph_max_entities": max(1, int(expansion.max_entities)),
@@ -1338,7 +1340,8 @@ def _build_graph(graph_config: Any, repo: KnowledgeRepository) -> GraphService |
     extractor = build_graph_extractor(
         graph_config.extraction, getattr(graph_config, "prompts", None)
     )
-    if not extractor:
+    # 默认开启后，没配 uri 的实例只是"图路未接通"，不该在每次启动时告警。
+    if not extractor and str(getattr(graph_config, "uri", "") or "").strip():
         logger.warning(
             "knowledge graph enabled but extraction model is not configured"
         )
