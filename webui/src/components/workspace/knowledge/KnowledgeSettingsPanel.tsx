@@ -174,6 +174,9 @@ export function KnowledgeSettingsPanel({
           <span className="rounded-full border border-border/70 px-2 py-0.5 text-xs text-muted-foreground">
             {t("knowledge.settings.live", { defaultValue: "即时生效 · 不重建索引" })}
           </span>
+          <span className="rounded-full bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+            {t("knowledge.settings.globalScope", { defaultValue: "全局 · 影响所有知识库" })}
+          </span>
           <div className="ml-auto flex items-center gap-2">
             <Button type="button" variant="ghost" size="sm" disabled={!dirty || saving} onClick={() => setDraft(saved)}>
               <RotateCcw className="h-3.5 w-3.5" aria-hidden />

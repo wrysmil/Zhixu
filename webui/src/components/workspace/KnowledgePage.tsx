@@ -104,7 +104,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const [kbs, setKbs] = useState<KnowledgeKb[]>([]);
   const [activeKbId, setActiveKbId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState<"documents" | "graph" | "settings">(
+  const [detailTab, setDetailTab] = useState<"documents" | "graph">(
     "documents",
   );
   const [kbsLoading, setKbsLoading] = useState(true);
@@ -137,6 +137,8 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
   const previewSeq = useRef(0);
   // 检索是知识库域的独立页；返回时回到进入前的层级。
   const [retrievalOpen, setRetrievalOpen] = useState(false);
+  // 检索参数是全局配置（一份），不挂在单个知识库下，避免"每库一套"的误导。
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [retrievalFromDetail, setRetrievalFromDetail] = useState(false);
   const openRetrieval = useCallback((fromDetail: boolean) => {
     setRetrievalFromDetail(fromDetail);
@@ -483,6 +485,24 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
           onBack={closeRetrieval}
           onOpenDoc={(doc) => void onOpenChunkPreview(doc)}
         />
+      ) : settingsOpen ? (
+        <div className="flex flex-col gap-3">
+          <Breadcrumb
+            ariaLabel={t("knowledge.title")}
+            items={[
+              {
+                label: t("knowledge.title"),
+                ariaLabel: t("knowledge.settings.backToLibraries", { defaultValue: "返回知识库" }),
+                onClick: () => setSettingsOpen(false),
+              },
+              {
+                label: t("knowledge.settings.tab", { defaultValue: "检索设置" }),
+                current: true,
+              },
+            ]}
+          />
+          <KnowledgeSettingsPanel token={token} transport={client} />
+        </div>
       ) : detailOpen && activeKb ? (
         <div className="flex flex-col gap-3">
           <Breadcrumb
@@ -605,15 +625,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
                   </span>
                 ),
               },
-              {
-                value: "settings",
-                label: (
-                  <span className="inline-flex items-center gap-1.5">
-                    <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-                    {t("knowledge.settings.tab", { defaultValue: "检索设置" })}
-                  </span>
-                ),
-              },
             ]}
           />
         </div>
@@ -631,6 +642,17 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               >
                 <Search className="h-3.5 w-3.5" aria-hidden />
                 {t("knowledge.searchTitle")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSettingsOpen(true)}
+                disabled={disabled}
+                className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+                {t("knowledge.settings.tab", { defaultValue: "检索设置" })}
               </Button>
               <Button
                 type="button"
@@ -668,7 +690,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
         </div>
       ) : null}
 
-      {!detailOpen && !retrievalOpen && !importOpen ? (
+      {!detailOpen && !retrievalOpen && !importOpen && !settingsOpen ? (
       <section
         data-testid="knowledge-stats"
         aria-label={t("knowledge.stats")}
@@ -775,7 +797,7 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
       ) : null}
 
       <div className="mt-4 flex flex-col gap-4">
-        {!detailOpen && !retrievalOpen && !importOpen ? (
+        {!detailOpen && !retrievalOpen && !importOpen && !settingsOpen ? (
         <section className="knowledge-motion knowledge-motion-enter" data-testid="knowledge-kb-list" aria-label={t("knowledge.kbTitle")}>
           <div className="knowledge-toolbar mb-5">
             <Input className="h-10 w-full sm:max-w-xs" aria-label={t("knowledge.experience.searchLibraries", { defaultValue: "搜索知识库名称" })} placeholder={t("knowledge.experience.searchLibraries", { defaultValue: "搜索知识库名称" })} value={libraryQuery} onChange={e => setLibraryQuery(e.target.value)} />
@@ -862,9 +884,6 @@ export function KnowledgePage({ workspaceIds }: { workspaceIds?: string[] }) {
               </>
             )}
           </div>
-          ) : null}
-                    {detailTab === "settings" ? (
-            <KnowledgeSettingsPanel token={token} transport={client} />
           ) : null}
           {detailTab === "graph" && activeKb ? (
             <Suspense
