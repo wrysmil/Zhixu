@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { FilePreviewAvailabilityProvider } from "@/components/FilePreviewAvailabilityContext";
 import { FilePreviewPanel } from "@/components/FilePreviewPanel";
-import { StartDock } from "@/components/dock/StartDock";
 import { SessionHandleLabel } from "@/components/SessionHandleLabel";
 import { SessionWorkbench } from "@/components/workbench/SessionWorkbench";
 import { ResizableRail } from "@/components/workbench/ResizableRail";
+
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { deriveSessionWorkbench } from "@/components/workbench/session-workbench-model";
 import { RecoveryNotice } from "@/components/thread/RecoveryNotice";
@@ -90,6 +90,12 @@ import type {
 import type { TeamOption } from "@/lib/teams/types";
 import { projectWebuiThreadMessages } from "@/lib/thread-display-compat";
 import { useClient } from "@/providers/ClientProvider";
+
+// 工具坞按需加载：静态引入会把终端 xterm 拖进首屏 chunk。
+const StartDock = lazy(async () => {
+  const module = await import("@/components/dock/StartDock");
+  return { default: module.StartDock };
+});
 
 type MessageShape = Pick<UIMessage, "role" | "kind" | "content" | "isStreaming" | "turnId">;
 
@@ -2124,6 +2130,7 @@ export function ThreadShell({
               <Button variant="ghost" className="absolute left-2 top-2" onClick={toggleToolsSurface}>
                 {toolsOpen ? t("workbench.title", { defaultValue: "Workbench" }) : t("workbench.tools", { defaultValue: "Tools sidebar" })}
               </Button>
+              <Suspense fallback={null}>
               {toolsOpen ? <StartDock variant="embedded" scope={historyKey ?? HOME_DOCK_SCOPE}
                 sessionKey={historyKey} getToken={getToken} onCollapse={closeToolsSurface}
                 onOpenFilePreview={historyKey ? (path) => { setMobileWorkbenchOpen(false); handleOpenFilePreview(path); } : undefined}
@@ -2133,9 +2140,11 @@ export function ThreadShell({
                 onOpenFilePreview={historyKey ? (path) => { setMobileWorkbenchOpen(false); handleOpenFilePreview(path); } : undefined}
                 onOpenKnowledge={onOpenKnowledge}
               />}
+              </Suspense>
             </DialogContent>
           </Dialog>
         ) : workbenchOpen ? <ResizableRail label={t("workbench.resizeRail", { defaultValue: "Resize workbench" })}>
+          <Suspense fallback={null}>
           <SessionWorkbench
             model={workbenchModel}
             sessionKey={historyKey}
@@ -2159,6 +2168,7 @@ export function ThreadShell({
               />
             </div>
           ) : null}
+          </Suspense>
         </ResizableRail> : null
       ) : null}
       {headerPortalTarget && headerActive

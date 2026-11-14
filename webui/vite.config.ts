@@ -71,6 +71,34 @@ export function webuiManualChunk(id: string): string | undefined {
   if (id.includes("node_modules/refractor/lang/")) {
     return;
   }
+  // 依赖体量本身就在首屏，拆成独立 chunk 只为让应用代码与第三方代码分开缓存、
+  // 并让单个 chunk 落在 500kB 预警线以下。
+  if (
+    id.includes("node_modules/i18next")
+    || id.includes("node_modules/react-i18next")
+  ) {
+    return "i18n-vendor";
+  }
+  if (id.includes("node_modules/lucide-react")) {
+    return "icons-vendor";
+  }
+  if (
+    id.includes("node_modules/@radix-ui/")
+    || id.includes("node_modules/@floating-ui/")
+    || id.includes("node_modules/react-remove-scroll")
+    || id.includes("node_modules/tailwind-merge")
+  ) {
+    return "ui-vendor";
+  }
+  // 会话主体随入口一起加载，单独成块只为把入口文件压到预警线以下；
+  // 活动流与轨迹按子目录再拆一刀，避免单块超过 500kB。
+  const threadMatch = id.match(/\/src\/components\/thread\/(activity|trajectory)\//);
+  if (threadMatch) {
+    return `thread-${threadMatch[1]}`;
+  }
+  if (id.includes("/src/components/thread/")) {
+    return "thread-ui";
+  }
   // Streamdown lazy-loads diagrams and highlighted code. Keep those modules
   // outside the core markdown chunk so ordinary replies do not download them.
   if (

@@ -8,8 +8,6 @@ import { WorkbenchCapabilities, WorkbenchKnowledge, WorkbenchLimitations, Workbe
 import { WorkbenchEmpty, WorkbenchSection, useWorkbenchText } from "./workbench-parts";
 import { cn } from "@/lib/utils";
 
-// Default width only; the host owns resizing and the composer inset.
-export const SESSION_WORKBENCH_RAIL_WIDTH = "19rem";
 interface SessionWorkbenchProps {
   model: SessionWorkbenchModel;
   sessionKey?: string | null;

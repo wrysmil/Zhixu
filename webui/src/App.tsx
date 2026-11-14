@@ -36,7 +36,7 @@ import { resolveDockShortcut } from "@/lib/dock-shortcuts";
 import type { SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
 import { PaneWorkbench } from "@/components/workbench/PaneWorkbench";
-import { SESSION_WORKBENCH_RAIL_WIDTH } from "@/components/workbench/SessionWorkbench";
+import { SESSION_WORKBENCH_RAIL_WIDTH } from "@/components/workbench/workbench-layout";
 import { WorkbenchTabBar } from "@/components/workbench/WorkbenchTabBar";
 import {
   MAX_WORKBENCH_PANES,

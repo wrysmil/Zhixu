@@ -2,6 +2,11 @@ import type { CSSProperties } from "react";
 
 import type { WorkbenchLayout } from "@/components/workbench/workbench-model";
 
+// Default width only; the host owns resizing and the composer inset. Lives in
+// this dependency-free module so the shell can read it without pulling the
+// workbench (and xterm) into the entry chunk.
+export const SESSION_WORKBENCH_RAIL_WIDTH = "19rem";
+
 interface PaneCell {
   xStart: number;
   xEnd: number;
