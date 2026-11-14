@@ -22,6 +22,7 @@ import {
   addKnowledgeDoc,
   addKnowledgeDocFromPath,
   previewKnowledgeChunks,
+  type KnowledgeChunkMode,
   type KnowledgeChunkPreview,
   type KnowledgeChunkPreviewItem,
   type KnowledgeKb,
@@ -117,12 +118,16 @@ export function KnowledgeImportPage({
   const [dataUrl, setDataUrl] = useState("");
   const [path, setPath] = useState("");
   const [dragging, setDragging] = useState(false);
-  const [mode, setMode] = useState<"smart" | "separator">("smart");
+  const [mode, setMode] = useState<KnowledgeChunkMode>("smart");
   const [separators, setSeparators] = useState<string[]>(DEFAULT_SEPARATORS);
   const [separatorDraft, setSeparatorDraft] = useState("");
   const [chunkSize, setChunkSize] = useState(String(kb.chunkSize ?? 800));
   const [chunkOverlap, setChunkOverlap] = useState(String(kb.chunkOverlap ?? 120));
   const [preview, setPreview] = useState<KnowledgeChunkPreview | null>(null);
+  // 左侧原文可编辑：改过文本后，预览与入库都以编辑后的文本为准。
+  const [editedText, setEditedText] = useState<string | null>(null);
+  const [sourceEdited, setSourceEdited] = useState(false);
+  const [editingSource, setEditingSource] = useState(false);
   const [chunks, setChunks] = useState<KnowledgeChunkPreviewItem[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [dirty, setDirty] = useState(false);
@@ -202,6 +207,9 @@ export function KnowledgeImportPage({
       setDirty(false);
       setFile(next);
       setDataUrl("");
+      setEditedText(null);
+      setSourceEdited(false);
+      setEditingSource(false);
       if (!next) {
         if (inputRef.current) inputRef.current.value = "";
         return;
@@ -234,6 +242,16 @@ export function KnowledgeImportPage({
   );
 
   const applySettings = () => {
+    if (editedSource !== null) {
+      const synthesis = editedFile();
+      void readFileAsBase64(synthesis)
+        .then((base64) => runPreview({
+          file: synthesis,
+          dataUrl: `data:text/markdown;base64,${base64}`,
+        }))
+        .catch(() => setPreviewError(t("knowledge.experience.readFailed")));
+      return;
+    }
     if (method === "local" && file && dataUrl) {
       void runPreview({ file, dataUrl });
     } else if (method === "path" && sourcePath) {
@@ -295,7 +313,19 @@ export function KnowledgeImportPage({
               locator: chunk.locator,
             }))
         : undefined;
-      if (method === "local" && file) {
+      if (editedSource !== null) {
+        const synthesis = editedFile();
+        const base64 = await readFileAsBase64(synthesis);
+        await addKnowledgeDoc(transport, {
+          kbId: kb.id,
+          name: synthesis.name,
+          dataUrl: `data:text/markdown;base64,${base64}`,
+          workspaceId,
+          chunkSize: size,
+          chunkOverlap: overlap,
+          ...(customChunks ? { chunks: customChunks } : {}),
+        });
+      } else if (method === "local" && file) {
         await addKnowledgeDoc(transport, {
           kbId: kb.id,
           name: file.name,
@@ -332,6 +362,14 @@ export function KnowledgeImportPage({
 
   const activeChunk = chunks[activeIndex] ?? null;
   const sourceText = preview?.source.text ?? "";
+  const editedSource = sourceEdited ? (editedText ?? sourceText) : null;
+  const editedName = (() => {
+    const base = (method === "local" ? file?.name : sourcePath.split(/[\\/]/).pop()) ?? "document.md";
+    if (/\.(md|txt)$/i.test(base)) return base;
+    return `${base.replace(/\.[^.]+$/, "")}.md`;
+  })();
+  const editedFile = () =>
+    new File([editedSource ?? ""], editedName, { type: "text/markdown" });
   const canHighlight = Boolean(
     activeChunk
     && preview
@@ -416,14 +454,42 @@ export function KnowledgeImportPage({
                   {t("knowledge.import.sourceTruncated", { defaultValue: "原文过长，仅展示前段" })}
                 </span>
               ) : null}
-              <span className="ml-auto text-[11px] text-muted-foreground">
-                {t("knowledge.import.highlightHint", { defaultValue: "点击分块定位原文" })}
-              </span>
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">
+                  {t("knowledge.import.highlightHint", { defaultValue: "点击分块定位原文" })}
+                </span>
+                {preview?.editable && !preview.source.truncated ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-[11px]"
+                    data-testid="knowledge-import-edit-source"
+                    onClick={() => setEditingSource((open) => !open)}
+                  >
+                    {editingSource
+                      ? t("knowledge.import.finishEdit", { defaultValue: "完成编辑" })
+                      : t("knowledge.import.editSource", { defaultValue: "编辑原文" })}
+                  </Button>
+                ) : null}
+              </div>
             </header>
             <div className="max-h-[64vh] min-h-[16rem] overflow-y-auto px-4 py-3">
-              {preview ? (
+              {preview && editingSource ? (
+                <textarea
+                  data-testid="knowledge-import-source-editor"
+                  aria-label={t("knowledge.import.sourceTitle", { defaultValue: "原文" })}
+                  value={editedText ?? sourceText}
+                  onChange={(event) => {
+                    setEditedText(event.target.value);
+                    setSourceEdited(true);
+                  }}
+                  spellCheck={false}
+                  className="h-[56vh] w-full resize-none rounded-control border border-border/60 bg-background p-2 font-mono text-[12.5px] leading-relaxed text-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                />
+              ) : preview ? (
                 <pre className="whitespace-pre-wrap break-words font-sans text-[12.5px] leading-relaxed text-foreground">
-                  {canHighlight && activeChunk ? (
+                  {canHighlight && activeChunk && !sourceEdited ? (
                     <>
                       {sourceText.slice(0, activeChunk.start)}
                       <mark id="knowledge-import-highlight" className="rounded bg-amber-200/70 px-0.5 text-foreground dark:bg-amber-500/30">
@@ -560,7 +626,9 @@ export function KnowledgeImportPage({
                   onChange={setMode}
                   options={[
                     { value: "smart", label: t("knowledge.import.modeSmart", { defaultValue: "智能分段" }) },
+                    { value: "fixed", label: t("knowledge.import.modeFixed", { defaultValue: "固定长度" }) },
                     { value: "separator", label: t("knowledge.import.modeSeparator", { defaultValue: "自定义分隔符" }) },
+                    { value: "auto", label: t("knowledge.import.modeAuto", { defaultValue: "自动" }) },
                   ]}
                 />
                 <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
@@ -597,8 +665,8 @@ export function KnowledgeImportPage({
                   onClick={applySettings}
                 >
                   {dirty
-                    ? t("knowledge.import.reChunkDirty", { defaultValue: "重新分块（丢弃修改）" })
-                    : t("knowledge.import.applySettings", { defaultValue: "应用分块设置" })}
+                    ? t("knowledge.import.reChunkDirty", { defaultValue: "重新拆分（丢弃修改）" })
+                    : t("knowledge.import.applySettings", { defaultValue: "拆分" })}
                 </Button>
               </div>
 
@@ -663,7 +731,7 @@ export function KnowledgeImportPage({
                 <p className="text-[11.5px] text-destructive">{settingsError}</p>
               ) : settingsDirty ? (
                 <p className="text-[11.5px] text-amber-700 dark:text-amber-300">
-                  {t("knowledge.import.settingsPending", { defaultValue: "分块设置已修改，点击「应用分块设置」重新预览。" })}
+                  {t("knowledge.import.settingsPending", { defaultValue: "分块设置已修改，点击「拆分」重新预览。" })}
                 </p>
               ) : null}
             </div>
@@ -692,6 +760,16 @@ export function KnowledgeImportPage({
                 </span>
               ) : null}
             </div>
+
+            {preview?.warning ? (
+              <p
+                role="status"
+                data-testid="knowledge-import-warning"
+                className="mx-2 mt-1 rounded-control border border-amber-300/70 bg-amber-50/70 px-3 py-2 text-[12px] leading-5 text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-100"
+              >
+                {preview.warning}
+              </p>
+            ) : null}
 
             <div className="max-h-[52vh] min-h-[16rem] overflow-y-auto px-2 py-2">
               {previewing ? (

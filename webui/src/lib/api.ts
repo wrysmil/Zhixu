@@ -2177,7 +2177,7 @@ export interface KnowledgeChunkPreviewItem {
   content: string;
 }
 
-export type KnowledgeChunkMode = "smart" | "separator";
+export type KnowledgeChunkMode = "smart" | "separator" | "fixed" | "auto";
 
 export interface KnowledgeChunkPreview {
   chunkMode: KnowledgeChunkMode;
@@ -2186,6 +2186,8 @@ export interface KnowledgeChunkPreview {
   chunkOverlap: number;
   source: { text: string; chars: number; truncated: boolean };
   editable: boolean;
+  /** 切块校验没过时的兜底提示：仍返回按长度硬切的块。 */
+  warning?: string | null;
   total: number;
   avgChars: number;
   chunks: KnowledgeChunkPreviewItem[];
