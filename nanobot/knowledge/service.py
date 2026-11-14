@@ -47,7 +47,11 @@ from nanobot.knowledge.graph.neo4j_store import Neo4jGraphStore
 from nanobot.knowledge.graph.repo import GraphRepository
 from nanobot.knowledge.graph.route import GraphRoute
 from nanobot.knowledge.graph.service import GraphService
-from nanobot.knowledge.ingestor import INDEX_VERSION, Ingestor, extract_drafts
+from nanobot.knowledge.ingestor import (
+    INDEX_VERSION,
+    Ingestor,
+    extract_preview,
+)
 from nanobot.knowledge.models import Document, KnowledgeBase, new_id
 from nanobot.knowledge.questions import (
     DEFAULT_QUESTION_COUNT,
@@ -697,7 +701,7 @@ class KnowledgeService:
             raise KnowledgeServiceError("分块大小必须在 200–4000 之间")
         if overlap < 0 or overlap >= size:
             raise KnowledgeServiceError("分块重叠必须满足 0 ≤ 重叠 < 分块大小")
-        if chunk_mode not in {"smart", "separator"}:
+        if chunk_mode not in {"smart", "separator", "fixed", "auto"}:
             raise KnowledgeServiceError(f"未知的分块模式：{chunk_mode}")
         clean_separators = tuple(
             str(separator) for separator in (separators or ()) if str(separator)
@@ -716,7 +720,7 @@ class KnowledgeService:
                 raise KnowledgeServiceError("上传路径越出知识目录")
             write_bytes_atomic(dest, data)
             try:
-                drafts, text = extract_drafts(
+                drafts, text, warning = extract_preview(
                     dest,
                     chunk_size=size,
                     chunk_overlap=overlap,
@@ -729,7 +733,7 @@ class KnowledgeService:
             resolved = Path(str(path)).expanduser().resolve()
             if not resolved.is_file():
                 raise KnowledgeServiceError("不是普通文件，请检查路径")
-            drafts, text = extract_drafts(
+            drafts, text, warning = extract_preview(
                 resolved,
                 chunk_size=size,
                 chunk_overlap=overlap,
@@ -745,6 +749,7 @@ class KnowledgeService:
         return {
             "chunkMode": chunk_mode,
             "separators": list(clean_separators),
+            "warning": warning,
             "chunkSize": size,
             "chunkOverlap": overlap,
             "source": {

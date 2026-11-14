@@ -205,8 +205,8 @@ def _chunk_mode(payload: dict[str, Any]) -> str:
     value = payload.get("chunkMode")
     if value is None:
         return "smart"
-    if value not in {"smart", "separator"}:
-        raise KnowledgeRouteError("chunkMode 只能是 smart 或 separator")
+    if value not in {"smart", "separator", "fixed", "auto"}:
+        raise KnowledgeRouteError("chunkMode 只能是 smart / separator / fixed / auto")
     return str(value)
 
 
@@ -1230,6 +1230,7 @@ class KnowledgeApi:
                 kb.id,
                 query=_optional_str(payload, "q") or "",
                 type_=_optional_str(payload, "type") or "",
+                doc_id=_optional_str(payload, "docId") or "",
                 limit=limit,
                 offset=offset,
             ),

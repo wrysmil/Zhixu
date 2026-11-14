@@ -134,6 +134,16 @@ def extract_drafts(
             "KNOWLEDGE_TEXT_EMPTY",
             "文档中没有可提取的文字内容，请检查文件是否为空或只有图片",
         )
+    if chunk_mode == "fixed":
+        drafts = _fallback_drafts(text, chunk_size, chunk_overlap)
+        validate_chunks(
+            drafts,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            text=text,
+            allow_small=True,
+        )
+        return drafts, text
     if chunk_mode == "separator":
         drafts = chunk_by_separators(
             lines,
@@ -149,11 +159,12 @@ def extract_drafts(
             allow_small=True,
         )
         return drafts, text
-    if chunk_mode != "smart":
+    if chunk_mode not in {"smart", "auto"}:
         raise ValueError(f"unknown chunk_mode: {chunk_mode}")
+    # smart：始终按结构走；auto：按文件类型在智能与按行之间自动选择。
     mode = (
         "blank_line"
-        if source.suffix.lower() in _BLANK_LINE_SUFFIXES
+        if chunk_mode == "smart" or source.suffix.lower() in _BLANK_LINE_SUFFIXES
         else "line"
     )
     drafts = chunk_lines(
@@ -169,6 +180,62 @@ def extract_drafts(
         text=text,
     )
     return drafts, text
+
+
+def extract_preview(
+    source: Path,
+    *,
+    chunk_size: int,
+    chunk_overlap: int,
+    chunk_mode: str = "smart",
+    separators: tuple[str, ...] | None = None,
+) -> tuple[list[ChunkDraft], str, str | None]:
+    """预览专用：切块校验不通过时退回按长度硬切，保证导入页始终有块可看。
+
+    返回 (草稿, 全文, 警告)。只有"压根没有文字"仍然抛错——那种情况给不出有意义的块。
+    """
+    try:
+        drafts, text = extract_drafts(
+            source,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            chunk_mode=chunk_mode,
+            separators=separators,
+        )
+        return drafts, text, None
+    except KnowledgeChunkError as exc:
+        if exc.code == "KNOWLEDGE_TEXT_EMPTY":
+            raise
+        warning = f"{exc}（已按长度硬切兜底，可调大分块大小后重试）"
+    lines = extract_lines(source)
+    text = "\n".join(line.text for line in lines)
+    return _fallback_drafts(text, chunk_size, chunk_overlap), text, warning
+
+
+def _fallback_drafts(
+    text: str, chunk_size: int, chunk_overlap: int
+) -> list[ChunkDraft]:
+    """按长度硬切：偏移首尾相接，满足预览与校验的最小不变量。"""
+    drafts: list[ChunkDraft] = []
+    pos = 0
+    total = len(text)
+    while pos < total:
+        end = min(pos + chunk_size, total)
+        block = text[pos:end]
+        drafts.append(
+            ChunkDraft(
+                content=block,
+                start_offset=pos,
+                end_offset=end,
+                heading_path="",
+                page=None,
+                locator="",
+            )
+        )
+        if end >= total:
+            break
+        pos = max(pos + 1, end - chunk_overlap)
+    return drafts
 
 
 def extract_and_chunk(
