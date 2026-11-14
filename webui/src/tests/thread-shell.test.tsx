@@ -4471,6 +4471,29 @@ describe("ThreadShell", () => {
     window.localStorage.removeItem("mira.dock-tools.open");
   });
 
+  it("hides the workbench while the trajectory view is open", async () => {
+    window.localStorage.removeItem("mira.dock-tools.open");
+    const client = makeClient();
+    render(wrap(
+      client,
+      <ThreadShell
+        session={session("trajectory-workbench")}
+        title="Trajectory workbench"
+        onToggleSidebar={() => {}}
+      />,
+    ));
+
+    await screen.findByLabelText("Message input");
+    expect(screen.getByTestId("session-workbench")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Trajectory" }));
+    expect(screen.queryByTestId("session-workbench")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Tools sidebar" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Chat" }));
+    expect(screen.getByTestId("session-workbench")).toBeInTheDocument();
+  });
+
   it("does not request subagent execution data when the gateway capability is absent", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,

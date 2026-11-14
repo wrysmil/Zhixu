@@ -1955,7 +1955,8 @@ export function ThreadShell({
   }, [closeToolsSurface]);
 
   // 桌面：工作台收起时，这个按钮先把它打开；展开时切右侧工具坞。
-  const workbenchAction = session ? (
+  // 轨迹视图占满整列，右侧栏不参与渲染，按钮一并藏起来。
+  const workbenchAction = session && threadView === "chat" ? (
     <Button
       variant="ghost"
       size="icon"
@@ -2120,7 +2121,7 @@ export function ThreadShell({
           returnFocus={executionReturnFocus}
         />
       ) : null}
-      {session && (
+      {session && threadView === "chat" && (
         activeRightSurface.kind === "workbench" || activeRightSurface.kind === "tools"
       ) ? (
         compactWorkbench ? (
