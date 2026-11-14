@@ -1,8 +1,11 @@
+from pathlib import Path
+
 import pytest
 
 from nanobot.knowledge.chunker import (
     ChunkDraft,
     KnowledgeChunkError,
+    chunk_by_separators,
     chunk_lines,
     validate_chunks,
 )
@@ -432,3 +435,53 @@ def test_oversized_code_block_falls_back_to_hard_cut():
 
     # 保护失败时回到硬切；碎片合并允许最后一块略超（≤1.5×chunk_size）。
     assert all(draft.char_count <= 150 for draft in drafts)
+
+
+def test_separator_chunks_keep_contiguous_offsets_without_overlap():
+    """重叠为 0 时，段首空白裁剪不能越过上一块终点，否则校验报 non-monotonic start。"""
+    text = "\n".join(f"%%SECTION%%\n标题{i}\n{'规则正文' * 40}" for i in range(4))
+    drafts = chunk_by_separators(
+        [Line(t, "", None) for t in text.split("\n")],
+        separators=("%%SECTION%%",),
+        chunk_size=200,
+        chunk_overlap=0,
+    )
+    validate_chunks(drafts, chunk_size=200, chunk_overlap=0, text=text)
+    assert len(drafts) == 4
+    for previous, current in zip(drafts, drafts[1:]):
+        assert current.start_offset == previous.end_offset
+
+
+# ---- 真实样本回归（fixtures/chunking） -------------------------------------
+
+_CHUNK_FIXTURES = Path(__file__).parent / "fixtures" / "chunking"
+
+
+def _fixture_lines(name: str):
+    text = (_CHUNK_FIXTURES / name).read_text(encoding="utf-8")
+    return text, [Line(line, "", None) for line in text.split("\n")]
+
+
+def test_smart_mode_fixture_keeps_headings_and_paragraphs():
+    text, fixture_lines = _fixture_lines("smart-paragraphs.md")
+    drafts = chunk_lines(fixture_lines, chunk_size=200, chunk_overlap=120, paragraph_mode="blank_line")
+    validate_chunks(drafts, chunk_size=200, chunk_overlap=120, text=text)
+    assert len(drafts) == 7
+    assert drafts[0].heading_path == "发布规范"
+    assert drafts[1].heading_path == "发布规范 > 第1节 灰度发布"
+
+
+def test_separator_mode_fixture_splits_on_custom_separator():
+    text, fixture_lines = _fixture_lines("custom-separator.md")
+    drafts = chunk_by_separators(
+        fixture_lines,
+        separators=("%%SECTION%%",),
+        chunk_size=200,
+        chunk_overlap=0,
+    )
+    validate_chunks(drafts, chunk_size=200, chunk_overlap=0, text=text)
+    assert len(drafts) == 5
+    # 分隔符归属于前一块的末尾（`_split_by_separators` 的既有约定）。
+    assert all(draft.content.rstrip().endswith("%%SECTION%%") for draft in drafts[:-1])
+    assert not drafts[-1].content.rstrip().endswith("%%SECTION%%")
+    assert drafts[-1].end_offset == len(text)

@@ -479,10 +479,13 @@ def chunk_by_separators(
         if chunk_overlap > 0 and previous_end >= 0:
             start = max(start - chunk_overlap, previous_start + 1)
 
+        # 段首空白不能裁过上一块终点；段尾也不裁——裁剪会让上一块的 end 变小，
+        # 与下一块的 start 之间留下 1~2 个字符的空隙，`validate_chunks` 会报
+        # non-monotonic start（重叠为 0 时尤甚）。分隔符本身的归属保持不变。
         while start < end and text[start].isspace():
+            if drafts and start >= previous_end:
+                break
             start += 1
-        while end > start and text[end - 1].isspace():
-            end -= 1
         if start >= end:
             continue
         if drafts and start <= previous_start:
