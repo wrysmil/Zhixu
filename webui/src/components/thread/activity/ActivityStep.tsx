@@ -40,6 +40,8 @@ export interface ActivityStepProps {
   className?: string;
   contentClassName?: string;
   labelClassName?: string;
+  /** Collapsed label is a single truncated line instead of wrapped prose. */
+  labelSingleLine?: boolean;
   markerClassName?: string;
   style?: CSSProperties;
 }
@@ -60,6 +62,7 @@ export function ActivityStep({
   className,
   contentClassName,
   labelClassName,
+  labelSingleLine = false,
   markerClassName,
   style,
 }: ActivityStepProps) {
@@ -148,6 +151,7 @@ export function ActivityStep({
           ) : (
             <span className={cn(
               "min-w-0 flex-1 break-words font-medium",
+              labelSingleLine && "truncate",
               tone === "error" ? "text-destructive" : "text-foreground/80",
               labelClassName,
             )}>

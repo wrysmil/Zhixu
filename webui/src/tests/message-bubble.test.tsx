@@ -1001,6 +1001,7 @@ describe("MessageBubble", () => {
 
     const preview = screen.getByText("hidden until expanded");
     expect(preview).toBeInTheDocument();
+    expect(preview).toHaveClass("truncate");
     expect(screen.getByText("The answer is 42.")).toBeInTheDocument();
     expect(preview.closest('[data-testid="activity-step"]')).toHaveClass("mb-2");
     expect(screen.queryByText("Thinking")).not.toBeInTheDocument();

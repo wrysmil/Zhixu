@@ -24,6 +24,7 @@ export function ReasoningRow({
     ? t("message.reasoningActive", { defaultValue: "Reasoning" })
     : t("message.reasoningDone", { defaultValue: "Thought" });
   const preview = compactReasoningPreview(text) || fallback;
+  const collapsedPreview = preview.length > 200 ? `${preview.slice(0, 200)}…` : preview;
   const detail = text.trim() ? text : undefined;
   const [expanded, setExpanded] = useState(streaming);
   const userToggledRef = useRef(false);
@@ -39,7 +40,8 @@ export function ReasoningRow({
       kicker={kicker}
       active={streaming}
       tone={streaming ? "active" : "success"}
-      label={expanded ? fallback : preview}
+      label={expanded ? fallback : collapsedPreview}
+      labelSingleLine
       labelClassName="text-foreground/85"
       contentClassName="overflow-hidden"
       detail={detail}
