@@ -435,11 +435,12 @@ class GraphService:
         *,
         query: str = "",
         type_: str = "",
+        doc_id: str = "",
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, Any]:
         entities = self.repo.list_entities(
-            kb_id, q=query, type_=type_, limit=limit, offset=offset
+            kb_id, q=query, type_=type_, doc_id=doc_id, limit=limit, offset=offset
         )
         return {
             "entities": [
@@ -452,7 +453,9 @@ class GraphService:
                 }
                 for entity in entities
             ],
-            "total": self.repo.count_entities(kb_id, q=query, type_=type_),
+            "total": self.repo.count_entities(
+                kb_id, q=query, type_=type_, doc_id=doc_id
+            ),
         }
 
     def get_entity(

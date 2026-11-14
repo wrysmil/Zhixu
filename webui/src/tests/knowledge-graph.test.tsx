@@ -65,7 +65,7 @@ beforeEach(() => {
 });
 
 describe("GraphPanel", () => {
-  it("selects a graph node without reloading the layout and expands only on request", async () => {
+  it("re-centres the graph on the node you select", async () => {
     const api = fakeApi({}, ENTITIES);
     api.entity.mockImplementation(async id => detailFor(id === "e0" ? 0 : 1));
     api.subgraph.mockResolvedValue({ nodes: ENTITIES, edges: [
@@ -77,12 +77,12 @@ describe("GraphPanel", () => {
     await userEvent.keyboard("{Enter}");
     await screen.findByRole("button", { name: /Beta source/ });
     expect(beta).toHaveAttribute("aria-pressed", "true");
-    // 选中节点只切换详情，不重新拉取关联图谱。
+    // 选中节点把图重新以它为中心（默认 2 跳）。
+    await waitFor(() => expect(api.subgraph).toHaveBeenLastCalledWith({ entityId: "e1", hops: 2, limit: 50 }));
     const subgraphCalls = api.subgraph.mock.calls.length;
-    expect(subgraphCalls).toBe(1);
     await userEvent.click(screen.getByRole("button", { name: i18n.t("knowledge.experience.graphExpand") }));
     await waitFor(() => expect(api.subgraph).toHaveBeenCalledTimes(subgraphCalls + 1));
-    expect(api.subgraph).toHaveBeenLastCalledWith({ entityId: "e1", hops: 1, limit: 50 });
+    expect(api.subgraph).toHaveBeenLastCalledWith({ entityId: "e1", hops: 2, limit: 50 });
   });
 
   it("returns focus to the entity trigger after closing the detail", async () => {

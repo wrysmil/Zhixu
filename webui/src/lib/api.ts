@@ -2404,13 +2404,21 @@ export async function fetchKnowledgeGraphStats(
 
 export async function fetchKnowledgeGraphEntities(
   token: string,
-  params: { kbId: string; q?: string; type?: string; limit?: number; offset?: number },
+  params: {
+    kbId: string;
+    q?: string;
+    type?: string;
+    docId?: string;
+    limit?: number;
+    offset?: number;
+  },
   base: string = "",
 ): Promise<KnowledgeGraphPage> {
   const query = knowledgeQuery({
     kbId: params.kbId,
     q: params.q,
     type: params.type,
+    docId: params.docId,
     limit: params.limit,
     offset: params.offset,
   });

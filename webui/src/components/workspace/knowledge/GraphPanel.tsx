@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import {
   fetchKnowledgeGraphEntities,
   fetchKnowledgeGraphEntity,
+  fetchKnowledgeDocs,
   fetchKnowledgeGraphStats,
   fetchKnowledgeGraphSubgraph,
   knowledgeGraphExtract,
@@ -35,6 +36,7 @@ interface GraphPanelApi {
     kbId: string;
     q?: string;
     type?: string;
+    docId?: string;
   }): Promise<{ entities: KnowledgeGraphEntity[]; total: number }>;
   entity(id: string): Promise<KnowledgeGraphEntityDetail>;
   subgraph(params: {
@@ -62,6 +64,9 @@ export interface GraphPanelProps {
   api?: GraphPanelApi;
   onOpenChunk?: (docId: string, chunkId: string) => void;
 }
+
+/** 默认展开两跳，方便一眼看到「实体 → 章节 → 相关概念」的链路。 */
+const DEFAULT_HOPS = 2;
 
 function createGraphApi(
   token: string,
@@ -94,9 +99,12 @@ export function GraphPanel({
   const [entities, setEntities] = useState<KnowledgeGraphEntity[]>([]);
   const [query, setQuery] = useState("");
   const [type, setType] = useState("");
+  // 按文档筛选实体：只保留在该文档里出现过的实体。
+  const [docId, setDocId] = useState("");
+  const [docOptions, setDocOptions] = useState<Array<{ id: string; title: string }>>([]);
   const [detail, setDetail] = useState<KnowledgeGraphEntityDetail | null>(null);
   const [subgraph, setSubgraph] = useState<GraphSubgraph | null>(null);
-  const [hops, setHops] = useState(1);
+  const [hops, setHops] = useState(DEFAULT_HOPS);
   const [confirm, setConfirm] = useState<ConfirmKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -106,7 +114,7 @@ export function GraphPanel({
   const [graphError, setGraphError] = useState("");
   const [detailLoading, setDetailLoading] = useState(false);
   const [graphLoading, setGraphLoading] = useState(false);
-  const [graphTarget, setGraphTarget] = useState({ entityId: "", hops: 1 });
+  const [graphTarget, setGraphTarget] = useState({ entityId: "", hops: DEFAULT_HOPS });
   const [showAllEntities, setShowAllEntities] = useState(false);
   const autoSelected = useRef(false);
   const detailRequest = useRef(0);
@@ -126,11 +134,13 @@ export function GraphPanel({
     setGraphError("");
     setDetailLoading(false);
     setGraphLoading(false);
-    setHops(1);
+    setHops(DEFAULT_HOPS);
     setLoading(true);
     setStats(null);
     setEntities([]);
     setConfirm(null);
+    setDocId("");
+    setDocOptions([]);
     return () => {
       detailRequest.current += 1;
       graphRequest.current += 1;
@@ -157,10 +167,41 @@ export function GraphPanel({
     void loadStats();
   }, [loadStats]);
 
+  // 换文档筛选后，原选中实体可能已不在结果里：清空详情与子图，让下方跟着筛选走。
+  useEffect(() => {
+    detailRequest.current += 1;
+    graphRequest.current += 1;
+    setSelectedId("");
+    setDetail(null);
+    setSubgraph(null);
+    setDetailError("");
+    setGraphError("");
+    setDetailLoading(false);
+    setGraphLoading(false);
+    autoSelected.current = false;
+  }, [docId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchKnowledgeDocs(token, { kbId, limit: 100 })
+      .then((page) => {
+        if (cancelled) return;
+        setDocOptions(
+          page.documents.map((doc) => ({ id: doc.id, title: doc.title || doc.originalName || doc.id })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setDocOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [kbId, token]);
+
   useEffect(() => {
     let cancelled = false;
     void graphApi
-      .entities({ kbId, q: query, type })
+      .entities({ kbId, q: query, type, docId: docId || undefined })
       .then((page) => {
         if (!cancelled) setEntities(page.entities);
       })
@@ -172,7 +213,7 @@ export function GraphPanel({
     return () => {
       cancelled = true;
     };
-  }, [graphApi, kbId, query, type]);
+  }, [graphApi, kbId, query, type, docId]);
 
   const types = useMemo(
     () => Array.from(new Set(entities.map((entity) => entity.type))).sort(),
@@ -205,7 +246,7 @@ export function GraphPanel({
       setDetailError("");
       setDetailLoading(true);
       if (loadGraph) {
-        setSubgraph(null);
+        // 不先清空旧图：等新子图回来再替换，避免点击节点时画布闪一下空白。
         void expandEntity(entityId);
       }
       try {
@@ -317,6 +358,22 @@ export function GraphPanel({
                 placeholder={t("knowledge.graph.searchPlaceholder")}
                 className="h-8 text-[14px]"
               />
+            </label>
+            <label className="flex w-48 flex-col gap-1 text-[12px] font-medium text-muted-foreground">
+              {t("knowledge.graph.filterDoc", { defaultValue: "文档" })}
+              <select
+                value={docId}
+                onChange={(event) => setDocId(event.target.value)}
+                data-testid="graph-doc-filter"
+                className="h-8 rounded-control border border-input bg-background px-2 text-[12px]"
+              >
+                <option value="">{t("knowledge.graph.allDocs", { defaultValue: "全部文档" })}</option>
+                {docOptions.map((doc) => (
+                  <option key={doc.id} value={doc.id}>
+                    {doc.title}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="flex w-40 flex-col gap-1 text-[12px] font-medium text-muted-foreground">
               {t("knowledge.graph.filterType")}
@@ -467,7 +524,7 @@ export function GraphPanel({
                     edges={subgraph.edges}
                     centerId={graphTarget.entityId}
                     selectedId={selectedId}
-                    onSelect={(entityId) => void openEntity(entityId, false)}
+                    onSelect={(entityId) => void openEntity(entityId, true)}
                     onExpand={(entityId) => void expandEntity(entityId)}
                   />
                 </div>
@@ -483,19 +540,26 @@ export function GraphPanel({
                       <li className="text-[12px] text-muted-foreground">—</li>
                     ) : (
                       detail.neighbors.map((neighbor) => (
-                        <li
-                          key={`${neighbor.entity.id}-${neighbor.relation}`}
-                          className="flex items-center justify-between gap-2 rounded-control bg-muted/40 px-2 py-1 text-[12px]"
-                        >
-                          <span className="min-w-0 break-words text-[14px] text-foreground">
-                            {neighbor.direction === "in"
-                              ? t("knowledge.graph.directionIn")
-                              : t("knowledge.graph.directionOut")}{" "}
-                            {neighbor.entity.name}
-                          </span>
-                          <span className="shrink-0 text-muted-foreground">
-                            {neighbor.relation} · {neighbor.weight.toFixed(1)}
-                          </span>
+                        <li key={`${neighbor.entity.id}-${neighbor.relation}`}>
+                          <button
+                            type="button"
+                            onClick={() => void openEntity(neighbor.entity.id, false)}
+                            title={t("knowledge.graph.openNeighbor", { defaultValue: "查看该实体的关联" })}
+                            className="flex w-full items-center gap-2 rounded-control bg-muted/40 px-2 py-1.5 text-left text-[13px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <span aria-hidden className="shrink-0 text-muted-foreground">
+                              {neighbor.direction === "in" ? "←" : "→"}
+                            </span>
+                            <span className="shrink-0 font-medium text-foreground">
+                              {neighbor.relation}
+                            </span>
+                            <span className="min-w-0 truncate text-foreground">
+                              {neighbor.entity.name}
+                            </span>
+                            <span className="ml-auto shrink-0 tabular-nums text-[11px] text-muted-foreground">
+                              {neighbor.weight.toFixed(1)}
+                            </span>
+                          </button>
                         </li>
                       ))
                     )}

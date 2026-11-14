@@ -240,8 +240,10 @@ class GraphRepository:
                 )
 
     # ---------- 读：实体/关系 ----------
-    def count_entities(self, kb_id: str, *, q: str = "", type_: str = "") -> int:
-        where, params = self._entity_filter(kb_id, q, type_)
+    def count_entities(
+        self, kb_id: str, *, q: str = "", type_: str = "", doc_id: str = ""
+    ) -> int:
+        where, params = self._entity_filter(kb_id, q, type_, doc_id)
         with self._db.connect() as conn:
             row = conn.execute(
                 f"SELECT COUNT(*) FROM graph_entities WHERE {where}", params
@@ -254,10 +256,11 @@ class GraphRepository:
         *,
         q: str = "",
         type_: str = "",
+        doc_id: str = "",
         limit: int = 50,
         offset: int = 0,
     ) -> list[GraphEntity]:
-        where, params = self._entity_filter(kb_id, q, type_)
+        where, params = self._entity_filter(kb_id, q, type_, doc_id)
         with self._db.connect() as conn:
             rows = conn.execute(
                 f"""SELECT id,kb_id,name,name_norm,type,description,mention_count
@@ -268,9 +271,18 @@ class GraphRepository:
         return [self._row_to_entity(row) for row in rows]
 
     @staticmethod
-    def _entity_filter(kb_id: str, q: str, type_: str) -> tuple[str, tuple[Any, ...]]:
+    def _entity_filter(
+        kb_id: str, q: str, type_: str, doc_id: str = ""
+    ) -> tuple[str, tuple[Any, ...]]:
         clauses = ["kb_id = ?"]
         params: list[Any] = [kb_id]
+        if doc_id.strip():
+            # 只看某篇文档里出现过的实体（按提及关系过滤）。
+            clauses.append(
+                "EXISTS (SELECT 1 FROM graph_mentions m"
+                " WHERE m.entity_id = graph_entities.id AND m.doc_id = ?)"
+            )
+            params.append(doc_id.strip())
         if q.strip():
             norm = normalize_entity_name(q)
             clauses.append("(name_norm LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')")

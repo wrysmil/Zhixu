@@ -46,6 +46,10 @@ interface PositionedLink {
 
 /** Frames between two React renders while the simulation is alive. */
 const TICK_INTERVAL_MS = 32;
+/** 画布是有限范围：缩放限制在基准视图的 0.5×–2×，平移中心限制在内容包围盒内。 */
+const BASE_VIEW = { x: -420, y: -280, width: 840, height: 560 };
+const MIN_ZOOM = 0.55;
+const MAX_ZOOM = 1.9;
 const MAX_NODES = 60;
 const MAX_EDGES = 140;
 
@@ -89,9 +93,17 @@ export function ForceGraph({
   const simulationRef = useRef<ForceSimulation | null>(null);
   const nodesRef = useRef<PositionedNode[]>([]);
   const dragRef = useRef<{ id: string; moved: boolean } | null>(null);
+  // 画布平移：按住空格拖动（或鼠标中键）。记录的初始状态用于换算位移。
+  const panRef = useRef<{
+    clientX: number;
+    clientY: number;
+    box: { x: number; y: number; width: number; height: number };
+  } | null>(null);
+  const hoverRef = useRef(false);
+  const [spaceHeld, setSpaceHeld] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [layout, setLayout] = useState<{ nodes: PositionedNode[]; links: PositionedLink[] } | null>(null);
-  const [viewBox, setViewBox] = useState({ x: -420, y: -280, width: 840, height: 560 });
+  const [viewBox, setViewBox] = useState(BASE_VIEW);
 
   const capped = useMemo(() => {
     const nextNodes = nodes.slice(0, MAX_NODES);
@@ -103,6 +115,10 @@ export function ForceGraph({
   }, [nodes, edges]);
 
   const layoutKey = JSON.stringify(capped.nodes);
+  useEffect(() => {
+    // 换图（例如点了别的节点）时回到中心视图，避免沿用上一次的平移位置。
+    setViewBox(BASE_VIEW);
+  }, [layoutKey]);
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -163,6 +179,42 @@ export function ForceGraph({
     return map;
   }, [hoveredId, capped.edges]);
 
+  // 有限画布：以基准视图并上内容包围盒（外扩 160）作为可平移范围。
+  const worldBounds = useMemo(() => {
+    let minX = BASE_VIEW.x;
+    let maxX = BASE_VIEW.x + BASE_VIEW.width;
+    let minY = BASE_VIEW.y;
+    let maxY = BASE_VIEW.y + BASE_VIEW.height;
+    for (const node of layout?.nodes ?? []) {
+      minX = Math.min(minX, node.x);
+      maxX = Math.max(maxX, node.x);
+      minY = Math.min(minY, node.y);
+      maxY = Math.max(maxY, node.y);
+    }
+    const pad = 160;
+    return { minX: minX - pad, maxX: maxX + pad, minY: minY - pad, maxY: maxY + pad };
+  }, [layout]);
+
+  const clampViewBox = useCallback(
+    (box: { x: number; y: number; width: number; height: number }) => {
+      const aspect = BASE_VIEW.height / BASE_VIEW.width;
+      const width = Math.min(
+        Math.max(box.width, BASE_VIEW.width * MIN_ZOOM),
+        BASE_VIEW.width * MAX_ZOOM,
+      );
+      const height = width * aspect;
+      const clampAxis = (value: number, size: number, min: number, max: number) =>
+        size >= max - min ? (min + max) / 2 - size / 2 : Math.min(Math.max(value, min), max - size);
+      return {
+        x: clampAxis(box.x, width, worldBounds.minX, worldBounds.maxX),
+        y: clampAxis(box.y, height, worldBounds.minY, worldBounds.maxY),
+        width,
+        height,
+      };
+    },
+    [worldBounds],
+  );
+
   const focusIds = useMemo(() => {
     const map = new Set<string>();
     if (!hoveredId) return map;
@@ -171,15 +223,72 @@ export function ForceGraph({
     return map;
   }, [hoveredId, neighbourIds]);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || !hoverRef.current) return;
+      event.preventDefault();
+      setSpaceHeld(true);
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.code === "Space") setSpaceHeld(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+
+  const handleCanvasPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const onNode = (event.target as Element | null)?.closest?.("[data-force-node]");
+    const withSpace = spaceHeld;
+    if (onNode && !withSpace) return;
+    if (!withSpace && event.button !== 1) return;
+    event.preventDefault();
+    panRef.current = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      box: viewBox,
+    };
+    (event.currentTarget as SVGSVGElement).setPointerCapture?.(event.pointerId);
+  };
+
+  const handleCanvasPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const pan = panRef.current;
+    if (!pan) return;
+    const svg = svgRef.current;
+    const rect = svg?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return;
+    const scaleX = pan.box.width / rect.width;
+    const scaleY = pan.box.height / rect.height;
+    setViewBox(
+      clampViewBox({
+        ...pan.box,
+        x: pan.box.x - (event.clientX - pan.clientX) * scaleX,
+        y: pan.box.y - (event.clientY - pan.clientY) * scaleY,
+      }),
+    );
+  };
+
+  const endCanvasPan = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (!panRef.current) return;
+    panRef.current = null;
+    (event.currentTarget as SVGSVGElement).releasePointerCapture?.(event.pointerId);
+  };
+
   const handleWheel = (event: WheelEvent<SVGSVGElement>) => {
     event.preventDefault();
     const factor = event.deltaY > 0 ? 1.12 : 0.89;
-    setViewBox((current) => ({
-      x: current.x,
-      y: current.y,
-      width: current.width * factor,
-      height: current.height * factor,
-    }));
+    setViewBox((current) =>
+      clampViewBox({
+        // 以视图中心缩放，避免越缩越偏。
+        x: current.x + (current.width * (1 - factor)) / 2,
+        y: current.y + (current.height * (1 - factor)) / 2,
+        width: current.width * factor,
+        height: current.height * factor,
+      }),
+    );
   };
 
   /** 把指针位置换算成 SVG 用户坐标；无 SVG 几何实现的环境返回 null。 */
@@ -243,13 +352,31 @@ export function ForceGraph({
   return (
     <div className={cn("relative overflow-hidden rounded-panel border border-border/60 bg-background", className)}
       style={{ backgroundImage: "radial-gradient(ellipse at 50% 45%, hsl(var(--primary) / 0.07), transparent 60%), radial-gradient(hsl(var(--primary) / 0.10) 0.8px, transparent 0.8px)", backgroundSize: "100% 100%, 22px 22px" }}>
+      <button
+        type="button"
+        onClick={() => setViewBox(BASE_VIEW)}
+        title={t("knowledge.experience.graphResetView", { defaultValue: "复位视图" })}
+        aria-label={t("knowledge.experience.graphResetView", { defaultValue: "复位视图" })}
+        className="absolute right-2 top-2 z-10 rounded-control border border-border/70 bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {t("knowledge.experience.graphResetView", { defaultValue: "复位" })}
+      </button>
       <svg
         ref={svgRef}
         role="group"
         aria-label={ariaLabel ?? t("knowledge.graph.subgraph", { defaultValue: "关系图谱" })}
         viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
-        className={cn("w-full touch-none select-none", heightClassName)}
+        className={cn(
+          "w-full touch-none select-none",
+          spaceHeld ? "cursor-grab active:cursor-grabbing" : undefined,
+          heightClassName,
+        )}
         onWheel={handleWheel}
+        onPointerEnter={() => { hoverRef.current = true; }}
+        onPointerLeave={(event) => { hoverRef.current = false; endCanvasPan(event); }}
+        onPointerDown={handleCanvasPointerDown}
+        onPointerMove={handleCanvasPointerMove}
+        onPointerUp={endCanvasPan}
       >
         <defs>
           <marker id={markerId} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto" markerUnits="userSpaceOnUse">
@@ -297,6 +424,18 @@ export function ForceGraph({
                 strokeWidth={highlighted || hovered ? 2.5 : 1.7} strokeLinecap="round"
                 strokeOpacity={highlighted || hovered ? 0.85 : 0.45}
                 strokeDasharray="3 45" pointerEvents="none" aria-hidden="true" />
+            ) : null}
+            {/* 选中节点时，把它自己的关系名直接画在连线上，省去对照下方列表。 */}
+            {(highlighted || hovered) && link.label && !dimmed ? (
+              <text
+                x={(sx + tx) / 2}
+                y={(sy + ty) / 2 - 4}
+                textAnchor="middle"
+                className="pointer-events-none select-none fill-foreground text-[9px]"
+                style={{ paintOrder: "stroke", stroke: "hsl(var(--background))", strokeWidth: 3 }}
+              >
+                {link.label.length > 10 ? `${link.label.slice(0, 10)}…` : link.label}
+              </text>
             ) : null}
             </g>
           );
