@@ -30,7 +30,7 @@ interface ThreadMessagesProps {
   onOpenFilePreview?: (path: string) => void;
   onForkFromMessage?: (beforeUserIndex: number) => void;
   onQuoteSelection?: (text: string) => void;
-  onOpenKnowledgeSource?: (hit: KnowledgeSourceHit) => void;
+  onOpenKnowledgeSource?: (hit: KnowledgeSourceHit, related: KnowledgeSourceHit[]) => void;
 }
 
 export type DisplayUnit = TurnUnit;
@@ -283,7 +283,7 @@ interface ThreadDisplayUnitProps {
   onOpenFilePreview?: (path: string) => void;
   onForkFromMessage?: (beforeUserIndex: number) => void;
   knowledgeSources?: KnowledgeSourceHit[];
-  onOpenKnowledgeSource?: (hit: KnowledgeSourceHit) => void;
+  onOpenKnowledgeSource?: (hit: KnowledgeSourceHit, related: KnowledgeSourceHit[]) => void;
 }
 
 const ThreadDisplayUnit = memo(function ThreadDisplayUnit({

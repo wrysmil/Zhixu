@@ -1761,11 +1761,14 @@ describe("ThreadMessages", () => {
     expect(screen.getAllByTestId("knowledge-sources")).toHaveLength(1);
     expect(screen.getByTestId("knowledge-sources")).toHaveTextContent("门诊高血压随访管理规范");
     fireEvent.click(screen.getByTestId("knowledge-source-item"));
-    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({
-      chunkId: "chk_a",
-      docId: "doc_1",
-      title: "门诊高血压随访管理规范",
-    }));
+    expect(onOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chunkId: "chk_a",
+        docId: "doc_1",
+        title: "门诊高血压随访管理规范",
+      }),
+      expect.arrayContaining([expect.objectContaining({ chunkId: "chk_a" })]),
+    );
   });
 
   it("keeps compaction notices out of assistant fork selection", () => {    const units = buildDisplayUnits([

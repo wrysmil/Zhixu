@@ -60,6 +60,24 @@ export function parseKnowledgeSearchSources(result: unknown): KnowledgeSourceHit
   return hits;
 }
 
+/** 标题路径形如 `<文档名> > <章节>`；组内/面板内去掉文档名前缀，只留章节定位。 */
+export function stripKnowledgeHeadingPrefix(heading: string, title: string): string {
+  if (!heading) return "";
+  const separator = heading.indexOf(" > ");
+  if (separator >= 0) return heading.slice(separator + 3).trim();
+  if (title && heading.startsWith(title)) {
+    return heading.slice(title.length).replace(/^[\s>·:：-]+/, "").trim();
+  }
+  return heading;
+}
+
+export function knowledgeHitMeta(hit: KnowledgeSourceHit): string {
+  return [
+    stripKnowledgeHeadingPrefix(hit.heading, hit.title),
+    hit.page ? `p.${hit.page}` : "",
+  ].filter(Boolean).join(" · ");
+}
+
 /**
  * 按回合汇总来源：检索发生在 trace 行上，最终答案在另一条消息里，
  * 用 `turnId` 把两者接起来。同一回合内按 chunk 去重并保持首次出现顺序。

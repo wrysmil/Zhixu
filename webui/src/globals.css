@@ -303,6 +303,18 @@ html .team-progress-track > span {
   ::selection {
     background-color: hsl(var(--ring) / 0.22);
   }
+
+  /* 知识库原文里命中块的定位高亮：只作用于来源预览容器 */
+  .knowledge-source-highlight mark {
+    background-color: hsl(var(--primary) / 0.14);
+    color: inherit;
+    border-radius: 3px;
+    padding: 0.5px 2px;
+    margin: 0 -1px;
+    scroll-margin-block: 24px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
 }
 
 @layer utilities {

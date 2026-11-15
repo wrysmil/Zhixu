@@ -65,7 +65,7 @@ interface ThreadViewportProps {
   onOpenFilePreview?: (path: string) => void;
   onForkFromMessage?: (beforeUserIndex: number) => void;
   onQuoteSelection?: (text: string) => void;
-  onOpenKnowledgeSource?: (hit: KnowledgeSourceHit) => void;
+  onOpenKnowledgeSource?: (hit: KnowledgeSourceHit, related: KnowledgeSourceHit[]) => void;
 }
 
 const NEAR_BOTTOM_PX = 48;

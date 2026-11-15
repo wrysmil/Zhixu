@@ -823,7 +823,8 @@ export function ThreadShell({
   }, [historyKey]);
   const activeRightSurface = rightSurfaces[rightSurfaces.length - 1] ?? WORKBENCH_SURFACE;
   const filePreviewPath = activeRightSurface.kind === "file" ? activeRightSurface.path : null;
-  const knowledgeSource = activeRightSurface.kind === "knowledge" ? activeRightSurface.source : null;
+  const knowledgeSurface = activeRightSurface.kind === "knowledge" ? activeRightSurface : null;
+  const knowledgeSource = knowledgeSurface?.source ?? null;
   const narrowViewport = useMediaQuery("(max-width: 767px)");
   const [mobileWorkbenchOpen, setMobileWorkbenchOpen] = useState(false);
   // 桌面工作台默认常驻，但允许用户收起；悬停按钮恢复。移动端用 Dialog 状态。
@@ -1637,9 +1638,12 @@ export function ThreadShell({
     setRightSurfaces((stack) => pushRightSurface(stack, { kind: "file", path }));
   }, []);
 
-  const handleOpenKnowledgeSource = useCallback((source: KnowledgeSourceHit) => {
-    setRightSurfaces((stack) => pushRightSurface(stack, { kind: "knowledge", source }));
-  }, []);
+  const handleOpenKnowledgeSource = useCallback(
+    (source: KnowledgeSourceHit, hits: KnowledgeSourceHit[]) => {
+      setRightSurfaces((stack) => pushRightSurface(stack, { kind: "knowledge", source, hits }));
+    },
+    [],
+  );
 
   const handleCloseKnowledgeSource = useCallback(() => {
     setRightSurfaces((stack) => (
@@ -2187,7 +2191,7 @@ export function ThreadShell({
           </Suspense>
         </ResizableRail> : null
       ) : null}
-      {session && threadView === "chat" && knowledgeSource ? (
+      {session && threadView === "chat" && knowledgeSurface ? (
         compactWorkbench ? (
           <Dialog
             open
@@ -2203,7 +2207,8 @@ export function ThreadShell({
                 {t("message.knowledgeSources.title", { defaultValue: "来源文档" })}
               </DialogTitle>
               <KnowledgeSourcePanel
-                source={knowledgeSource}
+                source={knowledgeSurface.source}
+                hits={knowledgeSurface.hits}
                 token={token}
                 onClose={handleCloseKnowledgeSource}
               />
@@ -2214,7 +2219,8 @@ export function ThreadShell({
             label={t("message.knowledgeSources.resize", { defaultValue: "调整来源文档宽度" })}
           >
             <KnowledgeSourcePanel
-              source={knowledgeSource}
+              source={knowledgeSurface.source}
+              hits={knowledgeSurface.hits}
               token={token}
               onClose={handleCloseKnowledgeSource}
             />

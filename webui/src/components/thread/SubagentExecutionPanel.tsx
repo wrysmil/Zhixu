@@ -36,7 +36,7 @@ export type RightSurface =
   | { kind: "tools" }
   | { kind: "file"; path: string }
   | { kind: "execution"; invocationId: string }
-  | { kind: "knowledge"; source: KnowledgeSourceHit };
+  | { kind: "knowledge"; source: KnowledgeSourceHit; hits: KnowledgeSourceHit[] };
 
 export const WORKBENCH_SURFACE: RightSurface = { kind: "workbench" };
 
@@ -48,7 +48,8 @@ function sameRightSurface(left: RightSurface, right: RightSurface): boolean {
   }
   if (left.kind === "knowledge" && right.kind === "knowledge") {
     return left.source.docId === right.source.docId
-      && left.source.chunkId === right.source.chunkId;
+      && left.source.chunkId === right.source.chunkId
+      && left.hits.length === right.hits.length;
   }
   return true;
 }
