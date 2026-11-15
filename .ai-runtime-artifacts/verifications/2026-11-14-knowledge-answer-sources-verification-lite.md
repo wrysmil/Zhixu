@@ -43,3 +43,17 @@ tier: 1
 - 改动：`ActivityStep` 新增 `labelSingleLine`（折叠态 `truncate`）；`ReasoningRow` 折叠标签截到 200 字并启用单行。
 - 验证（Playwright + `websocket:a7f66732…` 会话）：折叠态 label `height=24px`、`white-space: nowrap`、`text-overflow: ellipsis`、`scrollWidth 1340 > clientWidth 594`（省略号生效）；点「查看详情」后 detail 出现（高 104px）。
 - 测试：`message-bubble.test.tsx` 增加 `toHaveClass("truncate")` 断言；全量 2156 通过。
+
+## 补充：原文里高亮命中块
+
+- 改动：新增 `lib/knowledge-highlight.ts`（精确 → 忽略空白/NFKC → 前缀兜底的定位，Markdown 逐段注入 `<mark>`，PDF 按页/块级命中）；`KnowledgeSourcePreview` 接收 `highlight` 并自动滚到首个命中；面板并行拉取完整块内容。
+- 关键坑：切块内容已被 NFKC 归一（全角 `：，；` 变半角），原文是原始全角；只折叠空白会定位失败，必须同时做 NFKC。
+- 验证（Playwright + 真实文档 `doc_8a240a37cfec`）：panel 内 `<mark>` 3 处（标题 + 2 段），首个命中在视口内（`markInPanel=true`），自动滚动生效，console 0 error。
+- 测试：`knowledge-highlight.test.ts` 9 例（精确/空白/前缀/全角半角/docx 块/代码块与表格拒注入）；全量 2165 通过。
+
+## 补充：样式收口
+
+- 来源条改成**文档级总览**：一条文档一行（同一文档只出现一次，右侧显示命中数），默认 3 个文档、超出折叠；片段切换搬到右侧面板。
+- 面板：文档信息头 → 命中片段导航（`‹ 二、初诊评估与危险分层 2/6 ›`，仅多命中时出现）→ 本次引用（固定、Markdown、内部滚动）→ 原文（独立滚动、自动定位并高亮）。
+- 高亮底色降到 `primary/14%`，圆角 3px、横向 2px 留白、`scroll-margin` 24px；原文头不再重复文件名。
+- 验证（Playwright）：折叠 3 个文档 / 展开 4 个；面板导航首屏 `1/6`，点下一片段变 `2/6` 且本次引用同步切换；面板内 `<mark>` 3 处可见；X/Esc 回工作台；console 0 error；全量 2165 通过。
