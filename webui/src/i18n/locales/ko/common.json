@@ -3504,7 +3504,9 @@
     "feedback": {
       "helpful": "도움됨",
       "unhelpful": "도움 안 됨",
-      "failed": "피드백 실패"
+      "failed": "피드백 실패",
+      "annotation": "주석 대기열에 추가",
+      "annotationFailed": "주석 대기열에 추가하지 못했습니다"
     },
     "turnLatencyTitle": "응답 시간(엔드투엔드)",
     "fileEditViewDiff": "변경 사항 보기",

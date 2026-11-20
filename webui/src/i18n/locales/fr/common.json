@@ -3504,7 +3504,9 @@
     "feedback": {
       "helpful": "Utile",
       "unhelpful": "Pas utile",
-      "failed": "Échec du retour"
+      "failed": "Échec du retour",
+      "annotation": "Ajouter à la file d'annotation",
+      "annotationFailed": "Impossible d'ajouter à la file d'annotation"
     },
     "turnLatencyTitle": "Temps de réponse (de bout en bout)",
     "fileEditViewDiff": "Voir les différences",

@@ -11,6 +11,7 @@ import {
   Check,
   ChevronRight,
   CircleAlert,
+  ClipboardCheck,
   Clock3,
   Copy,
   ImageIcon,
@@ -349,6 +350,8 @@ export function MessageBubble({
   );
   const [feedbackError, setFeedbackError] = useState(false);
   const [feedbackPending, setFeedbackPending] = useState(false);
+  const [annotationPending, setAnnotationPending] = useState(false);
+  const [annotationError, setAnnotationError] = useState(false);
   useEffect(() => {
     setFeedbackState(message.feedback ?? null);
   }, [message.feedback]);
@@ -520,6 +523,24 @@ export function MessageBubble({
       setFeedbackPending(false);
     }
   }, [clientContext, feedbackPending, feedbackTraceId]);
+  const submitAnnotation = useCallback(async () => {
+    if (!feedbackTraceId || !clientContext || annotationPending) return;
+    setAnnotationPending(true);
+    setAnnotationError(false);
+    try {
+      const result = await clientContext.client.requestMutation<{ ok?: boolean }>(
+        "annotation.add",
+        { trace_id: feedbackTraceId },
+      );
+      if (result?.ok === false) {
+        setAnnotationError(true);
+      }
+    } catch {
+      setAnnotationError(true);
+    } finally {
+      setAnnotationPending(false);
+    }
+  }, [annotationPending, clientContext, feedbackTraceId]);
   const forkLabel = t("message.forkFromHere");
   const completedAt = message.completedAt;
   const completedAtLabel =
@@ -656,6 +677,31 @@ export function MessageBubble({
                 {feedbackError ? (
                   <span className="text-[12px] text-destructive">
                     {t("message.feedback.failed")}
+                  </span>
+                ) : null}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => void submitAnnotation()}
+                      aria-label={t("message.feedback.annotation")}
+                      disabled={annotationPending}
+                      className={cn(
+                        "touch-target inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                        "transition-colors hover:bg-muted/55 hover:text-foreground",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      )}
+                    >
+                      <ClipboardCheck className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="center">
+                    {t("message.feedback.annotation")}
+                  </TooltipContent>
+                </Tooltip>
+                {annotationError ? (
+                  <span className="text-[12px] text-destructive">
+                    {t("message.feedback.annotationFailed")}
                   </span>
                 ) : null}
               </>

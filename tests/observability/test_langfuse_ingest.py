@@ -9,6 +9,14 @@ class FakeResponse:
     def raise_for_status(self) -> None:
         return None
 
+    def json(self) -> dict[str, object]:
+        return {
+            "data": [
+                {"id": "queue-1", "name": "zhixu-review"},
+                {"id": "queue-2", "name": "other"},
+            ]
+        }
+
 
 class FakeClient:
     calls: list[dict[str, object]] = []
@@ -24,6 +32,10 @@ class FakeClient:
 
     async def post(self, url: str, json: dict[str, object], auth: tuple[str, str]) -> FakeResponse:
         type(self).calls.append({"url": url, "json": json, "auth": auth})
+        return FakeResponse()
+
+    async def get(self, url: str, params: dict[str, object], auth: tuple[str, str]) -> FakeResponse:
+        type(self).calls.append({"url": url, "params": params, "auth": auth})
         return FakeResponse()
 
 
@@ -51,6 +63,37 @@ async def test_create_feedback_score(monkeypatch) -> None:
             "auth": ("pk", "sk"),
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_add_trace_to_queue(monkeypatch) -> None:
+    FakeClient.calls = []
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    monkeypatch.setenv("LANGFUSE_BASE_URL", "http://lf")
+    monkeypatch.setattr(ingest.httpx, "AsyncClient", FakeClient)
+
+    ok = await ingest.add_trace_to_queue(queue_id="queue-1", trace_id="e" * 32)
+
+    assert ok is True
+    assert FakeClient.calls[0]["url"] == "http://lf/api/public/annotation-queues/queue-1/items"
+    assert FakeClient.calls[0]["json"] == {
+        "objectId": "e" * 32,
+        "objectType": "TRACE",
+        "status": "PENDING",
+    }
+
+
+@pytest.mark.asyncio
+async def test_resolve_queue_id(monkeypatch) -> None:
+    FakeClient.calls = []
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    monkeypatch.setenv("LANGFUSE_BASE_URL", "http://lf")
+    monkeypatch.setattr(ingest.httpx, "AsyncClient", FakeClient)
+
+    assert await ingest.resolve_queue_id("zhixu-review") == "queue-1"
+    assert await ingest.resolve_queue_id("missing") is None
 
 
 @pytest.mark.asyncio

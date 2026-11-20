@@ -100,6 +100,27 @@ LANGFUSE_PUBLIC_KEY=... LANGFUSE_SECRET_KEY=... LANGFUSE_BASE_URL=http://127.0.0
 - 前端：`MessageBubble` 以 `message.feedback` 初始化按钮状态。
 - 验证：整页重载并重新进入会话后，👍 `aria-pressed=true` 且显示 “Feedback saved”；transcript 含 feedback 事件，Python 投影结果为 `feedback: up`。
 
+## 2026-11-20 追加：人工标注与 LLM 评审
+
+### 评分配置与队列（scripts/langfuse_bootstrap.py）
+
+| 对象 | 结果 |
+| --- | --- |
+| 评分配置 | `user_feedback`（BOOLEAN）、`judge_quality`（0–1）、`human_quality`（1–5）、`human_failure_type`（categorical） |
+| 标注队列 | `zhixu-review`，绑定 `human_quality` + `human_failure_type` |
+
+### 人工标注
+
+- 知序消息动作“加入人工标注” → `annotation.add` mutation → `POST /api/public/annotation-queues/{id}/items`；`363214b4...` 已入队（`PENDING`）。
+- 人工评分：`human_quality=5` 写入成功且 `source=ANNOTATION`（带 `queueId` + `configId`）；公共 API 的 `source` 只接受 `API` / `ANNOTATION`，`EVAL` 会被 400 拒绝。
+
+### LLM-as-a-Judge
+
+- Langfuse LLM 连接：`commandcode`（OpenAI adapter，Base URL `https://api.commandcode.ai/provider/v1`，自定义模型 `deepseek/deepseek-v4.1-flash`）。
+- Evaluator：`Helpfulness` 模板 → score name `judge_quality`，目标 Observations（Type=GENERATION），变量映射 `query←Input`、`generation←Output`，采样 100%，实时生效。
+- 实测：新对话产生 `judge_quality=0.95`（`source=EVAL`，含中文理由）；标题生成（空输出）也产生 0 分，建议后续在筛选里加 `Trace Name = zhixu.turn` 排除后台调用。
+- 注意：`scripts/langfuse_judge.py` 的“脚本直写 EVAL”方案因公共 API 限制已废弃；EVAL 只能由原生 evaluator 产生。
+
 ## 已知边界
 
 - 只覆盖 OpenAI 兼容客户端路径；原生 SDK provider（如 Anthropic/Responses-only 分支）不产生该包装 trace。

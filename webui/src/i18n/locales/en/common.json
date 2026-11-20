@@ -3584,7 +3584,9 @@
     "feedback": {
       "helpful": "Helpful",
       "unhelpful": "Not helpful",
-      "failed": "Feedback failed"
+      "failed": "Feedback failed",
+      "annotation": "Add to review queue",
+      "annotationFailed": "Could not add to review queue"
     },
     "turnLatencyTitle": "Response time (end-to-end)",
     "fileEditViewDiff": "View diff",

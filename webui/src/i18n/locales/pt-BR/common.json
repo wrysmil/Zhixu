@@ -3528,7 +3528,9 @@
     "feedback": {
       "helpful": "Útil",
       "unhelpful": "Não útil",
-      "failed": "Falha ao registrar feedback"
+      "failed": "Falha ao registrar feedback",
+      "annotation": "Adicionar à fila de anotação",
+      "annotationFailed": "Não foi possível adicionar à fila de anotação"
     },
     "turnLatencyTitle": "Tempo de resposta (ponta a ponta)",
     "fileEditViewDiff": "Ver diferenças",

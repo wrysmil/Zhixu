@@ -3504,7 +3504,9 @@
     "feedback": {
       "helpful": "Útil",
       "unhelpful": "Poco útil",
-      "failed": "Error al guardar el comentario"
+      "failed": "Error al guardar el comentario",
+      "annotation": "Añadir a la cola de anotación",
+      "annotationFailed": "No se pudo añadir a la cola de anotación"
     },
     "turnLatencyTitle": "Tiempo de respuesta (extremo a extremo)",
     "fileEditViewDiff": "Ver diferencias",

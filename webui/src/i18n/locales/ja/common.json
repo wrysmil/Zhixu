@@ -3504,7 +3504,9 @@
     "feedback": {
       "helpful": "役に立った",
       "unhelpful": "役に立たなかった",
-      "failed": "フィードバックに失敗しました"
+      "failed": "フィードバックに失敗しました",
+      "annotation": "アノテーションに追加",
+      "annotationFailed": "アノテーションに追加できませんでした"
     },
     "turnLatencyTitle": "応答時間（全行程）",
     "fileEditViewDiff": "差分を表示",

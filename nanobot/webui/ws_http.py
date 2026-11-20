@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import mimetypes
+import os
 import re
 import time
 from collections.abc import Awaitable, Callable, Mapping
@@ -169,6 +170,7 @@ _WEBUI_MUTATION_PATHS = {
     "skill.delete": "/api/webui/skills/delete",
     "sidebar.update": "/api/webui/sidebar-state/update",
     "feedback.submit": "/api/webui/feedback",
+    "annotation.add": "/api/webui/annotation",
     "workspace.pick_folder": "/api/workspaces/pick-folder",
     "recovery.continue": "/api/webui/recovery/continue",
     "recovery.dismiss": "/api/webui/recovery/dismiss",
@@ -563,6 +565,7 @@ class GatewayHTTPHandler:
             "/api/webui/skills/delete",
             "/api/webui/sidebar-state/update",
             "/api/webui/feedback",
+            "/api/webui/annotation",
             "/api/workspaces/pick-folder",
         }
 
@@ -1578,6 +1581,8 @@ class GatewayHTTPHandler:
             return self._handle_webui_sidebar_state_update(request)
         if got == "/api/webui/feedback":
             return await self._handle_webui_feedback(request)
+        if got == "/api/webui/annotation":
+            return await self._handle_webui_annotation(request)
         return None
 
     def _handle_commands(self, request: WsRequest) -> Response:
@@ -1868,6 +1873,23 @@ class GatewayHTTPHandler:
                 if isinstance(turn_id, str) and turn_id:
                     record["turn_id"] = turn_id
                 append_transcript_object(session_key, record)
+        return _http_json_response({"ok": ok})
+
+    async def _handle_webui_annotation(self, request: WsRequest) -> Response:
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        payload = _mutation_payload(request) or {}
+        trace_id = payload.get("trace_id")
+        if not isinstance(trace_id, str) or len(trace_id) != 32:
+            return _http_error(400, "invalid trace_id")
+        from nanobot.observability.langfuse_ingest import add_trace_to_queue, resolve_queue_id
+
+        queue_id = await resolve_queue_id(
+            os.environ.get("LANGFUSE_ANNOTATION_QUEUE", "zhixu-review")
+        )
+        if queue_id is None:
+            return _http_error(503, "annotation queue unavailable")
+        ok = await add_trace_to_queue(queue_id=queue_id, trace_id=trace_id)
         return _http_json_response({"ok": ok})
 
     # -- Static file serving ------------------------------------------------

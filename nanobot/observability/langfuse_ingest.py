@@ -48,3 +48,30 @@ async def create_feedback_score(
     if comment:
         payload["comment"] = comment[:500]
     return await _post("/api/public/scores", payload)
+
+
+async def add_trace_to_queue(*, queue_id: str, trace_id: str) -> bool:
+    return await _post(
+        f"/api/public/annotation-queues/{queue_id}/items",
+        {"objectId": trace_id, "objectType": "TRACE", "status": "PENDING"},
+    )
+
+
+async def resolve_queue_id(name: str) -> str | None:
+    base = _base_url()
+    if base is None:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                f"{base}/api/public/annotation-queues",
+                params={"limit": 100},
+                auth=_auth(),
+            )
+            response.raise_for_status()
+            for item in response.json().get("data", []):
+                if item.get("name") == name:
+                    return item.get("id")
+    except Exception:
+        logger.exception("Langfuse annotation queue lookup failed")
+    return None

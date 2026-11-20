@@ -75,6 +75,22 @@ describe("MessageBubble feedback", () => {
     expect(await screen.findByText("反馈失败")).toBeTruthy();
   });
 
+  it("adds the trace to the annotation queue", async () => {
+    render(
+      <MessageBubble
+        message={assistantMessage({ traceId: "f".repeat(32) })}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("加入人工标注"));
+
+    await waitFor(() =>
+      expect(requestMutation).toHaveBeenCalledWith("annotation.add", {
+        trace_id: "f".repeat(32),
+      }),
+    );
+  });
+
   it("hides feedback buttons without a trace id", () => {
     render(<MessageBubble message={assistantMessage()} />);
 

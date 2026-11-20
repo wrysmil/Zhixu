@@ -3504,7 +3504,9 @@
     "feedback": {
       "helpful": "Membantu",
       "unhelpful": "Tidak membantu",
-      "failed": "Gagal menyimpan umpan balik"
+      "failed": "Gagal menyimpan umpan balik",
+      "annotation": "Tambahkan ke antrean anotasi",
+      "annotationFailed": "Tidak dapat menambahkan ke antrean anotasi"
     },
     "turnLatencyTitle": "Waktu respons (ujung ke ujung)",
     "fileEditViewDiff": "Lihat perbedaan",

@@ -3584,7 +3584,9 @@
     "feedback": {
       "helpful": "有帮助",
       "unhelpful": "没帮助",
-      "failed": "反馈失败"
+      "failed": "反馈失败",
+      "annotation": "加入人工标注",
+      "annotationFailed": "加入标注队列失败"
     },
     "turnLatencyTitle": "本轮耗时（端到端）",
     "fileEditViewDiff": "查看差异",
