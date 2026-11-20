@@ -3501,6 +3501,11 @@
     "forkFromHere": "분기",
     "copyReply": "복사",
     "copiedReply": "복사됨",
+    "feedback": {
+      "helpful": "도움됨",
+      "unhelpful": "도움 안 됨",
+      "failed": "피드백 실패"
+    },
     "turnLatencyTitle": "응답 시간(엔드투엔드)",
     "fileEditViewDiff": "변경 사항 보기",
     "fileEditViewLargeDiff": "큰 변경 사항 보기",

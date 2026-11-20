@@ -3501,6 +3501,11 @@
     "forkFromHere": "Bifurquer",
     "copyReply": "Copier",
     "copiedReply": "Copié",
+    "feedback": {
+      "helpful": "Utile",
+      "unhelpful": "Pas utile",
+      "failed": "Échec du retour"
+    },
     "turnLatencyTitle": "Temps de réponse (de bout en bout)",
     "fileEditViewDiff": "Voir les différences",
     "fileEditViewLargeDiff": "Voir les grandes différences",

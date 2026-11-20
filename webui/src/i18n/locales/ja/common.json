@@ -3501,6 +3501,11 @@
     "forkFromHere": "分岐",
     "copyReply": "コピー",
     "copiedReply": "コピー済み",
+    "feedback": {
+      "helpful": "役に立った",
+      "unhelpful": "役に立たなかった",
+      "failed": "フィードバックに失敗しました"
+    },
     "turnLatencyTitle": "応答時間（全行程）",
     "fileEditViewDiff": "差分を表示",
     "fileEditViewLargeDiff": "大きな差分を表示",

@@ -1264,6 +1264,13 @@ class WebSocketChannel(BaseChannel):
         turn_id = msg.metadata.get(WEBUI_TURN_METADATA_KEY)
         if isinstance(turn_id, str) and turn_id:
             payload["turn_id"] = turn_id
+        trace_id = msg.metadata.get("trace_id")
+        if not isinstance(trace_id, str) or not trace_id:
+            from nanobot.observability.langfuse_tracing import lookup_turn_trace
+
+            trace_id = lookup_turn_trace(turn_id if isinstance(turn_id, str) else None)
+        if isinstance(trace_id, str) and trace_id:
+            payload["trace_id"] = trace_id
         if msg.media:
             payload["media"] = msg.media
             urls: list[dict[str, str]] = []
@@ -1416,6 +1423,14 @@ class WebSocketChannel(BaseChannel):
         completed_text: str | None = None
         if stream_end:
             body: dict[str, Any] = {"event": "stream_end", "chat_id": chat_id}
+            trace_id = meta.get("trace_id")
+            if not isinstance(trace_id, str) or not trace_id:
+                from nanobot.observability.langfuse_tracing import lookup_turn_trace
+
+                turn_id = meta.get(WEBUI_TURN_METADATA_KEY)
+                trace_id = lookup_turn_trace(turn_id if isinstance(turn_id, str) else None)
+            if isinstance(trace_id, str) and trace_id:
+                body["trace_id"] = trace_id
             buffered = (
                 self._stream_text_buffers.setdefault(stream_key, [])
                 if merge_next

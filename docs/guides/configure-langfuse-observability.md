@@ -30,6 +30,29 @@ Install Langfuse:
 nanobot plugins enable langfuse
 ```
 
+### Self-hosted Langfuse in Docker
+
+This repository ships a local Langfuse v3 stack matching the Python SDK pin:
+
+```bash
+cd docker/langfuse
+docker compose up -d
+```
+
+First boot creates the organization, project, API keys, and admin user from the
+`LANGFUSE_INIT_*` values in `docker/langfuse/.env` (gitignored). Then point Zhixu
+at the local instance:
+
+```powershell
+[Environment]::SetEnvironmentVariable('LANGFUSE_PUBLIC_KEY', '<pk-lf-...>', 'User')
+[Environment]::SetEnvironmentVariable('LANGFUSE_SECRET_KEY', '<sk-lf-...>', 'User')
+[Environment]::SetEnvironmentVariable('LANGFUSE_BASE_URL', 'http://127.0.0.1:3000', 'User')
+```
+
+Restart the gateway or desktop app afterwards so the process inherits the new
+variables. See [`docker/langfuse/README.md`](../../docker/langfuse/README.md) for
+ports, credentials, data retention, and upgrade notes.
+
 ## Minimal working example
 
 Set credentials before starting Zhixu:

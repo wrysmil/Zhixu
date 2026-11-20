@@ -2133,6 +2133,30 @@ def replay_transcript_to_ui_messages(
 
     for idx, rec in enumerate(lines):
         ev = rec.get("event")
+        if ev == "feedback":
+            helpful = rec.get("helpful")
+            if isinstance(helpful, bool):
+                value = "up" if helpful else "down"
+                turn_id = rec.get("turn_id")
+                trace_id = rec.get("trace_id")
+                for i in range(len(messages) - 1, -1, -1):
+                    message = messages[i]
+                    if message.get("role") != "assistant":
+                        continue
+                    matches_turn = (
+                        isinstance(turn_id, str)
+                        and bool(turn_id)
+                        and message.get("turnId") == turn_id
+                    )
+                    matches_trace = (
+                        isinstance(trace_id, str)
+                        and bool(trace_id)
+                        and message.get("traceId") == trace_id
+                    )
+                    if matches_turn or matches_trace:
+                        messages[i] = {**message, "feedback": value}
+                        break
+            continue
         if ev == "user":
             if buffer_message_id is not None:
                 for message_index, message in enumerate(messages):
@@ -2251,6 +2275,10 @@ def replay_transcript_to_ui_messages(
             final_text = rec.get("text")
             turn_fields = _turn_fields(rec, "answer")
             source_fields = _source_fields(rec)
+            trace_id = rec.get("trace_id")
+            trace_fields = (
+                {"traceId": trace_id} if isinstance(trace_id, str) and trace_id else {}
+            )
             if isinstance(final_text, str):
                 if buffer_message_id is None:
                     buffer_message_id = find_active_placeholder(messages, turn_fields)
@@ -2262,6 +2290,7 @@ def replay_transcript_to_ui_messages(
                         "content": "",
                         "isStreaming": True,
                         "createdAt": _created_at_ms(rec, idx),
+                        **trace_fields,
                     })
                 for i, m in enumerate(messages):
                     if m.get("id") == buffer_message_id:
@@ -2271,6 +2300,7 @@ def replay_transcript_to_ui_messages(
                             "isStreaming": True,
                             **turn_fields,
                             **source_fields,
+                            **trace_fields,
                         }
                         break
                 if merge_next:
@@ -2465,6 +2495,9 @@ def replay_transcript_to_ui_messages(
             lat = rec.get("latency_ms")
             if isinstance(lat, (int, float)) and lat >= 0:
                 extra["latencyMs"] = int(lat)
+            trace_id = rec.get("trace_id")
+            if isinstance(trace_id, str) and trace_id:
+                extra["traceId"] = trace_id
             extra.update(_turn_fields(rec, "answer"))
             extra.update(_source_fields(rec))
             absorb_complete(extra, idx, _created_at_ms(rec, idx))

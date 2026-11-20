@@ -3501,6 +3501,11 @@
     "forkFromHere": "Tách nhánh",
     "copyReply": "Sao chép",
     "copiedReply": "Đã sao chép",
+    "feedback": {
+      "helpful": "Hữu ích",
+      "unhelpful": "Không hữu ích",
+      "failed": "Gửi phản hồi thất bại"
+    },
     "turnLatencyTitle": "Thời gian phản hồi (end-to-end)",
     "fileEditViewDiff": "Xem khác biệt",
     "fileEditViewLargeDiff": "Xem khác biệt lớn",

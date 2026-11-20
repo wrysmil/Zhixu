@@ -242,6 +242,8 @@ When `LANGFUSE_SECRET_KEY` is set and the `langfuse` package is installed, Zhixu
 
 Use the Langfuse region or self-hosted URL that matches your project. The [Langfuse OpenAI SDK docs](https://langfuse.com/integrations/model-providers/openai-py) use `LANGFUSE_BASE_URL` for cloud regions and self-hosted instances.
 
+To run Langfuse locally instead of using the cloud, start the bundled v3 Docker stack in [`docker/langfuse`](../docker/langfuse/README.md) and point `LANGFUSE_BASE_URL` at `http://127.0.0.1:3000`.
+
 Tracing covers the providers that go through Zhixu's OpenAI-compatible client path. Native providers that do not use that client may not produce Langfuse OpenAI-wrapper traces.
 
 ## Providers

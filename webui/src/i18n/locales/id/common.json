@@ -3501,6 +3501,11 @@
     "forkFromHere": "Buat cabang",
     "copyReply": "Salin",
     "copiedReply": "Disalin",
+    "feedback": {
+      "helpful": "Membantu",
+      "unhelpful": "Tidak membantu",
+      "failed": "Gagal menyimpan umpan balik"
+    },
     "turnLatencyTitle": "Waktu respons (ujung ke ujung)",
     "fileEditViewDiff": "Lihat perbedaan",
     "fileEditViewLargeDiff": "Lihat perbedaan besar",

@@ -79,6 +79,10 @@ export interface UIMessage {
   kind?: MessageKind;
   isStreaming?: boolean;
   createdAt: number;
+  /** Langfuse trace id for this agent turn; enables message-level feedback. */
+  traceId?: string;
+  /** Persisted user feedback for this assistant message. */
+  feedback?: "up" | "down";
   /** For trace rows: each individual hint line, so consecutive hints can
    * render as a single collapsible group. */
   traces?: string[];
@@ -1416,6 +1420,8 @@ export type InboundEvent =
       kind?: "tool_hint" | "progress" | "reasoning";
       /** Server-measured turn wall time when this frame finishes an assistant reply. */
       latency_ms?: number;
+      /** Langfuse trace id for the completed agent turn. */
+      trace_id?: string;
       /** Lightweight provenance for proactive assistant messages. */
       source?: UIMessageSource;
       /** Optional structured payload on progress frames (channel-specific). */
@@ -1440,6 +1446,8 @@ export type InboundEvent =
       chat_id: string;
       stream_id?: string;
       text?: string;
+      /** Langfuse trace id for the completed agent turn. */
+      trace_id?: string;
       /** Lightweight provenance for proactive streamed assistant messages. */
       source?: UIMessageSource;
       /** This answer segment ended, but the active agent turn will continue. */

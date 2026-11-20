@@ -219,6 +219,7 @@ class TurnContext:
 
     outbound: OutboundMessage | None = None
     suppress_response: bool = False
+    langfuse_trace_id: str | None = None
 
     events: EventSink = NO_EVENTS
     streaming: bool = False
@@ -2524,6 +2525,7 @@ class AgentLoop:
         *,
         log_content: bool = True,
         turn_latency_ms: int | None = None,
+        trace_id: str | None = None,
     ) -> OutboundMessage | None:
         """Assemble the final outbound message from turn results."""
         if log_content:
@@ -2538,6 +2540,8 @@ class AgentLoop:
             event = StreamedResponseEvent()
         if turn_latency_ms is not None:
             meta["latency_ms"] = int(turn_latency_ms)
+        if trace_id:
+            meta["trace_id"] = trace_id
 
         return OutboundMessage(
             channel=msg.channel,
@@ -2950,6 +2954,30 @@ class AgentLoop:
 
         trace_recorder = self._start_turn_trace(ctx)
         trace_token = bind_trace_recorder(trace_recorder) if trace_recorder is not None else None
+        from nanobot.observability.langfuse_tracing import (
+            finish_turn_trace,
+            register_turn_trace,
+            start_turn_trace,
+        )
+
+        langfuse_trace = start_turn_trace(
+            session_key=ctx.session_key,
+            channel=ctx.delivery.route.channel,
+            sender_id=(
+                ctx.request_context.sender_id if ctx.request_context is not None else "unknown"
+            ),
+            turn_id=ctx.turn_id,
+            user_input=ctx.original_user_text,
+        )
+        ctx.langfuse_trace_id = langfuse_trace.trace_id
+        register_turn_trace(ctx.turn_id, langfuse_trace.trace_id)
+        from nanobot.webui.metadata import WEBUI_TURN_METADATA_KEY
+
+        webui_turn_id = (
+            ctx.msg.metadata.get(WEBUI_TURN_METADATA_KEY) if ctx.msg is not None else None
+        )
+        if isinstance(webui_turn_id, str):
+            register_turn_trace(webui_turn_id, langfuse_trace.trace_id)
         trace_status = "succeeded"
         trace_stop_reason: str | None = None
         try:
@@ -3005,6 +3033,12 @@ class AgentLoop:
                     logger.exception("trajectory run finish failed")
             if trace_token is not None:
                 reset_trace_recorder(trace_token)
+            finish_turn_trace(
+                langfuse_trace,
+                output=ctx.final_content,
+                status=trace_status,
+                error=ctx.failure_error_kind,
+            )
         if ctx.kind is TurnKind.USER:
             await turn_continuation.maybe_continue_turn(ctx)
 
@@ -3136,6 +3170,7 @@ class AgentLoop:
             ctx.streamed_content,
             log_content=ctx.require_session().policy.log_content,
             turn_latency_ms=ctx.turn_latency_ms,
+            trace_id=ctx.langfuse_trace_id,
         )
         if ctx.ephemeral and ctx.outbound is not None:
             ctx.outbound.metadata["_stop_reason"] = ctx.stop_reason

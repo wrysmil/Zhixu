@@ -556,6 +556,7 @@ export function useZhixuStream(
     finalAnswerText?: string;
     turn?: UIMessageTurnFields;
     source?: UIMessage["source"];
+    traceId?: string;
   }) => {
     if (streamFrameRef.current !== null) {
       window.cancelAnimationFrame(streamFrameRef.current);
@@ -569,6 +570,7 @@ export function useZhixuStream(
     const finalAnswerText = options?.finalAnswerText;
     const turn = options?.turn ?? {};
     const source = options?.source;
+    const traceId = options?.traceId;
     if (events.length === 0 && finalAnswerText === undefined && source === undefined) {
       if (options?.closeAnswerSegment) closeActiveAssistantStream();
       return;
@@ -587,6 +589,7 @@ export function useZhixuStream(
             content: finalAnswerText,
             isStreaming: true,
             ...turn,
+            ...(traceId ? { traceId } : {}),
             ...(source ? { source } : {}),
           };
           next = replaceMessageAt(next, targetIndex, merged);
@@ -605,6 +608,7 @@ export function useZhixuStream(
               content: finalAnswerText,
               isStreaming: true,
               ...turn,
+              ...(traceId ? { traceId } : {}),
               ...(source ? { source } : {}),
               createdAt: Date.now(),
             },
@@ -882,6 +886,7 @@ export function useZhixuStream(
           ...(typeof ev.text === "string" ? { finalAnswerText: ev.text } : {}),
           turn,
           source: ev.source,
+          ...(ev.trace_id ? { traceId: ev.trace_id } : {}),
         });
         if (suppressStreamUntilTurnEndRef.current) return;
         if (ev.resuming) {
@@ -1195,6 +1200,7 @@ export function useZhixuStream(
           setMessages((prev) => absorbCompleteAssistantMessage(prev, {
             content: ev.text,
             ...(hasMedia ? { media } : {}),
+            ...(ev.trace_id ? { traceId: ev.trace_id } : {}),
             ...(ev.source ? { source: ev.source } : {}),
             ...turnFieldsFromEvent(ev, "answer"),
           }));
@@ -1222,6 +1228,7 @@ export function useZhixuStream(
             content,
             ...(hasMedia ? { media } : {}),
             ...(lat !== undefined ? { latencyMs: lat } : {}),
+            ...(ev.trace_id ? { traceId: ev.trace_id } : {}),
             ...(ev.source ? { source: ev.source } : {}),
             ...turnFieldsFromEvent(ev, "answer"),
           });

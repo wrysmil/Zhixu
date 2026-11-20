@@ -3525,6 +3525,11 @@
     "forkFromHere": "Fazer fork",
     "copyReply": "Copiar",
     "copiedReply": "Copiado",
+    "feedback": {
+      "helpful": "Útil",
+      "unhelpful": "Não útil",
+      "failed": "Falha ao registrar feedback"
+    },
     "turnLatencyTitle": "Tempo de resposta (ponta a ponta)",
     "fileEditViewDiff": "Ver diferenças",
     "fileEditViewLargeDiff": "Ver diferenças grandes",

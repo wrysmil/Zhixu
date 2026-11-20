@@ -3500,6 +3500,11 @@
     "forkFromHere": "建立分支",
     "copyReply": "複製",
     "copiedReply": "已複製",
+    "feedback": {
+      "helpful": "有幫助",
+      "unhelpful": "沒幫助",
+      "failed": "回饋失敗"
+    },
     "turnLatencyTitle": "本輪耗時（端到端）",
     "fileEditViewDiff": "檢視差異",
     "fileEditViewLargeDiff": "檢視大型差異",

@@ -3581,6 +3581,11 @@
     "forkFromHere": "Fork",
     "copyReply": "Copy",
     "copiedReply": "Copied",
+    "feedback": {
+      "helpful": "Helpful",
+      "unhelpful": "Not helpful",
+      "failed": "Feedback failed"
+    },
     "turnLatencyTitle": "Response time (end-to-end)",
     "fileEditViewDiff": "View diff",
     "fileEditViewLargeDiff": "View large diff",

@@ -168,6 +168,7 @@ _WEBUI_MUTATION_PATHS = {
     "skill.update": "/api/webui/skills/update",
     "skill.delete": "/api/webui/skills/delete",
     "sidebar.update": "/api/webui/sidebar-state/update",
+    "feedback.submit": "/api/webui/feedback",
     "workspace.pick_folder": "/api/workspaces/pick-folder",
     "recovery.continue": "/api/webui/recovery/continue",
     "recovery.dismiss": "/api/webui/recovery/dismiss",
@@ -561,6 +562,7 @@ class GatewayHTTPHandler:
             "/api/webui/skills/update",
             "/api/webui/skills/delete",
             "/api/webui/sidebar-state/update",
+            "/api/webui/feedback",
             "/api/workspaces/pick-folder",
         }
 
@@ -1574,6 +1576,8 @@ class GatewayHTTPHandler:
             return self._handle_webui_sidebar_state(request)
         if got == "/api/webui/sidebar-state/update":
             return self._handle_webui_sidebar_state_update(request)
+        if got == "/api/webui/feedback":
+            return await self._handle_webui_feedback(request)
         return None
 
     def _handle_commands(self, request: WsRequest) -> Response:
@@ -1820,6 +1824,51 @@ class GatewayHTTPHandler:
             self._log.exception("failed to write webui sidebar state")
             return _http_error(500, "failed to write sidebar state")
         return _http_json_response(state)
+
+    async def _handle_webui_feedback(self, request: WsRequest) -> Response:
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        payload = _mutation_payload(request) or {}
+        trace_id = payload.get("trace_id")
+        helpful = payload.get("helpful")
+        comment = payload.get("comment")
+        if not isinstance(trace_id, str) or len(trace_id) != 32:
+            return _http_error(400, "invalid trace_id")
+        if not isinstance(helpful, bool):
+            return _http_error(400, "helpful must be boolean")
+        if comment is not None and not isinstance(comment, str):
+            return _http_error(400, "comment must be string")
+        from nanobot.observability.langfuse_ingest import create_feedback_score
+
+        ok = await create_feedback_score(
+            trace_id=trace_id,
+            helpful=helpful,
+            comment=comment,
+        )
+        if ok:
+            from nanobot.observability.langfuse_tracing import session_for_trace
+            from nanobot.webui.transcript import append_transcript_object
+
+            session_key = session_for_trace(trace_id)
+            if not session_key:
+                caller_chats = getattr(request, _WEBUI_MUTATION_CALLER_ATTR, ())
+                chat_id = next(
+                    (chat for chat in caller_chats if isinstance(chat, str) and chat),
+                    None,
+                )
+                if chat_id:
+                    session_key = f"websocket:{chat_id}"
+            if session_key:
+                record: dict[str, Any] = {
+                    "event": "feedback",
+                    "trace_id": trace_id,
+                    "helpful": helpful,
+                }
+                turn_id = payload.get("turn_id")
+                if isinstance(turn_id, str) and turn_id:
+                    record["turn_id"] = turn_id
+                append_transcript_object(session_key, record)
+        return _http_json_response({"ok": ok})
 
     # -- Static file serving ------------------------------------------------
 

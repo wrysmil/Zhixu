@@ -3581,6 +3581,11 @@
     "forkFromHere": "从此处分叉",
     "copyReply": "复制",
     "copiedReply": "已复制",
+    "feedback": {
+      "helpful": "有帮助",
+      "unhelpful": "没帮助",
+      "failed": "反馈失败"
+    },
     "turnLatencyTitle": "本轮耗时（端到端）",
     "fileEditViewDiff": "查看差异",
     "fileEditViewLargeDiff": "查看大型差异",

@@ -16,9 +16,13 @@ import {
   ImageIcon,
   LoaderCircle,
   Quote,
+  ThumbsDown,
+  ThumbsUp,
   Wrench,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+
+import { useOptionalClient } from "@/providers/ClientProvider";
 
 import { AttachmentTile } from "@/components/AttachmentTile";
 import { SessionHandleLabel } from "@/components/SessionHandleLabel";
@@ -339,6 +343,15 @@ export function MessageBubble({
   onForkFromHere,
 }: MessageBubbleProps) {
   const { t } = useTranslation();
+  const clientContext = useOptionalClient();
+  const [feedbackState, setFeedbackState] = useState<"up" | "down" | null>(
+    message.feedback ?? null,
+  );
+  const [feedbackError, setFeedbackError] = useState(false);
+  const [feedbackPending, setFeedbackPending] = useState(false);
+  useEffect(() => {
+    setFeedbackState(message.feedback ?? null);
+  }, [message.feedback]);
   const mentionCliApps = useMemo(
     () => mergeCliMentionApps(cliApps, message.cliApps),
     [cliApps, message.cliApps],
@@ -480,6 +493,33 @@ export function MessageBubble({
     && (!!message.isStreaming || isTurnStreaming);
   const showCopyButton = showCopyAction && showAssistantActions;
   const showForkButton = showAssistantActions && !!onForkFromHere;
+  const feedbackTraceId = message.role === "assistant" ? message.traceId : undefined;
+  const showFeedbackButtons =
+    showAssistantActions && !!feedbackTraceId && !!clientContext;
+  const submitFeedback = useCallback(async (helpful: boolean) => {
+    if (!feedbackTraceId || !clientContext || feedbackPending) return;
+    setFeedbackPending(true);
+    setFeedbackError(false);
+    try {
+      const result = await clientContext.client.requestMutation<{ ok?: boolean }>(
+        "feedback.submit",
+        {
+          trace_id: feedbackTraceId,
+          helpful,
+          ...(message.turnId ? { turn_id: message.turnId } : {}),
+        },
+      );
+      if (result?.ok === false) {
+        setFeedbackError(true);
+      } else {
+        setFeedbackState(helpful ? "up" : "down");
+      }
+    } catch {
+      setFeedbackError(true);
+    } finally {
+      setFeedbackPending(false);
+    }
+  }, [clientContext, feedbackPending, feedbackTraceId]);
   const forkLabel = t("message.forkFromHere");
   const completedAt = message.completedAt;
   const completedAtLabel =
@@ -503,7 +543,11 @@ export function MessageBubble({
   const assistantTimestampTitle = showAssistantTimestamp ? fmtDateTime(assistantTimestamp) : "";
   const showAutomationTrigger = showAssistantTimestamp && automationSourceLabel.length > 0;
   const showAssistantFooterRow =
-    showRunningStatus || showCopyButton || showForkButton || showAssistantTimestamp;
+    showRunningStatus
+    || showCopyButton
+    || showForkButton
+    || showFeedbackButtons
+    || showAssistantTimestamp;
   const showAssistantFooterSlot =
     message.role === "assistant"
     && (!empty || hasReasoning || media.length > 0);
@@ -562,6 +606,59 @@ export function MessageBubble({
             ) : null}
             {showCopyButton ? (
               <MessageCopyButton content={assistantContent} />
+            ) : null}
+            {showFeedbackButtons ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => void submitFeedback(true)}
+                      aria-label={t("message.feedback.helpful")}
+                      aria-pressed={feedbackState === "up"}
+                      disabled={feedbackPending}
+                      className={cn(
+                        "touch-target inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                        "transition-colors hover:bg-muted/55 hover:text-foreground",
+                        feedbackState === "up" && "text-[hsl(var(--workbench-accent))]",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      )}
+                    >
+                      <ThumbsUp className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="center">
+                    {t("message.feedback.helpful")}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => void submitFeedback(false)}
+                      aria-label={t("message.feedback.unhelpful")}
+                      aria-pressed={feedbackState === "down"}
+                      disabled={feedbackPending}
+                      className={cn(
+                        "touch-target inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                        "transition-colors hover:bg-muted/55 hover:text-foreground",
+                        feedbackState === "down" && "text-[hsl(var(--workbench-accent))]",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      )}
+                    >
+                      <ThumbsDown className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="center">
+                    {t("message.feedback.unhelpful")}
+                  </TooltipContent>
+                </Tooltip>
+                {feedbackError ? (
+                  <span className="text-[12px] text-destructive">
+                    {t("message.feedback.failed")}
+                  </span>
+                ) : null}
+              </>
             ) : null}
             {showForkButton ? (
               <Tooltip>
