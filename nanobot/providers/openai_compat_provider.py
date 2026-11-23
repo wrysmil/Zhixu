@@ -12,6 +12,7 @@ import os
 import re
 import secrets
 import string
+import sys
 import time
 import uuid
 from collections import deque
@@ -57,6 +58,11 @@ if TYPE_CHECKING:
 # use, or replaced by tests via ``patch(...)``.  Kept as a plain name so
 # that ``unittest.mock.patch`` can find and replace it.
 AsyncOpenAI: Any = None
+
+
+def _langfuse_wrapper_active() -> bool:
+    """True when importing ``langfuse.openai`` patched the OpenAI SDK in-process."""
+    return importlib.util.find_spec("langfuse") is not None and "langfuse.openai" in sys.modules
 
 _GEMINI_SKIP_THOUGHT_SIGNATURE = "skip_thought_signature_validator"
 
@@ -550,6 +556,7 @@ class OpenAICompatProvider(LLMProvider):
         # probe again after _RESPONSES_PROBE_INTERVAL_S seconds.
         self._responses_failures: dict[str, int] = {}
         self._responses_tripped_at: dict[str, float] = {}
+        self._langfuse_tracing = False
 
     def _build_client(self) -> None:
         """Create the OpenAI client using the current module-level AsyncOpenAI."""
@@ -617,6 +624,10 @@ class OpenAICompatProvider(LLMProvider):
                         )
                     from openai import AsyncOpenAI as _AsyncOpenAI
                 AsyncOpenAI = _AsyncOpenAI
+            # Importing ``langfuse.openai`` patches the OpenAI SDK globally, so
+            # the module may already be loaded and its class is the plain
+            # ``openai.AsyncOpenAI``; detect the wrapper by the patched module.
+            self._langfuse_tracing = _langfuse_wrapper_active()
 
             self._build_client()
             if self._client is None:
@@ -1074,6 +1085,18 @@ class OpenAICompatProvider(LLMProvider):
         # otherwise lets extra_body.tools replace nanobot's generated functions.
         if self._extra_body:
             kwargs = _merge_chat_extra_body(kwargs, self._extra_body)
+
+        if self._langfuse_tracing:
+            # The Langfuse OpenAI wrapper understands ``langfuse_prompt`` and links
+            # the generation to that prompt version (prompt Metrics depend on it).
+            try:
+                from nanobot.observability.langfuse_prompts import linked_prompt
+
+                prompt = linked_prompt()
+                if prompt is not None:
+                    kwargs["langfuse_prompt"] = prompt
+            except Exception:
+                pass
 
         return kwargs
 

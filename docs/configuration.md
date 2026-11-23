@@ -244,6 +244,16 @@ Use the Langfuse region or self-hosted URL that matches your project. The [Langf
 
 To run Langfuse locally instead of using the cloud, start the bundled v3 Docker stack in [`docker/langfuse`](../docker/langfuse/README.md) and point `LANGFUSE_BASE_URL` at `http://127.0.0.1:3000`.
 
+System-prompt templates (`zhixu/agent/*`) and agent profiles (`zhixu/profile/*`) registered in Langfuse (see `scripts/langfuse_prompt_sync.py`) are fetched at runtime and override the bundled text, so editing a prompt and moving its `production` label takes effect without a new Zhixu release. Identity files (SOUL/AGENT/USER), personas and policies stay in the local workspace and are not managed through Langfuse. Lookups never block the event loop: a background thread refreshes the templates a turn uses, and the bundled file is used until the override is cached. Used template versions are recorded in the turn trace metadata, and the agent profile version is linked to the generation, which feeds the prompt Metrics view. Tuning variables:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `LANGFUSE_PROMPTS_ENABLED` | on | Set `0` to keep using only the bundled templates |
+| `LANGFUSE_PROMPT_LABEL` | `production` | Label whose version is served |
+| `LANGFUSE_PROMPTS_TTL_S` | `60` | How long a fetched version stays cached |
+| `LANGFUSE_PROMPTS_REFRESH_S` | `2` | Background poll interval |
+| `LANGFUSE_PROMPTS_FETCH_TIMEOUT_S` | `3` | Per-fetch timeout |
+
 Tracing covers the providers that go through Zhixu's OpenAI-compatible client path. Native providers that do not use that client may not produce Langfuse OpenAI-wrapper traces.
 
 ## Providers

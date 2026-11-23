@@ -31,5 +31,19 @@ def render_template(name: str, *, strip: bool = False, **kwargs: Any) -> str:
     Use ``strip=True`` for single-line user-facing strings when the file ends
     with a trailing newline you do not want preserved.
     """
-    text = _environment().get_template(name).render(**kwargs)
+    env = _environment()
+    override: str | None = None
+    try:
+        from nanobot.observability.langfuse_prompts import prompt_snapshot, record_used
+
+        snapshot = prompt_snapshot(name)
+        if snapshot is not None:
+            _, override, version = snapshot
+            record_used(name, version)
+    except Exception:
+        override = None
+    if override is not None:
+        text = env.from_string(override).render(**kwargs)
+    else:
+        text = env.get_template(name).render(**kwargs)
     return text.rstrip() if strip else text

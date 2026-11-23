@@ -19,10 +19,13 @@ def test_collects_named_prompt_sources() -> None:
 
     assert "zhixu/agent/identity" in names
     assert "zhixu/agent/tool_contract" in names
-    assert "zhixu/SOUL" in names
-    assert "zhixu/policies" in names
-    assert "zhixu/persona/balanced" in names
     assert "zhixu/profile/commander" in names
+    # Identity files, personas and policies stay local and are not registered.
+    assert "zhixu/SOUL" not in names
+    assert "zhixu/AGENT" not in names
+    assert "zhixu/USER" not in names
+    assert "zhixu/policies" not in names
+    assert all(n.startswith(("zhixu/agent/", "zhixu/profile/")) for n in names)
     assert all(prompt.text.strip() for prompt in prompts)
 
 

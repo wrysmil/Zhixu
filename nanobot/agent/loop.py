@@ -2679,6 +2679,15 @@ class AgentLoop:
         return False
 
     async def _build_turn(self, ctx: TurnContext) -> None:
+        # Prompt bookkeeping is per turn and must start before the agent
+        # profile renders, since that render is what links a prompt version to
+        # this turn's generations.
+        try:
+            from nanobot.observability.langfuse_prompts import reset_turn_state
+
+            reset_turn_state()
+        except Exception:
+            logger.exception("Langfuse prompt state reset failed")
         session = ctx.require_session()
         if ctx.team is None and ctx.agent is None:
             base_tools = self.tools if ctx.tools is None else ctx.tools

@@ -96,9 +96,9 @@ def hashed_user_id(channel: str, sender_id: str) -> str:
 @dataclass(slots=True)
 class TurnTraceHandle:
     trace_id: str | None = None
-    _client: Any = None
-    _manager: Any = None
-    _span: Any = None
+    client: Any = None
+    manager: Any = None
+    span: Any = None
     closed: bool = field(default=False)
 
 
@@ -131,9 +131,9 @@ def start_turn_trace(
         register_trace_session(trace_id, session_key)
         return TurnTraceHandle(
             trace_id=trace_id,
-            _client=client,
-            _manager=manager,
-            _span=span,
+            client=client,
+            manager=manager,
+            span=span,
         )
     except Exception:
         logger.exception("Langfuse turn trace start failed")
@@ -152,12 +152,12 @@ def finish_turn_trace(
     status: str,
     error: str | None = None,
 ) -> None:
-    if handle.closed or handle._manager is None:
+    if handle.closed or handle.manager is None:
         return
     handle.closed = True
     try:
-        if handle._span is not None:
-            handle._span.update(
+        if handle.span is not None:
+            handle.span.update(
                 output={"message": (output or "")[:_MAX_TEXT]},
                 metadata={"status": status},
                 level="ERROR" if status in {"failed", "cancelled"} else "DEFAULT",
@@ -166,6 +166,14 @@ def finish_turn_trace(
     except Exception:
         logger.exception("Langfuse turn span update failed")
     try:
-        handle._manager.__exit__(None, None, None)
+        from nanobot.observability.langfuse_prompts import used_prompts
+
+        prompts = used_prompts()
+        if prompts and handle.client is not None:
+            handle.client.update_current_trace(metadata={"prompts": prompts})
+    except Exception:
+        logger.exception("Langfuse prompt metadata update failed")
+    try:
+        handle.manager.__exit__(None, None, None)
     except Exception:
         logger.exception("Langfuse turn span close failed")

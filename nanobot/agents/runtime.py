@@ -94,6 +94,23 @@ def render_profile_prompt(
         "workspace": workspace.name,
     }
 
+    template = profile.prompt
+    try:
+        from nanobot.observability.langfuse_prompts import (
+            prompt_snapshot,
+            record_used,
+            set_linked_prompt,
+        )
+
+        snapshot = prompt_snapshot(f"profile/{profile.id}")
+        if snapshot is not None:
+            remote, remote_text, version = snapshot
+            template = remote_text
+            record_used(f"profile/{profile.id}", version)
+            set_linked_prompt(remote)
+    except Exception:
+        pass
+
     def _sub(match: re.Match[str]) -> str:
         escaped, plain = match.group("escaped"), match.group("plain")
         if escaped is not None:
@@ -103,7 +120,7 @@ def render_profile_prompt(
             return match.group(0)
         return replacements.get(plain, match.group(0))
 
-    rendered = _TOKEN_RE.sub(_sub, profile.prompt)
+    rendered = _TOKEN_RE.sub(_sub, template)
     return rendered.strip()
 
 

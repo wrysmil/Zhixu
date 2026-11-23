@@ -67,10 +67,10 @@ LANGFUSE_PUBLIC_KEY=... LANGFUSE_SECRET_KEY=... LANGFUSE_BASE_URL=http://127.0.0
   .venv/Scripts/python.exe scripts/langfuse_prompt_sync.py --sync
 ```
 
-覆盖范围：`nanobot/templates/agent/*.md`、`SOUL/AGENT/USER`、`prompts/policies.md`、`personas/*.md`，
-以及内置 Agent 人设（`zhixu/profile/<id>`），共 31 条，命名空间 `zhixu/*`，标签 `production`。
+覆盖范围（只管理会影响每轮系统提示的框架提示词）：`nanobot/templates/agent/*.md` 与内置 Agent 档案（`zhixu/profile/<id>`），共 22 条，命名空间 `zhixu/agent/*` 与 `zhixu/profile/*`，标签 `production`。
+身份类内容（SOUL/AGENT/USER、persona、policies）属于用户自己的工作区文件，**不注册、不覆盖**，因此不会出现在运行时拉取与 Linked Generations 里。
 
-当前只做**注册与对照**，知序运行时仍用代码内的模板；接入运行时拉取（含缓存与本地兜底）属于下一阶段。
+运行时拉取（第二阶段，已接入）：知序按 `production` 标签读取受管提示词并覆盖代码内模板，后台线程按 `LANGFUSE_PROMPTS_TTL_S`（默认 60s）刷新、不阻塞回合；Langfuse 不可达或提示词缺失时回落到本地文件。实际使用的模板版本与 Agent 档案版本会写进 turn trace 的 `prompts` 元数据，其中档案版本会链接到 generation（Prompts → Metrics / Linked Generations 可看版本分布）。开关与调参见 `docs/configuration.md` 的 `LANGFUSE_PROMPTS_*` 表。
 
 ## 启动 / 停止
 

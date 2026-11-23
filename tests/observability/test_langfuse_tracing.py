@@ -118,3 +118,28 @@ def test_client_factory_error_is_fail_open(monkeypatch) -> None:
         assert handle.trace_id is None
     finally:
         lt.set_client_factory(None)
+
+
+def test_finish_writes_used_prompt_versions_into_trace_metadata(monkeypatch) -> None:
+    from nanobot.observability import langfuse_prompts as lp
+
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    fake = FakeClient()
+    lt.set_client_factory(lambda: fake)
+    try:
+        handle = lt.start_turn_trace(
+            session_key="s",
+            channel="cli",
+            sender_id="u",
+            turn_id="t",
+            user_input="hi",
+        )
+        lp.record_used("profile/commander", 5)
+        lt.finish_turn_trace(handle, output="ok", status="succeeded")
+    finally:
+        lt.set_client_factory(None)
+        lp.reset_turn_state()
+
+    assert fake.trace_updates["metadata"] == {"prompts": {"zhixu/profile/commander": 5}}
+

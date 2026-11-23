@@ -1,11 +1,11 @@
-"""Register Zhixu prompt sources in Langfuse and detect drift (read-only check).
+"""Register Zhixu's Langfuse-managed prompts in Langfuse and detect drift.
 
-Sources:
+Managed scope (runtime overrides + prompt metrics):
 - nanobot/templates/agent/*.md        -> zhixu/agent/<stem>
-- nanobot/templates/SOUL.md, AGENT.md, USER.md -> zhixu/<stem>
-- nanobot/templates/prompts/policies.md -> zhixu/policies
-- nanobot/templates/personas/*.md     -> zhixu/persona/<stem>
 - built-in agent profiles (catalog)   -> zhixu/profile/<id>
+
+Identity files (SOUL/AGENT/USER), personas and policies stay local: they are
+user-owned workspace content, so they are neither registered nor overridden.
 
 Usage:
   python scripts/langfuse_prompt_sync.py            # check only (default)
@@ -86,27 +86,6 @@ DESCRIPTIONS: dict[str, tuple[str, str]] = {
         "会话归档检查点：为上一份归档摘要生成紧凑替代版本",
         "归档摘要提示",
     ),
-    "zhixu/SOUL": (
-        "知序核心人格与价值观：本地优先、诚实、有主动驱动力",
-        "bootstrap 身份段",
-    ),
-    "zhixu/AGENT": (
-        "行为准则：优先级高于人格，约束“怎么做事”",
-        "bootstrap 行为准则段",
-    ),
-    "zhixu/USER": (
-        "用户画像模板；自动导出区由 SQLite 记忆生成，勿手改",
-        "bootstrap 用户画像段",
-    ),
-    "zhixu/policies": (
-        "项目级策略段落，只追加到 ## Policies，留空即不注入",
-        "system prompt Policies 段",
-    ),
-    "zhixu/persona/balanced": ("默认表现层人格：直接、务实、克制", "bootstrap 人格段"),
-    "zhixu/persona/companion": ("陪伴型表现层人格", "bootstrap 人格段"),
-    "zhixu/persona/creative": ("创作型表现层人格", "bootstrap 人格段"),
-    "zhixu/persona/mentor": ("导师型表现层人格", "bootstrap 人格段"),
-    "zhixu/persona/tech_expert": ("技术专家型表现层人格", "bootstrap 人格段"),
 }
 
 PROFILE_DESCRIPTIONS: dict[str, tuple[str, str]] = {
@@ -156,16 +135,6 @@ def collect_local_prompts(root: Path = ROOT) -> list[LocalPrompt]:
 
     for path in sorted((templates / "agent").glob("*.md")):
         add(f"zhixu/agent/{path.stem}", _read(path), path, "agent")
-
-    for stem in ("SOUL", "AGENT", "USER"):
-        path = templates / f"{stem}.md"
-        add(f"zhixu/{stem}", _read(path), path, "identity")
-
-    policies = templates / "prompts" / "policies.md"
-    add("zhixu/policies", _read(policies), policies, "policy")
-
-    for path in sorted((templates / "personas").glob("*.md")):
-        add(f"zhixu/persona/{path.stem}", _read(path), path, "persona")
 
     try:
         from nanobot.agents.catalog import FACTORY_PROFILES
