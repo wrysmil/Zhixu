@@ -3506,7 +3506,9 @@
       "unhelpful": "Không hữu ích",
       "failed": "Gửi phản hồi thất bại",
       "annotation": "Thêm vào hàng đợi chú thích",
-      "annotationFailed": "Không thể thêm vào hàng đợi chú thích"
+      "annotationFailed": "Không thể thêm vào hàng đợi chú thích",
+      "dataset": "Lưu vào bộ dữ liệu",
+      "datasetFailed": "Không thể lưu vào bộ dữ liệu"
     },
     "turnLatencyTitle": "Thời gian phản hồi (end-to-end)",
     "fileEditViewDiff": "Xem khác biệt",

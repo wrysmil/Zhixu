@@ -121,6 +121,38 @@ LANGFUSE_PUBLIC_KEY=... LANGFUSE_SECRET_KEY=... LANGFUSE_BASE_URL=http://127.0.0
 - 实测：新对话产生 `judge_quality=0.95`（`source=EVAL`，含中文理由）；标题生成（空输出）也产生 0 分，建议后续在筛选里加 `Trace Name = zhixu.turn` 排除后台调用。
 - 注意：`scripts/langfuse_judge.py` 的“脚本直写 EVAL”方案因公共 API 限制已废弃；EVAL 只能由原生 evaluator 产生。
 
+## 2026-11-20 追加：Datasets 与实验运行
+
+- 数据集：`zhixu-evals`（bootstrap 幂等创建）。
+- 条目来源：
+  1. 知序消息按钮“存入数据集” → `dataset.add` → 从 trace 读取 input/output 写入 dataset item（trace `363214b4...`，`sourceTraceId` 保留）；
+  2. 手工添加一条：input=`用一句话介绍你自己`，expected=`我是知序，运行在本地设备上的个人 AI 助手。`。
+- 实验：`scripts/langfuse_experiment.py`（`DatasetClient.run_experiment`，任务 = 知序 agent，评估器 = `exact_match` + LLM `semantic_match`，max_concurrency=1）。
+- 结果：run `baseline-test1`，2 items；`semantic_match` 平均 **0.450**，`exact_match` 0.0；dataset run：
+  `http://127.0.0.1:3000/project/zhixu/datasets/cmwoprum50014n3076tjtf0tt/runs/27b68adc-fed7-4817-b512-11b8ea542253`
+- 注意：从真实消息存入数据集时，`expected_output` 默认取当前助手回答（适合做回归基线）；做“正确性”评测前应人工校正期望答案。
+- 追加：设计两题（代码流程规范 / 提交信息语言）后运行 `designed-2q-2`，`semantic_match` 平均 **0.975**，`exact_match` 0.0；run：
+  `http://127.0.0.1:3000/project/zhixu/datasets/cmwoprum50014n3076tjtf0tt/runs/e4b2c964-6df0-4c90-8a86-42474374c10a`
+  早期 0.5 的平均分是评审模型输出被 max_tokens 截断导致解析失败，已修正（只解析正式内容 + 1024 tokens）。
+- 复杂任务集：新增 `zhixu-evals-complex`（监控方案设计 / LLM 评审故障排查两题）。run `complex-2q-1`：
+  `semantic_match` 两条分别 0.92、0.90（平均 **0.91**），`exact_match` 0；
+  run：`http://127.0.0.1:3000/project/zhixu/datasets/cmwoqdx7j001dn307fvf2qs61/runs/8809d974-f50f-40e4-82cd-49be604e13e6`。
+  两题均触发了 web_fetch 查阅 Langfuse 文档，输出 3.8k–4k 字的结构化方案。
+
+## 2026-11-23 追加：Langfuse v4 升级 + Prompt 管理
+
+- 升级：v3.174.1 → **v4.83.0**（镜像 `langfuse/langfuse:4`、worker:4、clickhouse 固定 26.4.2.10）。
+  备份：`C:\Users\Huangqh\AppData\Local\lf-backup-20261120-v3`（pg_dump + 5 个卷归档 + ROLLBACK.md）。
+- 数据核对（v4 新接口）：`/v2/observations` 61+ 条（含 `zhixu.turn` 30、`OpenAI-generation` 47），
+  `/v3/scores` 含 `user_feedback` 26、`semantic_match` 8、`exact_match` 8、`judge_quality` 5、
+  `human_quality` 2、`human_failure_type` 1；数据集与标注队列条目都在。
+- MCP：v4 原生 MCP 暴露 ~110 个工具（prompts/skills/observations/annotation queues/datasets/scores/
+  evaluators/dashboards/experiments…），可用 Basic Auth + `LANGFUSE_MCP_ALLOWED_HOSTS` 放行 Host。
+- Prompt 管理：`scripts/langfuse_prompt_sync.py` 登记 31 条（`zhixu/agent/*`、`zhixu/SOUL`、`zhixu/persona/*`、
+  `zhixu/profile/*` 等），label=production；`--check` 复检 drift=0。
+- v4 适配：旧 `/api/public/traces` 已弃用，知序改为在进程内缓存每轮问答内容
+  （`nanobot/observability/langfuse_tracing.py`），「存入数据集」实测在 v4 下成功建条目。
+
 ## 已知边界
 
 - 只覆盖 OpenAI 兼容客户端路径；原生 SDK provider（如 Anthropic/Responses-only 分支）不产生该包装 trace。

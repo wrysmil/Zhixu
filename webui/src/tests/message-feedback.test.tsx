@@ -91,6 +91,22 @@ describe("MessageBubble feedback", () => {
     );
   });
 
+  it("saves the trace to the dataset", async () => {
+    render(
+      <MessageBubble
+        message={assistantMessage({ traceId: "1".repeat(32) })}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("存入数据集"));
+
+    await waitFor(() =>
+      expect(requestMutation).toHaveBeenCalledWith("dataset.add", {
+        trace_id: "1".repeat(32),
+      }),
+    );
+  });
+
   it("hides feedback buttons without a trace id", () => {
     render(<MessageBubble message={assistantMessage()} />);
 

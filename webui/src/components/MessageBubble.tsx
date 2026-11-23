@@ -12,6 +12,7 @@ import {
   ChevronRight,
   CircleAlert,
   ClipboardCheck,
+  Database,
   Clock3,
   Copy,
   ImageIcon,
@@ -352,6 +353,8 @@ export function MessageBubble({
   const [feedbackPending, setFeedbackPending] = useState(false);
   const [annotationPending, setAnnotationPending] = useState(false);
   const [annotationError, setAnnotationError] = useState(false);
+  const [datasetPending, setDatasetPending] = useState(false);
+  const [datasetError, setDatasetError] = useState(false);
   useEffect(() => {
     setFeedbackState(message.feedback ?? null);
   }, [message.feedback]);
@@ -541,6 +544,24 @@ export function MessageBubble({
       setAnnotationPending(false);
     }
   }, [annotationPending, clientContext, feedbackTraceId]);
+  const submitDataset = useCallback(async () => {
+    if (!feedbackTraceId || !clientContext || datasetPending) return;
+    setDatasetPending(true);
+    setDatasetError(false);
+    try {
+      const result = await clientContext.client.requestMutation<{ ok?: boolean }>(
+        "dataset.add",
+        { trace_id: feedbackTraceId },
+      );
+      if (result?.ok === false) {
+        setDatasetError(true);
+      }
+    } catch {
+      setDatasetError(true);
+    } finally {
+      setDatasetPending(false);
+    }
+  }, [clientContext, datasetPending, feedbackTraceId]);
   const forkLabel = t("message.forkFromHere");
   const completedAt = message.completedAt;
   const completedAtLabel =
@@ -702,6 +723,31 @@ export function MessageBubble({
                 {annotationError ? (
                   <span className="text-[12px] text-destructive">
                     {t("message.feedback.annotationFailed")}
+                  </span>
+                ) : null}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => void submitDataset()}
+                      aria-label={t("message.feedback.dataset")}
+                      disabled={datasetPending}
+                      className={cn(
+                        "touch-target inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                        "transition-colors hover:bg-muted/55 hover:text-foreground",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      )}
+                    >
+                      <Database className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="center">
+                    {t("message.feedback.dataset")}
+                  </TooltipContent>
+                </Tooltip>
+                {datasetError ? (
+                  <span className="text-[12px] text-destructive">
+                    {t("message.feedback.datasetFailed")}
                   </span>
                 ) : null}
               </>

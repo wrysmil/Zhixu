@@ -3505,7 +3505,9 @@
       "unhelpful": "沒幫助",
       "failed": "回饋失敗",
       "annotation": "加入人工標註",
-      "annotationFailed": "加入標註佇列失敗"
+      "annotationFailed": "加入標註佇列失敗",
+      "dataset": "存入資料集",
+      "datasetFailed": "存入資料集失敗"
     },
     "turnLatencyTitle": "本輪耗時（端到端）",
     "fileEditViewDiff": "檢視差異",

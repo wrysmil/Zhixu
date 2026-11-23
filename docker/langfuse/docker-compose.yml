@@ -5,7 +5,7 @@ name: langfuse
 
 services:
   langfuse-worker:
-    image: docker.io/langfuse/langfuse-worker:3
+    image: docker.io/langfuse/langfuse-worker:4
     restart: always
     depends_on: &langfuse-depends-on
       postgres:
@@ -24,11 +24,14 @@ services:
       SALT: ${SALT}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-false}
+      LANGFUSE_MCP_ALLOWED_HOSTS: ${LANGFUSE_MCP_ALLOWED_HOSTS:-localhost:3000,127.0.0.1:3000}
+      LANGFUSE_MCP_BASE_URL: ${LANGFUSE_MCP_BASE_URL:-http://langfuse-web:3000}
       CLICKHOUSE_MIGRATION_URL: ${CLICKHOUSE_MIGRATION_URL:-clickhouse://clickhouse:9000}
       CLICKHOUSE_URL: ${CLICKHOUSE_URL:-http://clickhouse:8123}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       CLICKHOUSE_CLUSTER_ENABLED: "false"
+      CLICKHOUSE_CLUSTER_NAME: default
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_EVENT_UPLOAD_BUCKET:-langfuse}
       LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
@@ -41,6 +44,7 @@ services:
       LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
       LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:9090
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://minio:9000
       LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
       REDIS_HOST: redis
@@ -49,7 +53,7 @@ services:
       REDIS_TLS_ENABLED: "false"
 
   langfuse-web:
-    image: docker.io/langfuse/langfuse:3
+    image: docker.io/langfuse/langfuse:4
     restart: always
     depends_on: *langfuse-depends-on
     ports:
@@ -68,7 +72,7 @@ services:
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-}
 
   clickhouse:
-    image: docker.io/clickhouse/clickhouse-server
+    image: docker.io/clickhouse/clickhouse-server:26.4.2.10
     restart: always
     user: "101:101"
     environment:

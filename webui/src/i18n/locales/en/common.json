@@ -3586,7 +3586,9 @@
       "unhelpful": "Not helpful",
       "failed": "Feedback failed",
       "annotation": "Add to review queue",
-      "annotationFailed": "Could not add to review queue"
+      "annotationFailed": "Could not add to review queue",
+      "dataset": "Save to dataset",
+      "datasetFailed": "Could not save to dataset"
     },
     "turnLatencyTitle": "Response time (end-to-end)",
     "fileEditViewDiff": "View diff",

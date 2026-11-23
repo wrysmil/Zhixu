@@ -1,18 +1,76 @@
 # 本地自托管 Langfuse（知序接入用）
 
-为知序提供本地 LLM 调用追踪（trace / generation / 成本 / 延迟）。镜像为 Langfuse v3，与
-`pyproject.toml` 中 `langfuse>=3.0.0,<4.0.0` 的 Python SDK 版本线一致。
+为知序提供本地 LLM 调用追踪（trace / generation / 成本 / 延迟）。服务端为 **Langfuse v4**（观测优先数据模型），
+知序侧仍用 `pyproject.toml` 中 `langfuse>=3.0.0,<4.0.0` 的 Python SDK 3.15，已实测在 v4 上正常写入。
 
 ## 组成与端口
 
 | 服务 | 镜像 | 宿主端口（仅本机） | 用途 |
 | --- | --- | --- | --- |
-| langfuse-web | `langfuse/langfuse:3` | 127.0.0.1:3000 | Web UI + API |
-| langfuse-worker | `langfuse/langfuse-worker:3` | 127.0.0.1:3030 | 异步 ingestion |
-| postgres | `postgres:17` | 127.0.0.1:5432 | 元数据 |
-| clickhouse | `clickhouse/clickhouse-server` | 127.0.0.1:8123 / 9000 | 分析存储 |
+| langfuse-web | `langfuse/langfuse:4` | 127.0.0.1:3000 | Web UI + API + MCP |
+| langfuse-worker | `langfuse/langfuse-worker:4` | 127.0.0.1:3030 | 异步 ingestion / 后台迁移 |
+| postgres | `postgres:17` | 127.0.0.1:5432 | 元数据、队列、prompt、数据集 |
+| clickhouse | `clickhouse/clickhouse-server:26.4.2.10` | 127.0.0.1:8123 / 9000 | 事件与分析存储 |
 | minio | `cgr.dev/chainguard/minio` | 127.0.0.1:9090 / 9091 | 事件 / 媒体对象存储 |
 | redis | `redis:7` | 127.0.0.1:6379 | 队列缓存 |
+
+## MCP（AI 直接操作 Langfuse）
+
+v4 内置原生 MCP 服务端，AI 助手（Claude Code / Qoder / Cursor / Codex CLI 等）可直接读写：
+
+- 端点：`http://localhost:3000/api/public/mcp`
+- 认证：Basic Auth，`base64(pk-lf-...:sk-lf-...)`
+- Host 校验：MCP 会校验 `Host` 头，必须用 `localhost` 或在 compose 里用
+  `LANGFUSE_MCP_ALLOWED_HOSTS=localhost:3000,127.0.0.1:3000` 放行（本项目已默认带上）。
+- 工具集（v4）：prompts、skills、observations、annotation queues、datasets、scores、score configs、
+  evaluators、evaluation rules、dashboards、experiments、comments、alerts、models、llm connections 等，
+  其中创建/更新类工具默认可写，可用 allowlist 收紧。
+
+用法示例（PowerShell，写入 MCP 配置时填）：
+
+```json
+{
+  "mcpServers": {
+    "langfuse": {
+      "type": "http",
+      "url": "http://localhost:3000/api/public/mcp",
+      "headers": { "Authorization": "Basic <base64(pk:sk)>" }
+    }
+  }
+}
+```
+
+## v4 升级后的接口与数据变化
+
+| 变化 | 说明 |
+| --- | --- |
+| 读 trace | `/api/public/traces` 已弃用（v4 返回空），改用 `/api/public/v2/observations`；trace 由根 observation 表示 |
+| 读 score | `/api/public/scores` 已弃用，改用 `/api/public/v3/scores`；写 score 仍走 `/api/public/scores` |
+| 写 dataset item | `/api/public/dataset-items` 仍可用 |
+| trace 输入输出 | v4 不再随接口返回；知序改为在进程内缓存每轮问答内容（`nanobot/observability/langfuse_tracing.py`） |
+| 历史数据 | 升级后由后台迁移逐步回填，**新数据先可见**；旧实验 run 可能不可见（官方 FAQ） |
+| 磁盘 | 迁移期 ClickHouse 体积约为原来的 3 倍 |
+
+升级前的备份与回滚步骤在 `C:\Users\Huangqh\AppData\Local\lf-backup-20261120-v3\ROLLBACK.md`。
+
+## Prompt 管理（注册 + 只读对照）
+
+`scripts/langfuse_prompt_sync.py` 把知序的静态模板与人设登记到 Langfuse，并检测线上与本地的漂移：
+
+```bash
+# 只读对照：逐条比较本地模板与线上 production 版本，有漂移时退出码为 1
+LANGFUSE_PUBLIC_KEY=... LANGFUSE_SECRET_KEY=... LANGFUSE_BASE_URL=http://127.0.0.1:3000 \
+  .venv/Scripts/python.exe scripts/langfuse_prompt_sync.py
+
+# 同步（仅在内容确实变化时创建新版本并移动 production 标签）
+LANGFUSE_PUBLIC_KEY=... LANGFUSE_SECRET_KEY=... LANGFUSE_BASE_URL=http://127.0.0.1:3000 \
+  .venv/Scripts/python.exe scripts/langfuse_prompt_sync.py --sync
+```
+
+覆盖范围：`nanobot/templates/agent/*.md`、`SOUL/AGENT/USER`、`prompts/policies.md`、`personas/*.md`，
+以及内置 Agent 人设（`zhixu/profile/<id>`），共 31 条，命名空间 `zhixu/*`，标签 `production`。
+
+当前只做**注册与对照**，知序运行时仍用代码内的模板；接入运行时拉取（含缓存与本地兜底）属于下一阶段。
 
 ## 启动 / 停止
 

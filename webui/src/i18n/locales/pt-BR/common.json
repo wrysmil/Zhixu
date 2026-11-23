@@ -3530,7 +3530,9 @@
       "unhelpful": "Não útil",
       "failed": "Falha ao registrar feedback",
       "annotation": "Adicionar à fila de anotação",
-      "annotationFailed": "Não foi possível adicionar à fila de anotação"
+      "annotationFailed": "Não foi possível adicionar à fila de anotação",
+      "dataset": "Salvar no conjunto de dados",
+      "datasetFailed": "Não foi possível salvar no conjunto de dados"
     },
     "turnLatencyTitle": "Tempo de resposta (ponta a ponta)",
     "fileEditViewDiff": "Ver diferenças",

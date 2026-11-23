@@ -3586,7 +3586,9 @@
       "unhelpful": "没帮助",
       "failed": "反馈失败",
       "annotation": "加入人工标注",
-      "annotationFailed": "加入标注队列失败"
+      "annotationFailed": "加入标注队列失败",
+      "dataset": "存入数据集",
+      "datasetFailed": "存入数据集失败"
     },
     "turnLatencyTitle": "本轮耗时（端到端）",
     "fileEditViewDiff": "查看差异",

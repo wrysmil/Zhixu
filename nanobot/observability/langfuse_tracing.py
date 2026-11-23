@@ -17,7 +17,23 @@ _client_factory: ClientFactory | None = None
 
 _TURN_TRACES: dict[str, str] = {}
 _TRACE_SESSIONS: dict[str, str] = {}
+_TURN_CONTENTS: dict[str, tuple[str, str]] = {}
 _TURN_TRACE_LIMIT = 2048
+
+
+def remember_turn_content(trace_id: str | None, input_text: str, output_text: str) -> None:
+    """Cache the turn's question/answer so dataset export works without re-reading traces."""
+    if not trace_id:
+        return
+    if len(_TURN_CONTENTS) >= _TURN_TRACE_LIMIT:
+        _TURN_CONTENTS.clear()
+    _TURN_CONTENTS[trace_id] = (input_text, output_text)
+
+
+def lookup_turn_content(trace_id: str | None) -> tuple[str, str] | None:
+    if not trace_id:
+        return None
+    return _TURN_CONTENTS.get(trace_id)
 
 
 def register_turn_trace(turn_id: str | None, trace_id: str | None) -> None:

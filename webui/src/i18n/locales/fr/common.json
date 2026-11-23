@@ -3506,7 +3506,9 @@
       "unhelpful": "Pas utile",
       "failed": "Échec du retour",
       "annotation": "Ajouter à la file d'annotation",
-      "annotationFailed": "Impossible d'ajouter à la file d'annotation"
+      "annotationFailed": "Impossible d'ajouter à la file d'annotation",
+      "dataset": "Enregistrer dans le jeu de données",
+      "datasetFailed": "Impossible d'enregistrer dans le jeu de données"
     },
     "turnLatencyTitle": "Temps de réponse (de bout en bout)",
     "fileEditViewDiff": "Voir les différences",

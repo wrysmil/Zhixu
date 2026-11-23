@@ -3506,7 +3506,9 @@
       "unhelpful": "Tidak membantu",
       "failed": "Gagal menyimpan umpan balik",
       "annotation": "Tambahkan ke antrean anotasi",
-      "annotationFailed": "Tidak dapat menambahkan ke antrean anotasi"
+      "annotationFailed": "Tidak dapat menambahkan ke antrean anotasi",
+      "dataset": "Simpan ke kumpulan data",
+      "datasetFailed": "Tidak dapat menyimpan ke kumpulan data"
     },
     "turnLatencyTitle": "Waktu respons (ujung ke ujung)",
     "fileEditViewDiff": "Lihat perbedaan",

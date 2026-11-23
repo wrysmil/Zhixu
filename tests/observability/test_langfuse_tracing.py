@@ -92,6 +92,13 @@ def test_turn_trace_registry() -> None:
     assert lt.lookup_turn_trace(None) is None
 
 
+def test_turn_content_cache() -> None:
+    lt.remember_turn_content("trace-1", "问题", "答案")
+    assert lt.lookup_turn_content("trace-1") == ("问题", "答案")
+    assert lt.lookup_turn_content("missing") is None
+    assert lt.lookup_turn_content(None) is None
+
+
 def test_client_factory_error_is_fail_open(monkeypatch) -> None:
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")

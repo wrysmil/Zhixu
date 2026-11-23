@@ -12,6 +12,7 @@ import httpx
 
 BASE = os.environ.get("LANGFUSE_BASE_URL", "http://127.0.0.1:3000").rstrip("/")
 QUEUE_NAME = os.environ.get("LANGFUSE_ANNOTATION_QUEUE", "zhixu-review")
+DATASET_NAME = os.environ.get("LANGFUSE_DATASET", "zhixu-evals")
 
 SCORE_CONFIGS: list[dict[str, Any]] = [
     {"name": "user_feedback", "dataType": "BOOLEAN", "description": "用户点赞/点踩"},
@@ -95,6 +96,19 @@ def ensure_queue(client: httpx.Client, score_config_ids: list[str]) -> str:
     return str(created["id"])
 
 
+def ensure_dataset(client: httpx.Client) -> None:
+    response = client.get(f"/api/public/datasets/{DATASET_NAME}")
+    if response.status_code == 200:
+        print(f"dataset exists: {DATASET_NAME}")
+        return
+    response = client.post(
+        "/api/public/datasets",
+        json={"name": DATASET_NAME, "description": "知序评估数据集"},
+    )
+    response.raise_for_status()
+    print(f"dataset created: {DATASET_NAME}")
+
+
 def main() -> int:
     with _client() as client:
         ids = {spec["name"]: ensure_score_config(client, spec) for spec in SCORE_CONFIGS}
@@ -102,7 +116,9 @@ def main() -> int:
             client,
             [ids["human_quality"], ids["human_failure_type"]],
         )
+        ensure_dataset(client)
     print()
+    print("LANGFUSE_DATASET=" + DATASET_NAME)
     print("LANGFUSE_ANNOTATION_QUEUE_NAME=" + QUEUE_NAME)
     print("LANGFUSE_ANNOTATION_QUEUE_ID=" + queue_id)
     print("score-config ids:", ", ".join(f"{name}={value}" for name, value in ids.items()))

@@ -3039,6 +3039,13 @@ class AgentLoop:
                 status=trace_status,
                 error=ctx.failure_error_kind,
             )
+            from nanobot.observability.langfuse_tracing import remember_turn_content
+
+            remember_turn_content(
+                langfuse_trace.trace_id,
+                ctx.original_user_text or "",
+                ctx.final_content or "",
+            )
         if ctx.kind is TurnKind.USER:
             await turn_continuation.maybe_continue_turn(ctx)
 

@@ -50,10 +50,64 @@ async def create_feedback_score(
     return await _post("/api/public/scores", payload)
 
 
+def _message_text(value: Any) -> str:
+    if isinstance(value, dict):
+        value = value.get("message")
+    return str(value or "")
+
+
+async def fetch_trace_io(trace_id: str) -> tuple[str, str] | None:
+    """Return (input message, output message) for a trace.
+
+    Langfuse v4 no longer serves trace input/output from the trace endpoints, so the
+    live turn cache is the primary source; the legacy endpoint stays as a fallback.
+    """
+    from nanobot.observability.langfuse_tracing import lookup_turn_content
+
+    cached = lookup_turn_content(trace_id)
+    if cached is not None:
+        return cached
+    base = _base_url()
+    if base is None:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                f"{base}/api/public/traces/{trace_id}",
+                auth=_auth(),
+            )
+            response.raise_for_status()
+            data = response.json()
+        return _message_text(data.get("input")), _message_text(data.get("output"))
+    except Exception:
+        logger.exception("Langfuse trace lookup failed")
+        return None
+
+
 async def add_trace_to_queue(*, queue_id: str, trace_id: str) -> bool:
     return await _post(
         f"/api/public/annotation-queues/{queue_id}/items",
         {"objectId": trace_id, "objectType": "TRACE", "status": "PENDING"},
+    )
+
+
+async def create_dataset_item(
+    *,
+    dataset_name: str,
+    trace_id: str,
+    input_text: str,
+    expected_output: str,
+    metadata: dict[str, Any] | None = None,
+) -> bool:
+    return await _post(
+        "/api/public/dataset-items",
+        {
+            "datasetName": dataset_name,
+            "input": input_text,
+            "expectedOutput": expected_output,
+            "sourceTraceId": trace_id,
+            "metadata": metadata or {},
+        },
     )
 
 

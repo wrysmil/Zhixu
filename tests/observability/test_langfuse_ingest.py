@@ -85,6 +85,32 @@ async def test_add_trace_to_queue(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_dataset_item(monkeypatch) -> None:
+    FakeClient.calls = []
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    monkeypatch.setenv("LANGFUSE_BASE_URL", "http://lf")
+    monkeypatch.setattr(ingest.httpx, "AsyncClient", FakeClient)
+
+    ok = await ingest.create_dataset_item(
+        dataset_name="zhixu-evals",
+        trace_id="a" * 32,
+        input_text="问题",
+        expected_output="答案",
+    )
+
+    assert ok is True
+    assert FakeClient.calls[0]["url"] == "http://lf/api/public/dataset-items"
+    assert FakeClient.calls[0]["json"] == {
+        "datasetName": "zhixu-evals",
+        "input": "问题",
+        "expectedOutput": "答案",
+        "sourceTraceId": "a" * 32,
+        "metadata": {},
+    }
+
+
+@pytest.mark.asyncio
 async def test_resolve_queue_id(monkeypatch) -> None:
     FakeClient.calls = []
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")

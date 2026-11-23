@@ -171,6 +171,7 @@ _WEBUI_MUTATION_PATHS = {
     "sidebar.update": "/api/webui/sidebar-state/update",
     "feedback.submit": "/api/webui/feedback",
     "annotation.add": "/api/webui/annotation",
+    "dataset.add": "/api/webui/dataset-item",
     "workspace.pick_folder": "/api/workspaces/pick-folder",
     "recovery.continue": "/api/webui/recovery/continue",
     "recovery.dismiss": "/api/webui/recovery/dismiss",
@@ -566,6 +567,7 @@ class GatewayHTTPHandler:
             "/api/webui/sidebar-state/update",
             "/api/webui/feedback",
             "/api/webui/annotation",
+            "/api/webui/dataset-item",
             "/api/workspaces/pick-folder",
         }
 
@@ -1583,6 +1585,8 @@ class GatewayHTTPHandler:
             return await self._handle_webui_feedback(request)
         if got == "/api/webui/annotation":
             return await self._handle_webui_annotation(request)
+        if got == "/api/webui/dataset-item":
+            return await self._handle_webui_dataset_item(request)
         return None
 
     def _handle_commands(self, request: WsRequest) -> Response:
@@ -1890,6 +1894,31 @@ class GatewayHTTPHandler:
         if queue_id is None:
             return _http_error(503, "annotation queue unavailable")
         ok = await add_trace_to_queue(queue_id=queue_id, trace_id=trace_id)
+        return _http_json_response({"ok": ok})
+
+    async def _handle_webui_dataset_item(self, request: WsRequest) -> Response:
+        if not self.check_api_token(request):
+            return _http_error(401, "Unauthorized")
+        payload = _mutation_payload(request) or {}
+        trace_id = payload.get("trace_id")
+        if not isinstance(trace_id, str) or len(trace_id) != 32:
+            return _http_error(400, "invalid trace_id")
+        from nanobot.observability.langfuse_ingest import create_dataset_item, fetch_trace_io
+
+        trace_io = await fetch_trace_io(trace_id)
+        if trace_io is None:
+            return _http_error(502, "trace not available")
+        input_text = payload.get("input_text") or trace_io[0]
+        expected_output = payload.get("expected_output") or trace_io[1]
+        if not str(input_text).strip() or not str(expected_output).strip():
+            return _http_error(400, "input/output empty")
+        ok = await create_dataset_item(
+            dataset_name=os.environ.get("LANGFUSE_DATASET", "zhixu-evals"),
+            trace_id=trace_id,
+            input_text=str(input_text),
+            expected_output=str(expected_output),
+            metadata={"source": "zhixu"},
+        )
         return _http_json_response({"ok": ok})
 
     # -- Static file serving ------------------------------------------------
