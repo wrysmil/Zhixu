@@ -153,6 +153,16 @@ LANGFUSE_PUBLIC_KEY=... LANGFUSE_SECRET_KEY=... LANGFUSE_BASE_URL=http://127.0.0
 - v4 适配：旧 `/api/public/traces` 已弃用，知序改为在进程内缓存每轮问答内容
   （`nanobot/observability/langfuse_tracing.py`），「存入数据集」实测在 v4 下成功建条目。
 
+## 2026-11-23 追加：Prompt 注释（commit message + comment）
+
+- 版本注释：`scripts/langfuse_prompt_sync.py` 为 31 条 prompt 生成新版本（v2），带
+  `commitMessage`（如「注册知序提示词 zhixu/persona/mentor：导师型表现层人格」）与版本
+  `config`（`source` / `category` / `description` / `usedIn`），`production` 标签随新版本迁移。
+- 对象评论：`scripts/langfuse_prompt_comments.py` 经 v4 原生 MCP（`createComment`，
+  `objectType=PROMPT`）给每条 prompt 挂一条中文评论（用途 / 装配位置 / 来源 / 同步方式），
+  UI 上显示为 `Add comment 1`。
+- 校验：`--check` 复检 drift=0（内容与 config 均一致）。
+
 ## 已知边界
 
 - 只覆盖 OpenAI 兼容客户端路径；原生 SDK provider（如 Anthropic/Responses-only 分支）不产生该包装 trace。
