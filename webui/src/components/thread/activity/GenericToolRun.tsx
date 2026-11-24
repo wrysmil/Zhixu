@@ -45,7 +45,7 @@ export function GenericToolRun({ items }: { items: GenericToolRunItem[] }) {
 
   return (
     <ActivityStep
-      icon={failed ? undefined : model.icon}
+      icon={model.icon}
       kicker={model.kicker}
       active={model.status === "running"}
       tone={failed ? "error" : model.status === "done" ? "success" : "active"}

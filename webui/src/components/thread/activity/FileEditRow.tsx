@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle,
-  CheckCircle2,
+  FilePenLine,
   ChevronDown,
   ChevronRight,
   ChevronUp,
-  CircleDashed,
   ExternalLink,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -96,29 +94,10 @@ function FileEditRow({
   const action = fileEditAction(edit, editing, failed);
   const hasCountedDiff = !failed && !edit.binary && hasVisibleDiffStats(edit);
   const showDiff = canRenderDiff(edit, displayMode);
-  const statusIcon = failed ? (
-    <AlertCircle className="h-3 w-3" aria-hidden />
-  ) : editing ? (
-    <CircleDashed className="h-3 w-3 animate-spin" aria-hidden />
-  ) : (
-    <CheckCircle2 className="h-3 w-3" aria-hidden />
-  );
-
   return (
     <div className="min-w-0">
       <ActivityStep
-        marker={(
-          <span
-            className={cn(
-              "grid h-3.5 w-3.5 place-items-center rounded-full border bg-background transition-colors",
-              failed && "border-destructive/30 text-destructive/78",
-              editing && "border-muted-foreground/24 text-muted-foreground",
-              !failed && !editing && "border-emerald-500/28 text-emerald-500/78",
-            )}
-          >
-            {statusIcon}
-          </span>
-        )}
+        icon={FilePenLine}
         active={editing}
         kicker={/^zh/i.test(currentLocale()) ? "编辑文件" : "Edit"}
         tone={failed ? "error" : editing ? "active" : "success"}

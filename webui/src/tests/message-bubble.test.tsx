@@ -975,11 +975,8 @@ describe("MessageBubble", () => {
     const preview = within(line).getByText("Thinking…");
     expect(preview).toBeInTheDocument();
     expect(container.querySelector(".reasoning-sheen-stripe")).not.toBeInTheDocument();
-    expect(preview).toHaveClass("streaming-text-sheen");
-    expect(preview).toHaveAttribute(
-      "data-sheen-text",
-      "Thinking…",
-    );
+    expect(preview).not.toHaveClass("streaming-text-sheen");
+    expect(preview).not.toHaveAttribute("data-sheen-text");
     expect(screen.getByTestId("activity-step-detail")).toHaveTextContent(
       "Step 1: parse intent. Step 2: compute.",
     );

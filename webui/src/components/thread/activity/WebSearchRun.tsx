@@ -20,7 +20,7 @@ export function WebSearchRun({ run, turnActive }: { run: WebSearchRunModel; turn
   return (
     <>
       <ActivityStep
-        icon={failed ? undefined : Search}
+        icon={Search}
         kicker={/^zh/i.test(currentLocale()) ? "网络搜索" : "Web search"}
         active={active}
         tone={failed ? "error" : status === "done" ? "success" : "active"}

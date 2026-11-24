@@ -1302,7 +1302,7 @@ function CliRunRow({ run, active, app }: { run: CliRunSummary; active: boolean; 
   const args = compactActivityPath(redactShellCommand(formatCliArgs(run)));
   const failed = run.status === "error";
   const rowActive = active && run.status === "running";
-  const color = failed ? "#DC2626" : app?.brand_color || "#0891B2";
+  const color = app?.brand_color || "#0891B2";
   const logoUrls = useMemo(() => logoFallbackUrls(app?.logo_url), [app?.logo_url]);
   const { logoUrl, onLogoError, onLogoLoad } = useLogoFallback(logoUrls);
   const displayName = app?.display_name || titleFromPresetName(run.name);
@@ -1322,14 +1322,10 @@ function CliRunRow({ run, active, app }: { run: CliRunSummary; active: boolean; 
       marker={(
         <span
           data-testid={`activity-cli-logo-${run.name.toLowerCase()}`}
-          className={cn(
-            "grid h-4 w-4 shrink-0 place-items-center overflow-hidden rounded-mark border text-[6.5px] font-semibold text-white",
-            rowActive && "animate-pulse",
-          )}
+          className="grid h-4 w-4 shrink-0 place-items-center overflow-hidden rounded-mark border text-[6.5px] font-semibold text-white"
           style={{
             borderColor: alphaColor(color, 22),
             backgroundColor: logoUrl ? "hsl(var(--background))" : color,
-            boxShadow: rowActive ? `0 0 0 3px ${alphaColor(color, 9)}` : undefined,
           }}
           aria-hidden
         >
@@ -1381,7 +1377,7 @@ function McpRunGroup({
 function McpRunRow({ run, active, preset }: { run: McpRunSummary; active: boolean; preset?: McpPresetInfo }) {
   const failed = run.status === "error";
   const rowActive = active && run.status === "running";
-  const color = failed ? "#DC2626" : preset?.brand_color || "#6D5DF6";
+  const color = preset?.brand_color || "#6D5DF6";
   const logoUrls = useMemo(() => logoFallbackUrls(preset?.logo_url), [preset?.logo_url]);
   const { logoUrl, onLogoError, onLogoLoad } = useLogoFallback(logoUrls);
   const displayName = preset?.display_name || run.displayName;
@@ -1403,14 +1399,10 @@ function McpRunRow({ run, active, preset }: { run: McpRunSummary; active: boolea
       marker={(
         <span
           data-testid={`activity-mcp-logo-${run.presetName.toLowerCase()}`}
-          className={cn(
-            "grid h-4 w-4 shrink-0 place-items-center overflow-hidden rounded-mark border text-[6.5px] font-semibold text-white",
-            rowActive && "animate-pulse",
-          )}
+          className="grid h-4 w-4 shrink-0 place-items-center overflow-hidden rounded-mark border text-[6.5px] font-semibold text-white"
           style={{
             borderColor: alphaColor(color, 22),
             backgroundColor: logoUrl ? "hsl(var(--background))" : color,
-            boxShadow: rowActive ? `0 0 0 3px ${alphaColor(color, 9)}` : undefined,
           }}
           aria-hidden
         >

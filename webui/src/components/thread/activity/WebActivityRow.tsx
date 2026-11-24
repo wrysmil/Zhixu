@@ -26,7 +26,7 @@ export function WebActivityRow({
 }: WebActivityRowProps) {
   return (
     <ActivityStep
-      marker={<WebFavicon host={host} active={active} />}
+      marker={<WebFavicon host={host} />}
       kicker={kicker}
       active={active}
       tone={tone}
@@ -52,7 +52,7 @@ export function WebActivityRow({
   );
 }
 
-function WebFavicon({ host, active }: { host: string; active: boolean }) {
+function WebFavicon({ host }: { host: string }) {
   const candidates = useMemo(() => browserSafeFaviconUrls(host), [host]);
   const { logoUrl, onLogoError, onLogoLoad } = useLogoFallback(candidates);
 
@@ -64,7 +64,7 @@ function WebFavicon({ host, active }: { host: string; active: boolean }) {
     <img
       src={logoUrl}
       alt=""
-      className={`h-4 w-4 shrink-0 rounded-mark object-contain${active ? " animate-pulse" : ""}`}
+      className="h-4 w-4 shrink-0 rounded-mark object-contain"
       decoding="async"
       loading="lazy"
       referrerPolicy="no-referrer"

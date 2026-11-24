@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, CircleDashed } from "lucide-react";
+import { Check, Ellipsis } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
@@ -37,15 +37,12 @@ export function ReasoningRow({
   return (
     <ActivityStep
       marker={<ReasoningMarker streaming={streaming} />}
-      kicker={kicker}
-      active={streaming}
-      tone={streaming ? "active" : "success"}
-      label={expanded ? fallback : collapsedPreview}
+      label={expanded || !detail ? fallback : collapsedPreview}
+      ariaLabel={kicker}
       labelSingleLine
-      labelClassName="text-foreground/85"
-      contentClassName="overflow-hidden"
+      labelClassName="text-[13px] font-normal leading-6 text-muted-foreground"
       detail={detail}
-      detailClassName="max-h-none overflow-visible rounded-none border-0 border-l-2 border-primary/25 bg-transparent py-1 pl-3 pr-0"
+      detailClassName="mt-1 max-h-none overflow-visible rounded-none border-0 border-l border-border bg-transparent py-0 pl-3 pr-0 text-[13px] leading-[1.65] text-foreground/75 [overflow-wrap:anywhere]"
       detailExpanded={detail ? expanded : undefined}
       detailFollowBottom={streaming}
       onDetailExpandedChange={
@@ -78,10 +75,10 @@ function ReasoningMarker({ streaming }: { streaming: boolean }) {
 
   if (streaming) {
     return (
-      <CircleDashed
+      <Ellipsis
         data-testid="activity-reasoning-marker"
         data-state="thinking"
-        className="h-3.5 w-3.5 shrink-0 animate-spin text-sky-500 motion-reduce:animate-none dark:text-sky-400"
+        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
         strokeWidth={1.8}
         aria-hidden
       />
@@ -92,19 +89,12 @@ function ReasoningMarker({ streaming }: { streaming: boolean }) {
       data-testid="activity-reasoning-marker"
       data-state="done"
       className={cn(
-        "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border border-emerald-500/28 text-emerald-500/78",
-        "bg-emerald-500/[0.035] transition-[border-color,background-color,box-shadow,transform] duration-300 ease-out",
-        justCompleted
-          && "animate-in fade-in-0 zoom-in-75 shadow-[0_0_0_3px_rgba(16,185,129,0.10)] motion-reduce:animate-none",
+        "grid h-3.5 w-3.5 shrink-0 place-items-center text-muted-foreground",
+        justCompleted && "animate-in fade-in-0 duration-200 motion-reduce:animate-none",
       )}
       aria-hidden
     >
-      <Check
-        className={cn(
-          "h-2.5 w-2.5 stroke-[2.4]",
-          justCompleted && "animate-in fade-in-0 zoom-in-50 duration-300 motion-reduce:animate-none",
-        )}
-      />
+      <Check className="h-3.5 w-3.5" strokeWidth={1.8} />
     </span>
   );
 }

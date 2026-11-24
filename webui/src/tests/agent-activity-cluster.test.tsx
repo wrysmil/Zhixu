@@ -1388,13 +1388,11 @@ describe("AgentActivityCluster", () => {
       .toHaveTextContent("**Planning** a focused search for official sources");
     expect(screen.getByText("Thinking…")).toBeInTheDocument();
     expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
-    const thinkingKicker = screen.getByTestId("activity-kicker");
-    expect(thinkingKicker).toHaveTextContent("Reasoning");
-    expect(thinkingKicker).toHaveAttribute("data-tone", "active");
-    expect(thinkingKicker.className).toContain("bg-muted/55");
+    expect(screen.queryByTestId("activity-kicker")).not.toBeInTheDocument();
+    expect(screen.getByTestId("activity-step-details-toggle")).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("colors finished activity kickers green and failed ones red", () => {
+  it("exposes tool results separately from the tool name and keeps the disclosure icon-only", () => {
     const { rerender } = render(
       <AgentActivityCluster
         messages={[{
@@ -1412,7 +1410,8 @@ describe("AgentActivityCluster", () => {
 
     const doneKicker = screen.getByTestId("activity-kicker");
     expect(doneKicker).toHaveAttribute("data-tone", "success");
-    expect(doneKicker.className).toContain("text-emerald-700");
+    expect(screen.getByRole("img", { name: "Done", hidden: true })).toBeInTheDocument();
+    expect(screen.getByTestId("activity-step-details-toggle").textContent).toBe("");
 
     rerender(
       <AgentActivityCluster
@@ -1438,7 +1437,7 @@ describe("AgentActivityCluster", () => {
 
     const failedKicker = screen.getByTestId("activity-kicker");
     expect(failedKicker).toHaveAttribute("data-tone", "error");
-    expect(failedKicker.className).toContain("text-destructive");
+    expect(screen.getByRole("img", { name: "Failed", hidden: true })).toBeInTheDocument();
   });
 
   it("labels shell tool rows with a terminal kicker before the title", () => {
