@@ -34,6 +34,7 @@ import type { AgentProfile } from "@/lib/agents/types";
 import { isDefaultMainAgent } from "@/lib/agents/types";
 import { AGENT_CATEGORY_LABEL_KEY } from "@/lib/agents/i18n";
 import { notifySaved } from "@/lib/save-feedback";
+import "./agents-view.css";
 
 const ALL = "__all__";
 type ViewMode = "list" | "card" | "tree";
@@ -106,7 +107,6 @@ export function AgentsView() {
       .sort((a, b) => a.order - b.order)
       .map((category) => ({
         id: category.id,
-        color: category.color,
         count: counts.get(category.id) ?? 0,
       }));
   }, [visibleAgents, catalog]);
@@ -242,7 +242,7 @@ export function AgentsView() {
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("settings.agents.search", "搜索名称、ID 或描述…")}
             aria-label={t("settings.agents.search", "搜索名称或描述")}
-            className="h-10 rounded-xl border-border/70 bg-card pl-9 text-[13px] shadow-sm"
+            className="h-10 rounded-control border-border bg-card pl-9 text-[13px]"
           />
         </div>
 
@@ -250,8 +250,8 @@ export function AgentsView() {
         <SegmentedControl
           value={view}
           onChange={setView}
-          className="rounded-xl border border-border/50 bg-muted/50 p-1"
-          itemClassName="rounded-lg px-3 py-1.5 aria-pressed:shadow-sm"
+          className="agent-view-switcher rounded-control border border-border bg-muted/50"
+          itemClassName="relative z-10 rounded-compact px-2 py-2 aria-pressed:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-3"
           ariaLabel={t("settings.agents.viewMode", "视图模式")}
           options={[
             {
@@ -284,7 +284,7 @@ export function AgentsView() {
           ]}
         />
 
-        <Button type="button" size="sm" onClick={handleCreate} className="ml-auto h-10 gap-1.5 rounded-xl px-4 text-[13px] sm:ml-0">
+        <Button type="button" size="sm" onClick={handleCreate} className="ml-auto h-10 gap-1.5 px-4 text-[13px] sm:ml-0">
           <Plus className="h-3.5 w-3.5" aria-hidden />
           {t("settings.agents.create", "新建 Agent")}
         </Button>
@@ -301,7 +301,6 @@ export function AgentsView() {
               key={category.id}
               active={categoryFilter === category.id}
               onClick={() => setCategoryFilter(category.id)}
-              color={category.color}
             >
               {t(AGENT_CATEGORY_LABEL_KEY[category.id], category.id)}
               <span className="rounded-md bg-foreground/5 px-1.5 text-[11px] tabular-nums">{category.count}</span>
@@ -343,7 +342,7 @@ export function AgentsView() {
       {catalog && filtered.length > 0 ? (
         <>
           {view === "list" ? (
-            <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+            <div className="overflow-hidden rounded-panel border border-border bg-card">
               {filtered.map((agent) => (
                 <AgentRow
                   key={agent.id}
@@ -358,7 +357,7 @@ export function AgentsView() {
           ) : null}
 
           {view === "card" ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),1fr))] gap-4 [&>div]:rounded-2xl [&>div]:p-5">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,19rem),1fr))] gap-4">
               {filtered.map((agent) => (
                 <AgentCard
                   key={agent.id}
@@ -463,12 +462,10 @@ export function AgentsView() {
 function FilterChip({
   active,
   onClick,
-  color,
   children,
 }: {
   active: boolean;
   onClick: () => void;
-  color?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -478,17 +475,10 @@ function FilterChip({
       onClick={onClick}
       className={
         active
-          ? "inline-flex items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-2 text-[12px] font-medium text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          ? "inline-flex items-center gap-2 rounded-control border border-border bg-card px-3 py-2 text-[12px] font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           : "inline-flex cursor-pointer items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       }
     >
-      {color ? (
-        <span
-          aria-hidden
-          className="h-1.5 w-1.5 shrink-0 rounded-full"
-          style={{ backgroundColor: color }}
-        />
-      ) : null}
       {children}
     </button>
   );

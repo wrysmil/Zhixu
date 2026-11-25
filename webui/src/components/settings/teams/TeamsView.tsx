@@ -7,7 +7,7 @@
 // 冻结，所以卡片不给「编辑」——取消归档是唯一的回头路。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Archive, ArchiveRestore, ArrowUpRight, Copy, Crown, Plus, Search, Target, Users } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowUpRight, Copy, Crown, Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge, StatusBlock } from "@/components/settings/agents/shared";
 import { TeamEditorDialog, type TeamDraft } from "@/components/settings/teams/TeamEditorDialog";
-import { AgentAvatar, TeamMark, TeamStructureIcon, teamIllustration } from "./TeamVisuals";
+import { TeamMark } from "./TeamVisuals";
 import "./teams.css";
 import { useClient } from "@/providers/ClientProvider";
 import { listAgents } from "@/lib/agents/api";
@@ -34,7 +34,6 @@ import type { TeamDefinition } from "@/lib/teams/types";
 
 export function TeamsView() {
   const { t, i18n } = useTranslation();
-  // 引导面板文案沿用 MemoryGuide 的组件内 zh/en 惯例：这是策展文案，不进 i18n 资源。
   const zh = i18n.resolvedLanguage?.startsWith("zh");
   const { client, getToken } = useClient();
   const [teams, setTeams] = useState<TeamDefinition[]>([]);
@@ -183,7 +182,7 @@ export function TeamsView() {
   return (
     <div className="teams-surface space-y-4">
       <div className="teams-toolbar">
-        <div className="teams-heading"><TeamStructureIcon className="teams-heading-icon" /><div><p className="teams-toolbar-title">{t("settings.teams.myTeams", "我的团队")}<span className="teams-count">{visible.length.toString().padStart(2, "0")}</span></p></div></div>
+        <p className="teams-toolbar-title">{t("settings.teams.myTeams", "我的团队")}<span className="teams-count">{visible.length.toString().padStart(2, "0")}</span></p>
         <div className="assistant-toolbar-search">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input
@@ -221,40 +220,43 @@ export function TeamsView() {
 
       {!loading && teams.length === 0 && !loadError ? (
         <div className="teams-empty">
-          <div className="teams-empty-copy">
-            <p className="teams-kicker">{t("settings.teams.emptyEyebrow", "Better, together")}</p>
-            <h2 className="teams-empty-title">{t("settings.teams.emptyTitle", "让各有所长的 Agent，成为一支团队。")}</h2>
-            <p className="teams-empty-description">{t("settings.teams.emptyDescription", "选一位队长协调任务，邀请成员发挥专长。从一个目标开始，一起完成更大的事。")}</p>
-            <Button className="mt-6" type="button" disabled={busy} onClick={() => setEditing({ team: null })}>{t("settings.teams.buildFirst", "组建第一支团队")}<ArrowUpRight className="ml-2 h-4 w-4" aria-hidden="true" /></Button>
-            <p className="teams-empty-note">{t("settings.teams.emptyHint", "先创建 Agent 档案，再组建团队")}</p>
-          </div>
-          <img className="teams-empty-art" src={teamIllustration} alt={t("settings.teams.illustrationAlt", "一位队长与研究、编码、检查 Agent 组成的小队")} width="1536" height="1024" />
+          <h2 className="teams-empty-title">{zh ? "还没有团队" : "No teams yet"}</h2>
+          <p className="teams-empty-note">{t("settings.teams.emptyHint", "先创建 Agent 档案，再组建团队")}</p>
         </div>
       ) : null}
 
       <ul className="team-card-list">
         {filtered.map((team) => (
           <li key={team.id} className="team-card">
-            <div className="flex items-start gap-3">
-              <TeamMark id={team.id} name={team.name} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[15px] font-semibold">{team.name}</p>
-                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{team.description || t("settings.teams.noDescription", "为共同的目标，各展所长。")}</p>
-                <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground"><Crown className="h-3 w-3" aria-hidden="true" />
-                  {t("settings.teams.leaderLine", "Leader：{{name}}", {
-                    name: nameById.get(team.leaderAgentId) ?? team.leaderAgentId,
-                  })}
+            <div className="team-card-content">
+              <div className="flex min-w-0 items-start gap-3">
+                <TeamMark id={team.id} name={team.name} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <h2 className="min-w-0 break-words text-[15px] font-semibold">{team.name}</h2>
+                    <Badge tone="muted">v{team.revision}</Badge>
+                    {team.archived ? <Badge tone="warn">{t("settings.teams.archived", "已归档")}</Badge> : null}
+                  </div>
+                  {team.description ? <p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-muted-foreground">{team.description}</p> : null}
+                </div>
+              </div>
+              <div className="team-card-roster">
+                <p className="flex items-baseline gap-1.5 text-xs font-medium text-foreground">
+                  <Crown className="h-3 w-3 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
+                  <span className="min-w-0 break-words">
+                    {t("settings.teams.leaderLine", "Leader：{{name}}", {
+                      name: nameById.get(team.leaderAgentId) ?? team.leaderAgentId,
+                    })}
+                  </span>
                 </p>
+                {team.members.length > 0 ? (
+                  <dl className="team-card-members">
+                    <dt>{t("settings.teams.members", "成员")}</dt>
+                    <dd>{team.members.map((member) => nameById.get(member.agentId) ?? member.agentId).join(" / ")}</dd>
+                  </dl>
+                ) : null}
+                <p className="text-xs text-muted-foreground">{t("settings.teams.concurrency", "最多并行 {{count}} 项", { count: team.limits.maxConcurrency })}</p>
               </div>
-              <div className="flex flex-col items-end gap-1">
-                <Badge tone="muted">v{team.revision}</Badge>
-                {team.archived ? <Badge tone="warn">{t("settings.teams.archived", "已归档")}</Badge> : null}
-              </div>
-            </div>
-            <div className="team-card-members">
-              <div className="flex pr-2" aria-hidden="true">{team.members.slice(0, 5).map((member) => <AgentAvatar key={member.memberId} id={member.agentId} name={nameById.get(member.agentId) ?? member.agentId} />)}</div>
-              <p className="min-w-0 flex-1 truncate pl-1 text-xs">{team.members.map((member) => nameById.get(member.agentId) ?? member.agentId).join(" / ")}</p>
-              <span className="shrink-0 text-[10px] text-muted-foreground">{t("settings.teams.concurrency", "最多并行 {{count}} 项", { count: team.limits.maxConcurrency })}</span>
             </div>
             <div className="team-card-actions">
               {/* 归档态内容冻结（服务端会拒绝保存），所以卡片只留复制与取消归档两条出路。 */}
@@ -280,44 +282,6 @@ export function TeamsView() {
           </li>
         ))}
       </ul>
-
-      {/* 有团队时的引导面板：填补列表下方的空白，讲清队长/成员分工与归档语义。 */}
-      {!loading && teams.length > 0 ? (
-        <aside className="teams-guide">
-          <div className="teams-guide-copy">
-            <p className="teams-kicker">{zh ? "团队怎么运作" : "How teams work"}</p>
-            <h2 className="teams-guide-title">{zh ? "一个目标，一次干净的分工。" : "One goal, one clean handoff."}</h2>
-            <p className="teams-guide-body">
-              {zh
-                ? "队长把你的目标拆成任务分给成员，结果由队长汇总交回。归档只是暂停新运行，随时可以取消归档继续。"
-                : "The Leader splits your goal into tasks and hands them out, then reports back with the result. Archiving only pauses new runs — unarchive anytime to pick up where you left off."}
-            </p>
-            <dl className="teams-guide-points">
-              <div className="flex items-start gap-2.5">
-                <Target className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--team-accent)" }} aria-hidden />
-                <div>
-                  <dt>{zh ? "队长拆解并分派" : "The Leader splits and assigns"}</dt>
-                  <dd>{zh ? "你只描述目标，谁做什么由队长安排。" : "Describe the goal; the Leader decides who does what."}</dd>
-                </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <Users className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--team-accent)" }} aria-hidden />
-                <div>
-                  <dt>{zh ? "成员按职责执行" : "Members work their role"}</dt>
-                  <dd>{zh ? "职责只在本团队生效，不会改动 Agent 档案。" : "Roles apply to this team only and never change the Agent profile."}</dd>
-                </div>
-              </div>
-            </dl>
-          </div>
-          <img
-            src={teamIllustration}
-            alt=""
-            aria-hidden="true"
-            loading="lazy"
-            className="teams-guide-art"
-          />
-        </aside>
-      ) : null}
 
       {!loading && teams.length > 0 && visible.length === 0 ? (
         <p className="text-[12px] text-muted-foreground">{t("settings.teams.allArchived", "所有团队都已归档，打开「显示归档」就能看到它们。")}</p>

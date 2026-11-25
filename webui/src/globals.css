@@ -18,7 +18,7 @@ html :is(.teams-surface, .team-editor) {
   --team-accent: hsl(var(--accent-foreground));
 }
 
-html :is(.teams-heading-icon, .teams-empty, .teams-guide, .team-editor-head, .team-editor-footer) {
+html :is(.teams-empty, .team-editor-head, .team-editor-footer) {
   background: hsl(var(--card));
 }
 

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Brain, FolderTree, Sparkles, Star } from "lucide-react";
+import { Star } from "lucide-react";
 
 import { RowMenu } from "@/components/settings/agents/AgentRow";
 import { AgentGlyph } from "@/components/ui/agent-glyph";
@@ -11,26 +11,10 @@ import {
   type ToolDescriptor,
 } from "@/lib/agents/types";
 import { AGENT_CATEGORY_LABEL_KEY } from "@/lib/agents/i18n";
-import { breakdown, describeCapability, describeSubAgents } from "@/lib/agents/summary";
 import { cn } from "@/lib/utils";
-
-function Stat({ icon, value }: { icon: React.ReactNode; value: string }) {
-  return (
-    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-      <span aria-hidden className="text-muted-foreground">
-        {icon}
-      </span>
-      <span className="truncate">{value}</span>
-    </span>
-  );
-}
 
 export function AgentCard({
   agent,
-  agentIds,
-  tools,
-  skills,
-  models,
   dimmed,
   onEdit,
   onDuplicate,
@@ -38,6 +22,8 @@ export function AgentCard({
   onDelete,
 }: {
   agent: AgentProfile;
+  // 统计源数据保留在公开 props 里，卡片本身只呈现身份与职责，
+  // 工具/技能/模型的细节留给编辑弹窗，避免每张卡重复同一组数字。
   agentIds: string[];
   tools: ToolDescriptor[];
   skills: SkillDescriptor[];
@@ -50,25 +36,9 @@ export function AgentCard({
 }) {
   const { t } = useTranslation();
 
-  const toolIds = tools.map((tool) => tool.name);
-  const lockedToolIds = tools.filter((tool) => tool.locked).map((tool) => tool.name);
-  const skillIds = skills.map((skill) => skill.name);
-  const selectableAgentIds = agentIds.filter((id) => id !== agent.id);
-
-  const toolText = describeCapability(
-    breakdown(agent.tools, toolIds, lockedToolIds),
-    t("settings.agents.noun.tools", "工具"),
-    t,
-  );
-  const skillText = describeCapability(
-    breakdown(agent.skills, skillIds),
-    t("settings.agents.noun.skills", "技能"),
-    t,
-  );
-  const subAgentText = describeSubAgents(breakdown(agent.subAgents, selectableAgentIds), t);
-  const modelLabel = models.find((model) => model.id === agent.modelId)?.label ?? null;
   const categoryKey = agent.categoryId ? AGENT_CATEGORY_LABEL_KEY[agent.categoryId] : null;
   const isDefault = isDefaultMainAgent(agent);
+  const hasSecondaryMeta = agent.type === "system" || categoryKey !== null;
 
   return (
     <div
@@ -76,72 +46,56 @@ export function AgentCard({
       // 不必关心当前是卡片还是列表视图。
       role="group"
       className={cn(
-        "group flex flex-col rounded-panel border border-border bg-card p-4 transition-[border-color,box-shadow] duration-200 ease-out",
-        "hover:border-primary/30 hover:shadow-sm",
-        isDefault && "border-amber-300/70 bg-amber-50/45 ring-1 ring-amber-300/50 hover:border-amber-400/70 dark:border-amber-700/40 dark:bg-amber-950/15 dark:ring-amber-700/40",
+        "group flex flex-col rounded-panel border border-border bg-card p-4 transition-colors duration-200 ease-out",
+        "hover:border-primary/30",
+        isDefault && "border-primary/25 bg-primary/[0.035]",
         dimmed && "opacity-60",
       )}
     >
       <div className="flex items-start gap-3">
         <span
           aria-hidden
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-[22px]"
-          style={{ backgroundColor: `${agent.color}1a` }}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-accent text-[20px]"
+          style={isDefault && !agent.customized ? undefined : { backgroundColor: `${agent.color}1a` }}
         >
-          <AgentGlyph icon={agent.icon} size={22} />
+          <AgentGlyph icon={agent.icon} size={20} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <button
-                type="button"
-                onClick={onEdit}
-                className="block w-full cursor-pointer truncate text-left text-[15px] font-semibold text-foreground transition-colors hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {agent.name}
-              </button>
-              <code className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">
-                {agent.id}
-              </code>
-            </div>
+            <button
+              type="button"
+              onClick={onEdit}
+              className="block min-w-0 flex-1 cursor-pointer truncate text-left text-[15px] font-semibold text-foreground transition-colors hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {agent.name}
+            </button>
             <RowMenu
               menu={{ onEdit, onDuplicate, onToggleHidden, onDelete, labelHidden: agent.hidden }}
             />
           </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-medium text-muted-foreground">
+            {isDefault ? (
+              <span className="inline-flex items-center gap-1 text-accent-foreground">
+                <Star className="h-3 w-3 fill-current" aria-hidden />
+                {t("settings.agents.basics.defaultMainAgent", "Default agent")}
+              </span>
+            ) : null}
+            {isDefault && hasSecondaryMeta ? (
+              <span aria-hidden className="text-border">·</span>
+            ) : null}
+            {agent.type === "system" ? (
+              <span>{t("settings.agents.basics.systemPreset", "系统预设")}</span>
+            ) : null}
+            {agent.type === "system" && categoryKey ? (
+              <span aria-hidden className="text-border">·</span>
+            ) : null}
+            {categoryKey ? <span>{t(categoryKey, agent.categoryId ?? "")}</span> : null}
+          </div>
         </div>
       </div>
 
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-medium text-muted-foreground">
-        {isDefault ? (
-          <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300">
-            <Star className="h-3 w-3 fill-current" aria-hidden />
-            {t("settings.agents.basics.defaultMainAgent", "Default agent")}
-          </span>
-        ) : null}
-        {isDefault && (agent.type === "system" || categoryKey) ? (
-          <span aria-hidden className="text-border">·</span>
-        ) : null}
-        {agent.type === "system" ? (
-          <span>{t("settings.agents.basics.systemPreset", "系统预设")}</span>
-        ) : null}
-        {agent.type === "system" && categoryKey ? (
-          <span aria-hidden className="text-border">·</span>
-        ) : null}
-        {categoryKey ? <span>{t(categoryKey, agent.categoryId ?? "")}</span> : null}
-      </div>
-
-      <p className="mt-2 line-clamp-2 min-h-[2.25rem] text-[12px] leading-relaxed text-muted-foreground">
+      <p className="mt-3 line-clamp-2 min-h-[2.25rem] text-[12px] leading-relaxed text-muted-foreground">
         {agent.description || t("settings.agents.card.noDescription", "未填写描述")}
-      </p>
-
-      <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/50 pt-2.5">
-        <Stat icon={<Sparkles className="h-3 w-3" />} value={toolText} />
-        <Stat icon={<Brain className="h-3 w-3" />} value={skillText} />
-        <Stat icon={<FolderTree className="h-3 w-3" />} value={subAgentText} />
-      </div>
-
-      <p className="mt-1.5 truncate text-[11px] text-muted-foreground">
-        {modelLabel ?? t("settings.agents.card.modelAuto", "跟随全局模型")}
       </p>
     </div>
   );

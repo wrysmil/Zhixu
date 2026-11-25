@@ -1,0 +1,35 @@
+.agent-view-switcher {
+  --switcher-padding: 0.1875rem;
+  --switcher-segment: calc((100% - 2 * var(--switcher-padding)) / 3);
+  --switcher-index: 0;
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  padding: var(--switcher-padding);
+}
+
+.agent-view-switcher:has(> button:nth-child(2)[aria-pressed="true"]) {
+  --switcher-index: 1;
+}
+
+.agent-view-switcher:has(> button:nth-child(3)[aria-pressed="true"]) {
+  --switcher-index: 2;
+}
+
+.agent-view-switcher::before {
+  position: absolute;
+  inset-block: var(--switcher-padding);
+  inset-inline-start: calc(var(--switcher-padding) + var(--switcher-segment) * var(--switcher-index));
+  width: var(--switcher-segment);
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-compact);
+  background: hsl(var(--card));
+  pointer-events: none;
+  content: "";
+  transition: inset-inline-start 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-view-switcher::before { transition: none; }
+}

@@ -35,11 +35,9 @@ function identityHash(value: string) {
   return Array.from(value).reduce((hash, letter) => ((hash * 31) + (letter.codePointAt(0) ?? 0)) >>> 0, 7);
 }
 
-export function TeamMark({ id, name, className }: { id: string; name: string; className?: string }) {
-  const variant = identityHash(id) % 4;
+export function TeamMark({ name, className }: { id: string; name: string; className?: string }) {
   return (
-    <span className={cn("team-mark", `team-mark--${variant}`, className)} aria-hidden="true">
-      <TeamStructureIcon className="team-mark-symbol" />
+    <span className={cn("team-mark", className)} aria-hidden="true">
       <span>{Array.from(name.trim())[0]?.toLocaleUpperCase() || "T"}</span>
     </span>
   );

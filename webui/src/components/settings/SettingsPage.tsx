@@ -39,26 +39,22 @@ import { cn } from "@/lib/utils";
 
 /**
  * Standalone capability pages get the same compact header as the assistant
- * pages: kicker-free title, one line of purpose, and a small mascot. Copy is
- * kept local to the two primary locales so the decorative line never falls back
- * to an English paragraph in Chinese builds.
+ * pages: a title and one line of purpose, with optional artwork.
  */
 const STANDALONE_PAGE_COPY: Partial<
   Record<
     string,
-    { zh: string; en: string; illustration: string; size: "compact" | "default" }
+    { zh: string; en: string; illustration?: string; size: "compact" | "default" }
   >
 > = {
   agents: {
     zh: "为不同的工作定义专属助手：提示词、模型、工具与技能都归它们自己。",
     en: "Define focused assistants, each with its own prompt, model, tools and skills.",
-    illustration: "/illustrations/zhixu-mascot.webp",
     size: "compact",
   },
   teams: {
     zh: "把多位 Agent 编成一支队伍，由队长拆解目标并分派任务。",
     en: "Turn several agents into a team: the leader splits the goal and hands out the work.",
-    illustration: "/illustrations/zhixu-team.webp",
     size: "default",
   },
   apps: {
@@ -654,8 +650,7 @@ export function SettingsPage({
       <div
         className={cn(
           "min-w-0 flex-1 bg-settings-canvas [scrollbar-gutter:stable]",
-          activeSection === "channels" ||
-            activeSection === "agents"
+          activeSection === "channels"
             ? "overflow-y-auto xl:overflow-hidden"
             : "overflow-y-auto",
         )}
@@ -673,8 +668,7 @@ export function SettingsPage({
               : showSidebar
                 ? "max-w-[920px]"
                 : "max-w-[1120px]",
-            (activeSection === "channels" ||
-              activeSection === "agents") &&
+            activeSection === "channels" &&
               "flex min-h-full flex-col xl:h-full xl:min-h-0",
             hostChromeInset && "lg:pt-2",
           )}
@@ -702,7 +696,7 @@ export function SettingsPage({
                     </p>
                   ) : null}
                 </div>
-                {standaloneCopy ? (
+                {standaloneCopy?.illustration ? (
                   <div
                     className="assistant-page-illustration"
                     data-size={standaloneCopy.size}
@@ -738,8 +732,7 @@ export function SettingsPage({
             <div
               className={cn(
                 "space-y-5",
-                (activeSection === "channels" ||
-                  activeSection === "agents") &&
+                activeSection === "channels" &&
                   "flex min-h-0 flex-1 flex-col xl:overflow-hidden",
               )}
             >

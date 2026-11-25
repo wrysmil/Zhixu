@@ -43,7 +43,7 @@ function TreeNode({
       <div
         className={cn(
           "flex items-center gap-2.5 rounded-control px-2 py-1.5 transition-colors hover:bg-muted/50",
-          isDefault && "bg-amber-50/50 ring-1 ring-amber-300/50 dark:bg-amber-950/15 dark:ring-amber-700/40",
+          isDefault && "bg-primary/[0.035] ring-1 ring-primary/25",
         )}
         style={{ paddingLeft: `${depth * 1.5 + 0.5}rem` }}
       >
@@ -54,8 +54,8 @@ function TreeNode({
         ) : null}
         <span
           aria-hidden
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[15px]"
-          style={{ backgroundColor: `${agent.color}1f` }}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent text-[15px]"
+          style={isDefault && !agent.customized ? undefined : { backgroundColor: `${agent.color}1f` }}
         >
           <AgentGlyph icon={agent.icon} size={15} />
         </span>

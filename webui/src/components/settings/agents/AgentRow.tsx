@@ -103,7 +103,7 @@ export function AgentRow({
       >
         <span
           aria-hidden
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[20px] ring-1 ring-inset ring-foreground/5"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control text-[20px]"
           style={{ backgroundColor: `${agent.color}1a` }}
         >
           <AgentGlyph icon={agent.icon} size={20} />

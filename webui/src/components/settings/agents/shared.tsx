@@ -146,7 +146,7 @@ export function Badge({ tone = "neutral", children }: { tone?: BadgeTone; childr
 export function DefaultMainAgentBadge() {
   const { t } = useTranslation();
   return (
-    <Badge tone="warn">
+    <Badge tone="info">
       <Star className="h-3 w-3 fill-current" aria-hidden />
       {t("settings.agents.basics.defaultMainAgent", "Default agent")}
     </Badge>
